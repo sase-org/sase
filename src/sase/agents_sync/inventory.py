@@ -45,6 +45,7 @@ from sase.core.agent_identity_facade import (
     globalize_agent_name,
     parse_agent_family_name,
 )
+from sase.core.dismissed_agents_facade import load_dismissed_bundle_summaries
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     query_agent_artifact_index,
@@ -287,8 +288,6 @@ def _dismissed_records(
     target: ProjectTarget,
 ) -> tuple[tuple[dict[str, Any], str], ...]:
     try:
-        from sase.ace.dismissed_agents import load_dismissed_bundle_summaries
-
         summaries = load_dismissed_bundle_summaries(
             project_name=target.project_key,
             limit=None,

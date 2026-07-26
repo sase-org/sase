@@ -318,11 +318,11 @@ def _record_dismissal(cl_name: str | None, raw_suffix: str) -> None:
     failure — the kill itself already happened.
     """
     try:
-        from sase.ace.dismissed_agents import (
+        from sase.core.agent_types import AgentType
+        from sase.core.dismissed_agents_facade import (
             load_dismissed_agents,
-            save_dismissed_agents,
+            persist_dismissed_agents as save_dismissed_agents,
         )
-        from sase.ace.tui.models.agent import AgentType
 
         identity = (AgentType.RUNNING, cl_name or "unknown", raw_suffix)
         dismissed = load_dismissed_agents()

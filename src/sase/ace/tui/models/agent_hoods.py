@@ -53,6 +53,20 @@ def agent_owns_lane(agent: Agent) -> bool:
     return agent_name_key(agent) is not None
 
 
+def _suppressed_family_root_member_key(agent: Agent) -> str | None:
+    """Return the concrete member name hidden behind a family lane root."""
+    if not agent.is_family_root_entry:
+        return None
+    lane_key = agent_name_key(agent)
+    member_name = agent.presented_identity_name
+    if not member_name:
+        return None
+    member_key = member_name.casefold()
+    if member_key == lane_key:
+        return None
+    return member_key
+
+
 def is_agent_descendant(name: str | None, ancestor: str | None) -> bool:
     """Return True when ``name`` follows ``ancestor`` at a name boundary."""
     if not name or not ancestor:
@@ -185,9 +199,15 @@ class AgentNeighborIndex:
         descendant_keys_by_row: dict[int, tuple[int, ...]] = {}
         descendant_count_by_row: dict[int, int] = {}
         for row_key, name in name_by_key.items():
+            suppressed_name = _suppressed_family_root_member_key(
+                row_by_key[row_key].agent
+            )
             all_ranges = _descendant_ranges(all_names, name)
             descendant_count_by_row[row_key] = sum(
-                end - start for start, end in all_ranges
+                1
+                for start, end in all_ranges
+                for descendant_name in all_names[start:end]
+                if descendant_name != suppressed_name
             )
 
             renderable_ranges = _descendant_ranges(renderable_names, name)
@@ -195,6 +215,7 @@ class AgentNeighborIndex:
                 record
                 for start, end in renderable_ranges
                 for record in renderable_name_records[start:end]
+                if record[0] != suppressed_name
             )
             descendant_keys = tuple(
                 target_key for _name, target_key in descendant_records

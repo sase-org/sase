@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from .tui.models.agent import AgentType
+from sase.core.agent_types import AgentType
 
 
 def load_dismissed_agents(
@@ -18,8 +16,6 @@ def load_dismissed_agents(
     Returns:
         Set of (AgentType, cl_name, raw_suffix) tuples.
     """
-    from .tui.models.agent import AgentType
-
     if not dismissed_agents_file.exists():
         return set()
 

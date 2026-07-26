@@ -18,6 +18,7 @@ from sase.core.agent_identity_facade import (
     localize_imported_agent_name,
     parse_agent_family_name,
 )
+from sase.core.dismissed_agents_facade import validate_dismissed_agent_bundle
 from sase.core.paths import sase_projects_dir
 
 if TYPE_CHECKING:
@@ -237,9 +238,7 @@ def bundle_payload(
         elif kind == "retry" and isinstance(target_id, str):
             bundle["retry_of_timestamp"] = target_id
 
-    from sase.ace.tui.models.agent import Agent
-
-    Agent.from_bundle_dict(dict(bundle))
+    validate_dismissed_agent_bundle(bundle)
     return bundle
 
 

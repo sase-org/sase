@@ -7,7 +7,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from sase.ace.tui.models.agent import AgentType
 from sase.bead.claims import (
     BeadClaimMarker,
     clear_bead_claim_marker,
@@ -15,6 +14,11 @@ from sase.bead.claims import (
 )
 from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
+)
+from sase.core.agent_types import AgentType
+from sase.core.dismissed_agents_facade import (
+    load_dismissed_agents,
+    persist_dismissed_agents as save_dismissed_agents,
 )
 
 _NON_HOLD_FAILURE_OUTCOMES = {
@@ -82,11 +86,6 @@ class RunnerShutdownDeps:
 def auto_dismiss_completed_agent(cl_name: str, artifacts_timestamp: str) -> None:
     """Persist auto-dismiss identities for a completed background run."""
     try:
-        from sase.ace.dismissed_agents import (
-            load_dismissed_agents,
-            save_dismissed_agents,
-        )
-
         dismissed = load_dismissed_agents()
         # Dismiss both RUNNING and WORKFLOW identities -- dedup may pick
         # either depending on whether workflow_state.json exists.

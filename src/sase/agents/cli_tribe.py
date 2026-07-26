@@ -6,7 +6,6 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from sase.ace.agent_tribes import (
     InvalidTribeError,
@@ -18,9 +17,7 @@ from sase.ace.agent_tribes import (
 )
 from sase.agent.names import find_named_agent
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
-
-if TYPE_CHECKING:
-    from sase.ace.tui.models.agent import AgentType
+from sase.core.agent_types import AgentType
 
 
 def _read_json(path: Path) -> dict[str, object]:
@@ -44,8 +41,6 @@ def _resolve_identity_by_name(
     Mirrors the identity scheme used by the rest of the Agents tab.
     Returns ``None`` when no agent is found.
     """
-    from sase.ace.tui.models.agent import AgentType
-
     agent = find_named_agent(name)
     if agent is None:
         return None

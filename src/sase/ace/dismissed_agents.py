@@ -9,6 +9,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.core.agent_types import AgentType
 from sase.core.paths import sase_home, sase_subdir
 
 from .dismissed_agents_bundles import (
@@ -60,7 +61,7 @@ from .dismissed_agents_state import (
 )
 
 if TYPE_CHECKING:
-    from .tui.models.agent import Agent, AgentType
+    from .tui.models.agent import Agent
 
 _DISMISSED_AGENTS_FILE: Path | None = None
 _DISMISSED_BUNDLES_DIR: Path | None = None
@@ -161,10 +162,8 @@ def dismissed_bundle_identities_snapshot() -> set[tuple[AgentType, str, str | No
             # Do not retain an old snapshot after its signature disappears.
             identities: set[tuple[AgentType, str, str | None]] = set()
         else:
-            from .tui.models.agent import AgentType as RuntimeAgentType
-
             identities = {
-                (RuntimeAgentType(agent_type), cl_name, raw_suffix)
+                (AgentType(agent_type), cl_name, raw_suffix)
                 for agent_type, cl_name, raw_suffix in queried
             }
         _dismissed_bundle_identities_snapshot_cache = frozenset(identities)

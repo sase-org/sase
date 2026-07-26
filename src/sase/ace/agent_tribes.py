@@ -13,7 +13,6 @@ import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from sase.core.agent_tribe import (
     InvalidTribeError,
@@ -22,9 +21,7 @@ from sase.core.agent_tribe import (
     load_raw_agent_tribes,
     validate_tribe_name,
 )
-
-if TYPE_CHECKING:
-    from .tui.models.agent import AgentType
+from sase.core.agent_types import AgentType
 
 _AGENT_TRIBES_FILE: Path | None = None
 _LEGACY_AGENT_TAGS_FILE: Path | None = None
@@ -43,8 +40,6 @@ def _legacy_agent_tags_file() -> Path:
 
 def load_agent_tribes() -> dict[tuple[AgentType, str, str | None], str]:
     """Load canonical assignments or importable legacy assignments."""
-    from .tui.models.agent import AgentType
-
     result: dict[tuple[AgentType, str, str | None], str] = {}
     for (agent_type_raw, cl_name, raw_suffix), tribe in load_raw_agent_tribes(
         _agent_tribes_file(), legacy_path=_legacy_agent_tags_file()

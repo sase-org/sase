@@ -301,6 +301,29 @@ def test_index_tracks_visible_descendants_for_dotless_and_dotted_agents() -> Non
     assert index.descendant_count(1) == 1
 
 
+def test_index_suppresses_family_root_member_duplicate_from_descendants() -> None:
+    root = _family_root("fam", role="0")
+    root.cl_name = "family-root"
+    root.raw_suffix = "root"
+    main = _family_member("fam", role="0", parent=root)
+    main.cl_name = "main"
+    main.raw_suffix = "main"
+    coder = _family_member("fam", role="code", parent=root)
+    coder.cl_name = "coder"
+    coder.raw_suffix = "coder"
+
+    rows = [
+        AgentNeighborRow(0, 0, root),
+        AgentNeighborRow(1, 0, main),
+        AgentNeighborRow(2, 0, coder),
+    ]
+
+    index = AgentNeighborIndex.from_visible_rows(rows)
+
+    assert index.descendants_for(0) == (2,)
+    assert index.descendant_count(0) == 1
+
+
 def test_index_tracks_visible_ancestors_nearest_first() -> None:
     rows = [
         AgentNeighborRow(0, 0, _agent("0aa")),

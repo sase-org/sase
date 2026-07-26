@@ -15,6 +15,10 @@ from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_import_history import read_json
 from sase.agents_sync.v2_import_rendering import json_bytes
 from sase.agents_sync.v2_io import content_digest, validate_relative_path
+from sase.core.dismissed_agents_facade import (
+    dismissed_agent_groups_dir as _dismissed_agent_groups_dir,
+    dismissed_bundles_dir as _dismissed_bundles_dir,
+)
 from sase.core.paths import sase_home, sase_projects_dir
 
 JOURNAL_SCHEMA_VERSION = 2
@@ -139,15 +143,11 @@ def destination_path(target: ProjectTarget, row: Mapping[str, str]) -> Path:
 
 
 def dismissed_bundles_dir() -> Path:
-    from sase.ace import dismissed_agents
-
-    return dismissed_agents.dismissed_bundles_dir()
+    return _dismissed_bundles_dir()
 
 
 def dismissed_groups_dir() -> Path:
-    from sase.ace import dismissed_agents
-
-    return dismissed_agents.dismissed_agent_groups_dir()
+    return _dismissed_agent_groups_dir()
 
 
 @contextmanager

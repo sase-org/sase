@@ -204,7 +204,7 @@ def detect_write_and_persist_review_agent_meta(
     )
 
     from sase.ace.agent_tribes import update_agent_tribe
-    from sase.ace.tui.models.agent import AgentType
+    from sase.core.agent_types import AgentType
 
     identity_suffix = raw_suffix
     if identity_suffix is None:

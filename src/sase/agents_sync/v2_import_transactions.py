@@ -42,6 +42,14 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
+from sase.core.agent_types import AgentType
+from sase.core.dismissed_agents_facade import (
+    archive_index_exists,
+    load_dismissed_agents,
+    persist_dismissed_agents as save_dismissed_agents,
+    rebuild_dismissed_bundle_index,
+    upsert_bundle_summary,
+)
 from sase.core.paths import sase_home, sase_projects_dir
 
 if TYPE_CHECKING:
@@ -296,11 +304,6 @@ def _record_imported_dismissed_agents(journal: dict[str, Any]) -> None:
         sync_dismissed_agent_artifact_index()
         return
 
-    from sase.ace.dismissed_agents import (
-        load_dismissed_agents,
-        save_dismissed_agents,
-    )
-
     dismissed = load_dismissed_agents()
     added = identities - dismissed
     if added:
@@ -375,12 +378,6 @@ def _update_dismissed_bundle_index(
     journal: dict[str, Any],
 ) -> None:
     """Incrementally index imported bundles, rebuilding only as a fallback."""
-
-    from sase.ace.dismissed_agents import rebuild_dismissed_bundle_index
-    from sase.ace.dismissed_bundle_index import (
-        archive_index_exists,
-        upsert_bundle_summary,
-    )
 
     root = dismissed_bundles_dir()
     bundle_rows = [

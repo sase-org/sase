@@ -3,12 +3,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
-
-class AgentType(Enum):
-    """Types of agents that can be tracked."""
-
-    RUNNING = "run"  # Manual sase run commands (RUNNING field)
-    WORKFLOW = "workflow"  # Multi-step YAML workflows
+from sase.core.agent_types import AgentType
 
 
 class AgentChildLinkage(Enum):
@@ -25,3 +20,6 @@ class LinkedRepoMetadata:
 
     name: str
     workspace_dir: str
+
+
+__all__ = ["AgentChildLinkage", "AgentType", "LinkedRepoMetadata"]
