@@ -13,9 +13,11 @@ from sase.bead.xprompts import (
     resolve_land_epic_xprompt,
     resolve_work_phase_xprompt,
 )
+from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.loader import get_all_prompts
 from sase.xprompt.tags import XPromptTag, parse_tags
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
+
 # ── Tag enum parsing ───────────────────────────────────────────────────
 
 
@@ -58,6 +60,38 @@ def test_builtin_xprompts_loaded_from_config() -> None:
     assert "bd/work_phase_bead" in prompts
     assert XPromptTag.land_epic in prompts["bd/land_epic"].tags
     assert XPromptTag.work_phase_bead in prompts["bd/work_phase_bead"].tags
+
+
+@pytest.mark.parametrize(
+    ("name", "task_instruction"),
+    [
+        (
+            "bd/land_epic",
+            "You are the land agent for epic bead {{ bead_id }}",
+        ),
+        (
+            "bd/next",
+            "Can you run the `sase bead ready` command",
+        ),
+    ],
+)
+def test_epic_builtin_xprompts_use_priority_only_wait(
+    name: str,
+    task_instruction: str,
+) -> None:
+    body = get_all_prompts()[name].steps[0].prompt_part
+    assert body is not None
+
+    cleaned, directives = extract_prompt_directives(body)
+
+    assert directives.wait_priority == 15
+    assert directives.wait == []
+    assert directives.wait_beads == []
+    assert directives.wait_duration is None
+    assert directives.wait_until is None
+    assert directives.wait_runners is None
+    assert task_instruction in cleaned
+    assert "%wait" not in cleaned
 
 
 def test_builtin_plan_review_globs_distinguish_prompt_from_plan(
