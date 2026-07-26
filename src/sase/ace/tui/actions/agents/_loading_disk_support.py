@@ -325,6 +325,7 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None = None,
         effective_runner_limit: int | None = None,
+        dismissed_bundle_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
     ) -> None:
         """Apply loaded agent data to app state (main thread only).
 
@@ -352,6 +353,7 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
                 dismissed_from_loader,
                 set(self._dismissed_agents),
                 bool(self.hide_non_run_agents),
+                dismissed_bundle_snapshot=dismissed_bundle_snapshot,
             )
         self._prepare_agent_content_search_index_sync(prep.filtered_agents)
         self._apply_loaded_agents_prepared(

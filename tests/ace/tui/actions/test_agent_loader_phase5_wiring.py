@@ -18,6 +18,9 @@ from sase.ace.changespec import ChangeSpec
 from sase.ace.tui.actions.agents._loading_helpers import (
     load_agents_from_disk_with_state,
 )
+from sase.ace.tui.actions.agents._loading_compute import (
+    compute_apply_loaded_agents,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import (
     AgentLoadState,
@@ -64,6 +67,17 @@ def _make_agent(tribe: str | None) -> Agent:
         status="RUNNING",
         start_time=datetime(2026, 5, 6, 12, 0, 0),
         tribe=tribe,
+    )
+
+
+def _make_done_agent() -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="dismissed-import",
+        project_file="/tmp/myproj/myproj.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 6, 12, 0, 0),
+        raw_suffix="20260506120000",
     )
 
 
@@ -219,6 +233,78 @@ def test_load_agents_from_disk_persisted_tag_overrides_meta_tag() -> None:
     assert load_result.dismissed_from_loader == []
     assert load_result.all_agents == [agent]
     assert load_result.all_agents[0].tribe == "manual"
+
+
+def test_source_scan_filters_identity_only_in_dismissed_bundle_index() -> None:
+    agent = _make_done_agent()
+    state = AgentLoadState(
+        tier="tier2",
+        complete_history=True,
+        artifact_source="source_scan",
+        used_artifact_index=False,
+    )
+
+    with (
+        patch(
+            "sase.ace.dismissed_agents.dismissed_bundle_identities_snapshot",
+            return_value={agent.identity},
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_tiered_agents",
+            return_value=([agent], state),
+        ),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
+    ):
+        result = load_agents_from_disk_with_state(
+            set(),
+            full_history=True,
+            use_artifact_index=False,
+        )
+
+    prep = compute_apply_loaded_agents(
+        result.all_agents,
+        result.dismissed_from_loader,
+        set(),
+        False,
+        dismissed_bundle_snapshot=result.dismissed_bundle_identities,
+    )
+
+    assert result.dismissed_from_loader == [agent]
+    assert prep.filtered_agents == []
+
+
+def test_index_backed_snapshot_matches_bundle_only_source_scan_filter() -> None:
+    agent = _make_done_agent()
+    state = AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        artifact_source="artifact_index",
+        used_artifact_index=True,
+    )
+
+    with (
+        patch(
+            "sase.ace.dismissed_agents.dismissed_bundle_identities_snapshot",
+            return_value={agent.identity},
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_tiered_agents",
+            return_value=([], state),
+        ),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
+    ):
+        result = load_agents_from_disk_with_state(set())
+
+    prep = compute_apply_loaded_agents(
+        result.all_agents,
+        result.dismissed_from_loader,
+        set(),
+        False,
+        dismissed_bundle_snapshot=result.dismissed_bundle_identities,
+    )
+
+    assert result.dismissed_from_loader == []
+    assert prep.filtered_agents == []
 
 
 def test_load_agents_from_disk_uses_artifact_index_for_initial_tier(

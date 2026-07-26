@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.dismissed_agents import (
+    dismissed_bundle_identities_snapshot,
     ensure_dismissed_archive_ready,
     load_dismissed_bundle_identities,
     load_dismissed_bundle_summaries,
@@ -372,6 +373,43 @@ def test_load_dismissed_bundle_identities_matches_summary_projection(
         ("workflow", "indexed_cl", "20250615100000"),
         ("run", "other_cl", "20250615110000"),
     }
+
+
+def test_dismissed_bundle_identities_snapshot_reuses_unchanged_signature() -> None:
+    signature = (1, 2, 3, 4)
+    identity = ("run", "indexed_cl", "20250615110000")
+
+    with (
+        patch(
+            "sase.ace.dismissed_agents.dismissed_bundle_index_signature",
+            return_value=signature,
+        ),
+        patch(
+            "sase.ace.dismissed_bundle_index.query_summary_identities",
+            return_value={identity},
+        ) as query,
+        patch(
+            "sase.ace.dismissed_agents."
+            "_dismissed_bundle_identities_snapshot_initialized",
+            False,
+        ),
+        patch(
+            "sase.ace.dismissed_agents._dismissed_bundle_identities_snapshot_signature",
+            None,
+        ),
+        patch(
+            "sase.ace.dismissed_agents._dismissed_bundle_identities_snapshot_cache",
+            frozenset(),
+        ),
+    ):
+        first = dismissed_bundle_identities_snapshot()
+        first.clear()
+        second = dismissed_bundle_identities_snapshot()
+
+    assert second == {
+        (AgentType.RUNNING, "indexed_cl", "20250615110000"),
+    }
+    query.assert_called_once()
 
 
 def test_load_dismissed_bundles_by_suffix_uses_legacy_index(tmp_path: Path) -> None:

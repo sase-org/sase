@@ -219,6 +219,8 @@ def compute_apply_loaded_agents(
     dismissed_from_loader: list[Agent],
     dismissed_snapshot: set[tuple[AgentType, str, str | None]],
     hide_non_run_agents: bool,
+    *,
+    dismissed_bundle_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
 ) -> PreparedApplyData:
     """Pure-data filter pipeline for ``_apply_loaded_agents``.
 
@@ -235,10 +237,13 @@ def compute_apply_loaded_agents(
         if a._loaded_from_dismissed_bundle and a.identity not in dismissed_snapshot
     }
 
-    # The filter must treat freshly-recovered identities as dismissed so a
+    # The filter must treat bundle-index identities and freshly-recovered
+    # identities as dismissed so source scans match index-backed loads and a
     # re-recovered agent doesn't briefly leak into the visible list before
     # the UI thread persists the recovery delta.
-    effective_dismissed = dismissed_snapshot | recovered
+    effective_dismissed = (
+        dismissed_snapshot | (dismissed_bundle_snapshot or set()) | recovered
+    )
     dismissed_suffixes: set[str] = {
         raw_suffix for _, _, raw_suffix in effective_dismissed if raw_suffix is not None
     }
@@ -335,6 +340,8 @@ def _prepare_loaded_agents_worker_prep(
     dismissed_snapshot: set[tuple[AgentType, str, str | None]],
     hide_non_run_agents: bool,
     snapshot: PreparedApplySnapshot,
+    *,
+    dismissed_bundle_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
 ) -> PreparedApplyData:
     """Prepare async-loaded agents, including post-history Tier 1 patch merge."""
     from ...util.trace import tui_trace
@@ -344,11 +351,13 @@ def _prepare_loaded_agents_worker_prep(
         dismissed_from_loader,
         dismissed_snapshot,
         hide_non_run_agents,
+        dismissed_bundle_snapshot=dismissed_bundle_snapshot,
     )
     snapshot_for_merge = PreparedApplySnapshot(
         cached_agents_with_children=snapshot.cached_agents_with_children,
         dismissed_agents=(
             set(snapshot.dismissed_agents)
+            | (dismissed_bundle_snapshot or set())
             | prep.recovered_bundle_identities
             | prep.auto_dismissed_identities
         ),
@@ -374,6 +383,8 @@ def prepare_loaded_agents_worker_boundary(
     dismissed_snapshot: set[tuple[AgentType, str, str | None]],
     hide_non_run_agents: bool,
     snapshot: PreparedApplySnapshot,
+    *,
+    dismissed_bundle_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
 ) -> PreparedApplyBoundary:
     """Prepare async-loaded agents through the fold-filter boundary."""
     from sase.config.core import get_max_running_agents
@@ -384,6 +395,7 @@ def prepare_loaded_agents_worker_boundary(
         dismissed_snapshot,
         hide_non_run_agents,
         snapshot,
+        dismissed_bundle_snapshot=dismissed_bundle_snapshot,
     )
     return prepare_loaded_agents_apply_boundary(
         prep,

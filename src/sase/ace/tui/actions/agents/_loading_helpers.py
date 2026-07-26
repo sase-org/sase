@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -70,6 +70,9 @@ class _AgentDiskLoadResult:
     all_agents: list[Agent]
     dismissed_from_loader: list[Agent]
     load_state: AgentLoadState
+    dismissed_bundle_identities: set[tuple[AgentType, str, str | None]] = field(
+        default_factory=set
+    )
 
 
 def is_always_visible(agent: Agent) -> bool:
@@ -233,13 +236,17 @@ def load_agents_from_disk_with_state(
 ) -> _AgentDiskLoadResult:
     """Load agents from disk and include the tiered load state."""
 
+    from ....dismissed_agents import dismissed_bundle_identities_snapshot
+
     with tui_trace(
         "agents.load_from_disk",
         source=source or "unknown",
         full_history=full_history,
     ) as counters:
+        dismissed_bundle_identities = dismissed_bundle_identities_snapshot()
         result = _load_agents_from_disk_impl(
             dismissed_agents,
+            dismissed_bundle_identities,
             changespec_snapshot=changespec_snapshot,
             full_history=full_history,
             use_artifact_index=use_artifact_index,
@@ -272,13 +279,17 @@ def load_agent_artifact_delta_from_disk_with_state(
 ) -> _AgentDiskLoadResult:
     """Load agents from exact artifact dirs and include the delta load state."""
 
+    from ....dismissed_agents import dismissed_bundle_identities_snapshot
+
     with tui_trace(
         "agents.load_artifact_delta_from_disk",
         source=source or "unknown",
         artifact_dirs=len(artifact_dirs),
     ) as counters:
+        dismissed_bundle_identities = dismissed_bundle_identities_snapshot()
         result = _load_agent_artifact_delta_from_disk_impl(
             dismissed_agents,
+            dismissed_bundle_identities,
             artifact_dirs,
             changespec_snapshot=changespec_snapshot,
             update_index=update_index,
@@ -325,6 +336,7 @@ def hydrate_agent_attempt_history(agent: Agent) -> bool:
 def _apply_loaded_agent_disk_projections(
     all_agents: list[Agent],
     dismissed_agents: set[tuple[AgentType, str, str | None]],
+    dismissed_bundle_identities: set[tuple[AgentType, str, str | None]],
     load_state: AgentLoadState,
 ) -> _AgentDiskLoadResult:
     # Populate retry fields from retry_state.json for running agents. Runtime
@@ -361,9 +373,11 @@ def _apply_loaded_agent_disk_projections(
         if retry_state.status == "retrying":
             agent.status = "RETRYING"
 
+    effective_dismissed = dismissed_agents | dismissed_bundle_identities
+
     # Build secondary index for robust dismissed matching
     dismissed_suffixes: set[str] = {
-        raw_suffix for _, _, raw_suffix in dismissed_agents if raw_suffix is not None
+        raw_suffix for _, _, raw_suffix in effective_dismissed if raw_suffix is not None
     }
 
     # Capture dismissed agents found by the loader (for revive + self-healing).
@@ -377,7 +391,7 @@ def _apply_loaded_agent_disk_projections(
         if a.status != "RUNNING"
         and not a.runner_is_live
         and (
-            a.identity in dismissed_agents
+            a.identity in effective_dismissed
             or (a.raw_suffix is not None and a.raw_suffix in dismissed_suffixes)
         )
     ]
@@ -386,11 +400,13 @@ def _apply_loaded_agent_disk_projections(
         all_agents=all_agents,
         dismissed_from_loader=dismissed_from_loader,
         load_state=load_state,
+        dismissed_bundle_identities=dismissed_bundle_identities,
     )
 
 
 def _load_agents_from_disk_impl(
     dismissed_agents: set[tuple[AgentType, str, str | None]],
+    dismissed_bundle_identities: set[tuple[AgentType, str, str | None]],
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
@@ -406,12 +422,14 @@ def _load_agents_from_disk_impl(
     return _apply_loaded_agent_disk_projections(
         all_agents,
         dismissed_agents,
+        dismissed_bundle_identities,
         load_state,
     )
 
 
 def _load_agent_artifact_delta_from_disk_impl(
     dismissed_agents: set[tuple[AgentType, str, str | None]],
+    dismissed_bundle_identities: set[tuple[AgentType, str, str | None]],
     artifact_dirs: Sequence[Path | str],
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
@@ -429,5 +447,6 @@ def _load_agent_artifact_delta_from_disk_impl(
     return _apply_loaded_agent_disk_projections(
         all_agents,
         dismissed_agents,
+        dismissed_bundle_identities,
         load_state=load_state,
     )

@@ -131,6 +131,48 @@ def dismissed_bundle_index_signature() -> tuple[int, int, int, int] | None:
     return index_signature(dismissed_bundles_dir())
 
 
+_DISMISSED_BUNDLE_IDENTITIES_SNAPSHOT_LOCK = threading.Lock()
+_dismissed_bundle_identities_snapshot_initialized = False
+_dismissed_bundle_identities_snapshot_signature: tuple[int, int, int, int] | None = None
+_dismissed_bundle_identities_snapshot_cache: frozenset[
+    tuple[AgentType, str, str | None]
+] = frozenset()
+
+
+def dismissed_bundle_identities_snapshot() -> set[tuple[AgentType, str, str | None]]:
+    """Return bundle-index identities, re-querying only when its signature changes."""
+    global _dismissed_bundle_identities_snapshot_cache
+    global _dismissed_bundle_identities_snapshot_initialized
+    global _dismissed_bundle_identities_snapshot_signature
+
+    from .dismissed_bundle_index import query_summary_identities
+
+    with _DISMISSED_BUNDLE_IDENTITIES_SNAPSHOT_LOCK:
+        signature = dismissed_bundle_index_signature()
+        if (
+            _dismissed_bundle_identities_snapshot_initialized
+            and signature == _dismissed_bundle_identities_snapshot_signature
+        ):
+            return set(_dismissed_bundle_identities_snapshot_cache)
+
+        queried = query_summary_identities(dismissed_bundles_dir())
+        if queried is None:
+            # A missing/unusable index has no authoritative bundle projection.
+            # Do not retain an old snapshot after its signature disappears.
+            identities: set[tuple[AgentType, str, str | None]] = set()
+        else:
+            from .tui.models.agent import AgentType as RuntimeAgentType
+
+            identities = {
+                (RuntimeAgentType(agent_type), cl_name, raw_suffix)
+                for agent_type, cl_name, raw_suffix in queried
+            }
+        _dismissed_bundle_identities_snapshot_cache = frozenset(identities)
+        _dismissed_bundle_identities_snapshot_signature = signature
+        _dismissed_bundle_identities_snapshot_initialized = True
+        return set(_dismissed_bundle_identities_snapshot_cache)
+
+
 _DISMISSED_SAVE_LOCK = threading.Lock()
 _dismissed_snapshot_generations = itertools.count(1)
 _last_saved_dismissed_generation: dict[Path, int] = {}

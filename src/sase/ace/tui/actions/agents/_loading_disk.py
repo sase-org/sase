@@ -92,6 +92,9 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
             ),
             source=source,
         )
+        dismissed_bundle_snapshot = set(
+            getattr(load_result, "dismissed_bundle_identities", set())
+        )
         data_cost = classify_agents_data_cost(
             full_history=full_history,
             load_state=load_result.load_state,
@@ -133,6 +136,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
                 selected_identity,
                 load_state=load_result.load_state,
                 effective_runner_limit=get_max_running_agents(),
+                dismissed_bundle_snapshot=dismissed_bundle_snapshot,
             )
         finally:
             if installed_active_source:
@@ -175,6 +179,9 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
                 self, "_artifact_index_schema_bypass", False
             ),
             source=source,
+        )
+        dismissed_bundle_snapshot = set(
+            getattr(load_result, "dismissed_bundle_identities", set())
         )
         all_agents = load_result.all_agents
         dismissed_from_loader = load_result.dismissed_from_loader
@@ -246,6 +253,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
                 set(self._dismissed_agents),
                 bool(self.hide_non_run_agents),
                 worker_snapshot,
+                dismissed_bundle_snapshot=dismissed_bundle_snapshot,
             )
         prep = boundary.prep
         content_index = await self._prepare_agent_content_search_index_async(
@@ -342,6 +350,9 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
             update_index=not getattr(self, "_artifact_index_schema_bypass", False),
             deleted_artifact_dirs=deleted_artifact_dirs or (),
         )
+        dismissed_bundle_snapshot = set(
+            getattr(load_result, "dismissed_bundle_identities", set())
+        )
         all_agents = load_result.all_agents
         dismissed_from_loader = load_result.dismissed_from_loader
         disk_elapsed = time.perf_counter() - disk_start
@@ -401,6 +412,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
             set(self._dismissed_agents),
             bool(self.hide_non_run_agents),
             worker_snapshot,
+            dismissed_bundle_snapshot=dismissed_bundle_snapshot,
         )
         content_index = await self._prepare_agent_content_search_index_async(
             boundary.fold.unfiltered_agents
