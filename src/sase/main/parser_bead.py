@@ -270,7 +270,10 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         "-j",
         "--json",
         action="store_true",
-        help="Print one machine-readable result object",
+        help=(
+            "Print one machine-readable result object; implies --yes-to-all, "
+            "so no confirmation prompt is shown"
+        ),
     )
     bead_work_parser.add_argument(
         "-P",

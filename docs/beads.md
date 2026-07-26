@@ -106,20 +106,26 @@ open ──claim──▶ claimed ──promote──▶ in_progress ──close
 
 - **Claim.** When a bead-carrying agent enters a wait phase (dependency `%wait`, runner-slot, or duration waits), the
   runner sets the bead to `claimed` and assigns it to the agent name. Claims are written to the project's canonical bead
-  store and committed locally, but never pushed — a claim is host-local runtime state. Claiming is advisory: it never
-  blocks or fails an agent launch, and a straight-through launch with no waits skips it entirely. Because it is
-  advisory, the claim is acquired **best-effort**: the runner retries a bounded number of times (refreshing the
-  canonical store once when the bead is not there yet, which is normal right after an epic graph is published), and
-  whatever it fails to acquire is picked up by the `bead_claim_checks` reconciler. A bead can therefore turn `claimed` a
-  few seconds after its agent starts waiting rather than instantly.
+  store, committed locally, and then published synchronously on a best-effort basis so other hosts can see the claim:
+  the runner runs the managed sync worker for that store right after the commit lands. Publication never rolls a claim
+  back — a missing git repo or missing remote is a silent local-only outcome, and a real sync failure only prints a
+  warning with the managed-sync log path while the local commit stands. Claiming is advisory: it never blocks or fails
+  an agent launch, and a straight-through launch with no waits skips it entirely. Because it is advisory, the claim is
+  acquired **best-effort**: the runner retries a bounded number of times (refreshing the canonical store once when the
+  bead is not there yet, which is normal right after an epic graph is published), and whatever it fails to acquire is
+  picked up by the `bead_claim_checks` reconciler. A bead can therefore turn `claimed` a few seconds after its agent
+  starts waiting rather than instantly.
 - **Promote.** Immediately before model execution the runner performs the existing just-in-time claim, which sets
   `status=in_progress` and assigns the runner name. Promotion is what makes the claim permanent; from that point the
-  claim is never released automatically.
+  claim is never released automatically. In managed standalone SDD stores the promotion must produce a local commit and
+  is published the same best-effort way before model execution; in in-tree stores the agent commits the promotion along
+  with its implementation instead.
 - **Release.** If the owning agent dies before it ever promoted its claim, the bead returns to `open` with an empty
   assignee. The runner shutdown path releases the claim on ordinary kills (except when a retry handoff is pending, which
   keeps the claim), and the `bead_claim_checks` chop is the backstop for SIGKILL, crashes, and reboots. It releases a
   claim only when the owning agent is dead, never promoted, and resolvable to its artifact; anything else is left
-  untouched and reported by `sase doctor` instead.
+  untouched and reported by `sase doctor` instead. A committed release is published the same best-effort way as a claim,
+  so a freed bead does not stay claimed on other hosts.
 - **Reconcile.** The `bead_claim_checks` chop — registered under the `waits` lumberjack — runs in both directions. Next
   to the release pass above, an acquire pass claims a bead on behalf of a live agent that is waiting without a claim,
   which is what makes a lost or delayed claim self-healing within one `waits` interval. A held claim is recorded in the
@@ -458,13 +464,16 @@ which closes the phase and lets its bead-gated dependents proceed. Until then, p
 phase. The land agent now genuinely requires every phase bead to close; if a phase crashes before closure, retry or
 close that phase explicitly rather than expecting landing to sweep it up.
 
-| Flag            | Description                                                                                   |
-| --------------- | --------------------------------------------------------------------------------------------- |
-| `-n, --dry-run` | Validate and preview plan archiving, bead creation, model routing, and waves without mutation |
-| `-j, --json`    | Print one machine-readable result object; also skips interactive confirmation                 |
-| `-P, --no-push` | Commit plan and bead state locally but skip post-commit pushes                                |
-| `-p, --parent`  | Override a plan file's `parent_bead`; pass `top-level` to force an unparented epic            |
-| `-y, --yes`     | Skip the launch confirmation prompt                                                           |
+| Flag                  | Description                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch                        |
+| `-c, --cl-name`       | ChangeSpec name for the approved epic completion notification                                 |
+| `-n, --dry-run`       | Validate and preview plan archiving, bead creation, model routing, and waves without mutation |
+| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                         |
+| `-P, --no-push`       | Commit plan and bead state locally but skip post-commit pushes                                |
+| `-p, --parent`        | Override a plan file's `parent_bead`; pass `top-level` to force an unparented epic            |
+| `-y, --yes`           | Skip only the launch confirmation prompt                                                      |
+| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                             |
 
 The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
 matching tag overrides the built-in. For epic-tier work, every phase and land segment carries bare `%auto`, so spawned
@@ -556,12 +565,17 @@ applies.
 ### Plan Approval Flow
 
 The plan approval popup in ACE includes normal approval and **E** (Epic) actions. Normal approval saves to the resolved
-SDD `plans/` directory with `tier: tale`. Epic approval first submits a deduplicated tracked task that runs
-`sase bead work <plan-file> --yes` from the project's primary workspace, then records that the host owns the launch in
-the planner response. The Tasks tab shows live command output and provides kill support; success back-fills the epic ID
-and committed plan path into planner metadata. If task submission fails, the response omits host ownership and the
-planner runs the same canonical command as a subprocess.
+SDD `plans/` directory with `tier: tale`. Every epic approval surface behaves the same way — ACE,
+`sase plan approve --kind epic`, Telegram, and bare gate responses all submit one deduplicated global `detached` task
+that runs `sase bead work <plan-file> --yes-to-all` from the project's primary workspace, then record that the host owns
+the launch in the planner response. Because the task is detached and global, no interactive session owns it: it survives
+the approving process, appears in every default `sase task list` and Tasks-tab scope, is streamable with
+`sase task show <id> --follow`, supports kill, and still emits the epic-completion notification. The approval passes
+`--artifacts-dir` (and `--cl-name` when a ChangeSpec is involved), so a successful launch back-fills the epic ID and
+committed plan path into planner metadata.
 
-`sase plan approve --kind epic` runs the command in the foreground. Headless approval callers use a detached worker with
-a launch log and completion notification by default. The planner writes its prompt snapshot, finishes as
-`EPIC APPROVED`, and does not race the command for ownership of the epic plan file.
+There is no planner-side subprocess fallback and no foreground path. If the host cannot resolve the primary workspace,
+finds the approved-epic plans store unusable, or fails to submit the task, approval fails loudly and reports the
+`sase bead work <plan> --yes-to-all` resume command rather than launching invisibly. After a successful handoff, the
+planner writes its prompt snapshot, finishes as `EPIC APPROVED`, and does not race the command for ownership of the epic
+plan file.
