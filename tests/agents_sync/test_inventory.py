@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-from sase.agents_sync import inventory, inventory_models
+from sase.agents_sync import inventory, inventory_io, inventory_models
 from sase.agents_sync.models import CommitRecord, ProjectTarget
 from sase.agents_sync.publication import reconcile_agent_hoods
 from sase.agents_sync.v2_io import read_hood_snapshot
@@ -131,6 +131,37 @@ def test_inventory_keeps_active_and_dismissed_states_but_rejects_imports(
     assert active.commits[0].sha == sha
     assert dict(active.metadata) == {"model": "gpt"}
     assert result.eligible_hoods() == ("foo",)
+
+
+@pytest.mark.parametrize(
+    "marker",
+    (
+        {"imported_source_owner": {"username": "alice", "machine_name": "athena"}},
+        {"imported_snapshot_digest": "a" * 64},
+        {"imported_transaction_key": "v2-" + "b" * 40},
+    ),
+)
+def test_is_imported_accepts_current_bundle_provenance_markers(
+    marker: dict[str, object],
+) -> None:
+    assert inventory_io.is_imported(marker, None)
+
+
+def test_dismissed_inventory_rejects_legacy_step_output_import_marker(
+    tmp_path: Path,
+) -> None:
+    run = inventory._run_from_dismissed(
+        {
+            "agent_name": "foo",
+            "step_output": {"imported_source_run_id": "source-1"},
+        },
+        "dismissed.json",
+        "proj",
+        AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena")),
+        {},
+    )
+
+    assert run is None
 
 
 def test_inventory_discovers_real_legacy_names_and_reconciles_unrelated_hood(

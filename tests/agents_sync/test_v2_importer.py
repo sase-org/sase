@@ -13,6 +13,7 @@ from sase.ace import dismissed_agents
 from sase.ace import dismissed_agents_bundles
 from sase.ace import dismissed_bundle_index
 from sase.ace.tui.models._loaders import _done_loaders
+from sase.agents_sync import inventory
 from sase.agents_sync import v2_importer
 from sase.agents_sync import v2_import_history
 from sase.agents_sync import v2_import_planning
@@ -451,6 +452,96 @@ def test_exact_current_owner_primary_history_observes_cleaned_run(
     assert not list(artifact_root.glob("*"))
     assert not list(groups.glob("*.json"))
     assert not any(row[0] == "claim" for row in claims)
+
+
+def test_exact_current_owner_without_local_observation_is_not_materialized(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, package = _published_package(tmp_path, owner=LOCAL_OWNER)
+    artifact_root, groups, claims = _isolate_local_state(
+        tmp_path,
+        target,
+        monkeypatch,
+    )
+
+    result = v2_importer.integrate_v2_hoods(
+        target,
+        (package,),
+        identity=AgentIdentitySnapshot(LOCAL_OWNER),
+    )
+
+    assert result.hoods_unchanged == 1
+    assert result.runs_imported == 0
+    assert not list(artifact_root.glob("*"))
+    assert not list(groups.glob("*.json"))
+    assert not any(row[0] == "claim" for row in claims)
+
+
+def test_imported_bundles_are_not_republished(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, package = _published_package(tmp_path)
+    _artifact_root, _groups, _claims = _isolate_local_state(
+        tmp_path,
+        target,
+        monkeypatch,
+    )
+    identity = AgentIdentitySnapshot(LOCAL_OWNER)
+
+    imported = v2_importer.integrate_v2_hoods(
+        target,
+        (package,),
+        identity=identity,
+    )
+    bundle_rows = tuple(
+        (
+            json.loads(path.read_text()),
+            str(path),
+        )
+        for path in sorted((tmp_path / "state" / "dismissed_bundles").rglob("*.json"))
+    )
+
+    assert imported.runs_imported == 2
+    assert len(bundle_rows) == 2
+    assert all(
+        row["imported_source_owner"]
+        == {
+            "username": SOURCE_OWNER.username,
+            "machine_name": SOURCE_OWNER.machine_name,
+        }
+        for row, _path in bundle_rows
+    )
+    assert all(
+        row["imported_snapshot_digest"] == package.entry.digest
+        for row, _path in bundle_rows
+    )
+
+    monkeypatch.setattr(inventory, "_indexed_records", lambda _target: ((), []))
+    monkeypatch.setattr(
+        inventory,
+        "_dismissed_records",
+        lambda _target: bundle_rows,
+    )
+
+    def empty_history(
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    republished = inventory.build_project_hood_inventory(
+        target,
+        identity,
+        git_runner=empty_history,
+    )
+
+    assert republished.runs == ()
 
 
 def test_preflight_context_scans_artifacts_once_for_multi_run_import(

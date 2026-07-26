@@ -203,6 +203,11 @@ def bundle_payload(
         "role_suffix": _optional_text(metadata.get("role_suffix")),
         "hidden": metadata.get("hidden") is True,
         "approve": metadata.get("approve") is True,
+        "imported_source_owner": {
+            "username": plan.package.owner.username,
+            "machine_name": plan.package.owner.machine_name,
+        },
+        "imported_snapshot_digest": plan.package.entry.digest,
         "imported_transaction_key": plan.transaction_key,
         "step_output": {
             "meta_commits": [

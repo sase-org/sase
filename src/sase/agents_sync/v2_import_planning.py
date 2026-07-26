@@ -121,6 +121,21 @@ def preflight_hood(
                 if classification is AgentOwnershipClassification.EXACT_OWNER
                 else None
             )
+            if (
+                classification is AgentOwnershipClassification.EXACT_OWNER
+                and observed is None
+            ):
+                # This machine is authoritative for its own history. Missing
+                # local state means the run was deliberately retired, so retain
+                # only a stable destination for relationship rewriting.
+                destination = reserve_timestamp(
+                    target,
+                    preferred_timestamp(run.source_run_id, run.started_at),
+                    reserved,
+                )
+                reserved.add(destination)
+                destination_ids[run.source_run_id] = destination
+                continue
             if observed is not None:
                 artifact = observed
                 destination = artifact.name

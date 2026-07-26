@@ -243,6 +243,8 @@ def is_imported(meta: dict[str, Any], done: dict[str, Any] | None) -> bool:
                 "imported_from_machine",
                 "imported_digest",
                 "imported_source_owner",
+                "imported_snapshot_digest",
+                "imported_transaction_key",
                 "source_owner",
             )
         )

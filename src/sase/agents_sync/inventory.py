@@ -313,6 +313,12 @@ def _run_from_dismissed(
 ) -> InventoryRun | None:
     if _is_imported(raw, raw):
         return None
+    step_output = raw.get("step_output")
+    if (
+        isinstance(step_output, dict)
+        and step_output.get("imported_source_run_id") is not None
+    ):
+        return None
     raw_name = _text(raw.get("agent_name")) or _text(raw.get("cl_name"))
     if raw_name is None:
         return None
