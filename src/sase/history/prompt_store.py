@@ -1,4 +1,4 @@
-"""Low-level prompt history storage and mutation helpers."""
+"""Prompt history storage primitives and public compatibility facade."""
 
 from __future__ import annotations
 
@@ -41,15 +41,6 @@ class PromptEntry:
     # compatibility. New writes intentionally omit them.
     branch_or_workspace: str = ""
     workspace: str = ""
-
-
-@dataclass(frozen=True)
-class _PromptMutation:
-    """A prompt history mutation to apply under the writer lock."""
-
-    text: str
-    cancelled: bool
-    force_cancelled: bool = False
 
 
 class PromptHistoryLoadError(Exception):
@@ -196,7 +187,8 @@ def _load_legacy_prompt_history() -> list[PromptEntry]:
     return _entries_from_data(data)
 
 
-def _load_legacy_prompt_history_for_write() -> list[PromptEntry]:
+def load_legacy_prompt_history_for_write() -> list[PromptEntry]:
+    """Load the legacy store without masking corrupt or partial data."""
     history_file = legacy_prompt_history_file()
     if not history_file.exists():
         return []
@@ -292,7 +284,10 @@ def _reconcile_duplicate_prompt(
     return current
 
 
-def _dedup_entries_newest_first(entries: Iterator[PromptEntry]) -> list[PromptEntry]:
+def dedup_prompt_entries_newest_first(
+    entries: Iterator[PromptEntry],
+) -> list[PromptEntry]:
+    """Deduplicate newest-first entries while preserving the earliest creation."""
     by_text: OrderedDict[str, PromptEntry] = OrderedDict()
     for entry in entries:
         existing = by_text.get(entry.text)
@@ -322,7 +317,7 @@ def load_all_prompt_history() -> list[PromptEntry]:
     try:
         ensure_migrated_for_read()
     except PromptHistoryLoadError:
-        return _dedup_entries_newest_first(
+        return dedup_prompt_entries_newest_first(
             iter(
                 sorted(
                     _load_legacy_prompt_history(),
@@ -331,7 +326,7 @@ def load_all_prompt_history() -> list[PromptEntry]:
                 )
             )
         )
-    return _dedup_entries_newest_first(_iter_all_shard_entries_newest_first())
+    return dedup_prompt_entries_newest_first(_iter_all_shard_entries_newest_first())
 
 
 def load_prompt_history() -> list[PromptEntry]:
@@ -351,7 +346,7 @@ def load_prompt_history_for_write() -> list[PromptEntry]:
         shard_entries = load_shard_for_write(path)
         shard_entries.sort(key=_entry_last_used_sort_key, reverse=True)
         entries.extend(shard_entries)
-    return _dedup_entries_newest_first(iter(entries))
+    return dedup_prompt_entries_newest_first(iter(entries))
 
 
 def _prompt_history_lock_file() -> Path:
@@ -407,291 +402,6 @@ def save_prompt_history(prompts: list[PromptEntry]) -> bool:
         return False
 
 
-def _raw_prompt_count(path: Path) -> int:
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    if not isinstance(data, dict):
-        raise PromptHistoryLoadError
-    prompts = data.get("prompts", [])
-    if not isinstance(prompts, list):
-        raise PromptHistoryLoadError
-    return len(prompts)
-
-
-def _legacy_backup_path() -> Path:
-    ts = generate_timestamp()
-    return prompt_history_dir() / f"legacy-imported-{ts}.json.bak"
-
-
-def ensure_migrated() -> None:
-    """Migrate the legacy single-file store into shards once, losslessly."""
-    history_dir = prompt_history_dir()
-    if history_dir.exists() and history_dir.is_dir():
-        return
-
-    legacy_file = legacy_prompt_history_file()
-    if not legacy_file.exists():
-        return
-
-    entries = _load_legacy_prompt_history_for_write()
-    buckets: dict[str, list[PromptEntry]] = {}
-    for entry in entries:
-        buckets.setdefault(shard_key_for_timestamp(entry.last_used), []).append(entry)
-
-    history_dir.mkdir(parents=True, exist_ok=True)
-    written_count = 0
-    try:
-        for key, shard_entries in buckets.items():
-            shard_entries.sort(key=_entry_last_used_sort_key, reverse=True)
-            if not save_shard(shard_path(key), shard_entries):
-                raise PromptHistoryLoadError
-            written_count += len(shard_entries)
-        if written_count != len(entries):
-            raise PromptHistoryLoadError
-        raw_count = _raw_prompt_count(legacy_file)
-        if written_count != raw_count:
-            raise PromptHistoryLoadError
-        backup_path = _legacy_backup_path()
-        os.replace(legacy_file, backup_path)
-    except Exception:
-        for path in iter_shard_paths_newest_first():
-            try:
-                path.unlink()
-            except OSError:
-                pass
-        try:
-            history_dir.rmdir()
-        except OSError:
-            pass
-        raise
-
-
-def ensure_migrated_for_read() -> None:
-    """Ensure migration before a read, taking the global lock only if needed."""
-    history_dir = prompt_history_dir()
-    legacy_file = legacy_prompt_history_file()
-    if history_dir.exists() or not legacy_file.exists():
-        return
-    with locked_prompt_history():
-        ensure_migrated()
-
-
-def add_or_update_prompt(
-    text: str,
-    *,
-    cancelled: bool = False,
-    allow_short: bool = False,
-    record_segments: bool = True,
-) -> None:
-    """Add a new prompt or update an existing prompt's last_used timestamp.
-
-    If a prompt with the same text already exists, updates its last_used timestamp.
-    Otherwise, adds a new entry.
-
-    Args:
-        text: The prompt text to add or update.
-        cancelled: If True, mark this prompt as cancelled (unsent). An existing
-            non-cancelled prompt will not be downgraded to cancelled.
-        allow_short: If True, record the prompt even when it is shorter than
-            the normal history threshold. This is used for replayable generated
-            fanout invocations such as a bare xprompt swarm trigger.
-        record_segments: If True, multi-prompts also record their individual
-            long-enough segments. If False, only the exact prompt text passed by
-            the caller is written.
-
-    Placeholder tags are recorded before the history threshold is applied, so
-    even a sub-five-word prompt contributes its ``<foobar>`` tags to the common
-    placeholder store. Cancelled prompts contribute too: the user wrote those
-    tags, and recovering one from an abandoned draft is exactly what makes the
-    completion menu feel like it remembers. Span extraction covers the whole
-    string, so multi-prompt segments need no separate call.
-    """
-    from sase.history.prompt_placeholders import record_prompt_placeholders
-
-    record_prompt_placeholders(text)
-
-    if not is_recordable_prompt(text, allow_short=allow_short):
-        return
-
-    current_timestamp = generate_timestamp()
-    mutations = [_PromptMutation(text=text, cancelled=cancelled)]
-    if record_segments:
-        mutations.extend(_multi_prompt_segment_mutations(text, cancelled=cancelled))
-
-    _apply_prompt_mutations(mutations, current_timestamp)
-
-
-def record_failed_launch_prompt(text: str, *, project: str | None = None) -> None:
-    """Record a submitted prompt whose launch failed before producing agents.
-
-    Failed launch attempts are different from ordinary prompt-bar cancellation:
-    the user submitted the prompt, so even short prompts such as ``#gh:foo`` are
-    useful history, and an earlier optimistic successful write must be forced
-    back to cancelled.
-
-    The submitted prompt is also preserved in the prompt stash (best-effort) so
-    a long prompt remains recoverable through ``gp`` / ``gP`` after the prompt
-    bar has been unmounted. ``project`` is optional best-effort metadata for the
-    restore picker's project chip; it never gates recovery of the prompt text.
-
-    A failed launch still records the prompt's ``<foobar>`` tags in the common
-    placeholder store: the user wrote them, so they stay available in the next
-    prompt's completion menu even though the launch produced no agents.
-    """
-    if not text.strip():
-        return
-
-    from sase.history.prompt_placeholders import record_prompt_placeholders
-
-    record_prompt_placeholders(text)
-
-    current_timestamp = generate_timestamp()
-    mutations = [_PromptMutation(text=text, cancelled=True, force_cancelled=True)]
-    mutations.extend(
-        _PromptMutation(
-            text=mutation.text,
-            cancelled=True,
-            force_cancelled=True,
-        )
-        for mutation in _multi_prompt_segment_mutations(text, cancelled=True)
-    )
-
-    _apply_prompt_mutations(mutations, current_timestamp)
-
-    from sase.agent.failed_launch_prompt_stash import stash_failed_launch_prompt
-
-    stash_failed_launch_prompt(text, project=project)
-
-
-def _multi_prompt_segment_mutations(
-    text: str,
-    *,
-    cancelled: bool,
-) -> list[_PromptMutation]:
-    """Return history mutations for long-enough multi-prompt segments."""
-    from sase.agent.multi_prompt import is_multi_prompt, parse_multi_prompt
-
-    if not is_multi_prompt(text):
-        return []
-
-    multi = parse_multi_prompt(text)
-    mutations = []
-    for segment in multi.segments:
-        if not is_recordable_prompt(segment):
-            continue
-        mutations.append(_PromptMutation(text=segment, cancelled=cancelled))
-    return mutations
-
-
-def _multi_prompt_segment_rewrite_pairs(
-    old_text: str,
-    new_text: str,
-) -> list[tuple[str, str]]:
-    """Return exact old/new segment pairs for a rewritten multi-prompt."""
-    from sase.agent.multi_prompt import is_multi_prompt, parse_multi_prompt
-
-    if not is_multi_prompt(old_text) or not is_multi_prompt(new_text):
-        return []
-
-    old_multi = parse_multi_prompt(old_text)
-    new_multi = parse_multi_prompt(new_text)
-    if len(old_multi.segments) != len(new_multi.segments):
-        return []
-
-    return [
-        (old_segment, new_segment)
-        for old_segment, new_segment in zip(
-            old_multi.segments,
-            new_multi.segments,
-            strict=True,
-        )
-        if old_segment != new_segment
-    ]
-
-
-def rewrite_prompt_text_exact(old_text: str, new_text: str) -> int:
-    """Rewrite prompt-history entries by exact text match.
-
-    The rewrite is intentionally conservative: it replaces only rows whose
-    ``text`` exactly matches *old_text*, plus exact multi-prompt segment rows
-    derived from old/new segment pairs. Fuzzy matching is never used.
-
-    Returns the number of history rows whose text changed.
-
-    Raises:
-        PromptHistoryLoadError: If the current history cannot be safely loaded
-            or saved for mutation.
-    """
-    if old_text == new_text:
-        return 0
-
-    replacements: dict[str, str] = {old_text: new_text}
-    replacements.update(_multi_prompt_segment_rewrite_pairs(old_text, new_text))
-
-    with locked_prompt_history():
-        ensure_migrated()
-        entries: list[PromptEntry] = []
-        for path in iter_shard_paths_newest_first():
-            shard_entries = load_shard_for_write(path)
-            shard_entries.sort(key=_entry_last_used_sort_key, reverse=True)
-            entries.extend(shard_entries)
-
-        changed = 0
-        for entry in entries:
-            replacement = replacements.get(entry.text)
-            if replacement is None:
-                continue
-            entry.text = replacement
-            changed += 1
-
-        if changed == 0:
-            return 0
-
-        entries.sort(key=_entry_last_used_sort_key, reverse=True)
-        deduped = _dedup_entries_newest_first(iter(entries))
-        if not save_prompt_history(deduped):
-            raise PromptHistoryLoadError
-        return changed
-
-
-def _apply_prompt_mutations(
-    mutations: list[_PromptMutation],
-    current_timestamp: str,
-) -> bool:
-    """Apply prompt mutations to the current month shard under the writer lock."""
-    with locked_prompt_history():
-        try:
-            ensure_migrated()
-            path = shard_path(shard_key_for_timestamp(current_timestamp))
-            prompts = load_shard_for_write(path)
-        except PromptHistoryLoadError:
-            return False
-
-        for mutation in mutations:
-            existing = next((p for p in prompts if p.text == mutation.text), None)
-            if existing:
-                existing.last_used = current_timestamp
-                if mutation.force_cancelled:
-                    existing.cancelled = True
-                elif not mutation.cancelled:
-                    # Normal cancellation only upgrades to non-cancelled, never
-                    # downgrades an already-successful prompt.
-                    existing.cancelled = False
-                continue
-
-            prompts.append(
-                PromptEntry(
-                    text=mutation.text,
-                    timestamp=current_timestamp,
-                    last_used=current_timestamp,
-                    cancelled=mutation.cancelled,
-                )
-            )
-
-        prompts.sort(key=_entry_last_used_sort_key, reverse=True)
-        return save_shard(path, prompts)
-
-
 def format_prompt_for_display(entry: PromptEntry) -> str:
     """Format a prompt entry for fzf display.
 
@@ -711,3 +421,17 @@ def format_prompt_for_display(entry: PromptEntry) -> str:
         preview = preview[:_PROMPT_PREVIEW_LENGTH] + "..."
 
     return f"{entry.last_used} | {preview}"
+
+
+# These imports intentionally come last: the extracted modules call storage
+# primitives through this facade so existing path and IO patch points keep
+# working for callers and tests.
+from sase.history.prompt_store_migration import (  # noqa: E402
+    ensure_migrated,
+    ensure_migrated_for_read,
+)
+from sase.history.prompt_store_mutations import (  # noqa: E402
+    add_or_update_prompt,
+    record_failed_launch_prompt,
+    rewrite_prompt_text_exact,
+)
