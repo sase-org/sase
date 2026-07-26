@@ -795,6 +795,30 @@ Source: `src/sase/ace/tui/widgets/prompt_completion.py`, `src/sase/ace/tui/widge
 `src/sase/history/prompt_placeholders.py`, `src/sase/ace/tui/widgets/prompt_completion_root.py`,
 `src/sase/ace/tui/widgets/recursive_file_finder.py`
 
+#### `ace.prompt_inputs`
+
+Controls how ACE treats raw `<placeholder>` tags when a prompt is submitted or saved as an xprompt.
+
+```yaml
+ace:
+  prompt_inputs:
+    collect_raw_placeholders: true
+    xprompt_placeholder_args: true
+```
+
+| Field                      | Type | Default | Current behavior                                                                                                                                                                  |
+| -------------------------- | ---- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collect_raw_placeholders` | bool | `true`  | When true, submitting an ACE prompt opens **Fill in this prompt** for each live raw placeholder. When false, raw tags launch unchanged; declared `input:` collection still works. |
+| `xprompt_placeholder_args` | bool | `true`  | This key is accepted by the schema, but the current `gx` and `gX` conversion paths do not read it: conversion remains enabled when this is set to false.                          |
+
+Raw placeholders in YAML frontmatter, inline code, fenced code, or `%xprompts_enabled:false` regions are never
+collected. See [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the submit panel, literal-tag control,
+and xprompt conversion workflow.
+
+Source: `src/sase/agent/prompt_placeholder_inputs.py`,
+`src/sase/ace/tui/actions/agent_workflow/_prompt_bar_save_xprompt.py`,
+`src/sase/ace/tui/widgets/_prompt_input_bar_local_xprompt_actions.py`
+
 ### llm_provider
 
 Configures which LLM backend sase uses and how model tiers map to concrete models. See [docs/llms.md](llms.md) for the
@@ -1804,12 +1828,12 @@ sdd:
   push_after_commit: async
 ```
 
-| Field                          | Type        | Default      | Description                                                                                                                                                                                                                                      |
-| ------------------------------ | ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `sdd.bead_refresh.mode`        | string      | `background` | Sidecar bead-store freshness: `background` launches a TTL-gated managed sync after commands, `blocking` pulls before commands, and `off` disables command-triggered refresh, the `bead_store_refresh` chop, and the runner's bead-wait backstop. |
-| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum age of the last successful remote integration before another background worker is launched.                                                                                                                                              |
-| `sdd.repo.name`                | string      | `""`         | Optional sidecar repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`.            |
-| `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in sidecar repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                                         |
+| Field                          | Type        | Default      | Description                                                                                                                                                                                                                                                                                            |
+| ------------------------------ | ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sdd.bead_refresh.mode`        | string      | `background` | Sidecar bead-store freshness: `background` launches a TTL-gated managed sync after commands, `blocking` pulls before commands, and `off` disables remote refresh, including the `bead_store_refresh` chop and the refresh step in the runner's bead-wait fallback. Local dependency rechecks continue. |
+| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum age of the last successful remote integration before another background worker is launched.                                                                                                                                                                                                    |
+| `sdd.repo.name`                | string      | `""`         | Optional sidecar repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`.                                                                  |
+| `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in sidecar repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                                                                                               |
 
 The workspace provider owns storage selection. Built-in bare-git projects store SDD under `sdd/`. Managed GitHub
 projects use a `--plans` sidecar cloned at `sase/repos/plans`; the project-local research sidecar resolves at
@@ -2032,10 +2056,10 @@ a provider prefix; use `opencode models` to list models in your configured envir
 
 ### SDD Git Operations
 
-| Variable                            | Description                                                                                                                                                   |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_SDD_STORE_WRITE_LOCK_TIMEOUT` | Non-negative seconds to wait for the cooperative SDD store lock. Overrides both the 10-second single-write default and 180-second mutate-then-commit default. |
-| `SASE_SDD_GIT_LOCK_RETRY_DELAYS`    | Comma-separated non-negative delays, in seconds, for retrying transient Git lock failures; invalid or empty values fall back to the shared defaults.          |
+| Variable                            | Description                                                                                                                                                    |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_SDD_STORE_WRITE_LOCK_TIMEOUT` | Non-negative seconds to wait for the cooperative SDD store lock. Overrides both the 10-second metadata-write default and 180-second worktree-mutation default. |
+| `SASE_SDD_GIT_LOCK_RETRY_DELAYS`    | Comma-separated non-negative delays, in seconds, for transient Git lock failures. Invalid or empty values use the built-in shared retry schedule.              |
 
 See [SDD storage concurrency and recovery](sdd_storage.md#concurrency-and-recovery) for the lock, recovery snapshot, and
 failed-integration cooldown behavior.
@@ -2988,9 +3012,11 @@ can open it with `A`, even after the agent has been dismissed and revived. `-k/-
 | `sync`      | `-c/--check`, `-j/--json`, repeatable `-p/--project`, `-r/--refresh`                                                         | Import shared agent history and publish locally commit-eligible hoods through enabled agents sidecars. Plain `--check` uses cached status without Git or artifact scans; `--check --refresh` fetches and recomputes status. See [Agent Hood Synchronization](agents_sidecar.md).             |
 
 Agent-index paths default to `~/.sase/agent_artifact_index.sqlite` and `~/.sase/projects`. `sase agent index repair` is
-a dry run unless `-a`/`--apply` is supplied. It identifies future-dated artifacts, dismissed bundles, index and
-name-registry rows, and import journals that carry historical import provenance; apply removes only those imported
-records and rebuilds the affected projections. Locally produced records are not repair candidates.
+a dry run unless `-a`/`--apply` is supplied. It selects future-dated agent artifacts and dismissed bundles only when
+they carry import provenance (or belong to a matching import transaction), then includes the associated import journals,
+staging data, artifact-index and dismissed-identity rows, and name-registry entries. Apply removes those selected files
+and rebuilds the dismissed-bundle index and name registry. It does not select locally produced future-dated records or
+correctly dated imported records.
 
 ### `sase agent-cli`
 

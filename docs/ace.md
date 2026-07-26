@@ -2805,9 +2805,12 @@ completion in the prompt input and does not toggle this save screen. A successfu
 source. `gw` then performs atomic write-back, and if the source changed since load it offers overwrite, reload, or
 save-as instead of clobbering it. `gd` loads the simple xprompt under the cursor for the same bound editing loop. `gX`
 instead converts the active pane through a prefilled frontmatter ghost row and rewrites the pane to invoke the committed
-helper. In xprompt mode, both save paths convert live `<label>` tags into required Jinja `text` inputs while preserving
-tags inside inline and fenced code; snippet mode keeps the captured body unchanged. See
-[Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact conversion and naming rules.
+helper. Before `gx` opens the save preview, its xprompt version converts live `<label>` tags into required Jinja `text`
+inputs; switching that screen to snippet mode shows and saves the original active-pane body instead. `gX` performs the
+same raw-placeholder conversion when it creates a frontmatter-local helper. `gw` only writes the currently bound
+definition—it does not reinterpret newly typed raw placeholders. Tags in inline code, fenced code, and disabled xprompt
+regions stay literal throughout. See [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact launch,
+conversion, and naming rules.
 
 `Ctrl+G p` opens the unified stashed-prompt picker from the prompt bar, and `@` opens the same picker from the main ACE
 tabs even when the prompt bar is not active. In the picker, `space` toggles a row's persistent pin, `Tab` marks a row to
@@ -2866,8 +2869,9 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   `ace.prompt_completion.common_placeholder_count` saved placeholders, ranked by use count and recency. Automatic
   completion stays quiet for a bare `<` and adds saved placeholders only after you type at least one prefix character;
   manual `Ctrl+T` on a bare `<` shows the saved list explicitly. Set `common_placeholder_count: 0` to disable saving and
-  display of common placeholders. These tags are authoring markers: ordinary launch preserves them verbatim, while
-  saving an xprompt converts live tags to typed inputs. Inline-code and fenced-code tags stay literal in both paths; see
+  display of common placeholders. By default, submitting from ACE opens **Fill in this prompt** and asks once for each
+  distinct live tag before launch; `Ctrl+L` can keep a tag literal. Saving a new xprompt converts the same live tags to
+  typed inputs. Inline-code, fenced-code, and disabled-region tags stay literal in both paths; see
   [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders).
 - **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
   `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
@@ -3239,11 +3243,11 @@ final, and a task whose supervisor died without reporting is reconciled to `erro
 
 **Kinds and ownership.**
 
-| Kind       | Typical producer                                               | Owner and scope                                                        |
-| ---------- | -------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `tui`      | Work run and mirrored by ACE                                   | The ACE process; scoped to its session                                 |
-| `command`  | `sase task run` or `sase.tasks.submit_task()`                  | The task supervisor; scoped to the session attributed by the submitter |
-| `detached` | `sase task run --detached`, epic launches, or the detached API | The task supervisor; global because no interactive session owns it     |
+| Kind       | Typical producer                                               | Owner and scope                                                     |
+| ---------- | -------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `tui`      | Work run and mirrored by ACE                                   | The ACE process; scoped to its session                              |
+| `command`  | `sase task run` or `sase.tasks.submit_task()`                  | The task supervisor; attributed to one session or left unattributed |
+| `detached` | `sase task run --detached`, epic launches, or the detached API | The task supervisor; global because no interactive session owns it  |
 
 The programmatic detached API is `sase.tasks.submit_detached_task()`. It requires an explicit `origin` argument, uses
 the same detached supervisor and validation as `submit_task()`, and never inherits a live ACE session. The public

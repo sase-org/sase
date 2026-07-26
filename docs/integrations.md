@@ -141,7 +141,8 @@ Both submission functions validate a non-empty argument vector and an existing w
 `pending` row, then start the same detached supervisor. The supervisor owns the child process group, captures combined
 stdout/stderr, and writes the terminal status. `submit_detached_task()` deliberately accepts no `session_id`: `origin`
 is a required explicit argument, and the resulting `detached` row is unattributed even when called from a live ACE
-process. That makes it visible in every session's default Tasks scope without adding it to any session's top-bar count.
+process. That makes it visible in every session's default Tasks scope and adds an active detached task to every live ACE
+session's top-bar background-task count.
 
 `read_tasks()` and `filter_tasks()` accept `kind=` as one string or a collection. Public constants are
 `COMMAND_TASK_KIND`, `TUI_TASK_KIND`, `DETACHED_TASK_KIND`, and `TASK_KINDS`; status filters have the same one-or-many

@@ -620,22 +620,27 @@ Legacy mode is auto-detected: if the body contains no Jinja2 markers, legacy sub
 
 ## Raw Prompt Placeholders
 
-ACE recognizes single-line `<label>` tags as authoring placeholders. They are highlighted in prompt panes, participate
-in placeholder completion, and feed the saved common-placeholder history described in
-[ACE completion](ace.md#completion). Repeated tags with the same exact inner text are one logical placeholder. Tags
-inside inline code or fenced code blocks stay literal and are excluded from highlighting, completion history, and
-conversion.
+ACE recognizes valid single-line `<label>` tags as raw placeholders. A label must be nonempty, contain no leading or
+trailing whitespace, and be at most 100 characters. Raw placeholders are highlighted in prompt panes, participate in
+placeholder completion, and feed the saved common-placeholder history described in [ACE completion](ace.md#completion).
+Repeated tags with the same exact, case-sensitive inner text are one logical placeholder. Tags inside inline code,
+fenced code blocks, or `%xprompts_enabled:false` regions stay literal and are excluded from highlighting, completion
+history, launch-time collection, and conversion.
 
 Classification is syntactic rather than HTML-aware: `<div>`, `</div>`, and an angle-bracket link destination outside a
 code zone are placeholders too, and a preceding backslash does not escape them. Keep literal angle-bracket markup in an
-inline or fenced code zone, or inspect and edit the xprompt save preview before writing it.
+inline or fenced code zone, place it in a disabled xprompt region, or use the launch panel's keep-literal control.
 
-Raw placeholders are an editing and xprompt-authoring convention, not launch arguments. Submitting an ordinary ACE
-prompt leaves `<label>` text unchanged; use frontmatter [`input:`](#frontmatter-declared-inputs) and `{{ name }}` when a
-value must be collected before launch.
+By default, submitting a prompt from ACE opens **Fill in this prompt** whenever the prompt body contains a live raw
+placeholder. The panel shows raw placeholders first and then any frontmatter-declared inputs, so both kinds are resolved
+before the agents launch. Enter one value per distinct label to replace every matching occurrence across all segments,
+or press `Ctrl+L` on a placeholder field to keep that tag literal. YAML frontmatter itself is not scanned. Set
+`ace.prompt_inputs.collect_raw_placeholders: false` to skip only raw-placeholder collection and launch the tags
+unchanged; declared [`input:`](#frontmatter-declared-inputs) values are still collected. Non-interactive `sase run` does
+not collect raw placeholders.
 
 When an ACE draft is saved as an xprompt (`gx`, `Ctrl+G x`, or `Ctrl+G Ctrl+X` in xprompt mode), live raw placeholders
-are converted into required `text` inputs:
+are converted before the save preview into required `text` inputs:
 
 ```text
 Deploy <service> to <target file>
@@ -653,12 +658,13 @@ input:
 Deploy {{ service }} to {{ target_file }}
 ```
 
-The `gX` active-pane conversion applies the same rewrite to a frontmatter-local xprompt. Generated names are Jinja-safe
-slugs allocated in document order; collisions receive `_2`, `_3`, and so on. A matching authored input or undeclared
-Jinja variable is reused instead of redeclared, preserving an authored type, default, and description. Repeated
-placeholder values are substituted together, literal code-zone tags remain untouched, and inserted values are not
-scanned again for more placeholders. Saving the same draft as a snippet keeps the original snippet body rather than
-applying this xprompt-only conversion.
+The `gX` active-pane conversion applies the same rewrite when it creates a frontmatter-local xprompt. Generated names
+are Jinja-safe slugs allocated in document order; collisions receive `_2`, `_3`, and so on. During `gx`, a generated
+name that matches an authored input is reused instead of redeclared, preserving its type, default, and description. Both
+conversions reuse a matching undeclared Jinja variable. Repeated occurrences are substituted together, tags in literal
+zones remain untouched, and inserted values are not scanned again for more placeholders. Saving the same draft as a
+snippet keeps the original active-pane body rather than applying this xprompt-only conversion. Writing an already bound
+xprompt with `gw` saves the body as edited and does not perform a new conversion pass.
 
 ## Tags
 
@@ -1909,13 +1915,13 @@ input:
 Refactor the {{ service }} module ({{ retries }} retries, dry_run={{ dry_run }}).
 ```
 
-When a prompt with required (default-less) inputs is submitted in `sase ace`, the **Fill in this prompt** panel opens
-after the whole-stack submit. Each required input gets a typed, live-validated field; optional inputs stay collapsed
-behind a reveal toggle and show their defaults when opened. `Enter` advances through visible fields and launches from
-the last one once every required value is valid. `Escape` cancels and returns to the draft; from field INSERT mode, the
-first press returns to NORMAL and the second cancels. `path` fields reuse `Ctrl+T` path completion. This panel collects
-declared `input:` values only; raw `<label>` tags remain ordinary prompt text as described in
-[Raw Prompt Placeholders](#raw-prompt-placeholders).
+When a prompt with required (default-less) inputs or live raw placeholders is submitted in `sase ace`, the **Fill in
+this prompt** panel opens after the whole-stack submit. Raw-placeholder fields appear first, followed by typed,
+live-validated required inputs; optional inputs stay collapsed behind a reveal toggle and show their defaults when
+opened. `Enter` advances through visible fields and launches from the last one once every required value is valid.
+`Ctrl+L` keeps the focused raw placeholder literal. `Escape` cancels and returns to the draft; from field INSERT mode,
+the first press returns to NORMAL and the second cancels. `path` fields reuse `Ctrl+T` path completion. See
+[Raw Prompt Placeholders](#raw-prompt-placeholders) for matching, substitution, and the collection toggle.
 
 Non-interactive CLI launches (`sase run`) cannot prompt, so a required input without a default fails fast with a clear
 message instead of a cryptic template error — give such inputs a default or launch from the TUI.

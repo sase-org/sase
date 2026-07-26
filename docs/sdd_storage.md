@@ -104,11 +104,12 @@ pushes synchronously, and `false` skips the push.
 ### Concurrency and Recovery
 
 SASE serializes cooperating SDD writers with a lock in the store repository's Git directory and retries transient Git
-index-lock errors. Single-command writers wait up to 10 seconds by default. Operations that mutate the shared worktree
-and then commit—bead mutation, sync, commit, health preflight, integration, and recovery—wait up to 180 seconds and fail
-closed if the lock remains unavailable. Lock contention is reported as a busy-but-healthy integration outcome; it does
-not authorize destructive recovery. `SASE_SDD_STORE_WRITE_LOCK_TIMEOUT` sets one non-negative override for both wait
-bounds, and `SASE_SDD_GIT_LOCK_RETRY_DELAYS` overrides the comma-separated per-command retry delays.
+index-lock errors. Short Git-directory metadata writes wait up to 10 seconds by default. Operations that can mutate the
+shared worktree—bead mutation, sync, commit, mutation health preflight, integration, and recovery—wait up to 180 seconds
+and abort without changing the worktree if the lock remains unavailable. Transactional integration reports that
+contention as a busy-but-healthy outcome, so it cannot authorize destructive recovery.
+`SASE_SDD_STORE_WRITE_LOCK_TIMEOUT` sets one non-negative override for both wait bounds, and
+`SASE_SDD_GIT_LOCK_RETRY_DELAYS` supplies comma-separated per-command retry delays.
 
 Managed Git commands disable `rerere` and `rerere.autoupdate`, so a user's ambient Git configuration cannot replay a
 cached textual conflict resolution over SASE's semantic bead merge. Ordinary transactional integration restores the
@@ -121,6 +122,7 @@ per pass that are older than 30 days **and** whose protected history is already 
 Fresh snapshots and snapshots protecting unpushed commits are retained.
 
 When an upstream-present sidecar integration reaches a repeatable failure such as unsupported conflicts or failed
-recovery, SASE records a per-clone failure marker. Further pulls are suppressed for the five-minute machine-recovery
-cooldown instead of retrying the same rebase on every command; a successful integration clears the marker. Remote
-outages and an unavailable cooperative lock do not create this failure cooldown.
+recovery, SASE records a per-clone failure marker. Further pulls are suppressed for the machine-recovery cooldown
+instead of retrying the same rebase on every command; the cooldown is at least five minutes and grows to match a larger
+configured bead-refresh TTL. A successful integration clears the marker. Remote outages and an unavailable cooperative
+lock do not create this failure cooldown.
