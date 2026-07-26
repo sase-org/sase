@@ -1,9 +1,7 @@
-"""Tests for the Input Collection Modal (sase-4r.5).
+"""Tests for the unified Prompt Inputs modal.
 
-Exercises live validation (required vs optional, each input type, error
-guidance), the optional-input reveal toggle, and the confirm/cancel result
-contract. The modal returns raw string values keyed by input name; conversion
-and substitution are covered separately in ``tests/test_prompt_inputs``.
+Exercises placeholders, keep-literal behavior, live declared-input validation,
+the optional-input reveal toggle, and the unified dismissal payload.
 """
 
 from __future__ import annotations
@@ -14,19 +12,16 @@ import pytest
 from textual.app import App
 from textual.widgets import Button, Label
 
-from sase.agent.prompt_inputs import parse_prompt_input_request
+from sase.agent.prompt_placeholder_inputs import (
+    PromptInputValues,
+    build_prompt_input_plan,
+)
 from sase.ace.tui.modals.input_collection_modal import InputCollectionModal, _PathField
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
 class _TestApp(App[None]):
     pass
-
-
-def _request(prompt: str) -> object:
-    request = parse_prompt_input_request(prompt)
-    assert request is not None
-    return request
 
 
 _REQUIRED_ONLY = "---\ninput:\n  service: word\n  retries: int\n---\n{{ service }}"
@@ -40,7 +35,7 @@ _WITH_OPTIONAL = (
 
 
 async def test_confirm_disabled_until_required_filled() -> None:
-    modal = InputCollectionModal(_request(_REQUIRED_ONLY), agent_count=2)
+    modal = InputCollectionModal(build_prompt_input_plan(_REQUIRED_ONLY), agent_count=2)
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -60,7 +55,7 @@ async def test_confirm_disabled_until_required_filled() -> None:
 
 
 async def test_invalid_value_shows_error_and_blocks_confirm() -> None:
-    modal = InputCollectionModal(_request(_REQUIRED_ONLY), agent_count=1)
+    modal = InputCollectionModal(build_prompt_input_plan(_REQUIRED_ONLY), agent_count=1)
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -79,7 +74,7 @@ async def test_invalid_value_shows_error_and_blocks_confirm() -> None:
 
 
 async def test_word_input_rejects_whitespace() -> None:
-    modal = InputCollectionModal(_request(_REQUIRED_ONLY), agent_count=1)
+    modal = InputCollectionModal(build_prompt_input_plan(_REQUIRED_ONLY), agent_count=1)
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -91,7 +86,7 @@ async def test_word_input_rejects_whitespace() -> None:
 
 
 async def test_optional_inputs_hidden_until_revealed() -> None:
-    modal = InputCollectionModal(_request(_WITH_OPTIONAL), agent_count=1)
+    modal = InputCollectionModal(build_prompt_input_plan(_WITH_OPTIONAL), agent_count=1)
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -111,7 +106,7 @@ async def test_optional_inputs_hidden_until_revealed() -> None:
 
 async def test_confirm_returns_required_values_and_omits_empty_optional() -> None:
     result: object = "unset"
-    modal = InputCollectionModal(_request(_WITH_OPTIONAL), agent_count=1)
+    modal = InputCollectionModal(build_prompt_input_plan(_WITH_OPTIONAL), agent_count=1)
 
     def _on_dismiss(value: object) -> None:
         nonlocal result
@@ -127,12 +122,15 @@ async def test_confirm_returns_required_values_and_omits_empty_optional() -> Non
         await pilot.pause()
 
     # Optional dry_run left empty -> omitted so its default applies downstream.
-    assert result == {"service": "billing"}
+    assert result == PromptInputValues(
+        placeholders={},
+        declared={"service": "billing"},
+    )
 
 
 async def test_confirm_includes_filled_optional_value() -> None:
     result: object = "unset"
-    modal = InputCollectionModal(_request(_WITH_OPTIONAL), agent_count=1)
+    modal = InputCollectionModal(build_prompt_input_plan(_WITH_OPTIONAL), agent_count=1)
 
     def _on_dismiss(value: object) -> None:
         nonlocal result
@@ -150,12 +148,15 @@ async def test_confirm_includes_filled_optional_value() -> None:
         modal.query_one("#confirm", Button).press()
         await pilot.pause()
 
-    assert result == {"service": "billing", "dry_run": "true"}
+    assert result == PromptInputValues(
+        placeholders={},
+        declared={"service": "billing", "dry_run": "true"},
+    )
 
 
 async def test_cancel_returns_none() -> None:
     result: object = "unset"
-    modal = InputCollectionModal(_request(_REQUIRED_ONLY), agent_count=1)
+    modal = InputCollectionModal(build_prompt_input_plan(_REQUIRED_ONLY), agent_count=1)
 
     def _on_dismiss(value: object) -> None:
         nonlocal result
@@ -176,7 +177,7 @@ async def test_field_guidance_includes_description_and_rule() -> None:
         "  retries:\n    type: int\n    description: how many times\n"
         "---\n{{ retries }}"
     )
-    modal = InputCollectionModal(_request(prompt), agent_count=1)
+    modal = InputCollectionModal(build_prompt_input_plan(prompt), agent_count=1)
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -195,7 +196,7 @@ async def test_path_input_uses_ctrl_t_file_completion(
     monkeypatch.chdir(tmp_path)
 
     prompt = "---\ninput:\n  target: path\n---\n{{ target }}"
-    modal = InputCollectionModal(_request(prompt), agent_count=1)
+    modal = InputCollectionModal(build_prompt_input_plan(prompt), agent_count=1)
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -206,3 +207,77 @@ async def test_path_input_uses_ctrl_t_file_completion(
         await pilot.pause()
 
         assert field.text == "alpha.txt"
+
+
+async def test_placeholder_keep_literal_updates_counter_and_can_toggle_back() -> None:
+    modal = InputCollectionModal(
+        build_prompt_input_plan("Refactor <the plan> and report back"),
+        agent_count=1,
+    )
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        status = modal.query_one("#filled-status", Label)
+        assert str(status.content) == "0 of 1 filled"
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+
+        assert str(status.content) == "all filled"
+        assert modal.query_one("#confirm", Button).disabled is False
+        assert modal.query_one("#field-block-0").has_class("literal")
+        assert modal.query_one("#field-literal-0").display is True
+
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+        assert str(status.content) == "0 of 1 filled"
+        assert modal.query_one("#confirm", Button).disabled is True
+
+
+async def test_ctrl_l_outside_fields_marks_all_empty_placeholders_literal() -> None:
+    modal = InputCollectionModal(
+        build_prompt_input_plan("Compare <left> with <right>"),
+        agent_count=1,
+    )
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        modal.query_one("#cancel", Button).focus()
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+
+        assert modal._literal_indices == {0, 1}
+        assert str(modal.query_one("#filled-status", Label).content) == "all filled"
+
+
+async def test_mixed_plan_dismisses_unified_values_in_flat_field_order() -> None:
+    result: object = "unset"
+    prompt = (
+        "---\ninput:\n  retries: int\n---\n"
+        "Implement <the plan> twice: <the plan> ({{ retries }} retries)"
+    )
+    modal = InputCollectionModal(build_prompt_input_plan(prompt), agent_count=2)
+
+    def _on_dismiss(value: object) -> None:
+        nonlocal result
+        result = value
+
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal, callback=_on_dismiss)
+        await pilot.pause()
+
+        assert str(modal.query_one("#modal-subtitle", Label).content) == (
+            "1 placeholder · 1 input"
+        )
+        assert modal.query_one("#field-input-0", SingleLineVimTextArea).has_focus
+        modal.query_one("#field-input-0", SingleLineVimTextArea).text = "cleanup"
+        modal.query_one("#field-input-1", SingleLineVimTextArea).text = "3"
+        await pilot.pause()
+        modal.query_one("#confirm", Button).press()
+        await pilot.pause()
+
+    assert result == PromptInputValues(
+        placeholders={"the plan": "cleanup"},
+        declared={"retries": "3"},
+    )

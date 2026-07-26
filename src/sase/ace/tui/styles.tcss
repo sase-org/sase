@@ -2518,6 +2518,12 @@ InputCollectionModal #modal-title {
     width: 100%;
     content-align: center middle;
     text-style: bold;
+}
+
+InputCollectionModal #modal-subtitle {
+    width: 100%;
+    content-align: center middle;
+    color: $text-muted;
     margin-bottom: 1;
 }
 
@@ -2526,9 +2532,44 @@ InputCollectionModal #input-fields {
     max-height: 24;
 }
 
+InputCollectionModal .input-section-header {
+    color: $text-muted;
+    text-style: bold;
+    margin: 1 0 0 0;
+}
+
 InputCollectionModal .input-field-block {
     height: auto;
     margin-bottom: 1;
+}
+
+InputCollectionModal .placeholder-heading {
+    height: auto;
+}
+
+InputCollectionModal .placeholder-header {
+    width: 1fr;
+}
+
+InputCollectionModal .placeholder-occurrences {
+    width: auto;
+    color: $text-muted;
+    text-style: bold;
+}
+
+InputCollectionModal .placeholder-context {
+    color: $text-muted;
+}
+
+InputCollectionModal .placeholder-literal {
+    width: 100%;
+    color: $text-muted;
+    padding: 0 1;
+}
+
+InputCollectionModal .placeholder-field-block.literal .placeholder-heading,
+InputCollectionModal .placeholder-field-block.literal .placeholder-context {
+    opacity: 55%;
 }
 
 InputCollectionModal .field-header {
@@ -2554,10 +2595,24 @@ InputCollectionModal #toggle-optional {
     margin-bottom: 1;
 }
 
+InputCollectionModal #filled-status {
+    width: 100%;
+    content-align: center middle;
+    color: $text-muted;
+    text-style: bold;
+    margin-top: 1;
+}
+
+InputCollectionModal #input-collection-hint {
+    width: 100%;
+    content-align: center middle;
+    color: $text-muted;
+}
+
 InputCollectionModal #button-row {
     align: center middle;
     height: auto;
-    margin-top: 1;
+    margin-top: 0;
 }
 
 InputCollectionModal #button-row Button {

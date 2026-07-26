@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from ._types import PromptContext
 
 if TYPE_CHECKING:
+    from sase.agent.prompt_inputs import PromptInputRequest
     from sase.ace.tui.modals import SelectionItem
 
 
@@ -84,7 +85,7 @@ class AgentLaunchStartMixin:
         self._launch_resolved_prompt(prompt, keep_bar=keep_bar)
 
     def _collect_prompt_inputs_then_launch(
-        self, prompt: str, request: object, keep_bar: bool
+        self, prompt: str, request: PromptInputRequest, keep_bar: bool
     ) -> None:
         """Show the Input Collection Modal, then launch with substituted values.
 
@@ -95,6 +96,10 @@ class AgentLaunchStartMixin:
             PromptInputError,
             render_prompt_with_inputs,
         )
+        from sase.agent.prompt_placeholder_inputs import (
+            PromptInputPlan,
+            PromptInputValues,
+        )
         from sase.ace.tui.modals import InputCollectionModal
 
         agent_count = max(1, len(parse_multi_prompt(prompt).segments))
@@ -103,16 +108,20 @@ class AgentLaunchStartMixin:
             if values is None:
                 self.notify("Input collection cancelled")  # type: ignore[attr-defined]
                 return
-            assert isinstance(values, dict)
+            assert isinstance(values, PromptInputValues)
             try:
-                resolved = render_prompt_with_inputs(prompt, values)
+                resolved = render_prompt_with_inputs(prompt, values.declared)
             except PromptInputError as exc:
                 self.notify(f"Input error: {exc}", severity="error")  # type: ignore[attr-defined]
                 return
             self._launch_resolved_prompt(resolved, keep_bar=keep_bar)
 
         self.push_screen(  # type: ignore[attr-defined]
-            InputCollectionModal(request, agent_count=agent_count), _after
+            InputCollectionModal(
+                PromptInputPlan(placeholders=(), declared=request),
+                agent_count=agent_count,
+            ),
+            _after,
         )
 
     def _launch_resolved_prompt(self, prompt: str, *, keep_bar: bool = False) -> None:

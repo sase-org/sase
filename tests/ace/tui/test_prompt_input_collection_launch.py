@@ -10,6 +10,7 @@ collected values are rendered into every segment before the launch worker runs.
 from __future__ import annotations
 
 from sase.ace.tui.modals.input_collection_modal import InputCollectionModal
+from sase.agent.prompt_placeholder_inputs import PromptInputValues
 
 from tests.ace.tui._agent_launch_helpers import _FakeApp
 
@@ -51,7 +52,12 @@ def test_required_input_opens_modal_then_launches_substituted() -> None:
     assert app.launch_tasks == []
 
     # Confirming with values renders them into the segment and launches.
-    callback({"service": "billing"})
+    callback(
+        PromptInputValues(
+            placeholders={},
+            declared={"service": "billing"},
+        )
+    )
     assert len(app.launch_tasks) == 1
     app.launch_tasks[0]["task_callable"]()
     assert app.body_calls == ["Refactor billing"]
@@ -74,7 +80,12 @@ def test_invalid_collected_value_does_not_launch() -> None:
     prompt = "---\ninput:\n  retries: int\n---\n{{ retries }}"
     app._finish_agent_launch(prompt)
     _screen, callback = app.pushed_screens[0]
-    callback({"retries": "three"})  # fails int validation in render
+    callback(
+        PromptInputValues(
+            placeholders={},
+            declared={"retries": "three"},
+        )
+    )  # fails int validation in render
 
     assert app.launch_tasks == []
     assert any(sev == "error" for _msg, sev in app.notifications)

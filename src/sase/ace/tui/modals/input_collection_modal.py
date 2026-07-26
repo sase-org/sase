@@ -1,33 +1,42 @@
-"""Input Collection Modal for prompt frontmatter ``input:`` declarations.
+"""Single-page Prompt Inputs panel for placeholders and declared inputs.
 
-Phase 5 of the prompt-frontmatter-panel epic. When a submitted prompt declares
-``input:`` arguments without defaults, this modal collects a typed, validated
-value for each required input (optional inputs stay collapsed behind a reveal
-toggle, showing their defaults) before the agents fan out. Each field validates
-live via :meth:`InputArg.validate_and_convert`; the confirm button stays disabled
-until every required input is valid. Per-type guidance text comes from the shared
-``sase-core`` engine (:func:`input_type_schema`, Phase 1) so it never drifts from
-the xprompt LSP.
+Raw ``<placeholder>`` fields appear first, with source context and a
+``<ctrl+l>`` escape hatch that preserves the tag literally. Declared
+frontmatter ``input:`` arguments follow with their existing typed validation
+and optional-input reveal behavior.
 
-The modal returns a mapping of input name to the raw (unconverted) string value
-on confirm, or ``None`` on cancel. Conversion + default-filling + Jinja
-substitution into each segment happens in
-:func:`sase.agent.prompt_inputs.render_prompt_with_inputs`.
+The modal returns :class:`~sase.agent.prompt_placeholder_inputs.PromptInputValues`
+on confirm, or ``None`` on cancel. Substitution and typed-input rendering remain
+pure logic in :mod:`sase.agent.prompt_placeholder_inputs`.
 """
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from rich.style import Style
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Label, TextArea
 
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.xprompt.raw_placeholders import RawPlaceholderField
 from sase.xprompt.models import UNSET, InputArg, InputType, XPromptValidationError
+
+if TYPE_CHECKING:
+    from sase.agent.prompt_placeholder_inputs import PromptInputPlan, PromptInputValues
 
 
 class _InputCollectionInput(SingleLineVimTextArea):
     """Single-line vim editor for prompt input values."""
+
+
+class _LiteralPlaceholderLine(Label):
+    """Focusable replacement for an editor whose placeholder stays literal."""
+
+    can_focus = True
 
 
 class _PathField(_InputCollectionInput):
@@ -77,36 +86,40 @@ class _PathField(_InputCollectionInput):
         self._cycle_last_set = chosen
 
 
-class InputCollectionModal(ModalScreen["dict[str, str] | None"]):
-    """Collect typed values for a prompt's declared frontmatter inputs.
+class InputCollectionModal(ModalScreen["PromptInputValues | None"]):
+    """Collect raw-placeholder and declared-input values on one page.
 
-    Returns a mapping of input name to raw string value on confirm, or ``None``
-    on cancel. Only inputs the user supplied are returned (empty optional inputs
-    are omitted so their declared defaults apply downstream).
+    Placeholder values are keyed by their exact inner text. Literal-marked
+    placeholders are omitted, as are empty optional declared inputs.
     """
 
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
+        ("ctrl+l", "toggle_literal", "Keep literal"),
+        ("enter", "next_field", "Next field"),
     ]
 
-    def __init__(self, request: object, *, agent_count: int = 1) -> None:
+    def __init__(self, plan: PromptInputPlan, *, agent_count: int = 1) -> None:
         """Initialize the modal.
 
         Args:
-            request: The :class:`~sase.agent.prompt_inputs.PromptInputRequest`
-                describing the declared inputs.
+            plan: The unified raw-placeholder and declared-input collection
+                plan.
             agent_count: How many agents the prompt will launch (for the confirm
                 button label).
         """
         super().__init__()
-        from sase.agent.prompt_inputs import PromptInputRequest
+        from sase.agent.prompt_placeholder_inputs import PromptInputPlan
 
-        assert isinstance(request, PromptInputRequest)
-        self._required: list[InputArg] = request.required
-        self._optional: list[InputArg] = request.optional
-        # Required inputs first, then optional — index into this list is the
-        # field id suffix used throughout (``field-input-<idx>``).
-        self._fields: list[InputArg] = self._required + self._optional
+        assert isinstance(plan, PromptInputPlan)
+        self._placeholders = list(plan.placeholders)
+        request = plan.declared
+        self._required: list[InputArg] = request.required if request else []
+        self._optional: list[InputArg] = request.optional if request else []
+        # One flat index space: placeholders, required inputs, optional inputs.
+        self._declared_fields: list[InputArg] = self._required + self._optional
+        self._field_count = len(self._placeholders) + len(self._declared_fields)
+        self._literal_indices: set[int] = set()
         self._agent_count = max(1, agent_count)
         self._optional_revealed = False
         self._type_rule_by_name = _load_type_rules()
@@ -115,9 +128,19 @@ class InputCollectionModal(ModalScreen["dict[str, str] | None"]):
 
     def compose(self) -> ComposeResult:
         with Container(id="input-collection-container"):
-            yield Label("Inputs for this prompt", id="modal-title")
+            yield Label("Fill in this prompt", id="modal-title")
+            yield Label(self._subtitle(), id="modal-subtitle")
             with VerticalScroll(id="input-fields"):
-                for idx, arg in enumerate(self._required):
+                show_sections = bool(self._placeholders and self._declared_fields)
+                if show_sections:
+                    yield Label("PLACEHOLDERS", classes="input-section-header")
+                for idx, field in enumerate(self._placeholders):
+                    yield self._build_placeholder_block(idx, field)
+                if show_sections:
+                    yield Label("INPUTS", classes="input-section-header")
+                declared_offset = len(self._placeholders)
+                for offset, arg in enumerate(self._required):
+                    idx = declared_offset + offset
                     yield self._build_field_block(idx, arg, required=True, hidden=False)
                 if self._optional:
                     yield Button(
@@ -126,13 +149,49 @@ class InputCollectionModal(ModalScreen["dict[str, str] | None"]):
                         variant="default",
                     )
                     for offset, arg in enumerate(self._optional):
-                        idx = len(self._required) + offset
+                        idx = declared_offset + len(self._required) + offset
                         yield self._build_field_block(
                             idx, arg, required=False, hidden=True
                         )
+            yield Label("", id="filled-status")
+            yield Label(
+                self._footer_hint(),
+                id="input-collection-hint",
+            )
             with Horizontal(id="button-row"):
                 yield Button(self._confirm_label(), id="confirm", variant="primary")
                 yield Button("Cancel", id="cancel", variant="default")
+
+    def _build_placeholder_block(
+        self, idx: int, field: RawPlaceholderField
+    ) -> Vertical:
+        heading_children: list[Label] = [
+            Label(
+                self._styled_tag(field.text),
+                classes="placeholder-header",
+            )
+        ]
+        if field.occurrences > 1:
+            heading_children.append(
+                Label(f"×{field.occurrences}", classes="placeholder-occurrences")
+            )
+        literal = _LiteralPlaceholderLine(
+            self._literal_line(field.text),
+            id=f"field-literal-{idx}",
+            classes="placeholder-literal",
+        )
+        literal.display = False
+        return Vertical(
+            Horizontal(*heading_children, classes="placeholder-heading"),
+            Label(
+                self._styled_context(field),
+                classes="placeholder-context",
+            ),
+            _InputCollectionInput(id=f"field-input-{idx}"),
+            literal,
+            id=f"field-block-{idx}",
+            classes="input-field-block placeholder-field-block",
+        )
 
     def _build_field_block(
         self, idx: int, arg: InputArg, *, required: bool, hidden: bool
@@ -165,6 +224,58 @@ class InputCollectionModal(ModalScreen["dict[str, str] | None"]):
         return _InputCollectionInput(id=field_id, placeholder=placeholder)
 
     # -- labels ---------------------------------------------------------------
+
+    def _subtitle(self) -> str:
+        parts: list[str] = []
+        if self._placeholders:
+            parts.append(
+                _counted(len(self._placeholders), "placeholder", "placeholders")
+            )
+        if self._declared_fields:
+            parts.append(_counted(len(self._declared_fields), "input", "inputs"))
+        return " · ".join(parts)
+
+    def _footer_hint(self) -> str:
+        if self._placeholders:
+            return "<enter> next field · ^l keep literal · <esc> cancel"
+        return "<enter> next field · <esc> cancel"
+
+    def _styled_tag(self, inner: str) -> Text:
+        theme = self.app.current_theme
+        result = Text()
+        result.append("<", Style(color=theme.accent, dim=True))
+        result.append(inner, Style(color=theme.secondary, bold=True))
+        result.append(">", Style(color=theme.accent, dim=True))
+        return result
+
+    def _styled_context(self, field: RawPlaceholderField) -> Text:
+        result = Text(field.context, style="dim")
+        tag = f"<{field.text}>"
+        start = field.context.find(tag)
+        if start < 0:
+            return result
+        theme = self.app.current_theme
+        result.stylize(
+            Style(color=theme.accent, dim=True),
+            start,
+            start + 1,
+        )
+        result.stylize(
+            Style(color=theme.secondary, bold=True, dim=True),
+            start + 1,
+            start + len(tag) - 1,
+        )
+        result.stylize(
+            Style(color=theme.accent, dim=True),
+            start + len(tag) - 1,
+            start + len(tag),
+        )
+        return result
+
+    def _literal_line(self, inner: str) -> Text:
+        result = Text("literal · will stay as ", style="dim")
+        result.append_text(self._styled_tag(inner))
+        return result
 
     def _field_header(self, arg: InputArg, *, required: bool) -> str:
         tag = "required" if required else "optional"
@@ -208,42 +319,51 @@ class InputCollectionModal(ModalScreen["dict[str, str] | None"]):
             self._validate_field(idx)
         self._refresh_confirm_enabled()
 
-    def _index_of(self, widget: TextArea) -> int | None:
-        widget_id = widget.id or ""
-        prefix = "field-input-"
-        if not widget_id.startswith(prefix):
-            return None
-        try:
-            return int(widget_id[len(prefix) :])
-        except ValueError:
-            return None
+    def _index_of(self, widget: object) -> int | None:
+        widget_id = getattr(widget, "id", "") or ""
+        for prefix in ("field-input-", "field-literal-"):
+            if widget_id.startswith(prefix):
+                try:
+                    return int(widget_id[len(prefix) :])
+                except ValueError:
+                    return None
+        return None
 
     def _field_value(self, idx: int) -> str:
         return self.query_one(f"#field-input-{idx}", SingleLineVimTextArea).text
 
-    def _is_required(self, idx: int) -> bool:
-        return idx < len(self._required)
+    def _declared_index(self, idx: int) -> int:
+        return idx - len(self._placeholders)
+
+    def _is_required_declared(self, idx: int) -> bool:
+        declared_idx = self._declared_index(idx)
+        return 0 <= declared_idx < len(self._required)
 
     def _field_valid(self, idx: int) -> bool:
         value = self._field_value(idx)
+        if idx < len(self._placeholders):
+            return idx in self._literal_indices or value != ""
+        declared_idx = self._declared_index(idx)
         if value == "":
             # Empty required input is incomplete (invalid); empty optional input
             # falls back to its declared default (valid).
-            return not self._is_required(idx)
+            return not self._is_required_declared(idx)
         try:
-            self._fields[idx].validate_and_convert(value)
+            self._declared_fields[declared_idx].validate_and_convert(value)
         except XPromptValidationError:
             return False
         return True
 
     def _validate_field(self, idx: int) -> None:
         """Update the inline error message for field *idx*."""
+        if idx < len(self._placeholders):
+            return
         try:
             error_label = self.query_one(f"#field-error-{idx}", Label)
         except Exception:
             return
         value = self._field_value(idx)
-        arg = self._fields[idx]
+        arg = self._declared_fields[self._declared_index(idx)]
         if value == "":
             error_label.update("")
             error_label.display = False
@@ -259,9 +379,24 @@ class InputCollectionModal(ModalScreen["dict[str, str] | None"]):
         error_label.display = False
 
     def _all_valid(self) -> bool:
-        return all(self._field_valid(idx) for idx in range(len(self._fields)))
+        return all(self._field_valid(idx) for idx in range(self._field_count))
+
+    def _filled_count(self) -> tuple[int, int]:
+        required_declared_end = len(self._placeholders) + len(self._required)
+        indices = range(required_declared_end)
+        return sum(self._field_valid(idx) for idx in indices), required_declared_end
+
+    def _filled_status(self) -> str:
+        filled, total = self._filled_count()
+        if filled == total:
+            return "all filled"
+        return f"{filled} of {total} filled"
 
     def _refresh_confirm_enabled(self) -> None:
+        try:
+            self.query_one("#filled-status", Label).update(self._filled_status())
+        except Exception:
+            pass
         try:
             confirm = self.query_one("#confirm", Button)
         except Exception:
@@ -288,43 +423,92 @@ class InputCollectionModal(ModalScreen["dict[str, str] | None"]):
 
     def _focus_next_field(self, idx: int) -> bool:
         """Focus the next visible input after *idx*; return whether one existed."""
-        for next_idx in range(idx + 1, len(self._fields)):
+        for next_idx in range(idx + 1, self._field_count):
             block = self.query_one(f"#field-block-{next_idx}", Vertical)
             if block.display:
-                editor = self.query_one(
-                    f"#field-input-{next_idx}", SingleLineVimTextArea
-                )
-                editor.focus()
-                editor._update_vim_mode_display()
+                self._focus_field(next_idx)
                 return True
         return False
+
+    def _focus_field(self, idx: int) -> None:
+        if idx in self._literal_indices:
+            self.query_one(f"#field-literal-{idx}", _LiteralPlaceholderLine).focus()
+            return
+        editor = self.query_one(f"#field-input-{idx}", SingleLineVimTextArea)
+        editor.focus()
+        editor._update_vim_mode_display()
 
     def _toggle_optional(self) -> None:
         self._optional_revealed = not self._optional_revealed
         for offset in range(len(self._optional)):
-            idx = len(self._required) + offset
+            idx = len(self._placeholders) + len(self._required) + offset
             block = self.query_one(f"#field-block-{idx}", Vertical)
             block.display = self._optional_revealed
         self.query_one("#toggle-optional", Button).label = self._optional_toggle_label()
         if self._optional_revealed and self._optional:
-            editor = self.query_one(
-                f"#field-input-{len(self._required)}", SingleLineVimTextArea
-            )
-            editor.focus()
-            editor._update_vim_mode_display()
+            self._focus_field(len(self._placeholders) + len(self._required))
+
+    def action_toggle_literal(self) -> None:
+        """Toggle the focused placeholder, or mark every empty one literal."""
+        idx = self._index_of(self.focused)
+        if idx is not None:
+            if idx < len(self._placeholders):
+                self._set_literal(idx, idx not in self._literal_indices)
+            return
+        for placeholder_idx in range(len(self._placeholders)):
+            if self._field_value(placeholder_idx) == "":
+                self._set_literal(placeholder_idx, True, focus=False)
+        self._refresh_confirm_enabled()
+
+    def _set_literal(self, idx: int, literal: bool, *, focus: bool = True) -> None:
+        editor = self.query_one(f"#field-input-{idx}", SingleLineVimTextArea)
+        line = self.query_one(f"#field-literal-{idx}", _LiteralPlaceholderLine)
+        block = self.query_one(f"#field-block-{idx}", Vertical)
+        if literal:
+            self._literal_indices.add(idx)
+        else:
+            self._literal_indices.discard(idx)
+        editor.display = not literal
+        line.display = literal
+        block.set_class(literal, "literal")
+        if focus:
+            self._focus_field(idx)
+        self._refresh_confirm_enabled()
+
+    def action_next_field(self) -> None:
+        """Advance from a literal line; editors handle their own submit event."""
+        idx = self._index_of(self.focused)
+        if idx is None or not isinstance(self.focused, _LiteralPlaceholderLine):
+            return
+        if not self._focus_next_field(idx):
+            self._try_confirm()
 
     def _try_confirm(self) -> None:
         if not self._all_valid():
             self.notify("Fix the highlighted inputs before launching", severity="error")
             return
-        values: dict[str, str] = {}
-        for idx, arg in enumerate(self._fields):
+        from sase.agent.prompt_placeholder_inputs import PromptInputValues
+
+        placeholder_values = {
+            field.text: self._field_value(idx)
+            for idx, field in enumerate(self._placeholders)
+            if idx not in self._literal_indices
+        }
+        declared_values: dict[str, str] = {}
+        declared_offset = len(self._placeholders)
+        for declared_idx, arg in enumerate(self._declared_fields):
+            idx = declared_offset + declared_idx
             value = self._field_value(idx)
-            if value == "" and not self._is_required(idx):
+            if value == "" and not self._is_required_declared(idx):
                 # Empty optional input: omit so its declared default applies.
                 continue
-            values[arg.name] = value
-        self.dismiss(values)
+            declared_values[arg.name] = value
+        self.dismiss(
+            PromptInputValues(
+                placeholders=placeholder_values,
+                declared=declared_values,
+            )
+        )
 
     def action_cancel(self) -> None:
         self.dismiss(None)
@@ -347,3 +531,7 @@ def _load_type_rules() -> dict[str, str]:
         return rules
     except Exception:
         return {}
+
+
+def _counted(count: int, singular: str, plural: str) -> str:
+    return f"{count} {singular if count == 1 else plural}"

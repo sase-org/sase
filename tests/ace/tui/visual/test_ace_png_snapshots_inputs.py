@@ -14,7 +14,7 @@ from textual.widgets import Button, Label
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.input_collection_modal import InputCollectionModal
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from sase.agent.prompt_inputs import parse_prompt_input_request
+from sase.agent.prompt_placeholder_inputs import build_prompt_input_plan
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -45,9 +45,7 @@ _PROMPT = (
 
 
 def _push_modal(page: AcePage) -> InputCollectionModal:
-    request = parse_prompt_input_request(_PROMPT)
-    assert request is not None
-    modal = InputCollectionModal(request, agent_count=3)
+    modal = InputCollectionModal(build_prompt_input_plan(_PROMPT), agent_count=3)
     page.app.push_screen(modal)
     return modal
 
