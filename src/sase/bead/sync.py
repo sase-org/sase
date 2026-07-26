@@ -681,12 +681,91 @@ def bead_sync_diagnostics(beads_dir: Path) -> list[str]:
             messages.append(f"WARNING: bead store has {ahead} unpushed commit(s)")
         elif behind:
             messages.append(f"WARNING: bead store is {behind} commit(s) behind")
+        if ahead:
+            bead_commits = _unpushed_bead_commit_count(
+                repo_root,
+                beads_dir,
+            )
+            if bead_commits:
+                messages.append(
+                    "WARNING: bead store has "
+                    f"{bead_commits} unpushed local bead commit(s)"
+                )
+
+    from sase.sdd._repository_recovery_reaper import (
+        RECOVERY_REF_PREFIX,
+        RECOVERY_STASH_SUBJECT_FRAGMENT,
+    )
+
+    recovery_refs = subprocess.run(
+        [
+            "git",
+            "for-each-ref",
+            "--format=%(refname)",
+            RECOVERY_REF_PREFIX,
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if recovery_refs.returncode == 0:
+        ref_count = len(
+            [line for line in recovery_refs.stdout.splitlines() if line.strip()]
+        )
+        if ref_count:
+            messages.append(f"WARNING: bead store retains {ref_count} recovery ref(s)")
+
+    recovery_stashes = subprocess.run(
+        ["git", "stash", "list", "--format=%gs"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if recovery_stashes.returncode == 0:
+        stash_count = sum(
+            RECOVERY_STASH_SUBJECT_FRAGMENT in subject
+            for subject in recovery_stashes.stdout.splitlines()
+        )
+        if stash_count:
+            messages.append(
+                f"WARNING: bead store retains {stash_count} recovery stash(es)"
+            )
 
     if messages:
         latest = _latest_bead_sync_log()
         if latest is not None:
             messages.append(f"INFO: latest bead sync log: {latest}")
     return messages
+
+
+def _unpushed_bead_commit_count(repo_root: Path, beads_dir: Path) -> int:
+    """Count local-only commits that touch canonical bead state."""
+    try:
+        rel_beads = _relative_pathspec(beads_dir, repo_root)
+    except ValueError:
+        return 0
+    result = subprocess.run(
+        [
+            "git",
+            "rev-list",
+            "--count",
+            "@{upstream}..HEAD",
+            "--",
+            f"{rel_beads}/",
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return 0
+    try:
+        return int(result.stdout.strip())
+    except ValueError:
+        return 0
 
 
 def _latest_bead_sync_log() -> Path | None:

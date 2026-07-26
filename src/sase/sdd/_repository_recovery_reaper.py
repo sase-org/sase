@@ -17,7 +17,7 @@ _DAY_SECONDS = 24 * 60 * 60.0
 DEFAULT_RECOVERY_SNAPSHOT_RETENTION_SECONDS = 30 * _DAY_SECONDS
 DEFAULT_RECOVERY_REAP_MAX_REMOVALS = 50
 RECOVERY_REF_PREFIX = "refs/sase/recovery/"
-_RECOVERY_STASH_SUBJECT_FRAGMENT = f"sase recovery {RECOVERY_REF_PREFIX}"
+RECOVERY_STASH_SUBJECT_FRAGMENT = f"sase recovery {RECOVERY_REF_PREFIX}"
 _RECOVERY_REF_STAMP = re.compile(r"^refs/sase/recovery/(?P<stamp>\d{8}T\d{6}Z)(?:-|$)")
 _STASH_INDEX = re.compile(r"^stash@\{(?P<index>\d+)\}$")
 
@@ -236,7 +236,7 @@ def _recovery_stashes(
         if len(parts) != 4:
             continue
         selector, target, raw_timestamp, subject = parts
-        if _RECOVERY_STASH_SUBJECT_FRAGMENT not in subject:
+        if RECOVERY_STASH_SUBJECT_FRAGMENT not in subject:
             continue
         stashes.append(
             _RecoveryCandidate(
@@ -281,7 +281,7 @@ def _target_looks_like_recovery_stash(
     return (
         shape is not None
         and len(shape.parents) >= 2
-        and _RECOVERY_STASH_SUBJECT_FRAGMENT in shape.subject
+        and RECOVERY_STASH_SUBJECT_FRAGMENT in shape.subject
     )
 
 
@@ -458,5 +458,6 @@ __all__ = [
     "DEFAULT_RECOVERY_REAP_MAX_REMOVALS",
     "DEFAULT_RECOVERY_SNAPSHOT_RETENTION_SECONDS",
     "RECOVERY_REF_PREFIX",
+    "RECOVERY_STASH_SUBJECT_FRAGMENT",
     "safe_reap_sdd_recovery_snapshots",
 ]
