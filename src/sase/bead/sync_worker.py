@@ -59,10 +59,10 @@ def run_managed_sync_worker(
 def _run_locked_sync(
     repo_root: Path, beads_dir: Path, log_path: Path
 ) -> _ManagedSyncOutcome:
-    os.environ["GIT_TERMINAL_PROMPT"] = "0"
     _log(log_path, "started", repo_root=str(repo_root), beads_dir=str(beads_dir))
 
     from sase.sdd._git_contention import store_git_write_lock_factory
+    from sase.sdd._repository_recovery_markers import clear_failed_integration_marker
     from sase.sdd._repository_transaction import integrate_sdd_repository
 
     integration = integrate_sdd_repository(
@@ -91,12 +91,18 @@ def _run_locked_sync(
             or f"SDD integration ended with {integration.status.value}",
         )
 
+    # Any successful integration ends the clone's failed-integration cooldown,
+    # not only the pull path that recorded it.
+    clear_failed_integration_marker(
+        repo_root,
+        git_runner=_git,
+        lock_factory=store_git_write_lock_factory(
+            op="bead.sync.integration_success",
+            mutates_worktree=False,
+        ),
+    )
+
     integrated = integration.integrated
-    if integration.upstream_present:
-        from sase.bead.sync import mark_bead_integration
-
-        mark_bead_integration(repo_root)
-
     pushed = _git(
         repo_root,
         ["push"],
@@ -117,20 +123,15 @@ def _failure(
     *,
     integrated: bool = False,
 ) -> _ManagedSyncOutcome:
-    error = _git_error(message, result) if result is not None else message
+    from sase.sdd._repository_health import format_git_error
+
+    error = format_git_error(message, result) if result is not None else message
     _log(log_path, "failed", error=error, integrated=integrated)
     return _ManagedSyncOutcome(
         pushed=False,
         integrated=integrated,
         error=error,
     )
-
-
-def _git_error(message: str, result: subprocess.CompletedProcess[str]) -> str:
-    detail = (result.stderr or result.stdout or "").strip()
-    if detail:
-        return f"{message}: {detail}"
-    return f"{message} with exit code {result.returncode}"
 
 
 def _git(
@@ -155,6 +156,10 @@ def _git(
             check=False,
             capture_output=True,
             text=True,
+            # Disable git's interactive prompting for this subprocess only: the
+            # worker also runs in-process inside long-lived hosts, where
+            # mutating os.environ would silently disarm every later subprocess.
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
         )
     except (OSError, SddGitCommandTimeout) as exc:
         return subprocess.CompletedProcess(

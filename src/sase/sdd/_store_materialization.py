@@ -407,6 +407,9 @@ def refresh_materialized_store(sdd_dir: Path) -> None:
 
     if not (sdd_dir / ".git").is_dir():
         return
+    from sase.sdd._repository_recovery_markers import (
+        clear_failed_integration_marker,
+    )
     from sase.sdd._repository_transaction import (
         SddIntegrationStatus,
         integrate_sdd_repository,
@@ -418,6 +421,9 @@ def refresh_materialized_store(sdd_dir: Path) -> None:
         op_prefix="sdd.materialize.refresh",
     )
     if outcome.succeeded:
+        # Any successful integration ends the clone's failed-integration
+        # cooldown, not only the pull path that recorded it.
+        clear_failed_integration_marker(sdd_dir)
         return
     detail = outcome.error or f"SDD integration ended with {outcome.status.value}"
     if outcome.status is SddIntegrationStatus.REMOTE_UNAVAILABLE:

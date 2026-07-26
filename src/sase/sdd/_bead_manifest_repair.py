@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-import re
 import subprocess
+
+from sase.sdd._repository_health import format_git_error, safe_git_error_text
 
 
 GitRunner = Callable[..., subprocess.CompletedProcess[str]]
 EventLogger = Callable[..., None]
-
-_CREDENTIALS_IN_URL = re.compile(r"(https?://)[^/@\s]+@", re.IGNORECASE)
 
 
 def repair_event_manifest_after_integration(
@@ -55,7 +54,9 @@ def repair_event_manifest_after_integration(
             return (
                 False,
                 (),
-                _git_error("could not inspect bead event manifest tracking", tracked),
+                format_git_error(
+                    "could not inspect bead event manifest tracking", tracked
+                ),
             )
 
     try:
@@ -63,7 +64,7 @@ def repair_event_manifest_after_integration(
 
         repair = repair_event_store_manifest(resolved_beads_dir)
     except Exception as exc:  # noqa: BLE001 - caller owns transactional rollback
-        error = f"bead event manifest recount failed: {_safe_text(exc)}"
+        error = f"bead event manifest recount failed: {safe_git_error_text(exc)}"
         _emit_manifest_repair(
             event_logger,
             status="invalid_stream",
@@ -130,7 +131,7 @@ def repair_event_manifest_after_integration(
         op=f"{op_prefix}.manifest_add",
     )
     if added.returncode != 0:
-        error = _git_error("could not stage repaired bead event manifest", added)
+        error = format_git_error("could not stage repaired bead event manifest", added)
         return (False, (), error)
     changed = runner(
         repo_root,
@@ -141,7 +142,9 @@ def repair_event_manifest_after_integration(
         error = (
             "repaired bead event manifest produced no staged change"
             if changed.returncode == 0
-            else _git_error("could not inspect repaired bead event manifest", changed)
+            else format_git_error(
+                "could not inspect repaired bead event manifest", changed
+            )
         )
         return (False, (), error)
     committed = runner(
@@ -160,7 +163,9 @@ def repair_event_manifest_after_integration(
         op=f"{op_prefix}.manifest_commit",
     )
     if committed.returncode != 0:
-        error = _git_error("could not commit repaired bead event manifest", committed)
+        error = format_git_error(
+            "could not commit repaired bead event manifest", committed
+        )
         return (False, (), error)
 
     repaired_files = (relative_path,)
@@ -193,18 +198,3 @@ def _emit_manifest_repair(
             repaired_files=list(repaired_files),
             error=error,
         )
-
-
-def _git_error(message: str, result: subprocess.CompletedProcess[str]) -> str:
-    detail = (result.stderr or result.stdout or "").strip()
-    if detail:
-        return f"{message}: {_redact_credentials(detail)}"
-    return f"{message} with exit code {result.returncode}"
-
-
-def _safe_text(exc: BaseException) -> str:
-    return _redact_credentials(str(exc) or type(exc).__name__)
-
-
-def _redact_credentials(value: str) -> str:
-    return _CREDENTIALS_IN_URL.sub(r"\1<redacted>@", value)

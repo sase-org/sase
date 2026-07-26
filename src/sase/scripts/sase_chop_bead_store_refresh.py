@@ -181,6 +181,19 @@ def _summary(
     )
 
 
+def _persist_backoff_state(
+    runtime: BuiltinChopRuntime,
+    state_path: Path,
+    backoff_state: dict[str, _BackoffEntry],
+) -> None:
+    try:
+        _write_backoff_state(state_path, backoff_state)
+    except Exception as exc:  # noqa: BLE001 - state failure cannot fail the chop.
+        runtime.log.warning(
+            f"[bead_store_refresh] Failed to persist refresh backoff state: {exc}"
+        )
+
+
 @builtin_chop("bead_store_refresh")
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     if bead_refresh_mode() == "off":
@@ -191,13 +204,22 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         )
 
     projects = _projects_with_live_bead_waits(sase_projects_dir())
-    if not projects:
-        return _summary(runtime, projects_waiting=0, reason="no_bead_waits")
-
     now = _utc_now()
     state_path = Path(runtime.context.state_dir) / _BACKOFF_STATE_FILENAME
     backoff_state = _read_backoff_state(state_path)
-    state_changed = False
+    # Backoff only describes projects that still have bead waiters. Prune the
+    # rest, so a project that stops waiting and later resumes is not silently
+    # skipped by a stale far-future attempt time it can never age out of.
+    stale_projects = [name for name in backoff_state if name not in projects]
+    for stale_project in stale_projects:
+        del backoff_state[stale_project]
+    state_changed = bool(stale_projects)
+
+    if not projects:
+        if state_changed:
+            _persist_backoff_state(runtime, state_path, backoff_state)
+        return _summary(runtime, projects_waiting=0, reason="no_bead_waits")
+
     canonical_stores = 0
     stores_refreshed = 0
     stores_failed = 0
@@ -231,12 +253,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             state_changed = True
 
     if state_changed:
-        try:
-            _write_backoff_state(state_path, backoff_state)
-        except Exception as exc:  # noqa: BLE001 - state failure cannot fail the chop.
-            runtime.log.warning(
-                f"[bead_store_refresh] Failed to persist refresh backoff state: {exc}"
-            )
+        _persist_backoff_state(runtime, state_path, backoff_state)
 
     reason = None
     if stores_refreshed == 0:

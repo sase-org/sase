@@ -222,6 +222,59 @@ def test_refresh_failure_backs_off_then_success_clears_state(
     assert json.loads(state_path.read_text(encoding="utf-8")) == {}
 
 
+def test_backoff_state_is_pruned_for_projects_without_waiters(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_scan(monkeypatch, tmp_path, [_record(tmp_path, project_name="alive")])
+    runtime = _runtime(tmp_path)
+    state_path = Path(runtime.context.state_dir) / store_refresh._BACKOFF_STATE_FILENAME
+    state_path.parent.mkdir(parents=True)
+    state_path.write_text(
+        json.dumps(
+            {
+                "gone": {
+                    "failures": 3,
+                    "next_attempt_at": "2099-01-01T00:00:00+00:00",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(store_refresh, "refresh_bead_store", MagicMock())
+
+    result = store_refresh._run(runtime)
+
+    assert result.counters["stores_refreshed"] == 1
+    assert json.loads(state_path.read_text(encoding="utf-8")) == {}
+
+
+def test_backoff_state_is_pruned_when_no_project_has_waiters(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_scan(monkeypatch, tmp_path, [])
+    runtime = _runtime(tmp_path)
+    state_path = Path(runtime.context.state_dir) / store_refresh._BACKOFF_STATE_FILENAME
+    state_path.parent.mkdir(parents=True)
+    state_path.write_text(
+        json.dumps(
+            {
+                "gone": {
+                    "failures": 3,
+                    "next_attempt_at": "2099-01-01T00:00:00+00:00",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = store_refresh._run(runtime)
+
+    assert result.reason == "no_bead_waits"
+    assert json.loads(state_path.read_text(encoding="utf-8")) == {}
+
+
 def test_corrupt_backoff_state_is_treated_as_empty(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -147,7 +149,9 @@ def push_bead_work_launch_async(beads_dir: Path) -> _AsyncPushHandle | None:
         return None
 
     log_path = _new_sync_log_path()
-    with open(log_path, "w", encoding="utf-8") as log_file:
+    # Append rather than truncate: the worker writes its own JSON records to
+    # this same file, so a child traceback must land after them, not over them.
+    with open(log_path, "a", encoding="utf-8") as log_file:
         process = subprocess.Popen(
             [
                 sys.executable,
@@ -426,11 +430,17 @@ def _latest_bead_sync_log() -> Path | None:
 
 
 def _new_sync_log_path() -> Path:
+    """Return a fresh managed-sync log path that no concurrent push can reuse.
+
+    The timestamp is second-granular, so the pid/uuid suffix is what keeps two
+    pushes started in the same second from writing over each other's records.
+    """
     from sase.core.paths import ensure_sase_directory
     from sase.core.time import generate_timestamp
 
     log_dir = Path(ensure_sase_directory("bead_push_logs"))
-    return log_dir / f"sync-{generate_timestamp()}.log"
+    suffix = f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
+    return log_dir / f"sync-{generate_timestamp()}-{suffix}.log"
 
 
 def _git_state_path(repo_root: Path, name: str) -> Path:

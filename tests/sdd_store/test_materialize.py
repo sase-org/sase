@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import shutil
+from types import SimpleNamespace
 
 import pytest
 
+from sase.sdd._repository_recovery_markers import FAILED_INTEGRATION_MARKER
+from sase.sdd._store_materialization import refresh_materialized_store
 from sase.sdd.store import (
     SDD_STORAGE_SEPARATE_REPO,
     SddMaterializationError,
@@ -623,3 +626,26 @@ def test_materialization_is_idempotent(
 
     assert provider.calls == 1
     assert first_head == second_head
+
+
+def test_refresh_clears_failed_integration_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sdd_dir = tmp_path / "sdd"
+    sdd_dir.mkdir()
+    git(["init"], sdd_dir)
+    init_git_identity(sdd_dir)
+    marker = sdd_dir / ".git" / FAILED_INTEGRATION_MARKER
+    marker.write_text(
+        json.dumps({"clone_path": str(sdd_dir), "timestamp": 0.0}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sase.sdd._repository_transaction.integrate_sdd_repository",
+        lambda *_args, **_kwargs: SimpleNamespace(succeeded=True),
+    )
+
+    refresh_materialized_store(sdd_dir)
+
+    assert not marker.exists()
