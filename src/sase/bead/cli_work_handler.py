@@ -249,6 +249,8 @@ def _snapshot_epic_plan(
 
 
 def handle_bead_work(args: argparse.Namespace) -> None:
+    artifacts_dir = getattr(args, "artifacts_dir", None)
+    cl_name = getattr(args, "cl_name", None)
     dry_run = bool(getattr(args, "dry_run", False))
     yes = bool(getattr(args, "yes", False))
     no_push = bool(getattr(args, "no_push", False))
@@ -262,6 +264,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
         is_plan_file_target,
         work_from_plan_file,
     )
+    from sase.bead.epic_launch import finish_epic_launch
 
     if is_plan_file_target(target):
         captured = io.StringIO()
@@ -282,6 +285,12 @@ def handle_bead_work(args: argparse.Namespace) -> None:
                     render=not json_output,
                 )
         except PlanFileWorkError as exc:
+            finish_epic_launch(
+                target,
+                artifacts_dir=artifacts_dir,
+                cl_name=cl_name,
+                error=exc,
+            )
             if json_output:
                 payload: dict[str, object] = {
                     "ok": False,
@@ -310,6 +319,20 @@ def handle_bead_work(args: argparse.Namespace) -> None:
                         file=sys.stderr,
                     )
             raise SystemExit(1) from exc
+        except Exception as exc:
+            finish_epic_launch(
+                target,
+                artifacts_dir=artifacts_dir,
+                cl_name=cl_name,
+                error=exc,
+            )
+            raise
+        finish_epic_launch(
+            target,
+            artifacts_dir=artifacts_dir,
+            cl_name=cl_name,
+            result=result,
+        )
         if json_output:
             print(json.dumps(result.to_json(), sort_keys=True))
         return

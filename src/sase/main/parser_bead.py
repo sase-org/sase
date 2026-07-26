@@ -249,6 +249,18 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Epic bead ID, or path to a validated epic plan file",
     )
     bead_work_parser.add_argument(
+        "-a",
+        "--artifacts-dir",
+        metavar="DIR",
+        help="Planner artifacts directory to back-fill after an approved epic launch",
+    )
+    bead_work_parser.add_argument(
+        "-c",
+        "--cl-name",
+        metavar="NAME",
+        help="ChangeSpec name for the approved epic completion notification",
+    )
+    bead_work_parser.add_argument(
         "-n",
         "--dry-run",
         action="store_true",

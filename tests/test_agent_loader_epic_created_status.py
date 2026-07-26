@@ -11,7 +11,7 @@ from sase.ace.tui.models.agent_loader import (
     _apply_status_overrides,
     load_artifact_delta_agents,
 )
-from sase.bead.epic_launch import update_epic_launch_metadata
+from sase.bead.epic_launch import _update_epic_launch_metadata
 
 
 ROOT_TIMESTAMP = "20260715120000"
@@ -162,7 +162,7 @@ def test_host_epic_metadata_reload_crosses_real_artifact_loader_boundary(
         "a1--plan": "EPIC APPROVED",
     }
 
-    update_epic_launch_metadata(
+    _update_epic_launch_metadata(
         artifacts_dir,
         epic_id="sase-64",
         sdd_plan_path="/plans/202607/epic.md",

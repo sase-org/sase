@@ -2,15 +2,10 @@
 
 from __future__ import annotations
 
-import argparse
 import json
-import os
 import re
 import shlex
 import subprocess
-import sys
-import time
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -22,40 +17,23 @@ if TYPE_CHECKING:
     from sase.tasks.models import BackgroundTask
 
 
-TASK_LOG_PATH_ENV = "SASE_TASK_LOG_PATH"
-
 _EPIC_LAUNCH_TAGS = ("epic", "launch")
-_LOG_SETTLE_SECONDS = 2.0
-_LOG_SETTLE_POLL_SECONDS = 0.05
-
-_EPIC_ID_RE = re.compile(r"(?m)^Epic:\s+(\S+)\s*$")
-_PLAN_LINK_RE = re.compile(r"(?m)^.*Plan linked\s+bead_id:\s+\S+\s+·\s+(.+?)\s*$")
-_ARCHIVED_PLAN_RE = re.compile(
-    r"(?m)^.*Archived\s+(.+?)\s+\((?:committed|already archived)\)\s*$"
-)
+_EPIC_LAUNCH_SUBMIT_LOCK = "epic-launch-submit"
 
 
-@dataclass(frozen=True)
-class _EpicLaunchOutput:
-    """Stable values parsed from human ``sase bead work`` output."""
-
-    epic_id: str | None
-    archived_plan_path: str | None
-
-
-def build_epic_launch_argv(plan_file: str | Path) -> list[str]:
+def build_epic_launch_argv(
+    plan_file: str | Path,
+    *,
+    artifacts_dir: str | Path | None = None,
+    cl_name: str | None = None,
+) -> list[str]:
     """Build the canonical approved-epic launch command."""
-    return ["sase", "bead", "work", str(plan_file), "--yes-to-all"]
-
-
-def parse_epic_launch_output(output: str) -> _EpicLaunchOutput:
-    """Extract the stable epic ID and archived plan path from command output."""
-    epic_match = _EPIC_ID_RE.search(output)
-    plan_match = _PLAN_LINK_RE.search(output) or _ARCHIVED_PLAN_RE.search(output)
-    return _EpicLaunchOutput(
-        epic_id=epic_match.group(1) if epic_match else None,
-        archived_plan_path=plan_match.group(1).strip() if plan_match else None,
-    )
+    argv = ["sase", "bead", "work", str(plan_file), "--yes-to-all"]
+    if artifacts_dir is not None:
+        argv.extend(["--artifacts-dir", str(artifacts_dir)])
+    if cl_name:
+        argv.extend(["--cl-name", cl_name])
+    return argv
 
 
 def resolve_epic_launch_cwd(
@@ -123,58 +101,70 @@ def submit_epic_launch_task(
     cwd: str | Path,
     artifacts_dir: str | Path | None = None,
     cl_name: str | None = None,
-    session_id: str | None = None,
+    origin: str = "api",
 ) -> BackgroundTask:
-    """Submit the epic-launch worker as a durable background task.
-
-    The worker records, reports, and notifies exactly as before; the task
-    supervisor owns its process and captures its output, so an approved epic
-    is visible work in ``sase task list`` and in the ACE Tasks tab instead of
-    an invisible detached fork.
+    """Submit one globally visible task for an approved epic plan.
 
     Raises:
         TaskSubmitError: The task could not be recorded or its supervisor
             could not be started.
     """
-    from sase.tasks.runner import submit_task
+    from sase.bead.project_name import infer_project_name_from_cwd
+    from sase.logs._bounded import log_file_lock
+    from sase.tasks import tasks_dir
+    from sase.tasks.runner import submit_detached_task
 
-    argv = [
-        sys.executable,
-        "-m",
-        "sase.bead.epic_launch",
-        "--worker",
-        "--plan-file",
-        str(plan_file),
-        "--cwd",
-        str(cwd),
-    ]
-    if artifacts_dir is not None:
-        argv.extend(["--artifacts-dir", str(artifacts_dir)])
-    if cl_name:
-        argv.extend(["--cl-name", cl_name])
-    return submit_task(
-        argv,
-        label=f"Epic launch · {Path(plan_file).stem}",
-        cwd=cwd,
-        session_id=session_id if session_id is not None else _epic_launch_session_id(),
-        tags=_EPIC_LAUNCH_TAGS,
-        origin="epic-launch",
+    resolved_cwd = Path(cwd).expanduser().resolve(strict=False)
+    resolved_plan = _resolved_plan_path(plan_file, cwd=resolved_cwd)
+    argv = build_epic_launch_argv(
+        plan_file,
+        artifacts_dir=artifacts_dir,
         cl_name=cl_name,
     )
+    project = infer_project_name_from_cwd(str(resolved_cwd))
+    with log_file_lock(tasks_dir() / _EPIC_LAUNCH_SUBMIT_LOCK):
+        if existing := _active_epic_launch_for_plan(resolved_plan):
+            return existing
+        return submit_detached_task(
+            argv,
+            label=f"Epic launch · {Path(plan_file).stem}",
+            cwd=resolved_cwd,
+            origin=origin,
+            project=project,
+            tags=_EPIC_LAUNCH_TAGS,
+            cl_name=cl_name,
+        )
 
 
-def _epic_launch_session_id() -> str | None:
-    """Resolve the session an unattributed epic launch should land in."""
-    try:
-        from sase.sessions import resolve_session_ref
+def _active_epic_launch_for_plan(plan_file: Path) -> BackgroundTask | None:
+    """Return the newest active detached launch for *plan_file*, if any."""
+    from sase.tasks import (
+        ACTIVE_TASK_STATUSES,
+        DETACHED_TASK_KIND,
+        read_tasks,
+    )
 
-        identity = resolve_session_ref(None)
-    except Exception:
-        return None
-    return identity.session_id if identity is not None else None
+    for task in read_tasks(
+        status=ACTIVE_TASK_STATUSES,
+        kind=DETACHED_TASK_KIND,
+    ):
+        if not set(_EPIC_LAUNCH_TAGS).issubset(task.tags):
+            continue
+        if len(task.command) < 4 or task.command[:3] != ["sase", "bead", "work"]:
+            continue
+        if _resolved_plan_path(task.command[3], cwd=task.cwd) == plan_file:
+            return task
+    return None
 
 
-def update_epic_launch_metadata(
+def _resolved_plan_path(plan_file: str | Path, *, cwd: str | Path) -> Path:
+    path = Path(plan_file).expanduser()
+    if not path.is_absolute():
+        path = Path(cwd).expanduser() / path
+    return path.resolve(strict=False)
+
+
+def _update_epic_launch_metadata(
     artifacts_dir: str | Path | None,
     *,
     epic_id: str,
@@ -212,163 +202,69 @@ def update_epic_launch_metadata(
         return
 
 
-def _run_detached_worker(args: argparse.Namespace) -> int:
-    task_log = os.environ.get(TASK_LOG_PATH_ENV, "").strip()
-    if task_log:
-        log_path = Path(task_log).expanduser()
-        returncode = _run_launch_with_inherited_output(args)
-        # The supervisor drains our inherited output into the task log from
-        # another process, so give the last lines a bounded moment to land.
-        settle = returncode == 0
-    elif args.log_path:
-        log_path = Path(args.log_path).expanduser()
-        returncode = _run_launch_into_log(args, log_path)
-        settle = False
-    else:
-        return 2
-
-    output = _read_launch_output(log_path, settle=settle)
-    parsed = parse_epic_launch_output(output)
-    success = returncode == 0 and parsed.epic_id is not None
-    if success:
-        assert parsed.epic_id is not None
-        update_epic_launch_metadata(
-            args.artifacts_dir,
-            epic_id=parsed.epic_id,
-            sdd_plan_path=parsed.archived_plan_path or args.plan_file,
-        )
-    _notify_detached_completion(
-        success=success,
-        epic_id=parsed.epic_id,
-        plan_file=args.plan_file,
-        cl_name=args.cl_name,
-        log_path=log_path,
-        returncode=returncode,
-    )
-    return 0 if success else 1
-
-
-def _run_launch_with_inherited_output(args: argparse.Namespace) -> int:
-    """Run the launch with output inherited by the task supervisor."""
-    try:
-        completed = subprocess.run(
-            build_epic_launch_argv(args.plan_file),
-            cwd=args.cwd,
-            check=False,
-        )
-    except OSError as exc:
-        print(f"Could not start epic launch: {exc}", flush=True)
-        return -1
-    return completed.returncode
-
-
-def _run_launch_into_log(args: argparse.Namespace, log_path: Path) -> int:
-    """Run the launch into a private log file (pre-task-runner workers)."""
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("w", encoding="utf-8") as log_file:
-        try:
-            completed = subprocess.run(
-                build_epic_launch_argv(args.plan_file),
-                cwd=args.cwd,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                text=True,
-                check=False,
-            )
-        except OSError as exc:
-            log_file.write(f"Could not start epic launch: {exc}\n")
-            return -1
-    return completed.returncode
-
-
-def _read_launch_output(log_path: Path, *, settle: bool) -> str:
-    """Read the retained launch output, optionally waiting for it to settle."""
-    deadline = time.monotonic() + _LOG_SETTLE_SECONDS
-    while True:
-        output = _read_retained_log(log_path)
-        if not settle or parse_epic_launch_output(output).epic_id is not None:
-            return output
-        if time.monotonic() >= deadline:
-            return output
-        time.sleep(_LOG_SETTLE_POLL_SECONDS)
-
-
-def _read_retained_log(log_path: Path) -> str:
-    chunks: list[str] = []
-    for candidate in (log_path.with_name(f"{log_path.name}.1"), log_path):
-        try:
-            chunks.append(candidate.read_text(encoding="utf-8", errors="replace"))
-        except OSError:
-            pass
-    return "".join(chunks)
-
-
-def _notify_detached_completion(
-    *,
-    success: bool,
-    epic_id: str | None,
+def finish_epic_launch(
     plan_file: str,
+    *,
+    artifacts_dir: str | Path | None,
     cl_name: str | None,
-    log_path: Path,
-    returncode: int,
+    result: Any | None = None,
+    error: Exception | None = None,
 ) -> None:
+    """Best-effort approval metadata and notification handling."""
+    if artifacts_dir is None and not cl_name:
+        return
+    if result is not None and bool(getattr(result, "dry_run", False)):
+        return
+
+    epic_id = getattr(result, "epic_id", None) if result is not None else None
+    archived_plan_path = (
+        getattr(result, "archived_plan_path", None) if result is not None else None
+    )
+    success = error is None and bool(epic_id)
+    if success:
+        try:
+            _update_epic_launch_metadata(
+                artifacts_dir,
+                epic_id=str(epic_id),
+                sdd_plan_path=str(archived_plan_path or plan_file),
+            )
+        except Exception:
+            pass
+
     try:
         from sase.notifications.senders import notify_workflow_complete
 
         if success:
             notes = [
                 f"Epic {epic_id} launched from {Path(plan_file).name}",
-                f"Launch log: {log_path}",
+                f"Plan: {archived_plan_path or plan_file}",
             ]
         else:
-            resume = shlex.join(build_epic_launch_argv(plan_file))
+            argv = build_epic_launch_argv(
+                plan_file,
+                artifacts_dir=artifacts_dir,
+                cl_name=cl_name,
+            )
+            detail = str(error) if error is not None else "epic id was not returned"
             notes = [
-                f"Epic launch failed with exit code {returncode}",
-                f"Resume with: {resume}",
-                f"Launch log: {log_path}",
+                f"Epic launch failed: {detail}",
+                f"Resume with: {shlex.join(argv)}",
             ]
         notify_workflow_complete(
             "epic-launch",
             cl_name,
             success,
             notes,
-            extra_files=[str(log_path)],
             tags=["epic", "launch"],
         )
     except Exception:
-        return
-
-
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--worker", action="store_true")
-    parser.add_argument("--plan-file", required=True)
-    parser.add_argument("--cwd", required=True)
-    # Still accepted so a worker spawned by a pre-task-runner version that is
-    # in flight during an upgrade keeps behaving.
-    parser.add_argument("--log-path")
-    parser.add_argument("--artifacts-dir")
-    parser.add_argument("--cl-name")
-    return parser
-
-
-def _main() -> int:
-    args = _parser().parse_args()
-    if not args.worker:
-        return 2
-    return _run_detached_worker(args)
-
-
-if __name__ == "__main__":
-    raise SystemExit(_main())
+        pass
 
 
 __all__ = [
-    "TASK_LOG_PATH_ENV",
     "build_epic_launch_argv",
-    "parse_epic_launch_output",
+    "finish_epic_launch",
     "resolve_epic_launch_cwd",
     "run_epic_launch_foreground",
     "submit_epic_launch_task",
-    "update_epic_launch_metadata",
 ]

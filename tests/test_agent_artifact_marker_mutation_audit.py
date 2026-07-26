@@ -147,7 +147,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/bead/epic_launch.py:update_epic_launch_metadata": Review(
+    "src/sase/bead/epic_launch.py:_update_epic_launch_metadata": Review(
         mutation_calls=("write_text",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
