@@ -16,7 +16,7 @@ from sase.core.agent_identity_facade import (
     AgentOwnerIdentity,
 )
 
-from ._agent_neighbors_helpers import _agent
+from ._agent_neighbors_helpers import _agent, _family_member, _family_root
 
 
 def test_agent_hood_is_immediate_dotted_namespace() -> None:

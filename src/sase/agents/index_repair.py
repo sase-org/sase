@@ -10,7 +10,7 @@ import re
 import shutil
 from typing import Any
 
-from sase.ace.tui.models.agent_types import AgentType
+from sase.core.agent_types import AgentType
 from sase.agents_sync.inventory_io import is_imported
 from sase.core.paths import sase_home
 

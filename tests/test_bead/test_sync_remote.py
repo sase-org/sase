@@ -19,6 +19,7 @@ from sase.bead.sync import (
 )
 from sase.bead.sync_worker import run_managed_sync_worker
 from sase.sdd._git_contention import ENV_GIT_LOCK_RETRY_DELAYS
+from sase.sdd._repository_recovery_markers import FAILED_INTEGRATION_MARKER
 
 from .sync_test_helpers import configure_git_identity, init_git_repo
 
@@ -93,6 +94,33 @@ def test_refresh_current_bead_store_integrates_without_push(tmp_path, monkeypatc
     assert kwargs["beads_dir"] == beads_dir
     assert kwargs["op_prefix"] == "bead.refresh"
     assert callable(kwargs["lock_factory"])
+
+
+def test_refresh_bead_store_clears_failed_integration_marker(
+    tmp_path,
+    monkeypatch,
+):
+    init_git_repo(tmp_path)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "git@example.test:plans.git"],
+        cwd=tmp_path,
+        check=True,
+    )
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    marker = tmp_path / ".git" / FAILED_INTEGRATION_MARKER
+    marker.write_text(
+        json.dumps({"clone_path": str(tmp_path), "timestamp": 0.0}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sase.sdd._repository_transaction.integrate_sdd_repository",
+        lambda *_args, **_kwargs: SimpleNamespace(succeeded=True),
+    )
+
+    refresh_bead_store(beads_dir)
+
+    assert not marker.exists()
 
 
 def test_refresh_current_bead_store_raises_on_failed_integration(

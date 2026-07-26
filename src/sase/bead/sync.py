@@ -613,6 +613,9 @@ def refresh_bead_store(beads_dir: Path) -> None:
         store_git_write_lock,
     )
     from sase.sdd._integration_marker import integration_marker_generation
+    from sase.sdd._repository_recovery_markers import (
+        clear_failed_integration_marker,
+    )
     from sase.sdd._repository_transaction import integrate_sdd_repository
 
     observed_generation = integration_marker_generation(repo_root)
@@ -634,6 +637,13 @@ def refresh_bead_store(beads_dir: Path) -> None:
             op_prefix="bead.refresh",
             lock_factory=handoff_store_git_write_lock,
         )
+        if outcome.succeeded:
+            # Any successful integration ends the clone's failed-integration
+            # cooldown, not only the pull path that recorded it.
+            clear_failed_integration_marker(
+                repo_root,
+                lock_factory=handoff_store_git_write_lock,
+            )
     if outcome.succeeded:
         return
 
