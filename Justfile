@@ -236,10 +236,11 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-9q(RawPlaceholderField)' \
+        --epic-symbol 'sase-9q(PromptInputPlan)' \
+        --epic-symbol 'sase-9q(PromptInputValues)' \
+        --epic-symbol 'sase-9q(apply_prompt_input_values)' \
+        --epic-symbol 'sase-9q(build_prompt_input_plan)' \
         --epic-symbol 'sase-9q(placeholder_input_names)' \
-        --epic-symbol 'sase-9q(raw_placeholder_fields)' \
-        --epic-symbol 'sase-9q(substitute_raw_placeholders)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
