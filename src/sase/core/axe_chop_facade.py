@@ -106,6 +106,7 @@ def validate_axe_config(
     config: Mapping[str, Any],
     *,
     provenance: Mapping[str, str] | None = None,
+    require_descriptions: bool = False,
 ) -> list[dict[str, Any]]:
     """Return fail-closed, provenance-aware diagnostics for an axe config."""
 
@@ -115,6 +116,7 @@ def validate_axe_config(
             "schema_version": CHOP_ENGINE_SCHEMA_VERSION,
             "config": dict(config),
             "provenance": dict(provenance or {}),
+            "require_descriptions": require_descriptions,
         }
     )
     return [dict(item) for item in payload]

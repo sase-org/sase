@@ -472,6 +472,7 @@ def parse_lumberjacks(
         chop_timeout = parse_duration(cfg.get("chop_timeout"))
         result[name] = LumberjackConfig(
             name=name,
+            description=str(cfg.get("description", "")),
             interval=int(cfg.get("interval", 1)),
             chop_timeout=chop_timeout,
             env=lumberjack_env,

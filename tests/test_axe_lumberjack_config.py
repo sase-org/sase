@@ -28,8 +28,14 @@ def test_chop_config_basic() -> None:
 def test_lumberjack_config_basic() -> None:
     """Test LumberjackConfig dataclass creation."""
     chops = [ChopConfig(name="hook_checks", description="Check hooks")]
-    cfg = LumberjackConfig(name="hooks", interval=1, chops=chops)
+    cfg = LumberjackConfig(
+        name="hooks",
+        description="Advance hook lifecycle state",
+        interval=1,
+        chops=chops,
+    )
     assert cfg.name == "hooks"
+    assert cfg.description == "Advance hook lifecycle state"
     assert cfg.interval == 1
     assert cfg.chops == chops
 
@@ -74,6 +80,20 @@ def test_parse_lumberjacks_skips_non_dict_entries() -> None:
     result = _parse_lumberjacks(raw)
     assert len(result) == 1
     assert "hooks" in result
+
+
+def test_parse_lumberjacks_round_trips_description() -> None:
+    raw = {
+        "checks": {
+            "description": "Poll slower checks every five minutes",
+            "interval": 300,
+            "chops": [],
+        }
+    }
+
+    result = _parse_lumberjacks(raw)
+
+    assert result["checks"].description == "Poll slower checks every five minutes"
 
 
 def test_chop_config_run_every_defaults_to_none() -> None:

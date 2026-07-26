@@ -896,6 +896,10 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "description": {
+                "type": "string",
+                "description": "Description of the cadence and class of work this lumberjack owns"
+              },
               "interval": {
                 "type": "integer",
                 "description": "Tick interval in seconds for this lumberjack",

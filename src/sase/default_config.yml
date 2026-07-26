@@ -422,6 +422,7 @@ axe:
   chop_script_dirs: []
   lumberjacks:
     hooks:
+      description: "Fast lane that advances hook, mentor, and workflow lifecycle state every few seconds"
       interval: 5
       chop_timeout: "90s"
       chops:
@@ -450,6 +451,7 @@ axe:
           script: sase_chop_stale_running_cleanup
           description: "Release workspace claims held by dead processes"
     waits:
+      description: "Resolve agent wait dependencies and keep bead claims and stores in sync"
       interval: 10
       chops:
         - name: bead_claim_checks
@@ -464,6 +466,7 @@ axe:
           script: sase_chop_wait_checks
           description: "Resolve agent wait dependencies and write ready.json when satisfied"
     checks:
+      description: "Poll slower PR-submission and workspace-claim checks on a five-minute cadence"
       interval: 300
       chops:
         - name: pr_submitted_checks
@@ -473,12 +476,14 @@ axe:
           script: sase_chop_stale_running_cleanup
           description: "Backstop release of workspace claims held by dead processes"
     comments:
+      description: "Start background critique-comment checks for mailed PRs every minute"
       interval: 60
       chops:
         - name: comment_checks
           script: sase_chop_comment_checks
           description: "Start background critique_comments checks for all mailed PRs"
     housekeeping:
+      description: "Run hourly error digests and managed-temp cleanup"
       interval: 3600
       chops:
         - name: error_digest

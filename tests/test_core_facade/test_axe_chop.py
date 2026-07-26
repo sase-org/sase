@@ -177,6 +177,32 @@ def test_strict_config_diagnostics_preserve_provenance() -> None:
     assert {item["layer"] for item in diagnostics} == {"overlay:athena"}
 
 
+def test_strict_config_can_require_descriptions() -> None:
+    diagnostics = validate_axe_config(
+        {
+            "lumberjacks": {
+                "checks": {
+                    "interval": 60,
+                    "chops": {"audit": {"script": "sase_chop_audit"}},
+                }
+            }
+        },
+        require_descriptions=True,
+    )
+
+    assert {
+        (item["code"], item["path"])
+        for item in diagnostics
+        if item["code"] == "required_missing"
+    } == {
+        ("required_missing", "lumberjacks.checks.description"),
+        (
+            "required_missing",
+            "lumberjacks.checks.chops.audit.description",
+        ),
+    }
+
+
 def test_schema_versions_match_the_facade_contract() -> None:
     for binding_name, expected in [
         ("chop_engine_schema_version", CHOP_ENGINE_SCHEMA_VERSION),

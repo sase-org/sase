@@ -107,6 +107,7 @@ class LumberjackSnapshot:
     metrics: LumberjackMetrics | None
     log_tail: str
     chops: list[ChopSnapshot]
+    description: str = ""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -304,6 +305,7 @@ def collect_axe_status_data() -> AxeCollectedData:
         lumberjack_chop_names[name] = chop_names
         lumberjack_snapshots[name] = LumberjackSnapshot(
             name=name,
+            description=config.lumberjacks[name].description,
             status=status,
             metrics=metrics,
             log_tail=log_tail,

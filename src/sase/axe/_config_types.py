@@ -86,6 +86,7 @@ class LumberjackConfig:
     """Configuration for a single lumberjack."""
 
     name: str
+    description: str = field(default="", kw_only=True)
     interval: int
     chop_timeout: int | None = None
     env: dict[str, ChopEnvValue] = field(default_factory=dict)

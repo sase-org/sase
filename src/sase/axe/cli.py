@@ -117,7 +117,10 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
             print(f"Error: unknown chop '{chop_name}'", file=sys.stderr)
             sys.exit(1)
         lumberjack_name = ONESHOT_LUMBERJACK_NAME
-        chop_cfg = ChopConfig(name=chop_name, description="")
+        chop_cfg = ChopConfig(
+            name=chop_name,
+            description=f"Manual one-shot run of {chop_name}",
+        )
         chop_timeout_default = None
 
     outcome = run_configured_chop_once(

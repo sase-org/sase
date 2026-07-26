@@ -63,6 +63,7 @@ def _make_bgcmd_info() -> BackgroundCommandInfo:
 def _lj_cfg(name: str, chop_names: list[str]) -> LumberjackConfig:
     return LumberjackConfig(
         name=name,
+        description=f"{name} lane description",
         interval=60,
         chops=[ChopConfig(name=c, description=f"{c} desc") for c in chop_names],
     )
@@ -264,6 +265,7 @@ def test_collector_populates_all_cache_maps() -> None:
 
     # Composite per-lumberjack snapshot mirrors the dicts above.
     hooks_snap = data.lumberjack_snapshots["hooks"]
+    assert hooks_snap.description == "hooks lane description"
     assert hooks_snap.status is status_map["hooks"]
     assert hooks_snap.metrics is metrics_map["hooks"]
     assert hooks_snap.log_tail == "hooks log\n"

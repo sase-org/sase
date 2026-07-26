@@ -87,6 +87,7 @@ def test_bundled_lumberjack_and_chop_friendly_field_order() -> None:
         )
     )
     assert [field.name for field in lumberjack._form.fields] == [
+        "description",
         "interval",
         "chop_timeout",
         "env",
@@ -102,8 +103,8 @@ def test_bundled_lumberjack_and_chop_friendly_field_order() -> None:
         )
     )
     assert [field.name for field in chop._form.fields] == [
-        "script",
         "description",
+        "script",
         "enabled",
         "run_every",
         "timeout",
@@ -294,7 +295,7 @@ async def test_chop_sheet_shows_every_field_scope_warning_and_narrow_layout() ->
             "ADVANCED"
         )
         assert len(modal.query(".axe-editor-field")) == len(_CHOP_SCHEMA["properties"])
-        assert modal.query_one("#axe-editor-badge-0").render().plain.strip() == "·user"
+        assert modal.query_one("#axe-editor-badge-0").render().plain.strip() == "unset"
         assert "every generated instance" in (
             modal.query_one("#axe-editor-warning").render().plain
         )
@@ -317,14 +318,16 @@ async def test_browse_navigation_works_on_open_and_after_committing_edit() -> No
         await page.expect_modal("AxeEntryEditorModal")
         await page.pause()
 
-        assert modal._active_name == "script"
+        assert modal._active_name == "description"
         await page.press("down")
-        assert modal._active_name == "description"
-        await page.press("k")
         assert modal._active_name == "script"
-        await page.press("j")
+        await page.press("k")
         assert modal._active_name == "description"
+        await page.press("j")
+        assert modal._active_name == "script"
         await page.press("up")
+        assert modal._active_name == "description"
+        await page.press("down")
         assert modal._active_name == "script"
 
         await page.press("enter")
@@ -338,7 +341,7 @@ async def test_browse_navigation_works_on_open_and_after_committing_edit() -> No
         )
         await page.press("enter")
         await page.wait_for(lambda _screen: modal._mode == "browse")
-        await page.press("down")
+        await page.press("up")
         assert modal._active_name == "description"
         assert modal._form.field("script").draft_value == "sase_check"
 
@@ -349,6 +352,7 @@ async def test_escape_escalates_insert_normal_browse_close_with_draft_intact() -
         modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
         page.app.push_screen(modal, dismissed.append)
         await page.expect_modal("AxeEntryEditorModal")
+        await page.press("down")
         await page.press("enter")
         await page.wait_for(
             lambda _screen: len(modal.query(".axe-editor-cell-editor")) == 1
@@ -403,15 +407,15 @@ async def test_tab_and_shift_tab_commit_and_move_focused_cell() -> None:
         )
         editor = modal.query_one(".axe-editor-cell-editor", SingleLineVimTextArea)
         await page.wait_for(lambda _screen: modal.focused is editor)
-        editor.text = "sase_tabbed"
+        editor.text = "Run tabbed checks"
         await page.press("tab")
-        await page.wait_for(lambda _screen: modal._active_name == "description")
-        assert modal._form.field("script").draft_value == "sase_tabbed"
+        await page.wait_for(lambda _screen: modal._active_name == "script")
+        assert modal._form.field("description").draft_value == "Run tabbed checks"
         assert len(modal.query(".axe-editor-cell-editor")) == 1
 
         await page.wait_for(lambda _screen: modal.focused is modal._cell_editor)
         await page.press("shift+tab")
-        await page.wait_for(lambda _screen: modal._active_name == "script")
+        await page.wait_for(lambda _screen: modal._active_name == "description")
         assert len(modal.query(".axe-editor-cell-editor")) == 1
 
 
@@ -420,6 +424,7 @@ async def test_ctrl_actions_reach_modal_while_cell_editor_is_focused() -> None:
         modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
         page.app.push_screen(modal)
         await page.expect_modal("AxeEntryEditorModal")
+        await page.press("down")
         await page.press("enter")
         await page.wait_for(
             lambda _screen: len(modal.query(".axe-editor-cell-editor")) == 1
@@ -444,6 +449,7 @@ async def test_ctrl_reset_and_multiline_escape_work_with_focused_editor() -> Non
         await page.expect_modal("AxeEntryEditorModal")
         await page.pause()
 
+        await page.press("down")
         await page.press("enter")
         await page.wait_for(lambda _screen: modal.focused is modal._cell_editor)
         await page.press("ctrl+r")

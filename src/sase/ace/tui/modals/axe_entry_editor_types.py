@@ -17,8 +17,8 @@ from .schema_object_form import (
 AxeEntryKind = Literal["lumberjack", "chop"]
 
 _BASICS_BY_KIND: dict[AxeEntryKind, tuple[str, ...]] = {
-    "lumberjack": ("interval", "chop_timeout"),
-    "chop": ("script", "description", "enabled", "run_every", "timeout"),
+    "lumberjack": ("description", "interval", "chop_timeout"),
+    "chop": ("description", "script", "enabled", "run_every", "timeout"),
 }
 _ADVANCED_BY_KIND: dict[AxeEntryKind, tuple[str, ...]] = {
     "lumberjack": ("env",),

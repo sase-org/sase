@@ -131,6 +131,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     if jack_snap is None:
                         jack_snap = LumberjackSnapshot(
                             name=lumberjack_name,
+                            description="",
                             status=self._axe_lumberjack_statuses.get(lumberjack_name),
                             metrics=self._axe_lumberjack_metrics.get(lumberjack_name),
                             log_tail=self._axe_lumberjack_log_tails.get(
