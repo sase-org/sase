@@ -190,11 +190,11 @@ def _configured_chops_table(
     table.add_column("Status", no_wrap=True)
     table.add_column("Lumberjack", no_wrap=True)
     table.add_column("Chop", no_wrap=True)
+    table.add_column("Description", overflow="fold")
     table.add_column("Kind", no_wrap=True)
     table.add_column("Last Run", no_wrap=True)
     table.add_column("Resolution", overflow="fold")
     if verbose:
-        table.add_column("Description", overflow="fold")
         table.add_column("Policy / Last Decision", overflow="fold")
 
     for chop in inventory.configured_chops:
@@ -212,12 +212,12 @@ def _configured_chops_table(
             _status_text(_configured_chop_status(chop)),
             Text(chop.lumberjack),
             Text(display_name),
+            Text(chop.description or "-", overflow="fold"),
             Text("script"),
             _run_status_text(chop.latest_run_status),
             Text(resolution, overflow="fold"),
         ]
         if verbose:
-            row.append(Text(chop.description or "-", overflow="fold"))
             row.append(Text(_chop_policy_summary(chop), overflow="fold"))
         table.add_row(*row)
     return table

@@ -153,3 +153,47 @@ def test_chop_inventory_surfaces_disabled_and_target_instances() -> None:
         "run_every": "overlay",
     }
     assert configured["old"]["status"] == "disabled"
+
+
+def _render_chop_list(config: AxeConfig, *, verbose: bool) -> str:
+    from io import StringIO
+
+    from rich.console import Console
+
+    from sase.axe.chop_render import render_chop_list
+
+    buffer = StringIO()
+    render_chop_list(
+        collect_chop_inventory(config),
+        verbose=verbose,
+        console=Console(file=buffer, width=200),
+    )
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize("verbose", [False, True])
+def test_configured_chops_table_always_shows_description(verbose: bool) -> None:
+    """The Description column is present with and without ``--verbose``."""
+    config = AxeConfig(
+        lumberjacks={
+            "hooks": LumberjackConfig(
+                name="hooks",
+                interval=1,
+                description="Advance hook lifecycle state",
+                chops=[
+                    ChopConfig(
+                        name="hook_checks",
+                        description="Complete finished hooks and start stale ones",
+                    )
+                ],
+            )
+        }
+    )
+
+    output = _render_chop_list(config, verbose=verbose)
+
+    header = output.splitlines()[1:5]
+    assert any("Description" in line for line in header)
+    assert "Complete finished hooks and start stale ones" in output
+    # The verbose-only policy column stays verbose-only.
+    assert ("Policy / Last Decision" in output) is verbose

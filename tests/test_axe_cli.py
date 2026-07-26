@@ -58,12 +58,14 @@ def default_axe_config() -> AxeConfig:
             {
                 "hooks": {
                     "interval": 1,
+                    "description": "Fast lane that advances hook lifecycle state",
                     "chops": [
                         {"name": "hook_checks", "description": "Check hooks"},
                     ],
                 },
                 "checks": {
                     "interval": 300,
+                    "description": "Poll slower PR-submission checks",
                     "chops": [
                         {
                             "name": "pr_submitted_checks",
@@ -73,6 +75,7 @@ def default_axe_config() -> AxeConfig:
                 },
                 "comments": {
                     "interval": 60,
+                    "description": "Start critique-comment checks for mailed PRs",
                     "chops": [
                         {"name": "comment_checks", "description": "Check comments"},
                     ],
@@ -387,14 +390,39 @@ def test_handle_axe_lumberjack_list_prints_lumberjacks(
 
     output = capsys.readouterr().out
     lines = [line for line in output.strip().split("\n") if line.strip()]
-    # 4 lumberjacks × (name + interval + "chops:" + 1 chop) = 16 non-empty lines
-    assert len(lines) == 16
+    # 3 described lumberjacks × (name + description + interval + "chops:" + 1 chop)
+    # plus housekeeping, which has no description, without its description line.
+    assert len(lines) == 19
     assert "hooks" in output
     assert "checks" in output
     assert "comments" in output
     assert "housekeeping" in output
     assert "interval:" in output
     assert "chops:" in output
+
+
+@patch("sase.axe.cli.load_axe_config")
+def test_handle_axe_lumberjack_list_prints_descriptions(
+    mock_load: MagicMock,
+    default_axe_config: AxeConfig,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Each described lumberjack prints its description before its interval."""
+    mock_load.return_value = default_axe_config
+    with pytest.raises(SystemExit):
+        handle_axe_lumberjack_list(argparse.Namespace())
+
+    lines = [
+        line.strip() for line in capsys.readouterr().out.splitlines() if line.strip()
+    ]
+    hooks_index = lines.index("hooks")
+    assert lines[hooks_index + 1] == (
+        "description: Fast lane that advances hook lifecycle state"
+    )
+    assert lines[hooks_index + 2].startswith("interval:")
+    # ``housekeeping`` has no description, so the line is omitted entirely.
+    housekeeping_index = lines.index("housekeeping")
+    assert lines[housekeeping_index + 1].startswith("interval:")
 
 
 # --- handle_axe_lumberjack_status Tests ---
