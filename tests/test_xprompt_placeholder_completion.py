@@ -91,6 +91,7 @@ def test_spans_rehydrate_full_and_inner_ranges(monkeypatch: Any) -> None:
                     "start": {"line": 1, "character": 3},
                     "end": {"line": 1, "character": 8},
                 },
+                "raw": False,
             }
         ]
 
@@ -109,5 +110,30 @@ def test_spans_rehydrate_full_and_inner_ranges(monkeypatch: Any) -> None:
                 facade.PlaceholderPosition(1, 3),
                 facade.PlaceholderPosition(1, 8),
             ),
+            raw=False,
         ),
     )
+
+
+def test_spans_tolerate_older_binding_without_raw_flag(monkeypatch: Any) -> None:
+    def fake_require(name: str) -> Any:
+        assert name == "placeholder_spans"
+        return lambda text: [
+            {
+                "text": "alpha",
+                "range": {
+                    "start": {"line": 0, "character": 0},
+                    "end": {"line": 0, "character": 7},
+                },
+                "inner_range": {
+                    "start": {"line": 0, "character": 1},
+                    "end": {"line": 0, "character": 6},
+                },
+            }
+        ]
+
+    monkeypatch.setattr(facade, "require_rust_binding", fake_require)
+
+    (span,) = facade.placeholder_spans("<alpha>")
+
+    assert span.raw is True

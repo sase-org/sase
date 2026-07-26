@@ -286,9 +286,13 @@ def test_quoted_key_shaped_term_remains_free_text() -> None:
 
 
 def test_canonical_query_has_stable_order() -> None:
+    tz = get_timezone()
+    now = datetime(2026, 7, 18, 12, 0, tzinfo=tz)
+
     values = parse_plan_filter_query(
         'preview project:"SASE Core" until:2026-07-18 status:ready '
-        'kind:phase since:7d tier:epic "filter bar"'
+        'kind:phase since:7d tier:epic "filter bar"',
+        now=now,
     )
 
     assert to_query_tokens(values) == (

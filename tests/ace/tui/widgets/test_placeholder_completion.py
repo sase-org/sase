@@ -172,8 +172,8 @@ async def test_placeholder_highlight_uses_cached_rust_spans() -> None:
         ta._build_highlight_map()
 
         names = _highlight_names(ta)
-        assert names.count("placeholder.delimiter") >= 4
-        assert names.count("placeholder.inner") >= 2
+        assert names.count("placeholder.delimiter") == 2
+        assert names.count("placeholder.inner") == 1
         assert "placeholder.delimiter" in ta._theme.syntax_styles
         assert "placeholder.inner" in ta._theme.syntax_styles
 
@@ -203,6 +203,17 @@ def test_builder_appends_saved_candidates_after_prompt_local_ones() -> None:
     assert [candidate.metadata for candidate in result.candidates] == [
         PlaceholderCompletionMetadata(source="prompt"),
         PlaceholderCompletionMetadata(source="common"),
+        PlaceholderCompletionMetadata(source="common"),
+    ]
+
+
+def test_builder_excludes_literal_placeholders_from_prompt_candidates() -> None:
+    text = "Use `<feature flag>` and <fe"
+    result = build_placeholder_completion_result(text, len(text), ["fedora"])
+
+    assert result is not None
+    assert [candidate.insertion for candidate in result.candidates] == ["fedora"]
+    assert [candidate.metadata for candidate in result.candidates] == [
         PlaceholderCompletionMetadata(source="common"),
     ]
 

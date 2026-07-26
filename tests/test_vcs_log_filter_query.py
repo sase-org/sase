@@ -200,9 +200,13 @@ def test_quoted_key_shaped_term_remains_free_text() -> None:
 
 
 def test_canonical_query_has_stable_order_and_omits_unlimited_limit() -> None:
+    tz = get_timezone()
+    now = datetime(2026, 7, 18, 12, 0, tzinfo=tz)
+
     values = parse_commit_filter_query(
         'preview author:"Ada Lovelace" until:2026-07-18 repo:sase '
-        "since:7d sidecar:true timeline"
+        "since:7d sidecar:true timeline",
+        now=now,
     )
 
     assert to_query_string(values) == (

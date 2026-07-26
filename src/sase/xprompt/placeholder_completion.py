@@ -62,6 +62,7 @@ class PlaceholderSpan:
     text: str
     range: PlaceholderRange
     inner_range: PlaceholderRange
+    raw: bool = True
 
 
 def placeholder_completion(
@@ -129,4 +130,5 @@ def _span_from_dict(payload: dict[str, Any]) -> PlaceholderSpan:
         text=str(payload["text"]),
         range=_range_from_dict(payload["range"]),
         inner_range=_range_from_dict(payload["inner_range"]),
+        raw=bool(payload.get("raw", True)),
     )

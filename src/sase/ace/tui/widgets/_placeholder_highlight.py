@@ -86,6 +86,8 @@ class PlaceholderHighlightMixin(_MixinBase):
             return
 
         for span in self._placeholder_spans_for_document():
+            if not span.raw:
+                continue
             full_range = editor_range_to_offsets(text, span.range)
             inner_range = editor_range_to_offsets(text, span.inner_range)
             if full_range is None or inner_range is None:

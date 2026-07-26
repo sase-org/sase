@@ -200,12 +200,12 @@ def _seed_entries_from_history() -> list[_PlaceholderEntry]:
 
 
 def _placeholder_texts(text: str) -> tuple[str, ...]:
-    """Return the distinct inner texts of every complete placeholder in *text*."""
+    """Return the distinct inner texts of every raw placeholder in *text*."""
     from sase.xprompt.placeholder_completion import placeholder_spans
 
     seen: dict[str, None] = {}
     for span in placeholder_spans(text):
-        if span.text:
+        if span.text and span.raw:
             seen.setdefault(span.text, None)
     return tuple(seen)
 

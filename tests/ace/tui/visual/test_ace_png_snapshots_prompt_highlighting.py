@@ -29,6 +29,14 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
+PLACEHOLDER_RAW_ONLY_PROMPT = (
+    "Fill <service> before launch\n"
+    "Keep `<literal>` as documentation\n"
+    "```text\n"
+    "<code> stays literal too\n"
+    "```"
+)
+
 
 @pytest.mark.parametrize(
     ("theme", "snapshot_name", "title"),
@@ -158,6 +166,26 @@ async def test_prompt_search_highlight_png_snapshot(
             page,
             "prompt_search_highlight_120x40",
             title="ACE prompt input - active search highlight",
+        )
+
+
+async def test_prompt_placeholder_raw_only_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+        await mount_prompt_bar(page, PLACEHOLDER_RAW_ONLY_PROMPT)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "placeholder_raw_only_highlight_120x40",
+            title="ACE prompt input - raw placeholder highlighting",
         )
 
 

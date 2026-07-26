@@ -101,6 +101,21 @@ def test_placeholder_repeated_in_one_prompt_counts_once(
     ]
 
 
+def test_only_raw_placeholders_are_recorded(
+    sase_home_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    freeze_timestamps(monkeypatch, ["260701_000000"])
+
+    record_prompt_placeholders("write `<alpha>`")
+
+    assert not store_file(sase_home_dir).exists()
+
+    record_prompt_placeholders("write <alpha>")
+
+    assert load_common_placeholders(10) == ["alpha"]
+
+
 def test_display_order_is_count_then_recency_then_text(
     sase_home_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
