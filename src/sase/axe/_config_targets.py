@@ -12,6 +12,7 @@ from sase.core.axe_chop_facade import (
     CHOP_ENGINE_SCHEMA_VERSION,
     expand_chop_targets,
     parse_chop_duration,
+    split_axe_description,
     validate_axe_config,
 )
 from sase.core.paths import sase_projects_dir
@@ -319,10 +320,14 @@ def _chop_from_raw(
     for field_name in overrides:
         instance_provenance[field_name] = "for_each target override"
     raw_vars = merged.get("vars")
+    description = str(merged.get("description", ""))
+    description_summary, description_body = split_axe_description(description)
     return ChopConfig(
         name=str(instance["instance_id"]),
         base_name=base_name,
-        description=str(merged.get("description", "")),
+        description=description,
+        description_summary=description_summary,
+        description_body=description_body,
         script=str(merged.get("script") or base_name),
         enabled=bool(merged.get("enabled", True)),
         run_every=parse_duration(merged.get("run_every")),
@@ -470,9 +475,13 @@ def parse_lumberjacks(
                     )
                 )
         chop_timeout = parse_duration(cfg.get("chop_timeout"))
+        description = str(cfg["description"])
+        description_summary, description_body = split_axe_description(description)
         result[name] = LumberjackConfig(
             name=name,
-            description=str(cfg["description"]),
+            description=description,
+            description_summary=description_summary,
+            description_body=description_body,
             interval=int(cfg.get("interval", 1)),
             chop_timeout=chop_timeout,
             env=lumberjack_env,

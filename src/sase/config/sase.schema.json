@@ -106,6 +106,7 @@
         "description": {
           "type": "string",
           "minLength": 1,
+          "maxLength": 2000,
           "description": "Human-readable description shown in AXE listings and notifications"
         },
         "script": {
@@ -902,6 +903,7 @@
               "description": {
                 "type": "string",
                 "minLength": 1,
+                "maxLength": 2000,
                 "description": "Description of the cadence and class of work this lumberjack owns"
               },
               "interval": {
@@ -939,6 +941,7 @@
                         "description": {
                           "type": "string",
                           "minLength": 1,
+                          "maxLength": 2000,
                           "description": "Description of what this chop does"
                         },
                         "script": {

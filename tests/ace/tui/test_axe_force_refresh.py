@@ -77,7 +77,9 @@ class FakeAxeApp(AxeDisplayMixin):
             ("hooks", "fast"): ChopSnapshot(
                 lumberjack_name="hooks",
                 chop_name="fast",
-                description="fast desc",
+                description="fast desc\n\nfast body",
+                description_summary="fast desc",
+                description_body="fast body",
                 runs=[],
             ),
         }
@@ -214,7 +216,9 @@ async def test_targeted_refresh_updates_selected_chop() -> None:
     assert snap.runs[0].output_tail == "fresh chop output\n"
     # Preserve config description across refresh — we only know it from
     # the most recent collector pass, never from the run log.
-    assert snap.description == "fast desc"
+    assert snap.description == "fast desc\n\nfast body"
+    assert snap.description_summary == "fast desc"
+    assert snap.description_body == "fast body"
     # Composite snapshot tracks the per-chop update.
     hooks_snap = app._axe_lumberjack_snapshots["hooks"]
     assert hooks_snap.chops[0] is snap

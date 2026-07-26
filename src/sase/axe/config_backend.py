@@ -300,6 +300,7 @@ def compose_axe_config(
             {
                 "layers": layer_inputs,
                 "require_descriptions": True,
+                "require_description_shape": True,
             }
         )
     except ValueError as exc:
@@ -341,6 +342,7 @@ def plan_axe_entry_edit(
         "selector": selector.to_wire(),
         "operations": [operation.to_wire() for operation in operations],
         "require_descriptions": True,
+        "require_description_shape": True,
     }
     binding = require_rust_binding("axe_config_plan_entry")
     try:

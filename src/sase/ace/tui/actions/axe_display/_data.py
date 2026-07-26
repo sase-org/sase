@@ -86,6 +86,8 @@ class ChopSnapshot:
     generated: bool = False
     base_chop_name: str | None = None
     target_key: str | None = None
+    description_summary: str = ""
+    description_body: str = ""
 
     @property
     def base_identity(self) -> tuple[str, str]:
@@ -108,6 +110,8 @@ class LumberjackSnapshot:
     log_tail: str
     chops: list[ChopSnapshot]
     description: str = ""
+    description_summary: str = ""
+    description_body: str = ""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -169,6 +173,8 @@ def collect_chop_snapshot(
     chop_name: str,
     description: str = "",
     *,
+    description_summary: str = "",
+    description_body: str = "",
     enabled: bool = True,
     script: str = "",
     resolved_path: str | None = None,
@@ -196,6 +202,8 @@ def collect_chop_snapshot(
         lumberjack_name=lumberjack_name,
         chop_name=chop_name,
         description=description,
+        description_summary=description_summary,
+        description_body=description_body,
         runs=runs,
         enabled=enabled,
         script=script,
@@ -291,6 +299,8 @@ def collect_axe_status_data() -> AxeCollectedData:
                 name,
                 chop_cfg.name,
                 description=chop_cfg.description,
+                description_summary=chop_cfg.description_summary,
+                description_body=chop_cfg.description_body,
                 enabled=chop_cfg.enabled,
                 script=script,
                 resolved_path=str(resolved) if resolved is not None else None,
@@ -306,6 +316,8 @@ def collect_axe_status_data() -> AxeCollectedData:
         lumberjack_snapshots[name] = LumberjackSnapshot(
             name=name,
             description=config.lumberjacks[name].description,
+            description_summary=config.lumberjacks[name].description_summary,
+            description_body=config.lumberjacks[name].description_body,
             status=status,
             metrics=metrics,
             log_tail=log_tail,

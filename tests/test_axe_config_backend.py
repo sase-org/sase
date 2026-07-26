@@ -176,3 +176,65 @@ def test_runtime_uses_same_composition_as_preview(tmp_path: Path) -> None:
     assert effective is not None
     assert runtime_chop.script == effective.effective["script"]
     assert runtime_chop.description == effective.effective["description"]
+    assert runtime_chop.description_summary == "overlay"
+    assert runtime_chop.description_body == ""
+
+
+def test_composition_enforces_description_shape() -> None:
+    composition = compose_axe_config(
+        [
+            ConfigLayer(
+                name="user",
+                path=None,
+                exists=True,
+                list_strategy="replace",
+                data={
+                    "axe": {
+                        "lumberjacks": {
+                            "checks": {
+                                "description": "Run checks\nMissing separator",
+                                "interval": 10,
+                                "chops": {},
+                            }
+                        }
+                    }
+                },
+            )
+        ]
+    )
+
+    assert {
+        (item.code, item.path)
+        for item in composition.diagnostics
+        if item.code == "description_body_separator_required"
+    } == {
+        (
+            "description_body_separator_required",
+            "axe.lumberjacks.checks.description",
+        )
+    }
+
+
+def test_mutation_planning_enforces_description_shape(tmp_path: Path) -> None:
+    target = tmp_path / "sase_work.yml"
+    target.write_text("", encoding="utf-8")
+    composition = compose_axe_config(_layers(target))
+
+    plan = plan_axe_entry_edit(
+        composition,
+        AxeEntrySelector.chop_entry("checks.main", "release.check"),
+        "overlay:work.yml",
+        [
+            AxeFieldOperation.set_value(
+                ("description",),
+                "Check release readiness\nMissing separator",
+            )
+        ],
+        schema={"type": "object"},
+        use_chezmoi=False,
+    )
+
+    assert not plan.is_valid
+    assert {item.code for item in plan.axe_diagnostics} == {
+        "description_body_separator_required"
+    }

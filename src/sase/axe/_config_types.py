@@ -67,6 +67,8 @@ class ChopConfig:
     target: dict[str, Any] = field(default_factory=dict)
     vars: dict[str, Any] = field(default_factory=dict)
     provenance: dict[str, str] = field(default_factory=dict)
+    description_summary: str = ""
+    description_body: str = ""
 
     @property
     def script_name(self) -> str:
@@ -91,6 +93,8 @@ class LumberjackConfig:
     chop_timeout: int | None = None
     env: dict[str, ChopEnvValue] = field(default_factory=dict)
     chops: list[ChopConfig] = field(default_factory=list)
+    description_summary: str = ""
+    description_body: str = ""
 
     @property
     def chop_names(self) -> list[str]:

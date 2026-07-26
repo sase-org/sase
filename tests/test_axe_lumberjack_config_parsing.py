@@ -41,6 +41,25 @@ def test_parse_lumberjacks_round_trips_description() -> None:
     assert result["checks"].description == "Poll slower checks every five minutes"
 
 
+def test_parse_lumberjacks_caches_normalized_description_parts() -> None:
+    raw = {
+        "checks": {
+            "description": "  Poll slower checks  \r\n\r\n  Every five minutes.  ",
+            "interval": 300,
+            "chops": {
+                "audit": {"description": "Audit releases\n\nCheck tags and artifacts."}
+            },
+        }
+    }
+
+    lumberjack = _parse_lumberjacks(raw)["checks"]
+
+    assert lumberjack.description_summary == "Poll slower checks"
+    assert lumberjack.description_body == "  Every five minutes."
+    assert lumberjack.chops[0].description_summary == "Audit releases"
+    assert lumberjack.chops[0].description_body == "Check tags and artifacts."
+
+
 def test_chop_config_run_every_defaults_to_none() -> None:
     """Test that run_every defaults to None (run every tick)."""
     chop = ChopConfig(name="test", description="")

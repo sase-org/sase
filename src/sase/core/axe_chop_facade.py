@@ -102,11 +102,20 @@ def parse_chop_duration(value: str) -> int:
     return int(binding(value))
 
 
+def split_axe_description(description: str) -> tuple[str, str]:
+    """Normalize and split one AXE description into summary and body."""
+
+    binding = require_rust_binding("split_axe_description")
+    summary, body = binding(description)
+    return str(summary), str(body)
+
+
 def validate_axe_config(
     config: Mapping[str, Any],
     *,
     provenance: Mapping[str, str] | None = None,
     require_descriptions: bool = False,
+    require_description_shape: bool = False,
 ) -> list[dict[str, Any]]:
     """Return fail-closed, provenance-aware diagnostics for an axe config."""
 
@@ -117,6 +126,7 @@ def validate_axe_config(
             "config": dict(config),
             "provenance": dict(provenance or {}),
             "require_descriptions": require_descriptions,
+            "require_description_shape": require_description_shape,
         }
     )
     return [dict(item) for item in payload]

@@ -63,9 +63,19 @@ def _make_bgcmd_info() -> BackgroundCommandInfo:
 def _lj_cfg(name: str, chop_names: list[str]) -> LumberjackConfig:
     return LumberjackConfig(
         name=name,
-        description=f"{name} lane description",
+        description=f"{name} lane description\n\n{name} lane body",
+        description_summary=f"{name} lane description",
+        description_body=f"{name} lane body",
         interval=60,
-        chops=[ChopConfig(name=c, description=f"{c} desc") for c in chop_names],
+        chops=[
+            ChopConfig(
+                name=c,
+                description=f"{c} desc\n\n{c} body",
+                description_summary=f"{c} desc",
+                description_body=f"{c} body",
+            )
+            for c in chop_names
+        ],
     )
 
 
@@ -254,18 +264,26 @@ def test_collector_populates_all_cache_maps() -> None:
         ("hooks", "slow"),
     }
     assert data.chop_snapshots[("hooks", "slow")].runs == []
-    assert data.chop_snapshots[("hooks", "slow")].description == "slow desc"
+    assert data.chop_snapshots[("hooks", "slow")].description == (
+        "slow desc\n\nslow body"
+    )
+    assert data.chop_snapshots[("hooks", "slow")].description_summary == "slow desc"
+    assert data.chop_snapshots[("hooks", "slow")].description_body == "slow body"
 
     # The chop with recorded history carries up to MAX (10) newest-first
     # entries, paired with their bounded output tails.
     fast_snap = data.chop_snapshots[("hooks", "fast")]
     assert [r.entry.run_id for r in fast_snap.runs] == fast_runs
     assert fast_snap.runs[0].output_tail == f"{fast_runs[0]} output\n"
-    assert fast_snap.description == "fast desc"
+    assert fast_snap.description == "fast desc\n\nfast body"
+    assert fast_snap.description_summary == "fast desc"
+    assert fast_snap.description_body == "fast body"
 
     # Composite per-lumberjack snapshot mirrors the dicts above.
     hooks_snap = data.lumberjack_snapshots["hooks"]
-    assert hooks_snap.description == "hooks lane description"
+    assert hooks_snap.description == "hooks lane description\n\nhooks lane body"
+    assert hooks_snap.description_summary == "hooks lane description"
+    assert hooks_snap.description_body == "hooks lane body"
     assert hooks_snap.status is status_map["hooks"]
     assert hooks_snap.metrics is metrics_map["hooks"]
     assert hooks_snap.log_tail == "hooks log\n"

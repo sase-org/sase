@@ -92,6 +92,7 @@ def test_bundled_lumberjack_and_chop_friendly_field_order() -> None:
         "chop_timeout",
         "env",
     ]
+    assert lumberjack._form.field("description").editor_kind == "text"
     assert lumberjack._form.field("env").editor_kind == "yaml"
 
     chop = AxeEntryEditorModal(
@@ -115,6 +116,7 @@ def test_bundled_lumberjack_and_chop_friendly_field_order() -> None:
         "for_each",
         "vars",
     ]
+    assert chop._form.field("description").editor_kind == "text"
     assert all(
         chop._form.field(name).editor_kind == "yaml"
         for name in (

@@ -18,6 +18,7 @@ from sase.core.axe_chop_facade import (
     parse_chop_duration,
     parse_chop_result,
     release_chop_once_per,
+    split_axe_description,
     validate_axe_config,
     validate_chop_proposal,
 )
@@ -158,6 +159,16 @@ def test_target_duration_and_agent_name_facades() -> None:
     )
 
 
+def test_description_split_normalizes_summary_and_body() -> None:
+    assert split_axe_description(
+        "  Run release checks  \r\n\r\n  Check tags and artifacts.  \r\n"
+    ) == (
+        "Run release checks",
+        "  Check tags and artifacts.",
+    )
+    assert split_axe_description("Run release checks") == ("Run release checks", "")
+
+
 def test_strict_config_diagnostics_preserve_provenance() -> None:
     diagnostics = validate_axe_config(
         {
@@ -201,6 +212,33 @@ def test_strict_config_can_require_descriptions() -> None:
             "lumberjacks.checks.chops.audit.description",
         ),
     }
+
+
+def test_strict_config_can_require_description_shape() -> None:
+    diagnostics = validate_axe_config(
+        {
+            "lumberjacks": {
+                "checks": {
+                    "description": "Run checks\nBody without a separator",
+                    "interval": 60,
+                    "chops": {},
+                }
+            }
+        },
+        require_descriptions=True,
+        require_description_shape=True,
+    )
+
+    assert [
+        (item["code"], item["path"])
+        for item in diagnostics
+        if item["code"] == "description_body_separator_required"
+    ] == [
+        (
+            "description_body_separator_required",
+            "lumberjacks.checks.description",
+        )
+    ]
 
 
 def test_schema_versions_match_the_facade_contract() -> None:

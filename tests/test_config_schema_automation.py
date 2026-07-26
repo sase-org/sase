@@ -190,10 +190,13 @@ def test_config_schema_requires_nonblank_axe_descriptions() -> None:
 
     assert chop_schema["required"] == ["description"]
     assert chop_schema["properties"]["description"]["minLength"] == 1
+    assert chop_schema["properties"]["description"]["maxLength"] == 2000
     assert lumberjack_schema["required"] == ["description"]
     assert lumberjack_schema["properties"]["description"]["minLength"] == 1
+    assert lumberjack_schema["properties"]["description"]["maxLength"] == 2000
     assert list_chop_schema["required"] == ["name", "description"]
     assert list_chop_schema["properties"]["description"]["minLength"] == 1
+    assert list_chop_schema["properties"]["description"]["maxLength"] == 2000
 
 
 @pytest.mark.parametrize(

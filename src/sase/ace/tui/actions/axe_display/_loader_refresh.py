@@ -184,14 +184,26 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             chop_name = selected_item.chop_name
             existing = self._axe_chop_snapshots.get((lj_name, chop_name))
             description = existing.description if existing is not None else ""
+            description_summary = (
+                existing.description_summary if existing is not None else ""
+            )
+            description_body = existing.description_body if existing is not None else ""
 
             def _read_chop() -> ChopSnapshot:
                 if existing is None:
-                    return collect_chop_snapshot(lj_name, chop_name, description)
+                    return collect_chop_snapshot(
+                        lj_name,
+                        chop_name,
+                        description,
+                        description_summary=description_summary,
+                        description_body=description_body,
+                    )
                 return collect_chop_snapshot(
                     lj_name,
                     chop_name,
                     description,
+                    description_summary=description_summary,
+                    description_body=description_body,
                     enabled=existing.enabled,
                     script=existing.script,
                     resolved_path=existing.resolved_path,
