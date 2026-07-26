@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Literal, cast
 
+from sase.env_contracts import provider_project_dir_from_env
 from sase.notification_gates.entrypoints import gate_command_entrypoint
 from sase.notification_gates.models import GateError, GateGroup
 
@@ -466,7 +467,7 @@ def _plan_action_data(
     values = {
         "original_plan_file": original_plan_file,
         "session_id": session_id,
-        "project_dir": os.environ.get("CLAUDE_PROJECT_DIR"),
+        "project_dir": provider_project_dir_from_env(),
         "artifacts_dir": os.environ.get("SASE_ARTIFACTS_DIR"),
         "agent_cl_name": os.environ.get("SASE_AGENT_CL_NAME"),
         "agent_project_file": os.environ.get("SASE_AGENT_PROJECT_FILE"),

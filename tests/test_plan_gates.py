@@ -162,6 +162,24 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     assert actions == {"PlanApproval", "EpicApproval"}
 
 
+def test_plan_gate_project_dir_uses_runtime_neutral_env_contract(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    active_project_dir = gate_home / "active-project"
+    monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(active_project_dir))
+
+    gate = create_plan_approval_gate(
+        _write_plan(gate_home, "active.md", VALID_TALE_PLAN),
+        "active-project-request",
+    )
+
+    request = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    assert request["presentation"]["action_data"]["project_dir"] == str(
+        active_project_dir
+    )
+
+
 @pytest.mark.parametrize(
     ("tier", "option_id", "expected"),
     [

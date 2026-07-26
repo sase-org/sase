@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase._plan_approval_epic import epic_launch_cwd
 from sase.plan_approval_actions import (
     PlanApprovalActionContext,
     PlanApprovalActionError,
@@ -296,6 +297,40 @@ def test_headless_epic_approval_claims_host_ownership_before_submitting(
     )
     submit_launch.assert_called_once()
     assert submit_launch.call_args.kwargs["cwd"] == workspace
+
+
+def test_epic_launch_cwd_resolves_from_project_file_without_project_dir(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    project_file = tmp_path / "projects" / "canonical" / "canonical.sase"
+    context = PlanApprovalActionContext(
+        id="plan-approval",
+        host_files=(),
+        host_action_data={"agent_project_file": str(project_file)},
+    )
+
+    with patch(
+        "sase.bead.epic_launch.resolve_epic_launch_cwd",
+        return_value=workspace,
+    ) as resolve_cwd:
+        assert epic_launch_cwd(context) == workspace
+
+    resolve_cwd.assert_called_once_with(
+        None,
+        agent_project_file=str(project_file),
+    )
+
+
+def test_epic_launch_cwd_returns_none_without_project_identity() -> None:
+    context = PlanApprovalActionContext(
+        id="plan-approval",
+        host_files=(),
+        host_action_data={},
+    )
+
+    assert epic_launch_cwd(context) is None
 
 
 def test_headless_epic_submit_failure_keeps_durable_host_claim(

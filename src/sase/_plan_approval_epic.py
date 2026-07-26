@@ -117,14 +117,15 @@ def can_claim_epic_launch(
 
 def epic_launch_cwd(notification: PlanApprovalActionContext) -> Path | None:
     project_dir = notification.host_action_data.get("project_dir")
-    if not project_dir:
+    agent_project_file = notification.host_action_data.get("agent_project_file")
+    if not project_dir and not agent_project_file:
         return None
     try:
         from sase.bead.epic_launch import resolve_epic_launch_cwd
 
         return resolve_epic_launch_cwd(
             project_dir,
-            agent_project_file=notification.host_action_data.get("agent_project_file"),
+            agent_project_file=agent_project_file,
         )
     except Exception:
         return None

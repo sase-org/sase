@@ -40,9 +40,9 @@ def submit_epic_launch_task(
 ) -> bool:
     """Submit a deduplicated tracked launch before the response claims ownership."""
     project_dir = notification.action_data.get("project_dir")
-    if not project_dir:
-        return False
     agent_project_file = notification.action_data.get("agent_project_file")
+    if not project_dir and not agent_project_file:
+        return False
 
     dedup_key = _epic_launch_dedup_key(plan_file)
     task_queue = getattr(app, "_task_queue", None)

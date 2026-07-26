@@ -65,6 +65,37 @@ def test_resolve_epic_launch_cwd_prefers_canonical_project_file(
     get_workspace_directory.assert_called_once_with("gh_sase-org__sase", 1)
 
 
+def test_resolve_epic_launch_cwd_accepts_project_file_without_project_dir(
+    tmp_path: Path,
+) -> None:
+    project_file = (
+        tmp_path / "projects" / "gh_sase-org__sase" / "gh_sase-org__sase.sase"
+    )
+    primary = tmp_path / "primary"
+    primary.mkdir()
+
+    with (
+        patch("sase.workspace_provider.get_workspace_name") as get_workspace_name,
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(primary),
+        ) as get_workspace_directory,
+    ):
+        resolved = resolve_epic_launch_cwd(
+            None,
+            agent_project_file=project_file,
+        )
+
+    assert resolved == primary
+    get_workspace_name.assert_not_called()
+    get_workspace_directory.assert_called_once_with("gh_sase-org__sase", 1)
+
+
+def test_resolve_epic_launch_cwd_requires_a_project_signal() -> None:
+    with pytest.raises(ValueError, match="project_dir or agent_project_file"):
+        resolve_epic_launch_cwd(None)
+
+
 @pytest.mark.parametrize("provider_name", ["sase", None])
 def test_resolve_epic_launch_cwd_canonicalizes_compatibility_fallback(
     tmp_path: Path,

@@ -108,6 +108,52 @@ def test_tracked_epic_launch_streams_and_backfills_metadata(tmp_path: Path) -> N
     )
 
 
+def test_tracked_epic_launch_accepts_project_file_without_project_dir(
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "epic.md"
+    plan.write_text("# Epic\n", encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    notification = _notification(tmp_path, plan)
+    notification.action_data.pop("project_dir")
+
+    app = MagicMock()
+    app._task_queue.get_running_for_key.return_value = None
+    app._submit_tracked_task.return_value = SimpleNamespace(task_id="task")
+    with patch(
+        "sase.ace.tui.actions.agents._notification_epic_launch.resolve_epic_launch_cwd",
+        return_value=workspace,
+    ) as resolve_cwd:
+        owned = submit_epic_launch_task(
+            app,
+            notification,
+            plan_file=str(plan),
+            phase_count=1,
+        )
+
+        assert owned is True
+        task_args = app._submit_tracked_task.call_args.args
+        assert task_args[:3] == (
+            "epic-launch",
+            "demo",
+            str(tmp_path / "demo.sase"),
+        )
+        resolve_cwd.assert_not_called()
+
+        reporter = MagicMock()
+        reporter.run.return_value = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout="Epic: sase-64\n",
+        )
+        task_args[3](reporter)
+        resolve_cwd.assert_called_once_with(
+            None,
+            agent_project_file=str(tmp_path / "demo.sase"),
+        )
+
+
 @pytest.mark.parametrize(
     ("returncode", "output"),
     [

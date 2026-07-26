@@ -59,7 +59,7 @@ def parse_epic_launch_output(output: str) -> _EpicLaunchOutput:
 
 
 def resolve_epic_launch_cwd(
-    project_dir: str | Path,
+    project_dir: str | Path | None,
     *,
     agent_project_file: str | Path | None = None,
 ) -> Path:
@@ -77,6 +77,11 @@ def resolve_epic_launch_cwd(
                 f"{agent_project_file}"
             )
     else:
+        if project_dir is None or not str(project_dir).strip():
+            raise ValueError(
+                "project_dir or agent_project_file is required to resolve epic "
+                "launch cwd"
+            )
         project_path = Path(project_dir).expanduser().resolve(strict=False)
         try:
             from sase.workspace_provider import get_workspace_name

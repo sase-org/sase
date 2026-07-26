@@ -7,8 +7,8 @@ from typing import Any
 
 from sase.config.core import load_merged_config
 from sase.env_contracts import (
-    PROVIDER_PROJECT_DIR_ENV_VARS,
     SASE_WORKSPACE_DIR_ENV_VARS,
+    provider_project_dir_from_env,
 )
 
 from .commit_finalizer_types import (
@@ -18,15 +18,12 @@ from .commit_finalizer_types import (
 )
 
 _WORKSPACE_ENV_VARS = SASE_WORKSPACE_DIR_ENV_VARS
-_PROVIDER_PROJECT_ENV_VARS = PROVIDER_PROJECT_DIR_ENV_VARS
 
 
 def resolve_finalizer_project_dir() -> str:
     """Resolve the workspace the finalizer should inspect."""
-    for key in _PROVIDER_PROJECT_ENV_VARS:
-        candidate = os.environ.get(key)
-        if candidate:
-            return candidate
+    if project_dir := provider_project_dir_from_env():
+        return project_dir
     workspace = _workspace_env_value()
     if workspace:
         return workspace
