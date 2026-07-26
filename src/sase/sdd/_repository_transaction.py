@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 
 from sase.sdd._repository_health import (
@@ -27,6 +28,8 @@ from sase.sdd._repository_types import (
     SddIntegrationStatus,
     SddRepositoryState,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 def require_sdd_repository_health(
@@ -117,6 +120,13 @@ def integrate_machine_managed_sdd_repository(
         SddIntegrationStatus.REMOTE_UNAVAILABLE,
         SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS,
     }:
+        if outcome.succeeded:
+            _safe_reap_recovery_residue(
+                repo_root,
+                clock=clock,
+                git_runner=git_runner,
+                lock_factory=lock_factory,
+            )
         return outcome
 
     from sase.sdd._repository_recovery import (
@@ -136,6 +146,12 @@ def integrate_machine_managed_sdd_repository(
         event_logger=event_logger,
     )
     if recovered.succeeded and recovered.upstream_present:
+        _safe_reap_recovery_residue(
+            repo_root,
+            clock=clock,
+            git_runner=git_runner,
+            lock_factory=lock_factory,
+        )
         from sase.sdd._integration_marker import mark_bead_integration
 
         try:
@@ -143,6 +159,27 @@ def integrate_machine_managed_sdd_repository(
         except OSError:
             pass
     return recovered
+
+
+def _safe_reap_recovery_residue(
+    repo_root: Path,
+    *,
+    clock: Callable[[], float] | None,
+    git_runner: GitRunner | None,
+    lock_factory: LockFactory | None,
+) -> None:
+    from sase.sdd._repository_recovery_reaper import (
+        safe_reap_sdd_recovery_snapshots,
+    )
+
+    safe_reap_sdd_recovery_snapshots(
+        repo_root,
+        now=clock() if clock is not None else None,
+        git_runner=git_runner,
+        lock_factory=lock_factory,
+        op_prefix="sdd.recovery_reap",
+        logger=lambda message: _logger.debug(message),
+    )
 
 
 def integrate_sdd_repository_transaction(
