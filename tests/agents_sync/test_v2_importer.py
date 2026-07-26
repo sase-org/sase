@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 import json
 from pathlib import Path
 import subprocess
@@ -193,6 +194,33 @@ def _isolate_local_state(
         lambda: None,
     )
     return artifact_root, groups, claims
+
+
+def test_preferred_timestamp_never_returns_a_future_value() -> None:
+    for index in range(10_000):
+        value = v2_import_history.preferred_timestamp(f"source-{index}", None)
+        parsed = datetime.strptime(value, "%Y%m%d%H%M%S").replace(tzinfo=UTC)
+        assert parsed <= datetime.now(UTC)
+
+    future = datetime.now(UTC) + timedelta(days=365)
+    embedded = v2_import_history.preferred_timestamp(
+        f"source-{future.strftime('%Y%m%d%H%M%S')}",
+        None,
+    )
+    started = v2_import_history.preferred_timestamp("source-future", future.isoformat())
+    assert datetime.strptime(embedded, "%Y%m%d%H%M%S").replace(
+        tzinfo=UTC
+    ) <= datetime.now(UTC)
+    assert datetime.strptime(started, "%Y%m%d%H%M%S").replace(
+        tzinfo=UTC
+    ) <= datetime.now(UTC)
+
+
+def test_reserve_timestamp_rejects_a_future_preferred_value(tmp_path: Path) -> None:
+    future = (datetime.now(UTC) + timedelta(days=1)).strftime("%Y%m%d%H%M%S")
+
+    with pytest.raises(ValueError, match="future imported artifact timestamp"):
+        v2_import_history.reserve_timestamp(_target(tmp_path), future, set())
 
 
 def test_family_import_recovers_as_one_visible_idempotent_group(

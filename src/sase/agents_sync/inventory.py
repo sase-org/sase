@@ -512,13 +512,15 @@ def _add_commit_only_runs(
         if global_name in by_global:
             continue
         source_label = f"primary commit history for {global_name}"
+        started_at = _time_text(commits[0].committed_at)
+        finished_at = _time_text(commits[-1].committed_at)
         by_global[global_name] = InventoryRun(
             _source_run_id(project_key, "primary-commit-history", local_name),
             local_name,
             global_name,
             "completed",
-            None,
-            None,
+            started_at,
+            finished_at,
             None,
             (),
             commits,

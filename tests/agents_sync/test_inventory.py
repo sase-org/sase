@@ -222,7 +222,7 @@ def test_inventory_synthesizes_run_for_linked_commit_without_local_artifact(
             return subprocess.CompletedProcess(
                 args,
                 0,
-                _git_log(("missing.agent",)),
+                _git_log(("missing.agent", "missing.agent")),
                 "",
             )
         return subprocess.CompletedProcess(args, 1, "", "unused")
@@ -237,7 +237,9 @@ def test_inventory_synthesizes_run_for_linked_commit_without_local_artifact(
     )
 
     assert [run.local_name for run in result.runs] == ["missing.agent"]
-    assert len(result.runs[0].commits) == 1
+    assert len(result.runs[0].commits) == 2
+    assert result.runs[0].started_at == "1970-01-01T00:00:01+00:00"
+    assert result.runs[0].finished_at == "1970-01-01T00:00:02+00:00"
     assert result.eligible_hoods() == ("missing",)
     assert result.diagnostics == (
         "primary commit history for alice.athena.missing.agent: synthesized "

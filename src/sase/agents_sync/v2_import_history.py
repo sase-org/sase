@@ -31,6 +31,10 @@ from sase.core.agent_identity_facade import (
 )
 from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
 
+_FALLBACK_START = datetime(2000, 1, 1, tzinfo=UTC)
+_FALLBACK_END = datetime(2020, 1, 1, tzinfo=UTC)
+_FALLBACK_SPAN_SECONDS = int((_FALLBACK_END - _FALLBACK_START).total_seconds())
+
 
 @dataclass(frozen=True, slots=True)
 class ExactLocalObservationIndex:
@@ -244,21 +248,33 @@ def _matching_primary_commit_evidence(
 
 
 def preferred_timestamp(source_run_id: str, started_at: str | None) -> str:
+    """Choose a preferred timestamp that never exceeds current UTC time."""
+
+    now = datetime.now(UTC)
+    candidate: datetime | None = None
     match = re.search(r"(?<!\d)(\d{14})(?!\d)", source_run_id)
     if match is not None:
         try:
-            datetime.strptime(match.group(1), "%Y%m%d%H%M%S")
-            return match.group(1)
+            candidate = datetime.strptime(
+                match.group(1),
+                "%Y%m%d%H%M%S",
+            ).replace(tzinfo=UTC)
         except ValueError:
             pass
-    parsed = _parse_datetime(started_at)
-    if parsed is not None:
-        return parsed.astimezone(UTC).strftime("%Y%m%d%H%M%S")
-    # Stable fallback in a historical range; probing resolves collisions.
-    seconds = int(hashlib.sha256(source_run_id.encode()).hexdigest()[:8], 16)
-    return (datetime(2000, 1, 1, tzinfo=UTC) + timedelta(seconds=seconds)).strftime(
-        "%Y%m%d%H%M%S"
-    )
+    if candidate is None:
+        parsed = _parse_datetime(started_at)
+        if parsed is not None:
+            candidate = parsed.astimezone(UTC)
+    if candidate is None:
+        # Hash into a fixed twenty-year historical window. The final clamp
+        # preserves the no-future invariant even under an unexpectedly old
+        # system clock.
+        seconds = (
+            int(hashlib.sha256(source_run_id.encode()).hexdigest()[:8], 16)
+            % _FALLBACK_SPAN_SECONDS
+        )
+        candidate = _FALLBACK_START + timedelta(seconds=seconds)
+    return min(candidate, now).strftime("%Y%m%d%H%M%S")
 
 
 def reserve_timestamp(
@@ -267,7 +283,18 @@ def reserve_timestamp(
     reserved: set[str],
 ) -> str:
     current = datetime.strptime(preferred, "%Y%m%d%H%M%S").replace(tzinfo=UTC)
+    latest = datetime.now(UTC).replace(microsecond=0)
+    if current > latest:
+        raise ValueError(
+            f"future imported artifact timestamp {preferred} exceeds current UTC "
+            f"time {latest.strftime('%Y%m%d%H%M%S')}"
+        )
     for _ in range(86_400):
+        if current > latest:
+            raise RuntimeError(
+                "could not allocate a free imported artifact timestamp without "
+                "exceeding the current UTC time"
+            )
         value = current.strftime("%Y%m%d%H%M%S")
         destination = canonical_agent_artifact_path(
             target.project_key,
