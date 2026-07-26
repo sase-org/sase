@@ -31,6 +31,24 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "and rebuilds the artifact index after the batch."
         ),
     ),
+    "src/sase/agents/index_repair.py:_remove_artifacts": DirOpReview(
+        batched_by=(
+            BatchedCoverage(
+                caller_context=(
+                    "src/sase/agents/index_repair.py:apply_imported_state_repair"
+                ),
+                helper_call="_remove_artifacts",
+                lifecycle_call=_DELETE_INDEX,
+            ),
+        ),
+    ),
+    "src/sase/agents/index_repair.py:_remove_journals_and_staging": DirOpReview(
+        exemption=(
+            "Removes only the selected import transaction's staging directory "
+            "after deleting its journal so recovery cannot resurrect the "
+            "future-dated imported state; it is not an agent artifact directory."
+        ),
+    ),
     "src/sase/agents_sync/bundles.py:_create_imported_artifact": DirOpReview(
         lifecycle_calls=("update_agent_artifact_index_for_marker_mutation",),
     ),

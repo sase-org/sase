@@ -290,7 +290,7 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
             help="Projects artifact root (default: ~/.sase/projects)",
         )
 
-    # sase agent index {gc,rebuild,status,verify}
+    # sase agent index {gc,rebuild,repair,status,verify}
     index_parser = agents_sub.add_parser(
         "index",
         help="Manage the persistent agent artifact index",
@@ -309,16 +309,16 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         help="SQLite index path (default: ~/.sase/agent_artifact_index.sqlite)",
     )
     gc_parser.add_argument(
-        "-p",
-        "--projects-root",
-        default=None,
-        help="Projects artifact root (default: ~/.sase/projects)",
-    )
-    gc_parser.add_argument(
         "-j",
         "--json",
         action="store_true",
         help="Emit a machine-readable JSON object",
+    )
+    gc_parser.add_argument(
+        "-p",
+        "--projects-root",
+        default=None,
+        help="Projects artifact root (default: ~/.sase/projects)",
     )
     gc_parser.add_argument(
         "-r",
@@ -341,16 +341,49 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         help="SQLite index path (default: ~/.sase/agent_artifact_index.sqlite)",
     )
     rebuild_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object",
+    )
+    rebuild_parser.add_argument(
         "-p",
         "--projects-root",
         default=None,
         help="Projects artifact root (default: ~/.sase/projects)",
     )
-    rebuild_parser.add_argument(
+    repair_parser = index_sub.add_parser(
+        "repair",
+        help="Purge invalid future-dated state from historical agent imports",
+        description=(
+            "Find future-dated imported artifacts, dismissed bundles, index and "
+            "name-registry rows, and import journals. The command is a dry run "
+            "unless --apply is provided."
+        ),
+    )
+    repair_parser.add_argument(
+        "-a",
+        "--apply",
+        action="store_true",
+        help="Apply the repair (default: report candidates without changing state)",
+    )
+    repair_parser.add_argument(
+        "-i",
+        "--index-path",
+        default=None,
+        help="SQLite index path (default: ~/.sase/agent_artifact_index.sqlite)",
+    )
+    repair_parser.add_argument(
         "-j",
         "--json",
         action="store_true",
         help="Emit a machine-readable JSON object",
+    )
+    repair_parser.add_argument(
+        "-p",
+        "--projects-root",
+        default=None,
+        help="Projects artifact root (default: ~/.sase/projects)",
     )
     status_parser = index_sub.add_parser(
         "status",
@@ -363,16 +396,16 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         help="SQLite index path (default: ~/.sase/agent_artifact_index.sqlite)",
     )
     status_parser.add_argument(
-        "-p",
-        "--projects-root",
-        default=None,
-        help="Projects artifact root (default: ~/.sase/projects)",
-    )
-    status_parser.add_argument(
         "-j",
         "--json",
         action="store_true",
         help="Emit a machine-readable JSON object",
+    )
+    status_parser.add_argument(
+        "-p",
+        "--projects-root",
+        default=None,
+        help="Projects artifact root (default: ~/.sase/projects)",
     )
     verify_parser = index_sub.add_parser(
         "verify",
@@ -385,16 +418,16 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         help="SQLite index path (default: ~/.sase/agent_artifact_index.sqlite)",
     )
     verify_parser.add_argument(
-        "-p",
-        "--projects-root",
-        default=None,
-        help="Projects artifact root (default: ~/.sase/projects)",
-    )
-    verify_parser.add_argument(
         "-j",
         "--json",
         action="store_true",
         help="Emit a machine-readable JSON object",
+    )
+    verify_parser.add_argument(
+        "-p",
+        "--projects-root",
+        default=None,
+        help="Projects artifact root (default: ~/.sase/projects)",
     )
 
     # sase agent names migrate-auto

@@ -23,7 +23,7 @@ from sase.agents_sync import v2_import_storage
 from sase.agents_sync import v2_import_transactions
 from sase.agents_sync.inventory import InventoryRun, ProjectHoodInventory
 from sase.agents_sync.models import CommitRecord, ProjectTarget
-from sase.agents_sync.publication import publish_agent_hood
+from sase.agents_sync.publication import publish_agent_hood, reconcile_agent_hoods
 from sase.agents_sync.v2_import_package import discover_agent_imports
 from sase.agents_sync.v2_models import V2ProjectIdentity
 from sase.core.agent_group_archive_wire import saved_agent_group_from_dict
@@ -602,6 +602,29 @@ def test_imported_bundles_are_not_republished(
     )
 
     assert republished.runs == ()
+
+    republish_counts = reconcile_agent_hoods(
+        target,
+        target.sidecar_path,
+        identity=identity,
+        inventory=republished,
+    )
+    assert republish_counts.runs_published == 0
+    rediscovery = discover_agent_imports(target.sidecar_path, PROJECT)
+    second_import = v2_importer.integrate_v2_hoods(
+        target,
+        rediscovery.v2_packages,
+        identity=identity,
+    )
+    assert second_import.runs_imported == 0
+    assert second_import.hoods_unchanged == 1
+    assert all(
+        datetime.strptime(path.name, "%Y%m%d%H%M%S").replace(tzinfo=UTC)
+        <= datetime.now(UTC)
+        for path in (
+            tmp_path / "state" / "projects" / "proj" / "artifacts" / "ace-run"
+        ).glob("*")
+    )
 
 
 def test_preflight_context_scans_artifacts_once_for_multi_run_import(

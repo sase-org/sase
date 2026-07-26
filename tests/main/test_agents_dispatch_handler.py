@@ -178,6 +178,30 @@ def test_parser_registers_index_gc_options() -> None:
     assert args.json is True
 
 
+def test_parser_registers_index_repair_as_dry_run_by_default() -> None:
+    args = create_parser().parse_args(
+        [
+            "agent",
+            "index",
+            "repair",
+            "--index-path",
+            "/tmp/index.sqlite",
+            "--projects-root",
+            "/tmp/projects",
+            "--json",
+        ]
+    )
+
+    assert args.index_subcommand == "repair"
+    assert args.apply is False
+    assert args.index_path == "/tmp/index.sqlite"
+    assert args.projects_root == "/tmp/projects"
+    assert args.json is True
+
+    applied = create_parser().parse_args(["agent", "index", "repair", "--apply"])
+    assert applied.apply is True
+
+
 def test_parser_registers_artifacts_layout_migrate_options() -> None:
     """`sase agent artifacts layout migrate` accepts migration knobs."""
     args = create_parser().parse_args(

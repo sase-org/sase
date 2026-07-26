@@ -45,6 +45,9 @@ _REVIEWED_DISMISSED_SAVE_CONTEXTS: dict[str, tuple[str, ...]] = {
         _SYNC_DISMISSED_INDEX,
     ),
     "src/sase/agent/running.py:_record_dismissal": (_SYNC_DISMISSED_INDEX,),
+    "src/sase/agents/index_repair.py:_remove_dismissed_identities": (
+        _SYNC_DISMISSED_INDEX,
+    ),
     "src/sase/agents_sync/v2_import_transactions.py:_record_imported_dismissed_agents": (
         _SYNC_DISMISSED_INDEX,
     ),
