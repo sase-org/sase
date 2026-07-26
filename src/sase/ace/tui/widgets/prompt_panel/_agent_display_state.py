@@ -62,6 +62,7 @@ class DetailHeaderSummary:
 
     xprompts_used: list[dict[str, Any]] | None = None
     bead_display: str | None = None
+    wait_bead_statuses: tuple[tuple[str, str | None], ...] | None = None
     phase_bead: PhaseBeadSummary | None = None
     associated_plan: AssociatedPlanSummary | None = None
     delta_entries: list[DeltaEntry] | None = None

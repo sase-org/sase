@@ -51,6 +51,12 @@ _WAIT_STATUS_BADGES: dict[str, tuple[str, str]] = {
     "Failed": (AGENT_STATUS_BUCKET_GLYPHS["Failed"], "bold #FF5F5F"),
     "Stopped": (AGENT_STATUS_BUCKET_GLYPHS["Stopped"], "bold #8787AF"),
 }
+_WAIT_BEAD_STATUS_BADGES: dict[str, tuple[str, str]] = {
+    "closed": (AGENT_STATUS_BUCKET_GLYPHS["Done"], "bold #5FD75F"),
+    "in_progress": (AGENT_STATUS_BUCKET_GLYPHS["Running"], "bold #FFD700"),
+    "claimed": (AGENT_STATUS_BUCKET_GLYPHS["Starting"], "bold #87D7FF"),
+    "open": (AGENT_STATUS_BUCKET_GLYPHS["Waiting"], "bold #AF87FF"),
+}
 _AUTO_APPROVE_KIND_STYLES: dict[str, tuple[str, str]] = {
     "plan": ("\u26a1 PLAN", "bold #5FD7FF"),
     "tale": ("\u26a1 TALE", "bold #FFD75F"),
@@ -92,6 +98,20 @@ def _queued_for_label(requested_at: str | None) -> str | None:
 def _append_wait_status_badge(text: Text, bucket: str | None) -> None:
     """Append the standard badge for a known or unknown wait target."""
     badge = _WAIT_STATUS_BADGES.get(bucket) if bucket is not None else None
+    if badge is None:
+        glyph, style = (
+            _MISSING_WAIT_TARGET_GLYPH,
+            _MISSING_WAIT_TARGET_GLYPH_STYLE,
+        )
+    else:
+        glyph, style = badge
+    text.append(" ")
+    text.append(glyph, style=style)
+
+
+def _append_wait_bead_status_badge(text: Text, status: str | None) -> None:
+    """Append the standard badge for a known or unknown bead status."""
+    badge = _WAIT_BEAD_STATUS_BADGES.get(status) if status is not None else None
     if badge is None:
         glyph, style = (
             _MISSING_WAIT_TARGET_GLYPH,
@@ -212,6 +232,7 @@ def _append_wait_field(
     agent_status_buckets: Mapping[str, str] | None,
     clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None,
     runner_queue_ahead_count: int | None,
+    wait_bead_statuses: Sequence[tuple[str, str | None]] | None,
 ) -> None:
     """Append dependency, time-floor, and runner-slot wait details."""
     from sase.ace.tui.models.agent import (
@@ -300,10 +321,21 @@ def _append_wait_field(
         if appended_dependency_names:
             text.append(" + ", style=_WAITING_VALUE_STYLE)
         text.append("beads: ", style="dim #AF87FF")
-        text.append(
-            ", ".join(wait_agent.waiting_for_beads),
-            style=_WAITING_VALUE_STYLE,
-        )
+        if wait_bead_statuses is None:
+            text.append(
+                ", ".join(wait_agent.waiting_for_beads),
+                style=_WAITING_VALUE_STYLE,
+            )
+        else:
+            statuses_by_id = dict(wait_bead_statuses)
+            for index, bead_id in enumerate(wait_agent.waiting_for_beads):
+                if index:
+                    text.append(", ", style=_WAITING_VALUE_STYLE)
+                text.append(bead_id, style=_WAITING_VALUE_STYLE)
+                _append_wait_bead_status_badge(
+                    text,
+                    statuses_by_id.get(bead_id),
+                )
         appended_dependency_names = True
 
     time_part: str | None = None
@@ -475,6 +507,7 @@ def append_agent_metadata_fields(
         agent_status_buckets,
         clan_wait_member_statuses,
         runner_queue_ahead_count,
+        summary.wait_bead_statuses if summary is not None else None,
     )
     _append_retry_fields(text, agent)
     _append_timestamp_fields(text, agent, hint_state)

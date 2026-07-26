@@ -20,6 +20,7 @@ from ...models.agent_associated_plan import (
     resolve_agent_plan_enrichment,
 )
 from ...models.agent_bead import BEAD_DISPLAY_CACHE_MISS, cached_bead_display
+from ...models.agent_wait_beads import resolve_wait_bead_statuses
 from ._agent_display_state import DetailHeaderSummary
 from ._helpers import load_xprompts_used
 
@@ -166,6 +167,7 @@ def build_detail_header_summary(
     return DetailHeaderSummary(
         xprompts_used=xprompts_used,
         bead_display=bead_display,
+        wait_bead_statuses=resolve_wait_bead_statuses(agent),
         phase_bead=plan_enrichment.phase_bead,
         associated_plan=associated_plan,
         delta_entries=agent_delta_entries(agent),

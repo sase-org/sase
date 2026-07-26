@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 
 from sase.bead.model import Status
@@ -38,3 +39,29 @@ def closed_bead_ids_for_project(project: str) -> frozenset[str] | None:
     except Exception:  # noqa: BLE001 - unavailable stores must fail closed.
         return None
     return frozenset(issue.id for issue in issues)
+
+
+def bead_statuses_for_project(
+    project: str,
+    bead_ids: Iterable[str],
+) -> dict[str, str] | None:
+    """Return requested bead IDs mapped to status values, or ``None``.
+
+    ``None`` means the project's canonical bead store was unavailable. IDs
+    that do not exist in the store are omitted from the returned mapping.
+    """
+    try:
+        beads_dir = canonical_beads_dir_for_project(project)
+        if beads_dir is None:
+            return None
+        statuses: dict[str, str] = {}
+        with open_bead_project_for_beads_dir(beads_dir) as bead_project:
+            for bead_id in set(bead_ids):
+                try:
+                    issue = bead_project.show(bead_id)
+                except KeyError:
+                    continue
+                statuses[bead_id] = issue.status.value
+    except Exception:  # noqa: BLE001 - unavailable stores must fail closed.
+        return None
+    return statuses

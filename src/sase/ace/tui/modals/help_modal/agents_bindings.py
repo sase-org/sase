@@ -376,6 +376,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             [
                 ("▶ ◐ ⏳ ✓ ✗ ▲", "Dependency status (see Grouping)"),
                 ("?", "Waited-for name not found"),
+                ("beads: id ✓", "Bead wait target status"),
             ],
         ),
         (
