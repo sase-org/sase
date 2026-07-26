@@ -1,20 +1,12 @@
-"""Top-level orchestration for ``sase bead work``."""
+"""Epic launch orchestration and compatibility helpers for ``sase bead work``."""
 
 from __future__ import annotations
 
 import argparse
-import contextlib
-import io
-import json
-import os
 from pathlib import Path
-import shutil
-import sys
-import tempfile
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any
 
-from sase.bead.cli_common import get_project
 from sase.bead.cli_work_cleanup import (
     CleanupPreview,
     ForcedReuseCleanupError,
@@ -36,7 +28,14 @@ from sase.bead.cli_work_plan import (
     print_work_plan_summary,
     render_cleanup_preview,
 )
-from sase.bead.model import BeadTier, IssueType
+from sase.bead.cli_work_plan_snapshot import (
+    atomic_copy_epic_plan,
+    epic_plan_snapshot_destination,
+    epic_plan_source_path,
+    plan_ref_after_marker,
+    snapshot_epic_plan,
+)
+from sase.bead.cli_work_entry import handle_bead_work as dispatch_bead_work
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 
 if TYPE_CHECKING:
@@ -106,110 +105,20 @@ def _make_bead_work_timer(bead_id: str, *, dry_run: bool) -> Any:
     )
 
 
-def _epic_plan_source_path(proj: BeadProject, plan_ref: str) -> Path:
-    """Resolve an epic's approved plan from its authoritative bead store."""
-    expanded = Path(plan_ref).expanduser()
-    if expanded.is_absolute():
-        return expanded.resolve(strict=False)
-    if not plan_ref.strip():
-        raise ValueError("the epic has no approved plan reference")
-
-    root = proj.root_dir.expanduser().resolve(strict=False)
-    beads_dir = proj.beads_dir.expanduser().resolve(strict=False)
-    try:
-        beads_relative = beads_dir.relative_to(root)
-    except ValueError as exc:
-        raise ValueError("the bead store is outside its project root") from exc
-
-    parts = tuple(part for part in Path(plan_ref.replace("\\", "/")).parts if part)
-    if beads_relative == Path("sdd/beads"):
-        plans_root = root / "sdd" / "plans"
-        relative = _plan_ref_after_marker(parts, ("sdd", "plans"))
-        if relative is None:
-            relative = _plan_ref_after_marker(parts, ("plans",)) or parts
-    elif beads_relative == Path("beads"):
-        sidecar_relative = _plan_ref_after_marker(
-            parts,
-            ("sase", "repos", "plans"),
-        )
-        local_relative = _plan_ref_after_marker(
-            parts,
-            (".sase", "sdd", "plans"),
-        )
-        if sidecar_relative is not None:
-            plans_root = root
-            relative = sidecar_relative
-        elif local_relative is not None:
-            plans_root = root / "plans"
-            relative = local_relative
-        else:
-            plans_relative = _plan_ref_after_marker(parts, ("plans",))
-            local_layout = root.name == "sdd" and root.parent.name == ".sase"
-            if plans_relative is not None or local_layout or (root / "plans").is_dir():
-                plans_root = root / "plans"
-                relative = plans_relative or parts
-            else:
-                plans_root = root
-                relative = parts
-    else:
-        raise ValueError(f"unsupported bead store layout: {beads_relative}")
-
-    resolved_root = plans_root.resolve(strict=False)
-    source = resolved_root.joinpath(*relative).resolve(strict=False)
-    try:
-        source.relative_to(resolved_root)
-    except ValueError as exc:
-        raise ValueError("the relative plan reference escapes its plans store") from exc
-    return source
+def handle_bead_work(args: argparse.Namespace) -> None:
+    """Dispatch CLI work while preserving the original public entry point."""
+    dispatch_bead_work(args, timer_factory=_make_bead_work_timer)
 
 
-def _plan_ref_after_marker(
-    parts: tuple[str, ...],
-    marker: tuple[str, ...],
-) -> tuple[str, ...] | None:
-    """Return the suffix after a known storage marker in a plan reference."""
-    marker_length = len(marker)
-    for index in range(len(parts) - marker_length + 1):
-        if parts[index : index + marker_length] == marker:
-            return parts[index + marker_length :]
-    return None
-
-
-def _epic_plan_snapshot_destination(project_name: str, epic_id: str) -> Path:
-    """Return a project-scoped snapshot path confined to one safe filename."""
-    from sase.core.paths import sase_projects_dir, validate_sase_project_name
-
-    validate_sase_project_name(project_name)
-    if (
-        not epic_id
-        or epic_id in {".", ".."}
-        or "\x00" in epic_id
-        or "/" in epic_id
-        or "\\" in epic_id
-    ):
-        raise ValueError(f"invalid epic identifier for snapshot: {epic_id!r}")
-    filename = f"{epic_id}.md"
-    destination = (
-        sase_projects_dir() / project_name / "artifacts" / "epic-plans" / filename
-    )
-    return destination.expanduser().resolve(strict=False)
+# Compatibility aliases for callers that imported the former private helpers.
+_epic_plan_source_path = epic_plan_source_path
+_plan_ref_after_marker = plan_ref_after_marker
+_epic_plan_snapshot_destination = epic_plan_snapshot_destination
 
 
 def _atomic_copy_epic_plan(source: Path, destination: Path) -> None:
-    """Replace *destination* with a complete copy of *source*."""
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(
-        dir=destination.parent,
-        prefix=f".{destination.name}.",
-        suffix=".tmp",
-    )
-    os.close(fd)
-    temporary_path = Path(temporary)
-    try:
-        shutil.copyfile(source, temporary_path)
-        os.replace(temporary_path, destination)
-    finally:
-        temporary_path.unlink(missing_ok=True)
+    """Compatibility wrapper for atomic approved-plan copies."""
+    atomic_copy_epic_plan(source, destination)
 
 
 def _snapshot_epic_plan(
@@ -219,247 +128,14 @@ def _snapshot_epic_plan(
     plan_ref: str,
     launch_context: VCSLaunchContext | None,
 ) -> str | None:
-    """Best-effort copy of an approved plan into durable project state."""
-    project_name = launch_context.project_name if launch_context is not None else None
-    if not project_name:
-        from sase.bead.project_name import infer_project_name_from_cwd
-
-        project_name = infer_project_name_from_cwd()
-
-    try:
-        if not project_name:
-            raise ValueError("the current SASE project could not be inferred")
-        source = _epic_plan_source_path(proj, plan_ref)
-        destination = _epic_plan_snapshot_destination(project_name, epic_id)
-        _atomic_copy_epic_plan(source, destination)
-    except Exception as exc:
-        destination_context = project_name or "unknown project"
-        failure = type(exc).__name__
-        if isinstance(exc, ValueError):
-            failure = f"{failure}: {exc}"
-        print(
-            f"Warning: could not snapshot approved plan for epic {epic_id!r} "
-            f"from reference {plan_ref!r} into project "
-            f"{destination_context!r}: {failure}",
-            file=sys.stderr,
-        )
-        return None
-    return str(destination)
-
-
-def handle_bead_work(args: argparse.Namespace) -> None:
-    artifacts_dir = getattr(args, "artifacts_dir", None)
-    cl_name = getattr(args, "cl_name", None)
-    dry_run = bool(getattr(args, "dry_run", False))
-    yes = bool(getattr(args, "yes", False))
-    no_push = bool(getattr(args, "no_push", False))
-    json_output = bool(getattr(args, "json", False))
-    yes_to_all = bool(getattr(args, "yes_to_all", False)) or json_output
-    parent = getattr(args, "parent", None)
-    target = str(getattr(args, "target", getattr(args, "id", "")))
-
-    from sase.bead.cli_work_from_plan import (
-        PlanFileWorkError,
-        is_plan_file_target,
-        work_from_plan_file,
+    """Compatibility wrapper for approved-plan snapshot storage."""
+    return snapshot_epic_plan(
+        proj,
+        epic_id,
+        plan_ref=plan_ref,
+        launch_context=launch_context,
+        copy_plan=_atomic_copy_epic_plan,
     )
-    from sase.bead.epic_launch import finish_epic_launch
-
-    if is_plan_file_target(target):
-        captured = io.StringIO()
-        output_context = (
-            contextlib.redirect_stdout(captured)
-            if json_output
-            else contextlib.nullcontext()
-        )
-        try:
-            with output_context:
-                result = work_from_plan_file(
-                    target,
-                    dry_run=dry_run,
-                    yes=yes,
-                    yes_to_all=yes_to_all,
-                    no_push=no_push,
-                    parent=parent,
-                    render=not json_output,
-                )
-        except PlanFileWorkError as exc:
-            finish_epic_launch(
-                target,
-                artifacts_dir=artifacts_dir,
-                cl_name=cl_name,
-                error=exc,
-            )
-            if json_output:
-                payload: dict[str, object] = {
-                    "ok": False,
-                    "mode": "plan_file",
-                    "error": str(exc),
-                }
-                if exc.resume_command is not None:
-                    payload["resume_command"] = exc.resume_command
-                if exc.validation is not None:
-                    payload["diagnostics"] = [
-                        {
-                            "severity": diagnostic.severity.value,
-                            "code": diagnostic.code,
-                            "field_path": diagnostic.field_path,
-                            "message": diagnostic.message,
-                            "line": diagnostic.line,
-                        }
-                        for diagnostic in exc.validation.diagnostics
-                    ]
-                print(json.dumps(payload, sort_keys=True))
-            else:
-                print(f"Error: {exc}", file=sys.stderr)
-                if exc.resume_command is not None:
-                    print(
-                        f"Resume with:\n  {exc.resume_command}",
-                        file=sys.stderr,
-                    )
-            raise SystemExit(1) from exc
-        except Exception as exc:
-            finish_epic_launch(
-                target,
-                artifacts_dir=artifacts_dir,
-                cl_name=cl_name,
-                error=exc,
-            )
-            raise
-        finish_epic_launch(
-            target,
-            artifacts_dir=artifacts_dir,
-            cl_name=cl_name,
-            result=result,
-        )
-        if json_output:
-            print(json.dumps(result.to_json(), sort_keys=True))
-        return
-
-    plan_file_only_flags = [
-        flag
-        for flag, value in (
-            ("--parent", parent),
-            ("--artifacts-dir", artifacts_dir),
-            ("--cl-name", cl_name),
-        )
-        if value is not None
-    ]
-    if plan_file_only_flags:
-        flags = ", ".join(plan_file_only_flags)
-        noun = "option" if len(plan_file_only_flags) == 1 else "options"
-        _exit_bead_id_error(
-            f"{flags} {noun} only applies when the bead work target is a plan file",
-            target=target,
-            json_output=json_output,
-        )
-
-    timer = _make_bead_work_timer(target, dry_run=dry_run)
-    with timer, contextlib.ExitStack() as stack:
-        with timer.stage("project_open"):
-            proj = stack.enter_context(get_project())
-        with timer.stage("initial_show"):
-            try:
-                issue = proj.show(target)
-            except KeyError:
-                _exit_bead_id_error(
-                    f"issue not found: {target}",
-                    target=target,
-                    json_output=json_output,
-                )
-        if issue.issue_type != IssueType.PLAN:
-            _exit_bead_id_error(
-                "sase bead work only applies to plan beads "
-                f"(got {issue.issue_type.value} for {target})",
-                target=target,
-                json_output=json_output,
-            )
-        if issue.tier == BeadTier.EPIC:
-            from sase.bead.cli_work_from_plan_store import epic_plan_launch_lock
-
-            captured = io.StringIO()
-            output_context = (
-                contextlib.redirect_stdout(captured)
-                if json_output
-                else contextlib.nullcontext()
-            )
-            try:
-                with epic_plan_launch_lock(proj.root_dir), output_context:
-                    launched = launch_epic_bead_work(
-                        proj,
-                        target,
-                        dry_run=dry_run,
-                        yes=yes,
-                        no_push=no_push,
-                        yes_to_all=yes_to_all,
-                        timer=timer,
-                    )
-            except BeadWorkError as exc:
-                if json_output:
-                    print(
-                        json.dumps(
-                            {
-                                "ok": False,
-                                "mode": "bead_id",
-                                "epic_id": target,
-                                "error": str(exc),
-                            },
-                            sort_keys=True,
-                        )
-                    )
-                else:
-                    print(f"Error: {exc}", file=sys.stderr)
-                raise SystemExit(1) from exc
-            if json_output:
-                phase_ids = [
-                    phase.id
-                    for phase in proj.get_epic_children(target)
-                    if phase.issue_type is IssueType.PHASE
-                ]
-                print(
-                    json.dumps(
-                        {
-                            "ok": True,
-                            "mode": "bead_id",
-                            "dry_run": dry_run,
-                            "epic_id": target,
-                            "phase_bead_ids": phase_ids,
-                            "launched": launched,
-                        },
-                        sort_keys=True,
-                    )
-                )
-            return
-
-        tier = issue.tier.value if issue.tier else "missing tier"
-        _exit_bead_id_error(
-            f"sase bead work only applies to epic plan beads (got {tier} for {target})",
-            target=target,
-            json_output=json_output,
-        )
-
-
-def _exit_bead_id_error(
-    message: str,
-    *,
-    target: str,
-    json_output: bool,
-) -> NoReturn:
-    if json_output:
-        print(
-            json.dumps(
-                {
-                    "ok": False,
-                    "mode": "bead_id",
-                    "epic_id": target,
-                    "error": message,
-                },
-                sort_keys=True,
-            )
-        )
-    else:
-        print(f"Error: {message}", file=sys.stderr)
-    raise SystemExit(1)
 
 
 def launch_epic_bead_work(
