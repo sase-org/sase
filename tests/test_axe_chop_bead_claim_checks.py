@@ -10,6 +10,7 @@ import pytest
 
 import sase.scripts.sase_chop_bead_claim_checks as claim_checks
 from sase.axe.chop_script_context import ChopScriptContext
+from sase.bead.claims import BeadClaimReleaseOutcome
 from sase.bead.model import Issue, Status
 from sase.chops.builtin import BuiltinChopRuntime
 from sase.chops.sdk import ChopLogger
@@ -132,9 +133,11 @@ def test_dead_unpromoted_owner_is_released_after_bead_snapshot(
 
     released: list[tuple[str, str, str]] = []
 
-    def release(*, project_name: str, bead_id: str, agent_name: str) -> bool:
+    def release(
+        *, project_name: str, bead_id: str, agent_name: str
+    ) -> BeadClaimReleaseOutcome:
         released.append((project_name, bead_id, agent_name))
-        return True
+        return BeadClaimReleaseOutcome.RELEASED
 
     monkeypatch.setattr(claim_checks, "release_bead_claim_for_agent", release)
 
@@ -383,7 +386,9 @@ def test_acquire_then_die_is_released_on_following_tick(
     monkeypatch.setattr(
         claim_checks,
         "release_bead_claim_for_agent",
-        lambda **kwargs: released.append(kwargs["bead_id"]) or True,
+        lambda **kwargs: (
+            released.append(kwargs["bead_id"]) or BeadClaimReleaseOutcome.RELEASED
+        ),
     )
 
     second = claim_checks._run(_runtime(tmp_path))

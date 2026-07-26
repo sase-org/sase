@@ -15,6 +15,7 @@ import pytest
 from sase.axe.run_agent_runner_bead import claim_bead_for_agent_launch
 from sase.bead.claims import (
     BEAD_CLAIM_MARKER,
+    BeadClaimReleaseOutcome,
     claim_bead_for_waiting_agent,
     clear_bead_claim_marker,
     read_bead_claim_marker,
@@ -103,7 +104,13 @@ def _install_claim_attempts(
         lambda path: refresh_calls.append(path),
     )
 
-    def commit(path: Path, bead_id: str, agent_name: str) -> bool:
+    def commit(
+        path: Path,
+        bead_id: str,
+        agent_name: str,
+        *,
+        already_locked: bool,
+    ) -> bool:
         commit_calls.append((path, bead_id, agent_name))
         return True
 
@@ -289,6 +296,87 @@ def test_same_owner_wait_claim_does_not_commit_or_publish(
     assert publish_calls == []
 
 
+def test_retained_wait_claim_commits_dirty_state_after_failed_commit_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    beads_dir, bead_id = _project_with_committed_phase(tmp_path)
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+    monkeypatch.setattr("sase.bead.claims.time.sleep", lambda _delay: None)
+
+    from sase.bead.sync import commit_bead_claim as real_commit
+
+    commit_calls = 0
+
+    def fail_then_commit(
+        path: Path,
+        claimed_bead_id: str,
+        agent_name: str,
+        *,
+        already_locked: bool,
+    ) -> bool:
+        nonlocal commit_calls
+        commit_calls += 1
+        if commit_calls == 1:
+            raise ValueError("lock_timeout: injected commit failure")
+        return real_commit(
+            path,
+            claimed_bead_id,
+            agent_name,
+            already_locked=already_locked,
+        )
+
+    publish_calls: list[tuple[Path, str, str]] = []
+    monkeypatch.setattr("sase.bead.sync.commit_bead_claim", fail_then_commit)
+    monkeypatch.setattr(
+        "sase.bead.sync.publish_bead_claim",
+        lambda path, claimed_bead_id, agent_name: publish_calls.append(
+            (path, claimed_bead_id, agent_name)
+        ),
+    )
+
+    assert claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id=bead_id,
+        agent_name="worker",
+    )
+
+    assert commit_calls == 2
+    assert publish_calls == [(beads_dir, bead_id, "worker")]
+    assert (
+        subprocess.run(
+            ["git", "status", "--porcelain=v1", "--", "sdd/beads"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        == ""
+    )
+
+
+def test_home_wait_claim_is_silently_skipped(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: pytest.fail("home mode must not resolve a bead store"),
+    )
+
+    assert not claim_bead_for_waiting_agent(
+        project_name="home",
+        bead_id="sase-1",
+        agent_name="worker",
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+
 def test_wait_claim_exhausted_budget_warns_without_raising(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -340,10 +428,13 @@ def test_claim_reclaim_and_release_use_canonical_store_without_commit_churn(
     )
     assert _commit_count(tmp_path) == initial_commits + 1
 
-    assert release_bead_claim_for_agent(
-        project_name="proj",
-        bead_id=bead_id,
-        agent_name="worker",
+    assert (
+        release_bead_claim_for_agent(
+            project_name="proj",
+            bead_id=bead_id,
+            agent_name="worker",
+        )
+        is BeadClaimReleaseOutcome.RELEASED
     )
     assert _commit_count(tmp_path) == initial_commits + 2
     with BeadProject(tmp_path) as project:
@@ -389,6 +480,7 @@ def test_claim_publication_failures_warn_and_preserve_local_transitions(
         "sase.bead.sync.push_bead_work_launch",
         fail_publication,
     )
+    monkeypatch.setattr("sase.bead.sync._is_in_tree_beads_dir", lambda _path: False)
 
     assert claim_bead_for_waiting_agent(
         project_name="proj",
@@ -399,10 +491,13 @@ def test_claim_publication_failures_warn_and_preserve_local_transitions(
         issue = project.show(bead_id)
         assert (issue.status, issue.assignee) == (Status.CLAIMED, "worker")
 
-    assert release_bead_claim_for_agent(
-        project_name="proj",
-        bead_id=bead_id,
-        agent_name="worker",
+    assert (
+        release_bead_claim_for_agent(
+            project_name="proj",
+            bead_id=bead_id,
+            agent_name="worker",
+        )
+        is BeadClaimReleaseOutcome.RELEASED
     )
     with BeadProject(tmp_path) as project:
         issue = project.show(bead_id)
@@ -486,10 +581,13 @@ def test_wait_claim_release_and_launch_promotion_publish_to_remote(
     )
     assert observe_remote("claimed") == (Status.CLAIMED, "worker")
 
-    assert release_bead_claim_for_agent(
-        project_name="proj",
-        bead_id=bead_id,
-        agent_name="worker",
+    assert (
+        release_bead_claim_for_agent(
+            project_name="proj",
+            bead_id=bead_id,
+            agent_name="worker",
+        )
+        is BeadClaimReleaseOutcome.RELEASED
     )
     assert observe_remote("released") == (Status.OPEN, "")
 
@@ -723,15 +821,38 @@ def test_claim_helpers_degrade_store_failures_to_warnings(
         bead_id="sase-1",
         agent_name="worker",
     )
-    assert not release_bead_claim_for_agent(
-        project_name="proj",
-        bead_id="sase-1",
-        agent_name="worker",
+    assert (
+        release_bead_claim_for_agent(
+            project_name="proj",
+            bead_id="sase-1",
+            agent_name="worker",
+        )
+        is BeadClaimReleaseOutcome.ERROR
     )
 
     stderr = capsys.readouterr().err
     assert "Warning: Failed to claim bead 'sase-1'" in stderr
     assert "Warning: Failed to release bead claim on 'sase-1'" in stderr
+
+
+def test_release_claim_distinguishes_nothing_to_release(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    beads_dir, bead_id = _project_with_committed_phase(tmp_path)
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+
+    assert (
+        release_bead_claim_for_agent(
+            project_name="proj",
+            bead_id=bead_id,
+            agent_name="worker",
+        )
+        is BeadClaimReleaseOutcome.NOTHING_TO_RELEASE
+    )
 
 
 def test_bead_claim_marker_helpers_round_trip(tmp_path: Path) -> None:

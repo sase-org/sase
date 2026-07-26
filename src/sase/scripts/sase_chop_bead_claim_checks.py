@@ -11,6 +11,7 @@ from typing import Any
 from sase.agent.names import is_process_alive
 from sase.bead.claims import (
     BEAD_CLAIM_MARKER,
+    BeadClaimReleaseOutcome,
     claim_bead_for_waiting_agent,
     release_bead_claim_for_agent,
     write_bead_claim_marker,
@@ -184,11 +185,12 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
                     or _claim_owner_is_alive(owner)
                 ):
                     continue
-                if release_bead_claim_for_agent(
+                outcome = release_bead_claim_for_agent(
                     project_name=project_name,
                     bead_id=issue.id,
                     agent_name=issue.assignee,
-                ):
+                )
+                if outcome is BeadClaimReleaseOutcome.RELEASED:
                     released += 1
 
     acquired = 0

@@ -222,13 +222,17 @@ def finalize_runner_shutdown(
             if not has_pending_handoff(
                 context.artifacts_dir
             ) and not _agent_meta_has_promoted_bead_claim(context.artifacts_dir):
-                from sase.bead.claims import release_bead_claim_for_agent
+                from sase.bead.claims import (
+                    BeadClaimReleaseOutcome,
+                    release_bead_claim_for_agent,
+                )
 
-                if release_bead_claim_for_agent(
+                outcome = release_bead_claim_for_agent(
                     project_name=held_bead_claim.project_name,
                     bead_id=held_bead_claim.bead_id,
                     agent_name=held_bead_claim.agent_name,
-                ):
+                )
+                if outcome is not BeadClaimReleaseOutcome.ERROR:
                     clear_bead_claim_marker(context.artifacts_dir)
         except Exception as e:
             print(

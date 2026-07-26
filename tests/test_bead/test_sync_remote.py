@@ -13,6 +13,7 @@ import pytest
 from sase.bead.sync import (
     commit_bead_work_launch,
     git_sync,
+    publish_bead_claim,
     push_bead_work_launch,
     refresh_bead_store,
     refresh_current_bead_store,
@@ -171,6 +172,21 @@ def test_refresh_bead_store_skips_in_tree_store(tmp_path, monkeypatch):
     refresh_bead_store(beads_dir)
 
 
+def test_publish_bead_claim_skips_in_tree_store(tmp_path, monkeypatch):
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        lambda _beads_dir: pytest.fail("in-tree claims must not be published"),
+    )
+
+    outcome = publish_bead_claim(beads_dir, "sase-1", "worker")
+
+    assert outcome.pushed is False
+    assert outcome.skipped_no_remote is True
+    assert outcome.error is None
+
+
 def test_git_sync_retries_transient_index_lock(tmp_path, monkeypatch):
     init_git_repo(tmp_path)
     beads_dir = tmp_path / "sdd/beads"
@@ -251,6 +267,26 @@ def test_push_bead_work_launch_skips_outside_git_repo(tmp_path):
     assert outcome.pushed is False
     assert outcome.skipped_no_remote is True
     assert outcome.error is None
+
+
+def test_push_bead_work_launch_returns_error_when_git_root_probe_raises(
+    tmp_path,
+    monkeypatch,
+):
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    monkeypatch.setattr(
+        "sase.bead.sync._find_git_root",
+        lambda _beads_dir: (_ for _ in ()).throw(
+            RuntimeError("timed out probing git root")
+        ),
+    )
+
+    outcome = push_bead_work_launch(beads_dir)
+
+    assert outcome.pushed is False
+    assert outcome.skipped_no_remote is False
+    assert outcome.error == "timed out probing git root"
 
 
 def test_push_bead_work_launch_pushes_to_remote(tmp_path):

@@ -60,34 +60,41 @@ def push_bead_work_launch(beads_dir: Path) -> _PushOutcome:
     skipped because no remote is configured, or failed (with the error text).
     Never raises — push failures must not undo a successful local commit.
     """
-    repo_root = _find_git_root(beads_dir)
-    if repo_root is None:
-        return _PushOutcome(pushed=False, skipped_no_remote=True, error=None)
+    try:
+        repo_root = _find_git_root(beads_dir)
+        if repo_root is None:
+            return _PushOutcome(pushed=False, skipped_no_remote=True, error=None)
 
-    if not _has_push_remote(repo_root):
-        return _PushOutcome(pushed=False, skipped_no_remote=True, error=None)
+        if not _has_push_remote(repo_root):
+            return _PushOutcome(pushed=False, skipped_no_remote=True, error=None)
 
-    from sase.bead.sync_worker import run_managed_sync_worker
+        from sase.bead.sync_worker import run_managed_sync_worker
 
-    log_path = _new_sync_log_path()
-    result = run_managed_sync_worker(
-        repo_root,
-        beads_dir.resolve(),
-        log_path=log_path,
-    )
-    if result.pushed:
-        return _PushOutcome(
-            pushed=True,
-            skipped_no_remote=False,
-            error=None,
+        log_path = _new_sync_log_path()
+        result = run_managed_sync_worker(
+            repo_root,
+            beads_dir.resolve(),
             log_path=log_path,
         )
-    return _PushOutcome(
-        pushed=False,
-        skipped_no_remote=False,
-        error=result.error or "managed bead sync did not push",
-        log_path=log_path,
-    )
+        if result.pushed:
+            return _PushOutcome(
+                pushed=True,
+                skipped_no_remote=False,
+                error=None,
+                log_path=log_path,
+            )
+        return _PushOutcome(
+            pushed=False,
+            skipped_no_remote=False,
+            error=result.error or "managed bead sync did not push",
+            log_path=log_path,
+        )
+    except Exception as exc:  # noqa: BLE001 - this API must never raise.
+        return _PushOutcome(
+            pushed=False,
+            skipped_no_remote=False,
+            error=str(exc) or type(exc).__name__,
+        )
 
 
 def publish_bead_claim(
@@ -101,6 +108,9 @@ def publish_bead_claim(
     managed-sync failure is reported with claim context and its log location,
     while the caller's already-created local commit remains intact.
     """
+    if _is_in_tree_beads_dir(beads_dir):
+        return _PushOutcome(pushed=False, skipped_no_remote=True, error=None)
+
     try:
         outcome = push_bead_work_launch(beads_dir)
     except Exception as exc:  # noqa: BLE001 - publication must preserve claims.

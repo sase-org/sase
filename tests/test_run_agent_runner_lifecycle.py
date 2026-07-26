@@ -13,7 +13,11 @@ from sase.axe.run_agent_runner_lifecycle import (
     finalize_runner_shutdown,
     _should_hold_workspace,
 )
-from sase.bead.claims import BEAD_CLAIM_MARKER, write_bead_claim_marker
+from sase.bead.claims import (
+    BEAD_CLAIM_MARKER,
+    BeadClaimReleaseOutcome,
+    write_bead_claim_marker,
+)
 from sase.running_field import ClaimResult
 
 
@@ -256,7 +260,7 @@ def test_finalize_releases_held_prelaunch_bead_claim(tmp_path: Path) -> None:
 
     with patch(
         "sase.bead.claims.release_bead_claim_for_agent",
-        return_value=True,
+        return_value=BeadClaimReleaseOutcome.RELEASED,
     ) as release:
         finalize_runner_shutdown(
             context=context,
@@ -307,7 +311,7 @@ def test_finalize_releases_marker_only_prelaunch_bead_claim(tmp_path: Path) -> N
 
     with patch(
         "sase.bead.claims.release_bead_claim_for_agent",
-        return_value=True,
+        return_value=BeadClaimReleaseOutcome.RELEASED,
     ) as release:
         finalize_runner_shutdown(
             context=context,
@@ -324,6 +328,102 @@ def test_finalize_releases_marker_only_prelaunch_bead_claim(tmp_path: Path) -> N
         agent_name="sase-1.2",
     )
     assert not (tmp_path / BEAD_CLAIM_MARKER).exists()
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        BeadClaimReleaseOutcome.RELEASED,
+        BeadClaimReleaseOutcome.NOTHING_TO_RELEASE,
+    ],
+)
+def test_finalize_clears_marker_after_non_error_release_outcome(
+    tmp_path: Path,
+    outcome: BeadClaimReleaseOutcome,
+) -> None:
+    assert write_bead_claim_marker(
+        tmp_path,
+        project_name="sase",
+        bead_id="sase-1.2",
+        agent_name="sase-1.2",
+    )
+    context = RunnerShutdownContext(
+        project_file="/tmp/project.sase",
+        workflow_name="run",
+        cl_name="feature",
+        artifacts_timestamp="20260712120000",
+        artifacts_dir=str(tmp_path),
+        output_path=str(tmp_path / "output.log"),
+        submitted_xprompt="do work",
+        prompt="do work",
+        is_home_mode=True,
+    )
+    deps = RunnerShutdownDeps(
+        update_artifact_index=MagicMock(),
+        was_killed=MagicMock(return_value=True),
+        all_steps_hidden=MagicMock(return_value=True),
+        write_error_report=MagicMock(),
+        send_completion_notification=MagicMock(),
+        auto_dismiss_completed_agent=MagicMock(),
+    )
+
+    with patch(
+        "sase.bead.claims.release_bead_claim_for_agent",
+        return_value=outcome,
+    ):
+        finalize_runner_shutdown(
+            context=context,
+            state=_state(
+                error_summary=None,
+                suppress_completion_notification=True,
+            ),
+            deps=deps,
+        )
+
+    assert not (tmp_path / BEAD_CLAIM_MARKER).exists()
+
+
+def test_finalize_preserves_marker_after_release_error(tmp_path: Path) -> None:
+    assert write_bead_claim_marker(
+        tmp_path,
+        project_name="sase",
+        bead_id="sase-1.2",
+        agent_name="sase-1.2",
+    )
+    context = RunnerShutdownContext(
+        project_file="/tmp/project.sase",
+        workflow_name="run",
+        cl_name="feature",
+        artifacts_timestamp="20260712120000",
+        artifacts_dir=str(tmp_path),
+        output_path=str(tmp_path / "output.log"),
+        submitted_xprompt="do work",
+        prompt="do work",
+        is_home_mode=True,
+    )
+    deps = RunnerShutdownDeps(
+        update_artifact_index=MagicMock(),
+        was_killed=MagicMock(return_value=True),
+        all_steps_hidden=MagicMock(return_value=True),
+        write_error_report=MagicMock(),
+        send_completion_notification=MagicMock(),
+        auto_dismiss_completed_agent=MagicMock(),
+    )
+
+    with patch(
+        "sase.bead.claims.release_bead_claim_for_agent",
+        return_value=BeadClaimReleaseOutcome.ERROR,
+    ):
+        finalize_runner_shutdown(
+            context=context,
+            state=_state(
+                error_summary=None,
+                suppress_completion_notification=True,
+            ),
+            deps=deps,
+        )
+
+    assert (tmp_path / BEAD_CLAIM_MARKER).exists()
 
 
 def test_finalize_does_not_release_promoted_marker_claim(tmp_path: Path) -> None:

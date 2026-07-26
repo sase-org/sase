@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 import json
 import os
 import random
@@ -23,6 +24,14 @@ class BeadClaimMarker:
     bead_id: str
     agent_name: str
     project_name: str
+
+
+class BeadClaimReleaseOutcome(Enum):
+    """Terminal result of a best-effort waiting-claim release."""
+
+    RELEASED = "released"
+    NOTHING_TO_RELEASE = "nothing_to_release"
+    ERROR = "error"
 
 
 def _bead_claim_marker_path(artifacts_dir: str | Path) -> Path:
@@ -127,12 +136,16 @@ def claim_bead_for_waiting_agent(
     agent_name: str,
 ) -> bool:
     """Claim *bead_id* locally, then synchronously publish without rollback."""
+    if project_name == "home":
+        return False
+
     try:
         from sase.bead.store_locator import (
             canonical_beads_dir_for_project,
             open_bead_project_for_beads_dir,
         )
         from sase.bead.sync import (
+            bead_state_is_clean,
             bead_store_write_lock,
             commit_bead_claim,
             publish_bead_claim,
@@ -156,18 +169,16 @@ def claim_bead_for_waiting_agent(
                     held_by_us = (
                         issue.status == Status.CLAIMED and issue.assignee == agent_name
                     )
-                    if changed:
-                        if already_locked:
-                            committed = commit_bead_claim(
-                                beads_dir,
-                                bead_id,
-                                agent_name,
-                                already_locked=True,
-                            )
-                        else:
-                            committed = commit_bead_claim(
-                                beads_dir, bead_id, agent_name
-                            )
+                    should_commit = changed or (
+                        held_by_us and not bead_state_is_clean(beads_dir)
+                    )
+                    if should_commit:
+                        committed = commit_bead_claim(
+                            beads_dir,
+                            bead_id,
+                            agent_name,
+                            already_locked=already_locked,
+                        )
 
                 if committed:
                     publish_bead_claim(beads_dir, bead_id, agent_name)
@@ -226,7 +237,7 @@ def release_bead_claim_for_agent(
     project_name: str,
     bead_id: str,
     agent_name: str,
-) -> bool:
+) -> BeadClaimReleaseOutcome:
     """Release and publish *agent_name*'s claim without disrupting shutdown."""
     try:
         from sase.bead.store_locator import (
@@ -249,34 +260,31 @@ def release_bead_claim_for_agent(
                 _issue, changed = project.release_agent_claim(bead_id, agent_name)
 
             if changed:
-                if already_locked:
-                    committed = commit_bead_claim_release(
-                        beads_dir,
-                        bead_id,
-                        agent_name,
-                        already_locked=True,
-                    )
-                else:
-                    committed = commit_bead_claim_release(
-                        beads_dir, bead_id, agent_name
-                    )
+                committed = commit_bead_claim_release(
+                    beads_dir,
+                    bead_id,
+                    agent_name,
+                    already_locked=already_locked,
+                )
         if committed:
             publish_bead_claim(beads_dir, bead_id, agent_name)
         if changed:
             print(f"Released bead claim on {bead_id} from waiting agent {agent_name}")
-        return changed
+            return BeadClaimReleaseOutcome.RELEASED
+        return BeadClaimReleaseOutcome.NOTHING_TO_RELEASE
     except Exception as exc:  # noqa: BLE001 - shutdown must remain best effort.
         print(
             f"Warning: Failed to release bead claim on '{bead_id}' from agent "
             f"'{agent_name}': {exc}",
             file=sys.stderr,
         )
-        return False
+        return BeadClaimReleaseOutcome.ERROR
 
 
 __all__ = [
     "BEAD_CLAIM_MARKER",
     "BeadClaimMarker",
+    "BeadClaimReleaseOutcome",
     "claim_bead_for_waiting_agent",
     "clear_bead_claim_marker",
     "read_bead_claim_marker",
