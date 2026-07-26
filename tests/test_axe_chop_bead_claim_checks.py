@@ -41,6 +41,7 @@ def _artifact(
     promoted: bool | None = False,
     has_marker: bool = True,
     timestamp: str = "20260724120000",
+    tombstoned: bool = False,
 ) -> claim_checks._ClaimArtifact:
     return claim_checks._ClaimArtifact(
         project_name="sase",
@@ -52,7 +53,12 @@ def _artifact(
         bead_id=bead_id,
         bead_claim_promoted=promoted,
         has_bead_claim_marker=has_marker,
+        has_reconcile_tombstone=tombstoned,
     )
+
+
+def _tombstone_path(tmp_path: Path, timestamp: str = "20260724120000") -> Path:
+    return tmp_path / timestamp / claim_checks.BEAD_CLAIM_RECONCILED_MARKER
 
 
 def _claimed_issue(
@@ -340,6 +346,91 @@ def test_dead_agent_is_never_acquired(
 
     assert result.reason == "no_claims_reconciled"
     assert result.counters["claims_acquired"] == 0
+
+
+def test_reconciled_dead_owner_stops_opening_bead_stores(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """One reconciliation cycle must restore the zero-store-read steady state."""
+    reads: list[str] = []
+
+    monkeypatch.setattr(
+        claim_checks,
+        "_scan_claim_artifacts",
+        lambda _root: [
+            _artifact(tmp_path, tombstoned=_tombstone_path(tmp_path).exists())
+        ],
+    )
+    monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: False)
+    monkeypatch.setattr(
+        claim_checks,
+        "_read_claimed_issues",
+        lambda project: reads.append(project) or [_claimed_issue()],
+    )
+    monkeypatch.setattr(
+        claim_checks,
+        "release_bead_claim_for_agent",
+        lambda **_kwargs: BeadClaimReleaseOutcome.RELEASED,
+    )
+
+    first = claim_checks._run(_runtime(tmp_path))
+
+    assert first.counters["claims_released"] == 1
+    assert reads == ["sase"]
+    assert _tombstone_path(tmp_path).exists()
+
+    second = claim_checks._run(_runtime(tmp_path))
+
+    assert second.reason == "no_claim_reconciliation_candidates"
+    assert reads == ["sase"]
+
+
+def test_dead_owner_without_a_claim_is_still_tombstoned(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A store read that proves there is nothing to release is terminal too."""
+    record = _artifact(tmp_path)
+    monkeypatch.setattr(claim_checks, "_scan_claim_artifacts", lambda _root: [record])
+    monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: False)
+    monkeypatch.setattr(claim_checks, "_read_claimed_issues", lambda _project: [])
+
+    claim_checks._run(_runtime(tmp_path))
+
+    assert _tombstone_path(tmp_path).exists()
+
+
+def test_failed_release_and_unreadable_store_leave_no_tombstone(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    record = _artifact(tmp_path)
+    monkeypatch.setattr(claim_checks, "_scan_claim_artifacts", lambda _root: [record])
+    monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: False)
+    monkeypatch.setattr(
+        claim_checks,
+        "_read_claimed_issues",
+        lambda _project: [_claimed_issue()],
+    )
+    monkeypatch.setattr(
+        claim_checks,
+        "release_bead_claim_for_agent",
+        lambda **_kwargs: BeadClaimReleaseOutcome.ERROR,
+    )
+
+    claim_checks._run(_runtime(tmp_path))
+
+    assert not _tombstone_path(tmp_path).exists()
+
+    def unreadable(_project: str) -> list[Issue]:
+        raise RuntimeError("store is broken")
+
+    monkeypatch.setattr(claim_checks, "_read_claimed_issues", unreadable)
+
+    claim_checks._run(_runtime(tmp_path))
+
+    assert not _tombstone_path(tmp_path).exists()
 
 
 def test_acquire_then_die_is_released_on_following_tick(

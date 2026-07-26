@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -19,11 +20,16 @@ from sase.bead.claims import (
 from sase.bead.model import Issue, Status
 from sase.bead.store_locator import canonical_beads_dir_for_project
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
-from sase.chops.sdk import ChopResultBuilder
+from sase.chops.sdk import ChopLogger, ChopResultBuilder
 from sase.core import bead_read_facade as rust_beads
 from sase.core.agent_scan_facade import scan_agent_artifacts
 from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
 from sase.core.paths import sase_projects_dir
+
+#: Terminal marker written beside a dead owner's artifact record once its claim
+#: has been reconciled. Without it the pre-pass would keep every dead record as
+#: a release candidate forever and open bead stores on every tick.
+BEAD_CLAIM_RECONCILED_MARKER = "bead_claim_reconciled.json"
 
 _SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     only_workflow_dirs=("ace-run",),
@@ -46,6 +52,7 @@ class _ClaimArtifact:
     bead_id: str
     bead_claim_promoted: bool | None
     has_bead_claim_marker: bool
+    has_reconcile_tombstone: bool = False
 
 
 def _read_json_dict(path: Path) -> dict[str, Any] | None:
@@ -91,9 +98,36 @@ def _scan_claim_artifacts(projects_root: Path) -> list[_ClaimArtifact]:
                 bead_id=meta.bead_id,
                 bead_claim_promoted=promoted,
                 has_bead_claim_marker=(artifact_dir / BEAD_CLAIM_MARKER).exists(),
+                has_reconcile_tombstone=(
+                    artifact_dir / BEAD_CLAIM_RECONCILED_MARKER
+                ).exists(),
             )
         )
     return claims
+
+
+def _write_reconcile_tombstone(record: _ClaimArtifact, log: ChopLogger) -> bool:
+    """Mark a dead owner's record terminal so later ticks skip it entirely."""
+    path = record.artifact_dir / BEAD_CLAIM_RECONCILED_MARKER
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    payload = {
+        "bead_id": record.bead_id,
+        "agent_name": record.agent_name,
+        "project_name": record.project_name,
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tmp_path.open("w", encoding="utf-8") as stream:
+            json.dump(payload, stream)
+            stream.write("\n")
+        tmp_path.replace(path)
+    except OSError as exc:
+        log.warning(
+            f"[bead_claim_checks] Failed to write claim reconciliation "
+            f"tombstone {path}: {exc}"
+        )
+        return False
+    return True
 
 
 def _claim_owner_is_alive(record: _ClaimArtifact) -> bool:
@@ -134,7 +168,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     release_candidates: list[_ClaimArtifact] = []
     acquire_candidates: list[_ClaimArtifact] = []
     for record in prepass.values():
-        if record.bead_claim_promoted is not False:
+        if record.bead_claim_promoted is not False or record.has_reconcile_tombstone:
             continue
         if _claim_owner_is_alive(record):
             if not record.has_bead_claim_marker:
@@ -158,6 +192,9 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     # so this order cannot mistake a fresh live claim for an ownerless one.
     candidate_projects = {record.project_name for record in release_candidates}
     claimed_by_project: dict[str, list[Issue]] = {}
+    # Projects whose authoritative read succeeded; only their release candidates
+    # can be declared terminal below.
+    read_projects: set[str] = set()
     for project_name in sorted(candidate_projects):
         try:
             issues = _read_claimed_issues(project_name)
@@ -167,11 +204,13 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
                 f"{project_name}: {exc}"
             )
             continue
+        read_projects.add(project_name)
         if issues is not None:
             claimed_by_project[project_name] = issues
 
     examined = 0
     released = 0
+    release_errors: set[tuple[str, str]] = set()
     if claimed_by_project:
         authoritative = _latest_owner_records(_scan_claim_artifacts(projects_root))
         for project_name, issues in claimed_by_project.items():
@@ -192,6 +231,18 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
                 )
                 if outcome is BeadClaimReleaseOutcome.RELEASED:
                     released += 1
+                elif outcome is BeadClaimReleaseOutcome.ERROR:
+                    release_errors.add((project_name, issue.assignee))
+
+    # A dead owner whose project was read without error is reconciled for good:
+    # either its claim was released, or the store proved there was nothing left
+    # to release. Tombstone it so the pre-pass returns to zero store reads.
+    for record in release_candidates:
+        if record.project_name not in read_projects:
+            continue
+        if (record.project_name, record.agent_name) in release_errors:
+            continue
+        _write_reconcile_tombstone(record, runtime.log)
 
     acquired = 0
     acquisition_projects: set[str] = set()

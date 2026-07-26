@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from sase.bead.model import Issue, Status
+from sase.bead.model import Dependency, Issue, Status
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
@@ -175,7 +175,7 @@ def test_project_beads_warns_about_claim_without_resolvable_artifact(
     )
     monkeypatch.setattr(
         "sase.doctor.checks_beads.rust_beads.list_issues",
-        lambda _path, statuses: [claimed],
+        lambda _path, statuses=None: [claimed],
     )
     monkeypatch.setattr(
         "sase.doctor.checks_beads.rust_beads.stats",
@@ -222,7 +222,7 @@ def test_project_beads_resolves_claim_owner_from_any_artifact(
     )
     monkeypatch.setattr(
         "sase.doctor.checks_beads.rust_beads.list_issues",
-        lambda _path, statuses: [claimed],
+        lambda _path, statuses=None: [claimed],
     )
     monkeypatch.setattr(
         "sase.doctor.checks_beads.rust_beads.stats",
@@ -250,7 +250,7 @@ def test_project_beads_resolves_claim_owner_from_any_artifact(
                     workflow_dir_name="ace-run",
                     artifact_dir=str(root / "other-project" / "artifact"),
                     timestamp="20260724120000",
-                    agent_meta=AgentMetaWire(name="waiting-agent"),
+                    agent_meta=AgentMetaWire(name="waiting-agent", pid=os.getpid()),
                 )
             ],
         )
@@ -271,7 +271,7 @@ def _stub_open_bead(monkeypatch, bead_id: str) -> None:
     )
     monkeypatch.setattr(
         "sase.doctor.checks_beads.rust_beads.list_issues",
-        lambda _path, statuses: [
+        lambda _path, statuses=None: [
             Issue(
                 id=bead_id,
                 title="Waiting phase",
@@ -357,6 +357,212 @@ def test_project_beads_warns_about_live_agent_whose_bead_is_unclaimed(
     assert check.status == "WARN"
     assert "sase-1.1 (sase-1.1)" in check.details[0]
     assert "bead_claim_checks" in check.details[0]
+
+
+def _stub_issues(monkeypatch, issues: list[Issue]) -> None:
+    """Route the bead reads of ``_check_project_beads`` at ``issues``."""
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.rust_beads.doctor",
+        lambda _path: ["OK: no issues found"],
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.rust_beads.list_issues",
+        lambda _path, statuses=None: list(issues),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.rust_beads.stats",
+        lambda _path: {"open": 0, "claimed": 0, "in_progress": 0, "closed": 0},
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.bead_state_is_clean",
+        lambda _path: True,
+    )
+
+
+def test_project_beads_warns_about_claim_whose_owner_died(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """A dead claim owner with artifacts present is invisible to every layer."""
+    (tmp_path / "sdd" / "beads").mkdir(parents=True)
+    _stub_issues(
+        monkeypatch,
+        [
+            Issue(
+                id="sase-1.1",
+                title="Claimed phase",
+                status=Status.CLAIMED,
+                parent_id="sase-1",
+                assignee="sase-1.1",
+            )
+        ],
+    )
+    _stub_agent_scan(
+        monkeypatch,
+        tmp_path,
+        agent_name="sase-1.1",
+        bead_id="sase-1.1",
+        agent_meta={},
+        pid=None,
+    )
+
+    check = _check_project_beads(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert "owning agent is gone" in check.details[0]
+    assert "sase-1.1 (sase-1.1)" in check.details[0]
+
+
+def test_project_beads_warns_about_promoted_owner_that_died_in_progress(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "sdd" / "beads").mkdir(parents=True)
+    _stub_issues(
+        monkeypatch,
+        [
+            Issue(
+                id="sase-1.1",
+                title="Running phase",
+                status=Status.IN_PROGRESS,
+                parent_id="sase-1",
+                assignee="sase-1.1",
+            )
+        ],
+    )
+    _stub_agent_scan(
+        monkeypatch,
+        tmp_path,
+        agent_name="sase-1.1",
+        bead_id="sase-1.1",
+        agent_meta={"bead_claim_promoted": True},
+        pid=None,
+    )
+
+    check = _check_project_beads(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert "in_progress beads whose promoted agent is gone" in check.details[0]
+    assert "retry" in check.details[0]
+
+
+def test_project_beads_stays_silent_for_a_live_in_progress_owner(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "sdd" / "beads").mkdir(parents=True)
+    _stub_issues(
+        monkeypatch,
+        [
+            Issue(
+                id="sase-1.1",
+                title="Running phase",
+                status=Status.IN_PROGRESS,
+                parent_id="sase-1",
+                assignee="sase-1.1",
+            )
+        ],
+    )
+    _stub_agent_scan(
+        monkeypatch,
+        tmp_path,
+        agent_name="sase-1.1",
+        bead_id="sase-1.1",
+        agent_meta={"bead_claim_promoted": True},
+        pid=os.getpid(),
+    )
+
+    assert _check_project_beads(_context(tmp_path)).status == "OK"
+
+
+def test_project_beads_warns_about_dangling_dependency_edges(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "sdd" / "beads").mkdir(parents=True)
+    dependent = Issue(
+        id="sase-1.2",
+        title="Dependent phase",
+        status=Status.OPEN,
+        parent_id="sase-1",
+        dependencies=[
+            Dependency(
+                issue_id="sase-1.2",
+                depends_on_id="sase-1.9",
+                created_at="20260725120000",
+            ),
+            Dependency(
+                issue_id="sase-1.2",
+                depends_on_id="sase-1.1",
+                created_at="20260725120000",
+            ),
+        ],
+    )
+    present = Issue(
+        id="sase-1.1",
+        title="Present phase",
+        status=Status.CLOSED,
+        parent_id="sase-1",
+    )
+    _stub_issues(monkeypatch, [dependent, present])
+    _stub_agent_scan(
+        monkeypatch,
+        tmp_path,
+        agent_name="other-agent",
+        bead_id="sase-9.9",
+        agent_meta={},
+        pid=None,
+    )
+
+    check = _check_project_beads(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert check.details == (
+        "WARNING: dependency edges point at beads that no longer exist: "
+        "sase-1.2 -> sase-1.9; recreate the missing bead or recreate the "
+        "dependent without the edge",
+    )
+
+
+def test_project_beads_ignores_satisfied_dependency_edges(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "sdd" / "beads").mkdir(parents=True)
+    _stub_issues(
+        monkeypatch,
+        [
+            Issue(
+                id="sase-1.2",
+                title="Dependent phase",
+                status=Status.OPEN,
+                parent_id="sase-1",
+                dependencies=[
+                    Dependency(
+                        issue_id="sase-1.2",
+                        depends_on_id="sase-1.1",
+                        created_at="20260725120000",
+                    )
+                ],
+            ),
+            Issue(
+                id="sase-1.1",
+                title="Present phase",
+                status=Status.CLOSED,
+                parent_id="sase-1",
+            ),
+        ],
+    )
+    _stub_agent_scan(
+        monkeypatch,
+        tmp_path,
+        agent_name="other-agent",
+        bead_id="sase-9.9",
+        agent_meta={},
+        pid=None,
+    )
+
+    assert _check_project_beads(_context(tmp_path)).status == "OK"
 
 
 def test_project_beads_ignores_promoted_and_dead_bead_owners(
