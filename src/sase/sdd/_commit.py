@@ -36,6 +36,7 @@ from sase.sdd._git import (
     network_git_timeout,
     run_sdd_git,
 )
+from sase.sdd._git_contention import store_write_lock_is_held
 from sase.sdd._store_types import (
     SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORAGE_SEPARATE_REPO,
@@ -53,11 +54,17 @@ def commit_sdd_store_files(
     paths: Iterable[str | Path] | None = None,
     push_after_commit: bool | Literal["async"] | None = None,
     artifacts_dir: str | Path | None = None,
+    already_locked: bool = False,
 ) -> bool:
     """Commit SDD files in their owning repository and push per config.
 
     Push failure never changes the commit result; the local commit is
     preserved and failures are logged.
+
+    ``already_locked`` is set by callers committing a worktree mutation from
+    inside their own :func:`store_git_write_lock` span. Only the target whose
+    repository this context actually owns hands the lock off; a split-store
+    sibling repository is still locked normally.
     """
     committed_any = False
     for target_store, target_paths in sdd_commit_targets(store, paths):
@@ -70,6 +77,8 @@ def commit_sdd_store_files(
             repo_name=sdd_store_label(target_store),
             record_commit_marker=target_store.storage
             in {SDD_STORAGE_SEPARATE_REPO, SDD_STORAGE_SIDECAR_REPOS},
+            already_locked=already_locked
+            and store_write_lock_is_held(target_store.repo_root),
         )
         if committed:
             push_sdd_store_after_commit(

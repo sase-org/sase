@@ -176,6 +176,16 @@ def handoff_store_git_write_lock(repo_root: Path) -> Iterator[bool]:
     yield True
 
 
+def store_write_lock_is_held(repo_root: Path) -> bool:
+    """Report whether this context already owns *repo_root*'s store lock.
+
+    Callers that accept an ``already_locked`` flag but fan out over several
+    store repositories use this to hand off only the repository the flag
+    actually describes, and to acquire the others normally.
+    """
+    return _canonical_store_write_lock_path(repo_root) in _held_store_write_locks.get()
+
+
 def store_git_write_lock_factory(
     *,
     op: str,

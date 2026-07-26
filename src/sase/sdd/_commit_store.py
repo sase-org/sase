@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Literal
 from sase.sdd._git import SddGitCommandTimeout, run_sdd_git
 from sase.sdd._git_contention import (
     SddGitCommandError,
+    handoff_store_git_write_lock,
     run_sdd_git_write,
     store_git_write_lock,
 )
@@ -38,21 +39,31 @@ def commit_sdd_files(
     artifacts_dir: str | Path | None = None,
     repo_name: str | None = None,
     record_commit_marker: bool = True,
+    already_locked: bool = False,
 ) -> bool:
     """Auto-commit SDD files in a local `.sase/sdd/` git repo.
 
     Returns true only when a new commit is created. No-ops if `sdd_dir` is not
     a git repo or there are no staged changes.
+
+    ``already_locked`` marks a caller that mutated the worktree under
+    :func:`store_git_write_lock` and is committing that mutation inside the
+    same span; the lock is handed off rather than reacquired.
     """
     if not (sdd_dir / ".git").is_dir():
         return False
 
     pathspecs = normalize_sdd_commit_pathspecs(sdd_dir, paths)
-    with store_git_write_lock(
-        sdd_dir,
-        op="sdd.commit_files",
-        mutates_worktree=True,
-    ) as acquired:
+    lock = (
+        handoff_store_git_write_lock(sdd_dir)
+        if already_locked
+        else store_git_write_lock(
+            sdd_dir,
+            op="sdd.commit_files",
+            mutates_worktree=True,
+        )
+    )
+    with lock as acquired:
         if not acquired:
             raise SddRepositoryHealthError(
                 f"SDD repository {sdd_dir.resolve()} could not acquire its store "
