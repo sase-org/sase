@@ -38,11 +38,12 @@ def _append(
     session_id: str | None,
     status: str = "running",
     label: str | None = None,
+    kind: str = "command",
 ) -> BackgroundTask:
     task = BackgroundTask(
         task_id=task_id,
         label=label or f"task {task_id}",
-        kind="command",
+        kind=kind,
         status=status,
         command=["sleep", "5"],
         cwd="/tmp",
@@ -66,6 +67,22 @@ def test_default_scope_keeps_this_session_and_unattributed_rows() -> None:
     assert {row.task_id for row in snapshot.rows} == {"aaa111", "ccc333"}
     assert snapshot.mtime is not None
     assert all(row.store_backed for row in snapshot.rows)
+
+
+def test_default_scope_keeps_detached_rows_globally() -> None:
+    """Detached kind stays visible even if malformed legacy attribution exists."""
+    _append(
+        "aaa111",
+        session_id="session-other",
+        kind="detached",
+        label="global detached",
+    )
+    _append("bbb222", session_id="session-other", label="other command")
+
+    snapshot = load_store_task_rows(session_id="session-mine", all_sessions=False)
+
+    assert [row.task_id for row in snapshot.rows] == ["aaa111"]
+    assert snapshot.rows[0].task_type == "detached"
 
 
 def test_all_sessions_scope_marks_dead_sessions() -> None:

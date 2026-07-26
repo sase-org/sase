@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+import pytest
+
 from sase.main.parser import _DEFAULT_LIST_GROUP_DEST, create_parser
 from tests.main.parser_help_helpers import flat_help, help_subcommand_rows, parser_for
 
 
 def test_task_group_help_lists_sorted_subcommands() -> None:
-    """``sase task --help`` advertises its three commands in order."""
+    """``sase task --help`` advertises its four commands in order."""
     task_parser = parser_for(("sase", "task"))
     help_text = task_parser.format_help()
-    expected = {"list", "run", "show"}
+    expected = {"kill", "list", "run", "show"}
 
     assert help_subcommand_rows(help_text, expected) == sorted(expected)
-    assert "{list,run,show}" in help_text
+    assert "{kill,list,run,show}" in help_text
     assert "defaults to `sase task list`" in flat_help(help_text)
 
 
@@ -36,9 +38,11 @@ def test_task_list_help_documents_every_filter_and_examples() -> None:
 
     assert "usage: sase task list" in list_help
     assert "-a, --all" in list_help
+    assert "-d, --detached" in list_help
     assert "-j, --json" in list_help
     assert "-r, --running" in list_help
     for short, long in (
+        ("-k", "--kind"),
         ("-n", "--limit"),
         ("-p", "--project"),
         ("-q", "--query"),
@@ -59,8 +63,19 @@ def test_task_run_help_documents_command_and_examples() -> None:
     assert "-- COMMAND ..." in run_help
     assert "-w, --wait" in run_help
     assert "-q, --quiet" in run_help
+    assert "-d, --detached" in run_help
     assert "attribution, not delegation" in run_help
     assert "sase task run -- just check" in run_help
+
+
+def test_task_kill_help_documents_prefix_and_json() -> None:
+    """``sase task kill --help`` describes prefix resolution and JSON."""
+    kill_help = flat_help(parser_for(("sase", "task", "kill")).format_help())
+
+    assert "usage: sase task kill" in kill_help
+    assert "unique id prefix" in kill_help
+    assert "-j, --json" in kill_help
+    assert "sase task kill k7m2" in kill_help
 
 
 def test_task_show_help_documents_log_and_follow_options() -> None:
@@ -103,9 +118,39 @@ def test_task_list_status_filter_repeats_and_validates() -> None:
     assert args.status == ["error", "killed"]
 
 
+def test_task_list_kind_filter_repeats_and_detached_is_a_shorthand() -> None:
+    """Kinds compose, and ``--detached`` is represented independently."""
+    args = create_parser().parse_args(
+        ["task", "list", "-k", "command", "-k", "tui", "--detached"]
+    )
+
+    assert args.kind == ["command", "tui"]
+    assert args.detached is True
+
+
+def test_task_run_detached_and_session_are_mutually_exclusive() -> None:
+    """A global detached task cannot also carry session attribution."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exit_info:
+        parser.parse_args(
+            ["task", "run", "--detached", "--session", "latest", "--", "true"]
+        )
+
+    assert exit_info.value.code == 2
+
+
 def test_task_status_choices_match_the_store_lifecycle() -> None:
     """The parser's inlined status list must not drift from the store's."""
     from sase.main.parser_task import TASK_STATUS_CHOICES
     from sase.tasks import ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES
 
     assert set(TASK_STATUS_CHOICES) == ACTIVE_TASK_STATUSES | TERMINAL_TASK_STATUSES
+
+
+def test_task_kind_choices_match_the_store_kinds() -> None:
+    """The parser's inlined kind list must not drift from the store's."""
+    from sase.main.parser_task import TASK_KIND_CHOICES
+    from sase.tasks import TASK_KINDS
+
+    assert set(TASK_KIND_CHOICES) == TASK_KINDS

@@ -195,7 +195,7 @@ def test_progress_tick_does_not_terminalize_before_finish(
     assert row.exit_code == 0
 
 
-def test_mirror_reports_detached_task_count_for_this_session(
+def test_mirror_counts_global_detached_and_this_sessions_command_tasks(
     sandboxed_home: Path,
 ) -> None:
     del sandboxed_home
@@ -206,7 +206,9 @@ def test_mirror_reports_detached_task_count_for_this_session(
             ("session-mirror", "command", "running"),
             ("session-mirror", "tui", "running"),
             ("session-other", "command", "running"),
+            (None, "detached", "running"),
             ("session-mirror", "command", "success"),
+            (None, "detached", "success"),
         )
     ):
         append_task(
@@ -223,6 +225,38 @@ def test_mirror_reports_detached_task_count_for_this_session(
                 session_id=session_id,
             )
         )
+
+    counts: list[int] = []
+    mirror = TaskMirror(on_detached_count=counts.append)
+    mirror._refresh_detached_count()
+
+    assert counts == [2]
+    assert mirror.detached_running_count == 2
+
+
+def test_mirror_counts_global_detached_tasks_without_a_tui_session(
+    monkeypatch: pytest.MonkeyPatch,
+    sandboxed_home: Path,
+) -> None:
+    """A missing session must not hide globally owned work."""
+    del sandboxed_home
+    from sase.tasks import BackgroundTask, append_task
+
+    monkeypatch.setattr("sase.sessions.current_session_id", lambda: None)
+    monkeypatch.setattr("sase.sessions.live_sessions", lambda: [])
+    append_task(
+        BackgroundTask(
+            task_id="global-row",
+            label="global row",
+            kind="detached",
+            status="running",
+            command=["sleep", "1"],
+            cwd="/tmp",
+            origin="telegram",
+            created_at="2026-07-25T12:00:00Z",
+            log_path="/tmp/global-row.log",
+        )
+    )
 
     counts: list[int] = []
     mirror = TaskMirror(on_detached_count=counts.append)

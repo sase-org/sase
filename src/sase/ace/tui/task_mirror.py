@@ -6,10 +6,9 @@ follows :mod:`sase.logs.toast_log` exactly: the UI thread only mints an id
 and enqueues a record, while one daemon writer thread owns every store
 write, every task-log append, and the periodic orphan sweep.
 
-The same thread also answers "how many detached tasks is this session
-running?" for the top-bar indicator, so an epic launch approved from
-Telegram shows up in the TUI's count without the event loop ever touching
-the store.
+The same thread also answers "how many active supervisor-owned tasks are in
+scope here?" for the top-bar indicator, so a global epic launch approved from
+Telegram shows up in every TUI without the event loop ever touching the store.
 """
 
 from __future__ import annotations
@@ -26,6 +25,8 @@ from datetime import UTC, datetime
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
 from sase.tasks import (
     ACTIVE_TASK_STATUSES,
+    COMMAND_TASK_KIND,
+    DETACHED_TASK_KIND,
     BackgroundTask,
     TERMINAL_TASK_STATUSES,
     TUI_TASK_KIND,
@@ -120,7 +121,7 @@ class TaskMirror:
 
     @property
     def detached_running_count(self) -> int:
-        """Return the last known count of this session's detached tasks."""
+        """Return the last known count of active non-mirrored tasks in scope."""
         return self._detached_count
 
     @property
@@ -345,15 +346,19 @@ class TaskMirror:
         update_task(tracked.task_id, status=status, phase=info.phase)
 
     def _refresh_detached_count(self) -> None:
-        """Count this session's active tasks that this process does not own."""
+        """Count global detached tasks plus this session's command tasks."""
         context = self._resolve_context()
-        if context.session_id is None:
-            return
-        rows = read_tasks(
-            status=ACTIVE_TASK_STATUSES,
-            session_id=context.session_id,
+        rows = read_tasks(status=ACTIVE_TASK_STATUSES)
+        count = sum(
+            1
+            for row in rows
+            if row.kind == DETACHED_TASK_KIND
+            or (
+                row.kind == COMMAND_TASK_KIND
+                and context.session_id is not None
+                and row.session_id == context.session_id
+            )
         )
-        count = sum(1 for row in rows if row.kind != MIRROR_KIND)
         if count == self._detached_count:
             return
         self._detached_count = count

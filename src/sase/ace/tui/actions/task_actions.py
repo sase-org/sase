@@ -101,8 +101,8 @@ class TaskActionsMixin:
     def _update_task_indicator(self) -> None:
         """Update the top-bar task indicator with the current running count.
 
-        Counts this session's detached store tasks too, so an epic launch
-        approved from Telegram shows up here as well.
+        Counts global detached tasks and this session's command tasks, so an
+        epic launch approved from Telegram shows up here as well.
         """
         try:
             indicator = self.query_one("#task-indicator", TaskIndicator)  # type: ignore[attr-defined]

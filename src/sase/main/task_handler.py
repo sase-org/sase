@@ -20,6 +20,7 @@ from sase.sessions import (
 )
 from sase.tasks import (
     ACTIVE_TASK_STATUSES,
+    DETACHED_TASK_KIND,
     TERMINAL_TASK_STATUSES,
     BackgroundTask,
     TaskControlError,
@@ -33,12 +34,14 @@ from sase.tasks import (
     resolve_task_ref,
     short_task_id,
     submit_task,
+    submit_detached_task,
     wait_for_task,
 )
 
 from .task_render import (
     empty_task_panel,
     task_detail,
+    task_kill_json,
     task_list_json,
     task_show_json,
     task_table,
@@ -59,7 +62,9 @@ def handle_task_command(args: argparse.Namespace) -> NoReturn:
         sys.exit(_handle_task_run(args))
     if subcommand == "show":
         sys.exit(_handle_task_show(args))
-    print("Usage: sase task {list,run,show}", file=sys.stderr)
+    if subcommand == "kill":
+        sys.exit(_handle_task_kill(args))
+    print("Usage: sase task {kill,list,run,show}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -75,6 +80,8 @@ class _ListScope:
     def matches(self, task: BackgroundTask) -> bool:
         if self.all_sessions:
             return True
+        if task.kind == DETACHED_TASK_KIND:
+            return True
         if task.session_id is None:
             return self.include_unattributed
         return task.session_id == self.session_id
@@ -83,15 +90,16 @@ class _ListScope:
         if self.all_sessions:
             return "all sessions"
         if self.session_id is None:
-            return "unattributed"
+            return "global (detached + unattributed)"
         handle = short_session_handle(self.session_id)
         if self.ref is None:
-            return f"this session ({handle}) + unattributed"
-        return f"session {handle}"
+            return f"this session ({handle}) + detached + unattributed"
+        return f"session {handle} + detached"
 
     def to_json(self) -> dict[str, Any]:
         return {
             "all": self.all_sessions,
+            "include_detached": True,
             "include_unattributed": self.all_sessions or self.include_unattributed,
             "ref": self.ref,
             "session_id": None if self.all_sessions else self.session_id,
@@ -116,6 +124,7 @@ def _handle_task_list(args: argparse.Namespace) -> int:
     try:
         matched = read_tasks(
             status=_requested_statuses(args),
+            kind=_requested_kinds(args),
             project=getattr(args, "project", None),
             tag=getattr(args, "tag", None),
             query=getattr(args, "query", None),
@@ -158,24 +167,29 @@ def _handle_task_run(args: argparse.Namespace) -> int:
         return 2
 
     cwd = Path(getattr(args, "cwd", None) or Path.cwd()).expanduser()
-    try:
-        session_id = _resolve_session_id(getattr(args, "session", None))
-    except SessionRefError as exc:
-        print(f"sase task run: {exc}", file=sys.stderr)
-        return 2
+    detached = bool(getattr(args, "detached", False))
+    session_id: str | None = None
+    if not detached:
+        try:
+            session_id = _resolve_session_id(getattr(args, "session", None))
+        except SessionRefError as exc:
+            print(f"sase task run: {exc}", file=sys.stderr)
+            return 2
 
     project, workspace_num = _infer_attribution(cwd, getattr(args, "project", None))
     try:
-        task = submit_task(
-            command,
-            label=getattr(args, "label", None) or _derived_label(command),
-            cwd=cwd,
-            session_id=session_id,
-            project=project,
-            workspace_num=workspace_num,
-            tags=getattr(args, "tag", None) or (),
-            origin="cli",
-        )
+        submit = submit_detached_task if detached else submit_task
+        submit_kwargs: dict[str, Any] = {
+            "label": getattr(args, "label", None) or _derived_label(command),
+            "cwd": cwd,
+            "project": project,
+            "workspace_num": workspace_num,
+            "tags": getattr(args, "tag", None) or (),
+            "origin": "cli",
+        }
+        if not detached:
+            submit_kwargs["session_id"] = session_id
+        task = submit(command, **submit_kwargs)
     except TaskSubmitError as exc:
         print(f"sase task run: {exc}", file=sys.stderr)
         return 1
@@ -257,6 +271,47 @@ def _handle_task_show(args: argparse.Namespace) -> int:
         sys.stdout.write(log if log.endswith("\n") else f"{log}\n")
     elif not output_only:
         print("(no output captured yet)")
+    return 0
+
+
+def _handle_task_kill(args: argparse.Namespace) -> int:
+    """Kill one task, resolving the same id prefixes as ``task show``."""
+    _reconcile_quietly()
+    try:
+        task = resolve_task_ref(getattr(args, "task_id", ""), read_tasks())
+    except TaskRefError as exc:
+        print(f"sase task kill: {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:
+        print(f"sase task kill: cannot read tasks: {exc}", file=sys.stderr)
+        return 1
+
+    was_active = task.status not in TERMINAL_TASK_STATUSES
+    try:
+        result = kill_task(task.task_id)
+    except TaskControlError as exc:
+        print(f"sase task kill: {exc}", file=sys.stderr)
+        return 1
+
+    changed = was_active and result.status == "killed"
+    if bool(getattr(args, "json", False)):
+        json.dump(
+            task_kill_json(
+                result,
+                changed=changed,
+                live_session_ids=_live_session_ids(),
+            ),
+            sys.stdout,
+            indent=2,
+        )
+        sys.stdout.write("\n")
+    elif changed:
+        print(f"Killed task {short_task_id(result.task_id)}.")
+    else:
+        print(
+            f"Task {short_task_id(result.task_id)} is already "
+            f"{result.status}; nothing to do."
+        )
     return 0
 
 
@@ -342,6 +397,13 @@ def _requested_statuses(args: argparse.Namespace) -> set[str] | None:
     if bool(getattr(args, "running", False)):
         statuses |= set(ACTIVE_TASK_STATUSES)
     return statuses or None
+
+
+def _requested_kinds(args: argparse.Namespace) -> set[str] | None:
+    kinds: set[str] = {str(value) for value in getattr(args, "kind", None) or ()}
+    if bool(getattr(args, "detached", False)):
+        kinds.add(DETACHED_TASK_KIND)
+    return kinds or None
 
 
 def _list_limit(args: argparse.Namespace) -> int:

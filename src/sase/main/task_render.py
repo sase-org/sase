@@ -13,7 +13,14 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.sessions import session_chip, short_session_handle
-from sase.tasks import TERMINAL_TASK_STATUSES, BackgroundTask, short_task_id
+from sase.tasks import (
+    COMMAND_TASK_KIND,
+    DETACHED_TASK_KIND,
+    TERMINAL_TASK_STATUSES,
+    TUI_TASK_KIND,
+    BackgroundTask,
+    short_task_id,
+)
 
 # Bumped only when the JSON payloads below change incompatibly.
 TASK_JSON_SCHEMA_VERSION = 1
@@ -28,12 +35,20 @@ STATUS_DISPLAY: dict[str, tuple[str, str]] = {
     "killed": ("⊘", "bold magenta"),
 }
 _UNKNOWN_DISPLAY = ("?", "dim")
+_KIND_DISPLAY: dict[str, tuple[str, str]] = {
+    COMMAND_TASK_KIND: ("⌘", "dim"),
+    TUI_TASK_KIND: ("▣", "dim"),
+    DETACHED_TASK_KIND: ("◆", "bold cyan"),
+}
+_UNKNOWN_KIND_DISPLAY = ("?", "dim")
 
 _BORDER_STYLE = "#5FAFFF"
 _TERMINAL_ROW_STYLE = "dim"
 _EMPTY_HINT = (
     "Nothing here yet. Start one with:\n\n"
     "  sase task run -- <command>\n\n"
+    "Or start globally visible work with:\n\n"
+    "  sase task run --detached -- <command>\n\n"
     "Then follow it with `sase task show <id> --follow`."
 )
 
@@ -47,6 +62,15 @@ def status_text(status: str) -> Text:
     """Return the colored ``<glyph> <status>`` label for a task status."""
     glyph, style = _status_display(status)
     return Text(f"{glyph} {status}", style=style)
+
+
+def _kind_text(kind: str, *, verbose: bool = False) -> Text:
+    """Render a consistent compact kind marker, optionally with its name."""
+    glyph, style = _KIND_DISPLAY.get(kind, _UNKNOWN_KIND_DISPLAY)
+    label = kind
+    if kind == DETACHED_TASK_KIND and verbose:
+        label = "detached (global; no session owns this task)"
+    return Text(f"{glyph} {label}" if verbose else glyph, style=style)
 
 
 def _task_duration_seconds(task: BackgroundTask) -> float | None:
@@ -67,6 +91,7 @@ def _task_json(
     payload: dict[str, Any] = dict(task.to_dict())
     payload["short_id"] = short_task_id(task.task_id)
     payload["is_terminal"] = task.status in TERMINAL_TASK_STATUSES
+    payload["detached"] = task.kind == DETACHED_TASK_KIND
     payload["duration_seconds"] = _task_duration_seconds(task)
     payload["session_handle"] = (
         short_session_handle(task.session_id) if task.session_id else None
@@ -110,6 +135,20 @@ def task_show_json(
     }
 
 
+def task_kill_json(
+    task: BackgroundTask,
+    *,
+    changed: bool,
+    live_session_ids: Collection[str] | None = None,
+) -> dict[str, Any]:
+    """Return the stable ``sase task kill`` JSON envelope."""
+    return {
+        "schema_version": TASK_JSON_SCHEMA_VERSION,
+        "changed": changed,
+        "task": _task_json(task, live_session_ids=live_session_ids),
+    }
+
+
 def task_table(
     tasks: Sequence[BackgroundTask],
     *,
@@ -136,8 +175,12 @@ def task_table(
         terminal = task.status in TERMINAL_TASK_STATUSES
         row_style = _TERMINAL_ROW_STYLE if terminal else ""
         glyph, glyph_style = _status_display(task.status)
+        status_and_kind = Text()
+        status_and_kind.append(glyph, style=glyph_style)
+        status_and_kind.append(" ")
+        status_and_kind.append_text(_kind_text(task.kind))
         table.add_row(
-            Text(glyph, style=glyph_style),
+            status_and_kind,
             Text(short_task_id(task.task_id), style=row_style or "bold"),
             Text(task.label, style=row_style),
             session_chip(task.to_dict(), live_session_ids=live_session_ids),
@@ -183,7 +226,7 @@ def task_detail(
     rows: list[tuple[str, RenderableType]] = [
         ("Status", status_text(task.status)),
         ("Id", Text(f"{task.task_id}  ({short_task_id(task.task_id)})")),
-        ("Kind", Text(task.kind)),
+        ("Kind", _kind_text(task.kind, verbose=True)),
         ("Origin", Text(task.origin)),
         ("Session", session_chip(task.to_dict(), live_session_ids=live_session_ids)),
         ("Project", Text(task.project or "—")),
@@ -266,6 +309,7 @@ __all__ = [
     "empty_task_panel",
     "status_text",
     "task_detail",
+    "task_kill_json",
     "task_list_json",
     "task_show_json",
     "task_table",

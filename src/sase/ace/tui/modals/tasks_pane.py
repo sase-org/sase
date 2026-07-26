@@ -3,7 +3,7 @@
 The pane renders a merged view: in-memory tasks owned by this TUI stay
 authoritative for live output, and rows read from the durable task store
 fill in everything else — detached `sase task run` commands, epic launches,
-and work from other sessions. Every store read happens on a thread worker
+session-attributed commands, and work from other sessions. Every store read happens on a thread worker
 (see :mod:`.tasks_store_rows`); nothing in a render or keystroke path stats,
 reads, or locks the store.
 """

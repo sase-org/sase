@@ -12,6 +12,7 @@ from datetime import datetime
 from rich.text import Text
 
 from sase.sessions import session_chip
+from sase.tasks import DETACHED_TASK_KIND
 
 from ..task_queue import TaskInfo, TaskLogLine
 from ..task_subprocess import command_display
@@ -28,6 +29,7 @@ _ACTIVE_STATUSES = frozenset({"pending", "running"})
 _MAX_RENDERED_LOG_LINES = 1_200
 
 _RULE = "─" * 60
+_DETACHED_MARKER = "◆ detached"
 
 # Rendered body cache: task id -> (log version, static text, rendered body).
 BodyCache = dict[str, tuple[int, str | None, Text]]
@@ -77,11 +79,11 @@ def _task_status_token(task: TaskInfo, *, spinner_index: int) -> tuple[str, str]
 def _row_session_chip(task: TaskInfo) -> Text | None:
     """Return the session badge for a store-backed row, if it needs one.
 
-    In-memory rows always belong to this session and stay chip-free; every
-    row that came out of the store carries one, so a task from another TUI
-    (or from no TUI at all) is visible at a glance.
+    In-memory rows always belong to this session and stay chip-free. Detached
+    rows use their explicit marker instead; every other store-backed row gets
+    a chip so foreign or unattributed ownership is visible at a glance.
     """
-    if not task.store_backed:
+    if not task.store_backed or task.task_type == DETACHED_TASK_KIND:
         return None
     live_ids: frozenset[str] = frozenset()
     if task.session_live and task.session_id is not None:
@@ -92,11 +94,24 @@ def _row_session_chip(task: TaskInfo) -> Text | None:
     )
 
 
+def _append_detached_marker(
+    text: Text,
+    task: TaskInfo,
+    *,
+    prefix: str = "  ",
+    suffix: str = "",
+) -> None:
+    """Mark a globally owned task without introducing another color family."""
+    if task.task_type == DETACHED_TASK_KIND:
+        text.append(f"{prefix}{_DETACHED_MARKER}{suffix}", style="bold cyan")
+
+
 def task_row_label(task: TaskInfo) -> Text:
     """Build the styled option-list entry for one task."""
     icon, icon_style = _STATUS_DISPLAY.get(task.status, ("?", "dim"))
     text = Text()
     text.append(f"{icon} ", style=icon_style)
+    _append_detached_marker(text, task, prefix="", suffix=" ")
     text.append(task.label, style="bold")
     time_ref = task.finished_at or task.started_at
     text.append(f"  {_relative_time(time_ref)}", style="dim")
@@ -115,6 +130,7 @@ def output_header(task: TaskInfo, *, spinner_index: int) -> Text:
     out = Text()
     icon, style = _task_status_token(task, spinner_index=spinner_index)
     out.append(task.label, style="bold")
+    _append_detached_marker(out, task)
     out.append("  ")
     out.append(icon, style=style)
     out.append(f"  {_elapsed(task)}", style="dim")

@@ -18,6 +18,7 @@ from datetime import datetime
 
 from sase.core.state_write_guard import pytest_path_is_sandboxed
 from sase.tasks import (
+    DETACHED_TASK_KIND,
     BackgroundTask,
     kill_task,
     read_task_log_tail,
@@ -150,6 +151,8 @@ def _in_scope(
     all_sessions: bool,
 ) -> bool:
     if all_sessions:
+        return True
+    if task.kind == DETACHED_TASK_KIND:
         return True
     return task.session_id is None or task.session_id == session_id
 

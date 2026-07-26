@@ -60,11 +60,12 @@ def _stored(
     tags: list[str] | None = None,
     pid: int | None = None,
     command: list[str] | None = None,
+    kind: str = "command",
 ) -> BackgroundTask:
     task = BackgroundTask(
         task_id=task_id,
         label=label,
-        kind="command",
+        kind=kind,
         status=status,
         command=command or ["just", "docs"],
         cwd="/tmp",
@@ -158,6 +159,30 @@ def test_list_scopes_to_this_session_and_unattributed(
     assert "1 task from other sessions is hidden; pass -a/--all." in out
 
 
+def test_list_keeps_detached_tasks_global_even_for_an_explicit_session(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Detached ownership ignores session scope while other sessions stay hidden."""
+    _stored(
+        "aaaaaaaaaaaa",
+        label="Global launch",
+        kind="detached",
+        session_id=None,
+    )
+    _stored(
+        "bbbbbbbbbbbb",
+        label="Other session",
+        session_id="20260725T120000Z-42",
+    )
+
+    assert _dispatch(["task", "list", "--session", "none"]) == 0
+
+    out = capsys.readouterr().out
+    assert "Global launch" in out
+    assert "detached" in out
+    assert "Other session" not in out
+
+
 def test_list_all_includes_other_sessions_with_a_dead_chip(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -230,6 +255,30 @@ def test_list_applies_status_project_tag_query_and_limit(
     assert "Elsewhere" in capsys.readouterr().out
 
 
+def test_list_filters_by_repeated_kind_and_detached_shorthand(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--kind`` composes, while ``--detached`` selects only global work."""
+    _stored("aaaaaaaaaaaa", label="Command task")
+    _stored("bbbbbbbbbbbb", label="Detached task", kind="detached")
+    _stored("cccccccccccc", label="TUI task", kind="tui")
+
+    assert _dispatch(["task", "list", "--detached"]) == 0
+    detached = capsys.readouterr().out
+    assert "Detached task" in detached
+    assert "◆" in detached
+    assert "Command task" not in detached
+    assert "TUI task" not in detached
+
+    assert _dispatch(["task", "list", "-k", "command", "-k", "tui"]) == 0
+    combined = capsys.readouterr().out
+    assert "Command task" in combined
+    assert "⌘" in combined
+    assert "TUI task" in combined
+    assert "▣" in combined
+    assert "Detached task" not in combined
+
+
 def test_list_running_filter_matches_pending_and_running(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -269,6 +318,7 @@ def test_list_json_envelope_is_stable(capsys: pytest.CaptureFixture[str]) -> Non
     assert payload["count"] == 1
     assert payload["scope"] == {
         "all": False,
+        "include_detached": True,
         "include_unattributed": True,
         "ref": None,
         "session_id": None,
@@ -277,6 +327,7 @@ def test_list_json_envelope_is_stable(capsys: pytest.CaptureFixture[str]) -> Non
     assert task["task_id"] == "aaaaaaaaaaaa"
     assert task["short_id"] == "aaaaaa"
     assert task["is_terminal"] is True
+    assert task["detached"] is False
     assert task["duration_seconds"] == 5.0
     assert task["session_handle"] is None
 
@@ -315,6 +366,17 @@ def test_show_renders_detail_and_log_tail(capsys: pytest.CaptureFixture[str]) ->
     assert "✓ success" in out
     assert "second" in out and "third" in out
     assert "first" not in out
+
+
+def test_show_names_detached_global_ownership(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Detached detail makes the lack of a session explicit."""
+    _stored("aaaaaaaaaaaa", label="Epic launch", kind="detached")
+
+    assert _dispatch(["task", "show", "aaa"]) == 0
+
+    assert "detached (global; no session owns this task)" in capsys.readouterr().out
 
 
 def test_show_output_only_prints_the_log_without_chrome(
@@ -606,6 +668,88 @@ def test_run_session_none_leaves_the_task_unattributed(
     _dispatch(["task", "run", "-j", "-s", "none", "-c", str(tmp_path), "--", *_NOOP])
 
     assert json.loads(capsys.readouterr().out)["task"]["session_id"] is None
+
+
+def test_run_detached_creates_a_global_detached_kind(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """``--detached`` uses first-class global ownership, not session-none command."""
+    identity = SessionIdentity(
+        session_id="20260725T120000Z-99",
+        kind="ace",
+        pid=os.getpid(),
+        started_at="2026-07-25T12:00:00Z",
+    )
+    _use_sessions(monkeypatch, [identity])
+
+    assert (
+        _dispatch(
+            [
+                "task",
+                "run",
+                "--detached",
+                "--json",
+                "--cwd",
+                str(tmp_path),
+                "--",
+                *_NOOP,
+            ]
+        )
+        == 0
+    )
+
+    task = json.loads(capsys.readouterr().out)["task"]
+    assert task["kind"] == "detached"
+    assert task["detached"] is True
+    assert task["session_id"] is None
+    assert task["session_label"] is None
+
+
+def test_kill_resolves_prefix_and_marks_active_task_killed(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The CLI exposes the store kill path through the same prefix resolver."""
+    monkeypatch.setattr("sase.main.task_handler._reconcile_quietly", lambda: None)
+    _stored(
+        "aaaaaaaaaaaa",
+        label="Global launch",
+        kind="detached",
+        status="running",
+        finished_at=None,
+        exit_code=None,
+    )
+
+    assert _dispatch(["task", "kill", "aaa"]) == 0
+
+    assert "Killed task aaaaaa." in capsys.readouterr().out
+    task = get_task("aaaaaaaaaaaa")
+    assert task is not None
+    assert task.status == "killed"
+
+
+def test_kill_terminal_task_is_a_json_noop(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Killing completed work succeeds without mutating its terminal state."""
+    _stored("aaaaaaaaaaaa", status="success")
+
+    assert _dispatch(["task", "kill", "aaa", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["schema_version"] == 1
+    assert payload["changed"] is False
+    assert payload["task"]["status"] == "success"
+
+
+def test_kill_reports_bad_task_references(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Unknown kill targets are usage errors, just like ``task show``."""
+    assert _dispatch(["task", "kill", "zzz"]) == 2
+    assert "no task matches reference" in capsys.readouterr().err
 
 
 def _dead_pid() -> int:

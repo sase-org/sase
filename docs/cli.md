@@ -36,9 +36,10 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 | `sase notify list`              | List recent notifications, optionally filtered by sender, tag, unread state, or query.                               | [Notifications](notifications.md)                     |
 | `sase notify show`              | Show one notification as Markdown or JSON.                                                                           | [Notifications](notifications.md)                     |
 | `sase task`                     | Shortcut for `sase task list`.                                                                                       | [ACE Tasks tab](ace.md#tasks-tab)                     |
-| `sase task list`                | List durable background tasks; filter by session, project, tag, status, or query.                                    | [ACE Tasks tab](ace.md#tasks-tab)                     |
-| `sase task run -- COMMAND`      | Run a command as a detached, durable background task; `--wait` streams it and returns its exit code.                 | [ACE Tasks tab](ace.md#tasks-tab)                     |
+| `sase task list`                | List durable background tasks; filter by kind, session, project, tag, status, or query.                              | [ACE Tasks tab](ace.md#tasks-tab)                     |
+| `sase task run -- COMMAND`      | Run a durable command task; `--detached` makes it global, and `--wait` streams it and returns its exit code.         | [ACE Tasks tab](ace.md#tasks-tab)                     |
 | `sase task show ID`             | Show one task and its captured output; `--follow` streams until it finishes.                                         | [ACE Tasks tab](ace.md#tasks-tab)                     |
+| `sase task kill ID`             | Kill a running task by id or unique prefix; an already-terminal task is an unchanged no-op.                          | [ACE Tasks tab](ace.md#tasks-tab)                     |
 | `sase repro replay`             | Replay an Agents-tab reproduction bundle through the headless TUI harness and emit a verdict.                        | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
 | `sase repro capture agents-tab` | Capture a commit-safe out-of-band Agents-tab bundle from current filesystem state.                                   | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
 
@@ -52,11 +53,16 @@ including explicit-threshold waits and periods when the pool is full; the fields
 threshold is already satisfied.
 
 `sase task` operates on durable background tasks: rows in `~/.sase/tasks/tasks.jsonl` with combined output logs under
-`~/.sase/tasks/logs/`. `sase task run` never asks a TUI to execute anything — it records a row, forks a detached
-supervisor, and returns — so tasks survive TUI restarts and work with no TUI running. `--session` is therefore
-attribution rather than delegation: it decides which session's Tasks tab shows the task, and defaults to this process's
-ACE session, then the newest live one, then no session at all. Retention keeps every pending or running task plus the
-newest [`tasks.history_limit`](configuration.md#tasks) finished ones. See the
+`~/.sase/tasks/logs/`. There are three kinds: `tui` work is run and mirrored by one ACE process; `command` work runs
+under a supervisor but is attributed to a session; and `detached` work runs under a supervisor with no owning session,
+so every CLI and TUI includes it in scope. `sase task run` creates `command` by default, while `--detached` creates the
+global kind and is mutually exclusive with `--session`.
+
+The supervisor is independent of the submitting shell or TUI, so both `command` and `detached` work survive TUI restarts
+and run with no TUI open. Use repeatable `--kind command|tui|detached`, or the `--detached` list shorthand, to filter by
+kind. The compact list markers are `⌘` for `command`, `▣` for `tui`, and `◆` for `detached`; `sase task show` spells out
+the kind and describes detached ownership. Use `sase task kill ID` to stop any active store-backed task. Retention keeps
+every pending or running task plus the newest [`tasks.history_limit`](configuration.md#tasks) finished ones. See the
 [ACE Tasks tab](ace.md#durable-background-tasks) for the full model and the in-TUI equivalents.
 
 Command groups with an exact `list` child default to that list view when invoked bare, including `sase agent-cli`,

@@ -3189,18 +3189,20 @@ is visible from `sase task list` / `sase task show`. Detached tasks — anything
 launches started from a gate approval — are read back out of that store and rendered here, so work that this process
 never owned still shows up on the tab.
 
-The pane defaults to **this session** plus unattributed tasks; press `a` to widen it to every session. The pane title
-names the active scope, e.g. `Tasks · this session  [2 running · 5 done]`. Rows read from the store carry a colored
-session chip (`ace·sase#14 4f2a`) that matches the one `sase task list` prints; a session that has since exited renders
-dim with a `†`, and an unattributed task renders a dim `—`.
+The pane defaults to **this session** plus unattributed tasks and every global `detached` task; press `a` to widen it to
+every session. Detached tasks remain visible in both modes. The pane title names the active scope, e.g.
+`Tasks · this session  [2 running · 5 done]`. Rows read from the store carry a colored session chip (`ace·sase#14 4f2a`)
+that matches the one `sase task list` prints; a session that has since exited renders dim with a `†`. An ordinary
+unattributed task renders a dim `—`; a global task instead carries a cyan `◆ detached` marker that makes its ownership
+explicit.
 
 Store reads happen on a worker thread and are revalidated by store mtime about once a second, so the tab never stats,
 reads, or locks the store from a render or keystroke path. Retention is governed by `tasks.history_limit` (see
 [configuration](configuration.md)): finished rows and their logs age out oldest-first, and running tasks are never
 pruned. Because the store owns that retention, `d` / `D` only dismiss this session's in-memory rows.
 
-The top-bar task indicator counts this session's running tasks **including detached ones**, so an epic approved from
-Telegram is reflected in the TUI you are looking at.
+The top-bar task indicator counts this session's active `command` tasks plus **every active `detached` task globally**,
+so an epic approved from Telegram is reflected in every TUI.
 
 ### Layout
 
@@ -3230,18 +3232,28 @@ Each task carries a 12-character id resolvable by unique prefix (three character
 final, and a task whose supervisor died without reporting is reconciled to `error` rather than left running forever.
 `sase task list` reuses the icons above and adds `◌` for pending and `⊘` for killed.
 
-**Session attribution.** A task may be stamped with the SASE session it belongs to. That is attribution, not delegation:
-`sase task run` always executes under its own detached supervisor, and the session id decides which TUI shows the task
-and counts it in the task indicator. `--session` accepts a full session id, a unique id prefix or short handle, or
+**Kinds and ownership.**
+
+| Kind       | Owner               | Scope                                      |
+| ---------- | ------------------- | ------------------------------------------ |
+| `tui`      | The ACE process     | The session that runs and mirrors it       |
+| `command`  | The task supervisor | The session the submitter attributes it to |
+| `detached` | The task supervisor | Global; no interactive session owns it     |
+
+Session attribution is not delegation: a `command` task always executes under its own supervisor, while its session id
+decides which TUI includes it by default. `--session` accepts a full session id, a unique id prefix or short handle, or
 `current`, `latest`, and `none`; the default is this process's ACE session, then the newest live one, then no session.
-`sase task list` scopes to that same session plus unattributed tasks by default, and `--all` widens it. Rows from a
-session that has since exited render dim with a `†` marker.
+`sase task run --detached` instead creates the global kind and cannot be combined with `--session`. `sase task list`
+always admits detached work, scopes other work to the resolved session plus unattributed rows by default, and widens to
+other sessions with `--all`. Rows from a session that has since exited render dim with a `†` marker.
 
 **Retention.** [`tasks.history_limit`](configuration.md#tasks) caps how many _finished_ tasks are kept; pending and
 running work is never pruned for being old. Lowering the limit removes the oldest finished rows and their log files.
 
-The CLI equivalents are `sase task list`, `sase task show ID` (`--follow` to stream), and `sase task run -- COMMAND`
-(`--wait` to stream and inherit the exit code). See the [CLI reference](cli.md#daily-operation).
+The CLI equivalents are `sase task list` (`--kind` / `--detached` to filter), `sase task show ID` (`--follow` to
+stream), `sase task run [--detached] -- COMMAND` (`--wait` to stream and inherit the exit code), and
+`sase task kill ID`. Approved epics launch as detached tasks, so they survive every submitting surface and remain in
+scope everywhere. See the [CLI reference](cli.md#daily-operation).
 
 ### Keybindings
 

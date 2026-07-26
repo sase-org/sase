@@ -7,7 +7,9 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import tasks_pane as tp
 from sase.ace.tui.modals import tasks_pane_render as tpr
+from sase.ace.tui.modals.tasks_store_rows import _store_task_row
 from sase.ace.tui.task_queue import TaskQueue
+from sase.tasks import BackgroundTask
 from textual.widgets import OptionList, Static
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _FIXED_TASK_NOW,
@@ -54,12 +56,26 @@ async def test_config_center_tasks_tab_png_snapshot(
     # Freeze the running-task spinner so the status token is byte-stable; the
     # 0.25s refresh timer would otherwise advance it between runs.
     monkeypatch.setattr(tpr, "_SPINNER_FRAMES", ("|",))
-    # Keep the durable store out of the frame: this snapshot covers in-TUI
-    # rows, and store rows would vary with whatever the machine has run.
+    detached = _store_task_row(
+        BackgroundTask(
+            task_id="detached123",
+            label="Epic · nightly",
+            kind="detached",
+            status="running",
+            command=["sase", "bead", "work", "nightly.md", "--yes-to-all"],
+            cwd="/repo",
+            origin="telegram",
+            created_at="2026-06-26T11:59:56Z",
+            started_at="2026-06-26T11:59:56Z",
+            log_path="/tmp/detached123.log",
+        )
+    )
+    # Keep the real durable store out of the frame while retaining one fixed
+    # detached row so its global marker has PNG coverage.
     monkeypatch.setattr(
         tp,
         "load_store_task_rows",
-        lambda **_kwargs: tp.StoreTasksSnapshot(),
+        lambda **_kwargs: tp.StoreTasksSnapshot(rows=[detached], mtime=1.0),
     )
     monkeypatch.setattr(TaskQueue, "prune_old", lambda self: None)
 
@@ -72,6 +88,7 @@ async def test_config_center_tasks_tab_png_snapshot(
         option_list = pane.query_one("#tasks-list", OptionList)
         output = pane.query_one("#tasks-output-content", Static)
         assert "sync sase-42" in option_list.get_option_at_index(0).prompt.plain
+        assert "◆ detached" in option_list.get_option_at_index(1).prompt.plain
         assert "remote: Enumerating objects" in output.render().plain
         await wait_for_visual_idle(page)
 

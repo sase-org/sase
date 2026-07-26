@@ -554,7 +554,7 @@ async def test_tasks_tab_scope_toggle_reveals_other_sessions_with_chips(
         assert "ace·sase#7" in rendered
 
 
-async def test_tasks_tab_marks_dead_sessions_and_kills_store_backed_tasks(
+async def test_tasks_tab_marks_and_kills_global_detached_tasks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     killed: list[str] = []
@@ -570,8 +570,8 @@ async def test_tasks_tab_marks_dead_sessions_and_kills_store_backed_tasks(
                 "ddd444",
                 label="detached epic launch",
                 status="running",
-                session_id="session-gone",
-                session_label="ace·sase#3",
+                session_id=None,
+                kind="detached",
             )
         ],
         live_session_ids=frozenset(),
@@ -580,15 +580,13 @@ async def test_tasks_tab_marks_dead_sessions_and_kills_store_backed_tasks(
 
     async with _TasksTestApp(_queue()).run_test() as pilot:
         _, pane = await _open_tasks_pane(pilot)
-        pane._all_sessions = True
-        pane._request_store_reload(force=True)
         await pilot.pause()
         await pilot.pause()
 
         option_list = pane.query_one("#tasks-list", OptionList)
         assert option_list.option_count == 1
-        # A session that is no longer live renders with the dagger marker.
-        assert "†" in option_list.get_option_at_index(0).prompt.plain
+        assert "◆ detached" in option_list.get_option_at_index(0).prompt.plain
+        assert "◆ detached" in _output_plain(pane)
 
         await pilot.press("K")
         await pilot.pause()

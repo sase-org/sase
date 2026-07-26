@@ -7,6 +7,9 @@ import argparse
 # Mirrors ``ACTIVE_TASK_STATUSES | TERMINAL_TASK_STATUSES`` in ``sase.tasks``,
 # spelled out here so building the parser never imports the task store.
 TASK_STATUS_CHOICES = ("pending", "running", "success", "error", "killed")
+# Mirrors ``TASK_KINDS`` in ``sase.tasks`` without importing the task store
+# while the top-level parser is being built.
+TASK_KIND_CHOICES = ("command", "tui", "detached")
 
 
 def register_task_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -14,17 +17,41 @@ def register_task_parser(subparsers: argparse._SubParsersAction) -> None:
 
     task_parser = subparsers.add_parser(
         "task",
-        help="List, inspect, and run durable background tasks",
+        help="List, inspect, run, and kill durable background tasks",
         description=(
             "Inspect and run SASE background tasks. Tasks are durable: they "
-            "survive TUI restarts, are readable from any surface, and carry "
-            "the session they were started for. Running `sase task` defaults "
-            "to `sase task list`."
+            "survive TUI restarts and are readable from any surface. Command "
+            "and TUI tasks may belong to a session; detached tasks are global "
+            "and belong to none. Running `sase task` defaults to "
+            "`sase task list`."
         ),
     )
     task_sub = task_parser.add_subparsers(
         dest="task_subcommand",
         help="Background-task subcommands",
+    )
+
+    kill_parser = task_sub.add_parser(
+        "kill",
+        help="Kill one running background task",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Kill one task by id or unique id prefix (at least three "
+            "characters). A task that is already finished is reported as an "
+            "unchanged no-op."
+        ),
+        epilog=("examples:\n  sase task kill k7m2\n  sase task kill k7m2 --json"),
+    )
+    kill_parser.add_argument(
+        "task_id",
+        metavar="ID",
+        help="Task id or unique id prefix",
+    )
+    kill_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON result",
     )
 
     list_parser = task_sub.add_parser(
@@ -45,6 +72,7 @@ def register_task_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase task list --running\n"
             "  sase task list --all --limit 10\n"
             "  sase task list --tag epic --json\n"
+            "  sase task list --detached\n"
             "  sase task list --session latest --status error"
         ),
     )
@@ -55,10 +83,28 @@ def register_task_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Include tasks from every session (default: this session plus unattributed)",
     )
     list_parser.add_argument(
+        "-d",
+        "--detached",
+        action="store_true",
+        help="Only detached tasks (shorthand for --kind detached)",
+    )
+    list_parser.add_argument(
         "-j",
         "--json",
         action="store_true",
         help="Emit a machine-readable JSON envelope (stable schema)",
+    )
+    list_parser.add_argument(
+        "-k",
+        "--kind",
+        action="append",
+        choices=TASK_KIND_CHOICES,
+        default=None,
+        metavar="KIND",
+        help=(
+            "Only tasks of this kind; repeat to add more "
+            f"({', '.join(TASK_KIND_CHOICES)})"
+        ),
     )
     list_parser.add_argument(
         "-n",
@@ -131,6 +177,7 @@ def register_task_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             "  sase task run -- just check\n"
+            "  sase task run --detached -- ./overnight.sh\n"
             "  sase task run --wait -- pytest -x\n"
             "  sase task run --label 'Nightly docs' --tag docs -- just docs\n"
             "  sase task run --session none --json -- ./slow_script.sh"
@@ -169,7 +216,14 @@ def register_task_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Print only the new task id",
     )
-    run_parser.add_argument(
+    run_scope = run_parser.add_mutually_exclusive_group()
+    run_scope.add_argument(
+        "-d",
+        "--detached",
+        action="store_true",
+        help="Make the task global instead of attributing it to a session",
+    )
+    run_scope.add_argument(
         "-s",
         "--session",
         default=None,
@@ -261,4 +315,4 @@ def register_task_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-__all__ = ["TASK_STATUS_CHOICES", "register_task_parser"]
+__all__ = ["TASK_KIND_CHOICES", "TASK_STATUS_CHOICES", "register_task_parser"]
