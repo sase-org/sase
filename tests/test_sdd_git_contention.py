@@ -15,12 +15,17 @@ from sase.git_lock_retry import (
     ENV_GIT_LOCK_RETRY_DELAYS as ENV_SHARED_GIT_LOCK_RETRY_DELAYS,
 )
 from sase.sdd._git_contention import (
+    DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS,
+    DEFAULT_WORKTREE_MUTATION_LOCK_TIMEOUT_SECONDS,
     ENV_GIT_LOCK_RETRY_DELAYS as ENV_SDD_GIT_LOCK_RETRY_DELAYS,
+    ENV_STORE_WRITE_LOCK_TIMEOUT,
     STORE_WRITE_LOCK_FILENAME,
+    _store_write_lock_timeout,
     _StoreWriteLockUsageError,
     _git_lock_retry_delays,
     handoff_store_git_write_lock,
     store_git_write_lock,
+    store_git_write_lock_factory,
 )
 
 
@@ -61,6 +66,91 @@ def test_store_git_write_lock_has_bounded_fail_open_timeout(tmp_path: Path) -> N
 
     with store_git_write_lock(tmp_path, timeout=0) as acquired:
         assert acquired is True
+
+
+def test_worktree_mutating_callers_wait_far_longer_than_single_command_writers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(ENV_STORE_WRITE_LOCK_TIMEOUT, raising=False)
+
+    assert (
+        _store_write_lock_timeout(DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS)
+        == DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS
+    )
+    assert (
+        _store_write_lock_timeout(DEFAULT_WORKTREE_MUTATION_LOCK_TIMEOUT_SECONDS)
+        == DEFAULT_WORKTREE_MUTATION_LOCK_TIMEOUT_SECONDS
+    )
+    assert (
+        DEFAULT_WORKTREE_MUTATION_LOCK_TIMEOUT_SECONDS
+        > DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS * 10
+    )
+
+    # One knob still overrides every call site, including the longer bound.
+    monkeypatch.setenv(ENV_STORE_WRITE_LOCK_TIMEOUT, "2.5")
+    assert _store_write_lock_timeout(DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS) == 2.5
+    assert (
+        _store_write_lock_timeout(DEFAULT_WORKTREE_MUTATION_LOCK_TIMEOUT_SECONDS) == 2.5
+    )
+
+    monkeypatch.setenv(ENV_STORE_WRITE_LOCK_TIMEOUT, "not-a-number")
+    assert (
+        _store_write_lock_timeout(DEFAULT_WORKTREE_MUTATION_LOCK_TIMEOUT_SECONDS)
+        == DEFAULT_WORKTREE_MUTATION_LOCK_TIMEOUT_SECONDS
+    )
+
+
+def test_worktree_mutation_wait_is_used_and_env_configurable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    lock_path = tmp_path / ".git" / STORE_WRITE_LOCK_FILENAME
+    monkeypatch.setenv(ENV_STORE_WRITE_LOCK_TIMEOUT, "0.05")
+    waits: list[float] = []
+    monkeypatch.setattr(
+        "sase.sdd._git_contention._acquire_store_write_lock",
+        lambda fd, *, timeout: waits.append(timeout) or False,
+    )
+
+    with store_git_write_lock(tmp_path, op="bead.claim", mutates_worktree=True) as ok:
+        assert ok is False
+    with store_git_write_lock(tmp_path, op="sdd.recovery.notice") as ok:
+        assert ok is False
+
+    assert waits == [0.05, 0.05]
+    assert lock_path.exists()
+
+    monkeypatch.delenv(ENV_STORE_WRITE_LOCK_TIMEOUT)
+    waits.clear()
+    with store_git_write_lock(tmp_path, op="bead.claim", mutates_worktree=True):
+        pass
+    with store_git_write_lock(tmp_path, op="sdd.recovery.notice"):
+        pass
+
+    assert waits == [
+        DEFAULT_WORKTREE_MUTATION_LOCK_TIMEOUT_SECONDS,
+        DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS,
+    ]
+
+
+def test_fail_open_warning_names_the_operation_that_proceeded_unlocked(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    lock_path = tmp_path / ".git" / STORE_WRITE_LOCK_FILENAME
+    lock_factory = store_git_write_lock_factory(op="bead.claim", mutates_worktree=True)
+
+    with lock_path.open("a+", encoding="utf-8") as held_lock:
+        fcntl.flock(held_lock.fileno(), fcntl.LOCK_EX)
+        with caplog.at_level("WARNING", logger="sase.sdd._git_contention"):
+            with lock_factory(tmp_path, timeout=0.01) as acquired:  # type: ignore[call-arg]
+                assert acquired is False
+        fcntl.flock(held_lock.fileno(), fcntl.LOCK_UN)
+
+    assert "bead.claim" in caplog.text
+    assert str(lock_path) in caplog.text
 
 
 def test_store_git_write_lock_requires_explicit_handoff_for_nested_use(

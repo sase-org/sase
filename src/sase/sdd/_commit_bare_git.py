@@ -120,7 +120,11 @@ def commit_bare_git_sdd_init_paths(
         require_sdd_repository_health,
     )
 
-    with store_git_write_lock(git_root) as acquired:
+    with store_git_write_lock(
+        git_root,
+        op="bare_git_sdd_init",
+        mutates_worktree=True,
+    ) as acquired:
         if not acquired:
             raise SddRepositoryHealthError(
                 f"SDD repository {git_root.resolve()} could not acquire its store "

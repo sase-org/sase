@@ -18,6 +18,7 @@ class SddIntegrationStatus(StrEnum):
     REPAIRED_BEAD_CONFLICTS = "repaired_bead_conflicts"
     ABORTED_UNSUPPORTED_CONFLICTS = "aborted_unsupported_conflicts"
     LOCAL_CHANGES = "local_changes_preserved"
+    LOCK_UNAVAILABLE = "store_write_lock_unavailable"
     RECOVERED = "machine_managed_recovered"
     RECOVERY_COOLDOWN = "machine_managed_recovery_cooldown"
     RECOVERY_FAILED = "machine_managed_recovery_failed"

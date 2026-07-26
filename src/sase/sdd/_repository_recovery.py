@@ -59,9 +59,12 @@ def recover_machine_managed_sdd_repository(
     root = repo_root.expanduser().resolve()
     runner = git_runner or default_git_runner
     if lock_factory is None:
-        from sase.sdd._git_contention import store_git_write_lock
+        from sase.sdd._git_contention import store_git_write_lock_factory
 
-        lock_factory = store_git_write_lock
+        lock_factory = store_git_write_lock_factory(
+            op=f"{op_prefix}.recovery",
+            mutates_worktree=True,
+        )
     now = (clock or time.time)()
     cooldown = (
         _machine_recovery_cooldown_seconds()
@@ -71,12 +74,17 @@ def recover_machine_managed_sdd_repository(
 
     with lock_factory(root) as acquired:
         if not acquired:
-            return _managed_recovery_failure(
-                root,
-                original=original,
-                detail="could not acquire the store write lock",
-                runner=runner,
-                expected_branch=expected_branch,
+            # Recovery resets and stashes a shared clone. Doing that while
+            # another cooperating writer holds the lock is exactly how committed
+            # bead claims get discarded, so contention defers instead of
+            # escalating to a reportable recovery failure.
+            return SddIntegrationOutcome(
+                SddIntegrationStatus.LOCK_UNAVAILABLE,
+                error=(
+                    f"SDD repository {root} could not acquire its store write "
+                    "lock for machine-managed recovery; retry after the active "
+                    "writer finishes"
+                ),
             )
         try:
             starting = inspect_sdd_repository(root, runner)

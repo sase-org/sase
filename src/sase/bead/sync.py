@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -60,7 +60,11 @@ def bead_store_write_lock(beads_dir: Path) -> Iterator[bool]:
     if repo_root is None:
         yield False
         return
-    with store_git_write_lock(repo_root) as acquired:
+    with store_git_write_lock(
+        repo_root,
+        op="bead.store_mutation",
+        mutates_worktree=True,
+    ) as acquired:
         if not acquired:
             raise SddRepositoryHealthError(
                 f"SDD repository {repo_root} could not acquire its store write "
@@ -70,13 +74,31 @@ def bead_store_write_lock(beads_dir: Path) -> Iterator[bool]:
         yield True
 
 
-def git_sync(beads_dir: Path, *, already_locked: bool = False) -> None:
-    """Stage bead state in git (does not commit)."""
+def _bead_worktree_lock_factory(
+    *,
+    already_locked: bool,
+    op: str,
+) -> Callable[[Path], AbstractContextManager[bool]]:
+    """Pick the store-lock acquisition for one bead worktree mutation.
+
+    Every bead writer materializes JSONL into a shared SDD worktree and then
+    commits it, so none of them may proceed unlocked. They wait on the
+    worktree-mutation bound and fail closed, or hand off a lock the caller
+    already owns.
+    """
     from sase.sdd._git_contention import (
         handoff_store_git_write_lock,
-        run_sdd_git_write,
-        store_git_write_lock,
+        store_git_write_lock_factory,
     )
+
+    if already_locked:
+        return handoff_store_git_write_lock
+    return store_git_write_lock_factory(op=op, mutates_worktree=True)
+
+
+def git_sync(beads_dir: Path, *, already_locked: bool = False) -> None:
+    """Stage bead state in git (does not commit)."""
+    from sase.sdd._git_contention import run_sdd_git_write
     from sase.sdd._repository_transaction import (
         SddRepositoryHealthError,
         require_sdd_repository_health,
@@ -87,8 +109,9 @@ def git_sync(beads_dir: Path, *, already_locked: bool = False) -> None:
     repo_root = _find_git_root(beads_dir)
     if repo_root is None:
         return
-    lock_factory = (
-        handoff_store_git_write_lock if already_locked else store_git_write_lock
+    lock_factory = _bead_worktree_lock_factory(
+        already_locked=already_locked,
+        op="bead.git_sync",
     )
     with lock_factory(repo_root) as acquired:
         if not acquired:
@@ -213,10 +236,6 @@ def _commit_bead_state(
 ) -> bool:
     """Commit only changed bead-state files with a stage-specific message."""
     from sase.sdd._git import run_sdd_git
-    from sase.sdd._git_contention import (
-        handoff_store_git_write_lock,
-        store_git_write_lock,
-    )
     from sase.sdd._repository_transaction import (
         SddRepositoryHealthError,
         require_sdd_repository_health,
@@ -229,8 +248,9 @@ def _commit_bead_state(
         return False
 
     rel_beads = _relative_pathspec(beads_dir, repo_root)
-    lock_factory = (
-        handoff_store_git_write_lock if already_locked else store_git_write_lock
+    lock_factory = _bead_worktree_lock_factory(
+        already_locked=already_locked,
+        op=op_prefix,
     )
     with lock_factory(repo_root) as acquired:
         if not acquired:
@@ -596,7 +616,11 @@ def refresh_bead_store(beads_dir: Path) -> None:
     from sase.sdd._repository_transaction import integrate_sdd_repository
 
     observed_generation = integration_marker_generation(repo_root)
-    with store_git_write_lock(repo_root) as acquired:
+    with store_git_write_lock(
+        repo_root,
+        op="bead.refresh",
+        mutates_worktree=True,
+    ) as acquired:
         current_generation = integration_marker_generation(repo_root)
         if current_generation is not None and current_generation != observed_generation:
             return

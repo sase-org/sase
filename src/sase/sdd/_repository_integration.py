@@ -48,9 +48,12 @@ def integrate_sdd_repository_transaction(
     """
     root = repo_root.expanduser().resolve()
     if lock_factory is None:
-        from sase.sdd._git_contention import store_git_write_lock
+        from sase.sdd._git_contention import store_git_write_lock_factory
 
-        lock_factory = store_git_write_lock
+        lock_factory = store_git_write_lock_factory(
+            op=f"{op_prefix}.transaction",
+            mutates_worktree=True,
+        )
 
     # A read-only preflight prevents a known-poisoned checkout from having even
     # its remote-tracking refs changed by fetch. State is checked again under
@@ -82,8 +85,11 @@ def integrate_sdd_repository_transaction(
 
     with lock_factory(root) as acquired:
         if not acquired:
+            # Contention says another cooperating writer is busy, not that this
+            # checkout is broken. Reporting UNRECOVERABLE here would authorize
+            # destructive machine-managed recovery against a healthy clone.
             return SddIntegrationOutcome(
-                SddIntegrationStatus.UNRECOVERABLE,
+                SddIntegrationStatus.LOCK_UNAVAILABLE,
                 error=(
                     f"SDD repository {root} could not acquire its store write "
                     "lock; retry after the active writer finishes"

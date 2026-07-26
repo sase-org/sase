@@ -119,6 +119,9 @@ def integrate_machine_managed_sdd_repository(
     if outcome.succeeded or outcome.status in {
         SddIntegrationStatus.REMOTE_UNAVAILABLE,
         SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS,
+        # Another cooperating writer holds the lock; destructive recovery would
+        # race it rather than repair anything.
+        SddIntegrationStatus.LOCK_UNAVAILABLE,
     }:
         if outcome.succeeded:
             _safe_reap_recovery_residue(

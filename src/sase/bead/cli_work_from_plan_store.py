@@ -80,7 +80,14 @@ def require_plan_store_health(store: SddStore) -> None:
         require_sdd_repository_health,
     )
 
-    with store_git_write_lock(repo_root) as acquired:
+    # This preflight gates plan and bead worktree mutations, so it waits on the
+    # same bound they do; a 10s bound would reject a burst that the mutation it
+    # guards would have survived.
+    with store_git_write_lock(
+        repo_root,
+        op="bead.plan_store_preflight",
+        mutates_worktree=True,
+    ) as acquired:
         if not acquired:
             raise SddRepositoryHealthError(
                 f"SDD repository {repo_root.resolve()} could not acquire its store "

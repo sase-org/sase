@@ -50,9 +50,12 @@ def admit_recovery_notice(
     root = repo_root.expanduser().resolve()
     runner = git_runner or default_git_runner
     if lock_factory is None:
-        from sase.sdd._git_contention import store_git_write_lock
+        from sase.sdd._git_contention import store_git_write_lock_factory
 
-        lock_factory = store_git_write_lock
+        # The only deliberate short-wait site: this writes an advisory marker
+        # inside the git dir, never the worktree, and declining to admit a
+        # notice under contention just defers a duplicate warning.
+        lock_factory = store_git_write_lock_factory(op="sdd.recovery.notice")
     now = (clock or time.time)()
     marker_name = _RECOVERY_REPORT_MARKER if report else _RECOVERY_WARNING_MARKER
     cooldown = _REPORT_COOLDOWN_SECONDS if report else _WARNING_COOLDOWN_SECONDS

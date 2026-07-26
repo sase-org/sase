@@ -48,7 +48,11 @@ def commit_sdd_files(
         return False
 
     pathspecs = normalize_sdd_commit_pathspecs(sdd_dir, paths)
-    with store_git_write_lock(sdd_dir) as acquired:
+    with store_git_write_lock(
+        sdd_dir,
+        op="sdd.commit_files",
+        mutates_worktree=True,
+    ) as acquired:
         if not acquired:
             raise SddRepositoryHealthError(
                 f"SDD repository {sdd_dir.resolve()} could not acquire its store "

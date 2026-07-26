@@ -1,9 +1,10 @@
 """Serialization and retry helpers for git writes in SDD stores."""
 
-from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
 import fcntl
+import functools
 import logging
 import os
 from pathlib import Path
@@ -22,6 +23,11 @@ ENV_GIT_LOCK_RETRY_DELAYS = "SASE_SDD_GIT_LOCK_RETRY_DELAYS"
 DEFAULT_GIT_LOCK_RETRY_DELAYS = SHARED_GIT_LOCK_RETRY_DELAYS
 ENV_STORE_WRITE_LOCK_TIMEOUT = "SASE_SDD_STORE_WRITE_LOCK_TIMEOUT"
 DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS = 10.0
+# A worktree-mutating caller holds the lock across materialization, staging and
+# commit, so a legitimate holder now does far more work than a single git write.
+# Waiting minutes is cheaper than proceeding unlocked into another process's
+# rebase, which is what produced the discarded bead claims this bound guards.
+DEFAULT_WORKTREE_MUTATION_LOCK_TIMEOUT_SECONDS = 180.0
 STORE_WRITE_LOCK_FILENAME = "sase-store-write.lock"
 _STORE_WRITE_LOCK_POLL_SECONDS = 0.05
 
@@ -94,15 +100,31 @@ def store_git_write_lock(
     repo_root: Path,
     *,
     timeout: float | None = None,
+    op: str | None = None,
+    mutates_worktree: bool = False,
 ) -> Iterator[bool]:
     """Boundedly serialize a store-repo write transaction.
 
-    The context yields whether the lock was acquired. Acquisition deliberately
-    fails open after the timeout: transient git lock retries remain the final
-    safety net if a non-cooperating or long-running process holds the lock.
+    The context yields whether the lock was acquired. Acquisition fails open
+    after the timeout: transient git lock retries remain the final safety net
+    for a single git command if a non-cooperating or long-running process holds
+    the lock. That reasoning does not extend to a caller that mutates a shared
+    worktree and needs the whole mutate-then-commit sequence to be atomic, so
+    such callers pass ``mutates_worktree=True`` to wait far longer, and every
+    one of them treats a false yield as a failure rather than proceeding.
+
+    ``op`` names the operation in the fail-open warning, so the next incident
+    identifies the caller that proceeded unlocked instead of only the clone.
     """
+    default_timeout = (
+        DEFAULT_WORKTREE_MUTATION_LOCK_TIMEOUT_SECONDS
+        if mutates_worktree
+        else DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS
+    )
     timeout_seconds = (
-        _store_write_lock_timeout() if timeout is None else max(0.0, timeout)
+        _store_write_lock_timeout(default_timeout)
+        if timeout is None
+        else max(0.0, timeout)
     )
     lock_path = _canonical_store_write_lock_path(repo_root)
     held_locks = _held_store_write_locks.get()
@@ -119,10 +141,11 @@ def store_git_write_lock(
         )
         if not acquired:
             _logger.warning(
-                "Timed out after %.3fs waiting for SDD store write lock %s; "
-                "proceeding without it",
+                "Timed out after %.3fs waiting for SDD store write lock %s "
+                "during %s; proceeding without it",
                 timeout_seconds,
                 lock_path,
+                op or "an unnamed store write",
             )
         token = None
         if acquired:
@@ -153,6 +176,23 @@ def handoff_store_git_write_lock(repo_root: Path) -> Iterator[bool]:
     yield True
 
 
+def store_git_write_lock_factory(
+    *,
+    op: str,
+    mutates_worktree: bool = False,
+) -> Callable[[Path], AbstractContextManager[bool]]:
+    """Bind an operation label to the store write lock for ``LockFactory`` use.
+
+    Callers that thread a lock factory through an API (integration, recovery)
+    cannot pass keywords at the acquisition site, so they bind them here.
+    """
+    return functools.partial(
+        store_git_write_lock,
+        op=op,
+        mutates_worktree=mutates_worktree,
+    )
+
+
 def _checked_result(
     result: subprocess.CompletedProcess[Any],
     *,
@@ -181,15 +221,20 @@ def _git_lock_retry_delays() -> tuple[float, ...]:
     return delays
 
 
-def _store_write_lock_timeout() -> float:
+def _store_write_lock_timeout(default: float) -> float:
+    """Resolve the wait bound, letting one env var override every caller.
+
+    The bound stays configurable through a single knob on purpose: operators
+    tune store-lock patience for a whole machine, not per call site.
+    """
     raw = os.environ.get(ENV_STORE_WRITE_LOCK_TIMEOUT)
     if raw is None:
-        return DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS
+        return default
     try:
         timeout = float(raw)
     except ValueError:
-        return DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS
-    return timeout if timeout >= 0 else DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS
+        return default
+    return timeout if timeout >= 0 else default
 
 
 def _store_write_lock_path(repo_root: Path) -> Path:

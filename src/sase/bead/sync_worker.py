@@ -62,7 +62,7 @@ def _run_locked_sync(
     os.environ["GIT_TERMINAL_PROMPT"] = "0"
     _log(log_path, "started", repo_root=str(repo_root), beads_dir=str(beads_dir))
 
-    from sase.sdd._git_contention import store_git_write_lock
+    from sase.sdd._git_contention import store_git_write_lock_factory
     from sase.sdd._repository_transaction import integrate_sdd_repository
 
     integration = integrate_sdd_repository(
@@ -70,7 +70,10 @@ def _run_locked_sync(
         beads_dir=beads_dir,
         op_prefix="bead.sync",
         git_runner=_git,
-        lock_factory=store_git_write_lock,
+        lock_factory=store_git_write_lock_factory(
+            op="bead.sync.transaction",
+            mutates_worktree=True,
+        ),
         event_logger=lambda event, **fields: _log(log_path, event, **fields),
     )
     _log(

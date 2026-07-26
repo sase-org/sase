@@ -302,7 +302,11 @@ def _require_usable_sdd_store(repo_root: Path) -> None:
         require_sdd_repository_health,
     )
 
-    with store_git_write_lock(repo_root) as acquired:
+    with store_git_write_lock(
+        repo_root,
+        op="axe.accepted_plan_preflight",
+        mutates_worktree=True,
+    ) as acquired:
         if not acquired:
             raise SddRepositoryHealthError(
                 f"SDD repository {repo_root.resolve()} could not acquire its store "
