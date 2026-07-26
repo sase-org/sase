@@ -43,6 +43,9 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.paths import sase_home, sase_projects_dir
+from sase.ace.tui.models.agent_types import AgentType
+
+DismissedIdentity = tuple[AgentType, str, str | None]
 
 
 def recover_v2_import_transactions(
@@ -97,6 +100,7 @@ def prepare_transaction(target: ProjectTarget, plan: HoodPlan) -> None:
 
     bundle_locations: dict[str, Path] = {}
     bundle_payloads: dict[str, dict[str, Any]] = {}
+    dismissed_identities: list[dict[str, str | None]] = []
     chat_paths: dict[str, Path | None] = {}
     for run in plan.changed_runs:
         record = run.payload.record
@@ -154,6 +158,7 @@ def prepare_transaction(target: ProjectTarget, plan: HoodPlan) -> None:
         bundle_destination = dismissed_bundles_dir() / bundle_relative
         bundle_locations[record.source_run_id] = bundle_destination
         bundle_payloads[record.source_run_id] = bundle
+        dismissed_identities.append(_dismissed_identity_row(bundle))
         stage_file(
             stage,
             files,
@@ -228,6 +233,7 @@ def prepare_transaction(target: ProjectTarget, plan: HoodPlan) -> None:
         "files": files,
         "groups": groups,
         "claims": claims,
+        "dismissed_identities": dismissed_identities,
         "artifact_relatives": sorted(
             {
                 row["relative"].rsplit("/", 1)[0]
@@ -276,7 +282,85 @@ def _finalize_transaction(target: ProjectTarget, journal: dict[str, Any]) -> Non
         )
     _apply_staged_files(target, journal, journal["groups"])
     _update_dismissed_bundle_index(target, journal)
-    sync_dismissed_agent_artifact_index(force=True)
+    _record_imported_dismissed_agents(journal)
+
+
+def _record_imported_dismissed_agents(journal: dict[str, Any]) -> None:
+    identities = _dismissed_identities_from_journal(journal)
+    if not identities:
+        sync_dismissed_agent_artifact_index()
+        return
+
+    from sase.ace.dismissed_agents import (
+        load_dismissed_agents,
+        save_dismissed_agents,
+    )
+
+    dismissed = load_dismissed_agents()
+    added = identities - dismissed
+    if added:
+        dismissed.update(added)
+        if not save_dismissed_agents(dismissed):
+            raise AgentsSyncFormatError("failed to save imported dismissed identities")
+        sync_dismissed_agent_artifact_index(dismissed, added=added)
+        return
+    sync_dismissed_agent_artifact_index(dismissed)
+
+
+def _dismissed_identity_row(bundle: Mapping[str, Any]) -> dict[str, str | None]:
+    agent_type = bundle.get("agent_type")
+    cl_name = bundle.get("cl_name")
+    raw_suffix = bundle.get("raw_suffix")
+    if not isinstance(agent_type, str) or not agent_type:
+        raise AgentsSyncFormatError("dismissed import identity missing agent_type")
+    if not isinstance(cl_name, str) or not cl_name:
+        raise AgentsSyncFormatError("dismissed import identity missing cl_name")
+    if raw_suffix is not None and not isinstance(raw_suffix, str):
+        raise AgentsSyncFormatError("dismissed import identity has invalid raw_suffix")
+    return {
+        "agent_type": agent_type,
+        "cl_name": cl_name,
+        "raw_suffix": raw_suffix,
+    }
+
+
+def _dismissed_identities_from_journal(
+    journal: Mapping[str, Any],
+) -> set[DismissedIdentity]:
+    rows = journal.get("dismissed_identities", [])
+    if not isinstance(rows, list):
+        raise AgentsSyncFormatError(
+            "import journal dismissed_identities must be a list"
+        )
+    identities: set[DismissedIdentity] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise AgentsSyncFormatError(
+                "import journal dismissed identity must be an object"
+            )
+        agent_type = row.get("agent_type")
+        cl_name = row.get("cl_name")
+        raw_suffix = row.get("raw_suffix")
+        if not isinstance(agent_type, str):
+            raise AgentsSyncFormatError(
+                "import journal dismissed identity missing agent_type"
+            )
+        try:
+            typed_agent_type = AgentType(agent_type)
+        except ValueError as exc:
+            raise AgentsSyncFormatError(
+                f"unknown import journal dismissed agent type {agent_type!r}"
+            ) from exc
+        if not isinstance(cl_name, str) or not cl_name:
+            raise AgentsSyncFormatError(
+                "import journal dismissed identity missing cl_name"
+            )
+        if raw_suffix is not None and not isinstance(raw_suffix, str):
+            raise AgentsSyncFormatError(
+                "import journal dismissed identity has invalid raw_suffix"
+            )
+        identities.add((typed_agent_type, cl_name, raw_suffix))
+    return identities
 
 
 def _update_dismissed_bundle_index(

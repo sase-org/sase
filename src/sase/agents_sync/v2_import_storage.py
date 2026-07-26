@@ -17,7 +17,8 @@ from sase.agents_sync.v2_import_rendering import json_bytes
 from sase.agents_sync.v2_io import content_digest, validate_relative_path
 from sase.core.paths import sase_home, sase_projects_dir
 
-JOURNAL_SCHEMA_VERSION = 1
+JOURNAL_SCHEMA_VERSION = 2
+_SUPPORTED_JOURNAL_SCHEMA_VERSIONS = {1, JOURNAL_SCHEMA_VERSION}
 _IMPORT_DIR_NAME = "agents_sync_imports"
 _TRANSACTION_RE = re.compile(r"^[a-z0-9-]{16,96}$")
 
@@ -52,7 +53,8 @@ def read_journal(path: Path) -> dict[str, Any]:
     value = read_json(path)
     if not isinstance(value, dict):
         raise AgentsSyncFormatError(f"invalid import journal {path}")
-    if value.get("schema_version") != JOURNAL_SCHEMA_VERSION:
+    schema_version = value.get("schema_version")
+    if schema_version not in _SUPPORTED_JOURNAL_SCHEMA_VERSIONS:
         raise AgentsSyncFormatError("unsupported import journal schema")
     key = value.get("transaction_key")
     if not isinstance(key, str) or not transaction_key_is_valid(key):
@@ -65,7 +67,17 @@ def read_journal(path: Path) -> dict[str, Any]:
         "complete",
     }:
         raise AgentsSyncFormatError("invalid import journal state")
-    for list_key in ("files", "groups", "claims", "artifact_relatives"):
+    if schema_version == 1:
+        value = dict(value)
+        value.setdefault("dismissed_identities", [])
+        value["schema_version"] = JOURNAL_SCHEMA_VERSION
+    for list_key in (
+        "files",
+        "groups",
+        "claims",
+        "artifact_relatives",
+        "dismissed_identities",
+    ):
         if not isinstance(value.get(list_key), list):
             raise AgentsSyncFormatError(f"import journal {list_key} must be a list")
     return value

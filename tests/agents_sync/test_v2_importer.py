@@ -13,6 +13,7 @@ from sase.ace import dismissed_agents
 from sase.ace import dismissed_agents_bundles
 from sase.ace import dismissed_bundle_index
 from sase.ace.tui.models._loaders import _done_loaders
+from sase.ace.tui.models.agent_types import AgentType
 from sase.agents_sync import inventory
 from sase.agents_sync import v2_importer
 from sase.agents_sync import v2_import_history
@@ -181,10 +182,15 @@ def _isolate_local_state(
     monkeypatch.setattr(
         v2_import_transactions,
         "sync_dismissed_agent_artifact_index",
-        lambda **_kwargs: None,
+        lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(v2_import_storage, "dismissed_bundles_dir", lambda: bundles)
     monkeypatch.setattr(v2_import_storage, "dismissed_groups_dir", lambda: groups)
+    monkeypatch.setattr(
+        dismissed_agents,
+        "_DISMISSED_AGENTS_FILE",
+        state / "dismissed_agents.json",
+    )
     monkeypatch.setattr(
         v2_import_transactions, "dismissed_bundles_dir", lambda: bundles
     )
@@ -290,6 +296,9 @@ def test_family_import_recovers_as_one_visible_idempotent_group(
         dismissed_agents_bundles.load_bundle_file(path) is not None
         for path in bundle_paths
     )
+    assert dismissed_agents.load_dismissed_agents() == {
+        (AgentType.RUNNING, PROJECT.key, path.name) for path in artifacts
+    }
 
     metas = [
         json.loads((artifact / "agent_meta.json").read_text()) for artifact in artifacts
@@ -355,6 +364,57 @@ def test_family_import_recovers_as_one_visible_idempotent_group(
     assert refreshed_group.times_revived == 2
     assert len(list(artifact_root.glob("*"))) == 2
     assert len(list(groups.glob("agents-sidecar-*.json"))) == 1
+
+
+def test_v2_import_records_dismissed_agent_identities(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, package = _published_package(tmp_path)
+    artifact_root, _groups, _claims = _isolate_local_state(
+        tmp_path,
+        target,
+        monkeypatch,
+    )
+    sync_calls: list[tuple[set[object], set[object]]] = []
+
+    def sync_index(
+        dismissed: object = None,
+        *,
+        added: object = None,
+        **_kwargs: object,
+    ) -> bool:
+        sync_calls.append((set(dismissed or ()), set(added or ())))
+        return True
+
+    monkeypatch.setattr(
+        v2_import_transactions,
+        "sync_dismissed_agent_artifact_index",
+        sync_index,
+    )
+
+    imported = v2_importer.integrate_v2_hoods(
+        target,
+        (package,),
+        identity=AgentIdentitySnapshot(LOCAL_OWNER),
+    )
+
+    assert imported.hoods_imported == 1
+    expected = {
+        (AgentType.RUNNING, PROJECT.key, path.name)
+        for path in sorted(artifact_root.glob("*"))
+    }
+    assert dismissed_agents.load_dismissed_agents() == expected
+    assert sync_calls == [(expected, expected)]
+    journal_paths = list(
+        v2_import_storage.journals_dir(target.project_key).glob("*.json")
+    )
+    assert len(journal_paths) == 1
+    journal = v2_import_storage.read_journal(journal_paths[0])
+    assert {
+        (row["agent_type"], row["cl_name"], row["raw_suffix"])
+        for row in journal["dismissed_identities"]
+    } == {("run", cl_name, raw_suffix) for _, cl_name, raw_suffix in expected}
 
 
 def test_exact_current_owner_commit_evidence_observes_without_duplicate(
@@ -667,6 +727,122 @@ def test_import_finalization_upserts_bundle_index_without_full_rebuild(
             {"agent_name": "crew--plan"},
         )
     ]
+
+
+def test_import_finalize_dismissed_state_is_idempotent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _target(tmp_path)
+    dismissed_file = tmp_path / "state" / "dismissed_agents.json"
+    existing = (AgentType.RUNNING, PROJECT.key, "20260724115959")
+    imported = (AgentType.RUNNING, PROJECT.key, "20260724120000")
+    sync_calls: list[tuple[set[object], set[object]]] = []
+
+    def sync_index(
+        dismissed: object = None,
+        *,
+        added: object = None,
+        **_kwargs: object,
+    ) -> bool:
+        sync_calls.append((set(dismissed or ()), set(added or ())))
+        return True
+
+    monkeypatch.setattr(dismissed_agents, "_DISMISSED_AGENTS_FILE", dismissed_file)
+    assert dismissed_agents.save_dismissed_agents({existing})
+    monkeypatch.setattr(
+        v2_import_transactions,
+        "update_agent_artifact_index_for_marker_mutation",
+        lambda _path: None,
+    )
+    monkeypatch.setattr(
+        v2_import_transactions,
+        "_apply_staged_files",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        v2_import_transactions,
+        "_update_dismissed_bundle_index",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        v2_import_transactions,
+        "sync_dismissed_agent_artifact_index",
+        sync_index,
+    )
+    journal = {
+        "artifact_relatives": [],
+        "groups": [],
+        "files": [],
+        "dismissed_identities": [
+            {
+                "agent_type": "run",
+                "cl_name": PROJECT.key,
+                "raw_suffix": imported[2],
+            },
+            {
+                "agent_type": "run",
+                "cl_name": PROJECT.key,
+                "raw_suffix": imported[2],
+            },
+        ],
+    }
+
+    v2_import_transactions._finalize_transaction(target, journal)
+    first_payload = dismissed_file.read_text()
+    v2_import_transactions._finalize_transaction(target, journal)
+
+    assert dismissed_agents.load_dismissed_agents() == {existing, imported}
+    assert dismissed_file.read_text() == first_payload
+    assert sync_calls == [
+        ({existing, imported}, {imported}),
+        ({existing, imported}, set()),
+    ]
+
+
+def test_recover_v2_import_transaction_accepts_legacy_journal_schema(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _target(tmp_path)
+    _isolate_local_state(tmp_path, target, monkeypatch)
+    transaction_key = "legacy-journal-0001"
+    path = v2_import_storage.journal_path(target.project_key, transaction_key)
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "transaction_key": transaction_key,
+                "project_key": target.project_key,
+                "source_owner": {
+                    "username": SOURCE_OWNER.username,
+                    "machine_name": SOURCE_OWNER.machine_name,
+                },
+                "hood": "crew",
+                "snapshot_digest": "1" * 64,
+                "state": "applied",
+                "stage_relative": f"staging/{transaction_key}",
+                "files": [],
+                "groups": [],
+                "claims": [],
+                "artifact_relatives": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert (
+        v2_import_transactions.recover_v2_import_transactions(
+            target,
+            identity=AgentIdentitySnapshot(LOCAL_OWNER),
+        )
+        == ()
+    )
+    recovered = v2_import_storage.read_journal(path)
+    assert recovered["state"] == "complete"
+    assert recovered["schema_version"] == v2_import_storage.JOURNAL_SCHEMA_VERSION
+    assert recovered["dismissed_identities"] == []
 
 
 def test_shared_preflight_context_recovers_transactions_once(
