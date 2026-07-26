@@ -23,6 +23,7 @@ from sase.ace.tui.widgets._prompt_text_area_key_handling import (
 from sase.ace.tui.widgets._prompt_search import PromptSearchMixin
 from sase.ace.tui.widgets._prompt_jump import PromptJumpMixin
 from sase.ace.tui.widgets._prompt_preview import PromptPreviewMixin
+from sase.ace.tui.widgets._prompt_word_lookup import PromptWordLookupMixin
 from sase.ace.tui.widgets._prompt_format import PromptFormatMixin
 from sase.ace.tui.widgets._search_highlight import SearchHighlightMixin
 from sase.ace.tui.widgets._todo_highlight import TodoHighlightMixin
@@ -78,6 +79,7 @@ class PromptTextArea(
     PromptSearchMixin,
     PromptFormatMixin,
     PromptPreviewMixin,
+    PromptWordLookupMixin,
     PromptJumpMixin,
     CodeBlockHighlightMixin,
     PlaceholderHighlightMixin,

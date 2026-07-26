@@ -2939,8 +2939,21 @@ possible, falls back to a bounded filesystem walk, and inserts the selected path
 the finder opened. Inside the finder, type to filter, use `Ctrl+N` / `Ctrl+P` or arrows to move, `Ctrl+U` to clear the
 query, `Enter` to insert, and `Esc` to cancel.
 
-In prompt NORMAL mode, `K` previews the xprompt, slash skill, or file under the cursor, and `Ctrl+]` jumps to its
-definition or opens an action picker when several jump targets are available.
+In prompt NORMAL mode, `K` previews the xprompt, slash skill, or file under the cursor. As a fallback, `K` on a plain
+word opens its definition or offers spelling fixes. `Ctrl+]` jumps to an xprompt, skill, or file definition, or opens an
+action picker when several jump targets are available.
+
+#### Word definitions & spellcheck
+
+When no xprompt, slash skill, workflow, or file target matches, `K` treats a plain natural-language word under the
+cursor as a lookup target. Correctly spelled words open a scrollable definition panel; use `j` / `k`, `Ctrl+D` /
+`Ctrl+U`, and `g` / `G` to navigate it. Misspelled words open a compact correction panel: press `1`–`9` to apply a
+suggestion immediately, or move with `j` / `k` and press `Enter`. The replacement is an ordinary undoable prompt edit.
+
+Definitions require the optional `dict` command. Spell checking requires GNU `aspell` with an English dictionary
+(`aspell-en` on Debian; Homebrew's package bundles English). If either tool is absent, ACE explains the unavailable
+feature without affecting the rest of prompt preview. Run `sase doctor -D` to see the exact optional-tool status and
+installation hint.
 
 ACE also computes a non-disruptive live suggestion after a short debounce while the prompt input is in INSERT mode. The
 suggestion appears in the prompt bar subtitle as `[^L] accept ...`; press `Ctrl+L` to accept it. `Enter` still submits
@@ -3121,7 +3134,7 @@ Text objects compose with `d`, `c`, and `y`.
 | `~`        | Toggle case of character(s) at cursor (supports count: `5~`)                              |
 | `.`        | Repeat last mutation, including inserted text; a count replaces the recorded count        |
 | `J`        | Join current line with next (supports count: `5J`)                                        |
-| `K`        | Preview the xprompt, workflow, skill, or file under the cursor in a scrollable modal      |
+| `K`        | Preview the xprompt, workflow, skill, file, or plain word under the cursor                |
 | `Ctrl+]`   | Jump to the xprompt/workflow/skill definition or file under the cursor                    |
 | `/` / `?`  | Search forward / backward in the current prompt pane                                      |
 | `n` / `N`  | Repeat the last confirmed search in its original / opposite direction                     |

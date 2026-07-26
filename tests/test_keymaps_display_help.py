@@ -250,7 +250,7 @@ def test_help_modal_lists_prompt_pane_focus_and_reorder() -> None:
         pairs = {
             (key, label) for _section, bindings in sections for key, label in bindings
         }
-        assert ("K", "Preview xprompt/skill/file") in pairs
+        assert ("K", "Preview xprompt/skill/file/word") in pairs
         assert ("Ctrl+]", "Jump to xprompt/skill/file") in pairs
         assert ("gf / Ctrl+G f", "Format current prompt") in pairs
         assert ("gj / gk", "Focus prompt panes (NORMAL)") in pairs

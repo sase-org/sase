@@ -139,6 +139,8 @@ of these are missing on your machine.
 | `gh` (authenticated)                          | The plugin catalog (Updates tab and `sase plugin list`), GitHub PR operations via the `sase-github` plugin, and mentor/PR workflows. |
 | `tmux`                                        | ACE tmux windows and artifact panes.                                                                                                 |
 | `bat`                                         | Syntax-highlighted file previews (falls back to plain output).                                                                       |
+| `dict`                                        | Prompt word definitions when pressing `K` on a plain word.                                                                           |
+| `aspell`                                      | Prompt spellcheck fixes when pressing `K` on a misspelled word. Debian also needs `aspell-en`; Homebrew bundles English.             |
 | `fzf`                                         | Interactive prompt-history browsing and selection.                                                                                   |
 | `rg` (ripgrep)                                | Fast file-reference search in prompt and commit workflows.                                                                           |
 | `delta`                                       | Syntax-highlighted diffs in commit/accept workflows.                                                                                 |

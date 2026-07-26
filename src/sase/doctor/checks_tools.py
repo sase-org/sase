@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -43,7 +44,19 @@ _OPTIONAL_TOOLS: tuple[_ToolRequirement, ...] = (
         "prompt and generated skill Markdown formatting; missing Prettier can "
         "inflate skill-drift reports",
     ),
+    _ToolRequirement(
+        "dict",
+        ("dict",),
+        "prompt word definitions (K on a plain word)",
+    ),
+    _ToolRequirement(
+        "aspell",
+        ("aspell",),
+        "prompt spell checking and fix suggestions (K on a plain word)",
+    ),
 )
+
+_ASPELL_DICTIONARY_TIMEOUT_SECONDS = 2.0
 
 
 def tools_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
@@ -76,7 +89,7 @@ def tools_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
         CheckSpec(
             id="tools.optional",
             group="tools",
-            title="Optional artifact tools",
+            title="Optional feature tools",
             runner=_check_optional_tools,
             deep=True,
         ),
@@ -321,18 +334,13 @@ def _check_optional_tools() -> DiagnosticCheck:
         if not missing
         else f"{len(missing)} optional feature(s) are missing tools"
     )
-    details = tuple(
-        f"{row['feature']}: install one of {', '.join(row['commands'])}"
-        if row["any_of"]
-        else f"{row['feature']}: install {row['commands'][0]}"
-        for row in missing
-    )
+    details = tuple(_optional_tool_missing_detail(row) for row in missing)
 
     return DiagnosticCheck(
         id="tools.optional",
         group="tools",
         status=status,
-        title="Optional artifact tools",
+        title="Optional feature tools",
         summary=summary,
         details=details,
         data={"tools": rows},
@@ -342,7 +350,7 @@ def _check_optional_tools() -> DiagnosticCheck:
 def _tool_row(requirement: _ToolRequirement) -> dict[str, Any]:
     resolved = {command: shutil.which(command) for command in requirement.commands}
     available = any(path is not None for path in resolved.values())
-    return {
+    row: dict[str, Any] = {
         "id": requirement.id,
         "commands": list(requirement.commands),
         "feature": requirement.feature,
@@ -350,6 +358,85 @@ def _tool_row(requirement: _ToolRequirement) -> dict[str, Any]:
         "available": available,
         "resolved": resolved,
     }
+    if requirement.id == "aspell" and available:
+        aspell_path = resolved["aspell"]
+        assert aspell_path is not None
+        english_available, dictionaries, probe_detail = (
+            _probe_aspell_english_dictionary(aspell_path)
+        )
+        row.update(
+            {
+                "available": english_available,
+                "english_dictionary_available": english_available,
+                "dictionaries": list(dictionaries),
+                "probe_detail": probe_detail,
+            }
+        )
+        if not english_available:
+            row["missing_hint"] = _aspell_missing_dictionary_hint(probe_detail)
+    return row
+
+
+def _optional_tool_missing_detail(row: dict[str, Any]) -> str:
+    missing_hint = row.get("missing_hint")
+    if isinstance(missing_hint, str):
+        return f"{row['feature']}: {missing_hint}"
+    if row["any_of"]:
+        return f"{row['feature']}: install one of {', '.join(row['commands'])}"
+    return f"{row['feature']}: install {row['commands'][0]}"
+
+
+def _aspell_missing_dictionary_hint(probe_detail: str) -> str:
+    if probe_detail == "no English dictionary reported":
+        return "aspell found but no English dictionary — install aspell-en"
+    return (
+        "aspell found but its English dictionary could not be verified "
+        f"({probe_detail}) — install aspell-en"
+    )
+
+
+def _probe_aspell_english_dictionary(
+    executable: str,
+) -> tuple[bool, tuple[str, ...], str]:
+    try:
+        completed = subprocess.run(
+            [executable, "dump", "dicts"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=_ASPELL_DICTIONARY_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False, (), "dictionary probe timed out after 2 seconds"
+    except OSError as exc:
+        return False, (), f"{type(exc).__name__}: {exc}"
+
+    dictionaries = tuple(
+        line.strip() for line in completed.stdout.splitlines() if line.strip()
+    )
+    if completed.returncode != 0:
+        detail = next(
+            (line.strip() for line in completed.stderr.splitlines() if line.strip()),
+            f"dictionary probe exited {completed.returncode}",
+        )
+        return False, dictionaries, detail
+
+    available = any(
+        dictionary == "en"
+        or dictionary.startswith("en_")
+        or dictionary.startswith("en-")
+        for dictionary in dictionaries
+    )
+    return (
+        available,
+        dictionaries,
+        (
+            "English dictionary available"
+            if available
+            else "no English dictionary reported"
+        ),
+    )
 
 
 __all__ = [

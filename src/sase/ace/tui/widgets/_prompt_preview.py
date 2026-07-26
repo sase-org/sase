@@ -33,6 +33,7 @@ class PromptPreviewMixin(_MixinBase):
         ) -> frozenset[str] | None: ...
         def _schedule_xprompt_assist_warm(self, project: str | None) -> None: ...
         def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
+        def _lookup_word_under_cursor(self) -> bool: ...
 
     def _preview_token_under_cursor(self) -> None:
         """Resolve and open a preview for the token under the cursor."""
@@ -46,8 +47,11 @@ class PromptPreviewMixin(_MixinBase):
             known_skills=known_skills,
         )
         if token is None:
+            if self._lookup_word_under_cursor():
+                return
             self.notify(
-                "Move the cursor onto an xprompt, skill, or file path to preview it",
+                "Move the cursor onto an xprompt, skill, file path, "
+                "or word to look it up",
                 severity="warning",
             )
             return

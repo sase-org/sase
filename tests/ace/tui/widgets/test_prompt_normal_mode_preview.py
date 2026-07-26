@@ -15,6 +15,7 @@ from sase.ace.tui.widgets._prompt_preview_target import (
     PreviewToken,
 )
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
+from sase.core.word_lookup import DefinitionResult, SpellCheckResult
 
 
 async def _wait_for(
@@ -225,7 +226,7 @@ async def test_k_on_non_previewable_text_does_not_resolve_or_push_modal(
         fake_resolve,
     )
 
-    async with PromptPage("plain text", cursor=(0, 0), size=(80, 24)) as page:
+    async with PromptPage("plain_text", cursor=(0, 0), size=(80, 24)) as page:
         await page.press("K")
         await page.pause()
 
@@ -278,12 +279,24 @@ async def test_counted_k_is_noop_and_does_not_preview(
         assert not _top_is_preview(page)
 
 
-async def test_k_does_not_overwrite_dot_repeat() -> None:
+async def test_k_does_not_overwrite_dot_repeat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.check_spelling",
+        lambda _word: SpellCheckResult(status="unavailable"),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.look_up_definitions",
+        lambda _word: DefinitionResult(status="unavailable"),
+    )
+
     async with PromptPage("one two three") as page:
         await page.press("d", "w")
         assert page.text == "two three"
 
         await page.press("K")
+        await page.pause()
         await page.press(".")
 
         assert page.text == "three"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from sase.doctor import checks_tools
@@ -131,6 +132,7 @@ def test_optional_tools_warns_with_affected_features(monkeypatch) -> None:
     check = checks_tools._check_optional_tools()
 
     assert check.status == "WARN"
+    assert check.title == "Optional feature tools"
     rows = {row["id"]: row for row in check.data["tools"]}
     assert "tmux" not in rows
     assert rows["bat"]["available"] is True
@@ -143,3 +145,60 @@ def test_optional_tools_warns_with_affected_features(monkeypatch) -> None:
         "missing Prettier can inflate skill-drift reports" in detail
         for detail in check.details
     )
+    assert rows["dict"]["feature"] == "prompt word definitions (K on a plain word)"
+    assert rows["aspell"]["feature"] == (
+        "prompt spell checking and fix suggestions (K on a plain word)"
+    )
+
+
+def test_optional_aspell_requires_english_dictionary(monkeypatch) -> None:
+    monkeypatch.setattr(
+        checks_tools.shutil,
+        "which",
+        lambda command: f"/usr/bin/{command}" if command == "aspell" else None,
+    )
+    monkeypatch.setattr(
+        checks_tools.subprocess,
+        "run",
+        lambda args, **_kwargs: subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="de\nfr\n",
+            stderr="",
+        ),
+    )
+
+    check = checks_tools._check_optional_tools()
+
+    rows = {row["id"]: row for row in check.data["tools"]}
+    assert rows["aspell"]["available"] is False
+    assert rows["aspell"]["english_dictionary_available"] is False
+    assert rows["aspell"]["dictionaries"] == ("de", "fr")
+    assert any(
+        "aspell found but no English dictionary — install aspell-en" in detail
+        for detail in check.details
+    )
+
+
+def test_optional_aspell_accepts_english_dictionary(monkeypatch) -> None:
+    monkeypatch.setattr(
+        checks_tools.shutil,
+        "which",
+        lambda command: f"/usr/bin/{command}" if command == "aspell" else None,
+    )
+    monkeypatch.setattr(
+        checks_tools.subprocess,
+        "run",
+        lambda args, **_kwargs: subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="de\nen_US\nen-variant_0\n",
+            stderr="",
+        ),
+    )
+
+    check = checks_tools._check_optional_tools()
+
+    rows = {row["id"]: row for row in check.data["tools"]}
+    assert rows["aspell"]["available"] is True
+    assert rows["aspell"]["english_dictionary_available"] is True

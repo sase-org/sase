@@ -29,7 +29,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("%model: / %auto: / %effort:", "Auto-open directive values"),
         ("%wait: / #fork:", "Complete agent/family/clan/tribe targets"),
         ("#@ Ctrl+I", "Inline-expand xprompt"),
-        ("K", "Preview xprompt/skill/file"),
+        ("K", "Preview xprompt/skill/file/word"),
         ("Ctrl+]", "Jump to xprompt/skill/file"),
         ("/ / ?", "Search prompt fwd/rev (NORMAL)"),
         ("n / N", "Repeat prompt search fwd/rev"),

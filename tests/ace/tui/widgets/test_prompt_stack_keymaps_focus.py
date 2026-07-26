@@ -215,15 +215,15 @@ async def test_bare_j_join_supports_count() -> None:
         assert bar.active_text() == "one two three\nfour"
 
 
-async def test_bare_k_without_previewable_token_does_not_focus_pane_or_bubble() -> None:
-    """Bare normal-mode ``K`` stays prompt-local when no preview token exists.
+async def test_bare_k_without_lookup_target_does_not_focus_pane_or_bubble() -> None:
+    """Bare normal-mode ``K`` stays prompt-local when no lookup target exists.
 
     With pane focus on ``gj``/``gk``, bare ``K`` is the preview command. When the
-    cursor is not on a previewable token, it neither navigates panes, inserts
-    text, nor bubbles to the app-level ``K`` panel-focus binding while the
-    prompt body owns focus.
+    cursor is on an identifier rather than a previewable token or plain word,
+    it neither navigates panes, inserts text, nor bubbles to the app-level
+    ``K`` panel-focus binding while the prompt body owns focus.
     """
-    app = PromptStackKeymapApp("first\n---\nsecond\n---\nthird")
+    app = PromptStackKeymapApp("first\n---\nsecond\n---\nthird_value")
 
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
@@ -238,7 +238,7 @@ async def test_bare_k_without_previewable_token_does_not_focus_pane_or_bubble() 
 
         # Focus did not move to another pane and ``K`` was not inserted as text.
         assert bar._stack.selected_index == 2
-        assert bar.active_text() == "third"
+        assert bar.active_text() == "third_value"
         assert app.focused is text_area
 
 

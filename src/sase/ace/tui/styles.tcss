@@ -4271,6 +4271,88 @@ PreviewPanelModal #preview-footer {
     padding-top: 1;
 }
 
+/* ===== Word Definition Modal Styling ===== */
+
+WordDefinitionModal {
+    align: center middle;
+}
+
+WordDefinitionModal > Container {
+    width: 85%;
+    height: 85%;
+    max-width: 150;
+    max-height: 42;
+    border: thick #5FD7AF;
+    background: $surface;
+    padding: 1 2;
+}
+
+WordDefinitionModal #word-definition-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+WordDefinitionModal #word-definition-scroll {
+    height: 1fr;
+    scrollbar-gutter: stable;
+    border: solid #5FD7AF;
+    padding: 0 1;
+}
+
+WordDefinitionModal #word-definition-content {
+    width: 100%;
+    height: auto;
+}
+
+WordDefinitionModal #word-definition-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid #5FD7AF;
+    padding-top: 1;
+}
+
+/* ===== Spellcheck Panel Modal Styling ===== */
+
+SpellcheckPanelModal {
+    align: center middle;
+}
+
+SpellcheckPanelModal > Container {
+    width: 56;
+    height: auto;
+    max-height: 18;
+    border: double #FF8787;
+    background: $surface;
+    padding: 1 2;
+}
+
+SpellcheckPanelModal #spellcheck-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+SpellcheckPanelModal .spellcheck-choice-row {
+    height: 1;
+    color: $text;
+}
+
+SpellcheckPanelModal .spellcheck-choice-row.selected {
+    color: #FF8787;
+    text-style: bold;
+    background: $boost;
+}
+
+SpellcheckPanelModal #spellcheck-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid #FF8787;
+    padding-top: 1;
+}
+
 /* ===== Commit View Modal Styling ===== */
 
 CommitViewModal {
