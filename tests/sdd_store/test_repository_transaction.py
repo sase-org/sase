@@ -717,3 +717,47 @@ def test_injected_abort_failure_reports_primary_and_rollback_failures(
     assert (left / ".git/rebase-merge").exists() or (
         left / ".git/rebase-apply"
     ).exists()
+
+
+def test_failed_conflict_probe_is_not_reported_as_no_conflicts(
+    tmp_path: Path,
+) -> None:
+    """A probe that cannot answer must surface, not read as a clean index."""
+    issue_base = '{"id":"item","title":"base"}\n'
+    _remote, left, _right = _build_diverged_clones(
+        tmp_path,
+        relative_path="beads/issues.jsonl",
+        base=issue_base,
+        local='{"id":"item","title":"local"}\n',
+        remote_text='{"id":"item","title":"remote"}\n',
+    )
+    starting = _snapshot(left)
+
+    def fail_conflict_probe(
+        repo_root: Path,
+        args: list[str],
+        *,
+        op: str,
+        network: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        if op == "sdd.integrate.conflicts":
+            return subprocess.CompletedProcess(
+                ["git", *args],
+                128,
+                stdout="",
+                stderr="fatal: Unable to create '.git/index.lock': File exists.",
+            )
+        return _runner(repo_root, args, op=op, network=network)
+
+    outcome = integrate_sdd_repository(
+        left,
+        beads_dir=left / "beads",
+        git_runner=fail_conflict_probe,
+    )
+
+    assert outcome.status is SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS
+    assert outcome.restored is True
+    assert "could not determine whether conflicts remain" in (outcome.error or "")
+    assert "index.lock" in (outcome.error or "")
+    assert outcome.resolved_files == ()
+    assert _snapshot(left) == starting

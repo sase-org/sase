@@ -35,6 +35,13 @@ def managed_recovery_branch(
             "automatic recovery refuses unrelated Git operations: "
             + ", ".join(sorted(operations))
         )
+    if state.unmerged_error is not None:
+        # An undetermined probe is not a clean index; recovery is destructive
+        # enough that it must not run on an unproven premise.
+        return None, (
+            "automatic recovery could not determine unmerged entries: "
+            + state.unmerged_error
+        )
     if state.unmerged_paths and operations != {"rebase"}:
         return None, "automatic recovery refuses unmerged entries outside a rebase"
     if not operations:
@@ -142,7 +149,11 @@ def verify_rebase_cleared(
     problems = sdd_state_blockers(state, branch)
     if state.operation_markers:
         problems.append("rebase markers remain after abort")
-    if state.unmerged_paths:
+    if state.unmerged_error is not None:
+        problems.append(
+            "could not determine unmerged entries after abort: " + state.unmerged_error
+        )
+    elif state.unmerged_paths:
         problems.append("unmerged entries remain after abort")
     if problems:
         return "stale rebase cleanup could not be verified: " + "; ".join(problems)

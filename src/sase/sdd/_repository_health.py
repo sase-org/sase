@@ -7,7 +7,11 @@ import re
 import subprocess
 
 from sase.sdd._git import SddGitCommandTimeout, network_git_timeout
-from sase.sdd._repository_types import GitRunner, SddRepositoryState
+from sase.sdd._repository_types import (
+    GitRunner,
+    SddRepositoryState,
+    UnmergedPathsProbe,
+)
 
 
 class SddRepositoryHealthError(RuntimeError):
@@ -99,9 +103,10 @@ def inspect_sdd_repository(repo_root: Path, runner: GitRunner) -> SddRepositoryS
         branch=branch,
         head=head,
         operation_markers=markers,
-        unmerged_paths=unmerged,
+        unmerged_paths=unmerged.paths,
         status_porcelain=status_result.stdout if status_result.returncode == 0 else "",
         valid_worktree=valid_worktree,
+        unmerged_error=unmerged.error,
     )
 
 
@@ -109,15 +114,26 @@ def unmerged_paths(
     repo_root: Path,
     runner: GitRunner,
     op_prefix: str,
-) -> tuple[str, ...]:
+) -> UnmergedPathsProbe:
+    """Probe the unmerged index entries, distinguishing clean from unknown.
+
+    ``git diff`` refreshes the index and therefore takes ``index.lock``, so a
+    non-zero exit here routinely means "another writer holds the lock", not
+    "there are no conflicts". Callers must not read a failed probe as a clean
+    index; see :class:`UnmergedPathsProbe`.
+    """
     result = runner(
         repo_root,
         ["diff", "--name-only", "--diff-filter=U", "-z"],
         op=f"{op_prefix}.conflicts",
     )
     if result.returncode != 0:
-        return ()
-    return tuple(sorted(path for path in result.stdout.split("\0") if path))
+        return UnmergedPathsProbe(
+            error=format_git_error("could not list unmerged index entries", result)
+        )
+    return UnmergedPathsProbe(
+        paths=tuple(sorted(path for path in result.stdout.split("\0") if path))
+    )
 
 
 def tracked_changes_error(

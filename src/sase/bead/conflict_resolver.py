@@ -26,12 +26,28 @@ class _BeadConflictResolution:
     resolved_files: tuple[str, ...] = ()
 
 
+class _GitProbeFailure(RuntimeError):
+    """A resolver probe could not answer, which is not the same as "clean"."""
+
+
 def resolve_bead_conflicts(
     cwd: str | Path = ".",
     *,
     beads_dir: str | Path | None = None,
 ) -> _BeadConflictResolution:
-    repo_root = _repo_root(Path(cwd))
+    try:
+        return _resolve_bead_conflicts(Path(cwd), beads_dir)
+    except _GitProbeFailure as error:
+        # Reporting a failed probe as success is what let an unresolved or
+        # unstaged conflict reach ``git rebase --continue``.
+        return _BeadConflictResolution(False, str(error))
+
+
+def _resolve_bead_conflicts(
+    cwd: Path,
+    beads_dir: str | Path | None,
+) -> _BeadConflictResolution:
+    repo_root = _repo_root(cwd)
     if repo_root is None:
         return _BeadConflictResolution(False, "not inside a git repository")
 
@@ -75,16 +91,21 @@ def resolve_bead_conflicts(
         repo_root,
         set(bead_conflicts),
     )
+    merged_stream_ids: set[str] = set()
     for path in bead_conflicts:
         if not _is_event_stream_path(path, bead_prefix):
             continue
         stream_id = Path(path).stem
-        base = _read_stage_stream(repo_root, path, 1, stream_id)
+        stages = _unmerged_stages(repo_root, path)
+        base = _read_stage_stream(repo_root, path, 1, stream_id, stages)
         upstream_stage, local_stage = _upstream_and_local_stages(repo_root)
-        upstream = _read_stage_stream(repo_root, path, upstream_stage, stream_id)
-        local = _read_stage_stream(repo_root, path, local_stage, stream_id)
+        upstream = _read_stage_stream(
+            repo_root, path, upstream_stage, stream_id, stages
+        )
+        local = _read_stage_stream(repo_root, path, local_stage, stream_id, stages)
         merged = merge_event_streams(base, local, upstream)
         streams[stream_id] = merged
+        merged_stream_ids.add(stream_id)
 
     ordered_streams = [streams[key] for key in sorted(streams)]
     issues = reduce_event_streams(ordered_streams)
@@ -96,6 +117,7 @@ def resolve_bead_conflicts(
         ordered_streams,
         issues,
         manifest,
+        merged_stream_ids,
     )
     resolved_paths.extend(path for path in bead_conflicts if path not in resolved_paths)
     resolved_paths = sorted(dict.fromkeys(resolved_paths))
@@ -108,31 +130,44 @@ def resolve_bead_conflicts(
     )
 
 
-def _repo_root(cwd: Path) -> Path | None:
-    # The resolver's direct probes are read-only; only _git_add can contend on
-    # index.lock and is routed through the shared retry policy below.
-    result = subprocess.run(
-        sdd_git_command(["rev-parse", "--show-toplevel"]),
+def _run_git(cwd: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+    """Run one resolver git command under the shared git-lock retry policy.
+
+    The resolver's probes are not lock-free: ``git diff`` refreshes the index
+    and therefore takes ``index.lock``, so a concurrent bead-store writer can
+    fail a probe that has nothing to do with the conflict being resolved.
+    """
+    result, _outcome = run_with_git_lock_retry(
+        lambda: subprocess.run(
+            sdd_git_command(args),
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+        ),
         cwd=cwd,
-        capture_output=True,
-        text=True,
-        check=False,
     )
+    return result
+
+
+def _probe_failure(message: str, result: subprocess.CompletedProcess[str]) -> str:
+    detail = (result.stderr or result.stdout or "").strip()
+    return f"{message}: {detail}" if detail else f"{message} (exit {result.returncode})"
+
+
+def _repo_root(cwd: Path) -> Path | None:
+    result = _run_git(cwd, ["rev-parse", "--show-toplevel"])
     if result.returncode != 0:
         return None
     return Path(result.stdout.strip())
 
 
 def _conflicted_files(repo_root: Path) -> list[str]:
-    result = subprocess.run(
-        sdd_git_command(["diff", "--name-only", "--diff-filter=U"]),
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    result = _run_git(repo_root, ["diff", "--name-only", "--diff-filter=U"])
     if result.returncode != 0:
-        return []
+        raise _GitProbeFailure(
+            _probe_failure("could not list conflicted bead files", result)
+        )
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
@@ -193,18 +228,42 @@ def _load_worktree_streams(
     return streams
 
 
-def _read_stage_stream(
-    repo_root: Path, path: str, stage: int, stream_id: str
-) -> dict[str, Any]:
-    result = subprocess.run(
-        sdd_git_command(["show", f":{stage}:{path}"]),
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+def _unmerged_stages(repo_root: Path, path: str) -> frozenset[int]:
+    """Return which conflict stages *path* actually has in the index.
+
+    Knowing this up front is what lets :func:`_read_stage_stream` treat a
+    ``git show`` failure as an error instead of silently substituting an empty
+    stream, which would drop one side of the merge.
+    """
+    result = _run_git(repo_root, ["ls-files", "--unmerged", "-z", "--", path])
     if result.returncode != 0:
+        raise _GitProbeFailure(
+            _probe_failure(f"could not read conflict stages for {path}", result)
+        )
+    stages: set[int] = set()
+    for entry in result.stdout.split("\0"):
+        head, _, _ = entry.partition("\t")
+        fields = head.split()
+        if len(fields) == 3 and fields[2].isdigit():
+            stages.add(int(fields[2]))
+    return frozenset(stages)
+
+
+def _read_stage_stream(
+    repo_root: Path,
+    path: str,
+    stage: int,
+    stream_id: str,
+    stages: frozenset[int],
+) -> dict[str, Any]:
+    if stage not in stages:
+        # A genuinely absent stage (add/add conflicts have no base) is empty.
         return _empty_stream(stream_id)
+    result = _run_git(repo_root, ["show", f":{stage}:{path}"])
+    if result.returncode != 0:
+        raise _GitProbeFailure(
+            _probe_failure(f"could not read stage {stage} of {path}", result)
+        )
     return _parse_stream_text(result.stdout, stream_id)
 
 
@@ -219,23 +278,17 @@ def _empty_stream(stream_id: str) -> dict[str, Any]:
 
 def _upstream_and_local_stages(repo_root: Path) -> tuple[int, int]:
     git_dir = _git_dir(repo_root)
-    if git_dir and (
-        (git_dir / "rebase-merge").is_dir() or (git_dir / "rebase-apply").is_dir()
-    ):
+    if (git_dir / "rebase-merge").is_dir() or (git_dir / "rebase-apply").is_dir():
         return (2, 3)
     return (3, 2)
 
 
-def _git_dir(repo_root: Path) -> Path | None:
-    result = subprocess.run(
-        sdd_git_command(["rev-parse", "--git-dir"]),
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+def _git_dir(repo_root: Path) -> Path:
+    # A failure here must not fall back to the merge stage order: during a
+    # rebase that silently swaps "ours" and "theirs" in the semantic merge.
+    result = _run_git(repo_root, ["rev-parse", "--git-dir"])
     if result.returncode != 0:
-        return None
+        raise _GitProbeFailure(_probe_failure("could not locate the git dir", result))
     path = Path(result.stdout.strip())
     if path.is_absolute():
         return path
@@ -248,7 +301,15 @@ def _write_resolved_store(
     streams: list[dict[str, Any]],
     issues: list[dict[str, Any]],
     manifest: dict[str, Any],
+    merged_stream_ids: set[str],
 ) -> list[str]:
+    """Write the resolved store, touching only what the merge actually changed.
+
+    The derived manifest and ``issues.jsonl`` stay authoritative because they
+    are reduced from every stream. The per-stream files, however, are inputs
+    for all but the conflicted ones, so rewriting them byte-for-byte only
+    widens the window in which another writer sees a churning worktree.
+    """
     streams_dir = beads_dir / "events" / "streams"
     streams_dir.mkdir(parents=True, exist_ok=True)
     written: list[str] = []
@@ -259,34 +320,37 @@ def _write_resolved_store(
             json.dumps(event, separators=(",", ":")) + "\n"
             for event in stream.get("events", [])
         )
+        if stream_id not in merged_stream_ids and _file_text(path) == text:
+            continue
         path.write_text(text, encoding="utf-8")
         written.append(path.relative_to(repo_root).as_posix())
 
     manifest_path = beads_dir / "events" / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    manifest_text = json.dumps(manifest, indent=2) + "\n"
+    if _file_text(manifest_path) != manifest_text:
+        manifest_path.write_text(manifest_text, encoding="utf-8")
     written.append(manifest_path.relative_to(repo_root).as_posix())
 
     issues_path = beads_dir / "issues.jsonl"
-    issues_path.write_text(
-        "".join(json.dumps(issue, separators=(",", ":")) + "\n" for issue in issues),
-        encoding="utf-8",
+    issues_text = "".join(
+        json.dumps(issue, separators=(",", ":")) + "\n" for issue in issues
     )
+    if _file_text(issues_path) != issues_text:
+        issues_path.write_text(issues_text, encoding="utf-8")
     written.append(issues_path.relative_to(repo_root).as_posix())
     return written
 
 
+def _file_text(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
 def _git_add(repo_root: Path, paths: list[str]) -> None:
     if paths:
-        result, _outcome = run_with_git_lock_retry(
-            lambda: subprocess.run(
-                sdd_git_command(["add", "--", *paths]),
-                cwd=repo_root,
-                capture_output=True,
-                text=True,
-                check=False,
-            ),
-            cwd=repo_root,
-        )
+        result = _run_git(repo_root, ["add", "--", *paths])
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "").strip()
             raise RuntimeError(detail or f"git add failed with {result.returncode}")

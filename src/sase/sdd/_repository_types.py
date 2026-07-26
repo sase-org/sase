@@ -25,6 +25,19 @@ class SddIntegrationStatus(StrEnum):
 
 
 @dataclass(frozen=True)
+class UnmergedPathsProbe:
+    """Three-state answer to "which index entries are unmerged?".
+
+    ``error is None`` means the probe ran and ``paths`` is authoritative — an
+    empty tuple then genuinely means "no conflicts". A non-``None`` ``error``
+    means the probe could not tell, which is not the same as clean.
+    """
+
+    paths: tuple[str, ...] = ()
+    error: str | None = None
+
+
+@dataclass(frozen=True)
 class SddRepositoryState:
     """The local state needed to prove an integration rollback."""
 
@@ -36,6 +49,9 @@ class SddRepositoryState:
     unmerged_paths: tuple[str, ...]
     status_porcelain: str
     valid_worktree: bool
+    # ``None`` when the unmerged probe ran; otherwise why it could not tell, in
+    # which case ``unmerged_paths`` is empty because it is unknown, not clean.
+    unmerged_error: str | None = None
 
     @property
     def blockers(self) -> tuple[str, ...]:

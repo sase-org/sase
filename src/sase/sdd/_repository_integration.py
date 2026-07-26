@@ -201,7 +201,21 @@ def _repair_or_abort_rebase(
     resolved: list[str] = []
     for _ in range(100):
         conflicts = unmerged_paths(repo_root, runner, op_prefix)
-        if not conflicts:
+        if conflicts.error is not None:
+            # "Could not tell" must never be mistaken for "no conflicts": that
+            # is what let an unstaged resolution reach ``rebase --continue``.
+            # Abort to the starting state, but name the probe failure.
+            return _abort_and_verify(
+                repo_root,
+                starting=starting,
+                primary_failure=(
+                    f"{primary_failure}; could not determine whether conflicts "
+                    f"remain: {conflicts.error}"
+                ),
+                runner=runner,
+                op_prefix=op_prefix,
+            )
+        if not conflicts.paths:
             return _abort_and_verify(
                 repo_root,
                 starting=starting,
