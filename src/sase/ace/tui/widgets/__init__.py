@@ -9,6 +9,7 @@ from .alias_overrides_indicator import AliasOverridesIndicator
 from .file_panel import FileLineCountChanged
 from .ancestors_children_panel import AncestorsChildrenPanel
 from .axe_dashboard import AxeDashboard
+from .axe_description_banner import AxeDescriptionBanner
 from .axe_info_panel import AxeInfoPanel
 from .axe_onboarding import AxeOnboarding
 from .artifacts import (
@@ -66,6 +67,7 @@ __all__ = [
     "AncestorsChildrenPanel",
     "ActiveXPromptArgHint",
     "AxeDashboard",
+    "AxeDescriptionBanner",
     "AxeInfoPanel",
     "AxeOnboarding",
     "ARTIFACTS_SUBTAB_ORDER",

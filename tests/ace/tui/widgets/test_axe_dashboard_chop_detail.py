@@ -43,7 +43,7 @@ def test_update_chop_run_display_empty_state() -> None:
     assert isinstance(rendered, Text)
     plain = rendered.plain
     assert "No runs recorded" in plain
-    assert "fast description" in plain  # description shown in empty state
+    assert "fast description" not in plain  # the fixed banner owns the description
 
 
 def test_update_chop_run_display_renders_newest_run_by_default() -> None:

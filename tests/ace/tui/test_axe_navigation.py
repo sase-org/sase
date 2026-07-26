@@ -129,6 +129,28 @@ class FakeAxeApp(AxeDisplayMixin):
         return (0, 0)
 
 
+class _DescriptionDashboardProbe:
+    """Track the fixed-banner text selected by the AXE render path."""
+
+    def __init__(self) -> None:
+        self.banner: str | None = None
+
+    def update_lumberjack_overview(
+        self, *, snapshot: LumberjackSnapshot, **_kwargs: Any
+    ) -> None:
+        self.banner = snapshot.description or "No description configured"
+
+    def update_chop_run_display(
+        self, *, snapshot: ChopSnapshot, **_kwargs: Any
+    ) -> None:
+        self.banner = snapshot.description or "No description configured"
+        if snapshot.generated and snapshot.target_key:
+            self.banner += f"  · {snapshot.target_key}"
+
+    def update_bgcmd_display(self, *_args: Any, **_kwargs: Any) -> None:
+        self.banner = None
+
+
 def test_navigation_does_not_read_from_disk() -> None:
     """A navigation-driven display refresh never touches disk readers.
 
@@ -202,3 +224,49 @@ def test_navigation_does_not_read_from_disk() -> None:
         _, callback = app._scheduled_callbacks[-1]
         app._scheduled_callbacks.clear()
         callback()
+
+
+def test_banner_follows_lumberjack_chop_generated_and_bgcmd_selection() -> None:
+    """Selection repaints the fixed banner entirely from cached snapshots."""
+    app = FakeAxeApp()
+    app._axe_lumberjack_snapshots["hooks"].description = "Advance hook lifecycle state"
+    generated = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="refresh_docs[sase]",
+        description="Refresh generated documentation",
+        runs=[],
+        generated=True,
+        base_chop_name="refresh_docs",
+        target_key="sase",
+    )
+    app._axe_chop_snapshots[("hooks", generated.chop_name)] = generated
+    app._axe_items.insert(
+        2,
+        ChopItem(lumberjack_name="hooks", chop_name=generated.chop_name),
+    )
+
+    dashboard = _DescriptionDashboardProbe()
+
+    def _query_one(selector: str, *_args: Any, **_kwargs: Any) -> Any:
+        if selector == "#axe-dashboard":
+            return dashboard
+        return MagicMock()
+
+    app.query_one = _query_one  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.get_runner_count", return_value=0):
+        app.current_idx = 0
+        app._refresh_axe_display()
+        assert dashboard.banner == "Advance hook lifecycle state"
+
+        app.current_idx = 1
+        app._refresh_axe_display()
+        assert dashboard.banner == "fast desc"
+
+        app.current_idx = 2
+        app._refresh_axe_display()
+        assert dashboard.banner == "Refresh generated documentation  · sase"
+
+        app.current_idx = 4
+        app._refresh_axe_display()
+        assert dashboard.banner is None

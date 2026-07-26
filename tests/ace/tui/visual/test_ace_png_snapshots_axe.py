@@ -121,7 +121,7 @@ def _axe_lumberjack_tree_fixture() -> AxeCollectedData:
     hooks_fast = ChopSnapshot(
         lumberjack_name="hooks",
         chop_name="fast_lint",
-        description="fast lint",
+        description="Run fast lint checks across changed Python files",
         runs=[
             _make_chop_run(
                 "hooks",
@@ -134,7 +134,7 @@ def _axe_lumberjack_tree_fixture() -> AxeCollectedData:
     hooks_slow = ChopSnapshot(
         lumberjack_name="hooks",
         chop_name="slow_typecheck",
-        description="slow typecheck",
+        description="Run the complete static type-checking suite",
         runs=[
             _make_chop_run(
                 "hooks",
@@ -147,7 +147,7 @@ def _axe_lumberjack_tree_fixture() -> AxeCollectedData:
     checks_smoke = ChopSnapshot(
         lumberjack_name="checks",
         chop_name="smoke",
-        description="smoke",
+        description="Run a quick smoke test before slower checks",
         runs=[],
     )
     chop_snapshots = {
@@ -165,6 +165,9 @@ def _axe_lumberjack_tree_fixture() -> AxeCollectedData:
     lumberjack_snapshots = {
         "hooks": LumberjackSnapshot(
             name="hooks",
+            description=(
+                "Fast lane that advances hook, mentor, and workflow lifecycle state"
+            ),
             status=hooks_status,
             metrics=metrics,
             log_tail="",
@@ -172,6 +175,7 @@ def _axe_lumberjack_tree_fixture() -> AxeCollectedData:
         ),
         "checks": LumberjackSnapshot(
             name="checks",
+            description="Poll slower submission and workspace checks",
             status=checks_status,
             metrics=metrics,
             log_tail="",
@@ -202,6 +206,49 @@ def _axe_lumberjack_tree_fixture() -> AxeCollectedData:
             1: BgCmdSnapshot(info=bgcmd_info, running=True, output_tail="building...")
         },
     )
+
+
+async def test_axe_lumberjack_description_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A selected lumberjack keeps its description above scrolling output."""
+    patch_startup_loaders(monkeypatch, axe_data=_axe_lumberjack_tree_fixture())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+        page.app._refresh_axe_display()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_lumberjack_description_120x40",
+            title="ACE axe lumberjack description banner",
+        )
+
+
+async def test_axe_chop_description_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A selected chop keeps its description above scrolling run output."""
+    patch_startup_loaders(monkeypatch, axe_data=_axe_lumberjack_tree_fixture())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+        await page.press("j")
+        page.app._refresh_axe_display()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_chop_description_120x40",
+            title="ACE axe chop description banner",
+        )
 
 
 def _axe_disabled_chop_fixture() -> AxeCollectedData:

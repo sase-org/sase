@@ -1278,6 +1278,10 @@ The Axe sidebar renders three row types so the operational tree reads at a glanc
 - **Background command** rows (run via `!!`) live below the lumberjack tree, separated by a dim divider line when both
   groups are present, and use a distinct command/slot badge so they cannot be mistaken for scheduled AXE work.
 
+The right-hand dashboard keeps the selected lumberjack or chop description in a dedicated banner between the status line
+and scrolling output. Generated `for_each` chop instances also show their target key there. The banner stays fixed while
+output scrolls and disappears for background-command and empty AXE views.
+
 ### Dynamic Sidebar Width and No-Wrap Rows
 
 Every sidebar row is rendered as single-line Rich `Text` with `no_wrap=True` and `overflow="ellipsis"`. After each

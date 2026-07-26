@@ -23,6 +23,7 @@ from ._axe_dashboard_render import (
     section_width as _section_width,
 )
 from ._axe_dashboard_status import AxeStatusSection
+from .axe_description_banner import AxeDescriptionBanner
 
 # Underscored aliases preserve the original module-level names used by tests
 # before the dashboard widget was split into per-section modules.
@@ -59,8 +60,19 @@ class AxeDashboard(Static):
     def compose(self) -> ComposeResult:
         """Compose the dashboard sections."""
         yield _AxeStatusSection(id="axe-status-section")
+        yield AxeDescriptionBanner(id="axe-description-banner")
         with VerticalScroll(id="axe-output-scroll"):
             yield _AxeOutputSection(id="axe-output-section")
+
+    def _description_banner(self) -> AxeDescriptionBanner | None:
+        """Return the mounted banner, tolerating lightweight unit-test doubles."""
+        banner = self.query_one("#axe-description-banner", AxeDescriptionBanner)
+        return banner if isinstance(banner, AxeDescriptionBanner) else None
+
+    def _hide_description_banner(self) -> None:
+        banner = self._description_banner()
+        if banner is not None:
+            banner.hide()
 
     def update_display(
         self,
@@ -92,6 +104,7 @@ class AxeDashboard(Static):
             status_section = self.query_one("#axe-status-section", _AxeStatusSection)
             output_section = self.query_one("#axe-output-section", _AxeOutputSection)
 
+            self._hide_description_banner()
             status_section.update_display(
                 status,
                 is_running,
@@ -129,6 +142,7 @@ class AxeDashboard(Static):
         """Show daemon status plus a configured-key zero-lumberjack prompt."""
         status_section = self.query_one("#axe-status-section", _AxeStatusSection)
         output_section = self.query_one("#axe-output-section", _AxeOutputSection)
+        self._hide_description_banner()
         status_section.update_display(
             status,
             is_running,
@@ -156,6 +170,7 @@ class AxeDashboard(Static):
         status_section = self.query_one("#axe-status-section", _AxeStatusSection)
         output_section = self.query_one("#axe-output-section", _AxeOutputSection)
 
+        self._hide_description_banner()
         status_section.update_bgcmd_display(info, is_running, countdown)
 
         # Update output section
@@ -196,6 +211,7 @@ class AxeDashboard(Static):
         status_section = self.query_one("#axe-status-section", _AxeStatusSection)
         output_section = self.query_one("#axe-output-section", _AxeOutputSection)
 
+        self._hide_description_banner()
         status_section.update_lumberjack_display(status, name, idx, total, countdown)
         output_section.update_display(
             output,
@@ -230,6 +246,9 @@ class AxeDashboard(Static):
             status_section = self.query_one("#axe-status-section", _AxeStatusSection)
             output_section = self.query_one("#axe-output-section", _AxeOutputSection)
 
+            description_banner = self._description_banner()
+            if description_banner is not None:
+                description_banner.show_lumberjack(snapshot.name, snapshot.description)
             status_section.update_lumberjack_display(
                 snapshot.status, snapshot.name, idx, total, countdown
             )
@@ -270,6 +289,14 @@ class AxeDashboard(Static):
             status_section = self.query_one("#axe-status-section", _AxeStatusSection)
             output_section = self.query_one("#axe-output-section", _AxeOutputSection)
 
+            description_banner = self._description_banner()
+            if description_banner is not None:
+                description_banner.show_chop(
+                    snapshot.chop_name,
+                    snapshot.description,
+                    generated=snapshot.generated,
+                    target_key=snapshot.target_key,
+                )
             status_section.update_chop_display(
                 snapshot.lumberjack_name,
                 snapshot.chop_name,
@@ -281,14 +308,9 @@ class AxeDashboard(Static):
 
             if run is None:
                 # Empty state: configured chop with no recorded runs.
-                empty = Text()
-                empty.append(
-                    "No runs recorded for this chop yet.\n", style="dim italic"
+                output_section.update(
+                    Text("No runs recorded for this chop yet.", style="dim italic")
                 )
-                if snapshot.description:
-                    empty.append("\n  ", style="")
-                    empty.append(snapshot.description, style="dim")
-                output_section.update(empty)
                 return
 
             source_id = (

@@ -3994,6 +3994,13 @@ BgCmdList > .option-list--option-highlighted {
     background: $surface;
 }
 
+#axe-description-banner {
+    height: auto;
+    max-height: 2;
+    padding: 0 1;
+    background: $surface;
+}
+
 #axe-output-scroll {
     height: 1fr;
     overflow-y: auto;
