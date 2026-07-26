@@ -132,7 +132,11 @@ def claim_bead_for_waiting_agent(
             canonical_beads_dir_for_project,
             open_bead_project_for_beads_dir,
         )
-        from sase.bead.sync import commit_bead_claim, refresh_bead_store
+        from sase.bead.sync import (
+            bead_store_write_lock,
+            commit_bead_claim,
+            refresh_bead_store,
+        )
 
         beads_dir = canonical_beads_dir_for_project(project_name)
         if beads_dir is None:
@@ -141,14 +145,25 @@ def claim_bead_for_waiting_agent(
         refreshed = False
         for attempt in range(_MAX_CLAIM_ATTEMPTS):
             try:
-                with open_bead_project_for_beads_dir(beads_dir) as project:
-                    issue, changed = project.claim_for_agent_wait(bead_id, agent_name)
+                with bead_store_write_lock(beads_dir) as already_locked:
+                    with open_bead_project_for_beads_dir(beads_dir) as project:
+                        issue, changed = project.claim_for_agent_wait(
+                            bead_id, agent_name
+                        )
 
-                held_by_us = (
-                    issue.status == Status.CLAIMED and issue.assignee == agent_name
-                )
-                if changed:
-                    commit_bead_claim(beads_dir, bead_id, agent_name)
+                    held_by_us = (
+                        issue.status == Status.CLAIMED and issue.assignee == agent_name
+                    )
+                    if changed:
+                        if already_locked:
+                            commit_bead_claim(
+                                beads_dir,
+                                bead_id,
+                                agent_name,
+                                already_locked=True,
+                            )
+                        else:
+                            commit_bead_claim(beads_dir, bead_id, agent_name)
 
                 if held_by_us:
                     action = "Claimed" if changed else "Retained claim on"
@@ -212,17 +227,27 @@ def release_bead_claim_for_agent(
             canonical_beads_dir_for_project,
             open_bead_project_for_beads_dir,
         )
-        from sase.bead.sync import commit_bead_claim_release
+        from sase.bead.sync import bead_store_write_lock, commit_bead_claim_release
 
         beads_dir = canonical_beads_dir_for_project(project_name)
         if beads_dir is None:
             raise RuntimeError(f"no canonical bead store for project '{project_name}'")
 
-        with open_bead_project_for_beads_dir(beads_dir) as project:
-            issue, changed = project.release_agent_claim(bead_id, agent_name)
+        with bead_store_write_lock(beads_dir) as already_locked:
+            with open_bead_project_for_beads_dir(beads_dir) as project:
+                _issue, changed = project.release_agent_claim(bead_id, agent_name)
 
+            if changed:
+                if already_locked:
+                    commit_bead_claim_release(
+                        beads_dir,
+                        bead_id,
+                        agent_name,
+                        already_locked=True,
+                    )
+                else:
+                    commit_bead_claim_release(beads_dir, bead_id, agent_name)
         if changed:
-            commit_bead_claim_release(beads_dir, bead_id, agent_name)
             print(f"Released bead claim on {bead_id} from waiting agent {agent_name}")
         return changed
     except Exception as exc:  # noqa: BLE001 - shutdown must remain best effort.

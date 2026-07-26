@@ -265,10 +265,18 @@ def _rollback_epic_creation(
     errors: list[str] = []
     if epic is not None:
         try:
-            proj.remove(epic.id)
-            from sase.bead.sync import commit_epic_creation_rollback
+            from sase.bead.sync import (
+                bead_store_write_lock,
+                commit_epic_creation_rollback,
+            )
 
-            commit_epic_creation_rollback(proj.beads_dir, epic.id)
+            with bead_store_write_lock(proj.beads_dir) as already_locked:
+                proj.remove(epic.id)
+                commit_epic_creation_rollback(
+                    proj.beads_dir,
+                    epic.id,
+                    already_locked=already_locked,
+                )
         except Exception as exc:  # noqa: BLE001 - rollback is best effort
             errors.append(f"could not remove epic {epic.id}: {exc}")
 

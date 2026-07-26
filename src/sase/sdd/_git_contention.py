@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from contextvars import ContextVar
 import fcntl
 import logging
 import os
@@ -25,6 +26,14 @@ STORE_WRITE_LOCK_FILENAME = "sase-store-write.lock"
 _STORE_WRITE_LOCK_POLL_SECONDS = 0.05
 
 _logger = logging.getLogger(__name__)
+_held_store_write_locks: ContextVar[frozenset[Path]] = ContextVar(
+    "held_store_write_locks",
+    default=frozenset(),
+)
+
+
+class _StoreWriteLockUsageError(RuntimeError):
+    """Raised when store-lock ownership is nested or handed off incorrectly."""
 
 
 class SddGitCommandError(subprocess.CalledProcessError):
@@ -95,7 +104,13 @@ def store_git_write_lock(
     timeout_seconds = (
         _store_write_lock_timeout() if timeout is None else max(0.0, timeout)
     )
-    lock_path = _store_write_lock_path(repo_root)
+    lock_path = _canonical_store_write_lock_path(repo_root)
+    held_locks = _held_store_write_locks.get()
+    if lock_path in held_locks:
+        raise _StoreWriteLockUsageError(
+            f"SDD store write lock {lock_path} is already held by this context; "
+            "use handoff_store_git_write_lock for an explicitly locked callee"
+        )
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("a+", encoding="utf-8") as lock_file:
         acquired = _acquire_store_write_lock(
@@ -109,11 +124,33 @@ def store_git_write_lock(
                 timeout_seconds,
                 lock_path,
             )
+        token = None
+        if acquired:
+            token = _held_store_write_locks.set(held_locks | {lock_path})
         try:
             yield acquired
         finally:
             if acquired:
+                assert token is not None
+                _held_store_write_locks.reset(token)
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+@contextmanager
+def handoff_store_git_write_lock(repo_root: Path) -> Iterator[bool]:
+    """Hand an already-held store write lock to a nested transaction.
+
+    This is the explicit counterpart to :func:`store_git_write_lock`. It never
+    opens or acquires another descriptor, and it fails loudly unless the
+    current execution context owns the canonical lock for *repo_root*.
+    """
+    lock_path = _canonical_store_write_lock_path(repo_root)
+    if lock_path not in _held_store_write_locks.get():
+        raise _StoreWriteLockUsageError(
+            f"cannot hand off SDD store write lock {lock_path}: "
+            "the current context does not hold it"
+        )
+    yield True
 
 
 def _checked_result(
@@ -169,6 +206,10 @@ def _store_write_lock_path(repo_root: Path) -> Path:
     if not git_dir.is_absolute():
         git_dir = repo_root / git_dir
     return git_dir / STORE_WRITE_LOCK_FILENAME
+
+
+def _canonical_store_write_lock_path(repo_root: Path) -> Path:
+    return _store_write_lock_path(repo_root).resolve(strict=False)
 
 
 def _acquire_store_write_lock(fd: int, *, timeout: float) -> bool:

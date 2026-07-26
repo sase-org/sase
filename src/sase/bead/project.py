@@ -20,7 +20,12 @@ from sase.bead.model import (
     PhaseSize,
     Status,
 )
-from sase.bead.sync import bead_state_is_clean, git_sync, rebuild_from_jsonl
+from sase.bead.sync import (
+    bead_state_is_clean,
+    bead_store_write_lock,
+    git_sync,
+    rebuild_from_jsonl,
+)
 
 
 class AlreadyReadyError(Exception):
@@ -359,8 +364,9 @@ class BeadProject:
 
     def sync(self) -> None:
         """Export compatibility projection and stage bead state in git."""
-        self._export()
-        git_sync(self.beads_dir)
+        with bead_store_write_lock(self.beads_dir) as already_locked:
+            self._export()
+            git_sync(self.beads_dir, already_locked=already_locked)
 
     def sync_is_clean(self) -> bool:
         """Check if canonical bead state has uncommitted changes."""

@@ -17,7 +17,9 @@ from sase.git_lock_retry import (
 from sase.sdd._git_contention import (
     ENV_GIT_LOCK_RETRY_DELAYS as ENV_SDD_GIT_LOCK_RETRY_DELAYS,
     STORE_WRITE_LOCK_FILENAME,
+    _StoreWriteLockUsageError,
     _git_lock_retry_delays,
+    handoff_store_git_write_lock,
     store_git_write_lock,
 )
 
@@ -59,6 +61,24 @@ def test_store_git_write_lock_has_bounded_fail_open_timeout(tmp_path: Path) -> N
 
     with store_git_write_lock(tmp_path, timeout=0) as acquired:
         assert acquired is True
+
+
+def test_store_git_write_lock_requires_explicit_handoff_for_nested_use(
+    tmp_path: Path,
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+
+    with store_git_write_lock(tmp_path) as acquired:
+        assert acquired is True
+        with handoff_store_git_write_lock(tmp_path) as handed_off:
+            assert handed_off is True
+        with pytest.raises(_StoreWriteLockUsageError, match="already held"):
+            with store_git_write_lock(tmp_path):
+                pass
+
+    with pytest.raises(_StoreWriteLockUsageError, match="does not hold"):
+        with handoff_store_git_write_lock(tmp_path):
+            pass
 
 
 def test_epic_plan_launch_lock_blocks_other_process_for_same_canonical_store(

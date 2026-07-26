@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from contextlib import nullcontext
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -38,9 +39,44 @@ class _AsyncPushHandle:
     log_path: Path
 
 
-def git_sync(beads_dir: Path) -> None:
+@contextmanager
+def bead_store_write_lock(beads_dir: Path) -> Iterator[bool]:
+    """Hold the owning repository lock across bead materialization and git.
+
+    The yielded boolean is true when a Git-backed store lock is active. Local
+    non-Git stores still execute their mutation but have no integration writer
+    to serialize with.
+    """
+    from sase.sdd._git_contention import store_git_write_lock
+    from sase.sdd._repository_transaction import (
+        SddRepositoryHealthError,
+        require_sdd_repository_health,
+    )
+
+    if not beads_dir.exists():
+        yield False
+        return
+    repo_root = _find_git_root(beads_dir)
+    if repo_root is None:
+        yield False
+        return
+    with store_git_write_lock(repo_root) as acquired:
+        if not acquired:
+            raise SddRepositoryHealthError(
+                f"SDD repository {repo_root} could not acquire its store write "
+                "lock; no bead files were changed"
+            )
+        require_sdd_repository_health(repo_root)
+        yield True
+
+
+def git_sync(beads_dir: Path, *, already_locked: bool = False) -> None:
     """Stage bead state in git (does not commit)."""
-    from sase.sdd._git_contention import run_sdd_git_write, store_git_write_lock
+    from sase.sdd._git_contention import (
+        handoff_store_git_write_lock,
+        run_sdd_git_write,
+        store_git_write_lock,
+    )
     from sase.sdd._repository_transaction import (
         SddRepositoryHealthError,
         require_sdd_repository_health,
@@ -51,7 +87,10 @@ def git_sync(beads_dir: Path) -> None:
     repo_root = _find_git_root(beads_dir)
     if repo_root is None:
         return
-    with store_git_write_lock(repo_root) as acquired:
+    lock_factory = (
+        handoff_store_git_write_lock if already_locked else store_git_write_lock
+    )
+    with lock_factory(repo_root) as acquired:
         if not acquired:
             raise SddRepositoryHealthError(
                 f"SDD repository {repo_root} could not acquire its store write "
@@ -76,6 +115,7 @@ def commit_bead_work_launch(
     title: str,
     *,
     kind: str,
+    already_locked: bool = False,
 ) -> bool:
     """Commit the bead-state mutation produced by ``sase bead work``.
 
@@ -88,30 +128,50 @@ def commit_bead_work_launch(
         message=f"chore: mark bead work launched for {bead_id}",
         auto_commit_type="bead_work",
         op_prefix="bead.work_launch",
+        already_locked=already_locked,
     )
 
 
-def commit_bead_claim(beads_dir: Path, bead_id: str, agent_name: str) -> bool:
+def commit_bead_claim(
+    beads_dir: Path,
+    bead_id: str,
+    agent_name: str,
+    *,
+    already_locked: bool = False,
+) -> bool:
     """Commit a waiting agent's canonical bead claim without pushing it."""
     return _commit_bead_state(
         beads_dir,
         message=f"chore(beads): claim {bead_id} for {agent_name}",
         auto_commit_type="beads",
         op_prefix="bead.claim",
+        already_locked=already_locked,
     )
 
 
-def commit_bead_claim_release(beads_dir: Path, bead_id: str, agent_name: str) -> bool:
+def commit_bead_claim_release(
+    beads_dir: Path,
+    bead_id: str,
+    agent_name: str,
+    *,
+    already_locked: bool = False,
+) -> bool:
     """Commit release of a waiting agent's canonical bead claim."""
     return _commit_bead_state(
         beads_dir,
         message=f"chore(beads): release claim on {bead_id} from {agent_name}",
         auto_commit_type="beads",
         op_prefix="bead.claim_release",
+        already_locked=already_locked,
     )
 
 
-def commit_epic_graph_checkpoint(beads_dir: Path, epic_id: str) -> bool:
+def commit_epic_graph_checkpoint(
+    beads_dir: Path,
+    epic_id: str,
+    *,
+    already_locked: bool = False,
+) -> bool:
     """Commit the complete epic graph before any worker can be spawned.
 
     Returns False for the same benign no-op cases as
@@ -123,16 +183,23 @@ def commit_epic_graph_checkpoint(beads_dir: Path, epic_id: str) -> bool:
         message=f"chore(beads): checkpoint approved epic graph {epic_id}",
         auto_commit_type="beads",
         op_prefix="bead.graph_checkpoint",
+        already_locked=already_locked,
     )
 
 
-def commit_epic_creation_rollback(beads_dir: Path, epic_id: str) -> bool:
+def commit_epic_creation_rollback(
+    beads_dir: Path,
+    epic_id: str,
+    *,
+    already_locked: bool = False,
+) -> bool:
     """Commit removal of an unlaunched deterministic epic graph."""
     return _commit_bead_state(
         beads_dir,
         message=f"chore(beads): rollback deterministic epic creation {epic_id}",
         auto_commit_type="beads",
         op_prefix="bead.graph_rollback",
+        already_locked=already_locked,
     )
 
 
@@ -142,10 +209,14 @@ def _commit_bead_state(
     message: str,
     auto_commit_type: str,
     op_prefix: str,
+    already_locked: bool,
 ) -> bool:
     """Commit only changed bead-state files with a stage-specific message."""
     from sase.sdd._git import run_sdd_git
-    from sase.sdd._git_contention import store_git_write_lock
+    from sase.sdd._git_contention import (
+        handoff_store_git_write_lock,
+        store_git_write_lock,
+    )
     from sase.sdd._repository_transaction import (
         SddRepositoryHealthError,
         require_sdd_repository_health,
@@ -158,7 +229,10 @@ def _commit_bead_state(
         return False
 
     rel_beads = _relative_pathspec(beads_dir, repo_root)
-    with store_git_write_lock(repo_root) as acquired:
+    lock_factory = (
+        handoff_store_git_write_lock if already_locked else store_git_write_lock
+    )
+    with lock_factory(repo_root) as acquired:
         if not acquired:
             raise SddRepositoryHealthError(
                 f"SDD repository {repo_root} could not acquire its store write "
@@ -514,7 +588,10 @@ def refresh_bead_store(beads_dir: Path) -> None:
     if repo_root is None or not _has_push_remote(repo_root):
         return
 
-    from sase.sdd._git_contention import store_git_write_lock
+    from sase.sdd._git_contention import (
+        handoff_store_git_write_lock,
+        store_git_write_lock,
+    )
     from sase.sdd._integration_marker import integration_marker_generation
     from sase.sdd._repository_transaction import integrate_sdd_repository
 
@@ -531,7 +608,7 @@ def refresh_bead_store(beads_dir: Path) -> None:
             repo_root,
             beads_dir=beads_dir,
             op_prefix="bead.refresh",
-            lock_factory=lambda _repo_root: nullcontext(True),
+            lock_factory=handoff_store_git_write_lock,
         )
     if outcome.succeeded:
         return

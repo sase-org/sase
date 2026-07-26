@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -20,6 +21,8 @@ from sase.bead.claims import (
 )
 from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
+from sase.sdd._repository_transaction import integrate_sdd_repository
+from sase.sdd._repository_types import SddIntegrationOutcome, SddIntegrationStatus
 
 from .sync_test_helpers import init_git_repo
 
@@ -253,6 +256,73 @@ def test_claim_reclaim_and_release_use_canonical_store_without_commit_churn(
         f"chore(beads): release claim on {bead_id} from worker",
         f"chore(beads): claim {bead_id} for worker",
     ]
+
+
+def test_wait_claim_holds_store_lock_from_materialization_through_commit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    beads_dir, bead_id = _project_with_committed_phase(tmp_path)
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+    materialized = threading.Event()
+    allow_commit = threading.Event()
+    integration_finished = threading.Event()
+    original_claim = BeadProject.claim_for_agent_wait
+
+    def pause_after_materialization(
+        self: BeadProject,
+        claimed_bead_id: str,
+        agent_name: str,
+    ) -> tuple[object, bool]:
+        result = original_claim(self, claimed_bead_id, agent_name)
+        materialized.set()
+        assert allow_commit.wait(2.0)
+        return result
+
+    monkeypatch.setattr(
+        BeadProject, "claim_for_agent_wait", pause_after_materialization
+    )
+    claim_results: list[bool] = []
+    integration_results: list[SddIntegrationOutcome] = []
+
+    claim_thread = threading.Thread(
+        target=lambda: claim_results.append(
+            claim_bead_for_waiting_agent(
+                project_name="proj",
+                bead_id=bead_id,
+                agent_name="worker",
+            )
+        )
+    )
+
+    def integrate() -> None:
+        integration_results.append(
+            integrate_sdd_repository(
+                tmp_path,
+                beads_dir=beads_dir,
+                fetch=False,
+                op_prefix="test.claim_serialization",
+            )
+        )
+        integration_finished.set()
+
+    claim_thread.start()
+    assert materialized.wait(2.0)
+    integration_thread = threading.Thread(target=integrate)
+    integration_thread.start()
+    assert not integration_finished.wait(0.1)
+
+    allow_commit.set()
+    claim_thread.join(timeout=2.0)
+    integration_thread.join(timeout=2.0)
+
+    assert claim_results == [True]
+    assert integration_finished.is_set()
+    assert integration_results[0].status is SddIntegrationStatus.SUCCESS
+    assert integration_results[0].status is not SddIntegrationStatus.UNRECOVERABLE
 
 
 def test_declined_wait_claim_leaves_in_progress_store_untouched(
