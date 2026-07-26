@@ -1,0 +1,429 @@
+"""Normalize, plan, and preview chop launch proposals."""
+
+from __future__ import annotations
+
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import replace
+from typing import Any
+
+from sase.core.axe_chop_facade import (
+    derive_chop_agent_name,
+    validate_chop_proposal,
+)
+
+from .chop_proposal_models import (
+    PlannedChopProposal,
+    PreparedChopProposal,
+    full_name_template,
+    resolve_wait_name,
+    scaffolded_prompt,
+)
+
+
+def prepare_chop_proposals(
+    chop_name: str,
+    result: Mapping[str, Any],
+    *,
+    target_key: str | None = None,
+    run_id: str | None = None,
+) -> list[PreparedChopProposal]:
+    """Normalize and validate all proposals in result order."""
+    prepared: list[PreparedChopProposal] = []
+    prior_ids: list[str] = []
+    raw_proposals = result.get("proposed_launches", [])
+    if not isinstance(raw_proposals, list):
+        raise ValueError("proposed_launches must be a list")
+    for index, raw in enumerate(raw_proposals):
+        if not isinstance(raw, dict):
+            raise ValueError(f"proposed_launches[{index}] must be an object")
+        normalized = validate_chop_proposal(
+            raw,
+            index=index,
+            prior_ids=prior_ids,
+        )
+        proposal_id_value = normalized.get("id")
+        proposal_id = str(proposal_id_value) if proposal_id_value is not None else None
+        if proposal_id is not None:
+            prior_ids.append(proposal_id)
+        configured_name = normalized.get("agent_name")
+        agent_name = (
+            str(configured_name)
+            if configured_name
+            else derive_chop_agent_name(
+                chop_name,
+                target_key=target_key,
+                proposal_index=index,
+                run_token=run_id,
+            )
+        )
+        prepared.append(
+            PreparedChopProposal(
+                index=index,
+                proposal_id=proposal_id,
+                prompt=str(normalized["prompt"]),
+                workspace=str(normalized["workspace"]),
+                agent_name=agent_name,
+                explicit_agent_name=bool(configured_name),
+                clan=str(normalized["clan"]) if normalized.get("clan") else None,
+                clan_summary=(
+                    str(normalized["clan_summary"])
+                    if normalized.get("clan_summary") is not None
+                    else None
+                ),
+                tribe=str(normalized.get("tribe") or "chop"),
+                model=str(normalized["model"]) if normalized.get("model") else None,
+                effort=str(normalized["effort"]) if normalized.get("effort") else None,
+                env={str(k): str(v) for k, v in dict(normalized["env"]).items()},
+                dedupe_key=(
+                    str(normalized["dedupe_key"])
+                    if normalized.get("dedupe_key")
+                    else None
+                ),
+                wait_on=normalized.get("wait_on"),
+            )
+        )
+    summaries_by_clan: dict[str, str] = {}
+    for proposal in prepared:
+        if proposal.clan is None or proposal.clan_summary is None:
+            continue
+        agreed = summaries_by_clan.setdefault(
+            proposal.clan,
+            proposal.clan_summary,
+        )
+        if proposal.clan_summary != agreed:
+            raise ValueError(
+                f"conflicting clan_summary values for raw clan {proposal.clan!r}"
+            )
+    return [
+        replace(
+            proposal,
+            clan_summary=(
+                summaries_by_clan.get(proposal.clan)
+                if proposal.clan is not None
+                else None
+            ),
+        )
+        for proposal in prepared
+    ]
+
+
+def _clan_token_candidates(clan_is_template: bool) -> Iterable[str | None]:
+    if not clan_is_template:
+        return (None,)
+    from sase.agent.names import iter_agent_name_template_tokens
+
+    return iter_agent_name_template_tokens()
+
+
+def _concrete_clan(raw_clan: str, token: str | None) -> tuple[str, str]:
+    """Return the concrete clan name and the namespace it reserves."""
+    if token is None:
+        return raw_clan, raw_clan
+    from sase.agent.names import (
+        agent_name_template_namespace_template,
+        render_agent_name_template,
+    )
+
+    return (
+        render_agent_name_template(raw_clan, token),
+        render_agent_name_template(
+            agent_name_template_namespace_template(raw_clan),
+            token,
+        ),
+    )
+
+
+def _allocate_clan_members(
+    proposals: Sequence[PreparedChopProposal],
+    *,
+    concrete_clan: str,
+    clan_namespace: str,
+    reserved_names: set[str],
+    reservation_index: Any,
+) -> dict[int, tuple[str, str]] | None:
+    """Allocate every member identity inside one concrete clan, or give up.
+
+    Allocation runs against trial copies of the reservation state so a rejected
+    clan token leaks no member name into the caller's pool.
+    """
+    from sase.agent.names import allocate_agent_name_template, is_agent_name_template
+
+    trial_reserved = set(reserved_names)
+    trial_index = replace(
+        reservation_index,
+        exact_names=set(reservation_index.exact_names),
+        occupied_namespaces=set(reservation_index.occupied_namespaces),
+    )
+    members: dict[int, tuple[str, str]] = {}
+    templated: list[PreparedChopProposal] = []
+    # Literal identities are immovable, so claim them all before letting
+    # template members pick tokens around them. Their clan-namespace check runs
+    # against the pre-group index because registering one sibling occupies the
+    # shared clan namespace for every other member.
+    for proposal in proposals:
+        if is_agent_name_template(proposal.agent_name):
+            templated.append(proposal)
+            continue
+        composed = f"{concrete_clan}.{proposal.agent_name}"
+        if composed in trial_reserved:
+            return None
+        if not reservation_index.candidate_available(composed, clan_namespace):
+            return None
+        trial_reserved.add(composed)
+        trial_index.add_name(composed)
+        members[proposal.index] = (composed, proposal.agent_name)
+    for proposal in templated:
+        concrete_name = allocate_agent_name_template(
+            f"{concrete_clan}.{proposal.agent_name}",
+            reserved=trial_reserved,
+            index=trial_index,
+        )
+        members[proposal.index] = (
+            concrete_name,
+            concrete_name[len(concrete_clan) + 1 :],
+        )
+    return members
+
+
+def _plan_clan_group(
+    proposals: Sequence[PreparedChopProposal],
+    *,
+    reserved_names: set[str],
+    reservation_index: Any,
+) -> tuple[str, dict[int, tuple[str, str]]]:
+    """Choose one unreserved concrete clan/token for a proposal group."""
+    from sase.agent.names import is_agent_name_template
+
+    raw_clan = proposals[0].clan
+    assert raw_clan is not None
+    literal_members = [
+        proposal.agent_name
+        for proposal in proposals
+        if not is_agent_name_template(proposal.agent_name)
+    ]
+    if len(set(literal_members)) != len(literal_members):
+        raise ValueError(f"clan {raw_clan!r} contains duplicate member identities")
+
+    for token in _clan_token_candidates(is_agent_name_template(raw_clan)):
+        concrete_clan, clan_namespace = _concrete_clan(raw_clan, token)
+        if concrete_clan in reserved_names:
+            continue
+        if not reservation_index.candidate_available(concrete_clan, clan_namespace):
+            continue
+        members = _allocate_clan_members(
+            proposals,
+            concrete_clan=concrete_clan,
+            clan_namespace=clan_namespace,
+            reserved_names=reserved_names,
+            reservation_index=reservation_index,
+        )
+        if members is None:
+            continue
+
+        reserved_names.add(concrete_clan)
+        reservation_index.add_name(concrete_clan)
+        for name, _ in members.values():
+            reserved_names.add(name)
+            reservation_index.add_name(name)
+        return concrete_clan, members
+
+    raise ValueError(
+        f"clan {raw_clan!r} or one of its member identities is already reserved"
+    )
+
+
+def plan_chop_proposals(
+    proposals: Sequence[PreparedChopProposal],
+) -> list[PlannedChopProposal]:
+    """Build the exact clan declaration/join plan without reserving names."""
+    clan_groups: dict[str, list[PreparedChopProposal]] = {}
+    for proposal in proposals:
+        if proposal.clan is not None:
+            clan_groups.setdefault(proposal.clan, []).append(proposal)
+
+    concrete_by_index: dict[int, tuple[str, str, str]] = {}
+    if clan_groups:
+        from sase.agent.names import (
+            AgentNameNamespaceReservationIndex,
+            get_reserved_agent_names,
+            get_reserved_clan_names,
+            is_agent_name_template,
+        )
+
+        reserved_names = get_reserved_agent_names()
+        reservation_index = AgentNameNamespaceReservationIndex.from_registry_names(
+            reserved_names,
+            namespace_containers=get_reserved_clan_names(),
+        )
+        # Concrete clan declarations are immovable, so account for them before
+        # allocating template clans regardless of proposal ordering.
+        ordered_groups = sorted(
+            clan_groups.values(),
+            key=lambda group: is_agent_name_template(group[0].clan or ""),
+        )
+        for group in ordered_groups:
+            concrete_clan, members = _plan_clan_group(
+                group,
+                reserved_names=reserved_names,
+                reservation_index=reservation_index,
+            )
+            for index, (agent_name, member_id) in members.items():
+                concrete_by_index[index] = (concrete_clan, agent_name, member_id)
+
+    first_by_clan: dict[str, int] = {}
+    for proposal in proposals:
+        concrete = concrete_by_index.get(proposal.index)
+        if concrete is not None:
+            first_by_clan.setdefault(concrete[0], proposal.index)
+
+    names_by_index: dict[int, str] = {}
+    names_by_id: dict[str, str] = {}
+    planned: list[PlannedChopProposal] = []
+    for proposal in proposals:
+        plan_clan: str | None
+        plan_member_id: str | None
+        concrete = concrete_by_index.get(proposal.index)
+        if concrete is None:
+            agent_name = proposal.agent_name
+            plan_clan = None
+            plan_member_id = None
+            declares_clan = False
+        else:
+            plan_clan, agent_name, plan_member_id = concrete
+            declares_clan = first_by_clan[plan_clan] == proposal.index
+        clan_summary = proposal.clan_summary if declares_clan else None
+        wait_name = resolve_wait_name(
+            proposal.wait_on,
+            names_by_index,
+            names_by_id,
+        )
+        prompt = scaffolded_prompt(
+            proposal,
+            wait_name,
+            agent_name=agent_name,
+            clan=plan_clan,
+            member_id=plan_member_id,
+            declares_clan=declares_clan,
+            clan_summary=clan_summary,
+        )
+        planned.append(
+            PlannedChopProposal(
+                proposal=proposal,
+                agent_name=agent_name,
+                clan=plan_clan,
+                member_id=plan_member_id,
+                declares_clan=declares_clan,
+                clan_summary=clan_summary,
+                prompt=prompt,
+            )
+        )
+        names_by_index[proposal.index] = agent_name
+        if proposal.proposal_id is not None:
+            names_by_id[proposal.proposal_id] = agent_name
+
+    if clan_groups:
+        from sase.agent.launch_validation import validate_launch_name_requests
+
+        validate_launch_name_requests([item.prompt for item in planned])
+    return planned
+
+
+def _fallback_plan(proposal: PreparedChopProposal) -> PlannedChopProposal:
+    agent_name = full_name_template(proposal)
+    return PlannedChopProposal(
+        proposal=proposal,
+        agent_name=agent_name,
+        clan=proposal.clan,
+        member_id=proposal.agent_name if proposal.clan is not None else None,
+        declares_clan=False,
+        clan_summary=None,
+        prompt=scaffolded_prompt(
+            proposal,
+            None,
+            agent_name=agent_name,
+            clan=proposal.clan,
+            member_id=proposal.agent_name,
+        ),
+    )
+
+
+def proposal_previews(
+    proposals: list[PreparedChopProposal],
+    *,
+    once_per_decisions: Mapping[int, Mapping[str, str]] | None = None,
+    effective_waits: Mapping[int, int | str | None] | None = None,
+    launch_plans: Sequence[PlannedChopProposal] | None = None,
+) -> list[dict[str, Any]]:
+    """Return JSON-safe launch previews with planned clan and wait metadata."""
+    if launch_plans is None:
+        launch_plans = plan_chop_proposals(proposals)
+    plans_by_index = {plan.proposal.index: plan for plan in launch_plans}
+    names_by_index: dict[int, str] = {}
+    names_by_id: dict[str, str] = {}
+    previews: list[dict[str, Any]] = []
+    for proposal in proposals:
+        plan = plans_by_index.get(proposal.index) or _fallback_plan(proposal)
+        wait_on = proposal.wait_on
+        if effective_waits is not None and proposal.index in effective_waits:
+            wait_on = effective_waits[proposal.index]
+        wait_name = resolve_wait_name(wait_on, names_by_index, names_by_id)
+        once_per = (once_per_decisions or {}).get(proposal.index, {})
+        decision_outcome = once_per.get("outcome")
+        validation = (
+            decision_outcome
+            if decision_outcome in {"duplicate", "name_collision"}
+            else "valid"
+        )
+        prompt = scaffolded_prompt(
+            proposal,
+            wait_name,
+            agent_name=plan.agent_name,
+            clan=plan.clan,
+            member_id=plan.member_id,
+            declares_clan=plan.declares_clan,
+            clan_summary=plan.clan_summary,
+        )
+        previews.append(
+            {
+                "index": proposal.index,
+                "id": proposal.proposal_id,
+                "agent_name": plan.agent_name,
+                "clan": plan.clan,
+                "member_id": plan.member_id,
+                "clan_role": ("declare" if plan.declares_clan else "join")
+                if plan.clan is not None
+                else None,
+                "clan_summary": plan.clan_summary,
+                "tribe": proposal.tribe,
+                "workspace": proposal.workspace,
+                "model": proposal.model,
+                "effort": proposal.effort,
+                "wait_on": wait_on,
+                "wait_name": wait_name,
+                "env_names": sorted(proposal.env),
+                "dedupe_key": once_per.get("key") or proposal.dedupe_key,
+                "dedupe_reason": (
+                    None
+                    if decision_outcome == "name_collision"
+                    else once_per.get("reason")
+                ),
+                "skip_reason": (
+                    once_per.get("reason")
+                    if decision_outcome in {"duplicate", "name_collision"}
+                    else None
+                ),
+                "prompt": prompt,
+                "validation": validation,
+            }
+        )
+        names_by_index[proposal.index] = plan.agent_name
+        if proposal.proposal_id is not None:
+            names_by_id[proposal.proposal_id] = plan.agent_name
+    return previews
+
+
+__all__ = [
+    "plan_chop_proposals",
+    "prepare_chop_proposals",
+    "proposal_previews",
+]
