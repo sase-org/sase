@@ -588,7 +588,6 @@ def test_manual_push_hint_uses_discovered_repository_root(
     commit_successful_work_launch(
         beads_dir,
         "sase-64",
-        "Epic",
         kind="epic",
         no_push=False,
         timer=timer,
