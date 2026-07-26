@@ -7,6 +7,8 @@ import logging
 import os
 from pathlib import Path
 import shutil
+import time
+from typing import TYPE_CHECKING
 import uuid
 
 from sase._git_remote import is_http_git_remote
@@ -27,6 +29,9 @@ _logger = logging.getLogger(__name__)
 
 PrimaryWorkspaceResolver = Callable[[str, int], str]
 StoreResolver = Callable[[str | Path, int], SddStore]
+
+if TYPE_CHECKING:
+    from sase.sdd._repository_recovery_markers import FailedIntegrationCooldown
 
 
 def ensure_sidecar_sdd_clone(
@@ -264,7 +269,31 @@ def _pull_sdd_clone(
     *,
     strict: bool = False,
     fresh: bool = False,
+    clock: Callable[[], float] | None = None,
 ) -> bool:
+    from sase.sdd._repository_recovery_git import machine_recovery_cooldown_seconds
+    from sase.sdd._repository_recovery_markers import (
+        admit_failed_integration_cooldown,
+        clear_failed_integration_marker,
+        record_failed_integration_marker,
+    )
+    from sase.sdd._repository_transaction import SddIntegrationStatus
+
+    cooldown_seconds = machine_recovery_cooldown_seconds()
+    cooldown = admit_failed_integration_cooldown(
+        workspace_sdd,
+        cooldown_seconds=cooldown_seconds,
+        clock=clock,
+    )
+    if cooldown is not None:
+        _log_failed_integration_cooldown(
+            workspace_sdd,
+            cooldown,
+            cooldown_seconds=cooldown_seconds,
+            clock=clock,
+        )
+        return False
+
     from sase.sdd._integration_marker import (
         bead_refresh_mode,
         integration_is_fresh,
@@ -282,7 +311,6 @@ def _pull_sdd_clone(
         recovery_failure_signature,
     )
     from sase.sdd._repository_transaction import (
-        SddIntegrationStatus,
         integrate_machine_managed_sdd_repository,
     )
 
@@ -292,6 +320,7 @@ def _pull_sdd_clone(
         op_prefix="sdd.clone",
     )
     if outcome.succeeded:
+        clear_failed_integration_marker(workspace_sdd)
         if (
             outcome.status is SddIntegrationStatus.RECOVERED
             and outcome.recovery_ref is not None
@@ -302,6 +331,8 @@ def _pull_sdd_clone(
                 outcome.recovery_ref,
             )
         return True
+    if _records_failed_integration_cooldown(outcome):
+        record_failed_integration_marker(workspace_sdd, outcome, clock=clock)
     if outcome.status is SddIntegrationStatus.RECOVERY_COOLDOWN:
         return False
 
@@ -335,6 +366,76 @@ def _pull_sdd_clone(
     }:
         raise SddMaterializationError(detail)
     return False
+
+
+def _records_failed_integration_cooldown(outcome: object) -> bool:
+    from sase.sdd._repository_transaction import (
+        SddIntegrationOutcome,
+        SddIntegrationStatus,
+    )
+
+    return (
+        isinstance(outcome, SddIntegrationOutcome)
+        and outcome.upstream_present
+        and outcome.status
+        in {
+            SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS,
+            SddIntegrationStatus.RECOVERY_COOLDOWN,
+            SddIntegrationStatus.RECOVERY_FAILED,
+            SddIntegrationStatus.UNRECOVERABLE,
+        }
+    )
+
+
+def _log_failed_integration_cooldown(
+    workspace_sdd: Path,
+    cooldown: FailedIntegrationCooldown,
+    *,
+    cooldown_seconds: float,
+    clock: Callable[[], float] | None = None,
+) -> None:
+    try:
+        from sase.logs import log_tui_git_operation
+
+        log_tui_git_operation(
+            {
+                "ts": (clock or time.time)(),
+                "event": "sdd_git_operation",
+                "operation": "sdd.clone.integration_cooldown",
+                "status": "suppressed",
+                "duration_ms": 0.0,
+                "returncode": None,
+                "cwd": str(workspace_sdd),
+                "cmd": [
+                    "git",
+                    "fetch/rebase",
+                    "[suppressed by failed-integration cooldown]",
+                ],
+                "stdout_preview": (
+                    "suppressed repeated SDD integration attempt "
+                    f"({cooldown.suppressed_count} suppressed since failure)"
+                ),
+                "stderr_preview": _preview_text(cooldown.error),
+                "cooldown_seconds": cooldown_seconds,
+                "failed_status": cooldown.status,
+                "failure_signature": cooldown.signature,
+                "failure_timestamp": cooldown.timestamp,
+                "suppressed_count": cooldown.suppressed_count,
+            }
+        )
+    except Exception:
+        _logger.debug(
+            "Failed to log SDD integration cooldown for %s",
+            workspace_sdd,
+            exc_info=True,
+        )
+
+
+def _preview_text(value: str | None, limit: int = 500) -> str | None:
+    if value is None:
+        return None
+    text = value.strip()
+    return text[:limit] if text else None
 
 
 def _append_recovery_error(

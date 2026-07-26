@@ -5,6 +5,10 @@ import subprocess
 
 import pytest
 
+from sase.sdd._repository_recovery_markers import (
+    FAILED_INTEGRATION_MARKER,
+    record_failed_integration_marker,
+)
 from sase.sdd._store_link import ensure_sidecar_sdd_clone
 from sase.sdd._store_link import _pull_sdd_clone
 from sase.sdd._store_types import SddMaterializationError
@@ -128,8 +132,8 @@ def test_pull_failure_warning_and_axe_report_are_durably_rate_limited(
     errors: list[dict] = []
     monkeypatch.setattr("sase.axe.state.append_error", errors.append)
 
-    assert _pull_sdd_clone(clone_dir) is False
-    assert _pull_sdd_clone(clone_dir) is False
+    assert _pull_sdd_clone(clone_dir, clock=lambda: now[0]) is False
+    assert _pull_sdd_clone(clone_dir, clock=lambda: now[0]) is False
 
     warnings = [
         record
@@ -143,7 +147,7 @@ def test_pull_failure_warning_and_axe_report_are_durably_rate_limited(
     assert errors[0]["failure_signature"]
 
     now[0] += 3601
-    assert _pull_sdd_clone(clone_dir) is False
+    assert _pull_sdd_clone(clone_dir, clock=lambda: now[0]) is False
     warnings = [
         record
         for record in caplog.records
@@ -151,6 +155,81 @@ def test_pull_failure_warning_and_axe_report_are_durably_rate_limited(
     ]
     assert len(warnings) == 2
     assert len(errors) == 2
+
+
+def test_failed_integration_cooldown_suppresses_repeated_rebases(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _remote, clone_dir, _right = _build_unrebasable_sidecar(tmp_path)
+    from sase.sdd import _repository_transaction
+
+    real_runner = _repository_transaction.default_git_runner
+    rebase_attempts: list[str] = []
+
+    def recording_runner(
+        repo_root: Path,
+        args: list[str],
+        *,
+        op: str,
+        network: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        if args == ["rebase", "@{upstream}"]:
+            rebase_attempts.append(op)
+        return real_runner(repo_root, args, op=op, network=network)
+
+    telemetry: list[dict] = []
+    monkeypatch.setattr(_repository_transaction, "default_git_runner", recording_runner)
+    monkeypatch.setattr("sase.logs.log_tui_git_operation", telemetry.append)
+
+    now = [100.0]
+    for _ in range(5):
+        assert _pull_sdd_clone(clone_dir, clock=lambda: now[0]) is False
+
+    assert rebase_attempts == ["sdd.clone.rebase"]
+    cooldown_records = [
+        record
+        for record in telemetry
+        if record.get("operation") == "sdd.clone.integration_cooldown"
+    ]
+    assert [record["suppressed_count"] for record in cooldown_records] == [1, 2, 3, 4]
+    assert all(record["status"] == "suppressed" for record in cooldown_records)
+
+
+def test_successful_pull_clears_failed_integration_marker(
+    tmp_path: Path,
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    clone_dir = tmp_path / "plans"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("seed\n", encoding="utf-8")
+    commit_all(seed, "seed")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, clone_dir)
+
+    from sase.sdd._integration_marker import git_state_path
+    from sase.sdd._repository_transaction import (
+        SddIntegrationOutcome,
+        SddIntegrationStatus,
+    )
+
+    marker = git_state_path(clone_dir, FAILED_INTEGRATION_MARKER)
+    assert record_failed_integration_marker(
+        clone_dir,
+        SddIntegrationOutcome(
+            SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS,
+            upstream_present=True,
+            error="injected failed rebase",
+        ),
+        clock=lambda: 100.0,
+    )
+    assert marker.exists()
+
+    assert _pull_sdd_clone(clone_dir, fresh=True, clock=lambda: 401.0) is True
+
+    assert not marker.exists()
 
 
 def test_sidecar_clone_fetches_once_within_ttl_and_refetches_on_demand(
@@ -342,6 +421,29 @@ def test_sidecar_clone_failure_removes_partial_target_and_surfaces_diagnostic(
         ensure_sidecar_sdd_clone(clone_dir, remote, strict=True)
 
     assert not clone_dir.exists()
+
+
+def _build_unrebasable_sidecar(tmp_path: Path) -> tuple[Path, Path, Path]:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    left = tmp_path / "plans"
+    right = tmp_path / "right"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    target = seed / "plans" / "shared.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("base\n", encoding="utf-8")
+    commit_all(seed, "seed")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, left)
+    clone(remote, right)
+
+    (left / "plans" / "shared.md").write_text("local\n", encoding="utf-8")
+    commit_all(left, "local change")
+    (right / "plans" / "shared.md").write_text("remote\n", encoding="utf-8")
+    commit_all(right, "remote change")
+    git(["push"], right)
+    return remote, left, right
 
 
 @pytest.mark.parametrize("strict", [False, True])
