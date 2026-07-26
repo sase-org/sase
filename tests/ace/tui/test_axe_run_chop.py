@@ -355,6 +355,24 @@ def test_compute_axe_bindings_no_chop_no_r_binding() -> None:
     assert not any(k == "r" for k, _ in bindings)
 
 
+def test_compute_axe_bindings_tracks_description_state() -> None:
+    footer = KeybindingFooter()
+
+    expanded = footer._compute_axe_bindings(
+        "axe",
+        config_row_selected=True,
+        description_expanded=True,
+    )
+    collapsed = footer._compute_axe_bindings(
+        "axe",
+        config_row_selected=True,
+        description_expanded=False,
+    )
+
+    assert ("d", "collapse desc") in expanded
+    assert ("d", "expand desc") in collapsed
+
+
 def test_compute_axe_bindings_done_bgcmd_wins_over_chop_label() -> None:
     """A done bgcmd selection keeps the ``re-run`` label even with chop flag set."""
     footer = KeybindingFooter()

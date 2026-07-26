@@ -95,6 +95,7 @@ class AppKeymaps:
     jump_to_all_entries: str
     edit_spec: str
     add_axe_item: str
+    toggle_axe_description: str
     rename_cl: str
     # ChangeSpec edits
     edit_hooks: str

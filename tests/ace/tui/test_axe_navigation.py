@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from sase.ace.tui.actions.axe import AxeMixin
 from sase.ace.tui.actions.axe_display import (
     AxeDisplayMixin,
     BgCmdSnapshot,
@@ -149,6 +150,80 @@ class _DescriptionDashboardProbe:
 
     def update_bgcmd_display(self, *_args: Any, **_kwargs: Any) -> None:
         self.banner = None
+
+
+class _ToggleProbe:
+    """Minimal action host proving the toggle stays cache-only."""
+
+    def __init__(self, tab: str = "axe") -> None:
+        self.current_tab = tab
+        self.axe_description_expanded = True
+        self.dashboard = MagicMock()
+        self.refreshes = 0
+
+    def query_one(self, *_args: Any, **_kwargs: Any) -> Any:
+        return self.dashboard
+
+    def _refresh_axe_display(self) -> None:
+        self.refreshes += 1
+
+
+def test_description_toggle_persists_and_repaints_both_directions() -> None:
+    app = _ToggleProbe()
+
+    AxeMixin.action_toggle_axe_description(app)  # type: ignore[arg-type]
+    assert app.axe_description_expanded is False
+    app.dashboard.refresh_description_banner.assert_called_once_with(False)
+    assert app.refreshes == 1
+
+    # Selection changes do not reset the session state; the next toggle simply
+    # reverses the same cached boolean.
+    AxeMixin.action_toggle_axe_description(app)  # type: ignore[arg-type]
+    assert app.axe_description_expanded is True
+    app.dashboard.refresh_description_banner.assert_called_with(True)
+    assert app.refreshes == 2
+
+
+def test_description_toggle_is_noop_outside_axe_tab() -> None:
+    app = _ToggleProbe(tab="agents")
+
+    AxeMixin.action_toggle_axe_description(app)  # type: ignore[arg-type]
+
+    assert app.axe_description_expanded is True
+    app.dashboard.refresh_description_banner.assert_not_called()
+    assert app.refreshes == 0
+
+
+def test_description_config_seeds_session_default() -> None:
+    from sase.ace.tui.app import AceApp
+
+    with patch(
+        "sase.config.load_merged_config",
+        return_value={"ace": {"axe_description_expanded": False}},
+    ):
+        app = AceApp(auto_start_axe=False)
+
+    assert app.axe_description_expanded is False
+
+
+def test_d_resolves_to_description_on_axe_and_diff_on_prs() -> None:
+    from sase.ace.tui.app import AceApp
+
+    def resolved(app: AceApp) -> str | None:
+        for binding in app._bindings.get_bindings_for_key("d"):
+            if app.check_action(binding.action, ()) is not False:
+                return binding.action
+        return None
+
+    axe_app = AceApp(auto_start_axe=False, initial_tab="axe")
+    assert resolved(axe_app) == "toggle_axe_description"
+
+    prs_app = AceApp(auto_start_axe=False, initial_tab="changespecs")
+    prs_app._reactive_current_artifacts_subtab = "prs"
+    assert resolved(prs_app) == "show_diff"
+
+    agents_app = AceApp(auto_start_axe=False, initial_tab="agents")
+    assert resolved(agents_app) != "show_diff"
 
 
 def test_navigation_does_not_read_from_disk() -> None:

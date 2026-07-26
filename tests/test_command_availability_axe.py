@@ -52,6 +52,27 @@ def test_axe_config_edit_and_output_edit_have_distinct_availability() -> None:
     assert is_command_available(output_edit, chop_with_runs)
 
 
+def test_axe_description_toggle_requires_config_row() -> None:
+    spec = _catalog_by_id()["app.toggle_axe_description"]
+
+    assert is_command_available(
+        spec,
+        CommandContext(tab="axe", axe_item=LumberjackItem(name="hooks")),
+    )
+    assert is_command_available(
+        spec,
+        CommandContext(
+            tab="axe",
+            axe_item=ChopItem(lumberjack_name="hooks", chop_name="fast"),
+        ),
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="axe", axe_item=BgCmdItem(slot=1)),
+    )
+    assert not is_command_available(spec, CommandContext(tab="axe", axe_item=None))
+
+
 def test_axe_run_workflow_excludes_disabled_and_running_chops() -> None:
     spec = _catalog_by_id()["app.run_workflow"]
     chop = ChopItem(lumberjack_name="hooks", chop_name="fast")

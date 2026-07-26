@@ -391,6 +391,11 @@
           "description": "Directory where ACE agent repro captures are written. Empty string uses the runtime default.",
           "default": ""
         },
+        "axe_description_expanded": {
+          "type": "boolean",
+          "description": "Whether AXE descriptions start expanded; the configured toggle key changes this only for the current ACE session.",
+          "default": true
+        },
         "artifacts": {
           "type": "object",
           "description": "Settings for ACE Artifacts panes",

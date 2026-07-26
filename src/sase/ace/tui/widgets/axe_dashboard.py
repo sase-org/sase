@@ -74,6 +74,26 @@ class AxeDashboard(Static):
         if banner is not None:
             banner.hide()
 
+    def _description_max_lines(self) -> int:
+        """Return the panel line budget while preserving most output space."""
+        height = self.size.height
+        if height <= 0:
+            return 10
+        return max(3, min(16, int(height * 0.45)))
+
+    def _description_expanded(self) -> bool:
+        """Read the app's session-only panel state without touching config."""
+        try:
+            return bool(getattr(self.app, "axe_description_expanded", True))
+        except Exception:
+            return True
+
+    def refresh_description_banner(self, expanded: bool) -> None:
+        """Repaint only the cached description panel for the ``d`` action."""
+        banner = self._description_banner()
+        if banner is not None:
+            banner.set_expanded(expanded)
+
     def update_display(
         self,
         is_running: bool,
@@ -248,7 +268,13 @@ class AxeDashboard(Static):
 
             description_banner = self._description_banner()
             if description_banner is not None:
-                description_banner.show_lumberjack(snapshot.name, snapshot.description)
+                description_banner.set_expanded(self._description_expanded())
+                description_banner.set_max_lines(self._description_max_lines())
+                description_banner.show_lumberjack(
+                    snapshot.name,
+                    snapshot.description_summary or snapshot.description,
+                    snapshot.description_body,
+                )
             status_section.update_lumberjack_display(
                 snapshot.status, snapshot.name, idx, total, countdown
             )
@@ -291,9 +317,12 @@ class AxeDashboard(Static):
 
             description_banner = self._description_banner()
             if description_banner is not None:
+                description_banner.set_expanded(self._description_expanded())
+                description_banner.set_max_lines(self._description_max_lines())
                 description_banner.show_chop(
                     snapshot.chop_name,
-                    snapshot.description,
+                    snapshot.description_summary or snapshot.description,
+                    snapshot.description_body,
                     generated=snapshot.generated,
                     target_key=snapshot.target_key,
                 )

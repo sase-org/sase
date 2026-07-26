@@ -86,6 +86,16 @@ def test_help_panel_tab_switch_display_is_present() -> None:
         assert ("[ / ]", "Switch Keymaps / Guide") in pairs
 
 
+def test_axe_help_lists_description_toggle() -> None:
+    pairs = {
+        (key, label)
+        for _section, bindings in axe_bindings(load_keymap_registry({}))
+        for key, label in bindings
+    }
+
+    assert ("d", "Expand / collapse description") in pairs
+
+
 def test_admin_center_help_summary_includes_both_statistics_range_directions() -> None:
     reg = load_keymap_registry({})
 

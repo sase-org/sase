@@ -99,6 +99,14 @@ def init_late_startup_state(
 
     merged = load_merged_config()
     ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
+    description_expanded = (
+        ace_cfg.get("axe_description_expanded", True)
+        if isinstance(ace_cfg, dict)
+        else True
+    )
+    self._reactive_axe_description_expanded = (
+        description_expanded if isinstance(description_expanded, bool) else True
+    )
     from ..widgets.artifacts.commit_config import resolve_commits_default_query
 
     commits_default = resolve_commits_default_query(ace_cfg)

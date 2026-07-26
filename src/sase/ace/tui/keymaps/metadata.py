@@ -42,6 +42,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("open_saved_query_picker", "Saved Queries", False),
     ("edit_spec", "Edit Spec", False),
     ("add_axe_item", "Add AXE Item", False),
+    ("toggle_axe_description", "Toggle AXE Description", False),
     ("scroll_detail_down", "Scroll Down", False),
     ("scroll_detail_up", "Scroll Up", False),
     ("scroll_prompt_down", "Scroll Prompt Down", False),

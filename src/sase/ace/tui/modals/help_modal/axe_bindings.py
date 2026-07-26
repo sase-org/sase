@@ -58,6 +58,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.add_axe_item), "Add lumberjack or chop"),
                 (d(a.run_workflow), "Run chop, or re-run done bgcmd"),
                 (d(a.edit_spec), "Edit lumberjack or chop config"),
+                (d(a.toggle_axe_description), "Expand / collapse description"),
                 (d(a.edit_panel), "Edit recorded chop output"),
             ],
         ),

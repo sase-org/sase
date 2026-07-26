@@ -51,6 +51,7 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
     current_tab: TabName
     refresh_interval: int
     axe_running: bool
+    axe_description_expanded: bool
     _countdown_remaining: int
     _axe_status: AxeStatus | None
     _axe_metrics: AxeMetrics | None
@@ -84,6 +85,26 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             return
 
         self.action_clear_axe_output()
+
+    def action_toggle_axe_description(self) -> None:
+        """Collapse or expand the selected config description for this session."""
+        if self.current_tab != "axe":
+            return
+
+        self.axe_description_expanded = not self.axe_description_expanded
+        from ..widgets import AxeDashboard
+
+        try:
+            dashboard = self.query_one("#axe-dashboard", AxeDashboard)  # type: ignore[attr-defined]
+            dashboard.refresh_description_banner(self.axe_description_expanded)
+        except Exception:
+            pass
+
+        # This is a cache-only repaint; it updates the conditional footer label
+        # without loading configuration or touching any AXE data source.
+        refresh = getattr(self, "_refresh_axe_display", None)
+        if callable(refresh):
+            refresh()
 
     def _toggle_or_kill_axe_view(self) -> None:
         """Toggle axe daemon or kill bgcmd based on current AXE view.

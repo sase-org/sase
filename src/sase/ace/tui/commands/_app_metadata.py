@@ -275,6 +275,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AXE_ONLY,
         ("new lumberjack", "new chop", "add chop"),
     ),
+    (
+        "toggle_axe_description",
+        "Toggle AXE description",
+        "Axe",
+        AXE_ONLY,
+        ("description", "expand description", "collapse description"),
+    ),
     ("rename_cl", "Rename PR / agent", "PR Actions", CL_AGENTS, ()),
     # ChangeSpec edits
     (

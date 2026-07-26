@@ -16,8 +16,8 @@ footer logic and the help modal's tab buckets:
   + mark count, ``edit_spec``/``edit_hooks`` reuse the footer's
   done-vs-running rules, ``run_workflow`` exposes retry-edit only with a
   focused agent, ``toggle_attempt_view`` requires history, and so on.
-- Axe-tab predicates: ``edit_spec`` requires an editable AXE config row,
-  ``edit_panel`` requires a chop with recorded output,
+- Axe-tab predicates: ``edit_spec`` and ``toggle_axe_description`` require an
+  editable AXE config row, ``edit_panel`` requires a chop with recorded output,
   ``run_workflow`` (re-run) requires a done bgcmd row, ``kill_agent`` is
   always meaningful (label changes between start/stop/kill), and the parent
   row blocks bgcmd-only commands.
@@ -509,6 +509,9 @@ def _axe_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return True
 
     if spec.id == "app.edit_spec":
+        return _is_lumberjack(item) or _is_chop(item)
+
+    if spec.id == "app.toggle_axe_description":
         return _is_lumberjack(item) or _is_chop(item)
 
     if spec.id == "app.edit_panel":

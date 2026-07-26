@@ -31,6 +31,7 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
     {
         frozenset({"edit_query", "search_forward"}),
         frozenset({"add_axe_item", "open_artifact_files"}),
+        frozenset({"show_diff", "toggle_axe_description"}),
     }
 )
 

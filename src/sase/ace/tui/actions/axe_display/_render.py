@@ -242,6 +242,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                             (LumberjackItem, ChopItem),
                         )
                     ),
+                    description_expanded=self.axe_description_expanded,  # type: ignore[attr-defined]
                 )
 
             # Always update the side-panel list. Pass cached statuses and

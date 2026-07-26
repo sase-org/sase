@@ -74,6 +74,7 @@ class KeybindingModesMixin:
             chop_selected_running: bool = False,
             chop_selected_enabled: bool = True,
             config_row_selected: bool = False,
+            description_expanded: bool = True,
         ) -> list[tuple[str, str]]: ...
 
     def update_bindings(self, changespec: ChangeSpec, *, mark_count: int = 0) -> None:
@@ -165,6 +166,7 @@ class KeybindingModesMixin:
         chop_selected_running: bool = False,
         chop_selected_enabled: bool = True,
         config_row_selected: bool = False,
+        description_expanded: bool = True,
     ) -> None:
         """Update bindings for Axe tab (entry-dependent only)."""
         bindings = self._compute_axe_bindings(
@@ -175,6 +177,7 @@ class KeybindingModesMixin:
             chop_selected_running=chop_selected_running,
             chop_selected_enabled=chop_selected_enabled,
             config_row_selected=config_row_selected,
+            description_expanded=description_expanded,
         )
         self._update_display(bindings)
 

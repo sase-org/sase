@@ -52,6 +52,7 @@ class KeybindingBindingsMixin:
         chop_selected_running: bool = False,
         chop_selected_enabled: bool = True,
         config_row_selected: bool = False,
+        description_expanded: bool = True,
     ) -> list[tuple[str, str]]:
         """Compute entry-dependent bindings for Axe tab.
 
@@ -80,6 +81,12 @@ class KeybindingBindingsMixin:
             bindings.append((self._kd("run_workflow"), label))
         if config_row_selected:
             bindings.append((self._kd("edit_spec"), "edit config"))
+            bindings.append(
+                (
+                    self._kd("toggle_axe_description"),
+                    "collapse desc" if description_expanded else "expand desc",
+                )
+            )
         if chop_selected and chop_run_total >= 1:
             bindings.append((self._kd("edit_panel"), "edit output"))
         if axe_current_view == "axe" and chop_run_total >= 2:

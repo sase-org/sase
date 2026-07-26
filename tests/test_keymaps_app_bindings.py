@@ -50,6 +50,15 @@ def test_search_and_contextual_app_query_share_slash() -> None:
     assert "show_help" not in by_action
 
 
+def test_diff_and_axe_description_toggle_share_d_in_resolution_order() -> None:
+    bindings = build_app_bindings(default_app_keymaps())
+
+    assert [binding.action for binding in bindings if binding.key == "d"][:2] == [
+        "show_diff",
+        "toggle_axe_description",
+    ]
+
+
 def test_build_app_bindings_uses_plus_custom_agent_binding() -> None:
     """The custom-agent launcher builds a ``plus`` binding, not ``at``."""
     bindings = build_app_bindings(default_app_keymaps())

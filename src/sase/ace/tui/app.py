@@ -163,6 +163,7 @@ class AceApp(
         DEFAULT_ARTIFACTS_SUBTAB, recompose=False
     )
     axe_running: reactive[bool] = reactive(False, recompose=False)
+    axe_description_expanded: reactive[bool] = reactive(True, recompose=False)
     hide_reverted: reactive[bool] = reactive(True, recompose=False)
     hide_submitted: reactive[bool] = reactive(True, recompose=False)
     hide_non_run_agents: reactive[bool] = reactive(True, recompose=False)
@@ -342,6 +343,10 @@ class AceApp(
             return False
         if action == "add_axe_item":
             return self.current_tab == "axe"
+        if action == "toggle_axe_description":
+            return self.current_tab == "axe"
+        if action == "show_diff" and self.current_tab != ARTIFACTS_TAB:
+            return False
         if action == "open_artifact_files" and self.current_tab != "agents":
             return False
         from .actions.artifact_bugs import BUG_ARTIFACT_ACTIONS

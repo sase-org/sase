@@ -54,6 +54,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("question_mark", "search_reverse", "Search Reverse", show=False),
     Binding("e", "edit_spec", "Edit Spec", show=False),
     Binding("a", "add_axe_item", "Add AXE Item", show=False),
+    Binding("d", "toggle_axe_description", "Toggle AXE Description", show=False),
     Binding("ctrl+d", "scroll_detail_down", "Scroll Down", show=False),
     Binding("ctrl+u", "scroll_detail_up", "Scroll Up", show=False),
     Binding("ctrl+f", "scroll_prompt_down", "Scroll Prompt Down", show=False),

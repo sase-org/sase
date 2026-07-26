@@ -118,10 +118,18 @@ def _make_chop_run(
 
 def _axe_lumberjack_tree_fixture() -> AxeCollectedData:
     """Fixture covering lumberjacks with chops alongside a bgcmd row."""
+    fast_summary = "Run fast lint checks across changed Python files"
+    fast_body = (
+        "Checks the focused Python changes before the slower validation lane runs.\n\n"
+        "- Reports lint failures beside the selected chop output.\n"
+        "- Leaves full type checking to the slow_typecheck chop."
+    )
     hooks_fast = ChopSnapshot(
         lumberjack_name="hooks",
         chop_name="fast_lint",
-        description="Run fast lint checks across changed Python files",
+        description=f"{fast_summary}\n\n{fast_body}",
+        description_summary=fast_summary,
+        description_body=fast_body,
         runs=[
             _make_chop_run(
                 "hooks",
@@ -166,7 +174,20 @@ def _axe_lumberjack_tree_fixture() -> AxeCollectedData:
         "hooks": LumberjackSnapshot(
             name="hooks",
             description=(
+                "Fast lane that advances hook, mentor, and workflow lifecycle state\n\n"
+                "Runs every few seconds to move completed lifecycle work forward while "
+                "keeping slower repository checks in their own lane.\n\n"
+                "- Includes hook, mentor, and workflow state transitions.\n"
+                "- Excludes submission and workspace audits."
+            ),
+            description_summary=(
                 "Fast lane that advances hook, mentor, and workflow lifecycle state"
+            ),
+            description_body=(
+                "Runs every few seconds to move completed lifecycle work forward while "
+                "keeping slower repository checks in their own lane.\n\n"
+                "- Includes hook, mentor, and workflow state transitions.\n"
+                "- Excludes submission and workspace audits."
             ),
             status=hooks_status,
             metrics=metrics,
@@ -248,6 +269,62 @@ async def test_axe_chop_description_png_snapshot(
             page,
             "axe_chop_description_120x40",
             title="ACE axe chop description banner",
+        )
+
+
+async def test_axe_chop_description_collapsed_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The session toggle collapses a chop body to its summary."""
+    patch_startup_loaders(monkeypatch, axe_data=_axe_lumberjack_tree_fixture())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+        await page.press("j")
+        await page.press("d")
+        page.app._refresh_axe_display()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_chop_description_collapsed_120x40",
+            title="ACE axe chop collapsed description",
+        )
+
+
+def _axe_description_overflow_fixture() -> AxeCollectedData:
+    data = _axe_lumberjack_tree_fixture()
+    chop = data.chop_snapshots[("hooks", "fast_lint")]
+    chop.description_body = "\n\n".join(
+        f"Paragraph {index} explains one more operational constraint."
+        for index in range(1, 21)
+    )
+    chop.description = f"{chop.description_summary}\n\n{chop.description_body}"
+    return data
+
+
+async def test_axe_description_overflow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A capped expanded panel states how many rendered rows were omitted."""
+    patch_startup_loaders(monkeypatch, axe_data=_axe_description_overflow_fixture())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+        await page.press("j")
+        page.app._refresh_axe_display()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_description_overflow_120x40",
+            title="ACE axe description overflow",
         )
 
 
