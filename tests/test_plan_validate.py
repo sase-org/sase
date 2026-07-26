@@ -45,12 +45,12 @@ phases:
   - id: core
     title: Core validator
     depends_on: []
-    description: "'Core validator' section: build the shared validation engine."
+    description: "core: build the shared validation engine."
     size: medium
   - id: cli
     title: CLI integration
     depends_on: [core]
-    description: "'CLI integration' section: wire the validator into the command."
+    description: "cli: wire the validator into the command."
     size: large
 ---
 # Plan
@@ -96,7 +96,7 @@ def test_facade_rehydrates_valid_tale_and_ordered_schema() -> None:
 
 def test_facade_rehydrates_normalized_epic_phases() -> None:
     descriptionless_epic = VALID_EPIC.replace(
-        "    description: \"'CLI integration' section: wire the validator into the command.\"\n",
+        '    description: "cli: wire the validator into the command."\n',
         "",
     )
     result = validate_plan(descriptionless_epic, "epic")

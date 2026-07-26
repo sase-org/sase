@@ -132,8 +132,8 @@ def stale_epic_summary_launch(
     phase_ids = ("parse", "render", "persist", "land")
     phase_titles = ("P1 parse", "P2 render", "P3 persist", "P4 land")
     phase_descriptions = tuple(
-        f"'{title}' section: deliver {title.lower()} from the committed plan."
-        for title in phase_titles
+        f"{phase_id}: deliver {title.lower()} from the committed plan."
+        for phase_id, title in zip(phase_ids, phase_titles, strict=True)
     )
     authored_plan = current_plans / "202607" / "diamond.md"
     authored_plan.parent.mkdir(parents=True)

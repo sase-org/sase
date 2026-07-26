@@ -68,7 +68,10 @@ def test_epic_summary_renders_valid_environment_plan_before_bead_store(
     )
     assert f"Path: {plan_ref}" in rendered.plain
     assert "implementation · no dependencies" in rendered.plain
-    assert "Implement the requested change' section" in rendered.plain
+    assert (
+        "implementation: deliver and verify the approved implementation."
+        in rendered.plain
+    )
     assert "PHASES ·" not in rendered.plain
     assert str(plan) not in rendered.plain
     assert "\\[epic]" in markup
