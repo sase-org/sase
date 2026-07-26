@@ -641,7 +641,9 @@ repair warning with the reason. That repair state can arm a deferred full-histor
 but normal `y` refreshes still stay on the visible-inbox path. Use `sase agent index status --json` for a lightweight
 check that does not scan source artifacts, `sase agent index verify` to compare the index with source artifacts, and
 `sase agent index gc` to rebuild the index and dismissed projection. Use the Agents-tab leader command `,y` when you
-want an immediate full-history refresh from source artifacts.
+want an immediate full-history refresh from source artifacts. If historical agent imports wrote future-dated artifacts
+or dismissed bundles, `sase agent index repair` reports that imported state (dry run by default) and `-a`/`--apply`
+removes it and rebuilds the affected projections; locally produced records are never touched.
 
 The dismissed projection that hides agents from the visible inbox is rebuilt from the in-memory dismissed set _unioned
 with every dismissed-bundle summary_. Reviving an agent now purges its dismissed bundle, so a revived agent stays

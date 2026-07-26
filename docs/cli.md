@@ -17,7 +17,7 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 | `sase agent tribe`              | Set, clear, or list user-defined agent tribes used for grouping.                                                     | [Agent tribes](agent_families.md#agent-tribes)        |
 | `sase agent archive`            | Maintain dismissed-agent bundle summary indexes (`rebuild-index`, `verify`).                                         | [ACE TUI](ace.md#agent-revival)                       |
 | `sase agent artifacts`          | Inspect and migrate physical agent artifact storage layout.                                                          | [Configuration](configuration.md#directory-sharding)  |
-| `sase agent index`              | Manage the persistent agent artifact SQLite index (`status`, `rebuild`, `verify`, `gc`).                             | [ACE TUI](ace.md)                                     |
+| `sase agent index`              | Manage the persistent agent artifact SQLite index (`status`, `rebuild`, `verify`, `gc`, `repair`).                   | [ACE TUI](ace.md)                                     |
 | `sase agent names migrate-auto` | Backfill the permanent agent-name registry from legacy auto-generated names; pass `--force` to rerun.                | [ACE TUI](ace.md)                                     |
 | `sase agent sync`               | Import shared history and publish locally commit-eligible hoods; `--check --refresh` fetches fresh status.           | [Agent hood synchronization](agents_sidecar.md)       |
 | `sase chat list`                | List recent chat transcripts with sync provenance; filter with `-P/--provenance`, `-m/--machine`, and `-q/--query`.  | [ACE Chats pane](ace.md#chats-pane)                   |
