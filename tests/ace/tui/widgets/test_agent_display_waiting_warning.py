@@ -310,6 +310,7 @@ def test_collect_agent_status_buckets_applies_family_precedence() -> None:
         (["RUNNING", "DONE"], "Running"),
         (["RUNNING", "FAILED"], "Failed"),
         (["QUEUED", "DONE"], "Queued"),
+        (["QUEUED", "WAITING"], "Queued"),
         (["WAITING", "DONE"], "Waiting"),
     ],
 )

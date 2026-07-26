@@ -20,6 +20,7 @@ from sase.ace.tui.models.agent_loader import _apply_status_overrides
         (["RUNNING", "FAILED", "PLAN"], "PLAN"),
         (["WAITING", "RUNNING", "FAILED"], "FAILED"),
         (["WAITING", "DONE", "RUNNING"], "RUNNING"),
+        (["QUEUED", "WAITING", "DONE"], "QUEUED"),
         (["DONE", "WAITING"], "WAITING"),
         (["DONE", "STOPPED", "PLAN REJECTED"], "DONE"),
     ],

@@ -7,9 +7,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import (
-    PENDING_PLAN_REVIEW_STATUSES,
-    QUEUED_STATUS,
     QUEUED_STATUS_BUCKET,
+    aggregate_agent_group_status,
     agent_is_asking,
     status_bucket_for_values,
 )
@@ -25,7 +24,6 @@ from .agent_family_members import (
     is_sequential_family_container,
 )
 
-_QUESTION_STATUSES = frozenset({"QUESTION", "WAITING INPUT"})
 _CLAN_MEMBER_STATUS_PRIORITIES: dict[str, int] = {
     "Failed": 0,
     "Stopped": 1,
@@ -77,27 +75,8 @@ class _ProjectedSummaryAgent:
 
 
 def aggregate_clan_status(statuses: Iterable[str]) -> str | None:
-    """Return aggregate clan status in display-priority order."""
-    values = tuple(statuses)
-    if not values:
-        return None
-    if any(status in _QUESTION_STATUSES for status in values):
-        return "QUESTION"
-    for pending_status in PENDING_PLAN_REVIEW_STATUSES:
-        if pending_status in values:
-            return pending_status
-    buckets = tuple(status_bucket_for_values(status) for status in values)
-    if "Failed" in buckets or "KILLED" in values:
-        return "FAILED"
-    if "Running" in buckets or "Starting" in buckets:
-        return "RUNNING"
-    if "Waiting" in buckets:
-        return "WAITING"
-    if QUEUED_STATUS_BUCKET in buckets:
-        return QUEUED_STATUS
-    if all(bucket == "Done" for bucket in buckets):
-        return "DONE"
-    return "RUNNING"
+    """Return the shared aggregate agent-group display status."""
+    return aggregate_agent_group_status(statuses)
 
 
 def clan_member_status_priority(

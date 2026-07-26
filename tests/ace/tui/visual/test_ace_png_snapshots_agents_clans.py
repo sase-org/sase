@@ -54,13 +54,22 @@ async def test_queued_clan_counts_png_snapshot(
             option.prompt.plain
             for option in panel._options  # type: ignore[union-attr]
         )
-        assert "(WAITING) ×2 [Q1 W1]" in list_rows
+        assert "(QUEUED) ×2 [Q1 W1]" in list_rows
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
-        assert "Status: WAITING [Q1 W1]" in prompt.content.plain
+        assert "Status: QUEUED [Q1 W1]" in prompt.content.plain
         info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
         assert info._build_display_text().plain.startswith(
             "2  [0/10 running · 1 queued · 1 waiting]"
         )
+        status_group_keys = [
+            entry.group.group_key
+            for entry in build_agent_tree(
+                page.app._agents,
+                mode=GroupingMode.BY_STATUS,
+            )
+            if entry.group is not None
+        ]
+        assert status_group_keys == [("Queued",)]
         ace_png_visual.assert_page_png(
             page,
             "agents_queued_clan_counts_120x40",

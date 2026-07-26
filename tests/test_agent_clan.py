@@ -49,9 +49,9 @@ def test_clan_pending_plan_status_uses_review_priority() -> None:
     assert aggregate_clan_status(["EPIC", "QUESTION"]) == "QUESTION"
 
 
-def test_clan_waiting_outranks_queued_and_queued_aggregates_on_its_own() -> None:
+def test_clan_queued_outranks_waiting() -> None:
     assert aggregate_clan_status(["QUEUED", "DONE"]) == "QUEUED"
-    assert aggregate_clan_status(["QUEUED", "WAITING"]) == "WAITING"
+    assert aggregate_clan_status(["QUEUED", "WAITING"]) == "QUEUED"
 
 
 def test_clan_unread_counts_deduplicate_and_replace_successful_done() -> None:

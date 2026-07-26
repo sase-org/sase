@@ -145,6 +145,7 @@ def test_clan_modal_preview_renders_only_implicit_global_queue_waits() -> None:
 
     label = modal._clan_row_label(modal._rows[0])
 
+    assert "alpha  QUEUED" in label.plain
     assert "[Q1 W1]" in label.plain
 
 

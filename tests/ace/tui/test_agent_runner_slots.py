@@ -387,20 +387,35 @@ def test_stale_queued_status_demotes_without_a_live_slot_request() -> None:
     assert agent.status == "WAITING"
 
 
-def test_first_refresh_promotes_all_queued_clan_aggregate() -> None:
-    member = _agent(
-        "research.coder",
+def test_first_refresh_promotes_mixed_queued_waiting_clan_aggregate() -> None:
+    implicit = _agent(
+        "research.implicit",
         agent_clan="research",
         agent_clan_generation="20260712120000",
         wait_runners=9,
         slot_requested_at="2026-07-12T12:00:00Z",
     )
-    projected = project_clan_tree([member])
+    explicit = _agent(
+        "research.explicit",
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+        wait_runners=0,
+        wait_runners_explicit=True,
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+    projected = project_clan_tree([implicit, explicit])
 
-    capacity = refresh_runner_slot_context(projected, effective_limit=10)
+    first = refresh_runner_slot_context(projected, effective_limit=10)
 
-    _assert_capacity_metrics(capacity, (10, 0, 1))
-    assert [agent.status for agent in projected] == ["QUEUED", "QUEUED"]
+    _assert_capacity_metrics(first, (10, 0, 1))
+    assert projected[0].status == "QUEUED"
+    assert (implicit.status, explicit.status) == ("QUEUED", "WAITING")
+
+    second = refresh_runner_slot_context(projected, effective_limit=10)
+
+    assert second == first
+    assert projected[0].status == "QUEUED"
+    assert (implicit.status, explicit.status) == ("QUEUED", "WAITING")
 
 
 def test_queued_rows_match_chip_header_summary_and_capacity_counts() -> None:

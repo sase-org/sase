@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 AGENT_STATUS_BUCKETS: tuple[str, ...] = (
     "Stopped",
     "Failed",
@@ -216,3 +218,27 @@ def status_bucket_for_values(
     if status_text.startswith("FAILED"):
         return "Failed"
     return "Running"
+
+
+def aggregate_agent_group_status(statuses: Iterable[str]) -> str | None:
+    """Return aggregate agent-group status in display-priority order."""
+    values = tuple(statuses)
+    if not values:
+        return None
+    if any(status in {"QUESTION", "WAITING INPUT"} for status in values):
+        return "QUESTION"
+    for pending_status in PENDING_PLAN_REVIEW_STATUSES:
+        if pending_status in values:
+            return pending_status
+    buckets = tuple(status_bucket_for_values(status) for status in values)
+    if "Failed" in buckets or "KILLED" in values:
+        return "FAILED"
+    if "Running" in buckets or "Starting" in buckets:
+        return "RUNNING"
+    if QUEUED_STATUS_BUCKET in buckets:
+        return QUEUED_STATUS
+    if "Waiting" in buckets:
+        return "WAITING"
+    if all(bucket == "Done" for bucket in buckets):
+        return "DONE"
+    return "RUNNING"

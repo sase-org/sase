@@ -204,8 +204,8 @@ def test_editor_helper_bridge_agent_catalog_derives_groups_from_one_snapshot(
 
     listing = _RunningAgentListing(
         [
-            info(records[1], "RUNNING"),
-            info(records[2], "DONE"),
+            info(records[1], "QUEUED"),
+            info(records[2], "WAITING"),
             info(records[3], "DONE"),
             info(records[4], "RUNNING"),
             info(records[5], "DONE"),
@@ -235,8 +235,8 @@ def test_editor_helper_bridge_agent_catalog_derives_groups_from_one_snapshot(
         "name": "squad",
         "kind": "clan",
         "member_count": 2,
-        "status": "RUNNING",
-        "detail": "clan · 2 members · RUNNING",
+        "status": "QUEUED",
+        "detail": "clan · 2 members · QUEUED",
     }
     assert by_target[("tribe", "@builders")]["detail"] == "tribe · 1 clan"
     assert by_target[("tribe", "@ops")]["detail"] == "tribe · 1 agent"

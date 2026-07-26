@@ -936,6 +936,12 @@ clan-local status priority Failed, Stopped, Running, Queued, Waiting, Done in ev
 Running's rank. Launch recency orders only members in the same status bucket. A family row moves as one unit with its
 follow-ups and workflow steps, preserving their adjacency and internal order.
 
+Clan rows aggregate member status using the same operational precedence: human-input questions, pending plan review,
+failure, and running/starting states outrank queued work; `QUEUED` then outranks `WAITING`, followed by an all-done
+result. Consequently, a clan with queued work and ordinary waiters displays `QUEUED` unless a higher-priority member
+state is present. Its count chip remains concrete and independent, so `QUEUED [Q3 W6]` reports three global-cap waiters
+and six explicit, dependency, bead, or time waiters without merging the two categories.
+
 The uppercase `H` ladder is scope-wide rather than selection-wide. If the grouping banner that `H` would collapse next
 contains any open standalone workflow, agent, or sequential-family house, the first press drives every such house
 directly to fully collapsed while leaving the banner open. A selected child row re-anchors to its visible house owner.

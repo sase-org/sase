@@ -212,7 +212,7 @@ def test_family_unit_counts_and_children_use_concrete_planner_projection() -> No
     assert snapshot.nested_count == 2
 
 
-def test_tribe_queue_count_is_scoped_and_preserves_waiting_status() -> None:
+def test_tribe_queue_count_is_scoped_and_aggregate_is_queued() -> None:
     implicit = _agent(
         "research.implicit",
         "WAITING",
@@ -265,6 +265,9 @@ def test_tribe_queue_count_is_scoped_and_preserves_waiting_status() -> None:
     )
 
     assert (snapshot.counts.queued, snapshot.counts.waiting) == (1, 2)
+    assert snapshot.status == "QUEUED"
+    assert snapshot.units[0].status == "QUEUED"
+    assert snapshot.attention == ()
     assert snapshot.units[0].status_counts is not None
     assert (
         snapshot.units[0].status_counts.queued,

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace.tui.models._agent_clan import aggregate_clan_status
 from sase.agent.status_buckets import (
     PENDING_PLAN_REVIEW_STATUSES,
+    aggregate_agent_group_status,
     agent_is_asking,
     is_pending_plan_review_status,
     pending_plan_status_for_tier,
@@ -31,3 +33,34 @@ def test_pending_plan_review_statuses_share_semantics(status: str) -> None:
 def test_non_pending_status_is_not_pending_plan_review() -> None:
     assert not is_pending_plan_review_status("PLAN APPROVED")
     assert not is_pending_plan_review_status(None)
+
+
+@pytest.mark.parametrize(
+    ("statuses", "expected"),
+    [
+        ([], None),
+        (["WAITING"], "WAITING"),
+        (["QUEUED"], "QUEUED"),
+        (["QUEUED", "WAITING"], "QUEUED"),
+        (["QUEUED", "WAITING", "DONE"], "QUEUED"),
+        (["QUEUED", "DONE"], "QUEUED"),
+        (["WAITING", "DONE"], "WAITING"),
+        (["DONE", "STOPPED", "PLAN REJECTED"], "DONE"),
+        (["UNKNOWN"], "RUNNING"),
+        (["QUEUED", "WAITING", "QUESTION"], "QUESTION"),
+        (["QUEUED", "WAITING", "WAITING INPUT"], "QUESTION"),
+        (["QUEUED", "WAITING", "PLAN"], "PLAN"),
+        (["QUEUED", "WAITING", "TALE"], "TALE"),
+        (["QUEUED", "WAITING", "EPIC"], "EPIC"),
+        (["QUEUED", "WAITING", "FAILED"], "FAILED"),
+        (["QUEUED", "WAITING", "KILLED"], "FAILED"),
+        (["QUEUED", "WAITING", "RUNNING"], "RUNNING"),
+        (["QUEUED", "WAITING", "STARTING"], "RUNNING"),
+    ],
+)
+def test_aggregate_agent_group_status_priority(
+    statuses: list[str],
+    expected: str | None,
+) -> None:
+    assert aggregate_agent_group_status(statuses) == expected
+    assert aggregate_clan_status(statuses) == expected

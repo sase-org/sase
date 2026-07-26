@@ -6,6 +6,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
+from sase.agent.status_buckets import aggregate_agent_group_status
+
 
 @dataclass(frozen=True)
 class _CatalogMember:
@@ -264,29 +266,7 @@ def _clan_entries(
 
 
 def _aggregate_status(statuses: Iterable[str]) -> str:
-    from sase.agent.status_buckets import (
-        PENDING_PLAN_REVIEW_STATUSES,
-        status_bucket_for_values,
-    )
-
-    values = tuple(statuses)
-    if any(status in {"QUESTION", "WAITING INPUT"} for status in values):
-        return "QUESTION"
-    for pending in PENDING_PLAN_REVIEW_STATUSES:
-        if pending in values:
-            return pending
-    buckets = tuple(status_bucket_for_values(status) for status in values)
-    if "Failed" in buckets or "KILLED" in values:
-        return "FAILED"
-    if "Running" in buckets or "Starting" in buckets:
-        return "RUNNING"
-    if "Waiting" in buckets:
-        return "WAITING"
-    if "Queued" in buckets:
-        return "QUEUED"
-    if buckets and all(bucket == "Done" for bucket in buckets):
-        return "DONE"
-    return "RUNNING"
+    return aggregate_agent_group_status(statuses) or "RUNNING"
 
 
 def _tribe_entries(
