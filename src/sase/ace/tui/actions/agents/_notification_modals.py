@@ -333,26 +333,12 @@ def handle_plan_approval(
             return
 
         if choice == "epic":
-            from sase.main.plan_pending import plan_context_from_notification
-            from sase.plan_approval_actions import (
-                PlanApprovalActionError,
-                prepare_epic_launch,
+            _submit_legacy_epic_launch_task(
+                app,
+                notification,
+                plan_file=plan_file,
+                response_dir=response_path,
             )
-
-            try:
-                prepare_epic_launch(
-                    plan_context_from_notification(notification),
-                    plan_file,
-                    mode="detached",
-                    response_dir=response_path,
-                )
-            except PlanApprovalActionError as exc:
-                app.notify(  # type: ignore[attr-defined]
-                    str(exc),
-                    title="Epic launch failed",
-                    severity="error",
-                    timeout=15,
-                )
 
         # Update the visible status from cached in-memory data immediately.
         if agent is not None:
@@ -385,6 +371,92 @@ def handle_plan_approval(
         on_dismiss,
     )
     return True
+
+
+def _submit_legacy_epic_launch_task(
+    app: object,
+    notification: Notification,
+    *,
+    plan_file: str,
+    response_dir: Path,
+) -> bool:
+    """Run legacy epic launch preflight/submission as tracked TUI work."""
+    from ...actions.task_actions import TrackedTaskResult
+    from sase.main.plan_pending import plan_context_from_notification
+    from sase.plan_approval_actions import (
+        PlanApprovalActionError,
+        prepare_epic_launch,
+    )
+
+    def work() -> TrackedTaskResult[object]:
+        try:
+            task = prepare_epic_launch(
+                plan_context_from_notification(notification),
+                plan_file,
+                mode="detached",
+                response_dir=response_dir,
+            )
+        except PlanApprovalActionError as exc:
+            return TrackedTaskResult(
+                success=False,
+                message=str(exc),
+                error=str(exc),
+            )
+        except Exception as exc:
+            log.exception("Legacy epic launch task failed")
+            return TrackedTaskResult(
+                success=False,
+                message=str(exc),
+                error=str(exc),
+            )
+        return TrackedTaskResult(
+            success=True,
+            message="Epic launch submitted",
+            payload=task,
+        )
+
+    def on_complete(completion: object) -> None:
+        if getattr(completion, "success", False):
+            return
+        app.notify(  # type: ignore[attr-defined]
+            getattr(completion, "message", "Epic launch failed"),
+            title="Epic launch failed",
+            severity="error",
+            timeout=15,
+        )
+
+    submit = getattr(app, "_submit_tracked_task", None)
+    if not callable(submit):
+        app.notify(  # type: ignore[attr-defined]
+            "Tracked epic launch execution is unavailable",
+            title="Epic launch failed",
+            severity="error",
+            timeout=15,
+        )
+        return False
+
+    cl_name = str(
+        notification.action_data.get("agent_cl_name")
+        or Path(plan_file).expanduser().stem
+    )
+    project_file = str(
+        notification.action_data.get("agent_project_file")
+        or notification.action_data.get("project_dir")
+        or plan_file
+    )
+    task_info = submit(
+        "launch",
+        cl_name,
+        project_file,
+        work,
+        display_name=f"Launch epic: {Path(plan_file).expanduser().stem}",
+        dedup_key=f"legacy-epic-launch:{notification.id}",
+        duplicate_message="This epic launch is already running",
+        on_complete=on_complete,
+        reload_on_complete=False,
+        notify_on_complete=False,
+    )
+    return task_info is not None
 
 
 def _start_plan_approval_background_worker(
