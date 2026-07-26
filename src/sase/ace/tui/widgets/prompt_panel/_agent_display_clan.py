@@ -20,6 +20,10 @@ from ...models._agent_clan_sections import (
 from ...models.agent import Agent, AgentType
 from ...models.fold_scale import CLAN_FOLD_SCALE, effective_fold_level
 from ...models.fold_state import FoldLevel
+from ...models.tribe_display import (
+    compose_tribe_identity_style,
+    tribe_identity_colors,
+)
 from .._agent_list_styling import _CLAN_IDENTITY_COLOR, _CLAN_NAME_STYLE
 from ._agent_display_clan_roster import (
     clan_roster_entries,
@@ -140,11 +144,18 @@ def build_clan_detail_text(
     )
 
     if agent.clan_tribes:
+        tribe_colors = tribe_identity_colors(agent.clan_tribes)
         text.append("Tribes: ", style=_FIELD_LABEL_STYLE)
         for index, tribe in enumerate(agent.clan_tribes):
             if index:
                 text.append(" ")
-            text.append(f"@{tribe}", style="bold #FFD75F")
+            text.append(
+                f"@{tribe}",
+                style=compose_tribe_identity_style(
+                    tribe_colors[tribe],
+                    bold=True,
+                ),
+            )
         text.append("\n")
 
     counts = clan_member_counts(agent, unread_ids)

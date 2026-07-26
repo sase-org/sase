@@ -8,6 +8,8 @@ from rich.text import Text
 from textual.css.query import NoMatches
 from textual.widgets import Static
 
+from sase.ace.tui.agent_completion import AgentCompletionCandidate
+from sase.ace.tui.models.tribe_display import named_tribe_identity_colors
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_agent_completion_row,
     append_directive_arg_completion_row,
@@ -125,6 +127,19 @@ class PromptInputBarCompletionMixin(_MixinBase):
         is_vcs_project = completion_kind == VCS_PROJECT_COMPLETION_KIND
         is_vcs_ref = completion_kind == VCS_REF_COMPLETION_KIND
         is_vcs_repo = completion_kind == VCS_REPO_COMPLETION_KIND
+        tribe_colors: dict[str, str] | None = None
+        if is_directive_arg_agent or is_xprompt_arg_agent:
+            tribe_colors = named_tribe_identity_colors(
+                {
+                    metadata.name.removeprefix("@")
+                    for candidate in visible
+                    if isinstance(
+                        (metadata := candidate.metadata),
+                        AgentCompletionCandidate,
+                    )
+                    and metadata.kind == "tribe"
+                }
+            )
         vcs_project_width = (
             max(
                 (vcs_project_label_width(candidate) for candidate in visible),
@@ -165,9 +180,19 @@ class PromptInputBarCompletionMixin(_MixinBase):
             elif is_directive:
                 append_directive_completion_row(content, candidate, is_selected)
             elif is_directive_arg:
-                append_directive_arg_completion_row(content, candidate, is_selected)
+                append_directive_arg_completion_row(
+                    content,
+                    candidate,
+                    is_selected,
+                    tribe_colors,
+                )
             elif is_xprompt_arg_agent:
-                append_agent_completion_row(content, candidate, is_selected)
+                append_agent_completion_row(
+                    content,
+                    candidate,
+                    is_selected,
+                    tribe_colors=tribe_colors,
+                )
             elif is_vcs_project:
                 append_vcs_project_completion_row(
                     content,

@@ -9,6 +9,10 @@ from sase.ace.tui.agent_completion import (
     neutral_vcs_workflow,
     status_style,
 )
+from sase.ace.tui.models.tribe_display import (
+    TRIBE_IDENTITY_FALLBACK_COLOR,
+    compose_tribe_identity_style,
+)
 from sase.ace.tui.widgets.directive_completion import (
     DirectiveArgCompletionMetadata,
     DirectiveCompletionMetadata,
@@ -128,10 +132,16 @@ def append_directive_arg_completion_row(
     content: Text,
     candidate: CompletionCandidate,
     is_selected: bool,
+    tribe_colors: dict[str, str] | None = None,
 ) -> None:
     """Append one prompt directive argument completion row."""
     if is_agent_completion_candidate(candidate):
-        append_agent_completion_row(content, candidate, is_selected)
+        append_agent_completion_row(
+            content,
+            candidate,
+            is_selected,
+            tribe_colors=tribe_colors,
+        )
         return
 
     content.append(
@@ -151,6 +161,8 @@ def append_agent_completion_row(
     content: Text,
     candidate: CompletionCandidate,
     is_selected: bool,
+    *,
+    tribe_colors: dict[str, str] | None = None,
 ) -> None:
     """Append one kind-aware wait/fork target row."""
     metadata = (
@@ -163,7 +175,12 @@ def append_agent_completion_row(
         return
 
     if metadata.kind != "agent":
-        _append_group_completion_row(content, metadata, is_selected)
+        _append_group_completion_row(
+            content,
+            metadata,
+            is_selected,
+            tribe_colors=tribe_colors,
+        )
         return
 
     workflow = metadata.vcs_workflow or neutral_vcs_workflow()
@@ -184,15 +201,32 @@ def _append_group_completion_row(
     content: Text,
     metadata: AgentCompletionCandidate,
     is_selected: bool,
+    *,
+    tribe_colors: dict[str, str] | None = None,
 ) -> None:
     """Append one family, clan, or tribe using the shared row anatomy."""
     glyphs = {"family": "F", "clan": "C", "tribe": "@"}
     styles = {
         "family": _FAMILY_NAME_STYLE,
         "clan": _CLAN_NAME_STYLE,
-        "tribe": "bold #FFD75F",
     }
-    style = styles[metadata.kind]
+    if metadata.kind == "tribe":
+        tribe_name = metadata.name.removeprefix("@")
+        identity_style = compose_tribe_identity_style(
+            (
+                tribe_colors.get(tribe_name, TRIBE_IDENTITY_FALLBACK_COLOR)
+                if tribe_colors is not None
+                else TRIBE_IDENTITY_FALLBACK_COLOR
+            ),
+            bold=True,
+        )
+        badge_style = compose_tribe_identity_style(
+            TRIBE_IDENTITY_FALLBACK_COLOR,
+            bold=True,
+        )
+    else:
+        identity_style = styles[metadata.kind]
+        badge_style = identity_style
     name = _truncate_cell(metadata.name, 26)
     count = metadata.member_count or 0
     if metadata.kind == "tribe" and metadata.agent_count is not None:
@@ -204,15 +238,17 @@ def _append_group_completion_row(
         badge = _truncate_cell(f"{metadata.kind} · {count}", 14)
     preview = _member_preview(metadata.member_names, count)
 
-    content.append(f"{glyphs[metadata.kind]} ", style=style)
+    content.append(f"{glyphs[metadata.kind]} ", style=identity_style)
     content.append(
         f"{name:<26}",
-        style=f"bold {style}"
-        if is_selected and not style.startswith("bold ")
-        else style,
+        style=(
+            f"bold {identity_style}"
+            if is_selected and not identity_style.startswith("bold ")
+            else identity_style
+        ),
     )
     content.append("  ")
-    content.append(f"{badge:<14}", style=style)
+    content.append(f"{badge:<14}", style=badge_style)
     content.append("  ")
     content.append(
         "● ", style=status_style(metadata.aggregate_status or metadata.status)

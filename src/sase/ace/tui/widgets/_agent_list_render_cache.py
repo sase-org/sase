@@ -7,7 +7,7 @@ byte-identical to the prior render.
 """
 
 from collections import OrderedDict
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from datetime import datetime
 from typing import Any, Literal
 
@@ -22,6 +22,7 @@ from ..models.agent import Agent, AgentType
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_groups import GroupingMode, GroupRow
 from ..models.agent_time import row_runtime_or_wait_ticks, wait_display_agent
+from ..models.tribe_display import TRIBE_IDENTITY_FALLBACK_COLOR
 from ._agent_list_helpers import ordered_row_providers
 
 _AGENT_CACHE_MAX = 512
@@ -144,6 +145,7 @@ def agent_render_key(
     hint_char: str | None = None,
     tribe_label: str | None = None,
     panel_tribe: str | None = None,
+    tribe_colors: Mapping[str, str] | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
@@ -168,6 +170,25 @@ def agent_render_key(
         if parallel_family_counts is None
         else parallel_family_counts
     )
+    semantic_tribes = tuple(
+        dict.fromkeys(
+            (
+                *agent.clan_tribes,
+                *((tribe_label,) if tribe_label is not None else ()),
+            )
+        )
+    )
+    tribe_color_fingerprint = tuple(
+        (
+            tribe,
+            (
+                tribe_colors.get(tribe, TRIBE_IDENTITY_FALLBACK_COLOR)
+                if tribe_colors is not None
+                else TRIBE_IDENTITY_FALLBACK_COLOR
+            ),
+        )
+        for tribe in semantic_tribes
+    )
     return (
         agent.identity,
         index,
@@ -179,6 +200,7 @@ def agent_render_key(
         hint_char,
         tribe_label,
         panel_tribe,
+        tribe_color_fingerprint,
         agent.approve,
         agent.auto_approve_plan_action,
         agent.tribe,

@@ -18,6 +18,7 @@ from .agent_panels import PanelKey
 
 MAX_TRIBE_ICON_CELLS = 4
 _TRIBE_COLOR_PATTERN = re.compile(r"#[0-9A-Fa-f]{6}")
+TRIBE_IDENTITY_FALLBACK_COLOR = "#FFD75F"
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +95,69 @@ def tribe_display_for(panel_key: PanelKey) -> _TribeDisplay:
     return _tribe_displays().get(config_key, DEFAULT_TRIBE_DISPLAY)
 
 
+def tribe_identity_color(panel_key: PanelKey) -> str:
+    """Return the effective foreground for one structured tribe identity."""
+    return tribe_display_for(panel_key).color or TRIBE_IDENTITY_FALLBACK_COLOR
+
+
+def tribe_identity_colors(
+    panel_keys: Collection[PanelKey],
+) -> dict[PanelKey, str]:
+    """Resolve effective identity colors once for the distinct *panel_keys*."""
+    displays = _tribe_displays()
+    colors: dict[PanelKey, str] = {}
+    for panel_key in panel_keys:
+        config_key = "default" if panel_key is None else panel_key
+        display = displays.get(config_key, DEFAULT_TRIBE_DISPLAY)
+        colors[panel_key] = display.color or TRIBE_IDENTITY_FALLBACK_COLOR
+    return colors
+
+
+def named_tribe_identity_colors(tribe_names: Collection[str]) -> dict[str, str]:
+    """Resolve effective identity colors once for bare tribe names."""
+    displays = _tribe_displays()
+    return {
+        tribe_name: (
+            displays.get(tribe_name, DEFAULT_TRIBE_DISPLAY).color
+            or TRIBE_IDENTITY_FALLBACK_COLOR
+        )
+        for tribe_name in tribe_names
+    }
+
+
+def compose_tribe_identity_style(
+    color: str,
+    *,
+    bold: bool = False,
+    dim: bool = False,
+) -> str:
+    """Safely compose a resolved identity foreground with Rich emphasis."""
+    effective_color = _sanitize_color(color) or TRIBE_IDENTITY_FALLBACK_COLOR
+    emphasis = [
+        name
+        for enabled, name in (
+            (bold, "bold"),
+            (dim, "dim"),
+        )
+        if enabled
+    ]
+    return " ".join((*emphasis, effective_color))
+
+
+def tribe_identity_style(
+    panel_key: PanelKey,
+    *,
+    bold: bool = False,
+    dim: bool = False,
+) -> str:
+    """Return a Rich style for one structured tribe identity."""
+    return compose_tribe_identity_style(
+        tribe_identity_color(panel_key),
+        bold=bold,
+        dim=dim,
+    )
+
+
 def effective_collapsed_panel_keys(
     panel_keys: Collection[PanelKey] | None,
     *,
@@ -121,6 +185,12 @@ def effective_collapsed_panel_keys(
 __all__ = [
     "DEFAULT_TRIBE_DISPLAY",
     "MAX_TRIBE_ICON_CELLS",
+    "TRIBE_IDENTITY_FALLBACK_COLOR",
+    "compose_tribe_identity_style",
     "effective_collapsed_panel_keys",
+    "named_tribe_identity_colors",
     "tribe_display_for",
+    "tribe_identity_color",
+    "tribe_identity_colors",
+    "tribe_identity_style",
 ]

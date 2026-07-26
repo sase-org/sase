@@ -805,17 +805,18 @@ tribe renders as `@<tribe>` with an agent-lane count in the panel title. One sta
 is one lane, and a rootless clan contributes one lane per direct member rather than one for its synthetic container.
 Per-tribe icons, identity colors, and initial expansion are configurable through
 [`ace.tribes`](configuration.md#acetribes); the special `default` entry styles the reserved panel, and explicit panel
-folds are remembered and override the configured initial state. Identity colors apply only to the icon and `@tribe`
-name, leaving selection, fold, and status chrome in its semantic palette. Each panel title can also show compact scoped
-metrics in the form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R` is running, `W` is waiting to start, `F`
-is failed, `U` is unread terminal work, and `D` is done/read terminal work. Zero-count metrics are omitted. The status
-metrics use the same lanes as the adjacent total and classify a sequential family once from its normalized owner status.
-The selected whole-panel `TRIBE` header uses that same lane projection, while its nested count and per-family/per-clan
-member summaries preserve the concrete-member distinction. On the selected whole panel, the title marker, total,
-brackets, and metric letters use the focus accent; each numeric metric count retains its semantic status color. Panel
-heights are sized to their content and separated by a one-row gap. When the panels fit, the first panel grows to absorb
-leftover vertical space while later panels stay pinned to their natural height; when the panels overflow, space is
-weighted by each panel's rendered row count.
+folds are remembered and override the configured initial state. Across structured ACE TUI surfaces, identity colors
+apply only to an existing configured icon and the `@tribe` name; they do not recolor free-form `@...` text or selection,
+fold, count, heading, and status chrome. Configured icons remain limited to surfaces that already show an icon. Each
+panel title can also show compact scoped metrics in the form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R`
+is running, `W` is waiting to start, `F` is failed, `U` is unread terminal work, and `D` is done/read terminal work.
+Zero-count metrics are omitted. The status metrics use the same lanes as the adjacent total and classify a sequential
+family once from its normalized owner status. The selected whole-panel `TRIBE` header uses that same lane projection,
+while its nested count and per-family/per-clan member summaries preserve the concrete-member distinction. On the
+selected whole panel, the title marker, total, brackets, and metric letters use the focus accent; each numeric metric
+count retains its semantic status color. Panel heights are sized to their content and separated by a one-row gap. When
+the panels fit, the first panel grows to absorb leftover vertical space while later panels stay pinned to their natural
+height; when the panels overflow, space is weighted by each panel's rendered row count.
 
 Use `J` / `K` to move across expanded panels (forward / reverse) and enter the first or last selectable row in the
 destination; collapsed panels are skipped entirely, and the keymaps do nothing when no other panel is expanded.

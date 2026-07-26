@@ -114,6 +114,7 @@ class AgentList(OptionList, inherit_bindings=False):
         # refreshes when nothing in the agent's visible state changed.
         # Phase 3 of sdd/tales/202604/instant_jk_navigation.md.
         self._agent_render_cache: AgentRenderCache = AgentRenderCache()
+        self._tribe_identity_colors: dict[str, str] = {}
         # Per-row render context, populated by ``update_list`` and read by
         # ``patch_agent_row`` so a single-row update can re-emit an Option
         # with the same alignment width / mark / fold annotation it had
@@ -250,6 +251,7 @@ class AgentList(OptionList, inherit_bindings=False):
             self.clear_options()
             self._agents = []
             self._unread_agents = set()
+            self._tribe_identity_colors = {}
             self._row_entries = []
             self._banner_at_row = {}
             self._row_render_ctx = {}

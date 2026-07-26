@@ -25,6 +25,10 @@ from ...models.agent_tribe_summary import (
 )
 from ...models.fold_scale import TRIBE_FOLD_SCALE
 from ...models.fold_state import FoldLevel
+from ...models.tribe_display import (
+    TRIBE_IDENTITY_FALLBACK_COLOR,
+    tribe_identity_style,
+)
 from ._agent_tribe_aggregation import (
     TribeEnrichmentSection,
     TribeRuntimeStatistics,
@@ -47,7 +51,7 @@ from ._member_roster import (
     append_member_roster,
 )
 
-TRIBE_IDENTITY_COLOR = "#FFD75F"
+TRIBE_IDENTITY_COLOR = TRIBE_IDENTITY_FALLBACK_COLOR
 
 _FIELD_LABEL_STYLE = "bold #87D7FF"
 _TRIBE_HEADING_STYLE = f"bold {TRIBE_IDENTITY_COLOR} underline"
@@ -151,7 +155,10 @@ def _append_header(
 ) -> None:
     text.append("TRIBE\n", style=_TRIBE_HEADING_STYLE)
     text.append("Name: ", style=_FIELD_LABEL_STYLE)
-    text.append(f"{snapshot.label}\n", style=f"bold {TRIBE_IDENTITY_COLOR}")
+    text.append(
+        f"{snapshot.label}\n",
+        style=tribe_identity_style(snapshot.panel_key, bold=True),
+    )
 
     text.append("Status: ", style=_FIELD_LABEL_STYLE)
     from sase.agent.status_buckets import status_bucket_for_values

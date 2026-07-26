@@ -22,6 +22,10 @@ from sase.core.agent_cleanup_wire import (
     AgentCleanupPlanWire,
     AgentCleanupRequestWire,
 )
+from sase.ace.tui.models.tribe_display import (
+    compose_tribe_identity_style,
+    named_tribe_identity_colors,
+)
 
 from .agent_cleanup_types import AgentCleanupTribeResult
 from .base import OptionListNavigationMixin
@@ -55,6 +59,9 @@ class AgentCleanupTribeModal(
         self._rows = [
             self._build_row(tribe) for tribe in sorted(set(tribes), key=str.lower)
         ]
+        self._tribe_colors = named_tribe_identity_colors(
+            {row.tribe for row in self._rows}
+        )
         self._marked_tribes: set[str] = set()
 
     def compose(self) -> ComposeResult:
@@ -142,7 +149,11 @@ class AgentCleanupTribeModal(
         enabled = self._row_enabled(row)
         marked = row.tribe in self._marked_tribes
         marker_style = "bold green" if marked else "dim"
-        tribe_style = "bold cyan" if enabled else "dim"
+        tribe_style = compose_tribe_identity_style(
+            self._tribe_colors[row.tribe],
+            bold=enabled,
+            dim=not enabled,
+        )
         detail_style = "dim" if enabled else "dim italic"
         text.append("[x] " if marked else "[ ] ", style=marker_style)
         text.append(f"@{row.tribe}", style=tribe_style)

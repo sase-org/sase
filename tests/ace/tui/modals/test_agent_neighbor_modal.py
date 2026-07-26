@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.widgets import OptionList
 
@@ -34,6 +35,13 @@ def _choices(count: int = 3) -> list[AgentNeighborChoice]:
         )
         for index in range(count)
     ]
+
+
+def _style_at(text: Text, position: int) -> str | None:
+    for span in reversed(text.spans):
+        if span.start <= position < span.end:
+            return str(span.style)
+    return str(text.style) if text.style else None
 
 
 async def test_agent_neighbor_modal_enter_selects_highlighted_row() -> None:
@@ -132,6 +140,20 @@ def test_agent_neighbor_modal_option_text_includes_row_metadata() -> None:
     assert "DONE" in plain
     assert "@review" in plain
     assert "4m" in plain
+
+
+def test_agent_neighbor_modal_option_colors_structured_panel_identity() -> None:
+    choice = _choices(2)[1]
+
+    configured = _agent_neighbor_option_text(
+        "a",
+        choice,
+        tribe_colors={"review": "#123456"},
+    )
+    fallback = _agent_neighbor_option_text("a", choice)
+
+    assert _style_at(configured, configured.plain.index("@review")) == "#123456"
+    assert _style_at(fallback, fallback.plain.index("@review")) == "#FFD75F"
 
 
 def test_agent_neighbor_modal_option_text_tags_dismissed_rows() -> None:

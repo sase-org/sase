@@ -24,6 +24,10 @@ from sase.core.agent_cleanup_wire import (
     AgentCleanupPlanWire,
     AgentCleanupRequestWire,
 )
+from sase.ace.tui.models.tribe_display import (
+    compose_tribe_identity_style,
+    named_tribe_identity_colors,
+)
 
 from .agent_cleanup_types import (
     AgentCleanupAgentIdentity,
@@ -73,6 +77,7 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
         self._tribe_filter: str | None = None
         self._text_filter = ""
         self._known_tribes = self._candidate_tribes()
+        self._tribe_colors = named_tribe_identity_colors(self._known_tribes)
         self._filtered_agents: list[Agent] = []
         self._plan = self._recompute_plan()
 
@@ -279,7 +284,26 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
             )
         filter_label = self._filter_label()
         if filter_label:
-            text.append(f"\nfilter: {filter_label}", style="dim")
+            text.append("\nfilter: ", style="dim")
+            filter_parts: list[tuple[str, str]] = []
+            if self._status_filter:
+                filter_parts.append((self._status_filter, "dim"))
+            if self._tribe_filter:
+                filter_parts.append(
+                    (
+                        f"@{self._tribe_filter}",
+                        compose_tribe_identity_style(
+                            self._tribe_colors[self._tribe_filter],
+                            bold=True,
+                        ),
+                    )
+                )
+            if self._text_filter:
+                filter_parts.append((f"/{self._text_filter}", "dim"))
+            for index, (label, style) in enumerate(filter_parts):
+                if index:
+                    text.append(" ", style="dim")
+                text.append(label, style=style)
         return text
 
     def _hint_text(self) -> str:
@@ -304,7 +328,12 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
             text.append(f" @{agent.presented_agent_name}", style="cyan")
         effective_tribe = self._effective_tribe(agent)
         if effective_tribe:
-            text.append(f"  @{effective_tribe}", style="magenta")
+            text.append(
+                f"  @{effective_tribe}",
+                style=compose_tribe_identity_style(
+                    self._tribe_colors[effective_tribe],
+                ),
+            )
         text.append(f"\n   {agent.status}", style="dim")
         if agent.pid is not None:
             text.append(f"  pid {agent.pid}", style="dim")

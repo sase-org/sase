@@ -103,7 +103,10 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         panel_focus = resolve_panel() if callable(resolve_panel) else None
         panel_selected = bool(panel_focus is not None and panel_focus.panel_key == key)
         counts = agent_panel_counts(panel_agents, unread)
-        from ...models.tribe_display import tribe_display_for
+        from ...models.tribe_display import (
+            tribe_display_for,
+            tribe_identity_color,
+        )
 
         tribe_display = tribe_display_for(key)
         return agent_panel_border_title(
@@ -118,7 +121,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                 panel_jump_hints.get(("panel", key)) if panel_jump_hints else None
             ),
             icon=tribe_display.icon,
-            color=tribe_display.color,
+            color=tribe_identity_color(key),
         )
 
     @staticmethod

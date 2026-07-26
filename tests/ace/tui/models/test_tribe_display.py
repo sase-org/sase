@@ -99,6 +99,41 @@ def test_empty_and_hostile_colors_use_fallback(
         assert display.tribe_display_for(tribe).color == ""
 
 
+def test_effective_identity_colors_and_emphasis_use_one_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_config(
+        monkeypatch,
+        {
+            "default": {"color": "#87D7FF"},
+            "epic": {"color": "#AF87FF"},
+            "empty": {"color": ""},
+        },
+    )
+
+    assert display.tribe_identity_color(None) == "#87D7FF"
+    assert display.tribe_identity_color("epic") == "#AF87FF"
+    assert display.tribe_identity_color("empty") == "#FFD75F"
+    assert display.tribe_identity_color("unknown") == "#FFD75F"
+    assert display.named_tribe_identity_colors({"epic", "empty", "unknown"}) == {
+        "epic": "#AF87FF",
+        "empty": "#FFD75F",
+        "unknown": "#FFD75F",
+    }
+    assert display.tribe_identity_style("epic", bold=True) == "bold #AF87FF"
+    assert display.tribe_identity_style("epic", dim=True) == "dim #AF87FF"
+    assert (
+        display.tribe_identity_style("epic", bold=True, dim=True) == "bold dim #AF87FF"
+    )
+    assert (
+        display.compose_tribe_identity_style(
+            "bold red on blue",
+            bold=True,
+        )
+        == "bold #FFD75F"
+    )
+
+
 def test_resolution_is_memoized_per_config_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

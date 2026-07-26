@@ -16,6 +16,7 @@ from ...agent_count_chip import (
 from ...models._agent_clan import agent_lane_status_counts
 from ...models._agent_tree import agent_is_tree_child
 from ...models.agent_panels import agent_panel_label
+from ...models.tribe_display import compose_tribe_identity_style
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
     from ...models.agent_panels import PanelKey
 
 _PANEL_SELECTED_CHROME_STYLE = "#FFD75F"
-_PANEL_TRIBE_STYLE = f"bold {_PANEL_SELECTED_CHROME_STYLE}"
+_PANEL_TRIBE_STYLE = compose_tribe_identity_style("", bold=True)
 _PANEL_COUNT_STYLE = AGENT_COUNT_CHIP_NEUTRAL_STYLE
 _PANEL_ISOLATION_RESTORE_STYLE = "bold #D7AF5F"
 _PANEL_METRIC_STYLES: dict[str, str] = {
@@ -96,7 +97,7 @@ def agent_panel_border_title(
 ) -> Text:
     """Build a styled panel title while preserving its plain-text label."""
     title = Text()
-    identity_style = f"bold {color}" if color else _PANEL_TRIBE_STYLE
+    identity_style = compose_tribe_identity_style(color, bold=True)
     if jump_hint is not None:
         title.append(f"[{jump_hint}] ", style="bold #FFFF00")
     if selected and not collapsed:

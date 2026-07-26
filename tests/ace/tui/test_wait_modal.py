@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.widgets import Input, OptionList, Static
 
@@ -10,12 +11,20 @@ from sase.ace.tui.modals.wait_modal import (
     WaitModal,
     WaitModalResult,
     _active_fragment,
+    _candidate_option,
     _prefill_time_token,
     _replace_active_fragment,
     _validate_priority_token,
     _validate_runners_token,
     _validate_time_token,
 )
+
+
+def _style_at(text: Text, position: int) -> str | None:
+    for span in reversed(text.spans):
+        if span.start <= position < span.end:
+            return str(span.style)
+    return str(text.style) if text.style else None
 
 
 class _TestApp(App[WaitModalResult | None]):
@@ -49,6 +58,57 @@ def test_active_fragment_uses_text_after_last_comma() -> None:
 def test_replace_active_fragment_appends_comma_for_multi_select() -> None:
     assert _replace_active_fragment("", "planner") == "planner, "
     assert _replace_active_fragment("planner, cod", "coder") == "planner, coder, "
+
+
+def test_wait_candidate_colors_only_compact_tribe_portion() -> None:
+    configured = WaitAgentCandidate(
+        wait_name="planner",
+        label="planner",
+        status="RUNNING",
+        role="root",
+        tribe="@epic",
+    )
+    fallback = WaitAgentCandidate(
+        wait_name="reviewer",
+        label="reviewer",
+        status="DONE",
+        tribe="@unknown",
+    )
+
+    configured_text = _candidate_option(
+        configured,
+        0,
+        tribe_colors={"epic": "#123456"},
+    ).prompt
+    fallback_text = _candidate_option(
+        fallback,
+        1,
+        tribe_colors={"unknown": "#FFD75F"},
+    ).prompt
+
+    assert isinstance(configured_text, Text)
+    assert isinstance(fallback_text, Text)
+    assert (
+        _style_at(
+            configured_text,
+            configured_text.plain.index("root"),
+        )
+        == "dim"
+    )
+    assert (
+        _style_at(
+            configured_text,
+            configured_text.plain.index("@epic"),
+        )
+        == "dim #123456"
+    )
+    assert (
+        _style_at(
+            fallback_text,
+            fallback_text.plain.index("@unknown"),
+        )
+        == "dim #FFD75F"
+    )
 
 
 def test_time_validation_states() -> None:

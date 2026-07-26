@@ -540,7 +540,7 @@ ace:
 | `prompt_completion` | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
 | `repro_output_dir`  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
 | `snippets`          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
-| `tribes`            | dict         | see below | Per-tribe Agents-tab panel icons, identity colors, and initial expansion.                                                                                  |
+| `tribes`            | dict         | see below | Per-tribe ACE TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                      |
 | `updates`           | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
 
 #### `ace.artifacts.commits`
@@ -580,11 +580,11 @@ publication, or the `,U` cached-integration leg. See [Agent Hood Synchronization
 `ace.tribes` is keyed by bare tribe name (without `@`). The special `default` key configures the reserved `@default`
 panel. Each entry accepts these optional fields:
 
-| Field                | Type | Default | Description                                                                                     |
-| -------------------- | ---- | ------- | ----------------------------------------------------------------------------------------------- |
-| `icon`               | str  | `""`    | Short glyph rendered before the panel name. Set `""` to remove an icon inherited from defaults. |
-| `color`              | str  | `""`    | `#RRGGBB` foreground for the icon and `@tribe` name. Set `""` to restore ACE's gold fallback.   |
-| `initially_expanded` | bool | `true`  | Initial state the first time the panel appears.                                                 |
+| Field                | Type | Default | Description                                                                                                                   |
+| -------------------- | ---- | ------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `icon`               | str  | `""`    | Short glyph on structured identity surfaces that already include an icon. Set `""` to remove an icon inherited from defaults. |
+| `color`              | str  | `""`    | `#RRGGBB` foreground for structured tribe icons and names throughout the TUI. Set `""` to restore ACE's gold fallback.        |
+| `initially_expanded` | bool | `true`  | Initial state the first time the Agents-tab panel appears.                                                                    |
 
 The bundled defaults use ⌂ in sky blue for `default`, ▲ in lavender-purple for `epic`, ∴ in teal-green for `research`,
 and † in amber-orange for `chop`. They also use ◆ for `pinned` and ◉ for `review`, whose identities retain ACE's gold
@@ -592,6 +592,10 @@ fallback; `chop` starts collapsed. Because config entries merge deeply, setting 
 inherited color without replacing that tribe's other defaults. Once a user explicitly expands or collapses a panel, that
 durable choice takes precedence over `initially_expanded`, including after ACE restarts. Changing the config still
 affects panels the user has not folded explicitly.
+
+Identity colors apply only where ACE already has a structured tribe value. They do not scan free-form `@...` text or
+recolor selection markers, fold controls, counts, statuses, headings, or explanatory copy. Icons likewise appear only on
+identity surfaces that already include them; configuring an icon does not add one to compact name-only rows.
 
 ACE reads this TUI setting from the user-level `~/.config/sase/sase.yml` (and user overlays), not project-local
 `sase/sase.yml`.

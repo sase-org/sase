@@ -69,7 +69,7 @@ def _target(
 
 _TARGET_ROWS = [
     _target(
-        "@builders",
+        "@epic",
         kind="tribe",
         status="RUNNING",
         members=("review.alpha", "review.beta", "ship--code", "coder"),
@@ -142,7 +142,7 @@ async def test_wait_target_completion_png_snapshot(
             selected_index=3,
             completion_kind="directive_arg",
         )
-        await wait_for_svg_contains(page, "@builders")
+        await wait_for_svg_contains(page, "@epic")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

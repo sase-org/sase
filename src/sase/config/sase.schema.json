@@ -416,7 +416,7 @@
         },
         "tribes": {
           "type": "object",
-          "description": "Per-tribe Agents-tab panel display settings, keyed by bare tribe name",
+          "description": "Per-tribe ACE TUI identity display settings, keyed by bare tribe name",
           "propertyNames": {
             "pattern": "^[A-Za-z0-9_.-]+$"
           },
@@ -427,18 +427,18 @@
               "icon": {
                 "type": "string",
                 "maxLength": 16,
-                "description": "Short glyph shown before the tribe name; an empty string disables an inherited icon",
+                "description": "Short glyph shown before the tribe name on identity surfaces that include an icon; an empty string disables an inherited icon",
                 "default": ""
               },
               "color": {
                 "type": "string",
                 "pattern": "^(?:|#[0-9A-Fa-f]{6})$",
-                "description": "RGB foreground color for the tribe icon and name; an empty string uses the ACE fallback",
+                "description": "RGB foreground for structured tribe icons and names throughout the ACE TUI, without recoloring semantic chrome; an empty string uses the ACE fallback",
                 "default": ""
               },
               "initially_expanded": {
                 "type": "boolean",
-                "description": "Whether the panel starts expanded until the user explicitly folds it",
+                "description": "Whether the Agents-tab tribe panel starts expanded until the user explicitly folds it",
                 "default": true
               }
             }

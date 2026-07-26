@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
@@ -13,6 +14,7 @@ from textual.widgets import Label
 
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.agent_tribes import InvalidTribeError, validate_tribe_name
+from sase.ace.tui.models.tribe_display import tribe_identity_style
 
 
 @dataclass(frozen=True)
@@ -78,10 +80,18 @@ class AgentTribeModal(ModalScreen[AgentTribeModalResult | None]):
     def compose(self) -> ComposeResult:
         with Container():
             yield Label(f"Tribe: {self._target_label}", id="modal-title")
-            current_text = (
-                f"@{self._current_tribe}" if self._current_tribe else "(none)"
-            )
-            yield Label(f"Current: {current_text}", id="agent-tribe-current")
+            current_text = Text("Current: ")
+            if self._current_tribe:
+                current_text.append(
+                    f"@{self._current_tribe}",
+                    style=tribe_identity_style(
+                        self._current_tribe,
+                        bold=True,
+                    ),
+                )
+            else:
+                current_text.append("(none)")
+            yield Label(current_text, id="agent-tribe-current")
             yield Label(
                 "[bold]Enter[/] set (or clear if empty) · [bold]Ctrl+D[/] clear · [bold]Tab[/] complete\n"
                 "Type a tribe name without the '@' prefix.",

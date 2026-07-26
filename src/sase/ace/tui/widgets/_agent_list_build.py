@@ -34,6 +34,7 @@ from ..models.agent_groups import (
     build_agent_tree,
 )
 from ..models.group_fold import GroupFoldView
+from ..models.tribe_display import named_tribe_identity_colors
 from ._agent_list_helpers import compute_fold_annotation
 from ._agent_list_rendering import (
     assemble_padded_option,
@@ -240,6 +241,11 @@ def build_list(
     marked = marked_agents or set()
     unread = unread_agents or set()
     widget._unread_agents = set(unread)
+    semantic_tribes = {tribe for agent in agents for tribe in agent.clan_tribes}
+    if tribe_labels is not None:
+        semantic_tribes.update(tribe for tribe in tribe_labels if tribe is not None)
+    tribe_colors = named_tribe_identity_colors(semantic_tribes)
+    widget._tribe_identity_colors = tribe_colors
     if parents_with_visible_children is None or fully_expanded_parents is None:
         local_visible_parents, local_fully_expanded = compute_visible_parents(agents)
         if parents_with_visible_children is None:
@@ -302,6 +308,7 @@ def build_list(
             hint_char=hint,
             tribe_label=tribe_label,
             panel_tribe=panel_tribe,
+            tribe_colors=tribe_colors,
             now=now,
             tier_styles=tier_styles,
             wait_deps_satisfied=wait_deps_done,
@@ -317,6 +324,7 @@ def build_list(
             "hint_char": hint,
             "tribe_label": tribe_label,
             "panel_tribe": panel_tribe,
+            "tribe_colors": tribe_colors,
             "is_selected": is_selected_agent,
             "wait_deps_satisfied": wait_deps_done,
             "has_missing_wait_target": has_missing_wait_target,
@@ -603,6 +611,7 @@ def patch_row(
         hint_char=ctx["hint_char"],
         tribe_label=ctx.get("tribe_label"),
         panel_tribe=ctx.get("panel_tribe"),
+        tribe_colors=ctx.get("tribe_colors"),
         now=now,
         tier_styles=widget._row_tier_styles.get(agent_idx, ()),
         wait_deps_satisfied=ctx.get("wait_deps_satisfied"),

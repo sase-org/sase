@@ -15,6 +15,11 @@ from textual.widgets.option_list import Option
 
 from sase.ace.tui.agent_completion import AgentVcsWorkflow, status_style
 from sase.ace.tui.models.agent_time import format_compact_duration, format_wait_until
+from sase.ace.tui.models.tribe_display import (
+    TRIBE_IDENTITY_FALLBACK_COLOR,
+    compose_tribe_identity_style,
+    named_tribe_identity_colors,
+)
 from sase.core.time import local_now
 from sase.xprompt._directive_time import parse_absolute_time, parse_duration
 from sase.xprompt._exceptions import DirectiveError
@@ -264,7 +269,12 @@ def _status_style(status: str) -> str:
     return status_style(status)
 
 
-def _candidate_option(candidate: WaitAgentCandidate, index: int) -> Option:
+def _candidate_option(
+    candidate: WaitAgentCandidate,
+    index: int,
+    *,
+    tribe_colors: dict[str, str] | None = None,
+) -> Option:
     """Render one agent completion row."""
     model = _truncate(candidate.model or "-", 18)
     start = candidate.start_time or "--:--"
@@ -285,7 +295,43 @@ def _candidate_option(candidate: WaitAgentCandidate, index: int) -> Option:
     text.append(f"{duration:<8}", style="dim")
     if role:
         text.append(" ")
-        text.append(role, style="dim")
+        if candidate.tribe is None:
+            text.append(role, style="dim")
+        elif candidate.role is None:
+            tribe_name = candidate.tribe.removeprefix("@")
+            text.append(
+                role,
+                style=compose_tribe_identity_style(
+                    (
+                        tribe_colors.get(
+                            tribe_name,
+                            TRIBE_IDENTITY_FALLBACK_COLOR,
+                        )
+                        if tribe_colors is not None
+                        else TRIBE_IDENTITY_FALLBACK_COLOR
+                    ),
+                    dim=True,
+                ),
+            )
+        else:
+            tribe_start = min(len(role), len(candidate.role) + 1)
+            text.append(role[:tribe_start], style="dim")
+            if tribe_start < len(role):
+                tribe_name = candidate.tribe.removeprefix("@")
+                text.append(
+                    role[tribe_start:],
+                    style=compose_tribe_identity_style(
+                        (
+                            tribe_colors.get(
+                                tribe_name,
+                                TRIBE_IDENTITY_FALLBACK_COLOR,
+                            )
+                            if tribe_colors is not None
+                            else TRIBE_IDENTITY_FALLBACK_COLOR
+                        ),
+                        dim=True,
+                    ),
+                )
     return Option(text, id=f"wait-agent-{index}")
 
 
@@ -331,6 +377,13 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         )
         self._current_wait_priority = current_wait_priority
         self._candidates = candidates or []
+        self._tribe_colors = named_tribe_identity_colors(
+            {
+                candidate.tribe.removeprefix("@")
+                for candidate in self._candidates
+                if candidate.tribe
+            }
+        )
         self._filtered_candidates: list[WaitAgentCandidate] = []
         self._is_running = is_running
         self._programmatic_highlight = False
@@ -474,7 +527,11 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
 
         option_list = self.query_one("#agent-completion", _AgentCompletionList)
         options: list[Option] = [
-            _candidate_option(candidate, index)
+            _candidate_option(
+                candidate,
+                index,
+                tribe_colors=self._tribe_colors,
+            )
             for index, candidate in enumerate(self._filtered_candidates)
         ]
         if not options:

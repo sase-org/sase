@@ -3,7 +3,7 @@ for one agent in the list, plus a memoized wrapper backed by
 :class:`AgentRenderCache`.
 """
 
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from datetime import datetime
 
 from rich.text import Text
@@ -43,6 +43,10 @@ from ..models.agent_status import (
 )
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_panels import normalize_panel_key
+from ..models.tribe_display import (
+    TRIBE_IDENTITY_FALLBACK_COLOR,
+    compose_tribe_identity_style,
+)
 from ._agent_list_helpers import (
     ordered_row_providers,
     short_model_name,
@@ -104,6 +108,18 @@ def _append_tree_indent(text: Text, depth: int) -> None:
     text.append(indent, style="dim #808080")
 
 
+def _tribe_style(
+    tribe: str,
+    tribe_colors: Mapping[str, str] | None,
+) -> str:
+    color = (
+        tribe_colors.get(tribe, TRIBE_IDENTITY_FALLBACK_COLOR)
+        if tribe_colors is not None
+        else TRIBE_IDENTITY_FALLBACK_COLOR
+    )
+    return compose_tribe_identity_style(color, bold=True)
+
+
 def format_agent_option(
     agent: Agent,
     index: int,
@@ -116,6 +132,7 @@ def format_agent_option(
     hint_char: str | None = None,
     tribe_label: str | None = None,
     panel_tribe: str | None = None,
+    tribe_colors: Mapping[str, str] | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
@@ -223,7 +240,10 @@ def format_agent_option(
         # ChangeSpec name otherwise).
         text.append(agent.display_name, style=name_style)
         if tribe_label:
-            text.append(f" @{tribe_label}", style="bold #FFD75F")
+            text.append(
+                f" @{tribe_label}",
+                style=_tribe_style(tribe_label, tribe_colors),
+            )
 
     # Status (wrapped in parentheses, parens are dim)
     display_status = agent.display_status
@@ -432,9 +452,15 @@ def format_agent_option(
             )
         )
         for clan_tribe in rendered_tribes:
-            text.append(f" @{clan_tribe}", style="bold #FFD75F")
+            text.append(
+                f" @{clan_tribe}",
+                style=_tribe_style(clan_tribe, tribe_colors),
+            )
         if tribe_label and tribe_label not in rendered_tribes:
-            text.append(f" @{tribe_label}", style="bold #FFD75F")
+            text.append(
+                f" @{tribe_label}",
+                style=_tribe_style(tribe_label, tribe_colors),
+            )
 
     # Embedded workflow annotation for child steps
     if agent.embedded_workflow_name:
@@ -479,6 +505,7 @@ def cached_format_agent_option(
     hint_char: str | None = None,
     tribe_label: str | None = None,
     panel_tribe: str | None = None,
+    tribe_colors: Mapping[str, str] | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
@@ -508,6 +535,7 @@ def cached_format_agent_option(
         hint_char=hint_char,
         tribe_label=tribe_label,
         panel_tribe=panel_tribe,
+        tribe_colors=tribe_colors,
         now=now,
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,
@@ -529,6 +557,7 @@ def cached_format_agent_option(
         hint_char=hint_char,
         tribe_label=tribe_label,
         panel_tribe=panel_tribe,
+        tribe_colors=tribe_colors,
         now=now,
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,

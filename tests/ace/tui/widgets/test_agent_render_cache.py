@@ -303,6 +303,59 @@ def test_clan_row_omits_only_the_matching_split_panel_tribe() -> None:
     assert merged.plain.count("@epic") == 1
 
 
+def test_agent_and_clan_tribe_annotations_use_independent_identity_colors() -> None:
+    standalone, _, _ = format_agent_option(
+        _agent(),
+        0,
+        is_selected=False,
+        tribe_label="epic",
+        tribe_colors={"epic": "#123456"},
+    )
+    clan = _agent(cl_name="research", status="RUNNING")
+    clan.is_clan_container = True
+    clan.agent_clan = "research"
+    clan.clan_tribes = ("epic", "review")
+    clan_text, _, _ = format_agent_option(
+        clan,
+        0,
+        is_selected=False,
+        tribe_colors={
+            "epic": "#123456",
+            "review": "#654321",
+        },
+    )
+
+    assert _style_at(standalone, standalone.plain.index("@epic")) == "bold #123456"
+    assert _style_at(clan_text, clan_text.plain.index("@epic")) == "bold #123456"
+    assert _style_at(clan_text, clan_text.plain.index("@review")) == "bold #654321"
+
+
+def test_cached_row_separates_resolved_tribe_color_fingerprints() -> None:
+    cache = AgentRenderCache()
+    agent = _agent()
+
+    first = cached_format_agent_option(
+        cache,
+        agent,
+        0,
+        is_selected=False,
+        tribe_label="epic",
+        tribe_colors={"epic": "#123456"},
+    )
+    second = cached_format_agent_option(
+        cache,
+        agent,
+        0,
+        is_selected=False,
+        tribe_label="epic",
+        tribe_colors={"epic": "#654321"},
+    )
+
+    assert first[0] is not second[0]
+    assert _style_at(first[0], first[0].plain.index("@epic")) == "bold #123456"
+    assert _style_at(second[0], second[0].plain.index("@epic")) == "bold #654321"
+
+
 def test_multitribe_clan_in_no_tribe_panel_keeps_distinct_ordered_tribes() -> None:
     clan = _agent(cl_name="research", status="RUNNING")
     clan.is_clan_container = True

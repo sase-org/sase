@@ -6,7 +6,9 @@ from datetime import datetime
 from types import SimpleNamespace
 
 from rich.text import Text
+import pytest
 
+import sase.ace.tui.models.tribe_display as tribe_display
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._agent_display_clan import (
@@ -63,6 +65,41 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
     assert "▸ ERRORS · 1\n" in detail.plain
     assert style_at(detail, detail.plain.index("CLAN")) == ("bold #D75FFF underline")
     assert style_at(detail, detail.plain.index("research")) == "#D75FFF"
+
+
+def test_clan_header_resolves_each_tribe_identity_color_independently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {
+            "ace": {
+                "tribes": {
+                    "epic": {"color": "#123456"},
+                    "review": {"color": ""},
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        tribe_display,
+        "current_config_token",
+        lambda: ("clan-tribe-colors",),
+    )
+    tribe_display._tribe_displays_for_token.cache_clear()
+    member = make_clan_agent(
+        "research.first",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    container = project_clan_tree([member])[0]
+    container.clan_tribes = ("epic", "review")
+
+    detail = build_clan_detail_text(container)
+
+    assert style_at(detail, detail.plain.index("@epic")) == "bold #123456"
+    assert style_at(detail, detail.plain.index("@review")) == "bold #FFD75F"
 
 
 def test_new_style_clan_tribe_projects_into_folded_summary_header() -> None:

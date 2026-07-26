@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from rich.text import Text
 
+import sase.ace.tui.models.tribe_display as tribe_display
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.widgets.agent_list import AgentList
 
@@ -179,6 +180,64 @@ async def test_patch_clan_row_preserves_latest_panel_context() -> None:
         assert widget.patch_agent_row(0) is True
         await pilot.pause()
         assert str(widget.get_option_at_index(row).prompt).count("@epic") == 1
+
+
+@pytest.mark.asyncio
+async def test_full_rebuild_refreshes_tribe_colors_reused_by_patch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token = [1]
+    colors = {1: "#123456", 2: "#654321"}
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {
+            "ace": {
+                "tribes": {
+                    "epic": {"color": colors[token[0]]},
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        tribe_display,
+        "current_config_token",
+        lambda: ("patch-tribe-color", token[0]),
+    )
+    tribe_display._tribe_displays_for_token.cache_clear()
+
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        agent = _agent()
+        widget.update_list(
+            [agent],
+            current_idx=0,
+            tribe_labels=["epic"],
+        )
+        await pilot.pause()
+        row = _agent_row_index(widget, 0)
+        first = widget.get_option_at_index(row).prompt
+        assert isinstance(first, Text)
+        assert _style_at(first, first.plain.index("@epic")) == "bold #123456"
+
+        token[0] = 2
+        widget.update_list(
+            [agent],
+            current_idx=0,
+            tribe_labels=["epic"],
+        )
+        await pilot.pause()
+        second = widget.get_option_at_index(row).prompt
+        assert isinstance(second, Text)
+        assert _style_at(second, second.plain.index("@epic")) == "bold #654321"
+
+        agent.status = "DONE"
+        assert widget.patch_agent_row(0) is True
+        await pilot.pause()
+        patched = widget.get_option_at_index(row).prompt
+        assert isinstance(patched, Text)
+        assert _style_at(patched, patched.plain.index("@epic")) == "bold #654321"
 
 
 @pytest.mark.asyncio

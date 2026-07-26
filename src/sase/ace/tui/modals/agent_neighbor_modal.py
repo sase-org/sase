@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from rich.text import Text
@@ -13,6 +14,11 @@ from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.agent.status_buckets import PENDING_EPIC_STATUS, agent_is_asking
+from sase.ace.tui.models.tribe_display import (
+    TRIBE_IDENTITY_FALLBACK_COLOR,
+    compose_tribe_identity_style,
+    named_tribe_identity_colors,
+)
 
 from .base import OptionListNavigationMixin
 
@@ -75,6 +81,8 @@ def _status_style(status: str) -> str:
 def _agent_neighbor_option_text(
     selector: str | None,
     choice: AgentNeighborChoice,
+    *,
+    tribe_colors: Mapping[str, str] | None = None,
 ) -> Text:
     """Render one neighbor choice as compact OptionList text."""
     text = Text()
@@ -90,9 +98,17 @@ def _agent_neighbor_option_text(
     text.append("  ")
     text.append(choice.status, style=f"{dim_prefix}{_status_style(choice.status)}")
     text.append("  ")
+    tribe_name = choice.panel_label.removeprefix("@")
     text.append(
         _short_text(choice.panel_label, max_len=_MAX_PANEL_LABEL_LEN),
-        style=f"{dim_prefix}#FFD75F",
+        style=compose_tribe_identity_style(
+            (
+                tribe_colors.get(tribe_name, TRIBE_IDENTITY_FALLBACK_COLOR)
+                if tribe_colors is not None
+                else TRIBE_IDENTITY_FALLBACK_COLOR
+            ),
+            dim=choice.dismissed,
+        ),
     )
     if choice.time_hint:
         text.append("  ")
@@ -149,6 +165,9 @@ class AgentNeighborModal(
         super().__init__()
         self._agent_label = agent_label
         self._choices = choices
+        self._tribe_colors = named_tribe_identity_colors(
+            {choice.panel_label.removeprefix("@") for choice in choices}
+        )
         selectors = _agent_neighbor_selector_keys(len(choices))
         self._selector_by_index = selectors
         self._index_by_selector = {key: index for index, key in enumerate(selectors)}
@@ -260,7 +279,11 @@ class AgentNeighborModal(
             )
             options.append(
                 Option(
-                    _agent_neighbor_option_text(selector, choice),
+                    _agent_neighbor_option_text(
+                        selector,
+                        choice,
+                        tribe_colors=self._tribe_colors,
+                    ),
                     id=f"choice-{index}",
                 )
             )

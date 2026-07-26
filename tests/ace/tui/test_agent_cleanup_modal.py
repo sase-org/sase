@@ -5,9 +5,11 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.widgets import OptionList, Static
 
+import sase.ace.tui.models.tribe_display as tribe_display
 from sase.ace.tui.modals import (
     AgentCleanupCustomModal,
     AgentCleanupModal,
@@ -17,6 +19,13 @@ from sase.ace.tui.modals import (
     AgentCleanupTribeResult,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
+
+
+def _style_at(text: Text, position: int) -> str | None:
+    for span in reversed(text.spans):
+        if span.start <= position < span.end:
+            return str(span.style)
+    return str(text.style) if text.style else None
 
 
 def _state(**overrides: Any) -> AgentCleanupPanelState:
@@ -146,6 +155,40 @@ def test_agent_cleanup_tribe_modal_previews_and_disables_empty_tribes() -> None:
     assert rows["review"].plan.counts.dismiss == 1
     assert rows["empty"].plan.counts.kill == 0
     assert rows["empty"].plan.counts.dismiss == 0
+
+
+def test_agent_cleanup_tribe_rows_compose_enabled_and_disabled_identity_styles(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {
+            "ace": {
+                "tribes": {
+                    "fix": {"color": "#123456"},
+                    "empty": {"color": ""},
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        tribe_display,
+        "current_config_token",
+        lambda: ("cleanup-tribe-colors",),
+    )
+    tribe_display._tribe_displays_for_token.cache_clear()
+    fix = _agent(cl_name="fix", raw_suffix="fix-ts", tribe="fix", pid=10)
+    modal = AgentCleanupTribeModal(
+        tribes=("fix", "empty"),
+        targets=[fix],
+    )
+    rows = {row.tribe: modal._tribe_row_label(row) for row in modal._rows}
+
+    assert _style_at(rows["fix"], rows["fix"].plain.index("@fix")) == ("bold #123456")
+    assert _style_at(rows["empty"], rows["empty"].plain.index("@empty")) == (
+        "dim #FFD75F"
+    )
 
 
 async def test_agent_cleanup_tribe_modal_supports_jk_navigation() -> None:
@@ -325,3 +368,44 @@ def test_agent_cleanup_custom_modal_workflow_parent_cascades_child() -> None:
 
     assert modal._plan.counts.kill == 1
     assert modal._plan.counts.cascaded_workflow_children == 1
+
+
+def test_agent_cleanup_custom_colors_filter_and_candidate_tribes(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {"ace": {"tribes": {"epic": {"color": "#123456"}}}},
+    )
+    monkeypatch.setattr(
+        tribe_display,
+        "current_config_token",
+        lambda: ("cleanup-custom-tribe-colors",),
+    )
+    tribe_display._tribe_displays_for_token.cache_clear()
+    epic = _agent(
+        cl_name="epic",
+        raw_suffix="epic-ts",
+        tribe="epic",
+        pid=10,
+    )
+    unknown = _agent(
+        cl_name="unknown",
+        raw_suffix="unknown-ts",
+        tribe="unknown",
+        pid=11,
+    )
+    modal = AgentCleanupCustomModal(
+        candidates=[epic, unknown],
+        targets=[epic, unknown],
+        focused_panel_label="@default",
+    )
+    epic_row = modal._agent_row_label(epic)
+    unknown_row = modal._agent_row_label(unknown)
+    modal._tribe_filter = "epic"
+    summary = modal._summary_text()
+
+    assert _style_at(epic_row, epic_row.plain.index("@epic")) == "#123456"
+    assert _style_at(unknown_row, unknown_row.plain.index("@unknown")) == "#FFD75F"
+    assert _style_at(summary, summary.plain.index("@epic")) == "bold #123456"

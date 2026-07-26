@@ -68,11 +68,12 @@ ace:
       # Relative date windows re-anchor whenever the pane refreshes. Queries
       # without an explicit positive limit:N are uncapped.
       default_query: "sidecar:false since:24h"
-  # Per-tribe Agents-tab panel display. Keys are bare tribe names (no "@").
-  # The special "default" entry styles the untagged panel.
+  # Per-tribe ACE TUI identity display. Keys are bare tribe names (no "@").
+  # The special "default" entry styles the reserved untagged identity.
   # Empty icon strings disable an inherited default icon, while empty color
-  # strings restore the gold ACE fallback. Explicit user panel folds always
-  # take precedence over initially_expanded.
+  # strings restore the gold ACE fallback. Colors apply only to structured
+  # tribe identities, not semantic chrome. Explicit user panel folds always
+  # take precedence over the panel-only initially_expanded setting.
   tribes:
     default:
       icon: "⌂"

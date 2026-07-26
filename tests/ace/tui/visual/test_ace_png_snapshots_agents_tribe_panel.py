@@ -181,6 +181,26 @@ async def test_tribe_panel_display_config_png_snapshot(
             _assert_title_identity_color(title, text=icon, color=color)
             _assert_title_identity_color(title, text=label, color=color)
 
+        await page.press("J")
+        assert page.app._panel_group.focused_key == "epic"
+        await page.press("h")
+        await page.wait_for(
+            lambda _screen: page.app._resolve_focused_panel() is not None
+        )
+        await wait_for_visual_idle(page)
+        prompt = page.app.query_one("#agent-prompt-panel")
+        assert "Name: ▲ @epic" in prompt.content.plain
+        _assert_title_identity_color(
+            prompt.content,
+            text="▲ ",
+            color="#AF87FF",
+        )
+        _assert_title_identity_color(
+            prompt.content,
+            text="@epic",
+            color="#AF87FF",
+        )
+
         ace_png_visual.assert_page_png(
             page,
             "agents_tribe_panel_display_config_120x40",

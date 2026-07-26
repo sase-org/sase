@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from unittest.mock import patch
 
 from _pytest.monkeypatch import MonkeyPatch
 from textual.widgets import Static
 
+import sase.ace.tui.models.tribe_display as tribe_display
 from sase.ace.tui.agent_completion import (
     AgentCompletionCandidate,
     AgentVcsWorkflow,
@@ -22,6 +23,14 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
 )
 
 from ._completion_helpers import CompletionTestApp
+
+
+def _style_at(text: Any, position: int) -> str | None:
+    for span in reversed(text.spans):
+        if span.start <= position < span.end:
+            return str(span.style)
+    base_style = getattr(text, "style", None)
+    return str(base_style) if base_style else None
 
 
 def _input_hint(
@@ -338,6 +347,51 @@ async def test_fork_target_menu_renders_all_four_aligned_kinds() -> None:
     assert "C review" in rendered and "clan · 2" in rendered
     assert "F ship" in rendered and "family · 2" in rendered
     assert "● coder" in rendered and "#gh:sase" in rendered
+
+
+async def test_fork_tribe_completion_colors_only_the_identity(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {"ace": {"tribes": {"epic": {"color": "#123456"}}}},
+    )
+    monkeypatch.setattr(
+        tribe_display,
+        "current_config_token",
+        lambda: ("completion-tribe-color",),
+    )
+    tribe_display._tribe_displays_for_token.cache_clear()
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate(
+            "@epic",
+            kind="tribe",
+            member_count=4,
+            member_names=("epic.one",),
+        ),
+        _agent_candidate(
+            "@review",
+            kind="tribe",
+            member_count=1,
+            member_names=("review.one",),
+        ),
+    ]
+
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta._xprompt_arg_assist_entries_by_project[None] = [_fork_entry()]
+        ta.load_text("#fork:")
+        ta.cursor_location = (0, len("#fork:"))
+        assert ta._try_file_completion_tab() is True
+        rendered = bar.query_one("#prompt-completion", Static).render()
+
+    assert _style_at(rendered, rendered.plain.index("@epic")) == ("rgb(18,52,86) bold")
+    assert _style_at(rendered, rendered.plain.index("tribe · 4")) == (
+        "rgb(255,215,95) bold"
+    )
 
 
 async def test_fork_agent_arg_auto_menu_uses_xprompt_gate() -> None:

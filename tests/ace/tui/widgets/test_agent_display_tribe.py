@@ -13,6 +13,7 @@ from sase.ace.tui.models.agent_tribe_summary import (
     build_agent_tribe_summary_snapshot,
 )
 from sase.ace.tui.models.fold_state import FoldLevel
+import sase.ace.tui.models.tribe_display as tribe_display
 from sase.ace.tui.widgets.prompt_panel._agent_display_tribe import (
     build_tribe_detail_text,
     tribe_enrichment_sections_for_fold_state,
@@ -89,6 +90,41 @@ def _snapshot():  # type: ignore[no-untyped-def]
         panel_collapsed=True,
         marked_ids={child.identity},
         now=_NOW,
+    )
+
+
+def test_tribe_header_colors_only_the_structured_name_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {
+            "ace": {
+                "tribes": {
+                    "epic": {"icon": "▲", "color": "#123456"},
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        tribe_display,
+        "current_config_token",
+        lambda: ("tribe-header-color",),
+    )
+    tribe_display._tribe_displays_for_token.cache_clear()
+
+    detail = build_tribe_detail_text(_snapshot())
+    name_start = detail.plain.index("▲ @epic")
+
+    assert any(
+        span.start <= name_start < span.end and str(span.style) == "bold #123456"
+        for span in detail.spans
+    )
+    assert any(
+        span.start <= detail.plain.index("TRIBE") < span.end
+        and str(span.style) == "bold #FFD75F underline"
+        for span in detail.spans
     )
 
 
