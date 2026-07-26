@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 import re
 import shutil
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.agent.names import (
     ImportedV2RegistryClaim,
@@ -43,9 +43,14 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.paths import sase_home, sase_projects_dir
-from sase.ace.tui.models.agent_types import AgentType
 
-DismissedIdentity = tuple[AgentType, str, str | None]
+if TYPE_CHECKING:
+    # Imported lazily at runtime: ``sase.ace.tui`` eagerly imports the TUI app,
+    # which imports back into ``sase.agents_sync``. A module-level import here
+    # makes that a cycle whenever ``sase.agents_sync`` is imported first.
+    from sase.ace.tui.models.agent_types import AgentType
+
+DismissedIdentity = tuple["AgentType", str, str | None]
 
 
 def recover_v2_import_transactions(
@@ -327,6 +332,8 @@ def _dismissed_identity_row(bundle: Mapping[str, Any]) -> dict[str, str | None]:
 def _dismissed_identities_from_journal(
     journal: Mapping[str, Any],
 ) -> set[DismissedIdentity]:
+    from sase.ace.tui.models.agent_types import AgentType
+
     rows = journal.get("dismissed_identities", [])
     if not isinstance(rows, list):
         raise AgentsSyncFormatError(
