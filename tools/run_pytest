@@ -38,11 +38,14 @@ FAST_MARKER_EXPRESSION = "not slow"
 FAST_NON_VISUAL_MARKER_EXPRESSION = "not slow and not visual"
 SLOW_MARKER_EXPRESSION = "slow"
 VISUAL_MARKER_EXPRESSION = "visual"
+TERMINAL_SMOKE_MARKER_EXPRESSION = "terminal_smoke"
+SERIAL_MODES = frozenset({"terminal-smoke"})
 EXCLUDE_VISUAL_ENV = "SASE_PYTEST_EXCLUDE_VISUAL"
 PYTEST_DIST_ENV = "SASE_PYTEST_DIST"
 DEFAULT_PYTEST_DIST = "worksteal"
 SUPPORTED_PYTEST_DIST_MODES = ("loadfile", "worksteal")
 PYTEST_TMPDIR_ENV = "SASE_PYTEST_TMPDIR"
+PYTEST_TMP_REDIRECTED_ENV = "SASE_PYTEST_TMP_REDIRECTED"
 # Stay outside repository/workspace-store ancestry without making tmp_path so deep
 # that AF_UNIX socket tests exceed Linux's 108-byte path limit.
 DEFAULT_PYTEST_TMPDIR = Path("/var/tmp") / (
@@ -176,6 +179,10 @@ def _requires_serial_pytest(args: list[str]) -> bool:
     return False
 
 
+def _requires_serial_run(mode: str, args: list[str]) -> bool:
+    return mode in SERIAL_MODES or _requires_serial_pytest(args)
+
+
 def _configured_distribution_mode() -> str:
     raw_value = os.environ.get(PYTEST_DIST_ENV)
     if raw_value is None:
@@ -202,7 +209,7 @@ def _pytest_command(
         "-m",
         "pytest",
     ]
-    if not _requires_serial_pytest(args):
+    if not _requires_serial_run(mode, args):
         if worker_count < 1:
             raise ValueError("worker_count must be positive for a parallel run")
         if distribution_mode is None:
@@ -213,6 +220,8 @@ def _pytest_command(
         command.extend(["-m", SLOW_MARKER_EXPRESSION])
     elif mode == "visual":
         command.extend(["-m", VISUAL_MARKER_EXPRESSION])
+    elif mode == "terminal-smoke":
+        command.extend(["-m", TERMINAL_SMOKE_MARKER_EXPRESSION])
     elif mode == "fast":
         command.extend(["-m", _fast_marker_expression()])
     elif mode == "cov":
@@ -344,6 +353,7 @@ def _prepare_pytest_tmpdir() -> Path:
         ) from error
     _reap_stale_pytest_runs(scratch_root)
     os.environ["TMPDIR"] = str(scratch_root)
+    os.environ[PYTEST_TMP_REDIRECTED_ENV] = "1"
     return scratch_root
 
 
@@ -407,7 +417,9 @@ def _parallel_worker_grant() -> tuple[int, WorkerTokenLease | None]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("fast", "slow", "visual", "cov"))
+    parser.add_argument(
+        "mode", choices=("fast", "slow", "visual", "cov", "terminal-smoke")
+    )
     parser.add_argument("pytest_args", nargs=argparse.REMAINDER)
     namespace = parser.parse_args(argv)
 
@@ -419,7 +431,7 @@ def main(argv: list[str] | None = None) -> int:
 
     lease: WorkerTokenLease | None = None
     try:
-        if _requires_serial_pytest(pytest_args):
+        if _requires_serial_run(mode, pytest_args):
             worker_count = 1
             distribution_mode = None
         else:

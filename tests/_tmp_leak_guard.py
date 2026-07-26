@@ -5,7 +5,8 @@ The suite used to strand thousands of ``.lock``, ``-archive``, and bare
 directories to the developer's managed SASE temp root. Once those leaks were
 fixed, nothing stopped them from coming back silently, so this guard snapshots
 the watched temp roots at session start, compares them at session finish, and
-fails the run while naming the entries that appeared.
+fails the run while naming the entries that appeared. The guard is inert unless
+``tools/run_pytest`` has redirected ``TMPDIR`` to a private scratch root.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from sase.core.paths import _unsandboxed_managed_tmpdir_root
 
 DISABLED_ENV = "SASE_TMP_LEAK_GUARD_DISABLED"
 IGNORE_ENV = "SASE_TMP_LEAK_GUARD_IGNORE"
+PYTEST_TMP_REDIRECTED_ENV = "SASE_PYTEST_TMP_REDIRECTED"
 
 # Entries that appear during a run without the suite leaking them: pytest's own
 # scratch trees, the host-global worker-token pool, and scratch belonging to
@@ -74,13 +76,17 @@ TempSnapshot = dict[Path, frozenset[str]]
 def watched_temp_directories() -> tuple[Path, ...]:
     """Return the temp roots this guard watches.
 
+    The guard only watches roots when ``tools/run_pytest`` has redirected
+    ``TMPDIR`` to the suite's private scratch root. Without that marker, pytest
+    resolves the host's shared system temp directory, and diffing it would
+    report scratch from unrelated processes instead of this suite.
+
     The first is the temp directory the suite itself resolves, which is the
-    disk-backed scratch root while ``tools/run_pytest`` redirects ``TMPDIR``
-    and the real system temp directory otherwise. Every leak reaches it,
-    because that is where ``tempfile`` puts an unqualified temp file. The
-    shared ``/tmp`` is deliberately not watched on top of it: many sase
-    workspaces, editors, and agents write there concurrently, so diffing it
-    reports other processes' scratch instead of this suite's.
+    disk-backed scratch root. Every leak reaches it, because that is where
+    ``tempfile`` puts an unqualified temp file. The shared ``/tmp`` is
+    deliberately not watched on top of it: many sase workspaces, editors, and
+    agents write there concurrently, so diffing it reports other processes'
+    scratch instead of this suite's.
 
     The second is the developer's real managed temp root
     (``$SASE_TMPDIR``, else ``~/.sase/tmp``), which
@@ -91,6 +97,9 @@ def watched_temp_directories() -> tuple[Path, ...]:
     processes sharing the root, so watching them would report their scratch
     for the same reason the shared ``/tmp`` is left alone.
     """
+    if os.environ.get(PYTEST_TMP_REDIRECTED_ENV) != "1":
+        return ()
+
     roots: list[Path] = []
     for candidate in (
         Path(tempfile.gettempdir()),

@@ -316,7 +316,7 @@ update-visual-snapshots: _setup-visual
 [positional-arguments]
 test-terminal-smoke *args: _setup-terminal-smoke (_header "test-terminal-smoke")
     @printf "\n---------- Running terminal smoke pytest subset... ----------\n"
-    @{{ venv_bin }}/python -m pytest -m terminal_smoke tests/ace/tui/terminal_smoke "$@"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest terminal-smoke tests/ace/tui/terminal_smoke "$@"
 
 # Parallel test run with coverage reports + 50% gate (used by CI). Includes
 # the visual snapshot suite via `_setup-visual`.

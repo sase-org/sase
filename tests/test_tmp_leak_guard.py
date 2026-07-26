@@ -11,6 +11,7 @@ from tests import _tmp_leak_guard
 from tests._tmp_leak_guard import (
     DISABLED_ENV,
     IGNORE_ENV,
+    PYTEST_TMP_REDIRECTED_ENV,
     find_leaked_entries,
     finish_tmp_leak_guard,
     format_leak_report,
@@ -60,6 +61,7 @@ def test_watched_directories_follow_the_effective_temp_root(
 ) -> None:
     scratch_root = tmp_path / "scratch"
     scratch_root.mkdir()
+    monkeypatch.setenv(PYTEST_TMP_REDIRECTED_ENV, "1")
     monkeypatch.setattr(
         _tmp_leak_guard.tempfile, "gettempdir", lambda: str(scratch_root)
     )
@@ -71,6 +73,7 @@ def test_watched_directories_follow_the_effective_temp_root(
 def test_watched_directories_skip_a_missing_temp_root(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    monkeypatch.setenv(PYTEST_TMP_REDIRECTED_ENV, "1")
     monkeypatch.setattr(
         _tmp_leak_guard.tempfile, "gettempdir", lambda: str(tmp_path / "absent")
     )
@@ -86,6 +89,7 @@ def test_watched_directories_include_the_unsandboxed_managed_root(
     managed_root = tmp_path / "managed"
     for directory in (scratch_root, managed_root):
         directory.mkdir()
+    monkeypatch.setenv(PYTEST_TMP_REDIRECTED_ENV, "1")
     monkeypatch.setattr(
         _tmp_leak_guard.tempfile, "gettempdir", lambda: str(scratch_root)
     )
@@ -102,10 +106,31 @@ def test_watched_directories_deduplicate_a_shared_root(
 ) -> None:
     shared = tmp_path / "shared"
     shared.mkdir()
+    monkeypatch.setenv(PYTEST_TMP_REDIRECTED_ENV, "1")
     monkeypatch.setattr(_tmp_leak_guard.tempfile, "gettempdir", lambda: str(shared))
     monkeypatch.setenv("SASE_TMPDIR", str(shared))
 
     assert watched_temp_directories() == (shared.resolve(),)
+
+
+@pytest.mark.parametrize("value", [None, "0"])
+def test_watched_directories_are_inert_without_pytest_tmp_redirect(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, value: str | None
+) -> None:
+    scratch_root = tmp_path / "scratch"
+    managed_root = tmp_path / "managed"
+    for directory in (scratch_root, managed_root):
+        directory.mkdir()
+    if value is None:
+        monkeypatch.delenv(PYTEST_TMP_REDIRECTED_ENV, raising=False)
+    else:
+        monkeypatch.setenv(PYTEST_TMP_REDIRECTED_ENV, value)
+    monkeypatch.setattr(
+        _tmp_leak_guard.tempfile, "gettempdir", lambda: str(scratch_root)
+    )
+    monkeypatch.setenv("SASE_TMPDIR", str(managed_root))
+
+    assert watched_temp_directories() == ()
 
 
 def test_agent_launch_scratch_from_other_processes_is_ignored(

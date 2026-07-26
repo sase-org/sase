@@ -293,6 +293,25 @@ def test_slow_mode_selects_slow_marker() -> None:
     assert result[-3:] == ["-m", runner.SLOW_MARKER_EXPRESSION, "tests/perf"]
 
 
+def test_terminal_smoke_mode_selects_marker_and_stays_serial(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.setenv(runner.PYTEST_DIST_ENV, "invalid-but-unused")
+
+    result = runner._pytest_command(
+        "terminal-smoke", ["tests/ace/tui/terminal_smoke"], worker_count=7
+    )
+
+    assert "-n" not in result
+    assert not any(arg.startswith("--dist") for arg in result)
+    assert result[-3:] == [
+        "-m",
+        runner.TERMINAL_SMOKE_MARKER_EXPRESSION,
+        "tests/ace/tui/terminal_smoke",
+    ]
+
+
 def test_cov_mode_selects_non_slow_marker_to_include_visual_tests(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -374,6 +393,7 @@ def test_prepare_pytest_tmpdir_honors_override(
     assert runner._prepare_pytest_tmpdir() == scratch_root
     assert scratch_root.is_dir()
     assert runner.os.environ["TMPDIR"] == str(scratch_root)
+    assert runner.os.environ[runner.PYTEST_TMP_REDIRECTED_ENV] == "1"
 
 
 def test_configured_pytest_tmpdir_resolves_relative_override_from_repo(
@@ -576,6 +596,46 @@ def test_main_serial_snapshot_mode_never_acquires(
 
     assert "-n" not in observed["command"]
     assert not any(arg.startswith("--dist") for arg in observed["command"])
+
+
+def test_main_terminal_smoke_mode_redirects_and_never_acquires(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.setenv(runner.PYTEST_DIST_ENV, "invalid-but-unused")
+    scratch_root = tmp_path / "scratch"
+    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(scratch_root))
+    observed: dict[str, object] = {}
+
+    class ExecCalled(Exception):
+        pass
+
+    def _unexpected_grant() -> None:
+        raise AssertionError("terminal smoke mode attempted token acquisition")
+
+    def _execv(_executable: str, command: list[str]) -> None:
+        observed["command"] = command
+        observed["tmpdir"] = runner.os.environ.get("TMPDIR")
+        observed["redirected"] = runner.os.environ.get(runner.PYTEST_TMP_REDIRECTED_ENV)
+        raise ExecCalled
+
+    monkeypatch.setattr(runner, "_parallel_worker_grant", _unexpected_grant)
+    monkeypatch.setattr(runner.os, "execv", _execv)
+
+    with pytest.raises(ExecCalled):
+        runner.main(["terminal-smoke", "tests/ace/tui/terminal_smoke"])
+
+    command = observed["command"]
+    assert isinstance(command, list)
+    assert "-n" not in command
+    assert not any(arg.startswith("--dist") for arg in command)
+    assert command[-3:] == [
+        "-m",
+        runner.TERMINAL_SMOKE_MARKER_EXPRESSION,
+        "tests/ace/tui/terminal_smoke",
+    ]
+    assert observed["tmpdir"] == str(scratch_root)
+    assert observed["redirected"] == "1"
 
 
 def test_main_rejects_invalid_distribution_before_worker_acquisition(
