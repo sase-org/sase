@@ -680,6 +680,23 @@
             }
           }
         },
+        "prompt_inputs": {
+          "type": "object",
+          "description": "Prompt input collection settings for the ACE prompt input",
+          "additionalProperties": false,
+          "properties": {
+            "collect_raw_placeholders": {
+              "type": "boolean",
+              "description": "Whether submitting a prompt with raw <placeholder> tags opens the Prompt Inputs panel to collect a value for each tag",
+              "default": true
+            },
+            "xprompt_placeholder_args": {
+              "type": "boolean",
+              "description": "Whether saving a draft as a new global (gx) or local (gX) xprompt converts its raw <placeholder> tags into text input arguments",
+              "default": true
+            }
+          }
+        },
         "keymaps": {
           "type": "object",
           "description": "Keymap configuration for the TUI",

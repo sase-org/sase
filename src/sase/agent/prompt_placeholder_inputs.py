@@ -7,19 +7,24 @@ applies collected values in the same order the TUI launch path will use.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+from typing import Any
 
 from sase.agent.prompt_inputs import (
     PromptInputRequest,
     parse_prompt_input_request,
     render_prompt_with_inputs,
 )
+from sase.config.core import load_merged_config
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
 from sase.xprompt.raw_placeholders import (
     RawPlaceholderField,
     raw_placeholder_fields,
     substitute_raw_placeholders,
 )
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -49,13 +54,42 @@ def build_prompt_input_plan(prompt: str) -> PromptInputPlan:
     """Return the raw-placeholder and declared-input collection plan for *prompt*.
 
     YAML frontmatter is treated as configuration and is not scanned for raw
-    placeholders.
+    placeholders. When ``ace.prompt_inputs.collect_raw_placeholders`` is
+    disabled the plan carries no placeholder fields, so the launch path behaves
+    exactly as it did before submit-time collection existed.
     """
-    _frontmatter, body = parse_yaml_front_matter(prompt)
+    placeholders: tuple[RawPlaceholderField, ...] = ()
+    if _collect_raw_placeholders_enabled():
+        placeholders = raw_placeholder_fields(parse_yaml_front_matter(prompt)[1])
     return PromptInputPlan(
-        placeholders=raw_placeholder_fields(body),
+        placeholders=placeholders,
         declared=parse_prompt_input_request(prompt),
     )
+
+
+def _collect_raw_placeholders_enabled() -> bool:
+    """Return whether submit-time raw-placeholder collection is enabled.
+
+    Reads ``ace.prompt_inputs.collect_raw_placeholders`` through the cached
+    merged config so the prompt-submit path does no extra disk I/O. A missing,
+    unreadable, or unparsable value falls back to enabled.
+    """
+    try:
+        ace = _config_section(load_merged_config(), "ace")
+        raw = _config_section(ace, "prompt_inputs").get(
+            "collect_raw_placeholders", True
+        )
+    except Exception:
+        log.debug("raw placeholder collection toggle unavailable", exc_info=True)
+        return True
+    return bool(raw)
+
+
+def _config_section(data: object, key: str) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        return {}
+    section = data.get(key)
+    return section if isinstance(section, dict) else {}
 
 
 def apply_prompt_input_values(prompt: str, values: PromptInputValues) -> str:

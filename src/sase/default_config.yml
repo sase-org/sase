@@ -128,6 +128,9 @@ ace:
     history_word_count: 1000
     common_placeholder_count: 100
     word_min_length: 5
+  prompt_inputs:
+    collect_raw_placeholders: true
+    xprompt_placeholder_args: true
   keymaps:
     # Shared branch-driven plan/custom gate modal bindings.
     gate:

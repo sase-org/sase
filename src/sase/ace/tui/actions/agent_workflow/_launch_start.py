@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from ._types import PromptContext
 
 if TYPE_CHECKING:
-    from sase.agent.prompt_inputs import PromptInputRequest
+    from sase.agent.prompt_placeholder_inputs import PromptInputPlan
     from sase.ace.tui.modals import SelectionItem
 
 
@@ -43,13 +43,14 @@ class AgentLaunchStartMixin:
     def _finish_agent_launch(self, prompt: str, *, keep_bar: bool = False) -> None:
         """Complete agent launch with the given prompt.
 
-        When the prompt's frontmatter declares ``input:`` arguments, those are
-        resolved first: required (default-less) inputs are collected through the
-        Input Collection Modal, optional inputs fall back to their declared
-        defaults, and the values are substituted into each segment before the
-        normal launch proceeds (see
-        :func:`sase.agent.prompt_inputs.render_prompt_with_inputs`). Prompts
-        without declared inputs launch immediately.
+        Anything the prompt needs collected is gathered on one page first: every
+        unique raw ``<placeholder>`` written in the body (backticked and fenced
+        ones stay literal) plus any ``input:`` arguments the frontmatter
+        declares. Required declared inputs and placeholders open the Prompt
+        Inputs panel; optional declared inputs fall back to their declared
+        defaults. Values are substituted before the normal launch proceeds (see
+        :func:`sase.agent.prompt_placeholder_inputs.apply_prompt_input_values`).
+        Prompts with nothing to collect launch immediately.
 
         Args:
             prompt: The user's prompt for the agent.
@@ -62,18 +63,18 @@ class AgentLaunchStartMixin:
 
         from sase.agent.prompt_inputs import (
             PromptInputError,
-            parse_prompt_input_request,
             render_prompt_with_inputs,
         )
+        from sase.agent.prompt_placeholder_inputs import build_prompt_input_plan
 
-        request = parse_prompt_input_request(prompt)
-        if request is not None:
-            if request.has_required:
-                # Collect required inputs on the UI thread, then launch from the
-                # modal callback. The prompt bar stays mounted so a cancel
-                # returns the user to their prompt.
-                self._collect_prompt_inputs_then_launch(prompt, request, keep_bar)
-                return
+        plan = build_prompt_input_plan(prompt)
+        if plan.needs_collection:
+            # Collect on the UI thread, then launch from the modal callback. The
+            # prompt bar stays mounted so a cancel returns the user to their
+            # prompt.
+            self._collect_prompt_inputs_then_launch(prompt, plan, keep_bar)
+            return
+        if plan.declared is not None:
             # Only optional inputs: substitute their declared defaults so any
             # ``{{ name }}`` placeholders resolve, then launch (no modal).
             try:
@@ -85,22 +86,25 @@ class AgentLaunchStartMixin:
         self._launch_resolved_prompt(prompt, keep_bar=keep_bar)
 
     def _collect_prompt_inputs_then_launch(
-        self, prompt: str, request: PromptInputRequest, keep_bar: bool
+        self, prompt: str, plan: PromptInputPlan, keep_bar: bool
     ) -> None:
-        """Show the Input Collection Modal, then launch with substituted values.
+        """Show the Prompt Inputs panel, then launch with substituted values.
 
-        Cancelling the modal leaves the prompt bar mounted and launches nothing.
+        On confirm, the *pre-substitution* body is recorded in the common
+        placeholder store so the tags the user wrote keep feeding the ``<``
+        completion menu even though prompt history stores what actually ran.
+
+        Cancelling the panel leaves the prompt bar mounted and launches nothing.
         """
         from sase.agent.multi_prompt import parse_multi_prompt
-        from sase.agent.prompt_inputs import (
-            PromptInputError,
-            render_prompt_with_inputs,
-        )
+        from sase.agent.prompt_inputs import PromptInputError
         from sase.agent.prompt_placeholder_inputs import (
-            PromptInputPlan,
             PromptInputValues,
+            apply_prompt_input_values,
         )
         from sase.ace.tui.modals import InputCollectionModal
+        from sase.history.prompt_placeholders import record_prompt_placeholders
+        from sase.xprompt.loader_parsing import parse_yaml_front_matter
 
         agent_count = max(1, len(parse_multi_prompt(prompt).segments))
 
@@ -109,18 +113,16 @@ class AgentLaunchStartMixin:
                 self.notify("Input collection cancelled")  # type: ignore[attr-defined]
                 return
             assert isinstance(values, PromptInputValues)
+            record_prompt_placeholders(parse_yaml_front_matter(prompt)[1])
             try:
-                resolved = render_prompt_with_inputs(prompt, values.declared)
+                resolved = apply_prompt_input_values(prompt, values)
             except PromptInputError as exc:
                 self.notify(f"Input error: {exc}", severity="error")  # type: ignore[attr-defined]
                 return
             self._launch_resolved_prompt(resolved, keep_bar=keep_bar)
 
         self.push_screen(  # type: ignore[attr-defined]
-            InputCollectionModal(
-                PromptInputPlan(placeholders=(), declared=request),
-                agent_count=agent_count,
-            ),
+            InputCollectionModal(plan, agent_count=agent_count),
             _after,
         )
 
