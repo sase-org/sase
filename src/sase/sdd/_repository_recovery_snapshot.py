@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from sase.sdd._repository_recovery_git import update_and_verify_ref
@@ -12,8 +13,11 @@ from sase.sdd._repository_transaction import (
     inspect_sdd_repository,
     safe_git_error_text,
     sdd_rollback_mismatch,
+    sdd_rollback_observation_delta,
     sdd_state_blockers,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 def snapshot_managed_changes(
@@ -93,6 +97,56 @@ def snapshot_managed_changes(
     )
     stash_sha = stash_result.stdout.strip() if stash_result.returncode == 0 else None
     stash_created = stash_sha is not None and stash_sha != previous_stash_sha
+    if stashed.returncode == 0 and not stash_created:
+        try:
+            current = inspect_sdd_repository(repo_root, runner)
+        except Exception as exc:  # noqa: BLE001 - fail closed
+            return (
+                recovery_ref,
+                "could not inspect checkout after no-op snapshot: "
+                + safe_git_error_text(exc),
+                True,
+            )
+        blockers = sdd_state_blockers(current, branch)
+        current_tracked = _has_git_changes(
+            repo_root,
+            ["diff", "--quiet"],
+            runner,
+            f"{op_prefix}.recovery.snapshot_noop_tracked",
+        )
+        current_staged = _has_git_changes(
+            repo_root,
+            ["diff", "--cached", "--quiet"],
+            runner,
+            f"{op_prefix}.recovery.snapshot_noop_staged",
+        )
+        if blockers:
+            return (
+                recovery_ref,
+                "no-op snapshot left an unsafe checkout: " + "; ".join(blockers),
+                False,
+            )
+        owned_drift = sdd_rollback_mismatch(before, current)
+        if owned_drift is not None:
+            return (
+                recovery_ref,
+                f"checkout changed while a no-op snapshot was attempted: {owned_drift}",
+                True,
+            )
+        if current_tracked is None or current_staged is None:
+            return (
+                recovery_ref,
+                "could not classify checkout after no-op snapshot",
+                True,
+            )
+        if current_tracked or current_staged:
+            return (
+                recovery_ref,
+                "checkout changed while a no-op recovery snapshot was attempted",
+                True,
+            )
+        _warn_observation_delta(repo_root, before, current)
+        return recovery_ref, None, True
     if stashed.returncode != 0 or not stash_created or stash_sha is None:
         restore_error = _restore_failed_snapshot(
             repo_root,
@@ -197,6 +251,19 @@ def _restore_failed_snapshot(
     runner: GitRunner,
     op_prefix: str,
 ) -> str | None:
+    comparison_start = before
+    if stash_sha is None:
+        try:
+            comparison_start = inspect_sdd_repository(repo_root, runner)
+        except Exception as exc:  # noqa: BLE001 - restoration cannot be proven
+            return (
+                "could not inspect local changes before rollback verification: "
+                + safe_git_error_text(exc)
+            )
+        owned_drift = sdd_rollback_mismatch(before, comparison_start)
+        if owned_drift is not None:
+            return owned_drift
+        _warn_observation_delta(repo_root, before, comparison_start)
     if stash_sha is not None:
         restored = runner(
             repo_root,
@@ -209,4 +276,22 @@ def _restore_failed_snapshot(
         final = inspect_sdd_repository(repo_root, runner)
     except Exception as exc:  # noqa: BLE001 - restoration cannot be proven
         return f"could not inspect restored local changes: {safe_git_error_text(exc)}"
-    return sdd_rollback_mismatch(before, final)
+    expected = before if stash_sha is not None else comparison_start
+    mismatch = sdd_rollback_mismatch(expected, final)
+    if mismatch is None:
+        _warn_observation_delta(repo_root, expected, final)
+    return mismatch
+
+
+def _warn_observation_delta(
+    repo_root: Path,
+    starting: SddRepositoryState,
+    final: SddRepositoryState,
+) -> None:
+    observation_delta = sdd_rollback_observation_delta(starting, final)
+    if observation_delta is not None:
+        _logger.warning(
+            "SDD recovery preserved SASE-owned repository invariants in %s, but %s",
+            repo_root,
+            observation_delta,
+        )

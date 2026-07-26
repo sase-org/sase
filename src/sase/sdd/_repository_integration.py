@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from sase.sdd._repository_health import (
@@ -10,6 +11,7 @@ from sase.sdd._repository_health import (
     inspect_sdd_repository,
     safe_git_error_text,
     sdd_rollback_mismatch,
+    sdd_rollback_observation_delta,
     sdd_state_blockers,
     tracked_changes_error,
     unmerged_paths,
@@ -22,6 +24,8 @@ from sase.sdd._repository_types import (
     SddIntegrationStatus,
     SddRepositoryState,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 def integrate_sdd_repository_transaction(
@@ -412,12 +416,21 @@ def _abort_and_verify(
             )
 
     verify_failure: str | None
+    observation_delta: str | None = None
     try:
         final = inspect_sdd_repository(repo_root, runner)
     except Exception as exc:  # noqa: BLE001 - restoration cannot be proven
         verify_failure = f"could not inspect rollback state: {safe_git_error_text(exc)}"
     else:
         verify_failure = sdd_rollback_mismatch(starting, final)
+        observation_delta = sdd_rollback_observation_delta(starting, final)
+
+    if verify_failure is None and observation_delta is not None:
+        _logger.warning(
+            "SDD rollback restored SASE-owned repository invariants in %s, but %s",
+            repo_root,
+            observation_delta,
+        )
 
     error_parts = [primary_failure]
     if abort_failure is not None:

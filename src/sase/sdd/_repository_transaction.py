@@ -13,6 +13,7 @@ from sase.sdd._repository_health import (
     require_sdd_repository_health as _require_sdd_repository_health,
     safe_git_error_text,
     sdd_rollback_mismatch,
+    sdd_rollback_observation_delta,
     sdd_state_blockers,
 )
 from sase.sdd._repository_integration import (
@@ -112,7 +113,10 @@ def integrate_machine_managed_sdd_repository(
         lock_factory=lock_factory,
         event_logger=event_logger,
     )
-    if outcome.succeeded or outcome.status is SddIntegrationStatus.REMOTE_UNAVAILABLE:
+    if outcome.succeeded or outcome.status in {
+        SddIntegrationStatus.REMOTE_UNAVAILABLE,
+        SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS,
+    }:
         return outcome
 
     from sase.sdd._repository_recovery import (

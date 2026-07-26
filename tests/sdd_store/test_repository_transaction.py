@@ -15,6 +15,7 @@ from sase.sdd._repository_transaction import (
     integrate_sdd_repository,
     require_sdd_repository_health,
 )
+from sase.sdd._repository_recovery_snapshot import snapshot_managed_changes
 from tests.sdd_store._helpers import (
     clone,
     commit_all,
@@ -166,6 +167,77 @@ def test_unsupported_plan_conflict_aborts_to_exact_starting_state(
     assert not (left / ".git/rebase-apply").exists()
     assert git(["diff", "--name-only", "--diff-filter=U"], left).stdout == ""
     require_sdd_repository_health(left)
+
+
+@pytest.mark.parametrize("foreign_kind", ["tracked", "untracked"])
+def test_machine_managed_abort_ignores_foreign_worktree_churn(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    foreign_kind: str,
+) -> None:
+    _remote, left, _right = _build_diverged_clones(tmp_path)
+    foreign = (
+        left / "plans/shared.md"
+        if foreign_kind == "tracked"
+        else left / "foreign-writer.tmp"
+    )
+
+    def add_foreign_file_after_abort(
+        repo_root: Path,
+        args: list[str],
+        *,
+        op: str,
+        network: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        result = _runner(repo_root, args, op=op, network=network)
+        if args == ["rebase", "--abort"] and result.returncode == 0:
+            foreign.write_text("foreign\n", encoding="utf-8")
+        return result
+
+    with caplog.at_level("WARNING"):
+        outcome = integrate_machine_managed_sdd_repository(
+            left,
+            beads_dir=left / "beads",
+            git_runner=add_foreign_file_after_abort,
+        )
+
+    assert outcome.status is SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS
+    assert outcome.restored is True
+    assert outcome.structurally_healthy is True
+    assert "rollback verification failed" not in (outcome.error or "")
+    assert foreign.read_text(encoding="utf-8") == "foreign\n"
+    assert git(["for-each-ref", "refs/sase/recovery"], left).stdout == ""
+    assert "worktree or untracked observations changed" in caplog.text
+    require_sdd_repository_health(left)
+
+
+def test_abort_rejects_staged_residue(
+    tmp_path: Path,
+) -> None:
+    _remote, left, _right = _build_diverged_clones(tmp_path)
+    residue = left / "sase-residue.tmp"
+
+    def stage_residue_after_abort(
+        repo_root: Path,
+        args: list[str],
+        *,
+        op: str,
+        network: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        result = _runner(repo_root, args, op=op, network=network)
+        if args == ["rebase", "--abort"] and result.returncode == 0:
+            residue.write_text("residue\n", encoding="utf-8")
+            git(["add", residue.name], repo_root)
+        return result
+
+    outcome = integrate_sdd_repository(
+        left,
+        beads_dir=left / "beads",
+        git_runner=stage_residue_after_abort,
+    )
+
+    assert outcome.status is SddIntegrationStatus.UNRECOVERABLE
+    assert "staged index entries differ" in (outcome.error or "")
 
 
 def test_fetch_failure_is_typed_only_when_repository_remains_healthy(
@@ -336,6 +408,50 @@ def test_machine_managed_recovery_snapshots_dirty_index_and_untracked_files(
     )
     assert outcome.recovery_ref in git(["stash", "list"], clone_dir).stdout
     require_sdd_repository_health(clone_dir)
+
+
+def test_noop_recovery_stash_proceeds_after_foreign_file_disappears(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    clone_dir = tmp_path / "plans"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("base\n", encoding="utf-8")
+    commit_all(seed, "seed")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, clone_dir)
+    transient = clone_dir / "foreign-writer.tmp"
+    transient.write_text("foreign\n", encoding="utf-8")
+
+    def remove_foreign_file_before_stash(
+        repo_root: Path,
+        args: list[str],
+        *,
+        op: str,
+        network: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["stash", "push"]:
+            transient.unlink()
+        return _runner(repo_root, args, op=op, network=network)
+
+    with caplog.at_level("WARNING"):
+        snapshot_ref, snapshot_error, snapshot_safe = snapshot_managed_changes(
+            clone_dir,
+            branch="main",
+            recovery_ref="refs/sase/recovery/test-noop",
+            runner=remove_foreign_file_before_stash,
+            op_prefix="sdd.test",
+        )
+
+    assert snapshot_ref == "refs/sase/recovery/test-noop"
+    assert snapshot_error is None
+    assert snapshot_safe is True
+    assert git(["status", "--porcelain"], clone_dir).stdout == ""
+    assert git(["for-each-ref", "refs/sase/recovery"], clone_dir).stdout == ""
+    assert "worktree or untracked observations changed" in caplog.text
 
 
 def test_generic_integration_preserves_dirty_state_without_recovery(

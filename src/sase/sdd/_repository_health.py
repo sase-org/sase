@@ -194,6 +194,14 @@ def sdd_rollback_mismatch(
     starting: SddRepositoryState,
     final: SddRepositoryState,
 ) -> str | None:
+    """Return mismatches for repository state SASE owns during rollback.
+
+    A shared SDD checkout can acquire unrelated worktree or untracked changes
+    while an integration is being aborted. Those observations are deliberately
+    excluded here; callers can surface them with
+    :func:`sdd_rollback_observation_delta` without declaring the checkout
+    unrecoverable.
+    """
     mismatches: list[str] = []
     if final.blockers:
         mismatches.extend(final.blockers)
@@ -205,9 +213,63 @@ def sdd_rollback_mismatch(
         mismatches.append("Git operation markers differ from the starting state")
     if final.unmerged_paths != starting.unmerged_paths:
         mismatches.append("unmerged index entries differ from the starting state")
-    if final.status_porcelain != starting.status_porcelain:
-        mismatches.append("worktree or index differs from the starting state")
+    starting_index, _starting_observations = _porcelain_states(
+        starting.status_porcelain
+    )
+    final_index, _final_observations = _porcelain_states(final.status_porcelain)
+    if final_index != starting_index:
+        mismatches.append("staged index entries differ from the starting state")
     return ", ".join(dict.fromkeys(mismatches)) or None
+
+
+def sdd_rollback_observation_delta(
+    starting: SddRepositoryState,
+    final: SddRepositoryState,
+) -> str | None:
+    """Describe non-owned worktree/untracked churn observed across rollback."""
+    _starting_index, starting_observations = _porcelain_states(
+        starting.status_porcelain
+    )
+    _final_index, final_observations = _porcelain_states(final.status_porcelain)
+    if final_observations == starting_observations:
+        return None
+    return (
+        "worktree or untracked observations changed during rollback "
+        f"(before={starting_observations!r}, after={final_observations!r})"
+    )
+
+
+def _porcelain_states(
+    status_porcelain: str,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Split porcelain v1 -z output into index state and worktree observations."""
+    index_entries: list[str] = []
+    observations: list[str] = []
+    records = status_porcelain.split("\0")
+    record_index = 0
+    while record_index < len(records):
+        record = records[record_index]
+        record_index += 1
+        if not record:
+            continue
+        if len(record) < 3:
+            observations.append(record)
+            continue
+        index_status, worktree_status = record[0], record[1]
+        path = record[3:] if len(record) > 3 else ""
+        source_path: str | None = None
+        if index_status in {"R", "C"} or worktree_status in {"R", "C"}:
+            if record_index < len(records):
+                source_path = records[record_index] or None
+                record_index += 1
+        path_display = f"{source_path!r} -> {path!r}" if source_path else repr(path)
+        if index_status not in {" ", "?", "!"}:
+            index_entries.append(f"{index_status} {path_display}")
+        if (index_status, worktree_status) == ("?", "?"):
+            observations.append(f"?? {path_display}")
+        elif worktree_status not in {" ", "?", "!"}:
+            observations.append(f"{worktree_status} {path_display}")
+    return tuple(sorted(index_entries)), tuple(sorted(observations))
 
 
 def format_git_error(
