@@ -44,6 +44,7 @@ from sase.bead.cli_work_from_plan_types import (
     PlanFileWorkError,
     PlanFileWorkResult as _PlanFileWorkResult,
 )
+from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 from sase.sdd.store import SddStore
 
@@ -331,7 +332,11 @@ def _work_from_plan_file_locked(
     def launch_created_epic(project: BeadProject, epic_id: str) -> bool:
         nonlocal launched_names
         issue = project.show(epic_id)
-        phases = project.get_epic_children(epic_id)
+        phases = [
+            child
+            for child in project.get_epic_children(epic_id)
+            if child.issue_type is IssueType.PHASE
+        ]
         work_plan = _build_work_plan(project, epic_id)
         launched_names = _ordered_agent_names(work_plan)
         if render:

@@ -12,7 +12,7 @@ import shutil
 import sys
 import tempfile
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from sase.bead.cli_common import get_project
 from sase.bead.cli_work_cleanup import (
@@ -337,23 +337,23 @@ def handle_bead_work(args: argparse.Namespace) -> None:
             print(json.dumps(result.to_json(), sort_keys=True))
         return
 
-    if parent is not None:
-        message = "--parent only applies when the bead work target is a plan file"
-        if json_output:
-            print(
-                json.dumps(
-                    {
-                        "ok": False,
-                        "mode": "bead_id",
-                        "epic_id": target,
-                        "error": message,
-                    },
-                    sort_keys=True,
-                )
-            )
-        else:
-            print(f"Error: {message}", file=sys.stderr)
-        raise SystemExit(1)
+    plan_file_only_flags = [
+        flag
+        for flag, value in (
+            ("--parent", parent),
+            ("--artifacts-dir", artifacts_dir),
+            ("--cl-name", cl_name),
+        )
+        if value is not None
+    ]
+    if plan_file_only_flags:
+        flags = ", ".join(plan_file_only_flags)
+        noun = "option" if len(plan_file_only_flags) == 1 else "options"
+        _exit_bead_id_error(
+            f"{flags} {noun} only applies when the bead work target is a plan file",
+            target=target,
+            json_output=json_output,
+        )
 
     timer = _make_bead_work_timer(target, dry_run=dry_run)
     with timer, contextlib.ExitStack() as stack:
@@ -363,16 +363,21 @@ def handle_bead_work(args: argparse.Namespace) -> None:
             try:
                 issue = proj.show(target)
             except KeyError:
-                print(f"Error: issue not found: {target}", file=sys.stderr)
-                sys.exit(1)
+                _exit_bead_id_error(
+                    f"issue not found: {target}",
+                    target=target,
+                    json_output=json_output,
+                )
         if issue.issue_type != IssueType.PLAN:
-            print(
-                f"Error: is_ready_to_work only applies to plan beads "
+            _exit_bead_id_error(
+                "sase bead work only applies to plan beads "
                 f"(got {issue.issue_type.value} for {target})",
-                file=sys.stderr,
+                target=target,
+                json_output=json_output,
             )
-            sys.exit(1)
         if issue.tier == BeadTier.EPIC:
+            from sase.bead.cli_work_from_plan_store import epic_plan_launch_lock
+
             captured = io.StringIO()
             output_context = (
                 contextlib.redirect_stdout(captured)
@@ -380,7 +385,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
                 else contextlib.nullcontext()
             )
             try:
-                with output_context:
+                with epic_plan_launch_lock(proj.root_dir), output_context:
                     launched = launch_epic_bead_work(
                         proj,
                         target,
@@ -407,7 +412,11 @@ def handle_bead_work(args: argparse.Namespace) -> None:
                     print(f"Error: {exc}", file=sys.stderr)
                 raise SystemExit(1) from exc
             if json_output:
-                phase_ids = [phase.id for phase in proj.get_epic_children(target)]
+                phase_ids = [
+                    phase.id
+                    for phase in proj.get_epic_children(target)
+                    if phase.issue_type is IssueType.PHASE
+                ]
                 print(
                     json.dumps(
                         {
@@ -424,12 +433,34 @@ def handle_bead_work(args: argparse.Namespace) -> None:
             return
 
         tier = issue.tier.value if issue.tier else "missing tier"
-        print(
-            "Error: sase bead work only applies to epic plan beads "
-            f"(got {tier} for {target})",
-            file=sys.stderr,
+        _exit_bead_id_error(
+            f"sase bead work only applies to epic plan beads (got {tier} for {target})",
+            target=target,
+            json_output=json_output,
         )
-        sys.exit(1)
+
+
+def _exit_bead_id_error(
+    message: str,
+    *,
+    target: str,
+    json_output: bool,
+) -> NoReturn:
+    if json_output:
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "mode": "bead_id",
+                    "epic_id": target,
+                    "error": message,
+                },
+                sort_keys=True,
+            )
+        )
+    else:
+        print(f"Error: {message}", file=sys.stderr)
+    raise SystemExit(1)
 
 
 def launch_epic_bead_work(

@@ -178,6 +178,39 @@ def test_bead_id_mode_rejects_parent_override(
     )
 
 
+@pytest.mark.parametrize(
+    ("option", "value"),
+    [
+        ("--artifacts-dir", "/tmp/planner-artifacts"),
+        ("--cl-name", "demo"),
+    ],
+)
+def test_bead_id_mode_rejects_plan_file_only_linking_options_as_json(
+    option: str,
+    value: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = create_parser().parse_args(
+        ["bead", "work", "sase-64", option, value, "--json"]
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_bead_work(args)
+
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    payload = json.loads(captured.out)
+    assert payload == {
+        "ok": False,
+        "mode": "bead_id",
+        "epic_id": "sase-64",
+        "error": (
+            f"{option} option only applies when the bead work target is a plan file"
+        ),
+    }
+
+
 def test_bead_work_help_describes_both_targets_and_options(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

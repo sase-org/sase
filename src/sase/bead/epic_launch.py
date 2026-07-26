@@ -25,9 +25,11 @@ def build_epic_launch_argv(
     *,
     artifacts_dir: str | Path | None = None,
     cl_name: str | None = None,
+    yes_to_all: bool = True,
 ) -> list[str]:
     """Build the canonical approved-epic launch command."""
-    argv = ["sase", "bead", "work", str(plan_file), "--yes-to-all"]
+    confirmation_flag = "--yes-to-all" if yes_to_all else "--yes"
+    argv = ["sase", "bead", "work", str(plan_file), confirmation_flag]
     if artifacts_dir is not None:
         argv.extend(["--artifacts-dir", str(artifacts_dir)])
     if cl_name:
@@ -206,7 +208,8 @@ def finish_epic_launch(
     archived_plan_path = (
         getattr(result, "archived_plan_path", None) if result is not None else None
     )
-    success = error is None and bool(epic_id)
+    launched = bool(getattr(result, "launched", False)) if result is not None else False
+    success = error is None and bool(epic_id) and launched
     if success:
         try:
             _update_epic_launch_metadata(
@@ -230,8 +233,14 @@ def finish_epic_launch(
                 plan_file,
                 artifacts_dir=artifacts_dir,
                 cl_name=cl_name,
+                yes_to_all=False,
             )
-            detail = str(error) if error is not None else "epic id was not returned"
+            if error is not None:
+                detail = str(error)
+            elif epic_id and not launched:
+                detail = "epic launch was declined"
+            else:
+                detail = "epic id was not returned"
             notes = [
                 f"Epic launch failed: {detail}",
                 f"Resume with: {shlex.join(argv)}",

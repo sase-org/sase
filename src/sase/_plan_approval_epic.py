@@ -73,6 +73,7 @@ def prepare_epic_launch(
                 notification.host_action_data
             ),
             cl_name=notification.host_action_data.get("agent_cl_name"),
+            origin="epic-launch",
         )
     except Exception as exc:
         resume = shlex.join(build_epic_launch_argv(plan_path))

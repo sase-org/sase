@@ -258,6 +258,7 @@ def test_work_command_backfills_from_structured_result_and_notifies(
         dry_run=False,
         epic_id="sase-64",
         archived_plan_path=tmp_path / "plans" / "epic.md",
+        launched=True,
     )
     with (
         patch("sase.bead.epic_launch._update_epic_launch_metadata") as update_metadata,
@@ -293,8 +294,36 @@ def test_work_command_failure_notification_has_complete_resume_hint(
     assert notify.call_args.args[:3] == ("epic-launch", "demo", False)
     notes = notify.call_args.args[3]
     assert "launch failed" in notes[0]
+    assert "--yes " in notes[1]
+    assert "--yes-to-all" not in notes[1]
     assert "--artifacts-dir" in notes[1]
     assert "--cl-name demo" in notes[1]
+
+
+def test_work_command_declined_launch_notifies_failure(tmp_path: Path) -> None:
+    result = SimpleNamespace(
+        dry_run=False,
+        epic_id="sase-64",
+        archived_plan_path=tmp_path / "plans" / "epic.md",
+        launched=False,
+    )
+    with (
+        patch("sase.bead.epic_launch._update_epic_launch_metadata") as update_metadata,
+        patch("sase.notifications.senders.notify_workflow_complete") as notify,
+    ):
+        finish_epic_launch(
+            str(tmp_path / "epic.md"),
+            artifacts_dir=tmp_path / "artifacts",
+            cl_name="demo",
+            result=result,
+        )
+
+    update_metadata.assert_not_called()
+    assert notify.call_args.args[:3] == ("epic-launch", "demo", False)
+    notes = notify.call_args.args[3]
+    assert "epic launch was declined" in notes[0]
+    assert "--yes " in notes[1]
+    assert "--yes-to-all" not in notes[1]
 
 
 def test_work_command_linking_side_effects_are_best_effort(tmp_path: Path) -> None:
@@ -302,6 +331,7 @@ def test_work_command_linking_side_effects_are_best_effort(tmp_path: Path) -> No
         dry_run=False,
         epic_id="sase-64",
         archived_plan_path=tmp_path / "plans" / "epic.md",
+        launched=True,
     )
     with (
         patch(

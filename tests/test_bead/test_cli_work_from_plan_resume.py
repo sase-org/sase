@@ -36,6 +36,12 @@ def test_plan_file_resume_reuses_linked_epic(
         core = project.create("Build the core", IssueType.PHASE, parent_id=epic.id)
         cli = project.create("Add the CLI", IssueType.PHASE, parent_id=epic.id)
         verify = project.create("Verify the result", IssueType.PHASE, parent_id=epic.id)
+        child_epic = project.create(
+            "Nested epic",
+            IssueType.PLAN,
+            parent_id=epic.id,
+            tier=BeadTier.EPIC,
+        )
         project.add_dependency(cli.id, core.id)
         project.add_dependency(verify.id, core.id)
         project.add_dependency(verify.id, cli.id)
@@ -46,10 +52,19 @@ def test_plan_file_resume_reuses_linked_epic(
         EPIC_PLAN.replace("tier: epic", f"tier: epic\nbead_id: {epic.id}"),
         encoding="utf-8",
     )
-    launches: list[str] = []
+    launches: list[tuple[str, bool]] = []
+
+    def launch(
+        _project: BeadProject,
+        epic_id: str,
+        **kwargs: object,
+    ) -> bool:
+        launches.append((epic_id, bool(kwargs["yes_to_all"])))
+        return True
+
     monkeypatch.setattr(
         "sase.bead.cli_work_handler.launch_epic_bead_work",
-        lambda _project, epic_id, **_kwargs: not launches.append(epic_id),
+        launch,
     )
     pushes: list[bool] = []
     monkeypatch.setattr(
@@ -68,10 +83,11 @@ def test_plan_file_resume_reuses_linked_epic(
     assert result.epic_id == epic.id
     assert result.resumed is True
     assert result.phase_bead_ids == (core.id, cli.id, verify.id)
-    assert launches == [epic.id]
+    assert child_epic.id not in result.phase_bead_ids
+    assert launches == [(epic.id, False)]
     assert pushes == [True]
     with BeadProject(project_dir) as project:
-        assert len(project.list_issues()) == 4
+        assert len(project.list_issues()) == 5
 
 
 def test_retrying_original_file_preserves_archived_bead_link(
@@ -84,9 +100,12 @@ def test_retrying_original_file_preserves_archived_bead_link(
         "sase.bead.cli_work_from_plan._commit_plan_file",
         lambda *_args, **_kwargs: True,
     )
+    confirmations: list[bool] = []
     monkeypatch.setattr(
         "sase.bead.cli_work_handler.launch_epic_bead_work",
-        lambda _project, _epic_id, **_kwargs: True,
+        lambda _project, _epic_id, **kwargs: (
+            confirmations.append(bool(kwargs["yes_to_all"])) or True
+        ),
     )
 
     first = work_from_plan_file(
@@ -100,12 +119,14 @@ def test_retrying_original_file_preserves_archived_bead_link(
         str(source),
         dry_run=False,
         yes=True,
+        yes_to_all=True,
         no_push=False,
         render=False,
     )
 
     assert second.epic_id == first.epic_id
     assert second.resumed is True
+    assert confirmations == [False, True]
     with BeadProject(project_dir) as project:
         assert len(project.list_issues()) == 4
 

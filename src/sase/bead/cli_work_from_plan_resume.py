@@ -75,7 +75,11 @@ def resume_linked_epic(
                     "is not an epic plan bead; remove the stale bead_id or restore "
                     "the correct bead"
                 )
-            phases = project.get_epic_children(epic_id)
+            phases = [
+                child
+                for child in project.get_epic_children(epic_id)
+                if child.issue_type is IssueType.PHASE
+            ]
             work_plan = build_work_plan(project, epic_id)
             launched_names = ordered_agent_names(work_plan)
             if render:
@@ -100,7 +104,7 @@ def resume_linked_epic(
                 dry_run=False,
                 yes=yes,
                 no_push=no_push,
-                yes_to_all=True,
+                yes_to_all=yes_to_all,
                 defer_push=True,
                 before_agent_launch=publish_resumed_graph,
             )

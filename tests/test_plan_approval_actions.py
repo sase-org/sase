@@ -299,6 +299,7 @@ def test_headless_epic_approval_claims_host_ownership_before_submitting(
     )
     submit_launch.assert_called_once()
     assert submit_launch.call_args.kwargs["cwd"] == workspace
+    assert submit_launch.call_args.kwargs["origin"] == "epic-launch"
 
 
 def test_epic_launch_cwd_resolves_from_project_file_without_project_dir(

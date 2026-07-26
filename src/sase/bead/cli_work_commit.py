@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -64,10 +65,13 @@ def commit_successful_work_launch(
             if outcome.pushed:
                 suffix = " Pushed to remote."
             elif outcome.error is not None:
+                from sase.bead._sync_git import find_git_root
+
+                repo_root = find_git_root(beads_dir) or beads_dir
                 print(
                     f"Warning: committed bead state for {kind} {bead_id}, "
                     f"but {outcome.error}. Push manually with "
-                    f"`cd {beads_dir.parent.parent} && git push`.",
+                    f"`cd {shlex.quote(str(repo_root))} && git push`.",
                     file=sys.stderr,
                 )
         elif push_mode == "async":
