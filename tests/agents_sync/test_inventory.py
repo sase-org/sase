@@ -11,7 +11,7 @@ from sase.agents_sync.models import CommitRecord, ProjectTarget
 from sase.agents_sync.publication import reconcile_agent_hoods
 from sase.agents_sync.v2_io import read_hood_snapshot
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
-from sase.core.agent_scan_wire import AgentArtifactRecordWire
+from sase.core.agent_scan_wire import AgentArtifactRecordWire, WaitingMarkerWire
 
 
 def _target(tmp_path: Path) -> ProjectTarget:
@@ -162,6 +162,29 @@ def test_dismissed_inventory_rejects_legacy_step_output_import_marker(
     )
 
     assert run is None
+
+
+def test_inventory_relationships_skip_tribe_wait_targets(tmp_path: Path) -> None:
+    identity = AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena"))
+    expected = (inventory_models.InventoryRelationship("wait", "foo.peer", "name"),)
+    record = AgentArtifactRecordWire(
+        project_name="proj",
+        project_dir=str(tmp_path),
+        project_file=str(tmp_path / "proj.sase"),
+        workflow_dir_name="ace-run",
+        artifact_dir=str(tmp_path / "artifact"),
+        timestamp="20260723120000",
+        waiting=WaitingMarkerWire(waiting_for=["@epic", "foo.peer"]),
+    )
+
+    assert inventory._artifact_relationships({}, record, identity) == expected
+    assert (
+        inventory._dismissed_relationships(
+            {"waiting_for": ["@epic", "foo.peer"]},
+            identity,
+        )
+        == expected
+    )
 
 
 def test_inventory_discovers_real_legacy_names_and_reconciles_unrelated_hood(

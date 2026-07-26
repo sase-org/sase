@@ -441,15 +441,25 @@ def _artifact_relationships(
         if record.waiting is not None
         else meta.get("wait_for") or ()
     )
-    if isinstance(waiting, list):
-        for name in waiting:
-            if isinstance(name, str) and name:
-                rows.append(
-                    InventoryRelationship(
-                        "wait", _canonical_local_name(name, identity), "name"
-                    )
-                )
+    rows.extend(_wait_relationships(waiting, identity))
     return _dedupe_relationships(rows)
+
+
+def _wait_relationships(
+    waiting: object,
+    identity: AgentIdentitySnapshot,
+) -> list[InventoryRelationship]:
+    if not isinstance(waiting, list):
+        return []
+    return [
+        InventoryRelationship(
+            "wait",
+            _canonical_local_name(name, identity),
+            "name",
+        )
+        for name in waiting
+        if isinstance(name, str) and name and not name.startswith("@")
+    ]
 
 
 def _dismissed_relationships(
@@ -464,14 +474,7 @@ def _dismissed_relationships(
         if target:
             rows.append(InventoryRelationship(kind, target, "timestamp"))
     waiting = raw.get("waiting_for") or ()
-    if isinstance(waiting, list):
-        for name in waiting:
-            if isinstance(name, str) and name:
-                rows.append(
-                    InventoryRelationship(
-                        "wait", _canonical_local_name(name, identity), "name"
-                    )
-                )
+    rows.extend(_wait_relationships(waiting, identity))
     return _dedupe_relationships(rows)
 
 
