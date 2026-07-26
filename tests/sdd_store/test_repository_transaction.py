@@ -144,7 +144,8 @@ def test_machine_managed_integration_does_not_create_rerere_cache(
         recovery_cooldown_seconds=0,
     )
 
-    assert outcome.status is SddIntegrationStatus.RECOVERED
+    assert outcome.status is SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS
+    assert outcome.restored is True
     assert _rr_cache_files(left) == ()
 
 
