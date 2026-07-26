@@ -19,12 +19,15 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+import logging
 import re
+from typing import Any
 
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     named_args_skeleton,
     xprompt_assist_entry_from_local_xprompt,
 )
+from sase.config.core import load_merged_config
 from sase.xprompt.jinja_inspect import inspect_template
 from sase.xprompt.loader_parsing import (
     LocalXPromptNameError,
@@ -41,6 +44,8 @@ from sase.xprompt.raw_placeholders import (
 # Same identifier rule the Frontmatter Panel's xprompt sub-form enforces.
 _NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
+log = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class _PlaceholderArgConversion:
@@ -49,6 +54,31 @@ class _PlaceholderArgConversion:
     body: str
     inputs: list[InputArg]
     renames: dict[str, str]
+
+
+def _xprompt_placeholder_args_enabled() -> bool:
+    """Return whether gx/gX placeholder-to-input conversion is enabled.
+
+    Reads ``ace.prompt_inputs.xprompt_placeholder_args`` through the cached
+    merged config. A missing, unreadable, or unparsable value falls back to
+    enabled.
+    """
+    try:
+        ace = _config_section(load_merged_config(), "ace")
+        raw = _config_section(ace, "prompt_inputs").get(
+            "xprompt_placeholder_args", True
+        )
+    except Exception:
+        log.debug("xprompt placeholder argument toggle unavailable", exc_info=True)
+        return True
+    return bool(raw)
+
+
+def _config_section(data: object, key: str) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        return {}
+    section = data.get(key)
+    return section if isinstance(section, dict) else {}
 
 
 def convert_placeholders_to_inputs(
@@ -63,7 +93,13 @@ def convert_placeholders_to_inputs(
     redeclared, preserving an authored input's type/default/description or an
     existing undeclared Jinja variable.  Literal placeholders inside code
     zones are left untouched by the shared substitution transform.
+
+    When ``ace.prompt_inputs.xprompt_placeholder_args`` is disabled, returns
+    the original body without placeholder-derived inputs or renames.
     """
+    if not _xprompt_placeholder_args_enabled():
+        return _PlaceholderArgConversion(body=body, inputs=[], renames={})
+
     fields = raw_placeholder_fields(body)
     names = placeholder_input_names([field.text for field in fields])
     existing_names = set(existing)
@@ -128,6 +164,8 @@ def infer_local_xprompt_inputs(body: str) -> _PlaceholderArgConversion | None:
     :func:`inspect_template`.  Placeholder-derived inputs follow those Jinja
     inputs, preserving document order within each group.  A placeholder whose
     generated name is already an undeclared Jinja variable reuses that input.
+    Disabling ``ace.prompt_inputs.xprompt_placeholder_args`` skips only the
+    placeholder rewrite; Jinja-variable input inference is unchanged.
 
     Returns ``None`` when *body* contains invalid Jinja syntax: the caller leaves
     the pane unchanged and notifies rather than minting a helper with unreliable

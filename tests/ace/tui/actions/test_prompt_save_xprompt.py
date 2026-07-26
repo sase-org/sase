@@ -7,6 +7,9 @@ import threading
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+import sase.ace.tui.widgets._local_xprompt_conversion as conversion_module
 from sase.ace.tui.modals import UnifiedSaveLocation, UnifiedXPromptSaveModal
 from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import StashedPromptPane
@@ -104,6 +107,40 @@ async def test_request_converts_placeholders_for_xprompt_preview_only() -> None:
     assert service.default == "api"
     target = modal._frontmatter.get_input("target_file")
     assert target == InputArg(name="target_file", type=InputType.TEXT)
+
+
+async def test_request_keeps_placeholders_when_conversion_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = _SaveHarness()
+    monkeypatch.setattr(
+        conversion_module,
+        "load_merged_config",
+        lambda: {"ace": {"prompt_inputs": {"xprompt_placeholder_args": False}}},
+    )
+    with (
+        patch(
+            "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_save_locations",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
+            return_value=[],
+        ),
+        patch("sase.xprompt.save_state.load_last_used_locations", return_value={}),
+    ):
+        await harness.on_prompt_input_bar_save_as_xprompt_requested(
+            PromptInputBar.SaveAsXpromptRequested(
+                [StashedPromptPane(text="Deploy <service> now")],
+                snippet_body="Deploy <service> now",
+            )
+        )
+        await _wait_save_tasks(harness)
+
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, UnifiedXPromptSaveModal)
+    assert modal._body == "Deploy <service> now"
+    assert modal._frontmatter.inputs == []
 
 
 async def test_request_reuses_undeclared_jinja_name_without_duplicate_input() -> None:

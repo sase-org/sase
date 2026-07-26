@@ -2756,8 +2756,8 @@ all still-empty placeholder rows literal. A literal row counts as filled and lea
 the launched prompt.
 
 Set `ace.prompt_inputs.collect_raw_placeholders: false` to stop collecting raw tags on submit; declared frontmatter
-inputs are still collected. The schema also accepts `ace.prompt_inputs.xprompt_placeholder_args`, but the current `gx`
-and `gX` conversion paths do not consult it, so save-time conversion remains enabled. See
+inputs are still collected. Set `ace.prompt_inputs.xprompt_placeholder_args: false` to keep live raw tags literal when
+using `gx` or `gX` and mint no placeholder-derived `text` inputs; Jinja-variable inference for `gX` still runs. See
 [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact conversion and naming rules.
 
 ### Prompt Stacks
@@ -2833,10 +2833,11 @@ save-as instead of clobbering it. `gd` loads the simple xprompt under the cursor
 instead converts the active pane through a prefilled frontmatter ghost row and rewrites the pane to invoke the committed
 helper. Before `gx` opens the save preview, its xprompt version converts live `<label>` tags into required Jinja `text`
 inputs; switching that screen to snippet mode shows and saves the original active-pane body instead. `gX` performs the
-same raw-placeholder conversion when it creates a frontmatter-local helper. `gw` only writes the currently bound
-definition—it does not reinterpret newly typed raw placeholders. Tags in inline code, fenced code, and disabled xprompt
-regions stay literal throughout. See [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact launch,
-conversion, and naming rules.
+same raw-placeholder conversion when it creates a frontmatter-local helper. Set
+`ace.prompt_inputs.xprompt_placeholder_args: false` to disable both conversions while preserving `gX` Jinja-variable
+inference. `gw` only writes the currently bound definition—it does not reinterpret newly typed raw placeholders. Tags in
+inline code, fenced code, and disabled xprompt regions stay literal throughout. See
+[Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact launch, conversion, and naming rules.
 
 `Ctrl+G p` opens the unified stashed-prompt picker from the prompt bar, and `@` opens the same picker from the main ACE
 tabs even when the prompt bar is not active. In the picker, `space` toggles a row's persistent pin, `Tab` marks a row to

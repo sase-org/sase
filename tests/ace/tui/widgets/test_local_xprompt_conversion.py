@@ -6,6 +6,9 @@ and validation, Jinja input inference, and invocation skeleton generation.
 
 from __future__ import annotations
 
+import pytest
+
+import sase.ace.tui.widgets._local_xprompt_conversion as conversion_module
 from sase.ace.tui.widgets._local_xprompt_conversion import (
     build_local_xprompt,
     convert_placeholders_to_inputs,
@@ -16,6 +19,15 @@ from sase.ace.tui.widgets._local_xprompt_conversion import (
 )
 from sase.xprompt.models import InputType
 from sase.xprompt.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
+
+
+def _disable_placeholder_args(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Turn off ``ace.prompt_inputs.xprompt_placeholder_args``."""
+    monkeypatch.setattr(
+        conversion_module,
+        "load_merged_config",
+        lambda: {"ace": {"prompt_inputs": {"xprompt_placeholder_args": False}}},
+    )
 
 
 # -- name normalization -----------------------------------------------------
@@ -144,6 +156,58 @@ def test_placeholder_conversion_preserves_literal_placeholders() -> None:
         "Replace {{ live }}, not `<inline>` or:\n```\n<fenced>\n```"
     )
     assert [arg.name for arg in converted.inputs] == ["live"]
+
+
+def test_placeholder_conversion_disabled_is_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _disable_placeholder_args(monkeypatch)
+
+    converted = convert_placeholders_to_inputs("Deploy <service> now")
+
+    assert converted.body == "Deploy <service> now"
+    assert converted.inputs == []
+    assert converted.renames == {}
+
+
+def test_local_inference_disabled_keeps_only_jinja_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _disable_placeholder_args(monkeypatch)
+
+    converted = infer_local_xprompt_inputs("Deploy {{ target }} with <service>")
+
+    assert converted is not None
+    assert converted.body == "Deploy {{ target }} with <service>"
+    assert [arg.name for arg in converted.inputs] == ["target"]
+    assert converted.renames == {}
+
+
+def test_local_inference_disabled_invalid_jinja_still_returns_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _disable_placeholder_args(monkeypatch)
+
+    assert infer_local_xprompt_inputs("Broken {{ unclosed with <service>") is None
+
+
+def test_placeholder_conversion_config_failure_falls_back_to_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise_config_error() -> dict[str, object]:
+        raise RuntimeError("config unavailable")
+
+    monkeypatch.setattr(
+        conversion_module,
+        "load_merged_config",
+        _raise_config_error,
+    )
+
+    converted = convert_placeholders_to_inputs("Deploy <service> now")
+
+    assert converted.body == "Deploy {{ service }} now"
+    assert [arg.name for arg in converted.inputs] == ["service"]
+    assert converted.renames == {"service": "service"}
 
 
 def test_local_inference_appends_placeholder_inputs_after_jinja_inputs() -> None:

@@ -670,6 +670,9 @@ zones remain untouched, and inserted values are not scanned again for more place
 snippet keeps the original active-pane body rather than applying this xprompt-only conversion. Writing an already bound
 xprompt with `gw` saves the body as edited and does not perform a new conversion pass.
 
+Set `ace.prompt_inputs.xprompt_placeholder_args: false` to keep live raw placeholders literal during `gx` and `gX` and
+mint no placeholder-derived `text` inputs. Undeclared Jinja variables still become required `gX` inputs.
+
 ## Tags
 
 XPrompts and workflows can be annotated with semantic role tags. Tags enable lookup-by-role instead of lookup-by-name,
