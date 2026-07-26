@@ -1,15 +1,20 @@
 """Bead dependency tests for the wait_checks chop script."""
 
 import json
+from io import StringIO
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
 import sase.bead.store_locator as bead_store_locator
+import sase.scripts.sase_chop_bead_store_refresh as store_refresh
 import sase.scripts.sase_chop_wait_checks as wait_checks_module
+from sase.axe.chop_script_context import ChopScriptContext
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
+from sase.chops.builtin import BuiltinChopRuntime
+from sase.chops.sdk import ChopLogger
 from sase.core.wait_dependency_resolution import (
     WaitDependencyIndex,
     dependency_resolution_status,
@@ -190,3 +195,59 @@ def test_wait_checks_reads_each_project_bead_store_once_per_cycle(
     run_wait_checks(tmp_path, monkeypatch)
 
     lookup.assert_called_once_with("proj")
+
+
+def test_wait_checks_observes_closed_bead_after_store_refresh(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, open_bead, _ = _seed_wait_bead_store(tmp_path)
+    beads_dir = root / "sdd/beads"
+    _point_waits_at_bead_store(monkeypatch, root)
+    waiter_dir = make_waiting_agent(tmp_path, wait_for_beads=[open_bead])
+    run_wait_checks(tmp_path, monkeypatch)
+    assert not (waiter_dir / "ready.json").exists()
+
+    monkeypatch.setattr(store_refresh, "bead_refresh_mode", lambda: "background")
+    monkeypatch.setattr(
+        store_refresh,
+        "_projects_with_live_bead_waits",
+        lambda _root: {"proj"},
+    )
+    monkeypatch.setattr(store_refresh, "sase_projects_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        store_refresh,
+        "canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+
+    def close_bead_during_refresh(refreshed_dir: Path) -> None:
+        assert refreshed_dir == beads_dir
+        with BeadProject(root) as project:
+            project.close([open_bead])
+
+    monkeypatch.setattr(
+        store_refresh,
+        "refresh_bead_store",
+        close_bead_during_refresh,
+    )
+    runtime = BuiltinChopRuntime(
+        name="bead_store_refresh",
+        context=ChopScriptContext(
+            max_hook_runners=1,
+            max_agent_runners=1,
+            zombie_timeout_seconds=60,
+            query="",
+            lumberjack_name="waits",
+            state_dir=str(tmp_path / "state"),
+            all_changespecs_file=str(tmp_path / "all.json"),
+            filtered_changespecs_file=str(tmp_path / "filtered.json"),
+        ),
+        log=ChopLogger(stdout=StringIO(), stderr=StringIO()),
+    )
+
+    refresh_result = store_refresh._run(runtime)
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert refresh_result.counters["stores_refreshed"] == 1
+    assert json.loads((waiter_dir / "ready.json").read_text()) == {"resolved_deps": []}

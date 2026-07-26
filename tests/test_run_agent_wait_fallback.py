@@ -277,6 +277,42 @@ def test_bead_wait_fallback_releases_after_bead_closes(
     assert "Dependencies satisfied by runner fallback" in capsys.readouterr().out
 
 
+def test_bead_wait_fallback_refreshes_before_resolution(
+    tmp_path: Path,
+) -> None:
+    waiter_dir = _make_waiter(tmp_path)
+    events: list[str] = []
+
+    with (
+        patch(
+            "sase.axe.run_agent_wait.initial_dependencies_resolved",
+            return_value=False,
+        ),
+        patch("sase.axe.run_agent_wait.was_killed", return_value=False),
+        patch("sase.axe.run_agent_wait._WAIT_DEPENDENCY_FALLBACK_INTERVAL", 0),
+        patch("sase.axe.run_agent_wait._WAIT_BEAD_REFRESH_FALLBACK_INTERVAL", 0),
+        patch(
+            "sase.axe.run_agent_wait.refresh_bead_wait_store",
+            side_effect=lambda _project: events.append("refresh"),
+        ),
+        patch(
+            "sase.axe.run_agent_wait.waiting_marker_dependencies_resolved",
+            side_effect=lambda *_args, **_kwargs: events.append("resolve") or True,
+        ),
+    ):
+        wait_for_dependencies(
+            [],
+            str(waiter_dir),
+            "cl",
+            "20260720120000",
+            {"pid": 123},
+            project_name="proj",
+            wait_beads=["sase-87.3"],
+        )
+
+    assert events == ["refresh", "resolve"]
+
+
 def test_bead_wait_fallback_stays_parked_while_bead_is_open(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

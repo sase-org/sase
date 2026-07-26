@@ -21,6 +21,7 @@ from typing import Any
 from sase.axe.run_agent_wait_deps import (
     initial_dependencies_resolved,
     read_ready_result,
+    refresh_bead_wait_store,
     waiting_marker_dependencies_resolved,
 )
 from sase.axe.run_agent_wait_markers import (
@@ -33,6 +34,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 
 _WAIT_DEPENDENCY_FALLBACK_INTERVAL = 60.0
+_WAIT_BEAD_REFRESH_FALLBACK_INTERVAL = 600.0
 
 
 def remaining_until(wait_until: str) -> float:
@@ -173,6 +175,11 @@ def wait_for_dependencies(
             if project_name
             else None
         )
+        next_bead_refresh_at = (
+            time.monotonic() + _WAIT_BEAD_REFRESH_FALLBACK_INTERVAL
+            if project_name and wait_beads
+            else None
+        )
         while not dependencies_resolved:
             if os.path.exists(ready_path):
                 dependencies_resolved = read_ready_result(ready_path)
@@ -180,7 +187,11 @@ def wait_for_dependencies(
                     break
             if was_killed():
                 break
-            if next_fallback_at is not None and time.monotonic() >= next_fallback_at:
+            now = time.monotonic()
+            if next_fallback_at is not None and now >= next_fallback_at:
+                if next_bead_refresh_at is not None and now >= next_bead_refresh_at:
+                    refresh_bead_wait_store(project_name)
+                    next_bead_refresh_at = now + _WAIT_BEAD_REFRESH_FALLBACK_INTERVAL
                 if waiting_marker_dependencies_resolved(
                     Path(waiting_path),
                     project_name=project_name,
@@ -192,7 +203,7 @@ def wait_for_dependencies(
                         "(ready.json not observed)"
                     )
                     break
-                next_fallback_at = time.monotonic() + _WAIT_DEPENDENCY_FALLBACK_INTERVAL
+                next_fallback_at = now + _WAIT_DEPENDENCY_FALLBACK_INTERVAL
             blocked = True
             _opportunistic_ensure_axe()
             time.sleep(_WAIT_POLL_INTERVAL)

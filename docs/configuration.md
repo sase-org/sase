@@ -1212,6 +1212,11 @@ axe:
     waits:
       interval: 10
       chops:
+        - name: bead_store_refresh
+          script: sase_chop_bead_store_refresh
+          run_every: "30s"
+          timeout: "2m"
+          description: Integrate canonical bead stores for projects with outstanding bead waits
         - name: wait_checks
           script: sase_chop_wait_checks
           description: Resolve successful agent wait dependencies and write ready.json
@@ -1795,12 +1800,12 @@ sdd:
   push_after_commit: async
 ```
 
-| Field                          | Type        | Default      | Description                                                                                                                                                                                                                           |
-| ------------------------------ | ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sdd.bead_refresh.mode`        | string      | `background` | Sidecar bead-store freshness: `background` launches a TTL-gated managed sync after commands, `blocking` pulls before commands, and `off` disables command-triggered refresh.                                                          |
-| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum age of the last successful remote integration before another background worker is launched.                                                                                                                                   |
-| `sdd.repo.name`                | string      | `""`         | Optional sidecar repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
-| `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in sidecar repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                              |
+| Field                          | Type        | Default      | Description                                                                                                                                                                                                                                      |
+| ------------------------------ | ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sdd.bead_refresh.mode`        | string      | `background` | Sidecar bead-store freshness: `background` launches a TTL-gated managed sync after commands, `blocking` pulls before commands, and `off` disables command-triggered refresh, the `bead_store_refresh` chop, and the runner's bead-wait backstop. |
+| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum age of the last successful remote integration before another background worker is launched.                                                                                                                                              |
+| `sdd.repo.name`                | string      | `""`         | Optional sidecar repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`.            |
+| `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in sidecar repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                                         |
 
 The workspace provider owns storage selection. Built-in bare-git projects store SDD under `sdd/`. Managed GitHub
 projects use a `--plans` sidecar cloned at `sase/repos/plans`; the project-local research sidecar resolves at

@@ -451,6 +451,11 @@ axe:
         - name: bead_claim_checks
           script: sase_chop_bead_claim_checks
           description: "Acquire missing bead claims for live pre-launch agents and release claims held by dead ones"
+        - name: bead_store_refresh
+          script: sase_chop_bead_store_refresh
+          run_every: "30s"
+          timeout: "2m"
+          description: "Integrate the canonical bead store for projects with agents waiting on beads"
         - name: wait_checks
           script: sase_chop_wait_checks
           description: "Resolve agent wait dependencies and write ready.json when satisfied"

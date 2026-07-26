@@ -175,9 +175,10 @@ High-frequency hook lifecycle management:
 
 Fast-polling agent dependency resolution:
 
-| Chop          | Description                                                        |
-| ------------- | ------------------------------------------------------------------ |
-| `wait_checks` | Resolve successful agent and closed-bead waits; write `ready.json` |
+| Chop                 | Description                                                                |
+| -------------------- | -------------------------------------------------------------------------- |
+| `bead_store_refresh` | Integrate canonical stores for projects with live, unresolved bead waiters |
+| `wait_checks`        | Resolve successful agent and closed-bead waits; write `ready.json`         |
 
 `wait_checks` only unblocks a named dependency when the newest matching agent, or the newest matching workflow root and
 all of its children, has a `done.json` outcome of `"completed"`. Failed, killed, crashed, still-running, malformed, or
@@ -187,7 +188,9 @@ the same dependency name appears.
 Markers may also carry `wait_for_beads`, emitted by `%wait(bead=<bead-id>)`. `wait_checks` reads the waiting agent's
 project bead store once per cycle and releases the marker only when every named bead is closed as well as every agent or
 artifact dependency being satisfied. Missing beads, unavailable stores, and read failures deliberately fail closed and
-leave the agent parked; ACE's run-now action remains the manual escape hatch.
+leave the agent parked; ACE's run-now action remains the manual escape hatch. While live bead waits are outstanding,
+`bead_store_refresh` integrates their projects' canonical stores every 30 seconds, with the waiting runner providing a
+coarser outage backstop. Setting `sdd.bead_refresh.mode: off` disables both refresh paths.
 
 ### checks (5-minute interval)
 

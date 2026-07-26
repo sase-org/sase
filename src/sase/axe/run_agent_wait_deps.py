@@ -18,6 +18,23 @@ from sase.core.wait_dependency_resolution import (
 )
 
 
+def refresh_bead_wait_store(project_name: str | None) -> None:
+    """Best-effort refresh of the canonical store used by bead waits."""
+    if not project_name:
+        return
+    try:
+        from sase.bead.store_locator import canonical_beads_dir_for_project
+        from sase.bead.sync import bead_refresh_mode, refresh_bead_store
+
+        if bead_refresh_mode() == "off":
+            return
+        beads_dir = canonical_beads_dir_for_project(project_name)
+        if beads_dir is not None:
+            refresh_bead_store(beads_dir)
+    except Exception:  # noqa: BLE001 - runner waits must survive refresh failures.
+        pass
+
+
 def initial_dependencies_resolved(
     wait_names: Iterable[object],
     wait_identity_deps: Iterable[object],
