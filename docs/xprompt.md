@@ -521,6 +521,10 @@ Both forms accept optional one-line `description` fields. Input descriptions do 
 input signatures; rich surfaces such as catalogs, explain output, argument help, and editor documentation can use them
 as human-facing help text.
 
+ACE can synthesize required `text` inputs from raw `<placeholder>` tags when saving a prompt-bar draft as a new global
+or frontmatter-local xprompt. See [Raw Prompt Placeholders](#raw-prompt-placeholders) for the launch-time collection,
+save-time conversion, and literal-zone rules.
+
 ### Supported Types
 
 | Type    | Aliases   | Validation                                              |

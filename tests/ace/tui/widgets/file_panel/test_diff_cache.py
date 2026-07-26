@@ -23,6 +23,7 @@ from tests.ace.tui.widgets.file_panel._diff_cache_helpers import (
 
 def test_get_agent_diff_caches_on_unchanged_worktree(tmp_path: Path) -> None:
     diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
     workspace = _setup_workspace(tmp_path)
     agent = _make_running_agent(workspace_dir=str(workspace))
     provider = _FakeProvider()
@@ -50,6 +51,7 @@ def test_get_agent_diff_invalidates_after_ttl(tmp_path: Path) -> None:
     The TTL bucket is now the primary invalidation signal.
     """
     diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
     workspace = _setup_workspace(tmp_path)
     agent = _make_running_agent(workspace_dir=str(workspace))
     provider = _FakeProvider()
@@ -76,6 +78,7 @@ def test_get_agent_diff_invalidates_after_ttl(tmp_path: Path) -> None:
 
 def test_get_agent_diff_invalidates_when_index_changes(tmp_path: Path) -> None:
     diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
     workspace = _setup_workspace(tmp_path)
     agent = _make_running_agent(workspace_dir=str(workspace))
     provider = _FakeProvider()
@@ -98,6 +101,7 @@ def test_get_agent_diff_resolves_root_plan_to_newest_active_coder_workspace(
     tmp_path: Path,
 ) -> None:
     diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
     _setup_workspace(tmp_path, "myproj_1")
     _setup_workspace(tmp_path, "myproj_2")
     newest_workspace = _setup_workspace(tmp_path, "myproj_3")

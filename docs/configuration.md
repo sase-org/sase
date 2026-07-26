@@ -538,6 +538,7 @@ ace:
 | `artifacts`         | dict         | see below | Per-pane settings for ACE's Artifacts tab.                                                                                                                 |
 | `keymaps`           | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
 | `prompt_completion` | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
+| `prompt_inputs`     | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
 | `repro_output_dir`  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
 | `snippets`          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
 | `tribes`            | dict         | see below | Per-tribe ACE TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                      |
@@ -815,9 +816,10 @@ Raw placeholders in YAML frontmatter, inline code, fenced code, or `%xprompts_en
 collected. See [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the submit panel, literal-tag control,
 and xprompt conversion workflow.
 
-Source: `src/sase/agent/prompt_placeholder_inputs.py`,
+Source: `src/sase/agent/prompt_placeholder_inputs.py`, `src/sase/ace/tui/actions/agent_workflow/_launch_start.py`,
 `src/sase/ace/tui/actions/agent_workflow/_prompt_bar_save_xprompt.py`,
-`src/sase/ace/tui/widgets/_prompt_input_bar_local_xprompt_actions.py`
+`src/sase/ace/tui/widgets/_prompt_input_bar_local_xprompt_actions.py`,
+`src/sase/ace/tui/widgets/_local_xprompt_conversion.py`
 
 ### llm_provider
 

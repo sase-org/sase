@@ -2668,8 +2668,8 @@ multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent
 | `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel                                                                   |
 | `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                             |
 | `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                   |
-| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Save the current stack as a reusable xprompt or snippet                                                    |
-| `Ctrl+G X`                   | Convert the active pane into a frontmatter-local xprompt                                                   |
+| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                       |
+| `Ctrl+G X`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                       |
 | `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                              |
 | `Ctrl+G p`                   | Open the stashed-prompt picker                                                                             |
 | `Ctrl+Y`                     | Open the workflow YAML editor                                                                              |
@@ -2738,6 +2738,28 @@ keep their existing unguarded behavior. Only the colon-terminated body-note colo
 theme, while the shared deep-navy-on-gold header and count pill remain fixed; search matches, selections, yank feedback,
 and the cursor retain their higher-priority treatments.
 
+### Raw Placeholder Inputs
+
+Raw `<placeholder>` tags in the ACE prompt bar act like ad hoc prompt inputs. When you submit a prompt containing one or
+more highlighted raw tags, ACE opens the **Prompt Inputs** panel before launch. The panel lists each unique tag once,
+shows a one-line context snippet and an occurrence count, and collects values on the same page as any required
+frontmatter-declared `input:` arguments. After confirmation, ACE substitutes the collected values into the prompt and
+records history for the resolved prompt that the agents actually received.
+
+Inline backtick spans, fenced code blocks, and `%xprompts_enabled:false` regions are literal zones. Tags inside those
+zones are not highlighted as raw placeholders, are not offered as common placeholder completions, and are not collected
+on submit. Use backticks when a tag-like value is meant to survive literally, for example ``keep `<div>` unchanged``.
+
+Each raw placeholder row must be filled before launch unless it is marked literal. Press `Ctrl+L` in the Prompt Inputs
+panel to toggle **keep literal** for the focused placeholder row; when focus is outside the field list, `Ctrl+L` marks
+all still-empty placeholder rows literal. A literal row counts as filled and leaves its original `<placeholder>` text in
+the launched prompt.
+
+Set `ace.prompt_inputs.collect_raw_placeholders: false` to stop collecting raw tags on submit; declared frontmatter
+inputs are still collected. The schema also accepts `ace.prompt_inputs.xprompt_placeholder_args`, but the current `gx`
+and `gX` conversion paths do not consult it, so save-time conversion remains enabled. See
+[Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact conversion and naming rules.
+
 ### Prompt Stacks
 
 Prompt stacks are the ACE editing surface for literal `---` multi-agent prompts. Loading multi-agent prompt text from
@@ -2783,8 +2805,8 @@ In prompt NORMAL mode, pressing `g` opens a small hint row for the prompt-local 
 | `gS`        | Overwrite a pinned stashed prompt with the current stack, leaving the bar open                         |
 | `gw`        | Write a bound xprompt definition; unbound drafts fall through to save-as                               |
 | `gd`        | Edit the xprompt definition under the cursor in the prompt bar                                         |
-| `gx`        | Save the current stack as a reusable xprompt or snippet, leaving the bar open                          |
-| `gX`        | Convert the active pane into a frontmatter-local xprompt, leaving the bar open                         |
+| `gx`        | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>` and leaves the bar open           |
+| `gX`        | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                   |
 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane so local xprompts and metadata
 continue to resolve. Empty selected panes are dropped without launching. Whole-stack submission joins panes in
