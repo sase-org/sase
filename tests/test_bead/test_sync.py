@@ -13,6 +13,7 @@ from sase.bead.sync import (
     git_sync,
     rebuild_from_jsonl,
 )
+from sase.bead._sync_git import BeadWorkLaunchCommitError
 from sase.sdd._repository_transaction import SddRepositoryHealthError
 
 from .sync_test_helpers import init_git_repo as _init_git_repo
@@ -71,6 +72,22 @@ def test_sync_status_dirty_when_event_stream_untracked(tmp_path):
     stream = beads_dir / "events/streams/test.jsonl"
     stream.parent.mkdir(parents=True)
     stream.write_text('{"event_id":"test"}\n')
+
+    assert _sync_status(beads_dir) is False
+
+
+def test_sync_status_dirty_when_probe_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_git_repo(tmp_path)
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+
+    def fail_probe(_beads_dir: Path, _repo_root: Path) -> list[str]:
+        raise BeadWorkLaunchCommitError("git ls-files failed")
+
+    monkeypatch.setattr("sase.bead._sync_git._list_bead_state_changes", fail_probe)
 
     assert _sync_status(beads_dir) is False
 

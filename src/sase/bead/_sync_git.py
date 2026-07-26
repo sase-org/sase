@@ -281,7 +281,7 @@ def bead_state_is_clean(beads_dir: Path) -> bool:
     try:
         files = _list_bead_state_changes(beads_dir, repo_root)
     except BeadWorkLaunchCommitError:
-        return True
+        return False
     return not files
 
 

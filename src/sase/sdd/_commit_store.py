@@ -93,6 +93,13 @@ def commit_sdd_files(
         )
         if result.returncode == 0:
             return False
+        if result.returncode != 1:
+            raise SddGitCommandError(
+                result.returncode,
+                result.args,
+                output=result.stdout,
+                stderr=result.stderr,
+            )
         diff_path = _capture_staged_sdd_diff(
             sdd_dir,
             changed_files,

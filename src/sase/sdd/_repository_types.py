@@ -67,6 +67,8 @@ class SddRepositoryState:
             )
         if self.unmerged_paths:
             blockers.append("unmerged index entries " + ", ".join(self.unmerged_paths))
+        if self.unmerged_error is not None:
+            blockers.append(self.unmerged_error)
         return tuple(blockers)
 
 

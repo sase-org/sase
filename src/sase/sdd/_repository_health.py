@@ -229,6 +229,8 @@ def sdd_rollback_mismatch(
         mismatches.append("Git operation markers differ from the starting state")
     if final.unmerged_paths != starting.unmerged_paths:
         mismatches.append("unmerged index entries differ from the starting state")
+    if final.unmerged_error != starting.unmerged_error:
+        mismatches.append("unmerged index probe error differs from the starting state")
     starting_index, _starting_observations = _porcelain_states(
         starting.status_porcelain
     )

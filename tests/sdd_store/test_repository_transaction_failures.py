@@ -12,6 +12,8 @@ from sase.sdd._repository_transaction import (
     integrate_machine_managed_sdd_repository,
     integrate_sdd_repository,
 )
+from sase.sdd._repository_health import sdd_rollback_mismatch, sdd_state_blockers
+from sase.sdd._repository_types import SddRepositoryState
 from tests.sdd_store._repository_transaction_helpers import (
     build_diverged_clones as _build_diverged_clones,
     run_git as _runner,
@@ -166,6 +168,54 @@ def test_failed_conflict_probe_is_not_reported_as_no_conflicts(
     assert "index.lock" in (outcome.error or "")
     assert outcome.resolved_files == ()
     assert _snapshot(left) == starting
+
+
+def test_unmerged_probe_error_blocks_repository_writes(tmp_path: Path) -> None:
+    state = SddRepositoryState(
+        repo_root=tmp_path,
+        git_dir=tmp_path / ".git",
+        branch="main",
+        head="abc123",
+        operation_markers=(),
+        unmerged_paths=(),
+        status_porcelain="",
+        valid_worktree=True,
+        unmerged_error="could not list unmerged index entries: index locked",
+    )
+
+    blockers = sdd_state_blockers(state, expected_branch="main")
+
+    assert blockers == ["could not list unmerged index entries: index locked"]
+
+
+def test_rollback_mismatch_reports_unmerged_probe_error(tmp_path: Path) -> None:
+    starting = SddRepositoryState(
+        repo_root=tmp_path,
+        git_dir=tmp_path / ".git",
+        branch="main",
+        head="abc123",
+        operation_markers=(),
+        unmerged_paths=(),
+        status_porcelain="",
+        valid_worktree=True,
+    )
+    final = SddRepositoryState(
+        repo_root=tmp_path,
+        git_dir=tmp_path / ".git",
+        branch="main",
+        head="abc123",
+        operation_markers=(),
+        unmerged_paths=(),
+        status_porcelain="",
+        valid_worktree=True,
+        unmerged_error="could not list unmerged index entries: index locked",
+    )
+
+    mismatch = sdd_rollback_mismatch(starting, final)
+
+    assert mismatch is not None
+    assert "could not list unmerged index entries: index locked" in mismatch
+    assert "unmerged index probe error differs from the starting state" in mismatch
 
 
 def test_store_lock_contention_defers_instead_of_authorizing_recovery(

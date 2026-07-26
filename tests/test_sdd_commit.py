@@ -15,6 +15,7 @@ from sase.git_lock_retry import run_with_git_lock_retry
 from sase.sdd._git_contention import (
     ENV_GIT_LOCK_RETRY_DELAYS,
     ENV_STORE_WRITE_LOCK_TIMEOUT,
+    SddGitCommandError,
     store_git_write_lock,
 )
 from sase.sdd.files import commit_sdd_files
@@ -449,6 +450,36 @@ def test_commit_sdd_files_does_not_retry_non_lock_128(
     assert "pathspec" in str(exc_info.value).lower()
     assert retry_attempt_counts
     assert set(retry_attempt_counts) == {1}
+
+
+def test_commit_sdd_files_errors_on_unexpected_cached_diff_exit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    init_test_git_repo(repo)
+    (repo / "plan.md").write_text("plan\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.sdd._commit_store.changed_sdd_files",
+        lambda _sdd_dir, _pathspecs: ["plan.md"],
+    )
+
+    def fail_cached_diff(
+        args: list[str],
+        **_kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        assert args[:3] == ["diff", "--cached", "--quiet"]
+        return subprocess.CompletedProcess(
+            ["git", *args],
+            returncode=128,
+            stdout="",
+            stderr="fatal: could not inspect the index",
+        )
+
+    monkeypatch.setattr("sase.sdd._commit_store.run_sdd_git", fail_cached_diff)
+
+    with pytest.raises(SddGitCommandError, match="could not inspect the index"):
+        commit_sdd_files(repo, "Commit with failed staged-diff probe")
 
 
 def test_commit_sdd_files_waits_for_store_write_lock(
