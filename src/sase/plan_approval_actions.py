@@ -149,41 +149,34 @@ def _execute_legacy_plan_approval_response(
         coder_model=coder_model,
     )
     response_path = response_dir / "plan_response.json"
-    host_owns_epic_launch = False
     epic_launch_cwd: Path | None = None
     if choice == "epic":
-        if epic_launch_mode == "skip":
-            host_owns_epic_launch = True
-        else:
+        can_claim_epic_launch(notification, mode=epic_launch_mode)
+        if epic_launch_mode != "skip":
             epic_launch_cwd = _epic_launch_cwd(notification)
-            host_owns_epic_launch = epic_launch_cwd is not None
-        if host_owns_epic_launch:
-            response_json["epic_launch_owner"] = "host"
+        # Transitional compatibility: pre-upgrade agents launch the epic
+        # themselves unless the response explicitly assigns ownership here.
+        response_json["epic_launch_owner"] = "host"
     _write_json_once(response_path, response_json, notification.id)
 
     run_plan_side_effects(notification, choice, response_path, response_json)
-    if (
-        host_owns_epic_launch
-        and epic_launch_mode != "skip"
-        and not prepare_epic_launch(
+    epic_launch_task_id: str | None = None
+    if choice == "epic" and epic_launch_mode != "skip":
+        task = prepare_epic_launch(
             notification,
             Path(notification.host_files[0]),
             mode=epic_launch_mode,
             response_dir=response_dir,
             resolved_cwd=epic_launch_cwd,
         )
-    ):
-        raise PlanApprovalActionError(
-            "epic_launch_failed",
-            notification.host_files[0],
-            "host claimed the epic launch but could not start it",
-        )
+        epic_launch_task_id = task.task_id if task is not None else None
     return PlanApprovalActionResult(
         notification_id=notification.id,
         response_file="plan_response.json",
         response_path=response_path,
         response_json=response_json,
         message=message,
+        epic_launch_task_id=epic_launch_task_id,
     )
 
 
@@ -281,6 +274,11 @@ def _execute_neutral_plan_approval_response(
         response_path=bundle_path / RESPONSE_FILENAME,
         response_json=execution.response,
         message=message,
+        epic_launch_task_id=(
+            str(execution.response["epic_launch_task_id"])
+            if execution.response.get("epic_launch_task_id")
+            else None
+        ),
     )
 
 

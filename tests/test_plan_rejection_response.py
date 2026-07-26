@@ -9,6 +9,7 @@ from sase.ace.tui.modals.plan_approval_modal import (
     _plan_approval_result_for_choice,
 )
 from sase.notifications import Notification
+from sase.plan_approval_actions import PlanApprovalActionError
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
 
@@ -213,7 +214,7 @@ def test_tui_failed_epic_gate_keeps_response_unconsumed_until_fixed(
     assert response["action"] == "epic"
 
 
-def test_tui_epic_task_is_submitted_before_host_owner_response(
+def test_tui_epic_approval_uses_shared_detached_launch(
     tmp_path: Path,
 ) -> None:
     app, notification, response_dir, mock_agent = _make_approval_app_and_notification(
@@ -224,10 +225,11 @@ def test_tui_epic_task_is_submitted_before_host_owner_response(
     plan_response_path = response_dir / "plan_response.json"
     order: list[str] = []
 
-    def submit(*_args: object, **_kwargs: object) -> bool:
-        assert not plan_response_path.exists()
-        order.append("task")
-        return True
+    def submit(*_args: object, **_kwargs: object) -> object:
+        response = json.loads(plan_response_path.read_text(encoding="utf-8"))
+        assert response["epic_launch_owner"] == "host"
+        order.append("detached")
+        return object()
 
     from sase.ace.tui.actions.agents._notification_modals import (
         handle_plan_approval,
@@ -240,8 +242,7 @@ def test_tui_epic_task_is_submitted_before_host_owner_response(
             return_value=mock_agent,
         ),
         patch(
-            "sase.ace.tui.actions.agents._notification_epic_launch."
-            "submit_epic_launch_task",
+            "sase.plan_approval_actions.prepare_epic_launch",
             side_effect=submit,
         ),
     ):
@@ -249,13 +250,14 @@ def test_tui_epic_task_is_submitted_before_host_owner_response(
         on_dismiss = app.push_screen.call_args.args[1]
         on_dismiss(_plan_approval_result_for_choice("epic"))
 
-    order.append("response")
     response = json.loads(plan_response_path.read_text(encoding="utf-8"))
-    assert order == ["task", "response"]
+    assert order == ["detached"]
     assert response["epic_launch_owner"] == "host"
 
 
-def test_tui_epic_submission_failure_preserves_agent_fallback(tmp_path: Path) -> None:
+def test_tui_epic_submission_failure_is_loud_and_keeps_host_owner(
+    tmp_path: Path,
+) -> None:
     app, notification, response_dir, mock_agent = _make_approval_app_and_notification(
         tmp_path
     )
@@ -273,9 +275,12 @@ def test_tui_epic_submission_failure_preserves_agent_fallback(tmp_path: Path) ->
             return_value=mock_agent,
         ),
         patch(
-            "sase.ace.tui.actions.agents._notification_epic_launch."
-            "submit_epic_launch_task",
-            return_value=False,
+            "sase.plan_approval_actions.prepare_epic_launch",
+            side_effect=PlanApprovalActionError(
+                "epic_launch_failed",
+                str(notification.files[0]),
+                "could not submit; resume with `sase bead work plan.md --yes-to-all`",
+            ),
         ),
     ):
         handle_plan_approval(app, notification)
@@ -285,7 +290,13 @@ def test_tui_epic_submission_failure_preserves_agent_fallback(tmp_path: Path) ->
     response = json.loads(
         (response_dir / "plan_response.json").read_text(encoding="utf-8")
     )
-    assert "epic_launch_owner" not in response
+    assert response["epic_launch_owner"] == "host"
+    app.notify.assert_any_call(
+        "could not submit; resume with `sase bead work plan.md --yes-to-all`",
+        title="Epic launch failed",
+        severity="error",
+        timeout=15,
+    )
 
 
 def test_approve_with_prompt_writes_prompt_and_sets_tale_status(

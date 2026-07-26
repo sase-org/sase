@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.axe import run_agent_exec_plan_accept as accept_mod
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.axe.run_agent_exec_plan_artifacts import store_followup_prompt_artifact
 from sase.axe.run_agent_helpers import create_followup_artifacts
@@ -15,10 +14,10 @@ from tests.plan_validation_helpers import VALID_EPIC_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
 
 
-def test_handle_plan_marker_records_host_side_epic_kickoff(
+def test_handle_plan_marker_leaves_epic_kickoff_metadata_to_host(
     tmp_path,
 ) -> None:
-    """Epic approval records launch metadata without a .epic child artifact."""
+    """The agent does not synthesize metadata for the host-owned launch."""
     ctx = make_ctx(tmp_path)
     state = make_state(tmp_path)
     plan_file = str(tmp_path / "plan.md")
@@ -32,10 +31,6 @@ def test_handle_plan_marker_records_host_side_epic_kickoff(
         patch("sase.axe.run_agent_exec_plan.update_step_marker_chat_path"),
         patch("sase.axe.run_agent_exec_plan_accept.promote_to_workflow"),
         patch("sase.axe.run_agent_exec_plan_accept._commit_sdd_spec"),
-        patch(
-            "sase.axe.run_agent_exec_plan_accept._run_epic_launch_subprocess",
-            return_value=accept_mod._EpicLaunchResult(0, "sase-7", ()),
-        ),
         patch(
             "sase.llm_provider._plan_utils.handle_plan_approval",
             return_value=approval,
@@ -54,9 +49,8 @@ def test_handle_plan_marker_records_host_side_epic_kickoff(
         handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
     meta = json.loads((tmp_path / "artifacts" / "agent_meta.json").read_text())
-    assert isinstance(meta["epic_started_at"], str)
-    assert meta["epic_started_at"].endswith("+00:00")
-    assert meta["epic_bead_id"] == "sase-7"
+    assert "epic_started_at" not in meta
+    assert "epic_bead_id" not in meta
 
 
 def test_create_followup_artifacts_persists_plan_committed_flag(tmp_path) -> None:

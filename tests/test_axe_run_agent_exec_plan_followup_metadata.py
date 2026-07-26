@@ -236,8 +236,8 @@ class TestPlanFollowupMetadata:
         assert meta_updates.get("llm_provider") == "codex"
         assert state.current_prompt.startswith("%model:@claude_coder\n")
 
-    def test_epic_meta_records_bead_without_creator_model(self, tmp_path) -> None:
-        """Host-side epic kickoff records its bead, not a creator-agent model."""
+    def test_epic_meta_is_left_to_host_without_creator_model(self, tmp_path) -> None:
+        """The agent leaves launch metadata to the detached host task."""
         ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
@@ -267,7 +267,7 @@ class TestPlanFollowupMetadata:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert "model" not in meta_updates
         assert "llm_provider" not in meta_updates
-        assert meta_updates["epic_bead_id"] == "sase-1"
+        assert "epic_bead_id" not in meta_updates
         assert state.current_prompt == "original prompt"
         resolve.assert_not_called()
 

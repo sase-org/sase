@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -21,6 +21,7 @@ from sase.notifications.models import Notification
 from sase.notifications.store import append_notification, load_notifications
 from sase.plan_approval_actions import (
     PlanApprovalActionError,
+    PlanApprovalActionResult,
     PlanApprovalValidationError,
 )
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
@@ -111,11 +112,6 @@ def _visible_plan_agents(monkeypatch: pytest.MonkeyPatch) -> None:
             "tale",
         ),
         (
-            "epic",
-            {"action": "epic", "commit_plan": True, "run_coder": True},
-            "epic",
-        ),
-        (
             "commit",
             {"action": "approve", "commit_plan": True, "run_coder": False},
             "commit",
@@ -151,18 +147,37 @@ def test_plan_approve_by_unique_prefix_writes_protocol_json_and_meta(
 def test_plan_approve_omitted_kind_uses_authored_epic_tier(tmp_path: Path) -> None:
     response_dir = _response_dir(tmp_path)
     plan = _plan_file(tmp_path)
-    _append_plan_notification("abcdef12-plan", plan, response_dir)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _append_plan_notification(
+        "abcdef12-plan",
+        plan,
+        response_dir,
+        project_dir=workspace,
+    )
 
-    result = _approve_plan_from_cli(selector="abcdef12", kind=None)
+    with (
+        patch(
+            "sase.bead.epic_launch.resolve_epic_launch_cwd",
+            return_value=workspace,
+        ),
+        patch(
+            "sase.bead.epic_launch.submit_epic_launch_task",
+            return_value=SimpleNamespace(task_id="task-omitted"),
+        ),
+    ):
+        result = _approve_plan_from_cli(selector="abcdef12", kind=None)
 
     assert result.response_json == {
         "action": "epic",
         "commit_plan": True,
         "run_coder": True,
+        "epic_launch_owner": "host",
     }
+    assert result.epic_launch_task_id == "task-omitted"
 
 
-def test_cli_epic_approval_runs_foreground_after_claiming_ownership(
+def test_cli_epic_approval_submits_detached_after_claiming_ownership(
     tmp_path: Path,
 ) -> None:
     response_dir = _response_dir(tmp_path)
@@ -178,10 +193,10 @@ def test_cli_epic_approval_runs_foreground_after_claiming_ownership(
         agent_project_file=agent_project_file,
     )
 
-    def run_foreground(plan_file: str, *, cwd: Path) -> object:
+    def submit_detached(*_args: object, **_kwargs: object) -> object:
         response = json.loads((response_dir / "plan_response.json").read_text())
         assert response["epic_launch_owner"] == "host"
-        return subprocess.CompletedProcess([], 0)
+        return SimpleNamespace(task_id="task-cli")
 
     with (
         patch(
@@ -189,18 +204,22 @@ def test_cli_epic_approval_runs_foreground_after_claiming_ownership(
             return_value=workspace,
         ) as resolve_cwd,
         patch(
-            "sase.bead.epic_launch.run_epic_launch_foreground",
-            side_effect=run_foreground,
+            "sase.bead.epic_launch.submit_epic_launch_task",
+            side_effect=submit_detached,
         ) as launch,
     ):
         result = _approve_plan_from_cli(selector="abcdef12", kind="epic")
 
     assert result.response_json["epic_launch_owner"] == "host"
-    resolve_cwd.assert_called_once_with(
+    assert result.epic_launch_task_id == "task-cli"
+    assert resolve_cwd.call_count == 2
+    resolve_cwd.assert_called_with(
         str(workspace),
         agent_project_file=str(agent_project_file),
     )
-    launch.assert_called_once_with(str(plan), cwd=workspace)
+    launch.assert_called_once()
+    assert launch.call_args.args == (str(plan),)
+    assert launch.call_args.kwargs["cwd"] == workspace
 
 
 def test_failed_epic_gate_leaves_proposal_pending_and_retryable(
@@ -209,7 +228,14 @@ def test_failed_epic_gate_leaves_proposal_pending_and_retryable(
     response_dir = _response_dir(tmp_path)
     plan = _plan_file(tmp_path)
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    _append_plan_notification("abcdef12-plan", plan, response_dir)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _append_plan_notification(
+        "abcdef12-plan",
+        plan,
+        response_dir,
+        project_dir=workspace,
+    )
 
     with pytest.raises(PlanApprovalValidationError) as exc_info:
         _approve_plan_from_cli(selector="abcdef12", kind="epic")
@@ -222,7 +248,17 @@ def test_failed_epic_gate_leaves_proposal_pending_and_retryable(
     assert notification.dismissed is False
 
     plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
-    result = _approve_plan_from_cli(selector="abcdef12", kind="epic")
+    with (
+        patch(
+            "sase.bead.epic_launch.resolve_epic_launch_cwd",
+            return_value=workspace,
+        ),
+        patch(
+            "sase.bead.epic_launch.submit_epic_launch_task",
+            return_value=SimpleNamespace(task_id="task-retry"),
+        ),
+    ):
+        result = _approve_plan_from_cli(selector="abcdef12", kind="epic")
 
     assert result.response_json["action"] == "epic"
     assert (response_dir / "plan_response.json").is_file()
@@ -254,6 +290,40 @@ def test_plan_approve_cli_renders_validation_schema_and_exits_one(
     assert "Minimal valid epic plan" in captured.err
     assert "Validation failed" in captured.err
     assert not (response_dir / "plan_response.json").exists()
+
+
+def test_plan_approve_cli_prints_detached_task_follow_hint(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = argparse.Namespace(
+        selector="abcdef12",
+        kind="epic",
+        prompt=None,
+        model=None,
+    )
+    result = PlanApprovalActionResult(
+        notification_id="abcdef12-plan",
+        response_file="plan_response.json",
+        response_path=tmp_path / "plan_response.json",
+        response_json={"action": "epic"},
+        message="Epic approved",
+        epic_launch_task_id="task-123",
+    )
+
+    with (
+        patch(
+            "sase.main.plan_approve_handler._approve_plan_from_cli",
+            return_value=result,
+        ),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        handle_plan_approve_command(args)
+
+    assert exc_info.value.code == 0
+    output = capsys.readouterr().out
+    assert "Detached task task-123" in output
+    assert "sase task show task-123 --follow" in output
 
 
 def test_epic_authored_plan_can_be_downgraded_to_tale(tmp_path: Path) -> None:

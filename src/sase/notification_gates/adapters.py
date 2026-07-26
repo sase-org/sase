@@ -122,10 +122,12 @@ class GateAdapter:
             mode = (
                 raw_input.get("epic_launch_mode")
                 if isinstance(raw_input, dict)
-                else None
+                else "detached"
             )
-            if mode in {"detached", "foreground"}:
+            mode = mode or "detached"
+            if mode == "detached":
                 from sase.plan_approval_actions import (
+                    PlanApprovalActionError,
                     durable_plan_file_for_context,
                     prepare_epic_launch,
                 )
@@ -134,18 +136,20 @@ class GateAdapter:
                     bundle_path / "plan.md"
                 )
 
-                launched = prepare_epic_launch(
-                    context,
-                    launch_plan,
-                    mode=mode,
-                    response_dir=bundle_path,
-                )
-                if not launched:
-                    raise GateError(
-                        "epic_launch_failed",
-                        str(launch_plan),
-                        "host claimed the epic launch but could not start it",
+                try:
+                    task = prepare_epic_launch(
+                        context,
+                        launch_plan,
+                        mode="detached",
+                        response_dir=bundle_path,
                     )
+                except PlanApprovalActionError as exc:
+                    raise GateError(exc.code, exc.target, str(exc)) from exc
+                if task is not None and isinstance(response, dict):
+                    from sase.notification_gates.durability import atomic_write_json
+
+                    response["epic_launch_task_id"] = task.task_id
+                    atomic_write_json(bundle_path / "response.json", response)
 
     def validate_edited_resource(self, *, path: Path) -> None:
         """Validate an editable target before advancing its review revision."""

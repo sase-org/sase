@@ -25,7 +25,7 @@ from sase.sdd.plan_validate import (
 
 PLAN_APPROVAL_KINDS = PLAN_APPROVAL_CLI_KINDS
 PLAN_APPROVAL_ACTIONS = frozenset({"PlanApproval", "EpicApproval"})
-EpicLaunchMode = Literal["detached", "foreground", "skip"]
+EpicLaunchMode = Literal["detached", "skip"]
 
 
 @dataclass(frozen=True)
@@ -42,6 +42,7 @@ class PlanApprovalActionResult:
     response_path: Path
     response_json: dict[str, Any]
     message: str
+    epic_launch_task_id: str | None = None
 
 
 class PlanApprovalActionError(RuntimeError):

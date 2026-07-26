@@ -297,7 +297,6 @@ def handle_plan_approval(
         # the latency-sensitive part: blocked agent runners watch this file.
         plan_response_path = response_path / "plan_response.json"
         choice = _plan_approval_choice_for_status(result)
-        epic_phase_count = 0
         if choice in {"tale", "epic"}:
             from sase.plan_approval_actions import (
                 PlanApprovalValidationError,
@@ -305,7 +304,7 @@ def handle_plan_approval(
             )
 
             try:
-                validation = require_plan_approval_validation(plan_file, choice)
+                require_plan_approval_validation(plan_file, choice)
             except PlanApprovalValidationError as exc:
                 app.notify(  # type: ignore[attr-defined]
                     str(exc),
@@ -314,23 +313,11 @@ def handle_plan_approval(
                     timeout=15,
                 )
                 return
-            if choice == "epic" and validation.plan is not None:
-                epic_phase_count = len(validation.plan.phases)
-
-        host_owns_epic_launch = False
-        if choice == "epic":
-            from ._notification_epic_launch import submit_epic_launch_task
-
-            host_owns_epic_launch = submit_epic_launch_task(
-                app,
-                notification,
-                plan_file=plan_file,
-                phase_count=epic_phase_count,
-            )
 
         response_data = _build_plan_approval_response(
             result,
-            epic_launch_owner="host" if host_owns_epic_launch else None,
+            # Transitional compatibility for pre-upgrade agents.
+            epic_launch_owner="host" if choice == "epic" else None,
         )
 
         try:
@@ -344,6 +331,28 @@ def handle_plan_approval(
         except Exception as e:
             app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
             return
+
+        if choice == "epic":
+            from sase.main.plan_pending import plan_context_from_notification
+            from sase.plan_approval_actions import (
+                PlanApprovalActionError,
+                prepare_epic_launch,
+            )
+
+            try:
+                prepare_epic_launch(
+                    plan_context_from_notification(notification),
+                    plan_file,
+                    mode="detached",
+                    response_dir=response_path,
+                )
+            except PlanApprovalActionError as exc:
+                app.notify(  # type: ignore[attr-defined]
+                    str(exc),
+                    title="Epic launch failed",
+                    severity="error",
+                    timeout=15,
+                )
 
         # Update the visible status from cached in-memory data immediately.
         if agent is not None:

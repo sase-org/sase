@@ -1,6 +1,7 @@
 """Tests for automatic plan approval behavior."""
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -51,14 +52,21 @@ def test_handle_plan_approval_auto_epic_skips_notification(
     plan = tmp_path / "plan.md"
     plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
     sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    with patch(
-        "sase.main.plan_approve_handler.get_auto_plan_approval_action",
-        return_value="epic",
+    with (
+        patch(
+            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+            return_value="epic",
+        ),
+        patch(
+            "sase.plan_approval_actions.prepare_epic_launch",
+            return_value=SimpleNamespace(task_id="task-auto-epic"),
+        ),
     ):
         result = handle_plan_approval(str(plan), "session-123")
 
     _plan_gate_bundle(sase_home, "epic", "session-123")
     assert result == PlanApprovalResult(action="epic", plan_file=str(plan))
+    assert result.epic_launch_owner == "host"
 
 
 def test_handle_plan_approval_auto_tale_skips_notification(
@@ -122,6 +130,10 @@ def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
         patch("sase.main.plan_approve_handler.send_desktop_notification"),
         patch("sase.main.plan_approve_handler.ring_tmux_bell"),
         patch("sase.main.plan_approve_handler.get_tmux_prefix", return_value=""),
+        patch(
+            "sase.plan_approval_actions.prepare_epic_launch",
+            return_value=SimpleNamespace(task_id="task-waiting-auto"),
+        ),
     ):
         result = handle_plan_approval(
             plan_file,
@@ -136,6 +148,8 @@ def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
         commit_plan=True,
     )
     assert get_auto_action.call_count == 3
+    if auto_action == "epic":
+        assert result.epic_launch_owner == "host"
     sleep.assert_any_call(_POLL_INTERVAL)
 
     assert (response_dir / "response.json").exists()

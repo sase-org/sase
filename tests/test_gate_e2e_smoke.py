@@ -254,10 +254,10 @@ def test_e2e_epic_plan_retains_single_approve_control(gate_home: Path) -> None:
     execution = execute_gate_selection(
         result.bundle_path,
         [PLAN_APPROVE_OPTION_ID],
-        {"epic_launch_mode": "foreground"},
+        {"epic_launch_mode": "skip"},
     )
     assert execution.response["selected_option_ids"] == [PLAN_APPROVE_OPTION_ID]
-    assert execution.response["input"] == {"epic_launch_mode": "foreground"}
+    assert execution.response["input"] == {"epic_launch_mode": "skip"}
     runner_proto = translate_plan_gate_response(result.bundle_path, execution.response)
     assert runner_proto["action"] == "epic"
     assert runner_proto["run_coder"] is True

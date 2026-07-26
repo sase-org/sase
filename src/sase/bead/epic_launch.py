@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import re
 import shlex
-import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -80,19 +79,6 @@ def resolve_epic_launch_cwd(
     if not primary.is_dir():
         raise FileNotFoundError(f"primary workspace is missing: {primary}")
     return primary
-
-
-def run_epic_launch_foreground(
-    plan_file: str | Path,
-    *,
-    cwd: str | Path,
-) -> subprocess.CompletedProcess[Any]:
-    """Run the canonical epic launch in the foreground with inherited output."""
-    return subprocess.run(
-        build_epic_launch_argv(plan_file),
-        cwd=str(cwd),
-        check=False,
-    )
 
 
 def submit_epic_launch_task(
@@ -265,6 +251,5 @@ __all__ = [
     "build_epic_launch_argv",
     "finish_epic_launch",
     "resolve_epic_launch_cwd",
-    "run_epic_launch_foreground",
     "submit_epic_launch_task",
 ]

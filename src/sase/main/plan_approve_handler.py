@@ -140,6 +140,12 @@ def handle_plan_approve_command(args: argparse.Namespace) -> NoReturn:
         f"[green]{result.message}[/green] "
         f"[dim]{result.notification_id[:8]} -> {result.response_path}[/dim]"
     )
+    if result.epic_launch_task_id is not None:
+        task_id = result.epic_launch_task_id
+        Console().print(
+            f"[cyan]Detached task {task_id}[/cyan] "
+            f"[dim]Follow with `sase task show {task_id} --follow`.[/dim]"
+        )
     sys.exit(0)
 
 
@@ -158,7 +164,7 @@ def _approve_plan_from_cli(
         kind,
         coder_prompt=coder_prompt,
         coder_model=coder_model,
-        epic_launch_mode="foreground",
+        epic_launch_mode="detached",
     )
 
 

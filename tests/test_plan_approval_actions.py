@@ -290,8 +290,10 @@ def test_headless_epic_approval_claims_host_ownership_before_submitting(
         result = execute_plan_approval_response(context, "epic")
 
     assert result.response_json["epic_launch_owner"] == "host"
+    assert result.epic_launch_task_id == "tsk1"
     assert order == ["submit"]
-    resolve_cwd.assert_called_once_with(
+    assert resolve_cwd.call_count == 2
+    resolve_cwd.assert_called_with(
         str(workspace),
         agent_project_file=str(tmp_path / "projects" / "canonical" / "canonical.sase"),
     )
@@ -377,10 +379,10 @@ def test_headless_epic_refuses_unusable_store_before_task_submit(
     assert response["epic_launch_owner"] == "host"
 
 
-def test_headless_epic_resolution_failure_leaves_agent_fallback_unclaimed(
+def test_headless_epic_resolution_failure_is_loud_with_resume_hint(
     tmp_path: Path,
 ) -> None:
-    context, _response_dir, _workspace = _epic_context(tmp_path)
+    context, response_dir, _workspace = _epic_context(tmp_path)
     with (
         patch(
             "sase.bead.epic_launch.resolve_epic_launch_cwd",
@@ -389,8 +391,12 @@ def test_headless_epic_resolution_failure_leaves_agent_fallback_unclaimed(
         patch(
             "sase.bead.epic_launch.submit_epic_launch_task",
         ) as submit_launch,
+        pytest.raises(PlanApprovalActionError) as exc_info,
     ):
-        result = execute_plan_approval_response(context, "epic")
+        execute_plan_approval_response(context, "epic")
 
-    assert "epic_launch_owner" not in result.response_json
+    assert exc_info.value.code == "epic_launch_failed"
+    assert "sase bead work" in str(exc_info.value)
+    assert "--yes-to-all" in str(exc_info.value)
+    assert not (response_dir / "plan_response.json").exists()
     submit_launch.assert_not_called()

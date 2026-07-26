@@ -1,6 +1,5 @@
 """Tests for approved plan follow-up actions."""
 
-from io import StringIO
 from unittest.mock import call, patch
 
 import pytest
@@ -23,41 +22,6 @@ from tests.plan_validation_helpers import VALID_EPIC_PLAN
 def patch_plan_deps():
     with patched_plan_deps() as mocks:
         yield mocks
-
-
-def test_epic_fallback_streams_canonical_bead_work_command(tmp_path) -> None:
-    fake_process = type(
-        "FakeProcess",
-        (),
-        {
-            "stdout": StringIO("launching\nEpic: sase-9\n"),
-            "wait": lambda self: 0,
-        },
-    )()
-    plan_file = str(tmp_path / "epic plan.md")
-
-    with patch(
-        "sase.axe.run_agent_exec_plan_accept.subprocess.Popen",
-        return_value=fake_process,
-    ) as popen:
-        result = accept_mod._run_epic_launch_subprocess(
-            workspace_dir=str(tmp_path),
-            plan_file=plan_file,
-        )
-
-    popen.assert_called_once_with(
-        ["sase", "bead", "work", plan_file, "--yes-to-all"],
-        cwd=str(tmp_path),
-        stdout=accept_mod.subprocess.PIPE,
-        stderr=accept_mod.subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
-    assert result == accept_mod._EpicLaunchResult(
-        0,
-        "sase-9",
-        ("launching", "Epic: sase-9"),
-    )
 
 
 @pytest.mark.usefixtures("patch_plan_deps")
@@ -217,36 +181,7 @@ class TestPlanFollowupApprovals:
         commit.assert_called_once_with(str(tmp_path), "plan")
         write_plan.assert_not_called()
 
-    def test_host_owned_epic_finishes_without_agent_side_launch(self, tmp_path) -> None:
-        ctx = make_ctx(tmp_path)
-        state = make_state(tmp_path)
-        plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text(VALID_EPIC_PLAN)
-        approval = PlanApprovalResult(
-            action="epic",
-            plan_file=plan_file,
-            epic_launch_owner="host",
-        )
-
-        with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
-            patch(
-                "sase.sdd.files.write_sdd_spec",
-                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
-            ),
-            patch(
-                "sase.axe.run_agent_exec_plan_accept._run_epic_launch_subprocess"
-            ) as launch,
-        ):
-            outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
-
-        assert outcome == "epic_approved"
-        launch.assert_not_called()
-
-    def test_epic_fallback_failure_is_a_graceful_terminal_outcome(
+    def test_epic_without_owner_marker_still_has_no_agent_side_launch(
         self, tmp_path
     ) -> None:
         ctx = make_ctx(tmp_path)
@@ -264,21 +199,10 @@ class TestPlanFollowupApprovals:
                 "sase.sdd.files.write_sdd_spec",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
             ),
-            patch(
-                "sase.axe.run_agent_exec_plan_accept._run_epic_launch_subprocess",
-                return_value=accept_mod._EpicLaunchResult(2, None, ("boom",)),
-            ),
-            patch(
-                "sase.axe.run_agent_exec_plan_accept._notify_epic_launch_failure"
-            ) as notify_failure,
         ):
             outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        assert outcome == "epic_launch_failed"
-        notify_failure.assert_called_once_with(ctx, plan_file, ("boom",))
-        assert call(state.current_artifacts_dir, "epic_launch_error", "boom") in (
-            accept_mod.update_meta_field.call_args_list
-        )
+        assert outcome == "epic_approved"
 
     def test_unusable_epic_store_stops_before_launcher_with_home_resume(
         self, tmp_path
@@ -301,9 +225,6 @@ class TestPlanFollowupApprovals:
             ),
             patch("sase.sdd.files.write_sdd_spec") as write_sdd,
             patch(
-                "sase.axe.run_agent_exec_plan_accept._run_epic_launch_subprocess"
-            ) as launch,
-            patch(
                 "sase.axe.run_agent_exec_plan_accept._notify_epic_launch_failure"
             ) as notify_failure,
         ):
@@ -315,7 +236,6 @@ class TestPlanFollowupApprovals:
 
         assert outcome == "epic_launch_failed"
         write_sdd.assert_not_called()
-        launch.assert_not_called()
         notify_failure.assert_called_once_with(
             ctx,
             str(home_plan),

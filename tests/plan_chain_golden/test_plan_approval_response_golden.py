@@ -66,8 +66,13 @@ def _context(
         ),
         (
             "epic",
-            {},
-            {"action": "epic", "commit_plan": True, "run_coder": True},
+            {"epic_launch_mode": "skip"},
+            {
+                "action": "epic",
+                "commit_plan": True,
+                "run_coder": True,
+                "epic_launch_owner": "host",
+            },
             "Epic approved",
         ),
         (

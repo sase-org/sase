@@ -4,12 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import shlex
 import subprocess
-from collections import deque
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -50,8 +47,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_EPIC_ID_LINE = re.compile(r"^Epic:\s+(\S+)\s*$")
-_EPIC_OUTPUT_TAIL_LINES = 40
 _store_followup_prompt_artifact = store_followup_prompt_artifact
 
 
@@ -212,50 +207,6 @@ def _plan_followup_base_meta(base_meta: dict[str, Any]) -> dict[str, Any]:
     if "reasoning_effort" not in base_meta:
         return base_meta
     return {key: value for key, value in base_meta.items() if key != "reasoning_effort"}
-
-
-@dataclass(frozen=True)
-class _EpicLaunchResult:
-    returncode: int
-    epic_bead_id: str | None
-    output_tail: tuple[str, ...]
-
-
-def _run_epic_launch_subprocess(
-    *,
-    workspace_dir: str,
-    plan_file: str,
-) -> _EpicLaunchResult:
-    """Stream the canonical epic command and parse its stable epic-id line."""
-    argv = build_epic_launch_argv(plan_file)
-    tail: deque[str] = deque(maxlen=_EPIC_OUTPUT_TAIL_LINES)
-    epic_bead_id: str | None = None
-    try:
-        process = subprocess.Popen(
-            argv,
-            cwd=workspace_dir,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
-    except OSError as exc:
-        message = f"{type(exc).__name__}: {exc}"
-        return _EpicLaunchResult(-1, None, (message,))
-
-    if process.stdout is not None:
-        for raw_line in process.stdout:
-            print(raw_line, end="", flush=True)
-            line = raw_line.rstrip("\r\n")
-            tail.append(line)
-            match = _EPIC_ID_LINE.fullmatch(line)
-            if match is not None:
-                epic_bead_id = match.group(1)
-    returncode = process.wait()
-    if returncode == 0 and epic_bead_id is None:
-        tail.append("epic launch completed without the required 'Epic: <id>' line")
-        returncode = 1
-    return _EpicLaunchResult(returncode, epic_bead_id, tuple(tail))
 
 
 def _notify_epic_launch_failure(
@@ -504,47 +455,9 @@ def handle_accepted_plan(
         if not required_sdd_commit_succeeded:
             logger.warning(
                 "Approved epic prompt snapshot could not be committed; "
-                "continuing with the canonical plan launch"
+                "the host-owned epic launch continues independently"
             )
-
-        if getattr(plan_result, "epic_launch_owner", None) == "host":
-            return "epic_approved"
-
-        launch_result = _run_epic_launch_subprocess(
-            workspace_dir=ctx.workspace_dir,
-            plan_file=plan_result.plan_file,
-        )
-        if launch_result.returncode == 0 and launch_result.epic_bead_id is not None:
-            update_meta_field(state.current_artifacts_dir, "plan_committed", True)
-            update_meta_field(
-                state.current_artifacts_dir,
-                "epic_started_at",
-                datetime.now(UTC).isoformat(),
-            )
-            update_meta_field(
-                state.current_artifacts_dir,
-                "epic_bead_id",
-                launch_result.epic_bead_id,
-            )
-            return "epic_approved"
-
-        tail_text = "\n".join(launch_result.output_tail) or "(no output)"
-        logger.error(
-            "Epic launch failed with exit code %d. Output tail:\n%s",
-            launch_result.returncode,
-            tail_text,
-        )
-        update_meta_field(
-            state.current_artifacts_dir,
-            "epic_launch_error",
-            launch_result.output_tail[-1]
-            if launch_result.output_tail
-            else f"exit code {launch_result.returncode}",
-        )
-        _notify_epic_launch_failure(
-            ctx, plan_result.plan_file, launch_result.output_tail
-        )
-        return "epic_launch_failed"
+        return "epic_approved"
 
     # VCS workflow tag prefix for coder follow-up agents
     vcs_prefix = ctx.vcs_tag or ""

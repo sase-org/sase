@@ -70,31 +70,6 @@ def submit_neutral_plan_response(
     choice = result.choice or plan_approval_choice_for_status(result)
     if choice is None:
         choice = "feedback" if result.feedback else "reject"
-    host_owns_epic_launch = False
-    if choice == "epic":
-        from sase.plan_approval_actions import (
-            PlanApprovalValidationError,
-            require_plan_approval_validation,
-        )
-
-        try:
-            validation = require_plan_approval_validation(notification.files[0], "epic")
-        except PlanApprovalValidationError as exc:
-            app.notify(  # type: ignore[attr-defined]
-                str(exc),
-                title="Epic approval blocked",
-                severity="error",
-                timeout=15,
-            )
-            return False
-        from ._notification_epic_launch import submit_epic_launch_task
-
-        host_owns_epic_launch = submit_epic_launch_task(
-            app,
-            notification,
-            plan_file=notification.files[0],
-            phase_count=len(validation.plan.phases) if validation.plan else 0,
-        )
 
     submit = getattr(app, "_submit_tracked_task", None)
     if not callable(submit):
@@ -115,7 +90,7 @@ def submit_neutral_plan_response(
                 run_coder=result.run_coder,
                 coder_prompt=result.coder_prompt,
                 coder_model=result.coder_model,
-                epic_launch_mode=("skip" if host_owns_epic_launch else "detached"),
+                epic_launch_mode="detached",
             )
         except Exception as exc:
             return TrackedTaskResult(

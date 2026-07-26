@@ -272,13 +272,11 @@ def execute_plan_gate_command(option_id: str) -> int:
         )
         if protocol_choice == "epic":
             mode = raw_input.get("epic_launch_mode", "detached")
-            if mode not in {"detached", "foreground", "skip"}:
+            if mode not in {"detached", "skip"}:
                 raise ValueError(f"unsupported epic launch mode: {mode}")
-            context = plan_context_from_envelope(Path.cwd(), envelope)
-            from sase.plan_approval_actions import can_claim_epic_launch
-
-            if can_claim_epic_launch(context, mode=mode):
-                result["epic_launch_owner"] = "host"
+            # Transitional compatibility for pre-upgrade agents, which launch
+            # the epic themselves unless the host owner is explicit.
+            result["epic_launch_owner"] = "host"
     except Exception as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -572,7 +570,7 @@ def _plan_input_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
             }
         )
     if tier == "epic" and option_id == PLAN_APPROVE_OPTION_ID:
-        properties["epic_launch_mode"] = {"enum": ["detached", "foreground", "skip"]}
+        properties["epic_launch_mode"] = {"enum": ["detached", "skip"]}
     return {
         "type": "object",
         "properties": properties,

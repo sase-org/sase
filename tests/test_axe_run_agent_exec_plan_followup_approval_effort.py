@@ -85,8 +85,9 @@ class TestPlanFollowupApprovalEffort:
             if meta_call.args[1] == "reasoning_effort"
         ]
         assert effort_calls == []
-        assert call(str(tmp_path / "artifacts"), "epic_bead_id", "sase-1") in (
-            accept_mod.update_meta_field.call_args_list
+        assert not any(
+            meta_call.args[1] == "epic_bead_id"
+            for meta_call in accept_mod.update_meta_field.call_args_list
         )
 
     def test_custom_coder_prompt_effort_beats_default(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shlex
 from pathlib import Path
+from typing import TYPE_CHECKING, NoReturn
 
 from sase._plan_approval_artifacts import resolve_plan_agent_artifacts_dir
 from sase._plan_approval_protocol import (
@@ -11,6 +12,9 @@ from sase._plan_approval_protocol import (
     PlanApprovalActionContext,
     PlanApprovalActionError,
 )
+
+if TYPE_CHECKING:
+    from sase.tasks.models import BackgroundTask
 
 
 def prepare_epic_launch(
@@ -20,22 +24,22 @@ def prepare_epic_launch(
     mode: EpicLaunchMode,
     response_dir: Path,
     resolved_cwd: Path | None = None,
-) -> bool:
-    """Start the host-owned epic launch and report whether the host claimed it."""
+) -> BackgroundTask | None:
+    """Start the host-owned epic launch, or intentionally skip it."""
     # Detached launches now log through the task supervisor, so no caller-owned
     # response directory is needed; the parameter stays for callers' sake.
     del response_dir
-    if mode not in {"detached", "foreground", "skip"}:
+    if mode not in {"detached", "skip"}:
         raise PlanApprovalActionError(
             "invalid_request",
             "epic_launch_mode",
             f"unsupported epic launch mode: {mode}",
         )
     if mode == "skip":
-        return True
+        return None
     cwd = resolved_cwd or epic_launch_cwd(notification)
     if cwd is None:
-        return False
+        _raise_unclaimable_epic_launch(plan_file)
 
     plan_path = str(plan_file)
     try:
@@ -56,48 +60,27 @@ def prepare_epic_launch(
             plan_path,
             f"approved epic plans store is unusable: {exc}; resume with `{resume}`",
         ) from exc
-    if mode == "detached":
-        from sase.bead.epic_launch import (
-            build_epic_launch_argv,
-            submit_epic_launch_task,
-        )
-
-        try:
-            submit_epic_launch_task(
-                plan_path,
-                cwd=cwd,
-                artifacts_dir=resolve_plan_agent_artifacts_dir(
-                    notification.host_action_data
-                ),
-                cl_name=notification.host_action_data.get("agent_cl_name"),
-            )
-        except Exception as exc:
-            resume = shlex.join(build_epic_launch_argv(plan_path))
-            raise PlanApprovalActionError(
-                "epic_launch_failed",
-                plan_path,
-                f"could not submit the epic launch task: {exc}; resume with `{resume}`",
-            ) from exc
-        return True
+    from sase.bead.epic_launch import (
+        build_epic_launch_argv,
+        submit_epic_launch_task,
+    )
 
     try:
-        from sase.bead.epic_launch import run_epic_launch_foreground
-
-        completed = run_epic_launch_foreground(plan_path, cwd=cwd)
-    except OSError as exc:
-        raise PlanApprovalActionError(
-            "epic_launch_failed", plan_path, f"could not start epic launch: {exc}"
-        ) from exc
-    if completed.returncode != 0:
-        from sase.bead.epic_launch import build_epic_launch_argv
-
+        return submit_epic_launch_task(
+            plan_path,
+            cwd=cwd,
+            artifacts_dir=resolve_plan_agent_artifacts_dir(
+                notification.host_action_data
+            ),
+            cl_name=notification.host_action_data.get("agent_cl_name"),
+        )
+    except Exception as exc:
         resume = shlex.join(build_epic_launch_argv(plan_path))
         raise PlanApprovalActionError(
             "epic_launch_failed",
             plan_path,
-            f"epic launch failed with exit code {completed.returncode}; resume with `{resume}`",
-        )
-    return True
+            f"could not submit the epic launch task: {exc}; resume with `{resume}`",
+        ) from exc
 
 
 def can_claim_epic_launch(
@@ -105,14 +88,32 @@ def can_claim_epic_launch(
     *,
     mode: EpicLaunchMode,
 ) -> bool:
-    """Return whether the host can durably claim an epic launch."""
-    if mode not in {"detached", "foreground", "skip"}:
+    """Require that the host can durably claim an epic launch."""
+    if mode not in {"detached", "skip"}:
         raise PlanApprovalActionError(
             "invalid_request",
             "epic_launch_mode",
             f"unsupported epic launch mode: {mode}",
         )
-    return mode == "skip" or epic_launch_cwd(notification) is not None
+    if mode == "skip":
+        return True
+    if epic_launch_cwd(notification) is None:
+        plan_file = notification.host_files[0] if notification.host_files else "plan"
+        _raise_unclaimable_epic_launch(plan_file)
+    return True
+
+
+def _raise_unclaimable_epic_launch(plan_file: str | Path) -> NoReturn:
+    from sase.bead.epic_launch import build_epic_launch_argv
+
+    plan_path = str(plan_file)
+    resume = shlex.join(build_epic_launch_argv(plan_path))
+    raise PlanApprovalActionError(
+        "epic_launch_failed",
+        plan_path,
+        "could not resolve the primary workspace for the approved epic; "
+        f"resume with `{resume}`",
+    )
 
 
 def epic_launch_cwd(notification: PlanApprovalActionContext) -> Path | None:

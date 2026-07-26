@@ -5,7 +5,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.axe import run_agent_exec_plan_accept as accept_mod
 from sase.axe.run_agent_exec import AgentExecContext, LoopState
 
 
@@ -87,9 +86,6 @@ PLAN_PATCHES = {
     "sase.axe.run_agent_exec_plan_accept._store_followup_prompt_artifact": None,
     "sase.axe.run_agent_exec_plan_accept._commit_sdd_files": None,
     "sase.axe.run_agent_exec_plan_accept._commit_sdd_spec": None,
-    "sase.axe.run_agent_exec_plan_accept._run_epic_launch_subprocess": (
-        lambda **_kwargs: accept_mod._EpicLaunchResult(0, "sase-1", ())
-    ),
     "sase.axe.run_agent_exec_questions.normalize_handoff_interruption_state": None,
     "sase.axe.run_agent_exec_questions.update_meta_suffix": None,
     "sase.axe.run_agent_exec_questions.update_meta_field": None,

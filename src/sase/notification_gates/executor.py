@@ -206,6 +206,15 @@ def execute_gate_selection(
         _settle_gate_notification(envelope, response, source=source)
         try:
             adapter.apply_side_effects(bundle_path=bundle_path, response=response)
+        except GateError as exc:
+            _record_execution_error(
+                bundle_path,
+                option_id=selected[0].id,
+                code=exc.code,
+                message=str(exc),
+                source=source,
+            )
+            raise
         except Exception as exc:
             _record_execution_error(
                 bundle_path,

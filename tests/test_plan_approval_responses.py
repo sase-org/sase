@@ -173,7 +173,10 @@ def test_manual_plan_gate_sends_desktop_notification_without_terminal_bell(
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
 
     with (
-        _respond_after_gate_creation(choice),
+        _respond_after_gate_creation(
+            choice,
+            input_data={"epic_launch_mode": "skip"} if choice == "epic" else None,
+        ),
         patch("sase.main.plan_approve_handler.send_desktop_notification") as desktop,
         patch("sase.main.plan_approve_handler.ring_tmux_bell") as bell,
         patch(

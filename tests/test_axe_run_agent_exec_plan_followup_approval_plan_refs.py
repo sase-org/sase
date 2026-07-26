@@ -159,10 +159,10 @@ class TestPlanFollowupApprovalPlanRefs:
             accept_mod.update_meta_field.call_args_list
         )
 
-    def test_epic_spec_commit_failure_still_runs_canonical_fallback(
+    def test_epic_spec_commit_failure_does_not_block_host_launch(
         self, tmp_path
     ) -> None:
-        """A prompt-snapshot failure cannot orphan an approved epic plan."""
+        """A prompt-snapshot failure does not trigger an agent-side launch."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         archived_plan = tmp_path / "archive" / "epic_plan.md"
@@ -194,16 +194,8 @@ class TestPlanFollowupApprovalPlanRefs:
                 "sase.axe.run_agent_exec_plan_accept._commit_sdd_spec",
                 return_value=False,
             ),
-            patch(
-                "sase.axe.run_agent_exec_plan_accept._run_epic_launch_subprocess",
-                return_value=accept_mod._EpicLaunchResult(0, "sase-8", ()),
-            ) as launch,
         ):
             outcome = handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
 
         assert outcome == "epic_approved"
-        launch.assert_called_once_with(
-            workspace_dir=str(tmp_path),
-            plan_file=str(archived_plan),
-        )
         assert state.current_prompt == "original prompt"

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -113,9 +114,7 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     assert epic_approve["default_selected"] is True
     assert epic_approve["input_schema"] == {
         "type": "object",
-        "properties": {
-            "epic_launch_mode": {"enum": ["detached", "foreground", "skip"]}
-        },
+        "properties": {"epic_launch_mode": {"enum": ["detached", "skip"]}},
         "additionalProperties": False,
     }
     assert epic_approve["result_schema"] == {
@@ -245,7 +244,7 @@ def test_epic_gate_host_launch_uses_durable_plan_path(gate_home: Path) -> None:
     gate = create_plan_approval_gate(plan, "durable-launch")
     response = {
         "selected_option_ids": ["approve"],
-        "input": {"epic_launch_mode": "foreground"},
+        "input": {"epic_launch_mode": "detached"},
         "option_results": [
             {
                 "id": "approve",
@@ -263,7 +262,8 @@ def test_epic_gate_host_launch_uses_durable_plan_path(gate_home: Path) -> None:
     with (
         patch("sase.plan_approval_actions.run_plan_side_effects"),
         patch(
-            "sase.plan_approval_actions.prepare_epic_launch", return_value=True
+            "sase.plan_approval_actions.prepare_epic_launch",
+            return_value=SimpleNamespace(task_id="task-durable"),
         ) as prepare,
     ):
         adapter_for_kind("epic_plan").apply_side_effects(
@@ -272,6 +272,35 @@ def test_epic_gate_host_launch_uses_durable_plan_path(gate_home: Path) -> None:
         )
 
     assert prepare.call_args.args[1] == plan
+    assert prepare.call_args.kwargs["mode"] == "detached"
+    assert response["epic_launch_task_id"] == "task-durable"
+
+
+def test_epic_gate_unresolvable_launch_raises_with_resume_hint(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.env_contracts import PROVIDER_PROJECT_DIR_ENV_VARS
+
+    for env_name in PROVIDER_PROJECT_DIR_ENV_VARS:
+        monkeypatch.delenv(env_name, raising=False)
+    monkeypatch.delenv("SASE_AGENT_PROJECT_FILE", raising=False)
+    plan = _write_plan(gate_home, "unclaimable_epic.md", VALID_EPIC_PLAN)
+    gate = create_plan_approval_gate(plan, "unclaimable-launch")
+
+    with pytest.raises(GateError) as exc_info:
+        execute_gate_selection(
+            gate.bundle_path,
+            ["approve"],
+            {"epic_launch_mode": "detached"},
+        )
+
+    assert exc_info.value.code == "epic_launch_failed"
+    assert "sase bead work" in str(exc_info.value)
+    assert "--yes-to-all" in str(exc_info.value)
+    response = json.loads(gate.response_path.read_text(encoding="utf-8"))
+    result = response["option_results"][0]["result"]
+    assert result["epic_launch_owner"] == "host"
 
 
 @pytest.mark.parametrize(
@@ -289,12 +318,16 @@ def test_auto_uses_the_manual_executor_and_tier_owned_aliases(
     expected_kind: str,
     gate_home: Path,
 ) -> None:
-    gate = create_plan_approval_gate(
-        _write_plan(gate_home, f"{expected_kind}-{argument}.md", content),
-        f"auto-{expected_kind}-{argument or 'bare'}",
-        auto_enabled=True,
-        auto_argument=argument,
-    )
+    with patch(
+        "sase.plan_approval_actions.prepare_epic_launch",
+        return_value=SimpleNamespace(task_id="task-auto"),
+    ):
+        gate = create_plan_approval_gate(
+            _write_plan(gate_home, f"{expected_kind}-{argument}.md", content),
+            f"auto-{expected_kind}-{argument or 'bare'}",
+            auto_enabled=True,
+            auto_argument=argument,
+        )
 
     response = json.loads(gate.response_path.read_text(encoding="utf-8"))
     assert response["kind"] == expected_kind
