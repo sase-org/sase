@@ -59,6 +59,22 @@ async def test_gx_infers_jinja_inputs() -> None:
         assert "#_review(topic=" in bar.active_text_area().text
 
 
+async def test_gx_converts_placeholders_to_inputs_and_invocation_slots() -> None:
+    app = _ConvertApp("Review <the plan> for <target-file>")
+    async with app.run_test(size=(100, 32)) as pilot:
+        bar, panel = await _open_ghost(app, pilot)
+        assert panel._cell_edit.values["content"] == (
+            "Review {{ the_plan }} for {{ target_file }}"
+        )
+        assert panel._cell_edit.values["inputs"] == ("the_plan:text, target_file:text")
+        panel.query_one("#frontmatter-inline", SingleLineVimTextArea).text = "review"
+        panel._commit_cell_edit()
+        saved = panel.model.xprompts["_review"]
+        assert saved.content == "Review {{ the_plan }} for {{ target_file }}"
+        assert [arg.name for arg in saved.inputs] == ["the_plan", "target_file"]
+        assert bar.active_text_area().text == "#_review(the_plan=, target_file=)"
+
+
 async def test_gx_preserves_existing_helpers() -> None:
     markdown = "---\nxprompts:\n  _existing: old helper\n---\nBrand new body"
     app = _ConvertApp(initial_xprompt_markdown=markdown)

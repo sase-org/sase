@@ -17,6 +17,8 @@ known top-level globals (``root`` and friends) are never mistaken for inputs.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from dataclasses import dataclass
 import re
 
 from sase.ace.tui.widgets.xprompt_arg_assist import (
@@ -30,9 +32,53 @@ from sase.xprompt.loader_parsing import (
 )
 from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
+from sase.xprompt.raw_placeholders import (
+    placeholder_input_names,
+    raw_placeholder_fields,
+    substitute_raw_placeholders,
+)
 
 # Same identifier rule the Frontmatter Panel's xprompt sub-form enforces.
 _NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+@dataclass(frozen=True)
+class _PlaceholderArgConversion:
+    """A body rewritten to reference inputs derived from raw placeholders."""
+
+    body: str
+    inputs: list[InputArg]
+    renames: dict[str, str]
+
+
+def convert_placeholders_to_inputs(
+    body: str,
+    *,
+    existing: Iterable[str] = (),
+) -> _PlaceholderArgConversion:
+    """Rewrite raw ``<placeholder>`` tags as typed Jinja input references.
+
+    Names are allocated by the shared Rust slugging rules in document order.
+    A generated name already present in *existing* is reused rather than
+    redeclared, preserving an authored input's type/default/description or an
+    existing undeclared Jinja variable.  Literal placeholders inside code
+    zones are left untouched by the shared substitution transform.
+    """
+    fields = raw_placeholder_fields(body)
+    names = placeholder_input_names([field.text for field in fields])
+    existing_names = set(existing)
+    renames = {field.text: name for field, name in zip(fields, names, strict=True)}
+    inputs = [
+        InputArg(name=name, type=InputType.TEXT)
+        for name in names
+        if name not in existing_names
+    ]
+    replacements = {text: f"{{{{ {name} }}}}" for text, name in renames.items()}
+    return _PlaceholderArgConversion(
+        body=substitute_raw_placeholders(body, replacements),
+        inputs=inputs,
+        renames=renames,
+    )
 
 
 def normalize_local_xprompt_name(raw: str) -> str:
@@ -74,13 +120,14 @@ def validate_local_xprompt_name(name: str, used_names: set[str]) -> str:
     return ""
 
 
-def infer_local_xprompt_inputs(body: str) -> list[InputArg] | None:
-    """Infer local xprompt inputs from the undeclared Jinja variables in *body*.
+def infer_local_xprompt_inputs(body: str) -> _PlaceholderArgConversion | None:
+    """Rewrite placeholders and infer every required input for a local xprompt.
 
     Returns one ``TEXT`` :class:`InputArg` per undeclared variable (no default,
     so each is required), with known top-level globals filtered out by
-    :func:`inspect_template`.  A pane with no Jinja, or one whose variables are
-    all known globals, yields ``[]``.
+    :func:`inspect_template`.  Placeholder-derived inputs follow those Jinja
+    inputs, preserving document order within each group.  A placeholder whose
+    generated name is already an undeclared Jinja variable reuses that input.
 
     Returns ``None`` when *body* contains invalid Jinja syntax: the caller leaves
     the pane unchanged and notifies rather than minting a helper with unreliable
@@ -89,10 +136,19 @@ def infer_local_xprompt_inputs(body: str) -> list[InputArg] | None:
     diagnostics = inspect_template(body)
     if diagnostics.has_jinja and not diagnostics.ok:
         return None
-    return [
+    jinja_inputs = [
         InputArg(name=variable, type=InputType.TEXT)
         for variable in diagnostics.unknown_variables
     ]
+    converted = convert_placeholders_to_inputs(
+        body,
+        existing=diagnostics.unknown_variables,
+    )
+    return _PlaceholderArgConversion(
+        body=converted.body,
+        inputs=[*jinja_inputs, *converted.inputs],
+        renames=converted.renames,
+    )
 
 
 def build_local_xprompt(name: str, body: str, inputs: list[InputArg]) -> XPrompt:
@@ -123,6 +179,7 @@ def local_xprompt_invocation_skeleton(xprompt: XPrompt) -> str:
 
 __all__ = [
     "build_local_xprompt",
+    "convert_placeholders_to_inputs",
     "infer_local_xprompt_inputs",
     "local_xprompt_invocation_skeleton",
     "normalize_local_xprompt_name",

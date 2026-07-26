@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
+from sase.ace.tui.widgets._local_xprompt_conversion import (
+    convert_placeholders_to_inputs,
+)
+from sase.xprompt.jinja_inspect import inspect_template
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from sase.xprompt.save import SaveTargetFormat
 
@@ -61,12 +65,18 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             )
             return
 
+        existing = {arg.name for arg in frontmatter.inputs}
+        existing.update(inspect_template(body).unknown_variables)
+        conversion = convert_placeholders_to_inputs(body, existing=existing)
+        for arg in conversion.inputs:
+            frontmatter.set_input(arg)
+
         self._spawn_xprompt_save_task(
             self._open_save_as_xprompt_picker(
                 panes=event.panes,
                 snippet_body=event.snippet_body,
                 origin_bar=origin_bar,
-                body=body,
+                body=conversion.body,
                 frontmatter=frontmatter,
             )
         )

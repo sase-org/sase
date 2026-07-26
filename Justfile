@@ -240,7 +240,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-9q(PromptInputValues)' \
         --epic-symbol 'sase-9q(apply_prompt_input_values)' \
         --epic-symbol 'sase-9q(build_prompt_input_plan)' \
-        --epic-symbol 'sase-9q(placeholder_input_names)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

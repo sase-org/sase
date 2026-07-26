@@ -26,6 +26,7 @@ from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import StashedPromptPane
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from sase.xprompt.save import SaveTargetFormat
 
@@ -156,6 +157,77 @@ async def test_request_opens_one_screen_with_active_pane_snippet_source() -> Non
     assert modal._body == "alpha\n---\nbeta"
     assert modal._snippet_body == "beta"
     assert modal._pane_count == 2
+
+
+async def test_request_converts_placeholders_for_xprompt_preview_only() -> None:
+    harness = _SaveHarness()
+    with (
+        patch(
+            "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_save_locations",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
+            return_value=[],
+        ),
+        patch("sase.xprompt.save_state.load_last_used_locations", return_value={}),
+    ):
+        await harness.on_prompt_input_bar_save_as_xprompt_requested(
+            PromptInputBar.SaveAsXpromptRequested(
+                [
+                    StashedPromptPane(
+                        text="Deploy <service> to <target file>",
+                        frontmatter=(
+                            "---\n"
+                            "input:\n"
+                            "  service:\n"
+                            "    type: path\n"
+                            "    default: api\n"
+                            "---"
+                        ),
+                    )
+                ],
+                snippet_body="Deploy <service> to <target file>",
+            )
+        )
+        await _wait_save_tasks(harness)
+
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, UnifiedXPromptSaveModal)
+    assert modal._body == "Deploy {{ service }} to {{ target_file }}"
+    assert modal._snippet_body == "Deploy <service> to <target file>"
+    service = modal._frontmatter.get_input("service")
+    assert service is not None
+    assert service.type is InputType.PATH
+    assert service.default == "api"
+    target = modal._frontmatter.get_input("target_file")
+    assert target == InputArg(name="target_file", type=InputType.TEXT)
+
+
+async def test_request_reuses_undeclared_jinja_name_without_duplicate_input() -> None:
+    harness = _SaveHarness()
+    with (
+        patch(
+            "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_save_locations",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
+            return_value=[],
+        ),
+        patch("sase.xprompt.save_state.load_last_used_locations", return_value={}),
+    ):
+        await harness.on_prompt_input_bar_save_as_xprompt_requested(
+            PromptInputBar.SaveAsXpromptRequested(
+                [StashedPromptPane(text="Deploy <service> with {{ service }}")]
+            )
+        )
+        await _wait_save_tasks(harness)
+
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, UnifiedXPromptSaveModal)
+    assert modal._body == "Deploy {{ service }} with {{ service }}"
+    assert modal._frontmatter.inputs == []
 
 
 async def test_ctrl_g_ctrl_x_ctrl_x_opens_panel_in_snippet_mode(

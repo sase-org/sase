@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from sase.ace.tui.widgets._local_xprompt_conversion import (
     build_local_xprompt,
+    convert_placeholders_to_inputs,
     infer_local_xprompt_inputs,
     local_xprompt_invocation_skeleton,
     normalize_local_xprompt_name,
@@ -60,29 +61,37 @@ def test_validate_rejects_duplicate() -> None:
 
 
 def test_infer_no_jinja_yields_no_inputs() -> None:
-    assert infer_local_xprompt_inputs("Plain prompt body") == []
+    conversion = infer_local_xprompt_inputs("Plain prompt body")
+    assert conversion is not None
+    assert conversion.body == "Plain prompt body"
+    assert conversion.inputs == []
+    assert conversion.renames == {}
 
 
 def test_infer_unknown_variables_become_text_inputs() -> None:
-    inputs = infer_local_xprompt_inputs("Review {{ topic }} with {{ details }}")
-    assert inputs is not None
-    assert [arg.name for arg in inputs] == ["details", "topic"]
-    assert all(arg.type is InputType.TEXT for arg in inputs)
+    conversion = infer_local_xprompt_inputs("Review {{ topic }} with {{ details }}")
+    assert conversion is not None
+    assert [arg.name for arg in conversion.inputs] == ["details", "topic"]
+    assert all(arg.type is InputType.TEXT for arg in conversion.inputs)
     # No default -> required inputs.
     from sase.xprompt.models import UNSET
 
-    assert all(arg.default is UNSET for arg in inputs)
+    assert all(arg.default is UNSET for arg in conversion.inputs)
 
 
 def test_infer_known_globals_are_not_inputs() -> None:
     # ``root`` is a known top-level global, so it is never inferred as an input.
-    assert infer_local_xprompt_inputs("Path is {{ root }}") == []
+    conversion = infer_local_xprompt_inputs("Path is {{ root }}")
+    assert conversion is not None
+    assert conversion.inputs == []
 
 
 def test_infer_known_globals_without_runtime_value(monkeypatch) -> None:
     monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
 
-    assert infer_local_xprompt_inputs("Path is {{ root }}") == []
+    conversion = infer_local_xprompt_inputs("Path is {{ root }}")
+    assert conversion is not None
+    assert conversion.inputs == []
 
 
 def test_infer_invalid_jinja_returns_none() -> None:
@@ -99,9 +108,59 @@ def test_skeleton_without_inputs_is_bare_reference() -> None:
 
 
 def test_skeleton_with_inputs_uses_named_args_and_tabstops() -> None:
-    inputs = infer_local_xprompt_inputs("Review {{ topic }} with {{ details }}")
-    assert inputs is not None
-    xprompt = build_local_xprompt("_rules", "body", inputs)
+    conversion = infer_local_xprompt_inputs("Review {{ topic }} with {{ details }}")
+    assert conversion is not None
+    xprompt = build_local_xprompt("_rules", "body", conversion.inputs)
     assert (
         local_xprompt_invocation_skeleton(xprompt) == "#_rules(details=$1, topic=$2)$0"
     )
+
+
+# -- raw placeholder conversion --------------------------------------------
+
+
+def test_placeholder_conversion_reuses_existing_name() -> None:
+    converted = convert_placeholders_to_inputs(
+        "Deploy <service> using {{ service }}",
+        existing={"service"},
+    )
+    assert converted.body == "Deploy {{ service }} using {{ service }}"
+    assert converted.inputs == []
+    assert converted.renames == {"service": "service"}
+
+
+def test_placeholder_conversion_resolves_slug_collisions() -> None:
+    converted = convert_placeholders_to_inputs("Compare <the plan> with <the-plan>")
+    assert converted.body == ("Compare {{ the_plan }} with {{ the_plan_2 }}")
+    assert [arg.name for arg in converted.inputs] == ["the_plan", "the_plan_2"]
+    assert all(arg.type is InputType.TEXT for arg in converted.inputs)
+
+
+def test_placeholder_conversion_preserves_literal_placeholders() -> None:
+    converted = convert_placeholders_to_inputs(
+        "Replace <live>, not `<inline>` or:\n```\n<fenced>\n```"
+    )
+    assert converted.body == (
+        "Replace {{ live }}, not `<inline>` or:\n```\n<fenced>\n```"
+    )
+    assert [arg.name for arg in converted.inputs] == ["live"]
+
+
+def test_local_inference_appends_placeholder_inputs_after_jinja_inputs() -> None:
+    converted = infer_local_xprompt_inputs(
+        "Use {{ zulu }} with <the plan> and {{ alpha }}"
+    )
+    assert converted is not None
+    assert converted.body == ("Use {{ zulu }} with {{ the_plan }} and {{ alpha }}")
+    assert [arg.name for arg in converted.inputs] == [
+        "alpha",
+        "zulu",
+        "the_plan",
+    ]
+
+
+def test_local_inference_reuses_matching_jinja_input() -> None:
+    converted = infer_local_xprompt_inputs("Use <service> and {{ service }}")
+    assert converted is not None
+    assert converted.body == "Use {{ service }} and {{ service }}"
+    assert [arg.name for arg in converted.inputs] == ["service"]

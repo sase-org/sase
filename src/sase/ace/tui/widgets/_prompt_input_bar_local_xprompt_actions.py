@@ -62,8 +62,8 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
                 severity="warning",
             )
             return
-        inputs = infer_local_xprompt_inputs(body)
-        if inputs is None:
+        conversion = infer_local_xprompt_inputs(body)
+        if conversion is None:
             self.app.notify(
                 "Active pane has invalid Jinja — fix it before saving as a "
                 "local xprompt.",
@@ -75,7 +75,11 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
         if panel is None:
             return
         self._show_frontmatter_panel(focus=False)  # type: ignore[attr-defined]
-        xprompt = build_local_xprompt("_", body, inputs)
+        xprompt = build_local_xprompt(
+            "_",
+            conversion.body,
+            conversion.inputs,
+        )
 
         def _on_commit(saved: XPrompt) -> None:
             skeleton = local_xprompt_invocation_skeleton(saved)
