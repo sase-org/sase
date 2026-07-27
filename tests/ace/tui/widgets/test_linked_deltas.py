@@ -321,17 +321,17 @@ def test_compute_linked_delta_groups_includes_sidecar_clone(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     workspace = tmp_path / "sase_9"
-    research = workspace / "sase" / "repos" / "research"
-    (research / ".git").mkdir(parents=True)
+    beads = workspace / "sase" / "repos" / "beads"
+    (beads / ".git").mkdir(parents=True)
     provider = _FakeLinkedDiffProvider(
-        changes_by_workspace={str(research): "?? 202607/report.md"},
+        changes_by_workspace={str(beads): "?? issues.jsonl"},
         diff_by_workspace={
-            str(research): """diff --git a/202607/report.md b/202607/report.md
+            str(beads): """diff --git a/issues.jsonl b/issues.jsonl
 new file mode 100644
 --- /dev/null
-+++ b/202607/report.md
++++ b/issues.jsonl
 @@ -0,0 +1 @@
-+report
++{"id":"sase-1"}
 """,
         },
     )
@@ -341,15 +341,15 @@ new file mode 100644
 
     groups = linked_deltas_mod.compute_linked_delta_groups(agent)
 
-    assert [group.repo_name for group in groups] == ["research"]
+    assert [group.repo_name for group in groups] == ["beads"]
     assert groups[0].entries == (
         DeltaEntry(
-            path="202607/report.md",
+            path="issues.jsonl",
             change_type="A",
             line_stats=DeltaLineStats(added=1),
         ),
     )
-    assert provider.has_changes_calls == [str(research)]
+    assert provider.has_changes_calls == [str(beads)]
 
 
 def test_opened_workspace_uses_recorded_metadata(

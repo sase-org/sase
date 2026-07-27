@@ -326,6 +326,61 @@ class TestWriteResultMarker:
         )
         assert marker["repo_name"] == "sase-org/sase--plans"
 
+    def test_beads_sidecar_commit_records_store_repo_name(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        from sase.sdd.store import write_sdd_store_record
+
+        artifacts_dir = tmp_path / "artifacts"
+        primary = tmp_path / "sase_7"
+        beads = primary / "sase" / "repos" / "beads"
+        artifacts_dir.mkdir()
+        beads.mkdir(parents=True)
+        (artifacts_dir / "agent_meta.json").write_text(
+            json.dumps({"workspace_dir": str(primary)}),
+            encoding="utf-8",
+        )
+        write_sdd_store_record(
+            primary,
+            {
+                "schema_version": 3,
+                "storage": "sidecar_repos",
+                "provider": "github",
+                "sidecars": {
+                    "plans": {
+                        "repo": "sase-org/sase--plans",
+                        "remote_url": "git@example.com:sase-org/sase--plans.git",
+                    },
+                    "research": {
+                        "repo": "sase-org/sase--research",
+                        "remote_url": "git@example.com:sase-org/sase--research.git",
+                    },
+                    "beads": {
+                        "repo": "sase-org/sase--beads",
+                        "remote_url": "git@example.com:sase-org/sase--beads.git",
+                    },
+                },
+            },
+        )
+
+        with (
+            patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": str(artifacts_dir)}),
+            patch("os.getcwd", return_value=str(beads)),
+        ):
+            write_result_marker(
+                "create_commit",
+                {"message": "chore(beads): update state"},
+                "/tmp/beads.diff",
+                "def456",
+                None,
+            )
+
+        marker = json.loads(
+            (artifacts_dir / "commit_result.json").read_text(encoding="utf-8")
+        )
+        assert marker["repo_name"] == "sase-org/sase--beads"
+
     @pytest.mark.parametrize(
         ("clone_parts", "repo_name"),
         [

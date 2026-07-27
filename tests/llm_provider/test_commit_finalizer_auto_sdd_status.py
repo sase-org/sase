@@ -297,12 +297,12 @@ def test_split_sdd_store_auto_commit_targets_only_bead_state(
 
     plans = tmp_path / "sase" / "repos" / "plans"
     research = tmp_path / "sase" / "repos" / "research"
-    (plans / ".git").mkdir(parents=True)
-    (research / ".git").mkdir(parents=True)
+    beads = tmp_path / "sase" / "repos" / "beads"
+    (beads / ".git").mkdir(parents=True)
     write_sdd_store_record(
         tmp_path,
         {
-            "schema_version": 2,
+            "schema_version": 3,
             "storage": "sidecar_repos",
             "provider": "github",
             "sidecars": {
@@ -314,6 +314,10 @@ def test_split_sdd_store_auto_commit_targets_only_bead_state(
                     "repo": "acme/project--research",
                     "remote_url": "git@example.com:acme/project--research.git",
                 },
+                "beads": {
+                    "repo": "acme/project--beads",
+                    "remote_url": "git@example.com:acme/project--beads.git",
+                },
             },
         },
     )
@@ -324,6 +328,7 @@ def test_split_sdd_store_auto_commit_targets_only_bead_state(
         remote_url="git@example.com:acme/project--plans.git",
         research_dir=research,
         research_remote_url="git@example.com:acme/project--research.git",
+        beads_dir=beads,
     )
     commit = MagicMock(return_value=True)
     monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_args: store)
@@ -334,7 +339,7 @@ def test_split_sdd_store_auto_commit_targets_only_bead_state(
         store,
         "chore(beads): sync bead state",
         auto_commit_type="beads",
-        paths=[plans / "beads"],
+        paths=[beads],
         artifacts_dir=None,
     )
 

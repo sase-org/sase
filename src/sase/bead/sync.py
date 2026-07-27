@@ -90,9 +90,10 @@ def push_bead_work_launch(beads_dir: Path) -> _PushOutcome:
         from sase.bead.sync_worker import run_managed_sync_worker
 
         log_path = _new_sync_log_path()
+        semantic_beads_dir = _semantic_beads_dir_for_sync(repo_root, beads_dir)
         result = run_managed_sync_worker(
             repo_root,
-            beads_dir.resolve(),
+            semantic_beads_dir,
             log_path=log_path,
         )
         if result.pushed:
@@ -177,6 +178,7 @@ def push_bead_work_launch_async(beads_dir: Path) -> _AsyncPushHandle | None:
     if repo_root is None or not _has_push_remote(repo_root):
         return None
 
+    semantic_beads_dir = _semantic_beads_dir_for_sync(repo_root, beads_dir)
     log_path = _new_sync_log_path()
     # Append rather than truncate: the worker writes its own JSON records to
     # this same file, so a child traceback must land after them, not over them.
@@ -187,7 +189,7 @@ def push_bead_work_launch_async(beads_dir: Path) -> _AsyncPushHandle | None:
                 "-m",
                 "sase.bead.sync_worker",
                 str(repo_root),
-                str(beads_dir.resolve()),
+                str(semantic_beads_dir),
                 str(log_path),
             ],
             cwd=repo_root,
@@ -197,6 +199,19 @@ def push_bead_work_launch_async(beads_dir: Path) -> _AsyncPushHandle | None:
             start_new_session=True,
         )
     return _AsyncPushHandle(pid=process.pid, log_path=log_path)
+
+
+def _semantic_beads_dir_for_sync(repo_root: Path, requested_path: Path) -> Path:
+    """Preserve the bead-store prefix when a generic caller passes a repo root."""
+
+    requested = requested_path.expanduser().resolve()
+    root = repo_root.expanduser().resolve()
+    if requested != root:
+        return requested
+
+    from sase.bead.conflict_resolver import resolve_beads_dir
+
+    return resolve_beads_dir(root) or requested
 
 
 def _maybe_schedule_bead_refresh(beads_dir: Path) -> _AsyncPushHandle | None:

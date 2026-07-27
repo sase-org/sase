@@ -297,7 +297,7 @@ def _sidecar_repo_attribution_for_cwd(
     workspace = _norm_path(agent.workspace_dir)
     if workspace is None:
         return None
-    for kind in ("plans", "research"):
+    for kind in ("plans", "research", "beads"):
         sidecar = _norm_path(os.path.join(workspace, "sase", "repos", kind))
         if _path_is_same_or_inside(cwd, sidecar):
             assert sidecar is not None

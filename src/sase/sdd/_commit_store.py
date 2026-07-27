@@ -131,41 +131,77 @@ def commit_sdd_files(
 def sdd_commit_targets(
     store: "SddStore", paths: Iterable[str | Path] | None
 ) -> list[tuple["SddStore", list[str | Path] | None]]:
-    """Partition split-store paths between the plans and research repos."""
+    """Partition split-store paths among the plans, research, and beads repos."""
 
-    if not store.is_sidecar_storage or store.research_dir is None:
+    if not store.is_sidecar_storage:
         return [(store, list(paths) if paths is not None else None)]
 
-    plans_store = replace(store, research_dir=None, research_remote_url=None)
-    research_store = replace(
+    plans_root = store.kind_root("plans")
+    plans_store = replace(
         store,
-        sdd_dir=store.research_dir,
-        repo_root=store.research_dir,
-        remote_url=store.research_remote_url,
+        sdd_dir=plans_root,
+        repo_root=store.repo_root_for_kind("plans"),
         research_dir=None,
         research_remote_url=None,
+        beads_dir=None,
     )
-    if paths is None:
-        return [(plans_store, None), (research_store, None)]
+    target_specs: list[tuple[Path, SddStore]] = [(plans_root, plans_store)]
+    if store.research_dir is not None:
+        research_root = store.kind_root("research")
+        target_specs.append(
+            (
+                research_root,
+                replace(
+                    store,
+                    sdd_dir=research_root,
+                    repo_root=store.repo_root_for_kind("research"),
+                    remote_url=store.research_remote_url,
+                    research_dir=None,
+                    research_remote_url=None,
+                    beads_dir=None,
+                ),
+            )
+        )
+    if store.beads_dir is not None:
+        beads_root = store.kind_root("beads")
+        target_specs.append(
+            (
+                beads_root,
+                replace(
+                    store,
+                    sdd_dir=beads_root,
+                    repo_root=store.repo_root_for_kind("beads"),
+                    remote_url=None,
+                    research_dir=None,
+                    research_remote_url=None,
+                    beads_dir=None,
+                ),
+            )
+        )
 
-    plans_paths: list[str | Path] = []
-    research_paths: list[str | Path] = []
-    research_root = store.research_dir.expanduser().resolve(strict=False)
+    if paths is None:
+        return [(target_store, None) for _, target_store in target_specs]
+
+    paths_by_root: dict[Path, list[str | Path]] = {root: [] for root, _ in target_specs}
     for raw_path in paths:
         path = Path(raw_path)
-        if path.is_absolute() and _path_is_within(path, research_root):
-            research_paths.append(raw_path)
-        else:
-            # Relative paths retain the historical interpretation: they are
-            # rooted at the store's primary (plans) repository.
-            plans_paths.append(raw_path)
+        if path.is_absolute():
+            for root, _ in target_specs[1:]:
+                if _path_is_within(path, root):
+                    paths_by_root[root].append(raw_path)
+                    break
+            else:
+                paths_by_root[plans_root].append(raw_path)
+            continue
+        # Relative paths retain the historical interpretation: they are
+        # rooted at the store's primary (plans) repository.
+        paths_by_root[plans_root].append(raw_path)
 
-    targets: list[tuple[SddStore, list[str | Path] | None]] = []
-    if plans_paths:
-        targets.append((plans_store, plans_paths))
-    if research_paths:
-        targets.append((research_store, research_paths))
-    return targets
+    return [
+        (target_store, paths_by_root[root])
+        for root, target_store in target_specs
+        if paths_by_root[root]
+    ]
 
 
 def _path_is_within(path: Path, root: Path) -> bool:
@@ -281,6 +317,21 @@ def _sdd_store_record_label(store: "SddStore") -> str | None:
         record = read_sdd_store_record(workspace_dir)
     except Exception:
         return None
+    if record is not None and record.is_sidecar_storage:
+        from sase.linked_repos import sidecar_repo_clone_dir
+
+        store_root = store.repo_root.expanduser().resolve(strict=False)
+        for kind in ("plans", "research", "beads"):
+            sidecar_root = (
+                Path(sidecar_repo_clone_dir(workspace_dir, kind))
+                .expanduser()
+                .resolve(strict=False)
+            )
+            if store_root != sidecar_root:
+                continue
+            sidecar = record.sidecar_for_kind(kind)
+            if sidecar is not None and sidecar.repo:
+                return sidecar.repo
     if record is not None and record.repo:
         return record.repo
     return None
@@ -355,9 +406,8 @@ def push_sdd_store_after_commit(
 
     from sase.bead.sync import push_bead_work_launch, push_bead_work_launch_async
 
-    beads_dir = store.kind_root("beads")
     if mode == "async":
-        handle = push_bead_work_launch_async(beads_dir)
+        handle = push_bead_work_launch_async(store.repo_root)
         if handle is not None:
             _logger.info(
                 "Started async SDD push pid=%s log=%s",
@@ -366,7 +416,7 @@ def push_sdd_store_after_commit(
             )
         return
 
-    outcome = push_bead_work_launch(beads_dir)
+    outcome = push_bead_work_launch(store.repo_root)
     if outcome.error:
         _logger.warning("SDD git push failed after local commit: %s", outcome.error)
 

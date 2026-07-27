@@ -82,6 +82,33 @@ def test_plan_file_mode_uses_sidecar_store(
         )
 
 
+def test_plan_file_publication_uses_split_beads_sidecar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_work_from_plan_store import publish_epic_graph_before_launch
+
+    plans = tmp_path / "sase" / "repos" / "plans"
+    beads = tmp_path / "sase" / "repos" / "beads"
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        remote_url="git@example.test:project--plans.git",
+        beads_dir=beads,
+    )
+    pushed: list[Path] = []
+
+    def fake_push(path: Path) -> SimpleNamespace:
+        pushed.append(path)
+        return SimpleNamespace(pushed=True, error=None)
+
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", fake_push)
+
+    assert publish_epic_graph_before_launch(store, no_push=False)
+    assert pushed == [beads]
+
+
 def test_plan_update_lock_failure_leaves_original_bytes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

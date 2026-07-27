@@ -406,7 +406,7 @@ def _sdd_repo_name_for_commit_cwd(
         cwd = Path(commit_cwd).expanduser().resolve(strict=False)
         workspace = Path(workspace_dir).expanduser().resolve(strict=False)
         record = read_sdd_store_record(workspace)
-        for kind in ("plans", "research"):
+        for kind in ("plans", "research", "beads"):
             root = Path(sidecar_repo_clone_dir(workspace, kind))
             try:
                 cwd.relative_to(root)

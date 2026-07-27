@@ -102,6 +102,41 @@ def test_canonical_project_beads_dir_uses_plans_sidecar(
     assert _canonical_project_beads_dir(primary) == beads
 
 
+def test_canonical_project_beads_dir_uses_beads_sidecar(
+    tmp_path: Path,
+) -> None:
+    from sase.sdd.store import write_sdd_store_record
+
+    primary = tmp_path / "project"
+    primary.mkdir()
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 3,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/project--plans",
+                    "remote_url": "git@example.com:acme/project--plans.git",
+                },
+                "research": {
+                    "repo": "acme/project--research",
+                    "remote_url": "git@example.com:acme/project--research.git",
+                },
+                "beads": {
+                    "repo": "acme/project--beads",
+                    "remote_url": "git@example.com:acme/project--beads.git",
+                },
+            },
+        },
+    )
+    beads = primary / "sase" / "repos" / "beads"
+    beads.mkdir(parents=True)
+
+    assert _canonical_project_beads_dir(primary) == beads
+
+
 def test_current_or_primary_beads_dir_prefers_current_checkout(
     tmp_path: Path,
 ) -> None:

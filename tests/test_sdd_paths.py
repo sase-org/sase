@@ -251,16 +251,21 @@ def test_get_yyyymm_january() -> None:
     assert get_yyyymm(dt) == "202601"
 
 
+@pytest.mark.parametrize("split_beads", [False, True])
 def test_agent_env_exports_all_sidecar_kind_roots(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    split_beads: bool,
 ) -> None:
     plans = tmp_path / "sase" / "repos" / "plans"
     research = tmp_path / "sase" / "repos" / "research"
+    beads = tmp_path / "sase" / "repos" / "beads"
     store = SddStore(
         "sidecar_repos",
         plans,
         plans,
         research_dir=research,
+        beads_dir=beads if split_beads else None,
     )
     monkeypatch.setattr("sase.sdd.store.resolve_sdd_dir", lambda *_args: plans)
     monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_args: store)
@@ -271,7 +276,7 @@ def test_agent_env_exports_all_sidecar_kind_roots(
     assert env == {
         "SASE_SDD_DIR": str(plans),
         "SASE_SDD_PLANS_DIR": str(plans),
-        "SASE_SDD_BEADS_DIR": str(plans / "beads"),
+        "SASE_SDD_BEADS_DIR": str(beads if split_beads else plans / "beads"),
         "SASE_SDD_RESEARCH_DIR": str(research),
     }
 

@@ -379,16 +379,16 @@ class TestCommitMetadataHeader:
         tmp_path: Path,
     ) -> None:
         workspace = tmp_path / "sase_18"
-        sidecar = workspace / "sase" / "repos" / "research"
+        sidecar = workspace / "sase" / "repos" / "beads"
         agent = make_agent(
             workspace_dir=str(workspace),
             step_output={
                 "meta_commits": [
                     {
-                        "message": "docs: add research report",
+                        "message": "chore(beads): update state",
                         "sha": "abcdef123456",
                         "cwd": str(sidecar),
-                        "diff_path": str(tmp_path / "research.diff"),
+                        "diff_path": str(tmp_path / "beads.diff"),
                     }
                 ],
             },
@@ -397,9 +397,9 @@ class TestCommitMetadataHeader:
         header, _ = build_header_text(agent, summary=DetailHeaderSummary())
         commit_diffs = agent_commit_diffs(agent)
 
-        assert "    ▣ research\n" in header.plain
+        assert "    ▣ beads\n" in header.plain
         assert [(diff.repo_name, diff.is_primary) for diff in commit_diffs] == [
-            ("research", False)
+            ("beads", False)
         ]
 
 

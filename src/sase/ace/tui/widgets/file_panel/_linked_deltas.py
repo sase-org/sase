@@ -151,7 +151,7 @@ def _eligible_linked_workspace_candidates(
     for metadata_agent in _linked_metadata_agents(agent):
         if not metadata_agent.workspace_dir:
             continue
-        for kind in ("plans", "research"):
+        for kind in ("plans", "research", "beads"):
             workspace_dir = sidecar_repo_clone_dir(
                 metadata_agent.workspace_dir,
                 kind,

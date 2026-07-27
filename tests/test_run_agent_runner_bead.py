@@ -94,6 +94,41 @@ def test_claim_helper_commits_managed_store_and_allows_reassignment(
     ]
 
 
+def test_claim_helper_routes_split_store_commit_and_publish_to_beads_sidecar(
+    tmp_path: Path,
+) -> None:
+    plans = tmp_path / "sase" / "repos" / "plans"
+    beads = tmp_path / "sase" / "repos" / "beads"
+    beads.mkdir(parents=True)
+    bead_id = _seed_store(beads, beads_dirname=".")
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        beads_dir=beads,
+    )
+    commit = MagicMock(return_value=True)
+    publish = MagicMock()
+
+    with (
+        patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+        patch("sase.sdd.files.commit_sdd_store_files", commit),
+        patch("sase.bead.sync.publish_bead_claim", publish),
+    ):
+        issue = claim_bead_for_agent_launch(
+            agent_name="worker",
+            bead_id=bead_id,
+            workspace_dir=str(tmp_path),
+            workspace_num=2,
+            artifacts_dir=str(tmp_path / "artifacts"),
+        )
+
+    assert issue.assignee == "worker"
+    commit.assert_called_once()
+    assert commit.call_args.kwargs["paths"] == [beads]
+    publish.assert_called_once_with(beads, bead_id, "worker")
+
+
 @pytest.mark.parametrize("failure", ["missing", "closed"])
 def test_claim_helper_wraps_bead_mutation_errors(
     tmp_path: Path,
