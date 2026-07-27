@@ -107,7 +107,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 2000,
-          "description": "Human-readable description shown in AXE listings and notifications"
+          "description": "What this chop does. Line 1 is a summary of at most 100 characters; if a body follows, line 2 must be blank. At most 2000 characters."
         },
         "script": {
           "type": "string",
@@ -909,7 +909,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 2000,
-                "description": "Description of the cadence and class of work this lumberjack owns"
+                "description": "The cadence and class of work this lumberjack owns. Line 1 is a summary of at most 100 characters; if a body follows, line 2 must be blank. At most 2000 characters."
               },
               "interval": {
                 "type": "integer",
@@ -947,7 +947,7 @@
                           "type": "string",
                           "minLength": 1,
                           "maxLength": 2000,
-                          "description": "Description of what this chop does"
+                          "description": "What this chop does. Line 1 is a summary of at most 100 characters; if a body follows, line 2 must be blank. At most 2000 characters."
                         },
                         "script": {
                           "type": "string",

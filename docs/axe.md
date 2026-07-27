@@ -57,10 +57,12 @@ operators can also manage it directly with `sase axe start` and `sase axe stop`.
 | `sase axe status`                          | Show the read-only whole-system health snapshot        |
 | `sase axe status --json`                   | Emit the schema-version-1 status object                |
 | `sase axe chop list`                       | List configured chops with status (`-a` adds scripts)  |
+| `sase axe chop list -v`                    | Add a panel with each chop's full description          |
 | `sase axe chop doctor`                     | Diagnose configured/available chops and Telegram setup |
 | `sase axe chop run <name>`                 | Run a single chop in the foreground                    |
 | `sase axe chop run <name> -L <lumberjack>` | Run a single chop attributed to a specific lumberjack  |
 | `sase axe lumberjack list`                 | List configured lumberjacks and their chops            |
+| `sase axe lumberjack list -v`              | Add each lumberjack's full description under `details` |
 | `sase axe lumberjack run <name>`           | Run a single lumberjack in the foreground              |
 | `sase axe lumberjack status`               | Show status of all lumberjacks                         |
 | `sase axe maintenance enter`               | Pause lumberjack ticks until maintenance exits         |
@@ -90,6 +92,7 @@ sase axe start --query '!!! OR @@@'
 
 # Inspect lumberjacks
 sase axe lumberjack list
+sase axe lumberjack list --verbose  # also print each description body
 sase axe lumberjack status
 
 # Run a single lumberjack for debugging
@@ -303,22 +306,26 @@ axe:
             vcs: [git, gh]
 ```
 
+Every lumberjack requires a `description` explaining the lane's cadence and the class of work it owns, and every chop
+requires one explaining what that chop does. Both follow the summary/body grammar in
+[Description Grammar](#description-grammar).
+
 #### Chop Fields
 
-| Field         | Type                   | Required  | Description                                                                           |
-| ------------- | ---------------------- | --------- | ------------------------------------------------------------------------------------- |
-| `name`        | `str`                  | list only | Chop identity in object-list form; map form uses the mapping key                      |
-| `description` | `str`                  | yes       | Non-blank human-readable description                                                  |
-| `script`      | `str \| null`          | no        | Exact executable name; defaults to the chop identity                                  |
-| `enabled`     | `bool`                 | no        | Soft-disable a keyed entry without deleting the packaged/base configuration           |
-| `run_every`   | `str \| null`          | no        | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)                          |
-| `timeout`     | `str \| null`          | no        | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)                 |
-| `env`         | `dict[str, env-value]` | no        | Values merged over lumberjack env; literals or `{env:}`, `{file:}`, `{pass:}` refs    |
-| `inhibit_if`  | list or map            | no        | `changespec` / `agent_hood` / `agent_clan` guards evaluated before the script         |
-| `trigger`     | string or map          | no        | `always` or `git.commits_since`; scheduled runs fire only when it accepts             |
-| `once_per`    | string or object       | no        | Bounded per-proposal dedupe-key template                                              |
-| `for_each`    | list or source         | no        | Literal target objects or `source: projects`, expanded to stable per-target instances |
-| `vars`        | `dict`                 | no        | Non-secret configuration copied into the script context                               |
+| Field         | Type                   | Required  | Description                                                                                              |
+| ------------- | ---------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
+| `name`        | `str`                  | list only | Chop identity in object-list form; map form uses the mapping key                                         |
+| `description` | `str`                  | yes       | Summary line, then a blank line, then an optional body (see [Description Grammar](#description-grammar)) |
+| `script`      | `str \| null`          | no        | Exact executable name; defaults to the chop identity                                                     |
+| `enabled`     | `bool`                 | no        | Soft-disable a keyed entry without deleting the packaged/base configuration                              |
+| `run_every`   | `str \| null`          | no        | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)                                             |
+| `timeout`     | `str \| null`          | no        | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)                                    |
+| `env`         | `dict[str, env-value]` | no        | Values merged over lumberjack env; literals or `{env:}`, `{file:}`, `{pass:}` refs                       |
+| `inhibit_if`  | list or map            | no        | `changespec` / `agent_hood` / `agent_clan` guards evaluated before the script                            |
+| `trigger`     | string or map          | no        | `always` or `git.commits_since`; scheduled runs fire only when it accepts                                |
+| `once_per`    | string or object       | no        | Bounded per-proposal dedupe-key template                                                                 |
+| `for_each`    | list or source         | no        | Literal target objects or `source: projects`, expanded to stable per-target instances                    |
+| `vars`        | `dict`                 | no        | Non-secret configuration copied into the script context                                                  |
 
 Map-form chops compose by identity across config layers. A higher-priority layer can patch a single field or set
 `enabled: false` while retaining the rest of a packaged entry. Object-list form remains accepted, but bare-string list
@@ -331,6 +338,86 @@ Configuration is validated fail-closed. Unknown fields, duplicate chop identitie
 produce actionable errors with their config paths. Secret references resolve at dispatch and fail closed with
 provider-specific diagnostics. Legacy `agent:` and `xprompt:` chop fields are rejected: scheduled agent work must
 originate from a script's structured launch proposals.
+
+### Description Grammar
+
+Both `axe.lumberjacks.<name>.description` and every chop `description` use one grammar, borrowed from the shape of a Git
+commit message:
+
+```
+<summary>
+<blank line>
+<body…>
+```
+
+- Line 1 is the **summary**: non-blank, at most 100 characters, no leading or trailing whitespace.
+- If anything follows the summary, line 2 **must be blank**. That single rule makes the split unambiguous.
+- Everything from line 3 on is the **body**: free-form prose. Blank lines separate blocks, and a block whose first line
+  starts with `-`, `*`, or `•` is rendered as a bullet list.
+- The whole description is at most 2000 characters.
+- A single-line description is still completely valid and simply has an empty body.
+
+The split is owned by the shared Rust config authority (`split_axe_description`), so the ACE Axe tab, both CLI listings,
+and the entry editor always agree on where the summary ends. It is computed once per entity when the config is parsed,
+never on a render or keystroke path.
+
+Author multi-line descriptions as YAML literal block scalars (`|-`), hand-wrapping source lines to keep the file inside
+the 120-column prose width:
+
+```yaml
+description: |-
+  Complete finished hooks and start stale ones, with zombie detection
+
+  Scans every ChangeSpec matching the axe query, completes hooks whose runner exited, and starts the next
+  stale hook when a runner slot is free.
+
+  - Honors max_hook_runners; a full slot table defers work to the next tick rather than queueing.
+  - Hooks still running past zombie_timeout_seconds are marked ZOMBIE and stop holding a slot.
+```
+
+Hard wraps in the source are stored verbatim, and the renderer reflows: consecutive non-blank, non-bullet lines in a
+block are joined with single spaces and re-wrapped to the available width. A description authored at 110 columns
+therefore still fills a 200-column pane and still reads correctly at 60.
+
+#### Diagnostics
+
+Shape violations are reported by the config authority with `severity: "error"` at the offending field's config path. At
+most one code is emitted per description, checked in this order:
+
+| Code                                  | Condition                               | Message                                                                     |
+| ------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------- |
+| `description_summary_blank`           | line 1 is empty or whitespace-only      | `description must start with a non-blank summary line`                      |
+| `description_summary_too_long`        | the summary exceeds 100 characters      | `description summary line must be at most 100 characters (found <n>)`       |
+| `description_body_separator_required` | a line 2 exists and is not blank        | `description must leave line 2 blank to separate the summary from the body` |
+| `description_too_long`                | the description exceeds 2000 characters | `description must be at most 2000 characters (found <n>)`                   |
+
+A blank description is still reported as `blank_value`, and a missing one as `required_missing`, exactly as before. The
+four shape checks are gated behind a `require_description_shape` request flag that defaults to off on the wire; SASE
+turns it on for both config composition and AXE entry edits, so they always apply to configs SASE loads.
+
+#### Authoring Style Guide
+
+**Summary (line 1)**
+
+- One line, at most 100 characters, target 80. Sentence case, no trailing period.
+- Present tense, active voice, describing what the entity _does_, not what it is.
+- Must stand alone: the collapsed Axe-tab panel, both CLI listings, and the entry editor's preview show only this line.
+
+**Body**
+
+- One to three short paragraphs and/or one bullet list. Aim for six to ten rendered lines.
+- Answer, in this order, only what is true and non-obvious: what it actually does, when it fires, what state it reads or
+  mutates, and the one thing an operator most needs to know (a failure mode, a safety property, a cost, a limit).
+- Name the config knobs that matter when they are set (`interval`, `chop_timeout`, `run_every`, `trigger`, `inhibit_if`,
+  `for_each`, `env`).
+- Do not restate the summary, do not narrate the implementation line by line, and do not document SASE concepts that
+  belong elsewhere in `docs/`.
+
+**Lumberjack bodies additionally** state the cadence in words and why that cadence is right for the lane, and say what
+belongs in the lane and what deliberately does not, so a reader knows where to add a new chop.
+
+**Mechanics**: bullets start with `- ` at the block's base indentation and continuation lines indent two further spaces;
+no trailing whitespace, no tabs, and no blank line at the end of the block.
 
 ### Script Chops
 

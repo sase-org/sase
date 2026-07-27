@@ -248,26 +248,26 @@ stable `small` fallback, while an invalid authored value never produces a confid
 
 ### PR Actions
 
-| Key             | Action                                                      |
-| --------------- | ----------------------------------------------------------- |
-| `A`             | Accept proposal (`!` = spec only, `@` = mark ready to mail) |
-| `b`             | Rebase PR onto parent                                       |
-| `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9)                       |
-| `d`             | Show diff                                                   |
-| `e`             | Edit spec file                                              |
-| `f`             | Edit hooks (re-run / delete via hint input)                 |
-| `M`             | Mail PR                                                     |
-| `m`             | Mark / unmark current PR (auto-advances to next)            |
-| `n`             | Rename PR (non-Sub/Rev PRs only)                            |
-| `R`             | Rewind to previous commit (`!` suffix skips VCS operations) |
-| `s`             | Change status (opens status modal)                          |
-| `S`             | Bulk status change for all marked PRs                       |
-| `T`             | Checkout + tmux (opens workspace input modal for number)    |
-| `u`             | Clear all marks                                             |
-| `v`             | View files (hint mode)                                      |
-| `w`             | Reword PR description                                       |
-| `W`             | Add tag to PR description                                   |
-| `Y`             | Sync workspace                                              |
+| Key             | Action                                                                    |
+| --------------- | ------------------------------------------------------------------------- |
+| `A`             | Accept proposal (`!` = spec only, `@` = mark ready to mail)               |
+| `b`             | Rebase PR onto parent                                                     |
+| `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9)                                     |
+| `d`             | Show diff (PRs sub-tab only; `d` is the Axe description toggle elsewhere) |
+| `e`             | Edit spec file                                                            |
+| `f`             | Edit hooks (re-run / delete via hint input)                               |
+| `M`             | Mail PR                                                                   |
+| `m`             | Mark / unmark current PR (auto-advances to next)                          |
+| `n`             | Rename PR (non-Sub/Rev PRs only)                                          |
+| `R`             | Rewind to previous commit (`!` suffix skips VCS operations)               |
+| `s`             | Change status (opens status modal)                                        |
+| `S`             | Bulk status change for all marked PRs                                     |
+| `T`             | Checkout + tmux (opens workspace input modal for number)                  |
+| `u`             | Clear all marks                                                           |
+| `v`             | View files (hint mode)                                                    |
+| `w`             | Reword PR description                                                     |
+| `W`             | Add tag to PR description                                                 |
+| `Y`             | Sync workspace                                                            |
 
 ### PR Grouping and Folding
 
@@ -1278,9 +1278,50 @@ The Axe sidebar renders three row types so the operational tree reads at a glanc
 - **Background command** rows (run via `!!`) live below the lumberjack tree, separated by a dim divider line when both
   groups are present, and use a distinct command/slot badge so they cannot be mistaken for scheduled AXE work.
 
-The right-hand dashboard keeps the selected lumberjack or chop description in a dedicated banner between the status line
-and scrolling output. Generated `for_each` chop instances also show their target key there. The banner stays fixed while
-output scrolls and disappears for background-command and empty AXE views.
+### Description Panel
+
+The right-hand dashboard keeps the selected lumberjack or chop description in a dedicated panel between the status line
+and scrolling output. Every row of the panel carries a solid left accent gutter (`▌ `) in the row's own hue, so the
+block reads as a blockquote and stays visually distinct from the output pane below. Generated `for_each` chop instances
+also show their target key on the summary row. The panel stays fixed while output scrolls and disappears for
+background-command and empty AXE views.
+
+The panel has two states, and `d` toggles between them for the rest of the session. The summary row ends with a `▸ d` /
+`▾ d` disclosure hint whenever there is a body to reveal and the row has room for it:
+
+Collapsed — one row, ellipsized at the pane width:
+
+```
+▌ Complete finished hooks and start stale ones, with zombie detection            ▸ d
+```
+
+Expanded — the summary, a blank gutter row, and the reflowed body:
+
+```
+▌ Complete finished hooks and start stale ones, with zombie detection            ▾ d
+▌
+▌ Scans every ChangeSpec matching the axe query, completes hooks whose runner exited, and
+▌ starts the next stale hook when a runner slot is free.
+▌
+▌ • Honors max_hook_runners; a full slot table defers work to the next tick rather than
+▌   queueing.
+▌ • Hooks still running past zombie_timeout_seconds are marked ZOMBIE and stop holding a slot.
+```
+
+The body is reflowed rather than replayed: blank lines separate blocks, a block whose first line starts with `-`, `*`,
+or `•` renders as a hanging-indent bullet list, and every other block is joined into one paragraph and re-wrapped to the
+current pane width. See [Description Grammar](axe.md#description-grammar) for the authored form.
+
+`ace.axe_description_expanded` (default `true`) sets the state each `sase ace` session starts in. `d` flips an in-memory
+session state and repaints from cached snapshot data — it never reloads config, reads disk, or writes the toggle back.
+
+An expanded panel never crowds out the chop output it exists to explain. The dashboard budgets
+`max(3, min(16, floor(pane_height * 0.45)))` rows for the panel, falling back to 10 rows before its height is known. If
+the rendered block exceeds that budget, the last row becomes a dim `… +N more · e` marker: nothing is silently dropped,
+and `e` opens the AXE entry editor, whose first field is the full description in a multi-line text area.
+
+Because `d` belongs to the Axe tab, `show_diff` is scoped to the PRs sub-tab. Pressing `d` outside PRs no longer opens a
+diff for an unrelated ChangeSpec.
 
 ### Dynamic Sidebar Width and No-Wrap Rows
 
@@ -1323,6 +1364,7 @@ numerical identity.
 | Key | Action                                                                                               |
 | --- | ---------------------------------------------------------------------------------------------------- |
 | `a` | Add a lumberjack, or add a chop under the selected lumberjack                                        |
+| `d` | Expand / collapse the [description panel](#description-panel) for this session                       |
 | `e` | Edit the selected lumberjack or chop configuration                                                   |
 | `E` | Open the selected recorded chop output in `$EDITOR`                                                  |
 | `+` | Run agent                                                                                            |

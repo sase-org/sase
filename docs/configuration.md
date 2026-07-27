@@ -450,6 +450,7 @@ Configures the ACE TUI behavior. Defaults are provided by `src/sase/default_conf
 
 ```yaml
 ace:
+  axe_description_expanded: true # Axe-tab description panel starts expanded
   artifacts:
     commits:
       default_query: "sidecar:false since:24h"
@@ -532,17 +533,18 @@ ace:
             shell: "just test"
 ```
 
-| Field               | Type         | Default   | Description                                                                                                                                                |
-| ------------------- | ------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agents_sync`       | dict         | see below | Periodic agents-repository status checks and the top-bar synchronization indicator.                                                                        |
-| `artifacts`         | dict         | see below | Per-pane settings for ACE's Artifacts tab.                                                                                                                 |
-| `keymaps`           | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
-| `prompt_completion` | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
-| `prompt_inputs`     | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
-| `repro_output_dir`  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
-| `snippets`          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
-| `tribes`            | dict         | see below | Per-tribe ACE TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                      |
-| `updates`           | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
+| Field                      | Type         | Default   | Description                                                                                                                                                |
+| -------------------------- | ------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agents_sync`              | dict         | see below | Periodic agents-repository status checks and the top-bar synchronization indicator.                                                                        |
+| `artifacts`                | dict         | see below | Per-pane settings for ACE's Artifacts tab.                                                                                                                 |
+| `axe_description_expanded` | bool         | `true`    | State the Axe-tab [description panel](ace.md#description-panel) starts each session in; `d` toggles it in memory.                                          |
+| `keymaps`                  | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
+| `prompt_completion`        | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
+| `prompt_inputs`            | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
+| `repro_output_dir`         | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
+| `snippets`                 | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
+| `tribes`                   | dict         | see below | Per-tribe ACE TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                      |
+| `updates`                  | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
 
 #### `ace.artifacts.commits`
 
@@ -558,6 +560,17 @@ shows a lower-bound total such as `[1/40+]` in the repository legend while the f
 `[P/N]` form means selected one-based position over displayed matched entries. `limit:all` is accepted as an unlimited
 synonym but is omitted from canonical query text. Day-granular `until:` values include the full named day. This setting
 is independent of the `sase vcs log` CLI's sidecar opt-in and limit contract.
+
+#### `ace.axe_description_expanded`
+
+Sets whether the Axe-tab description panel starts expanded (`true`, the default) or collapsed to its summary line in
+each `sase ace` session. The `toggle_axe_description` keymap action — `d` by default, configurable under
+`ace.keymaps.app` — flips the state in memory for the rest of the session; it never writes the toggle back to
+configuration, so this key is the only durable setting. Descriptions themselves follow the
+[AXE description grammar](axe.md#description-grammar), and the panel's layout, height budget, and overflow row are
+described in [ACE — Description Panel](ace.md#description-panel).
+
+Because the Axe tab claims `d`, the `show_diff` action is active only on the PRs sub-tab.
 
 #### `ace.agents_sync`
 
@@ -1406,30 +1419,36 @@ axe:
 
 **Lumberjack fields** (per entry under `lumberjacks`):
 
-| Field          | Type                    | Required | Default | Description                                                             |
-| -------------- | ----------------------- | -------- | ------- | ----------------------------------------------------------------------- |
-| `description`  | string                  | yes      | -       | Non-blank description of the lane's cadence and work.                   |
-| `interval`     | int                     | no       | `1`     | Seconds between chop polling cycles.                                    |
-| `chop_timeout` | string                  | no       | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"` |
-| `env`          | dict[string, env-value] | no       | `{}`    | Environment inherited by every chop in this lumberjack.                 |
-| `chops`        | list[object] or map     | no       | `[]`    | Composable chop definitions (see below).                                |
+| Field          | Type                    | Required | Default | Description                                                                     |
+| -------------- | ----------------------- | -------- | ------- | ------------------------------------------------------------------------------- |
+| `description`  | string                  | yes      | -       | Summary line, blank line, optional body describing the lane's cadence and work. |
+| `interval`     | int                     | no       | `1`     | Seconds between chop polling cycles.                                            |
+| `chop_timeout` | string                  | no       | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"`         |
+| `env`          | dict[string, env-value] | no       | `{}`    | Environment inherited by every chop in this lumberjack.                         |
+| `chops`        | list[object] or map     | no       | `[]`    | Composable chop definitions (see below).                                        |
 
 **Chop fields** (per entry under `chops`):
 
-| Field         | Type                    | Required  | Default  | Description                                                        |
-| ------------- | ----------------------- | --------- | -------- | ------------------------------------------------------------------ |
-| `name`        | string                  | list only | -        | Stable identity; map form uses the entry key.                      |
-| `script`      | string                  | no        | `name`   | Exact executable name; no prefix is added automatically.           |
-| `enabled`     | boolean                 | no        | `true`   | Soft-disable a keyed entry while retaining inherited fields.       |
-| `description` | string                  | yes       | -        | Non-blank description of what the chop does.                       |
-| `run_every`   | string                  | no        | -        | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`.   |
-| `timeout`     | string                  | no        | -        | Per-chop duration limit. Overrides lumberjack `chop_timeout`.      |
-| `env`         | dict[string, env-value] | no        | `{}`     | Literal values or `{env:}`, `{file:}`, `{pass:}` references.       |
-| `inhibit_if`  | list or map             | no        | -        | `changespec` / `agent_hood` / `agent_clan` guards before dispatch. |
-| `trigger`     | string or map           | no        | `always` | `always` or `git.commits_since` scheduled-run trigger.             |
-| `once_per`    | string or object        | no        | -        | Bounded per-proposal dedupe-key template.                          |
-| `for_each`    | list or source          | no        | -        | Literal targets or the filtered `projects` source.                 |
-| `vars`        | object                  | no        | `{}`     | Non-secret values copied to the chop context.                      |
+| Field         | Type                    | Required  | Default  | Description                                                            |
+| ------------- | ----------------------- | --------- | -------- | ---------------------------------------------------------------------- |
+| `name`        | string                  | list only | -        | Stable identity; map form uses the entry key.                          |
+| `script`      | string                  | no        | `name`   | Exact executable name; no prefix is added automatically.               |
+| `enabled`     | boolean                 | no        | `true`   | Soft-disable a keyed entry while retaining inherited fields.           |
+| `description` | string                  | yes       | -        | Summary line, blank line, optional body describing what the chop does. |
+| `run_every`   | string                  | no        | -        | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`.       |
+| `timeout`     | string                  | no        | -        | Per-chop duration limit. Overrides lumberjack `chop_timeout`.          |
+| `env`         | dict[string, env-value] | no        | `{}`     | Literal values or `{env:}`, `{file:}`, `{pass:}` references.           |
+| `inhibit_if`  | list or map             | no        | -        | `changespec` / `agent_hood` / `agent_clan` guards before dispatch.     |
+| `trigger`     | string or map           | no        | `always` | `always` or `git.commits_since` scheduled-run trigger.                 |
+| `once_per`    | string or object        | no        | -        | Bounded per-proposal dedupe-key template.                              |
+| `for_each`    | list or source          | no        | -        | Literal targets or the filtered `projects` source.                     |
+| `vars`        | object                  | no        | `{}`     | Non-secret values copied to the chop context.                          |
+
+Both `description` fields use one grammar: a non-blank summary line of at most 100 characters, then — if anything
+follows — a blank line, then a free-form body, with the whole string capped at 2000 characters. Violations produce the
+`description_summary_blank`, `description_summary_too_long`, `description_body_separator_required`, and
+`description_too_long` diagnostics. See [AXE — Description Grammar](axe.md#description-grammar) for the full contract,
+the authoring style guide, and the YAML literal-block form.
 
 All chops are scripts. Exact-name resolution checks `chop_script_dirs`, then the running interpreter's bin directory,
 then `$PATH`. Invalid fields, duplicate identities, non-positive intervals, and invalid durations fail config loading
@@ -1494,8 +1513,8 @@ the scoping language in replacement prompts. See
 [Axe structured results and launch proposals](axe.md#structured-results-and-launch-proposals) for the result document,
 proposal fields, lifecycle statuses, and debugging commands.
 
-Every chop entry must carry a non-blank `description`. Bare-string list entries are no longer valid because they cannot
-carry one; use map form or object-form list entries:
+Every chop entry must carry a `description` following the [description grammar](axe.md#description-grammar). Bare-string
+list entries are no longer valid because they cannot carry one; use map form or object-form list entries:
 
 ```yaml
 chops:
@@ -2339,15 +2358,28 @@ See [axe.md — Maintenance Mode](axe.md#maintenance-mode) for the runtime behav
 With no subcommand, `sase axe chop` defaults to `sase axe chop list`. Use the explicit `list` or `doctor` subcommand
 when passing diagnostic flags.
 
-| Form                   | Flags                                         | Description                                                                                       |
-| ---------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `sase axe chop list`   | `-a/--available`, `-j/--json`, `-v/--verbose` | List configured chops with status; `--available` also shows discoverable executable chop scripts. |
-| `sase axe chop doctor` | `-j/--json`, `-v/--verbose`                   | Diagnose missing configured chops, unconfigured scripts, and Telegram chop prerequisites.         |
-| `sase axe chop run`    | `-L/--lumberjack`                             | Run a single chop once in the foreground.                                                         |
+| Form                   | Flags                                         | Description                                                                                                                                                     |
+| ---------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase axe chop list`   | `-a/--available`, `-j/--json`, `-v/--verbose` | List configured chops with one summary line each; `--available` also shows discoverable executable chop scripts, and `--verbose` adds a full-description panel. |
+| `sase axe chop doctor` | `-j/--json`, `-v/--verbose`                   | Diagnose missing configured chops, unconfigured scripts, and Telegram chop prerequisites.                                                                       |
+| `sase axe chop run`    | `-L/--lumberjack`                             | Run a single chop once in the foreground.                                                                                                                       |
 
 `sase axe chop doctor` exits `1` when any check is `ERROR` (a configured script chop cannot be resolved) and `0`
 otherwise. Unconfigured available scripts and Telegram prerequisite gaps report `WARN`. The same chop diagnostics are
 also surfaced by `sase doctor -C axe.chops`.
+
+### `sase axe lumberjack`
+
+With no subcommand, `sase axe lumberjack` defaults to `sase axe lumberjack list`.
+
+| Form                         | Flags                  | Description                                                                                                  |
+| ---------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `sase axe lumberjack list`   | `-v/--verbose`         | List configured lumberjacks and their chops; `--verbose` adds each description body under a `details` block. |
+| `sase axe lumberjack run`    | `-q`, `-H`, `-A`, `-z` | Run one lumberjack once in the foreground with optional query and runner-limit overrides.                    |
+| `sase axe lumberjack status` | -                      | Show per-lumberjack process status.                                                                          |
+
+Both listings print only the description summary line by default so the output stays scannable; `-v/--verbose` renders
+the full [description](axe.md#description-grammar).
 
 ### `sase commit`
 

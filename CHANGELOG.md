@@ -6,6 +6,12 @@
 
 - **axe:** every lumberjack and chop now requires a non-blank `description`; replace bare-string chop lists with map or
   object entries and add descriptions to resolve `required_missing` diagnostics.
+- **axe:** lumberjack and chop `description` values now follow a summary/body grammar. Line 1 must be a non-blank
+  summary of at most 100 characters, a multi-line description must leave line 2 blank to separate the summary from the
+  body, and the whole description must be at most 2000 characters. Single-line descriptions remain valid. Violations
+  fail config loading with `description_summary_blank`, `description_summary_too_long`,
+  `description_body_separator_required`, or `description_too_long`. See
+  [docs/axe.md — Description Grammar](docs/axe.md#description-grammar).
 - **agent-tribes:** rename current agent-tribe contracts from tag to tribe. Standalone assignments now use
   `~/.sase/agent_tribes.json` and `tribe`; agent metadata, archives, cleanup and scan wires, and CLI JSON emit only
   tribe-shaped fields; the Agents query uses `tribe:` instead of `tag:`; and ACE keymap/config actions use tribe names.
@@ -16,6 +22,10 @@
 ### Features
 
 - **ace:** add Chats artifact visual snapshots and document the five-pane Artifacts flow.
+- **ace:** render the Axe description as a two-state accent-gutter panel; `d` expands or collapses it for the session
+  and `ace.axe_description_expanded` sets the startup state. `show_diff` is now scoped to the PRs sub-tab.
+- **axe:** keep `sase axe chop list` and `sase axe lumberjack list` on one summary line per entry, and add
+  `-v/--verbose` full-description output to both.
 - **tui:** add in-place schema-driven xprompt property editing, bound definition write-back, conflict detection, and a unified save-as screen.
 
 ### Bug Fixes
