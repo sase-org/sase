@@ -128,6 +128,12 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
+        "--sase-update-agents-goldens",
+        action="store_true",
+        default=False,
+        help="Update agents-sync Markdown goldens instead of asserting them.",
+    )
+    parser.addoption(
         "--sase-update-visual-snapshots",
         action="store_true",
         default=False,

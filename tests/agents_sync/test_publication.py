@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from sase.agents_sync.inventory import (
     InventoryRun,
     ProjectHoodInventory,
@@ -113,6 +115,7 @@ def _snapshot_path(root: Path) -> Path:
 
 def test_targeted_publication_captures_complete_hood_and_is_byte_stable(
     tmp_path: Path,
+    request: pytest.FixtureRequest,
 ) -> None:
     target = _target(tmp_path)
     repo = target.sidecar_path
@@ -186,8 +189,22 @@ def test_targeted_publication_captures_complete_hood_and_is_byte_stable(
             / "README.md"
         ),
     }
+    updated_goldens: list[str] = []
+    update_goldens = request.config.getoption("--sase-update-agents-goldens")
     for golden_name, rendered_path in rendered.items():
-        assert rendered_path.read_text() == (golden_root / golden_name).read_text()
+        rendered_text = rendered_path.read_text()
+        golden_path = golden_root / golden_name
+        if update_goldens and rendered_text != golden_path.read_text():
+            # Refresh with --sase-update-agents-goldens, then rerun without it.
+            golden_path.write_text(rendered_text)
+            updated_goldens.append(golden_name)
+            continue
+        assert rendered_text == golden_path.read_text()
+    if updated_goldens:
+        pytest.fail(
+            "Updated agents-sync goldens; rerun without the refresh flag: "
+            + ", ".join(updated_goldens)
+        )
 
 
 def test_refresh_adds_optional_chat_and_preserves_temporarily_absent_run(

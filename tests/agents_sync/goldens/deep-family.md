@@ -1,5 +1,7 @@
 # Family: foo.bar.baz
 
+[Agent Hoods](../README.md) / [alice](../users/alice/README.md) / [athena](../users/alice/machines/athena/README.md) / [foo](../users/alice/machines/athena/hoods/foo/README.md) / foo.bar.baz
+
 Owner: `alice.athena` · Hood: `foo` · Members: 2
 
 ## Lineage

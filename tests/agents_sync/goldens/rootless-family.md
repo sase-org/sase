@@ -1,5 +1,7 @@
 # Family: foo.rootless
 
+[Agent Hoods](../README.md) / [alice](../users/alice/README.md) / [athena](../users/alice/machines/athena/README.md) / [foo](../users/alice/machines/athena/hoods/foo/README.md) / foo.rootless
+
 Owner: `alice.athena` · Hood: `foo` · Members: 2
 
 ## Lineage

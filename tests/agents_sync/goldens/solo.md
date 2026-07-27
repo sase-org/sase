@@ -1,5 +1,7 @@
 # Agent: foo
 
+[Agent Hoods](../../README.md) / [alice](../../users/alice/README.md) / [athena](../../users/alice/machines/athena/README.md) / [foo](../../users/alice/machines/athena/hoods/foo/README.md) / foo
+
 **Global name:** `alice.athena.foo` · **State:** completed · **Source run:** `run-01`
 
 **Owner:** `alice.athena` · **Project:** Project · **Hood:** foo
