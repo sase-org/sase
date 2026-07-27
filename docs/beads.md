@@ -44,6 +44,9 @@ sase bead note beads-001.1 "Verified with just check"   # Append an attributed n
 sase bead open beads-001.1                              # Reopen an issue
 sase bead close beads-001.1                             # Close an issue
 sase bead dep add beads-001.2 beads-001.1               # Add dependency
+sase bead dep list beads-001.2 --format full            # Inspect dependency provenance
+sase bead dep tree beads-001.2                          # Follow the blocking chain
+sase bead dep rm beads-001.2 beads-001.1                # Remove a wrong dependency
 sase bead blocked                                       # Show blocked issues
 sase bead sync                                          # Export and stage JSONL in git
 sase bead stats                                         # Project statistics
@@ -151,10 +154,16 @@ same name and re-claims its own claim.
 
 ### Dependencies
 
-Dependencies are one-way relationships: issue A **depends on** issue B. An issue is:
+Dependencies are one-way relationships: issue A **depends on** issue B. Every edge records the source issue, the target
+issue, when the edge was added, and who added it. An issue is:
 
 - **Ready** if it is `open` and all its dependencies are `closed`.
 - **Blocked** if it has at least one dependency with status `open`, `claimed`, or `in_progress`.
+
+`sase bead dep list` prints the forward `DEPENDS ON` view, the reverse `BLOCKS` view, or both, including the edge's
+provenance in `--format full`. `sase bead dep tree` walks the same graph when a one-level detail view is not enough.
+Removing a dependency appends a `dependency_removed` event rather than editing or erasing the original add event, so
+history keeps both the mistake and its correction.
 
 ## Storage
 
@@ -197,6 +206,8 @@ are kept in sync:
 - **History** replays those same streams in projection order; `sase bead history <id>` makes every recorded field
   revision readable without changing canonical state.
 - **Fresh clones** read directly from the tracked event streams and can rebuild the compatibility mirrors on demand.
+- **Dependency removals** are recorded as `dependency_removed` events. During merged replay, a remove sorts after an add
+  with the same timestamp, so add-then-remove deterministically leaves the edge absent.
 
 The `.gitignore` excludes `beads.db*` files. The event store, `issues.jsonl`, and `config.json` are tracked in git.
 
@@ -391,9 +402,52 @@ Remove one or more issues and recursively cascade-delete the union of all their 
 beneath child epics. Every requested ID is validated before anything is removed, so a missing ID leaves the store
 unchanged. Overlapping or repeated selections remove and print each issue only once. This is irreversible.
 
-### `sase bead dep add <issue> <depends_on>`
+### `sase bead dep`
 
-Add a dependency: `<issue>` depends on `<depends_on>`. The issue becomes blocked if the dependency is not yet closed.
+Inspect and manage dependency edges. With no child subcommand, `sase bead dep` delegates to `sase bead dep list` and
+prints the same central delegation notice used by other default-list verbs.
+
+```bash
+sase bead dep
+sase bead dep add <issue> <depends_on>
+sase bead dep list [<id>]
+sase bead dep rm <issue> <depends_on> [<depends_on2> ...]
+sase bead dep tree [<id>]
+```
+
+`dep add` makes `<issue>` depend on `<depends_on>`. The issue becomes blocked if the dependency is not yet closed.
+
+`dep list` prints dependency edges with their blocking state and recorded provenance. A scoped read, such as
+`sase bead dep list beads-001.2`, includes every bead status by default because closed dependencies are usually what you
+need to see when explaining readiness. A store-wide read defaults to `open`, `claimed`, and `in_progress`, matching
+`sase bead list`.
+
+`dep tree` walks the dependency graph as a deterministic tree. `--direction out` follows what the root waits on,
+`--direction in` follows what is waiting on the root, and `--direction both` renders both trees. Store-wide trees use
+the same active-status default as store-wide `dep list`; scoped trees include every status by default.
+
+Tree output marks graph states explicitly:
+
+- `⇡ (shown above)` means a shared subtree was already expanded, as in a fan-in diamond.
+- `↻ (cycle)` means a dependency cycle was detected and that branch stopped.
+- `(+N more, use --levels 0)` means `--levels` truncated descendants.
+- `? <id> (not found)` means an edge points at an unresolved bead ID.
+
+`dep rm` removes one or more existing dependency edges from `<issue>` in one all-or-nothing mutation. The command
+records `dependency_removed` events and then reports whether the source bead is ready or still blocked.
+
+| Subcommand | Flag              | Values                                     | Description                                      |
+| ---------- | ----------------- | ------------------------------------------ | ------------------------------------------------ |
+| `list`     | `-c, --color`     | `auto`, `always`, `never`                  | Color mode for text output                       |
+| `list`     | `-d, --direction` | `both`, `in`, `out`                        | Edges to show; defaults to `both`                |
+| `list`     | `-f, --format`    | `compact`, `full`, `json`                  | Output format; defaults to `compact`             |
+| `list`     | `-n, --limit`     | non-negative integer                       | Maximum root beads to print; `0` means unlimited |
+| `list`     | `-s, --status`    | `open`, `claimed`, `in_progress`, `closed` | Filter by endpoint/status root (repeatable)      |
+| `tree`     | `-c, --color`     | `auto`, `always`, `never`                  | Color mode for text output                       |
+| `tree`     | `-d, --direction` | `both`, `in`, `out`                        | Direction to walk; defaults to `out`             |
+| `tree`     | `-f, --format`    | `compact`, `full`, `json`                  | Output format; defaults to `compact`             |
+| `tree`     | `-L, --levels`    | non-negative integer                       | Maximum levels to descend; `0` means unlimited   |
+| `tree`     | `-s, --status`    | `open`, `claimed`, `in_progress`, `closed` | Filter by bead status (repeatable)               |
 
 ### `sase bead blocked`
 

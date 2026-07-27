@@ -155,6 +155,9 @@ Quick Start:
   sase bead close <id>                           Close an issue
   sase bead rm <id> [<id2> ...]                 Remove issues (and children)
   sase bead dep add <issue> <depends-on>         Add dependency
+  sase bead dep list [<id>]                      Inspect dependency provenance
+  sase bead dep tree [<id>]                      Follow dependency chains
+  sase bead dep rm <issue> <depends-on> [...]    Remove dependency edges
   sase bead blocked                              Show blocked issues
   sase bead sync                                 Stage bead state in git
   sase bead stats                                Project statistics
