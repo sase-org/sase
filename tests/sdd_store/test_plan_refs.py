@@ -224,6 +224,35 @@ def test_plan_ref_for_store_keeps_legacy_fallback_for_external_plan(
     )
 
 
+def test_canonicalize_with_explicit_roots_deduplicates_and_normalizes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "plans"
+    plan_path = root / "202607/plan.md"
+    calls: list[tuple[str, list[str]]] = []
+
+    def require(name: str) -> Any:
+        assert name == "plan_reference_canonicalize"
+
+        def binding(path: str, roots: list[str]) -> str:
+            calls.append((path, roots))
+            return "plans:202607/plan.md"
+
+        return binding
+
+    monkeypatch.setattr(plan_refs, "require_rust_binding", require)
+
+    assert (
+        plan_refs.canonicalize_plan_reference_from_roots(
+            plan_path,
+            roots=(root, root / "."),
+        )
+        == "plans:202607/plan.md"
+    )
+    assert calls == [(str(plan_path), [str(root)])]
+
+
 def test_resolve_rejects_a_stale_wire(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

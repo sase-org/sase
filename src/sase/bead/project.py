@@ -358,12 +358,18 @@ class BeadProject:
 
         return rust_beads.stats(self.beads_dir)
 
-    def doctor(self) -> list[str]:
+    def doctor(
+        self,
+        plan_roots: tuple[Path, ...] | None = None,
+    ) -> list[str]:
         """Run diagnostics and return messages."""
         from sase.core import bead_read_facade as rust_beads
         from sase.bead.sync import bead_sync_diagnostics
 
-        messages = rust_beads.doctor(self.beads_dir)
+        if plan_roots is None:
+            messages = rust_beads.doctor(self.beads_dir)
+        else:
+            messages = rust_beads.doctor(self.beads_dir, plan_roots)
         if not self.sync_is_clean():
             ok_message = "OK: no issues found"
             if messages == [ok_message]:

@@ -81,9 +81,19 @@ def stats(beads_dir: Path | str) -> dict[str, int]:
     return {str(key): int(value) for key, value in payload.items()}
 
 
-def doctor(beads_dir: Path | str) -> list[str]:
+def doctor(
+    beads_dir: Path | str,
+    plan_roots: tuple[Path, ...] | None = None,
+) -> list[str]:
     binding = require_rust_binding("bead_doctor")
-    return [str(message) for message in binding(str(beads_dir))]
+    if plan_roots is None:
+        raw_messages = binding(str(beads_dir))
+    else:
+        raw_messages = binding(
+            str(beads_dir),
+            [str(root) for root in plan_roots],
+        )
+    return [str(message) for message in raw_messages]
 
 
 def get_epic_children(beads_dir: Path | str, epic_id: str) -> list[Issue]:

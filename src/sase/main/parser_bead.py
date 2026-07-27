@@ -80,7 +80,18 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_dep_add_parser.add_argument("depends_on", help="Issue being depended on")
 
     # sase bead doctor
-    bead_subparsers.add_parser("doctor", help="Run health checks")
+    bead_doctor_parser = bead_subparsers.add_parser(
+        "doctor",
+        help="Validate bead-store health and design references",
+    )
+    bead_doctor_parser.add_argument(
+        "-F",
+        "--fix-design-refs",
+        action="store_true",
+        help=(
+            "Preview and, after confirmation, repair recoverable bead design references"
+        ),
+    )
 
     # sase bead init
     bead_subparsers.add_parser("init", help="Create the effective SDD bead store")

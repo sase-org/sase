@@ -115,9 +115,8 @@ def canonicalize_plan_reference(
 ) -> str | None:
     """Return a canonical reference when *plan_path* lies below a plan root."""
 
-    path = Path(plan_path).expanduser().resolve(strict=False)
     roots = resolve_plan_roots(workspace_dir, workspace_num)
-    return canonicalize_plan_reference_from_roots(path, roots=roots)
+    return canonicalize_plan_reference_from_roots(plan_path, roots=roots)
 
 
 def canonicalize_plan_reference_from_roots(

@@ -88,6 +88,34 @@ def test_doctor_reads_jsonl_without_requiring_sqlite(tmp_path: Path) -> None:
     assert rust_beads.doctor(beads_dir) == ["WARNING: beads.db missing"]
 
 
+def test_doctor_forwards_optional_plan_roots(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[object, ...]] = []
+
+    def binding(*args: object) -> list[str]:
+        calls.append(args)
+        return ["OK"]
+
+    monkeypatch.setattr(
+        rust_beads,
+        "require_rust_binding",
+        lambda name: binding if name == "bead_doctor" else None,
+    )
+    beads_dir = tmp_path / "beads"
+    root = tmp_path / "plans"
+
+    assert rust_beads.doctor(beads_dir) == ["OK"]
+    assert rust_beads.doctor(beads_dir, (root,)) == ["OK"]
+    assert rust_beads.doctor(beads_dir, ()) == ["OK"]
+    assert calls == [
+        (str(beads_dir),),
+        (str(beads_dir), [str(root)]),
+        (str(beads_dir), []),
+    ]
+
+
 def test_event_store_wins_over_stale_jsonl_projection(tmp_path: Path) -> None:
     beads_dir = tmp_path / "sdd/beads"
     beads_dir.mkdir(parents=True)
