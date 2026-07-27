@@ -5,11 +5,20 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from tests.sdd_policy_helpers import patched_sdd_policy, set_sdd_policy
 
 from sase.bead.cli import _find_beads_location
-from sase.bead.cli_common import get_project, resolve_beads_location
+from sase.bead.cli_common import (
+    auto_commit_bead_store,
+    get_project,
+    get_read_view,
+    resolve_beads_location,
+)
+from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
+from sase.sdd.store import write_sdd_store_record
 from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
 
@@ -52,8 +61,6 @@ def test_find_beads_location_local_mode_still_uses_primary_workspace(
 def test_find_beads_location_sidecar_store_uses_plans_clone(
     tmp_path: Path, monkeypatch
 ) -> None:
-    from sase.sdd.store import write_sdd_store_record
-
     primary = tmp_path / "project"
     workspace_2 = tmp_path / "project_2"
     primary.mkdir()
@@ -199,8 +206,102 @@ def test_workspace_context_rejects_primary_outside_pytest_sandbox(
     assert resolve_beads_location(cwd=checkout, require_existing=True) is None
 
 
+def test_plain_checkout_sidecar_record_resolves_read_only_bead_store(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    checkout = tmp_path / "checkout"
+    plans = checkout / "sase" / "repos" / "plans"
+    checkout.mkdir()
+    with BeadProject.init(plans, beads_dirname="beads") as project:
+        issue = project.create("CI-visible epic", IssueType.PLAN)
+    _write_sidecar_record(checkout)
+    nested = checkout / "src" / "pkg"
+    nested.mkdir(parents=True)
+    monkeypatch.chdir(nested)
+    monkeypatch.setattr(
+        "sase.bead.cli_common._resolve_workspace_context",
+        lambda _cwd: None,
+    )
+
+    location = resolve_beads_location(require_existing=True)
+
+    assert location is not None
+    assert location.root == plans
+    assert location.beads_dir == plans / "beads"
+    assert location.beads_dirname == "beads"
+    assert location.storage == "sidecar_repos"
+    assert location.read_only is True
+    with get_read_view() as view:
+        assert view.show(issue.id).title == "CI-visible epic"
+    with pytest.raises(RuntimeError, match="available for reads only"):
+        get_project()
+
+
+def test_plain_checkout_non_sidecar_record_falls_back_to_legacy_resolution(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    write_sdd_store_record(
+        checkout,
+        {
+            "schema_version": 1,
+            "storage": "separate_repo",
+        },
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_common._resolve_workspace_context",
+        lambda _cwd: None,
+    )
+
+    assert resolve_beads_location(cwd=checkout, require_existing=True) is None
+
+
+def test_plain_checkout_sidecar_record_never_auto_commits(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    checkout = tmp_path / "checkout"
+    plans = checkout / "sase" / "repos" / "plans"
+    (plans / "beads").mkdir(parents=True)
+    _write_sidecar_record(checkout)
+    monkeypatch.chdir(checkout)
+    monkeypatch.setattr(
+        "sase.bead.cli_common._resolve_workspace_context",
+        lambda _cwd: None,
+    )
+
+    with patch("sase.sdd.files.commit_sdd_store_files") as commit:
+        assert auto_commit_bead_store("must not commit") is False
+
+    commit.assert_not_called()
+
+
 def _set_sdd_config(monkeypatch, *, storage: str) -> None:
     set_sdd_policy(monkeypatch, storage)
+
+
+def _write_sidecar_record(checkout: Path) -> None:
+    write_sdd_store_record(
+        checkout,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/project--plans",
+                    "remote_url": "git@example.com:acme/project--plans.git",
+                },
+                "research": {
+                    "repo": "acme/project--research",
+                    "remote_url": "git@example.com:acme/project--research.git",
+                },
+            },
+        },
+    )
 
 
 def _write_checkout_marker(

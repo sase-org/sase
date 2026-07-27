@@ -32,6 +32,7 @@ class _BeadsLocation:
     beads_dirname: str
     storage: str | None = None
     store: SddStore | None = None
+    read_only: bool = False
 
     @property
     def beads_dir(self) -> Path:
@@ -147,10 +148,43 @@ def resolve_beads_location(
             store=store,
         )
 
+    checkout_location = _resolve_checkout_record_beads_location(
+        current,
+        require_existing=require_existing,
+    )
+    if checkout_location is not None:
+        return checkout_location
+
     return _resolve_legacy_beads_location(
         current,
         require_existing=require_existing,
     )
+
+
+def _resolve_checkout_record_beads_location(
+    cwd: Path,
+    *,
+    require_existing: bool,
+) -> _BeadsLocation | None:
+    """Resolve a checkout-local sidecar record for read-only bead access."""
+    from sase._linked_repo_paths import sidecar_repo_clone_dir
+    from sase.sdd._store_records import read_sdd_store_record
+    from sase.sdd.store import SDD_STORAGE_SIDECAR_REPOS
+
+    for checkout_root in [cwd, *cwd.parents]:
+        record = read_sdd_store_record(checkout_root)
+        if record is None or not record.is_sidecar_storage:
+            continue
+        plans_root = Path(sidecar_repo_clone_dir(checkout_root, "plans"))
+        if require_existing and not (plans_root / BEADS_DIRNAME_NON_VC).is_dir():
+            return None
+        return _BeadsLocation(
+            root=plans_root,
+            beads_dirname=BEADS_DIRNAME_NON_VC,
+            storage=SDD_STORAGE_SIDECAR_REPOS,
+            read_only=True,
+        )
+    return None
 
 
 def _resolve_workspace_context(cwd: Path) -> _WorkspaceContext | None:
@@ -364,6 +398,7 @@ def init_beads(root: Path, beads_dirname: str) -> None:
 def get_project() -> BeadProject:
     """Open the BeadProject for write operations, auto-initializing if needed."""
     location = resolve_beads_location(require_existing=True)
+    _refuse_read_only_bead_store(location, operation="mutation")
     from sase.bead.sync import bead_refresh_mode
 
     if (
@@ -372,6 +407,7 @@ def get_project() -> BeadProject:
         or bead_refresh_mode() == "blocking"
     ):
         location = resolve_beads_location(materialize=True)
+        _refuse_read_only_bead_store(location, operation="mutation")
 
     if location is None:
         root, beads_dirname = find_beads_location(materialize=True)
@@ -385,7 +421,24 @@ def get_project() -> BeadProject:
 
 def get_read_view() -> BeadProject:
     """Open the same single bead store used by write commands."""
+    location = resolve_beads_location(require_existing=True)
+    if location is not None and location.read_only:
+        return BeadProject(location.root, beads_dirname=location.beads_dirname)
     return get_project()
+
+
+def _refuse_read_only_bead_store(
+    location: _BeadsLocation | None,
+    *,
+    operation: str,
+) -> None:
+    if location is None or not location.read_only:
+        return
+    raise RuntimeError(
+        f"Refusing bead-store {operation} from a plain checkout: "
+        f"{location.beads_dir} was discovered through a checkout-local "
+        ".sase/sdd-store.json record and is available for reads only."
+    )
 
 
 def resolved_beads_location_is_usable(location: _BeadsLocation) -> bool:
@@ -415,7 +468,7 @@ def auto_commit_bead_store(
         from sase.sdd.store import SddStore
 
         location = resolve_beads_location(require_existing=True)
-        if location is None or location.is_in_tree:
+        if location is None or location.is_in_tree or location.read_only:
             return False
         store = location.store or SddStore(
             storage="local",

@@ -322,6 +322,51 @@ def test_fast_path_refuses_unsafe_resolved_location_before_rust(
     assert str(sandbox.resolve()) in message
 
 
+def test_fast_path_refuses_mutation_from_plain_checkout_sidecar_record(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from sase.sdd.store import write_sdd_store_record
+
+    checkout = tmp_path / "checkout"
+    beads_dir = checkout / "sase" / "repos" / "plans" / "beads"
+    beads_dir.mkdir(parents=True)
+    write_sdd_store_record(
+        checkout,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/project--plans",
+                    "remote_url": "git@example.com:acme/project--plans.git",
+                },
+                "research": {
+                    "repo": "acme/project--research",
+                    "remote_url": "git@example.com:acme/project--research.git",
+                },
+            },
+        },
+    )
+    monkeypatch.chdir(checkout)
+    monkeypatch.setattr(
+        "sase.bead.cli_common._resolve_workspace_context",
+        lambda _cwd: None,
+    )
+    monkeypatch.setattr("sase.bead.sync.bead_refresh_mode", lambda: "background")
+
+    def fail_binding(_name: str):
+        raise AssertionError("read-only bead mutation reached Rust binding")
+
+    monkeypatch.setattr("sase.core.rust.require_rust_binding", fail_binding)
+
+    with pytest.raises(RuntimeError, match="available for reads only"):
+        try_handle_bead_fast_path(
+            ["create", "--title", "Unsafe", "--type", "plan(plan.md)"]
+        )
+
+
 def test_fast_path_defers_list_to_argparse(monkeypatch) -> None:
     def fail_context(argv: list[str]):
         raise AssertionError(f"context should not resolve for list: {argv}")

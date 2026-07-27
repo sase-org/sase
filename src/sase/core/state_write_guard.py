@@ -104,15 +104,23 @@ def assert_bead_store_write_sandboxed(
     *,
     operation: str,
     environ: Mapping[str, str] | None = None,
+    read_only: bool = False,
 ) -> None:
-    """Raise when a pytest process would mutate a bead store outside its sandbox."""
+    """Raise when a bead-store write target is not safe for mutation."""
+    resolved_beads_dir = _resolve_path(beads_dir)
+    if read_only:
+        raise RuntimeError(
+            f"Refusing bead-store {operation} write to {resolved_beads_dir}: "
+            "the store was discovered through a plain checkout's "
+            ".sase/sdd-store.json record and is available for reads only."
+        )
+
     effective_environ = os.environ if environ is None else environ
     if not pytest_context_detected(effective_environ):
         return
     if effective_environ.get(ALLOW_UNSANDBOXED_BEAD_WRITES_ENV_VAR) == "1":
         return
 
-    resolved_beads_dir = _resolve_path(beads_dir)
     sandbox = effective_environ.get(PYTEST_SANDBOX_DIR_ENV_VAR, "").strip()
     if not sandbox:
         raise _PytestStateIsolationError(

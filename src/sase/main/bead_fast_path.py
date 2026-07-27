@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, overload
 
 
 _BEADS_DIRNAME = "sdd/beads"
@@ -33,6 +33,7 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
         assert_bead_store_write_sandboxed(
             context.write_beads_dir,
             operation=f"fast-path {argv[0]}",
+            read_only=context.read_only,
         )
 
     try:
@@ -82,22 +83,26 @@ class _FastPathContext:
         read_beads_dirs: list[Path],
         write_beads_dir: Path,
         relativize_design_paths: bool,
+        read_only: bool = False,
     ) -> None:
         self.read_beads_dirs = read_beads_dirs
         self.write_beads_dir = write_beads_dir
         self.relativize_design_paths = relativize_design_paths
+        self.read_only = read_only
 
 
 def _resolve_fast_path_context(argv: list[str]) -> _FastPathContext | None:
-    resolved = _resolve_lightweight_beads_context(Path.cwd().resolve())
+    cwd = Path.cwd().resolve()
+    resolved = _resolve_lightweight_beads_context(cwd, include_read_only=True)
     if resolved is None:
         return None
-    read_beads_dirs, write_beads_dir, beads_dirname = resolved
+    read_beads_dirs, write_beads_dir, beads_dirname, read_only = resolved
 
     return _FastPathContext(
         read_beads_dirs=read_beads_dirs,
         write_beads_dir=write_beads_dir,
         relativize_design_paths=beads_dirname == _BEADS_DIRNAME,
+        read_only=read_only,
     )
 
 
@@ -113,9 +118,27 @@ def _search_uses_full_format(argv: list[str]) -> bool:
     return False
 
 
+@overload
 def _resolve_lightweight_beads_context(
     cwd: Path,
-) -> tuple[list[Path], Path, str] | None:
+    *,
+    include_read_only: Literal[False] = False,
+) -> tuple[list[Path], Path, str] | None: ...
+
+
+@overload
+def _resolve_lightweight_beads_context(
+    cwd: Path,
+    *,
+    include_read_only: Literal[True],
+) -> tuple[list[Path], Path, str, bool] | None: ...
+
+
+def _resolve_lightweight_beads_context(
+    cwd: Path,
+    *,
+    include_read_only: bool = False,
+) -> tuple[list[Path], Path, str] | tuple[list[Path], Path, str, bool] | None:
     from sase.bead.cli_common import resolve_beads_location
     from sase.bead.sync import bead_refresh_mode
 
@@ -124,9 +147,12 @@ def _resolve_lightweight_beads_context(
         if bead_refresh_mode() == "blocking"
         else resolve_beads_location(cwd, require_existing=True)
     )
-    if location is not None:
-        return [location.beads_dir], location.beads_dir, location.beads_dirname
-    return None
+    if location is None:
+        return None
+    values = [location.beads_dir], location.beads_dir, location.beads_dirname
+    if include_read_only:
+        return (*values, location.read_only)
+    return values
 
 
 def _apply_mutation_side_effects(

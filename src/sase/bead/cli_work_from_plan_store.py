@@ -42,6 +42,16 @@ class _FallbackBeadsLocation:
 def resolve_plan_file_context(*, dry_run: bool) -> tuple[Any, SddStore, Path]:
     cwd = Path.cwd().expanduser().resolve()
     location: Any = resolve_beads_location(cwd, materialize=not dry_run)
+    if (
+        not dry_run
+        and location is not None
+        and bool(getattr(location, "read_only", False))
+    ):
+        raise RuntimeError(
+            f"Refusing bead work from a plain checkout: {location.beads_dir} "
+            "was discovered through a checkout-local .sase/sdd-store.json "
+            "record and is available for reads only."
+        )
     if location is None:
         if dry_run:
             location = _FallbackBeadsLocation(
