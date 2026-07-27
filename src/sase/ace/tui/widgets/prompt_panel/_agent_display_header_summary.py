@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
+from hashlib import blake2b
 from pathlib import Path
 from typing import Any, cast
 
@@ -35,6 +36,7 @@ class DetailHeaderSummaryCacheEntry:
 
 
 _DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES = 256
+HINT_DETAIL_HEADER_REFRESH_INTERVAL_SECONDS = 30.0
 
 
 def _detail_header_summary_cache(
@@ -72,14 +74,28 @@ def detail_header_summary_cache_key(
 ) -> tuple[object, ...] | None:
     """Return a panel-local key for the summary currently used by ``agent``.
 
-    The summary object is replaced atomically when enrichment lands. Its
-    identity therefore distinguishes cold, warm, and refreshed header inputs
-    without attempting to hash the summary's list-valued fields.
+    Use a semantic digest rather than object identity so a periodic enrichment
+    that returns the same header inputs does not invalidate the annotated hint
+    document merely because the worker constructed a new dataclass instance.
     """
     summary = get_cached_detail_header_summary(widget, agent)
     if summary is None:
         return None
-    return (agent.identity, id(summary))
+    encoded = repr(summary).encode("utf-8", errors="replace")
+    summary_digest = blake2b(encoded, digest_size=16).hexdigest()
+    return (agent.identity, summary_digest)
+
+
+def _hint_detail_header_refresh_active(widget: object) -> bool:
+    """Return whether the Agents detail is in an active file-hint session."""
+    try:
+        app = widget.app  # type: ignore[attr-defined]
+    except (AttributeError, LookupError):
+        return False
+    return bool(
+        getattr(app, "current_tab", None) == "agents"
+        and getattr(app, "_hint_mode_active", False)
+    )
 
 
 def should_refresh_detail_header_summary(
@@ -95,7 +111,12 @@ def should_refresh_detail_header_summary(
         del cache[agent.identity]
         return True
     cache.move_to_end(agent.identity)
-    return (time.monotonic() - entry.cached_monotonic) >= DIFF_CACHE_TTL_SECONDS
+    refresh_interval = (
+        HINT_DETAIL_HEADER_REFRESH_INTERVAL_SECONDS
+        if _hint_detail_header_refresh_active(widget)
+        else DIFF_CACHE_TTL_SECONDS
+    )
+    return (time.monotonic() - entry.cached_monotonic) >= refresh_interval
 
 
 def cache_detail_header_summary(

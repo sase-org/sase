@@ -381,6 +381,13 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._publish_metadata_identity_change(previous_identity)
         return result
 
+    def hint_document_is_current(self, agent: Agent) -> bool:
+        """Return whether the visible hint document already matches ``agent``."""
+        prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
+        prompt_panel.attempt_view_mode = self._attempt_view_mode
+        prompt_panel.attempt_pinned_number = self._current_attempt_number
+        return prompt_panel.hint_document_is_current(agent)
+
     def refresh_detail_header_from_cache(self, agent: Agent) -> None:
         """Apply cached header enrichment without advancing the generation."""
         if (

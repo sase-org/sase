@@ -11,6 +11,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
     DetailHeaderSummary,
 )
+from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
 
 from ._agent_display_helpers import (
     FakePromptPanel,
@@ -45,6 +46,37 @@ def test_repeat_hint_render_reuses_result_and_renderable(tmp_path: Path) -> None
         1: str(workspace / "src/raw.py"),
         2: str(workspace / "src/reused.py"),
     }
+    assert panel.hint_document_is_current(agent)
+
+
+def test_equal_header_enrichment_keeps_hint_document_current(tmp_path: Path) -> None:
+    agent = make_artifact_agent(tmp_path, status="DONE")
+    panel = FakePromptPanel()
+    cache_detail_header_summary(panel, agent, DetailHeaderSummary())
+    panel.update_display_with_hints(agent)
+
+    cache_detail_header_summary(panel, agent, DetailHeaderSummary())
+
+    assert panel.hint_document_is_current(agent)
+
+
+def test_changed_header_enrichment_invalidates_hint_document(tmp_path: Path) -> None:
+    agent = make_artifact_agent(tmp_path, status="DONE")
+    panel = FakePromptPanel()
+    cache_detail_header_summary(panel, agent, DetailHeaderSummary())
+    panel.update_display_with_hints(agent)
+
+    cache_detail_header_summary(
+        panel,
+        agent,
+        DetailHeaderSummary(
+            artifact_file_paths=[
+                ArtifactFilePath("new-artifact.txt", "/tmp/new-artifact.txt")
+            ]
+        ),
+    )
+
+    assert not panel.hint_document_is_current(agent)
 
 
 def test_changed_reply_invalidates_hint_document_and_mappings(tmp_path: Path) -> None:

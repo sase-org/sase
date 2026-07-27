@@ -95,6 +95,7 @@ def clear_agent_hint_render_cache(widget: object) -> None:
     cache = getattr(widget, "_agent_hint_render_cache", None)
     if cache is not None:
         cache.clear()
+    cast(Any, widget)._rendered_agent_hint_cache_key = None
 
 
 def _digest_parts(*parts: object) -> str:
@@ -278,6 +279,17 @@ class AgentHintsDisplayMixin:
     """Mixin providing hint-annotated agent display for AgentPromptPanel."""
 
     _agent_hint_renderable: CachedRenderable | None = None
+    _rendered_agent_hint_cache_key: _AgentHintRenderCacheKey | None = None
+
+    def hint_document_is_current(self, agent: Agent) -> bool:
+        """Return whether the visible annotated document matches ``agent``."""
+        if not getattr(self, "_agent_hint_mode_rendered", False):
+            return False
+        rendered_key = getattr(self, "_rendered_agent_hint_cache_key", None)
+        return (
+            rendered_key is not None
+            and rendered_key == _agent_hint_render_cache_key(self, agent)
+        )
 
     def _prepare_cached_hint_renderable(
         self,
@@ -352,6 +364,7 @@ class AgentHintsDisplayMixin:
                 "cold" if render.header_enrichment_pending else "warm"
             )
             extra["annotated_chars"] = annotated_chars[0]
+            self._rendered_agent_hint_cache_key = cache_key
             return render
 
     def _update_display_with_hints_impl(self, agent: Agent) -> AgentHintRender:

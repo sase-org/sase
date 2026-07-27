@@ -9,6 +9,7 @@ from sase.ace.tui.models.agent_associated_plan import (
     PhaseBeadSummary,
 )
 from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
+from sase.ace.tui.widgets.prompt_panel import _agent_display_header_summary
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     DetailHeaderSummary,
     build_detail_header_summary,
@@ -44,6 +45,36 @@ def test_detail_summary_resolves_plan_only_in_enrichment_worker(
 
     assert summary.associated_plan is plan
     assert calls[0] is agent
+
+
+def test_hint_session_uses_longer_header_enrichment_cadence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = 10.0
+    monkeypatch.setattr(
+        _agent_display_header_summary.time,
+        "monotonic",
+        lambda: now,
+    )
+    agent = make_agent()
+
+    class App:
+        current_tab = "agents"
+        _hint_mode_active = True
+
+    class Widget:
+        app = App()
+
+    widget = Widget()
+    cache_detail_header_summary(widget, agent, DetailHeaderSummary())
+
+    now += 1.1
+    assert not should_refresh_detail_header_summary(widget, agent)
+
+    now += (
+        _agent_display_header_summary.HINT_DETAIL_HEADER_REFRESH_INTERVAL_SECONDS - 1.1
+    )
+    assert should_refresh_detail_header_summary(widget, agent)
 
 
 def test_canonical_plan_is_removed_from_generic_artifact_metadata(

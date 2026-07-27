@@ -40,6 +40,7 @@ class _RecordingAgentDetail:
             tuple[tuple[Any, ...], dict[str, Any]]
         ] = []
         self.update_display_with_hints_calls: list[Agent] = []
+        self.hint_document_current = False
         self.refresh_detail_header_from_cache_calls: list[Agent] = []
         self.show_empty_calls = 0
         self.commit_view = CommitViewSpec(
@@ -71,6 +72,10 @@ class _RecordingAgentDetail:
     def update_display_with_hints(self, agent: Agent) -> AgentHintRender:
         self.update_display_with_hints_calls.append(agent)
         return self.hint_render
+
+    def hint_document_is_current(self, agent: Agent) -> bool:
+        assert agent is not None
+        return self.hint_document_current
 
     def refresh_detail_header_from_cache(self, agent: Agent) -> None:
         self.refresh_detail_header_from_cache_calls.append(agent)
@@ -160,6 +165,18 @@ def test_agent_detail_refresh_preserves_active_view_hints() -> None:
     assert app.footer_updates == [app.agent]
 
 
+def test_agent_detail_refresh_skips_current_hint_document() -> None:
+    app = _FakeApp(hint_mode_active=True)
+    app.detail.hint_document_current = True
+
+    app._apply_agent_detail_update(app.detail, app.footer)  # type: ignore[arg-type]
+
+    assert app.detail.update_display_calls == []
+    assert app.detail.update_display_with_hints_calls == []
+    assert app._hint_mappings == {1: "/tmp/project/old.py"}
+    assert app.footer_updates == [app.agent]
+
+
 def test_agent_detail_immediate_preserves_active_view_hints() -> None:
     app = _FakeApp(hint_mode_active=True)
 
@@ -208,6 +225,17 @@ def test_header_enrichment_completion_refreshes_active_view_hints() -> None:
     assert app._hint_mappings == app.detail.hint_render.file_hints
     assert app._hint_commit_views == app.detail.hint_render.commit_views
     assert app._hint_tool_call_reports == app.detail.hint_render.tool_call_reports
+
+
+def test_unchanged_header_enrichment_skips_current_hint_document() -> None:
+    app = _FakeApp(hint_mode_active=True)
+    app.detail.hint_document_current = True
+
+    app.on_agent_detail_header_enriched(AgentDetailHeaderEnriched(app.agent.identity))
+
+    assert app.detail.update_display_with_hints_calls == []
+    assert app.detail.refresh_detail_header_from_cache_calls == []
+    assert app._hint_mappings == {1: "/tmp/project/old.py"}
 
 
 def test_header_enrichment_completion_keeps_typed_hint_numbers_stable() -> None:
