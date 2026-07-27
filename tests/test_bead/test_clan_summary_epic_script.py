@@ -691,3 +691,55 @@ def test_epic_summary_refresh_failure_falls_back_with_diagnostics(
         else "KeyError"
     )
     assert expected_error in captured.err
+
+
+def test_epic_summary_shows_where_the_plan_reference_resolves(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plans_root = tmp_path / "plans"
+    (plans_root / "202607").mkdir(parents=True)
+    plan = plans_root / "202607/durable.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.resolve_plan_roots",
+        lambda *_args, **_kwargs: (plans_root,),
+    )
+    epic = Issue(
+        id="sase-ref",
+        title="Durable link",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+        design="plans:202607/durable.md",
+    )
+
+    plain = Text.from_markup(_render_epic_summary(epic, ())).plain
+    lines = plain.splitlines()
+
+    assert "Plan: plans:202607/durable.md" in lines
+    resolved_line = next(line for line in lines if line.lstrip().startswith("→"))
+    body = resolved_line.strip().removeprefix("→ ").rstrip("…")
+    assert str(plan).startswith(body)
+    assert all(cell_len(line) <= 76 for line in lines)
+
+
+def test_epic_summary_says_plainly_when_the_plan_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.resolve_plan_roots",
+        lambda *_args, **_kwargs: (tmp_path / "plans",),
+    )
+    epic = Issue(
+        id="sase-gone",
+        title="Broken link",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+        design="plans:202607/gone.md",
+    )
+
+    plain = Text.from_markup(_render_epic_summary(epic, ())).plain
+
+    assert "Plan: plans:202607/gone.md" in plain
+    assert "→ (unresolved: no plan file found)" in plain

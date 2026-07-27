@@ -5,10 +5,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from sase.bead.cli_common import get_read_view, status_icon
 from sase.bead.cli_detail import (
     design_paths_are_relative,
+    plan_reference_roots,
     issue_to_wire_dict,
     render_issue_detail,
     render_issue_detail_json,
@@ -85,6 +87,7 @@ def handle_bead_list(args: argparse.Namespace) -> None:
                         view,
                         issues,
                         relativize_design=design_paths_are_relative(),
+                        plan_roots=plan_reference_roots(),
                     ),
                     end="",
                 )
@@ -113,6 +116,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                     render_issue_detail(
                         resolve_issue_detail(view, issue),
                         relativize_design=design_paths_are_relative(),
+                        plan_roots=plan_reference_roots(),
                     ),
                     end="",
                 )
@@ -149,6 +153,7 @@ def handle_bead_search(args: argparse.Namespace) -> None:
                         matches,
                         args.query,
                         relativize_design=design_paths_are_relative(),
+                        plan_roots=plan_reference_roots(),
                     ),
                     end="",
                 )
@@ -207,11 +212,13 @@ def _render_list_full(
     issues: list[Issue],
     *,
     relativize_design: bool,
+    plan_roots: tuple[Path, ...],
 ) -> str:
     sections = [
         render_issue_detail(
             resolve_issue_detail(view, issue),
             relativize_design=relativize_design,
+            plan_roots=plan_roots,
         ).rstrip("\n")
         for issue in issues
     ]
@@ -333,6 +340,7 @@ def _render_search_full(
     query: str,
     *,
     relativize_design: bool,
+    plan_roots: tuple[Path, ...],
 ) -> str:
     if not matches:
         return f'No beads match "{query}".\n'
@@ -341,6 +349,7 @@ def _render_search_full(
         render_issue_detail(
             resolve_issue_detail(view, match.issue),
             relativize_design=relativize_design,
+            plan_roots=plan_roots,
         ).rstrip("\n")
         for match in matches
     ]

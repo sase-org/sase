@@ -49,7 +49,15 @@ def _project_root(tmp_path: Path, name: str) -> Path:
     root = tmp_path / name
     root.mkdir()
     (root / "plans").mkdir()
-    for plan in ("alpha.md", "beta.md", "gamma.md", "cross.md", "new.md"):
+    for plan in (
+        "alpha.md",
+        "beta.md",
+        "gamma.md",
+        "cross.md",
+        "new.md",
+        "closed-epic.md",
+        "closed-plan.md",
+    ):
         (root / "plans" / plan).write_text(f"# {plan}\n", encoding="utf-8")
     return root
 

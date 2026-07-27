@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-import os
 from pathlib import Path
 from typing import Literal
 
@@ -86,6 +85,7 @@ def render_issue_detail(
     detail: _IssueDetail,
     *,
     relativize_design: bool,
+    plan_roots: tuple[Path, ...] = (),
 ) -> str:
     """Render the established human-readable bead detail block."""
     issue = detail.issue
@@ -190,8 +190,13 @@ def render_issue_detail(
                 f"  From parent {parent_kind} bead "
                 f"{resolved_parent.id} · {resolved_parent.title}"
             )
-        lines.append(
-            f"  {_display_design_path(plan.path, relativize=relativize_design)}"
+        lines.extend(
+            f"  {line}"
+            for line in _display_design_path(
+                plan.path,
+                relativize=relativize_design,
+                plan_roots=plan_roots,
+            )
         )
 
     return "\n".join(lines) + "\n"
@@ -257,6 +262,20 @@ def design_paths_are_relative() -> bool:
     from sase.sdd.store import resolve_sdd_store
 
     return resolve_sdd_store(Path.cwd(), 1).is_in_tree
+
+
+def plan_reference_roots() -> tuple[Path, ...]:
+    """Resolve the active plan roots once per command, never failing a read."""
+    from sase.sdd.plan_refs import (
+        resolve_plan_roots,
+        workspace_context_for_plan_resolution,
+    )
+
+    try:
+        workspace_dir, workspace_num = workspace_context_for_plan_resolution(Path.cwd())
+        return resolve_plan_roots(workspace_dir, workspace_num)
+    except Exception:
+        return ()
 
 
 def _parent_lineage(view: BeadProject, issue: Issue) -> tuple[_IssueRef, ...]:
@@ -353,7 +372,18 @@ def _phase_size_value(issue: Issue) -> str:
     return issue.size.value if issue.size else "small"
 
 
-def _display_design_path(design: str, *, relativize: bool) -> str:
-    if relativize:
-        return os.path.relpath(design)
-    return design
+def _display_design_path(
+    design: str,
+    *,
+    relativize: bool,
+    plan_roots: tuple[Path, ...],
+) -> tuple[str, ...]:
+    """Render the stable reference and where it currently resolves."""
+    from sase.sdd.plan_ref_display import describe_design_reference
+
+    return describe_design_reference(
+        design,
+        roots=plan_roots,
+        cwd=Path.cwd(),
+        relativize=relativize,
+    ).lines

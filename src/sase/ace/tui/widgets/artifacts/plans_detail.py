@@ -19,6 +19,10 @@ from sase.sdd.plan_properties import (
     ordered_plan_property_items,
     plan_property_label,
 )
+from sase.sdd.plan_ref_display import (
+    PLAN_REFERENCE_ARROW,
+    PLAN_REFERENCE_MISSING_LABEL,
+)
 
 from .plans_data import LinkedPlanDocument, PlanProposal, PlansSnapshot
 
@@ -86,7 +90,11 @@ def bead_properties_header(
                 "External bug",
                 f"#{issue.changespec_bug_id}" if issue.changespec_bug_id else "",
             ),
-            ("Design path", issue.design),
+        ]
+    )
+    properties.extend(_plan_reference_properties(issue, snapshot, project=project))
+    properties.extend(
+        [
             ("Project", project_name),
             ("Created", issue.created_at),
             ("Updated", issue.updated_at),
@@ -151,6 +159,56 @@ def bead_body_markdown(
                 lines.append("")
             lines.append(linked_plan.body or "_The linked plan is empty._")
     return "\n".join(lines)
+
+
+def _issue_plan_document(
+    issue: Issue,
+    snapshot: PlansSnapshot | None,
+    *,
+    project: str,
+) -> LinkedPlanDocument | None:
+    """Return the document loaded for this bead's own plan link, if any."""
+    if snapshot is None:
+        return None
+    return snapshot.linked_plan_documents.get((project, issue.id))
+
+
+def resolved_plan_path(
+    issue: Issue,
+    snapshot: PlansSnapshot | None,
+    *,
+    project: str,
+) -> str | None:
+    """Return the path this bead's plan reference currently resolves to."""
+    document = _issue_plan_document(issue, snapshot, project=project)
+    if document is None or not document.available or not document.path:
+        return None
+    return document.path
+
+
+def _plan_reference_properties(
+    issue: Issue,
+    snapshot: PlansSnapshot | None,
+    *,
+    project: str,
+) -> tuple[DetailProperty, ...]:
+    """Render the stable reference first and where it resolves second."""
+    reference = issue.design.strip()
+    if not reference:
+        return (("Plan reference", ""),)
+    document = _issue_plan_document(issue, snapshot, project=project)
+    if document is None:
+        return (("Plan reference", reference),)
+    resolved = resolved_plan_path(issue, snapshot, project=project)
+    if resolved is None:
+        return (
+            ("Plan reference", reference),
+            ("Resolved plan", Text(PLAN_REFERENCE_MISSING_LABEL, style="#FF8787")),
+        )
+    return (
+        ("Plan reference", reference),
+        ("Resolved plan", resolved),
+    )
 
 
 def linked_plan_for_issue(
@@ -219,8 +277,13 @@ def bead_preview_markdown(
         lines.append(f"**ChangeSpec:** {issue.changespec_name}  ")
     if issue.changespec_bug_id:
         lines.append(f"**External bug:** #{issue.changespec_bug_id}  ")
-    if issue.design:
-        lines.append(f"**Design:** {issue.design}  ")
+    if reference := issue.design.strip():
+        lines.append(f"**Plan reference:** {reference}  ")
+        document = _issue_plan_document(issue, snapshot, project=project)
+        if document is not None:
+            resolved = resolved_plan_path(issue, snapshot, project=project)
+            detail = resolved or PLAN_REFERENCE_MISSING_LABEL
+            lines.append(f"**Resolved plan:** {PLAN_REFERENCE_ARROW} {detail}  ")
     lines.extend(["", bead_body_markdown(issue)])
     if issue.dependencies:
         lines.extend(["", "## Dependencies", ""])
@@ -436,4 +499,5 @@ __all__ = [
     "bead_properties_header",
     "linked_plan_for_issue",
     "proposal_properties_header",
+    "resolved_plan_path",
 ]

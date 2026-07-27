@@ -171,6 +171,17 @@ def _proposal_record(
     )
 
 
+def _resolved_plan_path(
+    snapshot: PlansSnapshot,
+    project: str,
+    issue: Issue,
+) -> str:
+    document = snapshot.linked_plan_documents.get((project, issue.id))
+    if document is None or not document.available:
+        return ""
+    return document.path
+
+
 def _issue_record(
     snapshot: PlansSnapshot,
     project: str,
@@ -201,7 +212,10 @@ def _issue_record(
             issue.id,
             issue.description,
             issue.notes,
+            # Match the stable reference and the path it resolves to, so a
+            # query works whichever form the user has in front of them.
             issue.design,
+            _resolved_plan_path(snapshot, project, issue),
             issue.assignee,
             issue.owner,
             issue.model,

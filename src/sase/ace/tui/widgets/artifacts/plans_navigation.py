@@ -21,6 +21,7 @@ from .plans_detail import (
     bead_properties_header,
     linked_plan_for_issue,
     proposal_properties_header,
+    resolved_plan_path,
 )
 from .plans_list import PlanRow, plan_row_target, row_option_id
 
@@ -242,7 +243,13 @@ class PlansNavigationMixin(_MixinBase):
                 title=f"{row.issue.id} · {row.issue.title}",
                 kind_label="bead",
                 icon="◈",
-                source_path=row.issue.design or None,
+                # A logical reference is not openable; hand external tools the
+                # path the reference currently resolves to, or nothing.
+                source_path=resolved_plan_path(
+                    row.issue,
+                    self._snapshot,
+                    project=row.project,
+                ),
             )
         return None
 

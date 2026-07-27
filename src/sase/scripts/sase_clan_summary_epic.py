@@ -30,6 +30,7 @@ from sase.sdd.plan_display import (
     load_plan_display,
     render_plan_document,
 )
+from sase.sdd.plan_ref_display import PlanReferenceDisplay
 
 _SUMMARY_WIDTH = 76
 _SUMMARY_MAX_UTF8_BYTES = 30 * 1024
@@ -314,15 +315,38 @@ def _render_epic_summary(
         child_lines.append(_child_epic_line(child))
         blocks.append(_DocumentBlock(tuple(child_lines), omission_kind="child_epic"))
 
-    if epic.design.strip():
+    if reference := epic.design.strip():
+        plan_lines = [Text()]
+        display = _describe_epic_plan_reference(reference)
         plan = shorten_text(
-            Text.assemble(("Plan:", "bold dim"), " ", epic.design.strip()),
+            Text.assemble(("Plan:", "bold dim"), " ", display.reference),
             width=_SUMMARY_WIDTH,
         )
         plan.stylize(_MUTED_STYLE, 0, len(plan))
-        blocks.append(_DocumentBlock((Text(), plan), omission_kind="plan"))
+        plan_lines.append(plan)
+        for detail in display.lines[1:]:
+            resolved = shorten_text(Text(f"      {detail}"), width=_SUMMARY_WIDTH)
+            resolved.stylize(_MUTED_STYLE, 0, len(resolved))
+            plan_lines.append(resolved)
+        blocks.append(_DocumentBlock(tuple(plan_lines), omission_kind="plan"))
 
     return _fit_document(tuple(intro), tuple(blocks))
+
+
+def _describe_epic_plan_reference(reference: str) -> PlanReferenceDisplay:
+    """Resolve the epic's plan link, degrading to the reference alone."""
+    from sase.sdd.plan_ref_display import describe_design_reference
+    from sase.sdd.plan_refs import (
+        resolve_plan_roots,
+        workspace_context_for_plan_resolution,
+    )
+
+    try:
+        workspace_dir, workspace_num = workspace_context_for_plan_resolution(Path.cwd())
+        roots = resolve_plan_roots(workspace_dir, workspace_num)
+    except Exception:
+        roots = ()
+    return describe_design_reference(reference, roots=roots, cwd=Path.cwd())
 
 
 def _header_line(epic: Issue) -> Text:
