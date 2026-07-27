@@ -3022,6 +3022,8 @@ PromptInputBar #prompt-completion.jinja-warning {
 
 /* The structured frontmatter panel, directly above the prompt stack. */
 PromptInputBar #frontmatter-panel {
+    /* Keep border, margin, and max-height in sync with
+       _PANEL_BORDER_ROWS, _PANEL_BOTTOM_MARGIN, and _PANEL_MAX_HEIGHT. */
     width: 100%;
     height: auto;
     max-height: 18;
@@ -3073,6 +3075,7 @@ PromptInputBar #prompt-search-command.hidden {
 }
 
 PromptInputBar #frontmatter-rows {
+    /* Keep max-height in sync with _ROWS_MAX_HEIGHT. */
     width: 100%;
     height: auto;
     max-height: 10;
@@ -3084,6 +3087,7 @@ PromptInputBar #frontmatter-rows.hidden {
 }
 
 PromptInputBar #frontmatter-inline {
+    /* Keep height + top margin in sync with _INLINE_ROWS. */
     width: 100%;
     height: 3;
     margin: 1 0 0 0;
@@ -3095,6 +3099,7 @@ PromptInputBar #frontmatter-inline.hidden {
 }
 
 PromptInputBar #frontmatter-raw {
+    /* Keep max-height in sync with _RAW_MAX_HEIGHT. */
     width: 100%;
     height: auto;
     max-height: 12;
@@ -3106,6 +3111,7 @@ PromptInputBar #frontmatter-raw.hidden {
 }
 
 PromptInputBar #frontmatter-content {
+    /* Keep height in sync with _CONTENT_ROWS. */
     width: 100%;
     height: 6;
     border: round $accent;
@@ -3117,16 +3123,17 @@ PromptInputBar #frontmatter-feedback.hidden {
 }
 
 PromptInputBar #frontmatter-feedback {
+    /* Keep max-height in sync with _FEEDBACK_MAX_HEIGHT. */
     width: 100%;
     height: auto;
     max-height: 4;
-    color: $error;
 }
 
 /* The prompt stack: a vertical list of one-or-more prompt panes. */
 PromptInputBar #prompt-stack {
     width: 100%;
     height: 1fr;
+    min-height: 1;
     overflow-y: auto;
     scrollbar-size-vertical: 1;
 }

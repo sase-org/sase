@@ -6,6 +6,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
+from textual.widgets import Static
 import yaml  # type: ignore[import-untyped]
 
 from sase.xprompt.frontmatter_schema import (
@@ -29,8 +30,11 @@ _TOP_LEVEL_KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):")
 # Width of the key column so value summaries align, matching the design mockups.
 _KEY_COLUMN = 13
 
-_SUBTITLE_POPULATED = "a property · o item · e edit · d del · u undo · J/K move · R raw"
+_SUBTITLE_POPULATED = (
+    "a property · o item · e edit · d del · u undo · J/K move · R raw · q done"
+)
 _SUBTITLE_EMPTY = "a property · R raw · esc done"
+_SUBTITLE_PENDING_G = "g= done · gj top pane · gk bottom pane"
 _SUBTITLE_EDIT = "enter save · esc esc cancel"
 _SUBTITLE_CELL = "tab/shift+tab cell · enter save · esc esc cancel"
 _SUBTITLE_CONTENT = "ctrl+s save row · shift+tab previous · esc esc cancel"
@@ -47,9 +51,11 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
         _content_lines: int
         _edit_mode: str
         _feedback: str
+        _feedback_lines: int
         _fields: list[str]
         _folded: set[str]
         _model: PromptFrontmatter
+        _pending_g: bool
         _picker_matches: list[str]
         _picker_selected: int
         _schema: dict[str, Any]
@@ -57,18 +63,19 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
         _selected: int
 
         def _editable_text(self, field: str) -> str: ...
+        def _schedule_layout_update(self) -> None: ...
         def _selected_nav(self) -> tuple[str, str] | None: ...
+        def _set_feedback_lines(self, text: str, feedback: Static) -> bool: ...
         def _structured_item_kind(self, field: str) -> str: ...
 
     def _refresh(self) -> None:
         """Rebuild the rows renderable, status chip, and subtitle."""
-        from textual.widgets import Static
-
         rows = self.query_one("#frontmatter-rows", Static)
         renderable, line_count = self._build_rows()
         rows.update(renderable)
         if self._edit_mode == "rows":
             rows.scroll_to(y=max(0, self._selected - 1), animate=False)
+        layout_changed = line_count != self._content_lines
         self._content_lines = line_count
         feedback = self.query_one("#frontmatter-feedback", Static)
         if self._feedback and self._edit_mode != "raw":
@@ -87,10 +94,14 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
             )
             feedback.update(Text(self._feedback, style=style))
             feedback.remove_class("hidden")
+            layout_changed |= self._set_feedback_lines(self._feedback, feedback)
         elif self._edit_mode != "raw":
             feedback.update("")
             feedback.add_class("hidden")
+            layout_changed |= self._set_feedback_lines("", feedback)
         self._refresh_chrome()
+        if layout_changed:
+            self._schedule_layout_update()
 
     def _refresh_chrome(self) -> None:
         """Update the border title chip and the keymap subtitle for the mode."""
@@ -103,7 +114,9 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
         else:
             chip = "[bold green]⟨✓⟩[/]"
         self.border_title = f"frontmatter  {chip}"
-        if self._edit_mode == "edit":
+        if self._pending_g:
+            self.border_subtitle = _SUBTITLE_PENDING_G
+        elif self._edit_mode == "edit":
             self.border_subtitle = _SUBTITLE_EDIT
         elif self._edit_mode == "cell":
             self.border_subtitle = _SUBTITLE_CELL

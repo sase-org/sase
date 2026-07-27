@@ -134,6 +134,7 @@ class PromptInputBar(
             self._stack = PromptStackState.from_text(initial_xprompt_markdown)
         else:
             self._stack = self._state_from_text(initial_value)
+        self._frontmatter_return_index = self._stack.selected_index
         self._todo_counts_by_item_id: dict[str, int] = {}
         self._sync_todo_counts_from_stack()
 

@@ -373,8 +373,13 @@ class FrontmatterPanelEditingMixin(FrontmatterPanelCellEditingMixin):
         self._refresh()
         self._emit_changed()
 
-    def _close(self) -> None:
-        self.post_message(self.Closed(is_empty=self._model.is_empty))
+    def _close(self, *, focus_target: str = "active") -> None:
+        self.post_message(
+            self.Closed(
+                is_empty=self._model.is_empty,
+                focus_target=focus_target,
+            )
+        )
 
     def _emit_changed(self) -> None:
         # Once a structured mutation is persisted, the original commented YAML

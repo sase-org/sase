@@ -2707,7 +2707,7 @@ multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent
 | `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                    |
 | `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                 |
 | `Ctrl+G -`                   | Add an empty bottom pane                                                                                   |
-| `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel                                                                   |
+| `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel; its rows-mode `g=` returns to the originating pane               |
 | `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                             |
 | `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                   |
 | `Ctrl+G x` / `Ctrl+G Ctrl+X` | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                       |
@@ -2839,10 +2839,10 @@ In prompt NORMAL mode, pressing `g` opens a small hint row for the prompt-local 
 | `g<enter>`  | Launch the selected pane and remove it from the stack                                                  |
 | `Ctrl+C`    | Record the selected pane as cancelled history and remove it; the final remaining pane cancels normally |
 | `Escape`    | Enter NORMAL mode for stack navigation                                                                 |
-| `gj` / `gk` | Focus the next / previous pane in NORMAL mode; focus cycles at the stack edges                         |
+| `gj` / `gk` | Focus the next / previous pane in NORMAL mode; inside the panel, jump to the top / bottom prompt pane  |
 | `gJ` / `gK` | Move the active pane down / up in NORMAL mode; reorder cycles at the stack edges                       |
 | `g-`        | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                   |
-| `g=`        | Show/focus the xprompt frontmatter panel; in the focused panel, run its deactivate/apply path          |
+| `g=`        | Show/focus the xprompt frontmatter panel; in panel rows mode, return to the originating prompt pane    |
 | `gs`        | Bundle every non-empty pane into one stash row and dismiss the prompt bar                              |
 | `gS`        | Overwrite a pinned stashed prompt with the current stack, leaving the bar open                         |
 | `gw`        | Write a bound xprompt definition; unbound drafts fall through to save-as                               |

@@ -265,6 +265,41 @@ async def test_frontmatter_panel_raw_diagnostics_png_snapshot(
         )
 
 
+async def test_frontmatter_panel_saved_feedback_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pin the saved feedback row with a still-visible prompt pane below it."""
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        bar = await _mount_prompt_bar(page, _POPULATED_PROMPT)
+        panel = await _focus_frontmatter_panel(page, bar)
+        panel._select_nav(("input", "service"))
+        panel._edit_selected()
+        panel._commit_cell_edit()
+        feedback = panel.query_one("#frontmatter-feedback", Static)
+        await wait_for_state(
+            page,
+            lambda: (
+                panel._feedback == "Saved"
+                and not feedback.has_class("hidden")
+                and bar.active_text_area().region.height >= 1
+            ),
+            description="saved feedback with visible prompt pane",
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "frontmatter_panel_saved_feedback_120x40",
+            title="ACE frontmatter panel — saved feedback",
+        )
+
+
 async def test_frontmatter_input_item_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

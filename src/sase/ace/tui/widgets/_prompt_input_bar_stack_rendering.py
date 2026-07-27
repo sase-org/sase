@@ -96,7 +96,9 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         def _base_title(self) -> str: ...
         def _active_jinja_chip_markup(self) -> str: ...
         def _clear_active_completion_state(self) -> None: ...
-        def _frontmatter_panel_reserved_rows(self) -> int: ...
+        def _frontmatter_panel_reserved_rows(
+            self, height_cap: int | None = None
+        ) -> int: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
         def _sync_todo_counts_from_mounted_panes(self) -> None: ...
         def _sync_todo_counts_from_stack(self) -> None: ...
@@ -524,12 +526,19 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
             return
         max_height = screen_height - 2
         completion_rows = self._completion_line_count if self._completion_visible else 0
-        frontmatter_rows = self._frontmatter_panel_reserved_rows()
         g_prefix_rows = (
             self._g_prefix_hints_line_count if self._g_prefix_hints_visible else 0
         )
         search_rows = (
             self._search_command_line_count if self._search_command_visible else 0
+        )
+        frontmatter_cap = max(
+            0,
+            max_height - 3 - completion_rows - g_prefix_rows - search_rows,
+        )
+        frontmatter_rows = min(
+            self._frontmatter_panel_reserved_rows(frontmatter_cap),
+            frontmatter_cap,
         )
         panel_rows = completion_rows + frontmatter_rows + g_prefix_rows + search_rows
         if len(self._stack) <= 1:

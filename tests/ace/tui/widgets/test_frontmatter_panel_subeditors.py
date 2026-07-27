@@ -5,6 +5,16 @@ from __future__ import annotations
 from textual.app import App, ComposeResult
 
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
+from sase.ace.tui.widgets.frontmatter_panel import (
+    _CONTENT_ROWS,
+    _FEEDBACK_MAX_HEIGHT,
+    _INLINE_ROWS,
+    _PANEL_BORDER_ROWS,
+    _PANEL_BOTTOM_MARGIN,
+    _PANEL_MAX_HEIGHT,
+    _RAW_MAX_HEIGHT,
+    _ROWS_MAX_HEIGHT,
+)
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
@@ -100,3 +110,68 @@ async def test_cancel_ghost_does_not_add_item() -> None:
         panel._cancel_active_edit()
         assert panel.model.inputs == []
         assert panel.model.is_empty
+
+
+async def test_reserved_height_matches_every_visible_child_combination() -> None:
+    """Every mode includes feedback and honors the CSS-backed height clamps."""
+    app = _PromptBarApp("")
+    async with app.run_test(size=(100, 34)) as pilot:
+        panel = await _open_panel(pilot, app)
+
+        for mode in ("rows", "edit", "picker", "cell", "content", "raw"):
+            for content_lines in (2, _ROWS_MAX_HEIGHT + 5):
+                for feedback_lines in (0, 3, _FEEDBACK_MAX_HEIGHT + 2):
+                    panel._edit_mode = mode
+                    panel._content_lines = content_lines
+                    panel._raw_content_lines = _RAW_MAX_HEIGHT + 5
+                    panel._feedback_lines = min(feedback_lines, _FEEDBACK_MAX_HEIGHT)
+                    if mode == "raw":
+                        children = _RAW_MAX_HEIGHT
+                    else:
+                        children = min(content_lines, _ROWS_MAX_HEIGHT)
+                    if mode in {"edit", "picker", "cell"}:
+                        children += _INLINE_ROWS
+                    elif mode == "content":
+                        children += _CONTENT_ROWS
+                    children += min(feedback_lines, _FEEDBACK_MAX_HEIGHT)
+                    expected = (
+                        min(_PANEL_BORDER_ROWS + children, _PANEL_MAX_HEIGHT)
+                        + _PANEL_BOTTOM_MARGIN
+                    )
+                    assert panel.reserved_height == expected
+
+
+async def test_feedback_height_is_tracked_and_clamped() -> None:
+    """Feedback visibility updates the cached reservation immediately."""
+    app = _PromptBarApp("")
+    async with app.run_test(size=(100, 34)) as pilot:
+        panel = await _open_panel(pilot, app)
+
+        panel._feedback = "Saved"
+        panel._refresh()
+        assert panel._feedback_lines == 1
+
+        panel._feedback = "\n".join(str(index) for index in range(8))
+        panel._refresh()
+        assert panel._feedback_lines == _FEEDBACK_MAX_HEIGHT
+
+        panel._feedback = "wrapped feedback " * 30
+        panel._refresh()
+        assert 1 < panel._feedback_lines <= _FEEDBACK_MAX_HEIGHT
+
+        panel._feedback = ""
+        panel._refresh()
+        assert panel._feedback_lines == 0
+
+
+async def test_raw_height_includes_editor_border() -> None:
+    """The cached raw term measures the editor box, not only document lines."""
+    app = _PromptBarApp("")
+    async with app.run_test(size=(100, 34)) as pilot:
+        panel = await _open_panel(pilot, app)
+        panel._begin_raw()
+        raw = panel.query_one("#frontmatter-raw", VimTextArea)
+        raw.text = "one\ntwo\nthree"
+        await pilot.pause()
+
+        assert panel._raw_content_lines >= 5

@@ -26,6 +26,7 @@ class FrontmatterPanelRawMixin(_MixinBase):
         _adding_field: str | None
         _edit_mode: str
         _feedback: str
+        _feedback_lines: int
         _fields: list[str]
         _model: PromptFrontmatter
         _raw_diagnostics_generation: int
@@ -35,7 +36,9 @@ class FrontmatterPanelRawMixin(_MixinBase):
         def _push_undo(self) -> None: ...
         def _refresh(self) -> None: ...
         def _refresh_chrome(self) -> None: ...
+        def _set_feedback_lines(self, text: str, feedback: Static) -> bool: ...
         def _show_rows_only(self) -> None: ...
+        def _update_raw_content_lines(self, editor: VimTextArea) -> None: ...
 
     def _begin_raw(self) -> None:
         self._edit_mode = "raw"
@@ -48,12 +51,14 @@ class FrontmatterPanelRawMixin(_MixinBase):
             if self._model.has_comments and self._model.original_text
             else self._model.serialize()
         )
+        self._update_raw_content_lines(editor)
         self.query_one("#frontmatter-rows", Static).add_class("hidden")
         self.query_one("#frontmatter-inline", SingleLineVimTextArea).add_class("hidden")
         self.query_one("#frontmatter-content", VimTextArea).add_class("hidden")
         editor.remove_class("hidden")
         self._refresh_chrome()
         self._schedule_layout_update()  # type: ignore[attr-defined]
+        self.call_after_refresh(lambda: self._update_raw_content_lines(editor))
         editor.focus()
         editor._update_vim_mode_display()
         self._schedule_raw_validation(editor.text)
@@ -104,6 +109,8 @@ class FrontmatterPanelRawMixin(_MixinBase):
             return
         event.stop()
         if self._edit_mode == "raw":
+            if isinstance(event.text_area, VimTextArea):
+                self._update_raw_content_lines(event.text_area)
             self._schedule_raw_validation(event.text_area.text)
 
     def _schedule_raw_validation(self, text: str) -> None:
@@ -159,6 +166,8 @@ class FrontmatterPanelRawMixin(_MixinBase):
             feedback.remove_class("hidden")
         else:
             feedback.add_class("hidden")
+        if self._set_feedback_lines(lines.plain, feedback):
+            self._schedule_layout_update()  # type: ignore[attr-defined]
 
 
 def _validate_yaml_shape(text: str) -> None:

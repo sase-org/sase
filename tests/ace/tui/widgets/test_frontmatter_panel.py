@@ -164,6 +164,179 @@ async def test_close_populated_keeps_panel_visible() -> None:
         assert app.focused is bar.active_text_area()
 
 
+async def test_q_returns_to_previously_active_prompt_pane() -> None:
+    """Rows-mode ``q`` returns to the pane used to enter the panel."""
+    app = _PromptBarApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.focus_item(1)
+        await pilot.pause()
+        bar.focus_frontmatter_panel()
+        await pilot.pause()
+        await pilot.pause()
+
+        await pilot.press("q")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar._stack.selected_index == 1
+        assert app.focused is bar.active_text_area()
+        assert bar.active_text_area()._vim_mode == "insert"
+
+
+@pytest.mark.parametrize("exit_key", ("q", "escape"))
+@pytest.mark.parametrize("edit_mode", ("edit", "picker", "cell", "content", "raw"))
+async def test_exit_key_leaves_every_panel_editor_mode(
+    edit_mode: str,
+    exit_key: str,
+) -> None:
+    """NORMAL-mode ``q`` / ``Esc`` share the panel's deactivate semantics."""
+    app = _PromptBarApp("")
+
+    async with app.run_test(size=(100, 34)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.focus_frontmatter_panel()
+        await pilot.pause()
+        await pilot.pause()
+        panel = app.query_one(FrontmatterPanel)
+
+        if edit_mode == "edit":
+            panel.begin_add("name")
+            editor = panel.query_one("#frontmatter-inline", SingleLineVimTextArea)
+        elif edit_mode == "picker":
+            panel._request_add_property()
+            editor = panel.query_one("#frontmatter-inline", SingleLineVimTextArea)
+        elif edit_mode == "cell":
+            panel.begin_add("input")
+            editor = panel.query_one("#frontmatter-inline", SingleLineVimTextArea)
+        elif edit_mode == "content":
+            panel.begin_add("xprompts")
+            panel._move_cell(1)
+            panel._move_cell(1)
+            panel._move_cell(1)
+            editor = panel.query_one("#frontmatter-content", VimTextArea)
+        else:
+            panel._begin_raw()
+            editor = panel.query_one("#frontmatter-raw", VimTextArea)
+
+        editor._enter_normal_mode()
+        editor.focus()
+        await pilot.pause()
+        assert panel._edit_mode == edit_mode
+
+        await pilot.press(exit_key)
+        await pilot.pause()
+        await pilot.pause()
+
+        assert not bar._frontmatter_panel_visible()
+        assert app.focused is bar.active_text_area()
+        assert bar.active_text_area()._vim_mode == "insert"
+
+
+async def test_q_in_child_editor_insert_mode_stays_literal() -> None:
+    """The child host policy does not steal a literal ``q`` in INSERT mode."""
+    app = _PromptBarApp("")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.focus_frontmatter_panel()
+        await pilot.pause()
+        await pilot.pause()
+        panel = app.query_one(FrontmatterPanel)
+        panel.begin_add("name")
+        editor = panel.query_one("#frontmatter-inline", SingleLineVimTextArea)
+        assert editor._vim_mode == "insert"
+
+        await pilot.press("q")
+        await pilot.pause()
+
+        assert editor.text == "q"
+        assert panel._edit_mode == "edit"
+        assert app.focused is editor
+        assert bar._frontmatter_panel_visible()
+
+
+async def test_q_keeps_unparseable_raw_yaml_open() -> None:
+    """Raw ``q`` validates first and preserves an invalid buffer for repair."""
+    app = _PromptBarApp("")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.focus_frontmatter_panel()
+        await pilot.pause()
+        await pilot.pause()
+        panel = app.query_one(FrontmatterPanel)
+        panel._begin_raw()
+        raw = panel.query_one("#frontmatter-raw", VimTextArea)
+        raw.text = "description: [unterminated"
+        raw._enter_normal_mode()
+        raw.focus()
+
+        await pilot.press("q")
+        await pilot.pause()
+
+        assert panel._edit_mode == "raw"
+        assert bar._frontmatter_panel_visible()
+        assert app.focused is raw
+        assert panel._feedback_lines == 1
+
+
+@pytest.mark.parametrize(("keys", "target"), ((("g", "j"), 0), (("g", "k"), 2)))
+async def test_panel_gj_gk_jump_to_stack_edge(
+    keys: tuple[str, str],
+    target: int,
+) -> None:
+    """Rows-mode ``gj`` / ``gk`` target the top / bottom prompt pane."""
+    app = _PromptBarApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.focus_item(1)
+        await pilot.pause()
+        bar.focus_frontmatter_panel()
+        await pilot.pause()
+        await pilot.pause()
+        panel = app.query_one(FrontmatterPanel)
+
+        await pilot.press(keys[0])
+        assert panel.border_subtitle == "g= done · gj top pane · gk bottom pane"
+        await pilot.press(keys[1])
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar._stack.selected_index == target
+        assert app.focused is bar.active_text_area()
+        for index, item in enumerate(bar._stack.items):
+            pane = app.query_one(f"#{bar._pane_id(item)}")
+            assert ("active" in pane.classes) is (index == target)
+            assert ("inactive" in pane.classes) is (index != target)
+
+
+async def test_other_panel_g_continuation_falls_through() -> None:
+    """An unclaimed panel ``g`` continuation still runs its rows command."""
+    app = _PromptBarApp("")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.focus_frontmatter_panel()
+        await pilot.pause()
+        await pilot.pause()
+        panel = app.query_one(FrontmatterPanel)
+
+        await pilot.press("g", "R")
+        await pilot.pause()
+
+        assert panel._edit_mode == "raw"
+        assert app.focused is panel.query_one("#frontmatter-raw", VimTextArea)
+
+
 # --- g= toggle (body + in-panel) -------------------------------------------
 
 

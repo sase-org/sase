@@ -34,11 +34,12 @@ the launch source of truth.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.dom import NoScreen
 from textual.message import Message
 from textual.widgets import Static
 
@@ -53,6 +54,34 @@ from sase.ace.tui.widgets._frontmatter_panel_rendering import (
 )
 from sase.xprompt.frontmatter_schema import frontmatter_field_schema
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+
+_PANEL_BORDER_ROWS = 2
+_PANEL_BOTTOM_MARGIN = 1
+_PANEL_MAX_HEIGHT = 18
+_ROWS_MAX_HEIGHT = 10
+_INLINE_ROWS = 4
+_CONTENT_ROWS = 6
+_RAW_MAX_HEIGHT = 12
+_FEEDBACK_MAX_HEIGHT = 4
+
+_FocusTarget = Literal["active", "top", "bottom"]
+
+
+class _FrontmatterVimHostMixin:
+    """Let the panel own NORMAL-mode ``q`` in its child editors."""
+
+    def _host_claims_unhandled_vim_key(self, event: events.Key) -> bool:
+        return event.character == "q"
+
+
+class _FrontmatterSingleLineVimTextArea(
+    _FrontmatterVimHostMixin, SingleLineVimTextArea
+):
+    """Single-line panel editor whose NORMAL-mode ``q`` bubbles to the panel."""
+
+
+class _FrontmatterVimTextArea(_FrontmatterVimHostMixin, VimTextArea):
+    """Multiline panel editor whose NORMAL-mode ``q`` bubbles to the panel."""
 
 
 class FrontmatterPanel(
@@ -79,9 +108,15 @@ class FrontmatterPanel(
         the frontmatter entirely (no stray ``---\\n---``) and hide the panel.
         """
 
-        def __init__(self, *, is_empty: bool) -> None:
+        def __init__(
+            self,
+            *,
+            is_empty: bool,
+            focus_target: _FocusTarget = "active",
+        ) -> None:
             super().__init__()
             self.is_empty = is_empty
+            self.focus_target = focus_target
 
     class AddRequested(Message):
         """Posted on ``a`` so the host bar can push the add-property modal."""
@@ -106,9 +141,16 @@ class FrontmatterPanel(
         self._picker_selected = 0
         self._picker_accelerators: dict[str, str] = {}
         self._feedback = ""
+        self._feedback_lines = 0
+        self._feedback_measurement: tuple[str, int] | None = None
+        self._feedback_rendered_text = ""
         self._undo_stack: list[PromptFrontmatter] = []
         self._raw_diagnostics_generation = 0
+        self._raw_content_lines = 1
+        self._raw_editor: VimTextArea | None = None
+        self._feedback_widget: Static | None = None
         self._content_lines = 1
+        self._height_cap: int | None = None
         schema = frontmatter_field_schema()
         self._schema = {f.name: f for f in schema}
         self._schema_order = [f.name for f in schema]
@@ -118,15 +160,17 @@ class FrontmatterPanel(
     def compose(self) -> ComposeResult:
         """A rows view plus the (hidden) inline and raw editors."""
         yield Static("", id="frontmatter-rows")
-        yield SingleLineVimTextArea(id="frontmatter-inline", classes="hidden")
-        yield VimTextArea(
+        yield _FrontmatterSingleLineVimTextArea(
+            id="frontmatter-inline", classes="hidden"
+        )
+        yield _FrontmatterVimTextArea(
             "",
             id="frontmatter-raw",
             classes="hidden",
             show_line_numbers=False,
             soft_wrap=True,
         )
-        yield VimTextArea(
+        yield _FrontmatterVimTextArea(
             "",
             id="frontmatter-content",
             classes="hidden",
@@ -137,7 +181,22 @@ class FrontmatterPanel(
 
     def on_mount(self) -> None:
         """Render the initial rows once mounted."""
+        self._raw_editor = self.query_one("#frontmatter-raw", VimTextArea)
+        self._feedback_widget = self.query_one("#frontmatter-feedback", Static)
         self._refresh()
+
+    def on_resize(self) -> None:
+        """Refresh cached wrapped heights without querying on the host hot path."""
+        if self._edit_mode == "raw" and self._raw_editor is not None:
+            self._update_raw_content_lines(self._raw_editor)
+        feedback = self._feedback_widget
+        if (
+            feedback is not None
+            and self._feedback_rendered_text
+            and not feedback.has_class("hidden")
+            and self._set_feedback_lines(self._feedback_rendered_text, feedback)
+        ):
+            self._schedule_layout_update()
 
     # -- host-facing API ------------------------------------------------------
 
@@ -160,6 +219,10 @@ class FrontmatterPanel(
         self._picker_selected = 0
         self._picker_accelerators = {}
         self._feedback = ""
+        self._feedback_lines = 0
+        self._feedback_measurement = None
+        self._feedback_rendered_text = ""
+        self._raw_content_lines = 1
         self._undo_stack.clear()
         self._show_rows_only()
         self._refresh()
@@ -176,15 +239,69 @@ class FrontmatterPanel(
     @property
     def reserved_height(self) -> int:
         """Rows the panel occupies above the stack, including its bottom margin."""
-        bottom_margin = 1
         if self._edit_mode == "raw":
-            return 15 + bottom_margin
-        base = self._content_lines + 2
+            children = min(self._raw_content_lines, _RAW_MAX_HEIGHT)
+        else:
+            children = min(self._content_lines, _ROWS_MAX_HEIGHT)
         if self._edit_mode in {"edit", "picker", "cell"}:
-            return base + 3 + bottom_margin  # inline input plus its top margin
-        if self._edit_mode == "content":
-            return base + 7 + bottom_margin
-        return base + bottom_margin
+            children += _INLINE_ROWS
+        elif self._edit_mode == "content":
+            children += _CONTENT_ROWS
+        children += self._feedback_lines
+        return (
+            min(_PANEL_BORDER_ROWS + children, _PANEL_MAX_HEIGHT) + _PANEL_BOTTOM_MARGIN
+        )
+
+    def set_height_cap(self, cap: int) -> None:
+        """Apply the host's current terminal-height cap without refresh churn."""
+        height_cap = max(0, min(cap, _PANEL_MAX_HEIGHT))
+        if height_cap == self._height_cap:
+            return
+        self._height_cap = height_cap
+        self.styles.max_height = height_cap
+
+    def _set_feedback_lines(self, text: str, feedback: Static) -> bool:
+        """Cache the visible feedback height; return whether layout changed."""
+        self._feedback_rendered_text = text
+        width = max(1, feedback.container_size.width or self.size.width)
+        measurement = (text, width)
+        if measurement == self._feedback_measurement:
+            return False
+        self._feedback_measurement = measurement
+        if text:
+            try:
+                viewport = self.screen.size
+            except NoScreen:
+                viewport = self.size
+            lines = min(
+                feedback.get_content_height(
+                    feedback.container_size,
+                    viewport,
+                    width,
+                ),
+                _FEEDBACK_MAX_HEIGHT,
+            )
+        else:
+            lines = 0
+        if lines == self._feedback_lines:
+            return False
+        self._feedback_lines = lines
+        return True
+
+    def _update_raw_content_lines(self, editor: VimTextArea) -> None:
+        """Cache raw editor rows from the existing widget, without a new query."""
+        wrapped_height = getattr(editor.wrapped_document, "height", None)
+        content_lines = (
+            wrapped_height
+            if isinstance(wrapped_height, int) and wrapped_height > 0
+            else editor.document.line_count
+        )
+        # ``height: auto`` includes the raw editor's own round border.
+        lines = min(max(1, content_lines) + 2, _RAW_MAX_HEIGHT)
+        if lines == self._raw_content_lines:
+            return
+        self._raw_content_lines = lines
+        self._schedule_layout_update()
 
     @property
     def model(self) -> PromptFrontmatter:
@@ -193,7 +310,7 @@ class FrontmatterPanel(
 
     # -- key handling ---------------------------------------------------------
 
-    def deactivate(self) -> None:
+    def deactivate(self, *, focus_target: _FocusTarget = "active") -> None:
         """Toggle the panel off (the in-panel ``g=`` sequence from inside it).
 
         Mirrors the per-mode ``esc`` semantics before leaving, so ``g=`` and
@@ -208,16 +325,16 @@ class FrontmatterPanel(
         if self._edit_mode in {"edit", "picker", "cell", "content"}:
             self._pending_ctrl_g = False
             self._cancel_active_edit()
-            self._close()
+            self._close(focus_target=focus_target)
             return
         if self._edit_mode == "raw":
             self._pending_ctrl_g = False
             self._commit_raw()
             if self._edit_mode == "rows":
-                self._close()
+                self._close(focus_target=focus_target)
             return
         self._pending_ctrl_g = False
-        self._close()
+        self._close(focus_target=focus_target)
 
     def on_key(self, event: events.Key) -> None:
         """Dispatch panel keys, deferring to child editors while editing."""
@@ -225,7 +342,7 @@ class FrontmatterPanel(
             return
         if self._edit_mode in {"edit", "picker", "cell"}:
             # Inline editing: literal text entry is preserved (``g`` / ``=`` type
-            # into the child editor); only NORMAL-mode ``esc`` is intercepted here.
+            # into the child editor); NORMAL-mode ``q`` / ``esc`` leave the panel.
             self._pending_g = False
             if self._edit_mode == "picker" and event.character:
                 editor = self.query_one("#frontmatter-inline", SingleLineVimTextArea)
@@ -252,7 +369,7 @@ class FrontmatterPanel(
                     event.stop()
                     event.prevent_default()
                     return
-            if event.key == "escape":
+            if event.key in ("escape", "q"):
                 inline_editor = self.query_one(
                     "#frontmatter-inline", SingleLineVimTextArea
                 )
@@ -262,7 +379,8 @@ class FrontmatterPanel(
                 ):
                     return
                 event.stop()
-                self._cancel_active_edit()
+                event.prevent_default()
+                self.deactivate()
             return
         if self._edit_mode == "content":
             self._pending_g = False
@@ -276,7 +394,7 @@ class FrontmatterPanel(
                 event.prevent_default()
                 self._move_cell(-1)
                 return
-            if event.key == "escape":
+            if event.key in ("escape", "q"):
                 content_editor = self.query_one("#frontmatter-content", VimTextArea)
                 if (
                     content_editor._vim_mode != "normal"
@@ -284,17 +402,18 @@ class FrontmatterPanel(
                 ):
                     return
                 event.stop()
-                self._cancel_active_edit()
+                event.prevent_default()
+                self.deactivate()
             return
         if self._edit_mode == "raw":
-            # Raw YAML editing: likewise literal; only NORMAL-mode ``esc`` commits.
+            # Raw YAML editing: likewise literal; NORMAL-mode ``q`` / ``esc`` commit.
             self._pending_g = False
             if event.key == "ctrl+c":
                 event.stop()
                 event.prevent_default()
                 self._discard_raw()
                 return
-            if event.key == "escape":
+            if event.key in ("escape", "q"):
                 raw_editor = self.query_one("#frontmatter-raw", VimTextArea)
                 if (
                     raw_editor._vim_mode != "normal"
@@ -302,7 +421,8 @@ class FrontmatterPanel(
                 ):
                     return
                 event.stop()
-                self._commit_raw()
+                event.prevent_default()
+                self.deactivate()
             return
         # Rows (navigate) mode owns a panel-local ``g`` prefix so the same ``g=``
         # sequence that opened the panel from the body also closes it from
@@ -311,15 +431,28 @@ class FrontmatterPanel(
         # as its own rows command so navigation keys are never swallowed.
         if self._pending_g:
             self._pending_g = False
-            if (event.character or event.key) == "=":
+            self._refresh_chrome()
+            continuation = event.character or event.key
+            if continuation == "=":
                 event.stop()
                 event.prevent_default()
                 self.deactivate()
+                return
+            if continuation == "j":
+                event.stop()
+                event.prevent_default()
+                self.deactivate(focus_target="top")
+                return
+            if continuation == "k":
+                event.stop()
+                event.prevent_default()
+                self.deactivate(focus_target="bottom")
                 return
             # Fall through: handle the continuation as an ordinary rows key.
         elif event.character == "g":
             event.stop()
             self._pending_g = True
+            self._refresh_chrome()
             return
         handled = True
         key = event.key
@@ -348,7 +481,7 @@ class FrontmatterPanel(
         elif key == "R":
             self._begin_raw()
         elif key in ("escape", "q"):
-            self._close()
+            self.deactivate()
         else:
             handled = False
         if handled:

@@ -1855,15 +1855,18 @@ segments in document order, but agents do not wait for earlier segments unless y
 
 In the `sase ace` prompt input, ad hoc prompt frontmatter has a structured **Frontmatter Panel** above the prompt stack,
 with the same field set an xprompt `.md` file supports (`name`, `description`, `tags`, `input`, `xprompts`, `skill`,
-`snippet`). Open or focus it with the prompt NORMAL-mode `g=` keymap; while the panel owns focus, `g=` runs the panel's
-deactivate/apply path. The panel also auto-shows when ACE has lifted leading frontmatter into the stack, such as a
-multi-agent prompt load or an editor-file return from a ` @` review marker / whole-stack `Ctrl+G`. A single prompt
-recalled from history with leading frontmatter but no segment separator stays one verbatim pane instead of auto-opening
-the panel. Typing `---` in the prompt body is passive during live editing: at the very start it stays literal text, and
-after content it does not split the active pane. Add a top-level property with `a` (an inline picker sourced from the
-same core schema that backs the editor LSP), edit scalar/list fields inline, delete a field with `d`, undo the latest
-mutation with `u`, and use `R` for a live-validated raw-YAML escape hatch. In raw mode, `Ctrl+C` explicitly discards an
-unparseable buffer. Unknown frontmatter keys remain visible as raw-only rows and survive structured round trips.
+`snippet`). Open or focus it with the prompt NORMAL-mode `g=` keymap; in the panel's rows mode, `g=` runs the
+deactivate/apply path. `q` or `Esc` in rows mode—or from NORMAL mode inside any panel sub-editor—returns focus to the
+prompt pane you entered from; an invalid raw-YAML buffer remains open so it cannot be discarded accidentally. In rows
+mode, `gj` jumps directly to the top prompt pane and `gk` to the bottom pane. The panel also auto-shows when ACE has
+lifted leading frontmatter into the stack, such as a multi-agent prompt load or an editor-file return from a ` @` review
+marker / whole-stack `Ctrl+G`. A single prompt recalled from history with leading frontmatter but no segment separator
+stays one verbatim pane instead of auto-opening the panel. Typing `---` in the prompt body is passive during live
+editing: at the very start it stays literal text, and after content it does not split the active pane. Add a top-level
+property with `a` (an inline picker sourced from the same core schema that backs the editor LSP), edit scalar/list
+fields inline, delete a field with `d`, undo the latest mutation with `u`, and use `R` for a live-validated raw-YAML
+escape hatch. In raw mode, `Ctrl+C` explicitly discards an unparseable buffer. Unknown frontmatter keys remain visible
+as raw-only rows and survive structured round trips.
 
 The structured `input` and `xprompts` fields render as foldable sub-trees (`h`/`l`): navigate into them with `j`/`k`,
 use `o`/`A` to insert a ghost row, `e`/`enter` to edit an item in place, `d` to delete, and `J`/`K` to reorder. Cell

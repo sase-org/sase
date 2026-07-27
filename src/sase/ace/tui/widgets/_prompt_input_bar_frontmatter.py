@@ -77,10 +77,12 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
     if TYPE_CHECKING:
         _mode: str
         _stack: PromptStackState
+        _frontmatter_return_index: int
         _inline_expansion_txns: list[InlineExpansionTransaction]
         _auto_staged_inputs: dict[str, InputArg]
 
         def active_text_area(self) -> PromptTextArea: ...
+        def _apply_active_classes(self) -> None: ...
         def _clear_active_completion_state(self) -> None: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
         def _schedule_height_update(self) -> None: ...
@@ -173,10 +175,14 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         panel = self._frontmatter_panel()
         return panel is not None and not panel.has_class("hidden")
 
-    def _frontmatter_panel_reserved_rows(self) -> int:
+    def _frontmatter_panel_reserved_rows(self, height_cap: int | None = None) -> int:
         """Rows the visible panel needs, for the bar's height calculation."""
         panel = self._frontmatter_panel()
-        if panel is None or panel.has_class("hidden"):
+        if panel is None:
+            return 0
+        if height_cap is not None:
+            panel.set_height_cap(height_cap)
+        if panel.has_class("hidden"):
             return 0
         return panel.reserved_height
 
@@ -213,6 +219,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         panel.remove_class("hidden")
         self._refresh_title()
         if focus:
+            self._frontmatter_return_index = self._stack.selected_index
             self.call_after_refresh(panel.focus_panel)
         self._schedule_height_update()
 
@@ -228,6 +235,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             self._show_frontmatter_panel(focus=True)
             return
         panel.set_frontmatter(self._stack.frontmatter)
+        self._frontmatter_return_index = self._stack.selected_index
         self.call_after_refresh(panel.focus_panel)
         self._schedule_height_update()
 
@@ -485,14 +493,40 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             self._stack.frontmatter = ""
             if panel is not None:
                 panel.add_class("hidden")
-        try:
-            text_area = self.active_text_area()
-            text_area.focus()
-            text_area._enter_insert_mode()
-        except Exception:
-            pass
+
+        if event.focus_target == "top":
+            target_index = 0
+        elif event.focus_target == "bottom":
+            target_index = len(self._stack) - 1
+        else:
+            target_index = (
+                self._frontmatter_return_index
+                if 0 <= self._frontmatter_return_index < len(self._stack)
+                else self._stack.selected_index
+            )
+        if len(self._stack):
+            target_index = max(0, min(target_index, len(self._stack) - 1))
+            if target_index != self._stack.selected_index:
+                self._stack.focus(target_index)
+                self._apply_active_classes()
+
         self._refresh_title()
         self._schedule_height_update()
+
+        def _focus_target() -> None:
+            text_area: PromptTextArea | None
+            try:
+                text_area = self.active_text_area()
+            except Exception:
+                text_area = next(iter(self.query(PromptTextArea)), None)
+            if text_area is None:
+                self.app.screen.set_focus(None)
+                return
+            text_area.focus()
+            text_area._enter_insert_mode()
+            text_area.scroll_visible(animate=False)
+
+        self.call_after_refresh(_focus_target)
 
     def on_frontmatter_panel_add_requested(
         self, event: FrontmatterPanel.AddRequested

@@ -36,6 +36,8 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("Enter / Esc", "Confirm / cancel prompt search"),
         ("gf / Ctrl+G f", "Format current prompt"),
         ("g=", "Frontmatter panel"),
+        ("q/Esc (panel)", "Return to originating pane"),
+        ("gj/gk (panel)", "Top / bottom prompt pane"),
         ("Ctrl+S", "Stash pane (panel if empty)"),
         ("gs / Ctrl+G s", "Stash all panes"),
         ("gx / Ctrl+G x / Ctrl+G Ctrl+X", "Open xprompt/snippet save panel"),

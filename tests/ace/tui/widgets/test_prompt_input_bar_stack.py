@@ -220,6 +220,36 @@ async def test_stack_height_accounts_for_visible_frontmatter_panel() -> None:
         )
 
 
+async def test_saved_feedback_never_collapses_prompt_pane() -> None:
+    """The reported cell-save feedback regression keeps one visible body row."""
+    app = _PromptBarApp("---\ninput:\n  service: word\n---\nbody")
+
+    async with app.run_test(size=(80, 8)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.focus_frontmatter_panel()
+        await pilot.pause()
+        await pilot.pause()
+        panel = app.query_one(FrontmatterPanel)
+        panel._select_nav(("input", "service"))
+        panel._edit_selected()
+        panel._commit_cell_edit()
+        await pilot.pause()
+        await pilot.pause()
+
+        pane = bar.active_text_area()
+        assert panel._feedback == "Saved"
+        assert panel._feedback_lines == 1
+        assert pane.region.height >= 1
+
+        await pilot.press("q")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert app.focused is pane
+        assert pane.region.height >= 1
+
+
 async def test_inactive_panes_compact_first() -> None:
     long = "word " * 60
     # Two long panes; only the active one is allowed to grow tall.
