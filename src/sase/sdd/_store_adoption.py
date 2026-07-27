@@ -12,10 +12,10 @@ import shutil
 import subprocess
 import uuid
 
-from sase.sdd._bead_ignore import BEAD_STORE_GITIGNORE_PATTERNS
+from sase.sdd._bead_ignore import bead_store_gitignore_patterns
 from sase.sdd._store_types import SddMaterializationError, SddStoreRecord
 
-_RUNTIME_ONLY_PATHS = frozenset(BEAD_STORE_GITIGNORE_PATTERNS)
+_RUNTIME_ONLY_PATHS = frozenset(bead_store_gitignore_patterns("beads"))
 
 # Directory names that never hold durable SDD artifacts. ``.git`` is the source's
 # own version-control metadata, and ``.sase`` is workspace runtime state -- for

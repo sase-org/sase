@@ -315,6 +315,7 @@ def _candidate_beads_dirs(context: DoctorContext) -> tuple[Path, ...]:
     for parent in (cwd, *cwd.parents):
         candidates.append(parent / BEADS_DIRNAME)
         candidates.append(parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC)
+        candidates.append(parent / "sase" / "repos" / "beads")
 
     try:
         resolution = resolve_current_project_record(context)
@@ -327,6 +328,7 @@ def _candidate_beads_dirs(context: DoctorContext) -> tuple[Path, ...]:
         _append_resolved_beads_candidate(candidates, primary)
         candidates.append(primary / BEADS_DIRNAME)
         candidates.append(primary / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC)
+        candidates.append(primary / "sase" / "repos" / "beads")
 
     return _dedupe_paths(candidates)
 

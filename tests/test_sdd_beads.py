@@ -70,3 +70,23 @@ def test_cli_init_beads_vc_ensures_generated_sdd_first(tmp_path: Path) -> None:
 
     ensure_sdd.assert_called_once_with(tmp_path, commit=True, push=False)
     bead_init.assert_called_once_with(tmp_path, beads_dirname="sdd/beads")
+
+
+def test_cli_init_beads_supports_repository_root_store(tmp_path: Path) -> None:
+    from sase.bead.cli_common import init_beads as cli_init_beads
+    from sase.bead.project import BEADS_DIRNAME_ROOT
+
+    with (
+        patch("subprocess.run") as git_init,
+        patch("sase.bead.cli_common.BeadProject.init") as bead_init,
+    ):
+        cli_init_beads(tmp_path, BEADS_DIRNAME_ROOT)
+
+    git_init.assert_called_once()
+    assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == (
+        "beads.db\nbeads.db-shm\nbeads.db-wal\n"
+    )
+    bead_init.assert_called_once_with(
+        tmp_path,
+        beads_dirname=BEADS_DIRNAME_ROOT,
+    )

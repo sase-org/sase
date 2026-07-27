@@ -4,14 +4,27 @@ from __future__ import annotations
 
 from pathlib import Path
 
-BEAD_STORE_GITIGNORE_PATTERNS: tuple[str, ...] = (
-    "beads/beads.db",
-    "beads/beads.db-shm",
-    "beads/beads.db-wal",
-)
+
+def bead_store_gitignore_patterns(prefix: str) -> tuple[str, ...]:
+    """Return SQLite-cache ignore patterns below *prefix*."""
+
+    normalized = prefix.strip("/")
+    stem = f"{normalized}/" if normalized else ""
+    return (
+        f"{stem}beads.db",
+        f"{stem}beads.db-shm",
+        f"{stem}beads.db-wal",
+    )
 
 
-def ensure_bead_store_gitignore(sdd_dir: str | Path) -> Path | None:
+BEAD_STORE_GITIGNORE_PATTERNS = bead_store_gitignore_patterns("beads")
+
+
+def ensure_bead_store_gitignore(
+    sdd_dir: str | Path,
+    *,
+    prefix: str = "beads",
+) -> Path | None:
     """Ensure SQLite bead DB files are ignored in a local SDD git store.
 
     Returns the ``.gitignore`` path when it was created or amended.
@@ -25,12 +38,9 @@ def ensure_bead_store_gitignore(sdd_dir: str | Path) -> Path | None:
     except OSError:
         existing = ""
 
+    patterns = bead_store_gitignore_patterns(prefix)
     existing_lines = {line.strip() for line in existing.splitlines()}
-    missing = [
-        pattern
-        for pattern in BEAD_STORE_GITIGNORE_PATTERNS
-        if pattern not in existing_lines
-    ]
+    missing = [pattern for pattern in patterns if pattern not in existing_lines]
     if not missing and gitignore.exists():
         return None
 
@@ -38,7 +48,7 @@ def ensure_bead_store_gitignore(sdd_dir: str | Path) -> Path | None:
         updated = existing if existing.endswith("\n") else f"{existing}\n"
         updated += "\n".join(missing) + "\n"
     else:
-        updated = "\n".join(BEAD_STORE_GITIGNORE_PATTERNS) + "\n"
+        updated = "\n".join(patterns) + "\n"
 
     gitignore.parent.mkdir(parents=True, exist_ok=True)
     gitignore.write_text(updated, encoding="utf-8")

@@ -15,9 +15,10 @@ from sase.bead.cli_common import (
     get_project,
     get_read_view,
     resolve_beads_location,
+    storage_plan_path,
 )
 from sase.bead.model import IssueType
-from sase.bead.project import BeadProject
+from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.sdd.store import write_sdd_store_record
 from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
@@ -92,6 +93,32 @@ def test_find_beads_location_sidecar_store_uses_plans_clone(
 
     assert root == plans
     assert beads_dirname == "beads"
+
+
+def test_find_beads_location_split_sidecar_uses_repository_root(
+    tmp_path: Path, monkeypatch
+) -> None:
+    primary = tmp_path / "project"
+    workspace_2 = tmp_path / "project_2"
+    primary.mkdir()
+    workspace_2.mkdir()
+    _write_checkout_marker(workspace_2, primary, workspace_num=2)
+    _write_sidecar_record(primary, split_beads=True)
+    beads = workspace_2 / "sase" / "repos" / "beads"
+    beads.mkdir(parents=True)
+    with BeadProject.init(beads, beads_dirname=BEADS_DIRNAME_ROOT):
+        pass
+    plans = workspace_2 / "sase" / "repos" / "plans"
+    plan = plans / "202607" / "root_store.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Root store\n", encoding="utf-8")
+    monkeypatch.chdir(workspace_2)
+
+    root, beads_dirname = _find_beads_location()
+
+    assert root == beads
+    assert beads_dirname == BEADS_DIRNAME_ROOT
+    assert storage_plan_path(plan) == "plans:202607/root_store.md"
 
 
 def test_find_beads_location_in_tree_prefers_current_checkout(
@@ -238,6 +265,33 @@ def test_plain_checkout_sidecar_record_resolves_read_only_bead_store(
         get_project()
 
 
+def test_plain_checkout_split_sidecar_record_resolves_root_store(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    checkout = tmp_path / "checkout"
+    beads = checkout / "sase" / "repos" / "beads"
+    checkout.mkdir()
+    beads.mkdir(parents=True)
+    with BeadProject.init(beads, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+        issue = project.create("Root checkout epic", IssueType.PLAN)
+    _write_sidecar_record(checkout, split_beads=True)
+    monkeypatch.setattr(
+        "sase.bead.cli_common._resolve_workspace_context",
+        lambda _cwd: None,
+    )
+
+    location = resolve_beads_location(cwd=checkout, require_existing=True)
+
+    assert location is not None
+    assert location.root == beads
+    assert location.beads_dir == beads
+    assert location.beads_dirname == BEADS_DIRNAME_ROOT
+    assert location.read_only is True
+    with BeadProject(location.root, location.beads_dirname) as project:
+        assert project.show(issue.id).title == "Root checkout epic"
+
+
 def test_plain_checkout_non_sidecar_record_falls_back_to_legacy_resolution(
     tmp_path: Path,
     monkeypatch,
@@ -283,23 +337,29 @@ def _set_sdd_config(monkeypatch, *, storage: str) -> None:
     set_sdd_policy(monkeypatch, storage)
 
 
-def _write_sidecar_record(checkout: Path) -> None:
+def _write_sidecar_record(checkout: Path, *, split_beads: bool = False) -> None:
+    sidecars = {
+        "plans": {
+            "repo": "acme/project--plans",
+            "remote_url": "git@example.com:acme/project--plans.git",
+        },
+        "research": {
+            "repo": "acme/project--research",
+            "remote_url": "git@example.com:acme/project--research.git",
+        },
+    }
+    if split_beads:
+        sidecars["beads"] = {
+            "repo": "acme/project--beads",
+            "remote_url": "git@example.com:acme/project--beads.git",
+        }
     write_sdd_store_record(
         checkout,
         {
-            "schema_version": 2,
+            "schema_version": 3 if split_beads else 2,
             "storage": "sidecar_repos",
             "provider": "github",
-            "sidecars": {
-                "plans": {
-                    "repo": "acme/project--plans",
-                    "remote_url": "git@example.com:acme/project--plans.git",
-                },
-                "research": {
-                    "repo": "acme/project--research",
-                    "remote_url": "git@example.com:acme/project--research.git",
-                },
-            },
+            "sidecars": sidecars,
         },
     )
 

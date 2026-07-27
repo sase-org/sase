@@ -215,6 +215,27 @@ def test_agent_bead_display_uses_agent_workspace_before_cwd(
     )
 
 
+def test_agent_bead_display_finds_split_sidecar_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "project"
+    beads_dir = workspace / "sase" / "repos" / "beads"
+    beads_dir.mkdir(parents=True)
+    _write_issues(
+        beads_dir,
+        [_issue("sase-x.3", "Split bead", "2026-07-27T00:00:00Z")],
+    )
+    monkeypatch.chdir(workspace)
+
+    assert (
+        format_agent_bead_display_for_name(
+            "sase-x.3",
+            workspace_dir=str(workspace),
+        )
+        == "sase-x.3 - Split bead"
+    )
+
+
 def test_agent_bead_display_uses_managed_checkout_primary_workspace(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

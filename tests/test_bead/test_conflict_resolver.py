@@ -10,7 +10,7 @@ import pytest
 from sase.bead import conflict_resolver
 from sase.bead.conflict_resolver import _git_add, resolve_bead_conflicts
 from sase.bead.model import IssueType
-from sase.bead.project import BEADS_DIRNAME, BeadProject
+from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_ROOT, BeadProject
 
 
 def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -106,10 +106,16 @@ def _build_stream_conflict(
     *,
     bystanders: int = 0,
     bystander_label: str = "Quiet",
+    beads_dirname: str = BEADS_DIRNAME,
 ) -> tuple[str, list[str]]:
     """Diverge one bead event stream, leaving *bystanders* streams untouched."""
     _init_repo(repo)
-    with BeadProject.init(repo, beads_dirname=BEADS_DIRNAME) as project:
+    if beads_dirname == BEADS_DIRNAME_ROOT:
+        (repo / ".gitignore").write_text(
+            "beads.db\nbeads.db-shm\nbeads.db-wal\n",
+            encoding="utf-8",
+        )
+    with BeadProject.init(repo, beads_dirname=beads_dirname) as project:
         quiet = [
             project.create(f"{bystander_label} {index}", IssueType.PLAN).id
             for index in range(bystanders)
@@ -119,17 +125,84 @@ def _build_stream_conflict(
     _git(repo, "commit", "-m", "base")
 
     _git(repo, "checkout", "-b", "other")
-    with BeadProject(repo, beads_dirname=BEADS_DIRNAME) as project:
+    with BeadProject(repo, beads_dirname=beads_dirname) as project:
         project.update(contested, notes="from other")
     _git(repo, "commit", "-am", "other")
 
     _git(repo, "checkout", "master")
-    with BeadProject(repo, beads_dirname=BEADS_DIRNAME) as project:
+    with BeadProject(repo, beads_dirname=beads_dirname) as project:
         project.update(contested, design="from local")
     _git(repo, "commit", "-am", "local")
 
     _git(repo, "merge", "other", check=False)
-    return f"{BEADS_DIRNAME}/events/streams/{contested}.jsonl", quiet
+    prefix = "" if beads_dirname == BEADS_DIRNAME_ROOT else f"{beads_dirname}/"
+    return f"{prefix}events/streams/{contested}.jsonl", quiet
+
+
+def _build_root_store_conflict(repo: Path, *, conflict_stream: bool) -> str:
+    """Diverge README plus, optionally, one root-store event stream."""
+    _init_repo(repo)
+    (repo / ".gitignore").write_text(
+        "beads.db\nbeads.db-shm\nbeads.db-wal\n",
+        encoding="utf-8",
+    )
+    with BeadProject.init(repo, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+        issue = project.create("Contested", IssueType.PLAN)
+    readme = repo / "README.md"
+    readme.write_text("base\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "base")
+
+    _git(repo, "checkout", "-b", "other")
+    if conflict_stream:
+        with BeadProject(repo, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+            project.update(issue.id, notes="from other")
+    readme.write_text("other\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "other")
+
+    _git(repo, "checkout", "master")
+    if conflict_stream:
+        with BeadProject(repo, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+            project.update(issue.id, design="from local")
+    readme.write_text("local\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "local")
+    _git(repo, "merge", "other", check=False)
+    return issue.id
+
+
+def test_root_store_event_stream_conflict_is_mergeable(tmp_path: Path) -> None:
+    contested, _quiet = _build_stream_conflict(
+        tmp_path,
+        beads_dirname=BEADS_DIRNAME_ROOT,
+    )
+
+    result = resolve_bead_conflicts(tmp_path, beads_dir=tmp_path)
+
+    assert result.ok is True, result.message
+    assert contested in result.resolved_files
+    assert "events/manifest.json" in result.resolved_files
+    assert "issues.jsonl" in result.resolved_files
+
+
+def test_root_store_readme_conflict_is_not_a_bead_conflict(tmp_path: Path) -> None:
+    _build_root_store_conflict(tmp_path, conflict_stream=False)
+
+    result = resolve_bead_conflicts(tmp_path, beads_dir=tmp_path)
+
+    assert result.ok is False
+    assert result.message == "non-bead conflicts remain: README.md"
+
+
+def test_root_store_mixed_conflicts_are_refused(tmp_path: Path) -> None:
+    issue_id = _build_root_store_conflict(tmp_path, conflict_stream=True)
+
+    result = resolve_bead_conflicts(tmp_path, beads_dir=tmp_path)
+
+    assert result.ok is False
+    assert result.message == "non-bead conflicts remain: README.md"
+    assert f"events/streams/{issue_id}.jsonl" not in result.resolved_files
 
 
 def test_failed_conflict_probe_is_not_reported_as_clean(

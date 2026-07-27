@@ -128,8 +128,10 @@ def _message_line_has_bead_id(line: str, bead_id: str) -> bool:
 def handle_beads(payload: dict, cwd: str) -> None:
     """Close and sync beads best-effort; keep message tagging idempotent."""
     bead_id = payload.get("bead_id")
-    has_bead_dir = os.path.isdir(os.path.join(cwd, BEADS_DIRNAME)) or os.path.isdir(
-        os.path.join(cwd, ".beads")
+    has_bead_dir = (
+        os.path.isdir(os.path.join(cwd, BEADS_DIRNAME))
+        or os.path.isdir(os.path.join(cwd, ".beads"))
+        or os.path.isdir(os.path.join(cwd, "sase", "repos", "beads"))
     )
 
     if bead_id:

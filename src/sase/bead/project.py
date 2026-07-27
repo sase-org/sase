@@ -43,6 +43,9 @@ BEADS_DIRNAME = "sdd/beads"
 BEADS_DIRNAME_NON_VC = "beads"
 """Beads subdirectory name inside .sase/sdd/ (local/separate-repo modes)."""
 
+BEADS_DIRNAME_ROOT = "."
+"""Beads dirname that makes the dedicated sidecar root the bead directory."""
+
 
 class BeadProject:
     """Main API for beads issue tracking.

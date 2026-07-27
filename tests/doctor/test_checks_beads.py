@@ -97,6 +97,32 @@ def test_project_beads_prefers_resolved_local_store(
     assert check.data["beads_dir"] == str(local_beads)
 
 
+def test_project_beads_discovers_split_sidecar(monkeypatch, tmp_path: Path) -> None:
+    beads_dir = tmp_path / "sase" / "repos" / "beads"
+    beads_dir.mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.resolve_current_project_record",
+        lambda _context: None,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.rust_beads.doctor",
+        lambda _path: ["OK: no issues found"],
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.rust_beads.stats",
+        lambda _path: {"open": 0, "claimed": 0, "in_progress": 0, "closed": 0},
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.bead_state_is_clean",
+        lambda _path: True,
+    )
+
+    check = _check_project_beads(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.data["beads_dir"] == str(beads_dir)
+
+
 def test_project_beads_summary_counts_claimed_issues(
     monkeypatch, tmp_path: Path
 ) -> None:

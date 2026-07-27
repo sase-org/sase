@@ -14,6 +14,7 @@ from sase.bead.model import Status
 from sase.bead.project import (
     BEADS_DIRNAME,
     BEADS_DIRNAME_NON_VC,
+    BEADS_DIRNAME_ROOT,
     BeadProject,
 )
 from sase.core.state_write_guard import pytest_path_is_sandboxed
@@ -123,11 +124,18 @@ def resolve_beads_location(
             )
 
         if store.storage == SDD_STORAGE_SIDECAR_REPOS:
-            root = store.kind_root("plans")
+            if store.beads_dir is not None:
+                root = store.beads_dir
+                beads_dirname = BEADS_DIRNAME_ROOT
+            else:
+                root = store.kind_root("plans")
+                beads_dirname = BEADS_DIRNAME_NON_VC
         elif store.storage == SDD_STORAGE_SEPARATE_REPO:
             root = store.sdd_dir
+            beads_dirname = BEADS_DIRNAME_NON_VC
         elif store.storage == SDD_STORAGE_LOCAL:
             root = context.primary / ".sase" / "sdd"
+            beads_dirname = BEADS_DIRNAME_NON_VC
             if store.sdd_dir != root:
                 store = SddStore(
                     storage=store.storage,
@@ -138,12 +146,13 @@ def resolve_beads_location(
                 )
         else:
             root = context.primary / ".sase" / "sdd"
+            beads_dirname = BEADS_DIRNAME_NON_VC
 
-        if require_existing and not (root / BEADS_DIRNAME_NON_VC).is_dir():
+        if require_existing and not _bead_store_exists(root, beads_dirname):
             return None
         return _BeadsLocation(
             root=root,
-            beads_dirname=BEADS_DIRNAME_NON_VC,
+            beads_dirname=beads_dirname,
             storage=store.storage,
             store=store,
         )
@@ -175,12 +184,17 @@ def _resolve_checkout_record_beads_location(
         record = read_sdd_store_record(checkout_root)
         if record is None or not record.is_sidecar_storage:
             continue
-        plans_root = Path(sidecar_repo_clone_dir(checkout_root, "plans"))
-        if require_existing and not (plans_root / BEADS_DIRNAME_NON_VC).is_dir():
+        if record.has_split_beads:
+            root = Path(sidecar_repo_clone_dir(checkout_root, "beads"))
+            beads_dirname = BEADS_DIRNAME_ROOT
+        else:
+            root = Path(sidecar_repo_clone_dir(checkout_root, "plans"))
+            beads_dirname = BEADS_DIRNAME_NON_VC
+        if require_existing and not _bead_store_exists(root, beads_dirname):
             return None
         return _BeadsLocation(
-            root=plans_root,
-            beads_dirname=BEADS_DIRNAME_NON_VC,
+            root=root,
+            beads_dirname=beads_dirname,
             storage=SDD_STORAGE_SIDECAR_REPOS,
             read_only=True,
         )
@@ -372,7 +386,7 @@ def init_beads(root: Path, beads_dirname: str) -> None:
         from sase.sdd.files import ensure_bare_git_sdd_initialized
 
         ensure_bare_git_sdd_initialized(root, commit=True, push=False)
-    if beads_dirname == BEADS_DIRNAME_NON_VC:
+    if beads_dirname in {BEADS_DIRNAME_NON_VC, BEADS_DIRNAME_ROOT}:
         import subprocess
 
         root.mkdir(parents=True, exist_ok=True)
@@ -386,13 +400,23 @@ def init_beads(root: Path, beads_dirname: str) -> None:
             )
         from sase.sdd._bead_ignore import ensure_bead_store_gitignore
 
-        ensure_bead_store_gitignore(root)
+        ensure_bead_store_gitignore(
+            root,
+            prefix="" if beads_dirname == BEADS_DIRNAME_ROOT else "beads",
+        )
     with BeadProject.init(root, beads_dirname=beads_dirname):
         pass
     if beads_dirname == BEADS_DIRNAME_NON_VC:
         from sase.sdd.files import commit_sdd_files
 
         commit_sdd_files(root, "Initialize beads", auto_commit_type="beads")
+
+
+def _bead_store_exists(root: Path, beads_dirname: str) -> bool:
+    beads_dir = root / beads_dirname
+    if beads_dirname == BEADS_DIRNAME_ROOT:
+        return (beads_dir / "config.json").is_file()
+    return beads_dir.is_dir()
 
 
 def get_project() -> BeadProject:
@@ -413,8 +437,7 @@ def get_project() -> BeadProject:
         root, beads_dirname = find_beads_location(materialize=True)
     else:
         root, beads_dirname = location.root, location.beads_dirname
-    beads_path = root / beads_dirname
-    if not beads_path.exists():
+    if not _bead_store_exists(root, beads_dirname):
         init_beads(root, beads_dirname)
     return BeadProject(root, beads_dirname=beads_dirname)
 
@@ -443,7 +466,7 @@ def _refuse_read_only_bead_store(
 
 def resolved_beads_location_is_usable(location: _BeadsLocation) -> bool:
     """Return whether a resolved warm store can be opened without materializing."""
-    if not location.beads_dir.is_dir():
+    if not _bead_store_exists(location.root, location.beads_dirname):
         return False
     store = location.store
     if store is None or location.is_in_tree or not store.remote_url:

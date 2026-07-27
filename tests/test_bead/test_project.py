@@ -10,7 +10,12 @@ import pytest
 
 from sase.bead.config import load_config, save_config
 from sase.bead.model import BeadTier, IssueType, PhaseSize, Resolution, Status
-from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
+from sase.bead.project import (
+    AlreadyReadyError,
+    BEADS_DIRNAME_ROOT,
+    BeadProject,
+    NotAPlanError,
+)
 
 
 @pytest.fixture
@@ -26,6 +31,19 @@ def test_init_creates_beads_dir(tmp_path):
         assert (tmp_path / "sdd/beads" / "config.json").exists()
         assert (tmp_path / "sdd/beads" / "beads.db").exists()
         assert (tmp_path / "sdd/beads" / "issues.jsonl").exists()
+
+
+def test_root_level_store_round_trip(tmp_path: Path) -> None:
+    with BeadProject.init(tmp_path, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+        issue = project.create("Root-level plan", IssueType.PLAN)
+        assert project.root_dir == tmp_path
+        assert project.beads_dir == tmp_path
+
+    assert (tmp_path / "config.json").is_file()
+    assert (tmp_path / "issues.jsonl").is_file()
+    assert (tmp_path / "beads.db").is_file()
+    with BeadProject(tmp_path, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+        assert project.show(issue.id).title == "Root-level plan"
 
 
 def test_init_already_exists(tmp_path):

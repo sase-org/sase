@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from sase.bead.sync import (
+    _is_in_tree_beads_dir,
     bead_sync_diagnostics,
     bead_state_is_clean,
     commit_bead_work_launch,
@@ -24,6 +25,10 @@ from .sync_test_helpers import init_git_repo as _init_git_repo
 
 def _sync_status(beads_dir: Path) -> bool:
     return bead_state_is_clean(beads_dir)
+
+
+def test_split_beads_sidecar_is_not_an_in_tree_store(tmp_path: Path) -> None:
+    assert not _is_in_tree_beads_dir(tmp_path / "sase" / "repos" / "beads")
 
 
 def _redirect_sync_logs(monkeypatch: pytest.MonkeyPatch, log_dir: Path) -> None:

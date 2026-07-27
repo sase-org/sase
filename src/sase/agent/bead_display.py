@@ -263,6 +263,9 @@ def _beads_dirs_for_workspace_tree(workspace: Path) -> list[Path]:
         non_vc_beads = parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
         if non_vc_beads.is_dir():
             candidates.append(non_vc_beads)
+        split_beads = parent / "sase" / "repos" / "beads"
+        if split_beads.is_dir():
+            candidates.append(split_beads)
     return _dedupe_paths(candidates)
 
 
@@ -304,13 +307,19 @@ def _lookup_bead_issue_in_dirs(
 
 def _bead_project_location(beads_dir: Path) -> tuple[Path, str]:
     """Return the ``BeadProject`` root and dirname for a bead-store path."""
-    from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
+    from sase.bead.project import (
+        BEADS_DIRNAME,
+        BEADS_DIRNAME_NON_VC,
+        BEADS_DIRNAME_ROOT,
+    )
 
     parts = beads_dir.parts
     if len(parts) >= 2 and parts[-2:] == ("sdd", "beads"):
         return beads_dir.parents[1], BEADS_DIRNAME
     if len(parts) >= 3 and parts[-3:] == (".sase", "sdd", "beads"):
         return beads_dir.parent, BEADS_DIRNAME_NON_VC
+    if len(parts) >= 3 and parts[-3:] == ("sase", "repos", "beads"):
+        return beads_dir, BEADS_DIRNAME_ROOT
     return beads_dir.parent, beads_dir.name
 
 

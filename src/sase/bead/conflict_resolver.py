@@ -9,7 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
+from sase.bead.project import (
+    BEADS_DIRNAME,
+    BEADS_DIRNAME_NON_VC,
+    BEADS_DIRNAME_ROOT,
+)
 from sase.core.bead_conflict_facade import (
     event_store_manifest,
     merge_event_streams,
@@ -28,6 +32,11 @@ class _BeadConflictResolution:
 
 class _GitProbeFailure(RuntimeError):
     """A resolver probe could not answer, which is not the same as "clean"."""
+
+
+_BEAD_STORE_ENTRIES = frozenset(
+    {"events", "issues.jsonl", "metadata.json", "config.json"}
+)
 
 
 def resolve_bead_conflicts(
@@ -61,6 +70,8 @@ def _resolve_bead_conflicts(
             "non-bead conflicts remain: " + ", ".join(conflicted),
         )
     bead_prefix = resolved_beads_dir.relative_to(repo_root).as_posix()
+    if bead_prefix == BEADS_DIRNAME_ROOT:
+        bead_prefix = ""
 
     bead_conflicts = [path for path in conflicted if _is_bead_path(path, bead_prefix)]
     if not bead_conflicts:
@@ -175,7 +186,11 @@ def resolve_beads_dir(
     repo_root: Path, beads_dir: str | Path | None = None
 ) -> Path | None:
     root = repo_root.expanduser().resolve()
-    canonical_relpaths = {BEADS_DIRNAME, BEADS_DIRNAME_NON_VC}
+    canonical_relpaths = {
+        BEADS_DIRNAME,
+        BEADS_DIRNAME_NON_VC,
+        BEADS_DIRNAME_ROOT,
+    }
     if beads_dir is not None:
         resolved = Path(beads_dir).expanduser().resolve()
         try:
@@ -190,23 +205,33 @@ def resolve_beads_dir(
         for dirname in (BEADS_DIRNAME, BEADS_DIRNAME_NON_VC)
         if (root / dirname).is_dir()
     ]
-    return candidates[0] if len(candidates) == 1 else None
+    if (root / "config.json").is_file():
+        candidates.append(root)
+    return candidates[0] if len(set(candidates)) == 1 else None
 
 
 def _is_bead_path(path: str, bead_prefix: str) -> bool:
+    if not bead_prefix:
+        return bool(Path(path).parts) and Path(path).parts[0] in _BEAD_STORE_ENTRIES
     return path == bead_prefix or path.startswith(f"{bead_prefix}/")
 
 
 def _is_event_stream_path(path: str, bead_prefix: str) -> bool:
-    prefix = f"{bead_prefix}/events/streams/"
+    prefix = f"{_store_path(bead_prefix, 'events/streams')}/"
     return path.startswith(prefix) and path.endswith(".jsonl")
 
 
 def _is_mergeable_bead_path(path: str, bead_prefix: str) -> bool:
     return path in {
-        f"{bead_prefix}/issues.jsonl",
-        f"{bead_prefix}/events/manifest.json",
+        _store_path(bead_prefix, "issues.jsonl"),
+        _store_path(bead_prefix, "events/manifest.json"),
     } or _is_event_stream_path(path, bead_prefix)
+
+
+def _store_path(prefix: str, rest: str) -> str:
+    """Join one store-relative path without a leading slash at repo root."""
+
+    return f"{prefix}/{rest}" if prefix else rest
 
 
 def _load_worktree_streams(

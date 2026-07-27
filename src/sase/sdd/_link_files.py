@@ -116,7 +116,7 @@ def _looks_like_project_root(path: Path) -> bool:
     if path.name == "sdd" and path.parent.name == ".sase":
         return False
     if (
-        path.name in {"plans", "research"}
+        path.name in {"plans", "research", "beads"}
         and path.parent.name == "repos"
         and path.parent.parent.name == "sase"
     ):

@@ -548,3 +548,18 @@ class TestHandleBeads:
             capture_output=True,
             check=False,
         )
+
+    def test_bead_sync_runs_when_split_sidecar_exists(self, tmp_path: Path) -> None:
+        (tmp_path / "sase/repos/beads").mkdir(parents=True)
+        payload = {"message": "Fix bug"}
+        with patch(
+            "sase.workflows.commit.commit_hooks.subprocess.run",
+        ) as mock_run:
+            handle_beads(payload, str(tmp_path))
+
+        mock_run.assert_called_once_with(
+            ["sase", "bead", "sync"],
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=False,
+        )
