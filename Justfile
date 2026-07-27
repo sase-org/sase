@@ -312,8 +312,10 @@ test-visual *args: _setup-visual (_header "test-visual")
 # Reproduce visual convergence flakes by running a fixed 26-worker pool on two
 # CPUs (13x oversubscription). Pre-fix baseline, measured 2026-07-27:
 # 116 failed, 246 passed, 1 skipped in 567.51s, including one convergence timeout.
-# Post-fix: 15 failed, 347 passed, 1 skipped in 566.68s, with no convergence
-# timeout; the residual capture/state races are tracked by the next epic phase.
+# Convergence-only fix (sase-9y.2): 15 failed, 347 passed, 1 skipped in
+# 566.68s, with no convergence timeout. Final exact-frame fix (sase-9y.3):
+# 363 passed, 1 skipped in 9m37s under the same 26-worker/two-CPU contention,
+# retaining exact PNG equality without regenerating goldens.
 # Override the CPU list or worker count with SASE_VISUAL_CONTENTION_CPUS and
 # SASE_VISUAL_CONTENTION_WORKERS.
 [positional-arguments]
