@@ -507,6 +507,31 @@ def add_dependency(
     )
 
 
+def delete_dependencies_not_in(
+    conn: sqlite3.Connection,
+    issue_id: str,
+    depends_on_ids: list[str],
+    *,
+    commit: bool = True,
+) -> int:
+    """Delete mirrored edges for issue_id that are absent from the projection."""
+    if depends_on_ids:
+        placeholders = ", ".join("?" for _ in depends_on_ids)
+        cursor = conn.execute(
+            "DELETE FROM dependencies "
+            f"WHERE issue_id = ? AND depends_on_id NOT IN ({placeholders})",
+            [issue_id, *depends_on_ids],
+        )
+    else:
+        cursor = conn.execute(
+            "DELETE FROM dependencies WHERE issue_id = ?",
+            (issue_id,),
+        )
+    if commit:
+        conn.commit()
+    return cursor.rowcount
+
+
 def get_epic_children(conn: sqlite3.Connection, epic_id: str) -> list[Issue]:
     """Get all child issues of an epic."""
     rows = conn.execute(

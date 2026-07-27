@@ -192,6 +192,12 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                     )
                 except Exception:
                     pass  # Already exists or FK violation
+            db_mod.delete_dependencies_not_in(
+                conn,
+                issue.id,
+                [dep.depends_on_id for dep in issue.dependencies],
+                commit=False,
+            )
     except BaseException:
         conn.rollback()
         raise

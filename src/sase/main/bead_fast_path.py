@@ -194,4 +194,6 @@ def _mutation_commit_message(operation: str, issue_ids: list[str]) -> str | None
         return f"chore(beads): remove {' '.join(issue_ids)}"
     if operation == "dep_add" and len(issue_ids) >= 2:
         return f"chore(beads): link {issue_ids[0]} -> {issue_ids[1]}"
+    if operation == "dep_rm" and len(issue_ids) >= 2:
+        return f"chore(beads): unlink {issue_ids[0]} -> {' '.join(issue_ids[1:])}"
     return None

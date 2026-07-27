@@ -284,6 +284,40 @@ def test_fast_path_guards_mutations_but_not_reads(tmp_path: Path, monkeypatch) -
     assert calls == [["search", "needle"]]
 
 
+def test_fast_path_dep_write_guard_is_closed_except_for_read_verbs(
+    tmp_path: Path, monkeypatch
+) -> None:
+    read_dir = tmp_path / "production" / "beads"
+    context = bead_fast_path._FastPathContext(
+        read_beads_dirs=[read_dir],
+        write_beads_dir=read_dir,
+        relativize_design_paths=False,
+    )
+
+    monkeypatch.setattr(
+        bead_fast_path,
+        "_resolve_fast_path_context",
+        lambda _argv: context,
+    )
+    monkeypatch.setattr(
+        "sase.core.rust.require_rust_binding",
+        lambda _name: lambda *_args: {"handled": True, "exit_code": 0},
+    )
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "dep fast-path write guard")
+    monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(tmp_path / "sandbox"))
+
+    assert try_handle_bead_fast_path(["dep", "list"]) == 0
+    assert try_handle_bead_fast_path(["dep", "tree"]) == 0
+    for argv in (
+        ["dep"],
+        ["dep", "add", "source", "target"],
+        ["dep", "rm", "source", "target"],
+        ["dep", "future-write"],
+    ):
+        with pytest.raises(RuntimeError, match="fast-path dep"):
+            try_handle_bead_fast_path(argv)
+
+
 def test_fast_path_refuses_unsafe_resolved_location_before_rust(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -537,6 +571,10 @@ def test_mutation_commit_messages_match_slow_path_contract() -> None:
     )
     assert _mutation_commit_message("dep_add", ["beads-1", "beads-2"]) == (
         "chore(beads): link beads-1 -> beads-2"
+    )
+    assert (
+        _mutation_commit_message("dep_rm", ["beads-1", "beads-2", "beads-3"])
+        == "chore(beads): unlink beads-1 -> beads-2 beads-3"
     )
 
 

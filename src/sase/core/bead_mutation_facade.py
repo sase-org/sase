@@ -241,6 +241,32 @@ def add_dependency(
     )
 
 
+def remove_dependencies(
+    beads_dir: Path | str,
+    issue_id: str,
+    depends_on_ids: list[str],
+    *,
+    now: str | None = None,
+) -> tuple[list[Dependency], dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "remove_dependencies")
+    binding = require_rust_binding("bead_dep_remove")
+    payload = _call_issue_operation(
+        binding, str(beads_dir), issue_id, depends_on_ids, now
+    )
+    return (
+        [
+            Dependency(
+                issue_id=str(dep["issue_id"]),
+                depends_on_id=str(dep["depends_on_id"]),
+                created_at=str(dep.get("created_at", "")),
+                created_by=str(dep.get("created_by", "")),
+            )
+            for dep in payload.get("dependencies", [])
+        ],
+        payload,
+    )
+
+
 def mark_ready_to_work(
     beads_dir: Path | str,
     epic_id: str,
@@ -313,6 +339,7 @@ __all__ = [
     "open_issue",
     "release_agent_claim",
     "remove",
+    "remove_dependencies",
     "remove_many",
     "unmark_ready_to_work",
     "update",

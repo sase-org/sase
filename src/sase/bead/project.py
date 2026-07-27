@@ -395,6 +395,18 @@ class BeadProject:
         self._refresh_db_from_jsonl()
         return dep
 
+    def remove_dependencies(
+        self, issue_id: str, depends_on_ids: list[str]
+    ) -> list[Dependency]:
+        """Remove dependency edges from issue_id to depends_on_ids."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        dependencies, _outcome = rust_beads.remove_dependencies(
+            self.beads_dir, issue_id, depends_on_ids, now=_now()
+        )
+        self._refresh_db_from_jsonl()
+        return dependencies
+
     def blocked(self) -> list[Issue]:
         """Return issues with at least one active blocker."""
         from sase.core import bead_read_facade as rust_beads

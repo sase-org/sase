@@ -146,6 +146,16 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         action="append",
         help="Filter by status (repeatable)",
     )
+    bead_dep_rm_parser = bead_dep_subparsers.add_parser(
+        "rm", help="Remove dependencies"
+    )
+    bead_dep_rm_parser.add_argument("issue", help="Issue that depends on others")
+    bead_dep_rm_parser.add_argument(
+        "depends_on",
+        metavar="depends_on",
+        nargs="+",
+        help="Issues no longer depended on",
+    )
 
     # sase bead doctor
     bead_doctor_parser = bead_subparsers.add_parser(
