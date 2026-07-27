@@ -8,7 +8,7 @@ launching a script and the script reads it to discover its environment.
 import json
 import os
 import tempfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +37,8 @@ class ChopScriptContext:
     all_changespecs_file: str
     filtered_changespecs_file: str
     verbose_lumberjack_diagnostics: bool = False
+    source: str = "scheduled"
+    dry_run: bool = False
     result_file: str = ""
     target: dict[str, Any] | None = None
     vars: dict[str, Any] | None = None
@@ -85,7 +87,12 @@ def read_chop_context(path: str) -> ChopScriptContext:
         Deserialized ChopScriptContext.
     """
     with open(path) as f:
-        return ChopScriptContext(**json.load(f))
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise ValueError(f"chop context must be a JSON object: {path}")
+    known_fields = {field.name for field in fields(ChopScriptContext)}
+    filtered = {key: value for key, value in data.items() if key in known_fields}
+    return ChopScriptContext(**filtered)
 
 
 def prepare_chop_run_context(
@@ -93,6 +100,8 @@ def prepare_chop_run_context(
     *,
     result_file: str,
     destination: str,
+    source: str = "scheduled",
+    dry_run: bool = False,
     target: dict[str, Any] | None = None,
     vars: dict[str, Any] | None = None,
 ) -> str:
@@ -102,14 +111,16 @@ def prepare_chop_run_context(
     private copy so concurrent scripts cannot race while the runner mirrors
     ``SASE_CHOP_RESULT_FILE`` into the context document.
     """
-    source = Path(context_file)
-    if not source.is_file():
+    source_path = Path(context_file)
+    if not source_path.is_file():
         return context_file
-    with source.open(encoding="utf-8") as f:
+    with source_path.open(encoding="utf-8") as f:
         data = json.load(f)
     if not isinstance(data, dict):
         raise ValueError(f"chop context must be a JSON object: {context_file}")
     data["result_file"] = result_file
+    data["source"] = source
+    data["dry_run"] = dry_run
     data["target"] = dict(target or {})
     data["vars"] = dict(vars or {})
     _atomic_json_write(data, destination)

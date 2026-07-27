@@ -1,12 +1,17 @@
 """Tests for running script-backed chops through the shared runner."""
 
+import json
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.config import AxeConfig, ChopConfig
 from sase.axe.state import (
     ChopRunEntry,
+    ChopRunSource,
+    chop_run_context_path,
     read_chop_run,
     read_chop_run_index,
     read_chop_run_log_tail,
@@ -187,6 +192,57 @@ def test_run_configured_chop_once_propagates_chop_env(
     # Chop identity env is also injected for downstream agent records.
     assert env["SASE_CHOP_LUMBERJACK"] == "hooks"
     assert env["SASE_CHOP_NAME"] == "env_chop"
+
+
+@pytest.mark.parametrize(
+    ("source", "dry_run", "dry_run_env"),
+    [
+        ("scheduled", False, "0"),
+        ("manual", True, "1"),
+        ("oneshot", False, "0"),
+    ],
+)
+def test_run_configured_chop_once_exports_source_and_dry_run(
+    temp_state_dir: Path,
+    tmp_path: Path,
+    source: ChopRunSource,
+    dry_run: bool,
+    dry_run_env: str,
+) -> None:
+    make_script(tmp_path, "env_chop", "true\n")
+    cfg = AxeConfig(chop_script_dirs=[str(tmp_path / "scripts")])
+    chop = ChopConfig(name="env_chop", description="")
+
+    with (
+        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
+    ):
+        from sase.axe.chop_script_runner import _StreamedScriptResult
+
+        mock_stream.return_value = _StreamedScriptResult(
+            returncode=0, pid=1234, output_bytes=0, timed_out=False
+        )
+        outcome = run_configured_chop_once(
+            lumberjack_name="hooks",
+            chop=chop,
+            axe_config=cfg,
+            source=source,
+            dry_run=dry_run,
+        )
+
+    assert outcome.status == "success"
+    assert outcome.run_id is not None
+    env = mock_stream.call_args.kwargs["env"]
+    assert env["SASE_CHOP_SOURCE"] == source
+    assert env["SASE_CHOP_DRY_RUN"] == dry_run_env
+
+    context = json.loads(
+        chop_run_context_path("hooks", "env_chop", outcome.run_id).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert context["source"] == source
+    assert context["dry_run"] is dry_run
 
 
 def test_run_configured_chop_once_resolves_secrets_and_exports_target_env(

@@ -441,10 +441,13 @@ Axe runs script chops as:
 
 The context file contains the effective runner limits, zombie timeout, query, lumberjack name, lumberjack state
 directory, paths to serialized `all_changespecs.json` and `filtered_changespecs.json` files, the current `target`,
-configured `vars`, and the run-local result path. The result path is also exported as `SASE_CHOP_RESULT_FILE`.
-`SASE_CHOP_VERBOSE` enables opt-in debug output. Target fields are exported as `SASE_CHOP_TARGET_<FIELD>` along with
-`SASE_CHOP_TARGET_KEY`. Scheduled script chops within one lumberjack tick run concurrently; use `timeout` or
-`chop_timeout` to keep a slow script from blocking later ticks indefinitely.
+configured `vars`, the run source (`scheduled`, `manual`, or `oneshot`), the `dry_run` flag, and the run-local result
+path. The result path is also exported as `SASE_CHOP_RESULT_FILE`; the source and dry-run flag are mirrored as
+`SASE_CHOP_SOURCE` and `SASE_CHOP_DRY_RUN` (`1` for true, `0` for false). `SASE_CHOP_VERBOSE` enables opt-in debug
+output. Target fields are exported as `SASE_CHOP_TARGET_<FIELD>` along with `SASE_CHOP_TARGET_KEY`. Scripts with direct
+side effects must honor `dry_run` before mutating external state; runner-level dry-run only previews launch proposals.
+Scheduled script chops within one lumberjack tick run concurrently; use `timeout` or `chop_timeout` to keep a slow
+script from blocking later ticks indefinitely.
 
 Script chop stdout and stderr are streamed to the chop's per-run log file while the subprocess is still alive (see
 [Chop Run History](#chop-run-history) below). The Axe-tab dashboard tails that file so a long-running chop's output

@@ -290,11 +290,15 @@ def run_script_chop_once(
     result_path = chop_run_result_path(lumberjack_name, chop.name, run_id)
     run_context_path = chop_run_context_path(lumberjack_name, chop.name, run_id)
     env["SASE_CHOP_RESULT_FILE"] = str(result_path)
+    env["SASE_CHOP_SOURCE"] = source
+    env["SASE_CHOP_DRY_RUN"] = "1" if dry_run else "0"
     try:
         context_file = prepare_chop_run_context(
             context_file,
             result_file=str(result_path),
             destination=str(run_context_path),
+            source=source,
+            dry_run=dry_run,
             target=chop.target,
             vars=chop.vars,
         )

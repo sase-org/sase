@@ -1,5 +1,7 @@
 """Tests for sase.axe.chop_script_context."""
 
+import json
+
 from sase.ace.changespec import (
     ChangeSpec,
     CommentEntry,
@@ -12,6 +14,7 @@ from sase.ace.changespec import (
 from sase.axe.chop_script_context import (
     ChopScriptContext,
     load_changespecs_from_file,
+    prepare_chop_run_context,
     read_chop_context,
     serialize_changespecs,
     write_chop_context,
@@ -36,6 +39,92 @@ class TestChopScriptContextRoundTrip:
         write_chop_context(ctx, path)
         loaded = read_chop_context(path)
         assert loaded == ctx
+
+    def test_legacy_context_defaults_source_and_dry_run(self, tmp_path):
+        path = tmp_path / "legacy.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "max_hook_runners": 3,
+                    "max_agent_runners": 3,
+                    "zombie_timeout_seconds": 600,
+                    "query": "",
+                    "lumberjack_name": "hooks",
+                    "state_dir": "/tmp/axe/lumberjacks/hooks",
+                    "all_changespecs_file": "/tmp/all.json",
+                    "filtered_changespecs_file": "/tmp/filtered.json",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = read_chop_context(str(path))
+
+        assert loaded.source == "scheduled"
+        assert loaded.dry_run is False
+
+    def test_unknown_context_fields_are_ignored(self, tmp_path):
+        path = tmp_path / "future.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "max_hook_runners": 3,
+                    "max_agent_runners": 3,
+                    "zombie_timeout_seconds": 600,
+                    "query": "",
+                    "lumberjack_name": "hooks",
+                    "state_dir": "/tmp/axe/lumberjacks/hooks",
+                    "all_changespecs_file": "/tmp/all.json",
+                    "filtered_changespecs_file": "/tmp/filtered.json",
+                    "source": "manual",
+                    "dry_run": True,
+                    "future_field": {"nested": "value"},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = read_chop_context(str(path))
+
+        assert loaded.source == "manual"
+        assert loaded.dry_run is True
+
+    def test_prepare_chop_run_context_adds_run_fields(self, tmp_path):
+        base = tmp_path / "base.json"
+        destination = tmp_path / "run.json"
+        base.write_text(
+            json.dumps(
+                {
+                    "max_hook_runners": 3,
+                    "max_agent_runners": 3,
+                    "zombie_timeout_seconds": 600,
+                    "query": "",
+                    "lumberjack_name": "hooks",
+                    "state_dir": "/tmp/axe/lumberjacks/hooks",
+                    "all_changespecs_file": "/tmp/all.json",
+                    "filtered_changespecs_file": "/tmp/filtered.json",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = prepare_chop_run_context(
+            str(base),
+            result_file="/tmp/result.json",
+            destination=str(destination),
+            source="manual",
+            dry_run=True,
+            target={"repo": "sase"},
+            vars={"limit": 1},
+        )
+
+        assert result == str(destination)
+        loaded = read_chop_context(str(destination))
+        assert loaded.result_file == "/tmp/result.json"
+        assert loaded.source == "manual"
+        assert loaded.dry_run is True
+        assert loaded.target == {"repo": "sase"}
+        assert loaded.vars == {"limit": 1}
 
 
 class TestChangeSpecSerialization:
