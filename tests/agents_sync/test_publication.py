@@ -36,6 +36,7 @@ def _run(
     state: str = "completed",
     commit: bool = False,
     family: str | None = None,
+    output_variables: dict[str, str] | None = None,
     chat: bytes | None = b"chat\n",
     relationships: tuple[_InventoryRelationship, ...] = (),
 ) -> InventoryRun:
@@ -43,6 +44,8 @@ def _run(
     metadata = (("model", "gpt"),)
     if family is not None:
         metadata += (("agent_family", family),)
+    if output_variables is not None:
+        metadata += (("output_variables", output_variables),)
     commits = (CommitRecord("a" * 39 + suffix[-1], name, 1),) if commit else ()
     finished_at = (
         None if state in {"active", "waiting"} else "2026-07-23T12:01:00+00:00"
@@ -68,7 +71,7 @@ def _run(
 
 def _inventory(owner: AgentOwnerIdentity) -> ProjectHoodInventory:
     runs = (
-        _run("foo", "01"),
+        _run("foo", "01", output_variables={"status": "ready"}),
         _run("foo.bar", "02"),
         _run(
             "foo.bar.baz--code",
@@ -76,6 +79,7 @@ def _inventory(owner: AgentOwnerIdentity) -> ProjectHoodInventory:
             state="active",
             commit=True,
             family="foo.bar.baz",
+            output_variables={"report_path": "reports/code.md"},
             chat=None,
             relationships=(_InventoryRelationship("parent", "foo.bar", "name"),),
         ),
@@ -83,6 +87,10 @@ def _inventory(owner: AgentOwnerIdentity) -> ProjectHoodInventory:
             "foo.bar.baz--plan",
             "04",
             family="foo.bar.baz",
+            output_variables={
+                "plan_file": "plans/foo.md",
+                "status": "approved",
+            },
             relationships=(_InventoryRelationship("parent", "foo.bar", "name"),),
         ),
         _run("foo.boom", "05", state="waiting"),

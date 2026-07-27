@@ -12,6 +12,7 @@
 - Provider: —
 - Timing: 2026-07-23T12:00:00+00:00
 - Commits: [1](#commits)
+- Variables: [1](#variables)
 
 ## Files
 
@@ -33,3 +34,9 @@
 | [foo.archive](../alice.athena.foo.archive/README.md) | foo hood | dismissed |
 | [foo.boom](../alice.athena.foo.boom/README.md) | foo hood | waiting |
 | [foo.rootless](../../families/alice.athena.foo.rootless.md) (family · 2) | foo hood | completed 2 |
+
+## Variables
+
+| Variable | Value |
+|---|---|
+| `report_path` | reports/code.md |

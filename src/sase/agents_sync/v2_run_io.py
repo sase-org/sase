@@ -7,7 +7,11 @@ from typing import Any, cast
 
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import CommitRecord
-from sase.agents_sync.v2_io import V2_METADATA_FIELDS, validate_component
+from sase.agents_sync.v2_io import (
+    V2_METADATA_FIELDS,
+    validate_component,
+    validate_output_variables,
+)
 from sase.agents_sync.v2_models import (
     RunState,
     V2ProjectIdentity,
@@ -53,6 +57,7 @@ def run_metadata_from_json(value: object) -> V2RunMetadataPayload:
         raise AgentsSyncFormatError(
             "meta.json metadata has unsupported fields: " + ", ".join(sorted(unknown))
         )
+    validate_output_variables(metadata, label="meta.json metadata")
     _json_value(metadata, "meta.json metadata")
     return V2RunMetadataPayload(
         owner,

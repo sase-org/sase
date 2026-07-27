@@ -36,3 +36,11 @@ The diagram is an optional enhancement; the ordered table below contains the sam
 | [foo.archive](../agents/alice.athena.foo.archive/README.md) | foo hood | dismissed |
 | [foo.boom](../agents/alice.athena.foo.boom/README.md) | foo hood | waiting |
 | [foo.rootless](alice.athena.foo.rootless.md) (family · 2) | foo hood | completed 2 |
+
+## Variables
+
+| Role | Variable | Value |
+|---|---|---|
+| code | `report_path` | reports/code.md |
+| plan | `plan_file` | plans/foo.md |
+| plan | `status` | approved |

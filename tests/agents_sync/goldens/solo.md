@@ -12,6 +12,7 @@
 - Provider: —
 - Timing: 2026-07-23T12:00:00+00:00 → 2026-07-23T12:01:00+00:00
 - Commits: 0
+- Variables: [1](#variables)
 
 ## Files
 
@@ -27,3 +28,9 @@
 | [foo.bar.kazam](../alice.athena.foo.bar.kazam/README.md) | descendant | failed |
 | [foo.boom](../alice.athena.foo.boom/README.md) | descendant | waiting |
 | [foo.rootless](../../families/alice.athena.foo.rootless.md) (family · 2) | descendant | completed 2 |
+
+## Variables
+
+| Variable | Value |
+|---|---|
+| `status` | ready |

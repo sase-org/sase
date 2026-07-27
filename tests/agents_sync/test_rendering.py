@@ -113,6 +113,7 @@ def test_agent_and_family_pages_render_relative_breadcrumbs() -> None:
         in family_agent_page
     )
     assert agent_ancestors + " / foo.solo" in solo_agent_page
+    assert "- Variables:" not in solo_agent_page
     assert "represented in its family lineage" not in family_agent_page
     assert (
         "[Agent Hoods](../README.md) / "
@@ -367,3 +368,72 @@ def test_agent_and_family_neighbor_links_resolve_inside_payload() -> None:
                 posixpath.join(posixpath.dirname(source_path), target)
             )
             assert resolved in payload
+
+
+def test_agent_and_family_pages_render_sorted_escaped_and_truncated_variables() -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    project = V2ProjectIdentity("proj", "Project")
+    code = V2RunRecord(
+        "run-code",
+        "foo.bar--code",
+        "alice.athena.foo.bar--code",
+        "completed",
+        metadata=(
+            (
+                "output_variables",
+                {
+                    "z_notes": "line | one\nline two",
+                    "a_long": "x" * 201,
+                },
+            ),
+        ),
+    )
+    plan = V2RunRecord(
+        "run-plan",
+        "foo.bar--plan",
+        "alice.athena.foo.bar--plan",
+        "completed",
+        metadata=(("output_variables", {"plan_file": "plans/foo.md"}),),
+    )
+    family = V2ContainerRecord(
+        "family",
+        "alice.athena.foo.bar",
+        ("run-code", "run-plan"),
+    )
+    snapshot = V2HoodSnapshot(
+        owner,
+        project,
+        "foo",
+        "alice.athena.foo",
+        runs=(code, plan),
+        containers=(family,),
+    )
+    manifest = V2OwnerManifest(
+        owner,
+        project,
+        (("foo", V2OwnerHoodEntry("a" * 64, (), 2, 1)),),
+    )
+
+    payload = render_browsing_payload(
+        (manifest,),
+        {("alice", "athena", "foo"): snapshot},
+    )
+    agent_page = payload["agents/alice.athena.foo.bar--code/README.md"].decode()
+    family_page = payload["families/alice.athena.foo.bar.md"].decode()
+
+    assert "- Variables: [2](#variables)" in agent_page
+    assert agent_page.index("| `a_long` |") < agent_page.index("| `z_notes` |")
+    assert f"| `a_long` | {'x' * 200}… |" in agent_page
+    assert "| `z_notes` | line \\| one<br>line two |" in agent_page
+    assert (
+        "Values are truncated for display; see [meta.json](meta.json) "
+        "for the full values." in agent_page
+    )
+    assert "| code | `a_long` |" in family_page
+    assert "| code | `z_notes` |" in family_page
+    assert "| plan | `plan_file` | plans/foo.md |" in family_page
+    assert (
+        family_page.index("| code | `a_long` |")
+        < family_page.index("| code | `z_notes` |")
+        < family_page.index("| plan | `plan_file` |")
+    )

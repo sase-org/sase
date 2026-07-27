@@ -53,6 +53,7 @@ def artifact_payload(
             "hidden",
             "llm_provider",
             "model",
+            "output_variables",
             "phase_bead_id",
             "plan",
             "reasoning_effort",

@@ -44,9 +44,12 @@ MAX_CONTAINERS = 2_048
 MAX_RELATIONSHIPS = 16_384
 MAX_FILES = 32_768
 MAX_PAYLOAD_BYTES = 128 * 1024 * 1024
+MAX_OUTPUT_VARIABLES = 256
+MAX_OUTPUT_VARIABLE_VALUE_BYTES = 8_192
 
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_OUTPUT_VARIABLE_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _STATES = {"active", "waiting", "completed", "failed", "stopped", "dismissed"}
 _CONTAINER_KINDS = {"family", "clan"}
 _RELATIONSHIP_KINDS = {"parent", "workflow_parent", "retry", "wait"}
@@ -75,6 +78,7 @@ V2_METADATA_FIELDS = frozenset(
         "hidden",
         "llm_provider",
         "model",
+        "output_variables",
         "phase_bead_id",
         "plan",
         "reasoning_effort",
@@ -136,6 +140,48 @@ def validate_relative_path(value: object) -> str:
         if part != ".gitkeep":
             validate_component(part, label="publication path component")
     return value
+
+
+def is_valid_output_variable_key(value: object) -> bool:
+    """Return whether a value is a portable output-variable key."""
+
+    return (
+        isinstance(value, str) and _OUTPUT_VARIABLE_KEY_RE.fullmatch(value) is not None
+    )
+
+
+def validate_output_variables(metadata: Mapping[str, Any], *, label: str) -> None:
+    """Validate the strict output-variable shape in portable metadata."""
+
+    if "output_variables" not in metadata:
+        return
+    raw = metadata["output_variables"]
+    if not isinstance(raw, dict):
+        raise AgentsSyncFormatError(f"{label} output_variables must be a JSON object")
+    if len(raw) > MAX_OUTPUT_VARIABLES:
+        raise AgentsSyncFormatError(
+            f"{label} output_variables exceeds the {MAX_OUTPUT_VARIABLES} entry limit"
+        )
+    for key, value in raw.items():
+        if not is_valid_output_variable_key(key):
+            raise AgentsSyncFormatError(
+                f"{label} output_variables has an invalid key: {key!r}"
+            )
+        if not isinstance(value, str):
+            raise AgentsSyncFormatError(
+                f"{label} output_variables value for {key!r} must be a string"
+            )
+        try:
+            size = len(value.encode("utf-8"))
+        except UnicodeEncodeError as exc:
+            raise AgentsSyncFormatError(
+                f"{label} output_variables value for {key!r} is not valid UTF-8"
+            ) from exc
+        if size > MAX_OUTPUT_VARIABLE_VALUE_BYTES:
+            raise AgentsSyncFormatError(
+                f"{label} output_variables value for {key!r} exceeds "
+                f"{MAX_OUTPUT_VARIABLE_VALUE_BYTES} UTF-8 bytes"
+            )
 
 
 def owner_manifest_path(owner: AgentOwnerIdentity) -> str:
@@ -386,6 +432,7 @@ def _run(value: object, owner: AgentOwnerIdentity, index: int) -> V2RunRecord:
         raise AgentsSyncFormatError(
             f"{label} metadata has unsupported fields: {', '.join(sorted(unknown))}"
         )
+    validate_output_variables(metadata, label=f"{label} metadata")
     _validate_json_value(metadata, f"{label} metadata")
     commits = _commits(row["commits"], label)
     raw_files = _object(row["files"], f"{label} files")
@@ -634,6 +681,8 @@ def _validate_json_value(value: object, label: str) -> None:
 
 __all__ = [
     "MAX_JSON_BYTES",
+    "MAX_OUTPUT_VARIABLES",
+    "MAX_OUTPUT_VARIABLE_VALUE_BYTES",
     "MAX_TEXT_BYTES",
     "V2_METADATA_FIELDS",
     "apply_payload_atomic",
@@ -644,9 +693,11 @@ __all__ = [
     "read_all_owner_manifests",
     "read_hood_snapshot",
     "read_owner_manifest",
+    "is_valid_output_variable_key",
     "v2_json_bytes",
     "v2_schema_document",
     "validate_component",
+    "validate_output_variables",
     "validate_relative_path",
     "validate_snapshot",
 ]

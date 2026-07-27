@@ -50,6 +50,9 @@ def _run(
     owner: AgentOwnerIdentity = SOURCE_OWNER,
 ) -> InventoryRun:
     finished_at = None if state == "active" else "2026-07-24T12:01:00+00:00"
+    output_variables = (
+        (("output_variables", {"plan_file": "plans/crew.md"}),) if suffix == "1" else ()
+    )
     return InventoryRun(
         f"source-{suffix}",
         name,
@@ -63,6 +66,7 @@ def _run(
             ("agent_family_role", name.rsplit("--", 1)[-1]),
             ("llm_provider", "codex"),
             ("model", "gpt-test"),
+            *output_variables,
             ("reasoning_effort", "high"),
             ("tribe", "backend"),
         ),

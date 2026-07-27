@@ -13,6 +13,10 @@ from sase.agents_sync.rendering_markdown import (
     relative_page_url,
     run_timing,
 )
+from sase.agents_sync.rendering_variables import (
+    output_variables,
+    render_agent_variables,
+)
 from sase.agents_sync.v2_models import (
     V2ContainerRecord,
     V2HoodSnapshot,
@@ -31,7 +35,20 @@ def render_agent_page(
     """Render one agent run page."""
 
     metadata = dict(run.metadata)
+    variables = output_variables(run)
     source_path = f"agents/{run.global_name}/README.md"
+    summary = [
+        f"- Model: {md_escape(_text(metadata.get('model')) or '—')}",
+        f"- Provider: {md_escape(_text(metadata.get('llm_provider')) or '—')}",
+        f"- Timing: {md_escape(run_timing(run))}",
+        (
+            f"- Commits: [{len(run.commits)}](#commits)"
+            if run.commits
+            else "- Commits: 0"
+        ),
+    ]
+    if variables:
+        summary.append(f"- Variables: [{len(variables)}](#variables)")
     lines = [
         f"# Agent: {md_escape(run.local_name)}",
         "",
@@ -47,14 +64,7 @@ def render_agent_page(
         "",
         "## Summary",
         "",
-        f"- Model: {md_escape(_text(metadata.get('model')) or '—')}",
-        f"- Provider: {md_escape(_text(metadata.get('llm_provider')) or '—')}",
-        f"- Timing: {md_escape(run_timing(run))}",
-        (
-            f"- Commits: [{len(run.commits)}](#commits)"
-            if run.commits
-            else "- Commits: 0"
-        ),
+        *summary,
         "",
     ]
     refs = dict(run.files)
@@ -84,6 +94,7 @@ def render_agent_page(
             source_path=source_path,
         )
     )
+    lines.extend(render_agent_variables(run, source_path=source_path))
     return "\n".join(lines)
 
 

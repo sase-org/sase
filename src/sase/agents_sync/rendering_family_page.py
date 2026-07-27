@@ -16,6 +16,7 @@ from sase.agents_sync.rendering_markdown import (
     relative_page_url,
     run_timing,
 )
+from sase.agents_sync.rendering_variables import render_family_variables
 from sase.agents_sync.v2_models import (
     V2ContainerRecord,
     V2FileReference,
@@ -39,6 +40,7 @@ def render_family_page(
     """Render one family container and its member lineage."""
 
     members = tuple(by_id[source_id] for source_id in family.member_source_run_ids)
+    member_roles = tuple((_member_role(run), run) for run in members)
     local_family = _local_family_name(snapshot, family)
     source_path = f"families/{family.global_name}.md"
     lines = [
@@ -71,13 +73,7 @@ def render_family_page(
             "|---|---|---|---|---|---:|---|---|",
         ]
     )
-    for run in members:
-        parsed = parse_agent_family_name(run.local_name)
-        role = (
-            parsed.member_role or "root"
-            if parsed.kind is AgentFamilyNameKind.MEMBER
-            else "root"
-        )
+    for role, run in member_roles:
         metadata = dict(run.metadata)
         model = " / ".join(
             value
@@ -126,6 +122,7 @@ def render_family_page(
             source_path=source_path,
         )
     )
+    lines.extend(render_family_variables(member_roles))
     return "\n".join(lines)
 
 

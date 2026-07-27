@@ -267,3 +267,30 @@ def test_shared_preflight_context_recovers_transactions_once(
     )
 
     assert recoveries == 1
+
+
+def test_imported_artifact_restores_output_variables(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, package = published_package(tmp_path)
+    artifact_root, _groups, _claims = isolate_local_state(
+        tmp_path,
+        target,
+        monkeypatch,
+    )
+
+    imported = v2_importer.integrate_v2_hoods(
+        target,
+        (package,),
+        identity=AgentIdentitySnapshot(LOCAL_OWNER),
+    )
+    metadata = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted(artifact_root.glob("*/agent_meta.json"))
+    ]
+
+    assert imported.runs_imported == 2
+    assert [
+        row["output_variables"] for row in metadata if "output_variables" in row
+    ] == [{"plan_file": "plans/crew.md"}]

@@ -122,6 +122,45 @@ def test_per_run_payloads_reject_unknown_or_host_local_fields() -> None:
     assert run_commits_from_json(commits).commits[0].sha == "a" * 40
 
 
+def test_output_variables_are_accepted_by_snapshot_and_per_run_decoders() -> None:
+    variables = {"z_path": "reports/z.md", "a_status": "ready"}
+    snapshot = _snapshot().to_json_dict()
+    snapshot["runs"][0]["metadata"] = {"output_variables": variables}  # type: ignore[index]
+    decoded_snapshot = _hood_snapshot_from_json(snapshot)
+
+    meta = _run_metadata({"output_variables": variables})
+    decoded_meta = run_metadata_from_json(meta)
+
+    assert dict(decoded_snapshot.runs[0].metadata)["output_variables"] == variables
+    assert dict(decoded_meta.metadata)["output_variables"] == variables
+
+
+@pytest.mark.parametrize(
+    ("variables", "message"),
+    (
+        (["not", "an", "object"], "must be a JSON object"),
+        ({"bad-key": "value"}, "invalid key.*bad-key"),
+        ({"valid_key": 1}, "valid_key.*must be a string"),
+        ({"valid_key": "x" * 8_193}, "valid_key.*8192 UTF-8 bytes"),
+        (
+            {f"key_{index}": "value" for index in range(257)},
+            "256 entry limit",
+        ),
+    ),
+)
+def test_output_variables_are_strictly_validated_in_both_decoders(
+    variables: object,
+    message: str,
+) -> None:
+    snapshot = _snapshot().to_json_dict()
+    snapshot["runs"][0]["metadata"] = {"output_variables": variables}  # type: ignore[index]
+    with pytest.raises(AgentsSyncFormatError, match=message):
+        _hood_snapshot_from_json(snapshot)
+
+    with pytest.raises(AgentsSyncFormatError, match=message):
+        run_metadata_from_json(_run_metadata({"output_variables": variables}))
+
+
 def test_payload_apply_rolls_back_every_prior_write(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -148,3 +187,15 @@ def test_payload_apply_rolls_back_every_prior_write(
 
     assert first.read_text(encoding="utf-8") == "old"
     assert not (tmp_path / "nested" / "b.txt").exists()
+
+
+def _run_metadata(metadata: dict[str, object]) -> dict[str, object]:
+    return {
+        "schema_version": 2,
+        "owner": {"username": "alice", "machine_name": "athena"},
+        "project": {"key": "proj", "name": "Project"},
+        "source_run_id": "run-1",
+        "local_name": "foo",
+        "global_name": "alice.athena.foo",
+        "metadata": metadata,
+    }

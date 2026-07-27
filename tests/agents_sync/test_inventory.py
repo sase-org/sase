@@ -133,6 +133,34 @@ def test_inventory_keeps_active_and_dismissed_states_but_rejects_imports(
     assert result.eligible_hoods() == ("foo",)
 
 
+def test_portable_metadata_sanitizes_output_variables() -> None:
+    metadata = dict(
+        inventory_io.portable_metadata(
+            {
+                "model": "gpt",
+                "output_variables": {
+                    "z_path": "reports/z.md",
+                    "bad-key": "drop",
+                    "wrong_type": 7,
+                    "a_status": "ready",
+                    "too_large": "x" * 8_193,
+                },
+            }
+        )
+    )
+
+    assert metadata == {
+        "model": "gpt",
+        "output_variables": {
+            "a_status": "ready",
+            "z_path": "reports/z.md",
+        },
+    }
+    assert "output_variables" not in dict(
+        inventory_io.portable_metadata({"output_variables": ["malformed"]})
+    )
+
+
 @pytest.mark.parametrize(
     ("returncode", "stdout", "expected"),
     (
