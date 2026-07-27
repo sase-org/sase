@@ -96,9 +96,8 @@ sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.m
 Status can transition between values via `sase bead update --status=<status>`, with one completion guard: moving a bead
 to `closed` is rejected while any descendant remains open, claimed, or in progress. Close those descendants deliberately
 first; `update --status=closed` never cascades. `sase bead open <id>` reopens the bead and every closed ancestor above
-it, clearing their resolutions so a closed parent never sits above reopened work. `claimed` is machine-managed: the
-agent runner sets and clears it (see [Bead Claim Lifecycle](#bead-claim-lifecycle)), so set it by hand only to
-deliberately park a bead.
+it, clearing their resolutions so a closed parent never sits above reopened work. `claimed` is machine-managed by the
+agent runner (see [Bead Claim Lifecycle](#bead-claim-lifecycle)); do not set it by hand.
 
 Every new close records a typed `resolution`: `done`, `canceled`, or `superseded`. Normal closes default to `done`;
 `close_reason` remains optional free text for the human explanation. Historical closed beads are not backfilled, so
@@ -225,154 +224,9 @@ event store is absent.
 With no subcommand, `sase bead` defaults to `sase bead list` with default options. Use the explicit `sase bead list`
 form when passing list filters.
 
-### `sase bead init`
+### `sase bead blocked`
 
-Initialize the bead store for the current project. In effective in-tree SDD mode this is `sdd/beads/`; local and legacy
-separate-repo modes use `.sase/sdd/beads/`; split sidecar mode uses `beads/` in the `--plans` repository.
-
-### `sase bead create`
-
-Create a new issue.
-
-| Flag                | Required | Description                                                                                                                                                                                                                          |
-| ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `-t, --title`       | yes      | Issue title                                                                                                                                                                                                                          |
-| `-T, --type`        | yes      | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`                                                                                                                                                          |
-| `-d, --description` | no       | Issue description                                                                                                                                                                                                                    |
-| `-a, --assignee`    | no       | Assignee name                                                                                                                                                                                                                        |
-| `--tier`            | no       | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                     |
-| `-c, --changespec`  | no       | Attach a ChangeSpec name to a plan bead                                                                                                                                                                                              |
-| `-b, --bug-id`      | no       | Bug ID for the attached ChangeSpec; requires `--changespec`                                                                                                                                                                          |
-| `-m, --model`       | no       | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase beads it is the per-phase work model. |
-| `-z, --size`        | no       | Phase size: `xsmall`, `small`, `medium`, `large`, or `xlarge`. Valid only on phase beads; an omitted legacy/manual value behaves as `small`.                                                                                         |
-
-ChangeSpec metadata is valid only on plan beads. It is used by the epic-approval and `sase bead work` flows to keep plan
-beads linked to the ChangeSpec they are intended to produce.
-
-### `sase bead list`
-
-List issues with optional filtering. Without `--status`, the command lists `open`, `claimed`, and `in_progress` issues;
-pass `--status=closed` when you need closed history. When the default active query is empty and no explicit `--status`
-was given, the command falls back to listing closed beads. `--status`, `--type`, and `--tier` are repeatable.
-
-| Flag           | Values                                     | Description                                                                           |
-| -------------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `-f, --format` | `compact`, `json`, `full`                  | Output format; defaults to `compact`                                                  |
-| `-n, --limit`  | integer                                    | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
-| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
-| `--tier`       | `plan`, `epic`                             | Filter by plan-bead tier                                                              |
-| `-t, --type`   | `plan`, `phase`                            | Filter by type (repeatable)                                                           |
-
-Active (open/claimed/in-progress) listings are unlimited by default. Whenever the final status scope includes `closed`
-and `--limit` is omitted, only the newest 20 beads print; pass `--limit 0` for the full closed history.
-
-### `sase bead history [<id>]`
-
-Replay one bead's canonical event stream as an ordered, field-level timeline. Compact output prints the timestamp,
-actor, operation, and changed field names for each event. Full output prints every prior and new value, including
-earlier note revisions that later updates replaced. JSON emits one envelope with `issue_id`, `schema_version`, and
-`entries`.
-
-Use `--lost-notes` to report notes snapshots whose nonblank text no longer appears in the current notes. With no
-positional ID it scans the whole store; with an ID it checks only that bead. Findings are sorted by bead ID. Add
-`--restore` to preview provenance-tagged appends, prompt once, and restore every finding through the same atomic append
-mutation used by `sase bead note`. Restoration is idempotent: restored text is retained by later append snapshots, so a
-second scan reports nothing. Non-interactive restoration declines safely, and `--restore` without `--lost-notes` is a
-usage error.
-
-| Flag               | Values                    | Description                                                    |
-| ------------------ | ------------------------- | -------------------------------------------------------------- |
-| `-F, --field`      | field name                | Restrict to events changing the field; repeatable              |
-| `-f, --format`     | `compact`, `full`, `json` | Output format; defaults to `compact`                           |
-| `-n, --limit`      | non-negative integer      | Newest entries to print; omitted or `0` is unlimited           |
-| `-l, --lost-notes` | boolean                   | Report beads whose current notes dropped an earlier revision   |
-| `-R, --restore`    | boolean                   | With `--lost-notes`, re-append findings after one confirmation |
-
-### `sase bead search <query>`
-
-Find beads whose indexed text fields contain a case-insensitive literal substring. This is substring search, not regex
-or glob matching. Current indexed fields include ID, title, description, notes, design/plan path, owner, assignee,
-model, phase size, ChangeSpec name/bug ID, status, type, and tier; timestamps are not searched. Unlike `sase bead list`,
-search includes `open`, `claimed`, `in_progress`, and `closed` beads by default, so it is the quickest way to recover
-older context.
-
-Compact output prints each matching bead with a short snippet. For multi-line fields such as descriptions or notes, the
-snippet uses the line that matched the query when possible instead of always showing the first line. JSON output exposes
-the exact `matched_fields` list for each result.
-
-```bash
-sase bead search auth
-sase bead search auth --format json
-sase bead search auth --format full --limit 3
-sase bead search auth --status open --type phase
-sase bead search auth --type plan --tier epic
-```
-
-| Flag           | Values                                     | Description                                     |
-| -------------- | ------------------------------------------ | ----------------------------------------------- |
-| `-c, --color`  | `auto`, `always`, `never`                  | Color mode for compact output                   |
-| `-f, --format` | `compact`, `json`, `full`                  | Output format; defaults to `compact`            |
-| `-n, --limit`  | non-negative integer                       | Maximum results; omitted or `0` means unlimited |
-| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | Filter by status (repeatable)                   |
-| `--tier`       | `plan`, `epic`                             | Filter by plan-bead tier (repeatable)           |
-| `-t, --type`   | `plan`, `phase`                            | Filter by type (repeatable)                     |
-
-### `sase bead show <id>`
-
-Display complete details for an issue including status, type, tier, parent lineage, dependencies, blockers, description,
-notes, ChangeSpec metadata, model, and linked plan path. Closed beads include their resolution, close reason, and close
-timestamp; legacy closures without a resolution show `(unrecorded)`. Phase beads show their effective size (`small` for
-legacy beads without a stored size). Any bead's children are grouped as phases (with status and size) and child epics
-(with tier and status), including child epics owned by a phase bead. Nested beads show their complete lineage back to
-the root plan. A `claimed` bead also prints `Claimed by: <assignee> (agent has not started working yet)`.
-
-`full` is the unchanged default detail block. `compact` prints the same single row as `sase bead list`. `json` emits a
-single-bead envelope with `issue`, `ancestors`, `children`, `depends_on`, `blocks`, and `plan`; every relationship
-reference includes a `resolved` flag and fixed null-valued fields for unresolved IDs.
-
-| Flag           | Values                    | Description                       |
-| -------------- | ------------------------- | --------------------------------- |
-| `-f, --format` | `compact`, `json`, `full` | Output format; defaults to `full` |
-
-### `sase bead ready`
-
-Show issues that are ready to work on: `open` status with all dependencies `closed`. A `claimed` bead is already spoken
-for by a live agent, so it does not appear in `ready`.
-
-### `sase bead open <id>`
-
-Reopen an issue with an `issue_opened` event. Every closed ancestor above it is reopened in the same mutation, and the
-command prints the ancestor IDs it changed. Resolutions are cleared on the reopened bead and ancestors; historical close
-reasons and timestamps remain available.
-
-### `sase bead update <id>`
-
-Update one or more fields on an issue.
-
-| Flag                | Description                                                                   |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `-s, --status`      | Change status                                                                 |
-| `-t, --title`       | Change title                                                                  |
-| `-d, --description` | Change description                                                            |
-| `-n, --notes`       | Replace notes                                                                 |
-| `-D, --design`      | Change plan path                                                              |
-| `-a, --assignee`    | Change assignee                                                               |
-| `--tier`            | Change plan tier                                                              |
-| `-m, --model`       | Change the launch model. Pass an empty string to clear.                       |
-| `-z, --size`        | Change a phase bead's `xsmall`, `small`, `medium`, `large`, or `xlarge` size. |
-
-Use `sase bead update --notes` for an explicit field replacement. Use `sase bead note` when recording progress that
-should accumulate with earlier notes.
-
-### `sase bead note <id> <text>`
-
-Append one timestamped, attributed entry to an issue's notes. The entry is recorded as
-`[<timestamp> · <author>] <text>`, separated from existing notes by a blank line. The mutation runs atomically in the
-Rust bead store, so concurrent note writers append to the current value rather than replacing each other.
-
-| Flag           | Description                                                               |
-| -------------- | ------------------------------------------------------------------------- |
-| `-a, --author` | Author recorded on the entry; defaults to current agent, then store owner |
+Show all issues that have at least one active (non-closed) blocker.
 
 ### `sase bead close <id> [<id2> ...]`
 
@@ -396,11 +250,24 @@ scheduled again on retry.
 | `-r, --reason`     | Optional close reason text; required with `--force`                                 |
 | `-R, --resolution` | `canceled`, `done`, or `superseded`; defaults to `done`, which force does not allow |
 
-### `sase bead rm <id> [<id2> ...]`
+### `sase bead create`
 
-Remove one or more issues and recursively cascade-delete the union of all their descendants, including phases nested
-beneath child epics. Every requested ID is validated before anything is removed, so a missing ID leaves the store
-unchanged. Overlapping or repeated selections remove and print each issue only once. This is irreversible.
+Create a new issue.
+
+| Flag                | Required | Description                                                                                                                                                                                                                          |
+| ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `-t, --title`       | yes      | Issue title                                                                                                                                                                                                                          |
+| `-T, --type`        | yes      | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`                                                                                                                                                          |
+| `-d, --description` | no       | Issue description                                                                                                                                                                                                                    |
+| `-a, --assignee`    | no       | Assignee name                                                                                                                                                                                                                        |
+| `--tier`            | no       | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                     |
+| `-c, --changespec`  | no       | Attach a ChangeSpec name to a plan bead                                                                                                                                                                                              |
+| `-b, --bug-id`      | no       | Bug ID for the attached ChangeSpec; requires `--changespec`                                                                                                                                                                          |
+| `-m, --model`       | no       | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase beads it is the per-phase work model. |
+| `-z, --size`        | no       | Phase size: `xsmall`, `small`, `medium`, `large`, or `xlarge`. Valid only on phase beads; an omitted legacy/manual value behaves as `small`.                                                                                         |
+
+ChangeSpec metadata is valid only on plan beads. It is used by the epic-approval and `sase bead work` flows to keep plan
+beads linked to the ChangeSpec they are intended to produce.
 
 ### `sase bead dep`
 
@@ -449,23 +316,6 @@ records `dependency_removed` events and then reports whether the source bead is 
 | `tree`     | `-L, --levels`    | non-negative integer                       | Maximum levels to descend; `0` means unlimited   |
 | `tree`     | `-s, --status`    | `open`, `claimed`, `in_progress`, `closed` | Filter by bead status (repeatable)               |
 
-### `sase bead blocked`
-
-Show all issues that have at least one active (non-closed) blocker.
-
-### `sase bead sync`
-
-Regenerate the compatibility projection from the canonical event store and stage bead state in git. It does not create a
-commit; the staged event/projection files are included in the next normal project or SDD commit.
-
-| Flag           | Description                                   |
-| -------------- | --------------------------------------------- |
-| `-s, --status` | Check whether bead state has unstaged changes |
-
-### `sase bead stats`
-
-Show project statistics: total, open, claimed, in-progress, and closed counts, plus plan and phase counts.
-
 ### `sase bead doctor`
 
 Run health checks on the beads database. Checks for:
@@ -482,9 +332,158 @@ Run health checks on the beads database. Checks for:
 If bead commands fail before opening a store, run `sase core health` first. It verifies that the required `sase_core_rs`
 extension is importable and exposes the representative bead CLI binding used by the fast path.
 
+### `sase bead history [<id>]`
+
+Replay one bead's canonical event stream as an ordered, field-level timeline. Compact output prints the timestamp,
+actor, operation, and changed field names for each event. Full output prints every prior and new value, including
+earlier note revisions that later updates replaced. JSON emits one envelope with `issue_id`, `schema_version`, and
+`entries`.
+
+Use `--lost-notes` to report notes snapshots whose nonblank text no longer appears in the current notes. With no
+positional ID it scans the whole store; with an ID it checks only that bead. Findings are sorted by bead ID. Add
+`--restore` to preview provenance-tagged appends, prompt once, and restore every finding through the same atomic append
+mutation used by `sase bead note`. Restoration is idempotent: restored text is retained by later append snapshots, so a
+second scan reports nothing. Non-interactive restoration declines safely, and `--restore` without `--lost-notes` is a
+usage error.
+
+| Flag               | Values                    | Description                                                    |
+| ------------------ | ------------------------- | -------------------------------------------------------------- |
+| `-F, --field`      | field name                | Restrict to events changing the field; repeatable              |
+| `-f, --format`     | `compact`, `full`, `json` | Output format; defaults to `compact`                           |
+| `-n, --limit`      | non-negative integer      | Newest entries to print; omitted or `0` is unlimited           |
+| `-l, --lost-notes` | boolean                   | Report beads whose current notes dropped an earlier revision   |
+| `-R, --restore`    | boolean                   | With `--lost-notes`, re-append findings after one confirmation |
+
+### `sase bead init`
+
+Initialize the bead store for the current project. In effective in-tree SDD mode this is `sdd/beads/`; local and legacy
+separate-repo modes use `.sase/sdd/beads/`; split sidecar mode uses `beads/` in the `--plans` repository.
+
+### `sase bead list`
+
+List issues with optional filtering. Without `--status`, the command lists `open`, `claimed`, and `in_progress` issues;
+pass `--status=closed` when you need closed history. When the default active query is empty and no explicit `--status`
+was given, the command falls back to listing closed beads. `--status`, `--type`, and `--tier` are repeatable.
+
+| Flag           | Values                                     | Description                                                                           |
+| -------------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `-f, --format` | `compact`, `json`, `full`                  | Output format; defaults to `compact`                                                  |
+| `-n, --limit`  | integer                                    | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
+| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
+| `--tier`       | `plan`, `epic`                             | Filter by plan-bead tier                                                              |
+| `-t, --type`   | `plan`, `phase`                            | Filter by type (repeatable)                                                           |
+
+Active (open/claimed/in-progress) listings are unlimited by default. Whenever the final status scope includes `closed`
+and `--limit` is omitted, only the newest 20 beads print; pass `--limit 0` for the full closed history.
+
+### `sase bead note <id> <text>`
+
+Append one timestamped, attributed entry to an issue's notes. The entry is recorded as
+`[<timestamp> · <author>] <text>`, separated from existing notes by a blank line. The mutation runs atomically in the
+Rust bead store, so concurrent note writers append to the current value rather than replacing each other.
+
+| Flag           | Description                                                               |
+| -------------- | ------------------------------------------------------------------------- |
+| `-a, --author` | Author recorded on the entry; defaults to current agent, then store owner |
+
 ### `sase bead onboard`
 
 Display a quick-start guide with common command examples.
+
+### `sase bead open <id>`
+
+Reopen an issue with an `issue_opened` event. Every closed ancestor above it is reopened in the same mutation, and the
+command prints the ancestor IDs it changed. Resolutions are cleared on the reopened bead and ancestors; historical close
+reasons and timestamps remain available.
+
+### `sase bead ready`
+
+Show issues that are ready to work on: `open` status with all dependencies `closed`. A `claimed` bead is already spoken
+for by a live agent, so it does not appear in `ready`.
+
+### `sase bead rm <id> [<id2> ...]`
+
+Remove one or more issues and recursively cascade-delete the union of all their descendants, including phases nested
+beneath child epics. Every requested ID is validated before anything is removed, so a missing ID leaves the store
+unchanged. Overlapping or repeated selections remove and print each issue only once. This is irreversible.
+
+### `sase bead search <query>`
+
+Find beads whose indexed text fields contain a case-insensitive literal substring. This is substring search, not regex
+or glob matching. Current indexed fields include ID, title, description, notes, design/plan path, owner, assignee,
+model, phase size, ChangeSpec name/bug ID, status, type, and tier; timestamps are not searched. Unlike `sase bead list`,
+search includes `open`, `claimed`, `in_progress`, and `closed` beads by default, so it is the quickest way to recover
+older context.
+
+Compact output prints each matching bead with a short snippet. For multi-line fields such as descriptions or notes, the
+snippet uses the line that matched the query when possible instead of always showing the first line. JSON output exposes
+the exact `matched_fields` list for each result.
+
+```bash
+sase bead search auth
+sase bead search auth --format json
+sase bead search auth --format full --limit 3
+sase bead search auth --status open --type phase
+sase bead search auth --type plan --tier epic
+```
+
+| Flag           | Values                                     | Description                                     |
+| -------------- | ------------------------------------------ | ----------------------------------------------- |
+| `-c, --color`  | `auto`, `always`, `never`                  | Color mode for compact output                   |
+| `-f, --format` | `compact`, `json`, `full`                  | Output format; defaults to `compact`            |
+| `-n, --limit`  | non-negative integer                       | Maximum results; omitted or `0` means unlimited |
+| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | Filter by status (repeatable)                   |
+| `--tier`       | `plan`, `epic`                             | Filter by plan-bead tier (repeatable)           |
+| `-t, --type`   | `plan`, `phase`                            | Filter by type (repeatable)                     |
+
+### `sase bead show <id>`
+
+Display complete details for an issue including status, type, tier, parent lineage, dependencies, blockers, description,
+notes, ChangeSpec metadata, model, and linked plan path. Closed beads include their resolution, close reason, and close
+timestamp; legacy closures without a resolution show `(unrecorded)`. Phase beads show their effective size (`small` for
+legacy beads without a stored size). Any bead's children are grouped as phases (with status and size) and child epics
+(with tier and status), including child epics owned by a phase bead. Nested beads show their complete lineage back to
+the root plan. A `claimed` bead also prints `Claimed by: <assignee> (agent has not started working yet)`.
+
+`full` is the unchanged default detail block. `compact` prints the same single row as `sase bead list`. `json` emits a
+single-bead envelope with `issue`, `ancestors`, `children`, `depends_on`, `blocks`, and `plan`; every relationship
+reference includes a `resolved` flag and fixed null-valued fields for unresolved IDs.
+
+| Flag           | Values                    | Description                       |
+| -------------- | ------------------------- | --------------------------------- |
+| `-f, --format` | `compact`, `json`, `full` | Output format; defaults to `full` |
+
+### `sase bead stats`
+
+Show project statistics: total, open, claimed, in-progress, and closed counts, plus plan and phase counts.
+
+### `sase bead sync`
+
+Regenerate the compatibility projection from the canonical event store and stage bead state in git. It does not create a
+commit; the staged event/projection files are included in the next normal project or SDD commit.
+
+| Flag           | Description                                   |
+| -------------- | --------------------------------------------- |
+| `-s, --status` | Check whether bead state has unstaged changes |
+
+### `sase bead update <id>`
+
+Update one or more fields on an issue.
+
+| Flag                | Description                                                                   |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `-s, --status`      | Change status                                                                 |
+| `-t, --title`       | Change title                                                                  |
+| `-d, --description` | Change description                                                            |
+| `-n, --notes`       | Replace notes                                                                 |
+| `-D, --design`      | Change plan path                                                              |
+| `-a, --assignee`    | Change assignee                                                               |
+| `--tier`            | Change plan tier                                                              |
+| `-m, --model`       | Change the launch model. Pass an empty string to clear.                       |
+| `-z, --size`        | Change a phase bead's `xsmall`, `small`, `medium`, `large`, or `xlarge` size. |
+
+Use `sase bead update --notes` for an explicit field replacement. Use `sase bead note` when recording progress that
+should accumulate with earlier notes.
 
 ### `sase bead work <target>`
 
