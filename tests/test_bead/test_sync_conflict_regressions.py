@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import threading
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -21,6 +22,7 @@ from sase.bead.sync import (
     commit_bead_claim,
 )
 from sase.bead.sync_worker import run_managed_sync_worker
+from sase.core import bead_conflict_facade, bead_mutation_facade
 from sase.sdd._commit_store import push_sdd_store_after_commit
 from sase.sdd._repository_transaction import (
     SddIntegrationOutcome,
@@ -91,6 +93,197 @@ def _seed_same_stream_remote(
     _clone(remote, left)
     _clone(remote, right)
     return remote, left, right, epic.id, first.id, second.id
+
+
+def _seed_replay_divergence(
+    tmp_path: Path,
+) -> tuple[Path, Path, Path, tuple[str, str], str]:
+    """Create two clones ready for deterministic, multi-stream divergence."""
+    remote = tmp_path / "replay.git"
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(remote)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    seed = tmp_path / "replay-seed"
+    seed.mkdir()
+    init_git_repo(seed)
+    _git(seed, "branch", "-M", "main")
+    (seed / ".gitignore").write_text("beads/beads.db*\n", encoding="utf-8")
+    with BeadProject.init(seed, beads_dirname="beads"):
+        pass
+    first, _outcome = bead_mutation_facade.create(
+        seed / "beads",
+        title="First contested stream",
+        issue_type=IssueType.PLAN,
+        now="2026-07-27T00:00:00Z",
+    )
+    second, _outcome = bead_mutation_facade.create(
+        seed / "beads",
+        title="Second contested stream",
+        issue_type=IssueType.PLAN,
+        now="2026-07-27T00:00:01Z",
+    )
+    quiet, _outcome = bead_mutation_facade.create(
+        seed / "beads",
+        title="Quiét — untouched",
+        issue_type=IssueType.PLAN,
+        now="2026-07-27T00:00:02Z",
+    )
+    _commit(seed, "seed replay streams")
+    _git(seed, "remote", "add", "origin", str(remote))
+    _git(seed, "push", "-u", "origin", "main")
+
+    local = tmp_path / "replay-local"
+    upstream = tmp_path / "replay-upstream"
+    _clone(remote, local)
+    _clone(remote, upstream)
+    return remote, local, upstream, (first.id, second.id), quiet.id
+
+
+def _build_replay_histories(
+    local: Path,
+    upstream: Path,
+    contested_ids: tuple[str, str],
+) -> None:
+    """Write the incident shape: four local commits over interleaved upstream."""
+    first_id, second_id = contested_ids
+    local_updates = [
+        (
+            first_id,
+            "2026-07-27T00:04:00Z",
+            {"title": "First from local commit one"},
+        ),
+        (
+            second_id,
+            "2026-07-27T00:06:00Z",
+            {"notes": "Second from local commit two"},
+        ),
+        (
+            first_id,
+            "2026-07-27T00:08:00Z",
+            {"description": "First from local commit three"},
+        ),
+        (
+            second_id,
+            "2026-07-27T00:10:00Z",
+            {"design": "Second from local commit four"},
+        ),
+    ]
+    for index, (issue_id, now, fields) in enumerate(local_updates, start=1):
+        bead_mutation_facade.update(
+            local / "beads",
+            issue_id,
+            **fields,
+            now=now,
+        )
+        _commit(local, f"local bead mutation {index}", "beads")
+
+    upstream_updates = [
+        (
+            first_id,
+            "2026-07-27T00:03:00Z",
+            {"notes": "First from upstream"},
+        ),
+        (
+            second_id,
+            "2026-07-27T00:05:00Z",
+            {"description": "Second from upstream"},
+        ),
+    ]
+    for index, (issue_id, now, fields) in enumerate(upstream_updates, start=1):
+        bead_mutation_facade.update(
+            upstream / "beads",
+            issue_id,
+            **fields,
+            now=now,
+        )
+        _commit(upstream, f"upstream bead mutation {index}", "beads")
+
+
+def _read_streams(repo: Path) -> list[dict[str, Any]]:
+    streams = []
+    for path in sorted((repo / "beads/events/streams").glob("*.jsonl")):
+        streams.append(
+            {
+                "stream_id": path.stem,
+                "root_issue_id": path.stem,
+                "events": [
+                    json.loads(line)
+                    for line in path.read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ],
+            }
+        )
+    return streams
+
+
+def _event_records_by_id(repo: Path) -> dict[str, dict[str, Any]]:
+    records: dict[str, dict[str, Any]] = {}
+    for stream in _read_streams(repo):
+        for event in stream["events"]:
+            assert isinstance(event, dict)
+            event_id = str(event["event_id"])
+            assert event_id not in records
+            records[event_id] = event
+    return records
+
+
+def _bead_artifact_bytes(repo: Path) -> dict[str, bytes]:
+    beads_dir = repo / "beads"
+    paths = [
+        *sorted((beads_dir / "events/streams").glob("*.jsonl")),
+        beads_dir / "events/manifest.json",
+        beads_dir / "issues.jsonl",
+    ]
+    return {path.relative_to(beads_dir).as_posix(): path.read_bytes() for path in paths}
+
+
+def _assert_store_matches_fresh_reduction(repo: Path) -> None:
+    streams = _read_streams(repo)
+    expected_issues = bead_conflict_facade.reduce_event_streams(streams)
+    expected_issue_bytes = "".join(
+        json.dumps(issue, separators=(",", ":"), ensure_ascii=False) + "\n"
+        for issue in expected_issues
+    ).encode()
+    expected_manifest_bytes = json.dumps(
+        bead_conflict_facade.event_store_manifest(streams),
+        indent=2,
+        ensure_ascii=False,
+    ).encode()
+    assert (repo / "beads/issues.jsonl").read_bytes() == expected_issue_bytes
+    assert (repo / "beads/events/manifest.json").read_bytes() == expected_manifest_bytes
+
+
+def _opposite_direction_workspace(
+    tmp_path: Path,
+    *,
+    name: str,
+    upstream_repo: Path,
+    local_repo: Path,
+) -> tuple[Path, Path]:
+    """Put one divergence direction on a fresh remote and working clone."""
+    remote = tmp_path / f"{name}.git"
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(remote)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    upstream_head = _git(upstream_repo, "rev-parse", "HEAD").stdout.strip()
+    local_head = _git(local_repo, "rev-parse", "HEAD").stdout.strip()
+    _git(
+        upstream_repo,
+        "push",
+        str(remote),
+        f"{upstream_head}:refs/heads/main",
+    )
+    workspace = tmp_path / name
+    _clone(remote, workspace)
+    _git(workspace, "fetch", str(local_repo), local_head)
+    _git(workspace, "reset", "--hard", "FETCH_HEAD")
+    return remote, workspace
 
 
 def _seed_claim_soak_remote(
@@ -221,6 +414,98 @@ def test_generic_sdd_push_reconciles_same_stream_and_derived_files(
     }
     integration = next(record for record in records if record["event"] == "integration")
     assert set(integration["resolved_files"]) == set(resolution["resolved_files"])
+
+
+def test_managed_sync_worker_replays_deep_multi_commit_divergence(
+    tmp_path: Path,
+) -> None:
+    remote, local, upstream, contested_ids, quiet_id = _seed_replay_divergence(tmp_path)
+    _build_replay_histories(local, upstream, contested_ids)
+    expected_events = _event_records_by_id(local)
+    for event_id, event in _event_records_by_id(upstream).items():
+        assert event_id not in expected_events or expected_events[event_id] == event
+        expected_events[event_id] = event
+    quiet_path = local / f"beads/events/streams/{quiet_id}.jsonl"
+    quiet_bytes = quiet_path.read_bytes()
+    assert b"Qui\xc3\xa9t" in quiet_bytes
+    _git(upstream, "push")
+
+    log_path = tmp_path / "deep-replay.log"
+    outcome = run_managed_sync_worker(
+        local,
+        local / "beads",
+        log_path=log_path,
+    )
+
+    assert outcome.pushed is True
+    assert outcome.integrated is True
+    assert outcome.error is None
+    assert _git(local, "status", "--porcelain").stdout == ""
+    assert not (local / ".git/rebase-merge").exists()
+    assert not (local / ".git/rebase-apply").exists()
+    assert _git(local, "diff", "--name-only", "--diff-filter=U").stdout == ""
+    assert _event_records_by_id(local) == expected_events
+    assert quiet_path.read_bytes() == quiet_bytes
+    _assert_store_matches_fresh_reduction(local)
+
+    with BeadProject(local, beads_dirname="beads") as project:
+        first = project.show(contested_ids[0])
+        second = project.show(contested_ids[1])
+    assert first.title == "First from local commit one"
+    assert first.notes == "First from upstream"
+    assert first.description == "First from local commit three"
+    assert second.notes == "Second from local commit two"
+    assert second.description == "Second from upstream"
+    assert second.design == "Second from local commit four"
+
+    verify = tmp_path / "deep-replay-verify"
+    _clone(remote, verify)
+    assert _bead_artifact_bytes(verify) == _bead_artifact_bytes(local)
+    records = _log_records(log_path)
+    assert sum(record["event"] == "conflict_resolution" for record in records) >= 3
+    assert records[-1]["event"] == "completed"
+
+
+def test_managed_sync_worker_converges_in_opposite_replay_directions(
+    tmp_path: Path,
+) -> None:
+    _remote, local, upstream, contested_ids, _quiet_id = _seed_replay_divergence(
+        tmp_path
+    )
+    _build_replay_histories(local, upstream, contested_ids)
+    _right_remote, local_over_upstream = _opposite_direction_workspace(
+        tmp_path,
+        name="local-over-upstream",
+        upstream_repo=upstream,
+        local_repo=local,
+    )
+    _left_remote, upstream_over_local = _opposite_direction_workspace(
+        tmp_path,
+        name="upstream-over-local",
+        upstream_repo=local,
+        local_repo=upstream,
+    )
+
+    local_outcome = run_managed_sync_worker(
+        local_over_upstream,
+        local_over_upstream / "beads",
+        log_path=tmp_path / "local-over-upstream.log",
+    )
+    upstream_outcome = run_managed_sync_worker(
+        upstream_over_local,
+        upstream_over_local / "beads",
+        log_path=tmp_path / "upstream-over-local.log",
+    )
+
+    assert local_outcome.pushed is True
+    assert local_outcome.integrated is True
+    assert upstream_outcome.pushed is True
+    assert upstream_outcome.integrated is True
+    assert _bead_artifact_bytes(local_over_upstream) == _bead_artifact_bytes(
+        upstream_over_local
+    )
+    _assert_store_matches_fresh_reduction(local_over_upstream)
+    _assert_store_matches_fresh_reduction(upstream_over_local)
 
 
 def test_concurrent_claim_soak_preserves_commits_without_recovery(
@@ -677,7 +962,7 @@ def test_clean_rebase_repairs_stale_manifest_and_repeated_sync_is_noop(
 
 
 @pytest.mark.parametrize("invalid_kind", ["rewrite", "corrupt"])
-def test_invalid_same_stream_aborts_to_exact_starting_state(
+def test_managed_sync_worker_invalid_stream_restores_exact_starting_state(
     tmp_path: Path,
     invalid_kind: str,
 ) -> None:
@@ -704,10 +989,14 @@ def test_invalid_same_stream_aborts_to_exact_starting_state(
     untracked.write_text("keep\n", encoding="utf-8")
     starting = _status_snapshot(left)
 
-    outcome = integrate_sdd_repository(left, beads_dir=left / "beads")
+    outcome = run_managed_sync_worker(
+        left,
+        left / "beads",
+        log_path=tmp_path / f"{invalid_kind}-sync.log",
+    )
 
-    assert outcome.status is SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS
-    assert outcome.restored is True
+    assert outcome.pushed is False
+    assert outcome.integrated is False
     if invalid_kind == "rewrite":
         assert "non-append-only" in (outcome.error or "")
     else:
