@@ -119,6 +119,43 @@ def test_chop_inventory_to_dict_is_json_safe() -> None:
     assert "env" not in configured
 
 
+def test_chop_inventory_to_dict_carries_description_parts() -> None:
+    config = AxeConfig(
+        lumberjacks={
+            "hooks": LumberjackConfig(
+                name="hooks",
+                description="Run hook inventory checks",
+                interval=10,
+                chops=[
+                    ChopConfig(
+                        name="friendly",
+                        description=(
+                            "Complete finished hooks and start stale ones\n\n"
+                            "Scans ChangeSpecs and advances stale hook work."
+                        ),
+                    )
+                ],
+            )
+        }
+    )
+
+    payload = chop_inventory_to_dict(collect_chop_inventory(config))
+
+    configured = next(c for c in payload["configured"] if c["name"] == "friendly")
+    assert configured["description"] == (
+        "Complete finished hooks and start stale ones\n\n"
+        "Scans ChangeSpecs and advances stale hook work."
+    )
+    assert (
+        configured["description_summary"]
+        == "Complete finished hooks and start stale ones"
+    )
+    assert (
+        configured["description_body"]
+        == "Scans ChangeSpecs and advances stale hook work."
+    )
+
+
 def test_chop_inventory_surfaces_disabled_and_target_instances() -> None:
     config = AxeConfig(
         lumberjacks={
@@ -175,8 +212,9 @@ def _render_chop_list(config: AxeConfig, *, verbose: bool) -> str:
 
 
 @pytest.mark.parametrize("verbose", [False, True])
-def test_configured_chops_table_always_shows_description(verbose: bool) -> None:
-    """The Description column is present with and without ``--verbose``."""
+def test_configured_chops_table_shows_summary_first(verbose: bool) -> None:
+    """The Description column stays summary-only; verbose adds the full body."""
+    body = "Scans ChangeSpecs and advances stale hook work."
     config = AxeConfig(
         lumberjacks={
             "hooks": LumberjackConfig(
@@ -186,7 +224,9 @@ def test_configured_chops_table_always_shows_description(verbose: bool) -> None:
                 chops=[
                     ChopConfig(
                         name="hook_checks",
-                        description="Complete finished hooks and start stale ones",
+                        description=(
+                            "Complete finished hooks and start stale ones\n\n" + body
+                        ),
                     )
                 ],
             )
@@ -198,5 +238,7 @@ def test_configured_chops_table_always_shows_description(verbose: bool) -> None:
     header = output.splitlines()[1:5]
     assert any("Description" in line for line in header)
     assert "Complete finished hooks and start stale ones" in output
+    assert ("Full Chop Descriptions" in output) is verbose
+    assert (body in output) is verbose
     # The verbose-only policy column stays verbose-only.
     assert ("Policy / Last Decision" in output) is verbose

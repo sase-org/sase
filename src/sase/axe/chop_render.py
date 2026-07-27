@@ -36,6 +36,8 @@ def render_chop_list(
     renderables: list[RenderableType] = [
         _configured_chops_table(inventory, verbose=verbose)
     ]
+    if verbose:
+        renderables.append(_configured_chop_descriptions_panel(inventory))
     if available:
         renderables.append(_available_chops_table(inventory, verbose=verbose))
     if verbose:
@@ -190,7 +192,7 @@ def _configured_chops_table(
     table.add_column("Status", no_wrap=True)
     table.add_column("Lumberjack", no_wrap=True)
     table.add_column("Chop", no_wrap=True)
-    table.add_column("Description", overflow="fold")
+    table.add_column("Description", overflow="ellipsis", no_wrap=True)
     table.add_column("Kind", no_wrap=True)
     table.add_column("Last Run", no_wrap=True)
     table.add_column("Resolution", overflow="fold")
@@ -212,7 +214,7 @@ def _configured_chops_table(
             _status_text(_configured_chop_status(chop)),
             Text(chop.lumberjack),
             Text(display_name),
-            Text(chop.description or "-", overflow="fold"),
+            Text(chop.description_summary or "-", overflow="ellipsis", no_wrap=True),
             Text("script"),
             _run_status_text(chop.latest_run_status),
             Text(resolution, overflow="fold"),
@@ -221,6 +223,38 @@ def _configured_chops_table(
             row.append(Text(_chop_policy_summary(chop), overflow="fold"))
         table.add_row(*row)
     return table
+
+
+def _configured_chop_descriptions_panel(inventory: ChopInventory) -> Panel:
+    if not inventory.configured_chops:
+        return Panel(
+            Text("No chops are configured under axe.lumberjacks.", style="dim"),
+            title="Full Chop Descriptions",
+            border_style="dim",
+        )
+
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold cyan", no_wrap=True)
+    table.add_column(overflow="fold")
+    for chop in inventory.configured_chops:
+        display_name = f"{chop.lumberjack}/{chop.name}"
+        table.add_row(display_name, Text(_full_description(chop), overflow="fold"))
+    return Panel(table, title="Full Chop Descriptions", border_style="cyan")
+
+
+def _full_description(chop: ConfiguredChopRecord) -> str:
+    if chop.description_body:
+        summary = chop.description_summary or _first_description_line(chop.description)
+        return f"{summary}\n\n{chop.description_body}".rstrip()
+    return chop.description or "-"
+
+
+def _first_description_line(description: str) -> str:
+    for line in description.splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return ""
 
 
 def _available_chops_table(

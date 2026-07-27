@@ -444,6 +444,42 @@ def test_handle_axe_lumberjack_list_prints_descriptions(
     assert lines[housekeeping_index + 2].startswith("interval:")
 
 
+@patch("sase.axe.cli.load_axe_config")
+@pytest.mark.parametrize("verbose", [False, True])
+def test_handle_axe_lumberjack_list_verbose_controls_description_body(
+    mock_load: MagicMock,
+    capsys: pytest.CaptureFixture[str],
+    verbose: bool,
+) -> None:
+    body = "Explains the hook lifecycle and stale-work startup path."
+    mock_load.return_value = AxeConfig(
+        lumberjacks={
+            "hooks": LumberjackConfig(
+                name="hooks",
+                description="Advance hook lifecycle state\n\n" + body,
+                description_summary="Advance hook lifecycle state",
+                description_body=body,
+                interval=1,
+                chops=[
+                    ChopConfig(
+                        name="hook_checks",
+                        description="Complete hook checks",
+                    )
+                ],
+            )
+        }
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        handle_axe_lumberjack_list(argparse.Namespace(verbose=verbose))
+
+    assert exc_info.value.code == 0
+    output = capsys.readouterr().out
+    assert "description: Advance hook lifecycle state" in output
+    assert ("details:" in output) is verbose
+    assert (body in output) is verbose
+
+
 # --- handle_axe_lumberjack_status Tests ---
 
 

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from sase.axe.chop_script_runner import discover_chop_script
-from sase.axe.config import AxeConfig, load_axe_config
+from sase.axe.config import AxeConfig, ChopConfig, load_axe_config
 from sase.axe.chop_env import ChopEnvValue
 from sase.axe.state import ChopRunStatus, read_chop_run, read_chop_run_index
 
@@ -30,6 +30,8 @@ class ConfiguredChopRecord:
     name: str
     parent_name: str | None
     description: str
+    description_summary: str
+    description_body: str
     script: str
     env: dict[str, ChopEnvValue]
     inhibit_if: tuple[dict[str, Any], ...]
@@ -112,6 +114,8 @@ def chop_inventory_to_dict(inventory: ChopInventory) -> dict[str, Any]:
                 "name": chop.name,
                 "parent_name": chop.parent_name,
                 "description": chop.description,
+                "description_summary": chop.description_summary,
+                "description_body": chop.description_body,
                 "script": chop.script,
                 "status": chop.status,
                 "resolved_path": chop.resolved_path,
@@ -168,6 +172,8 @@ def _configured_chops(axe_config: AxeConfig) -> tuple[ConfiguredChopRecord, ...]
                     name=chop.name,
                     parent_name=chop.parent_name,
                     description=chop.description,
+                    description_summary=_chop_description_summary(chop),
+                    description_body=_chop_description_body(chop),
                     script=script_name,
                     env=dict(chop.env),
                     inhibit_if=tuple(dict(guard) for guard in chop.inhibit_if),
@@ -197,6 +203,29 @@ def _configured_chops(axe_config: AxeConfig) -> tuple[ConfiguredChopRecord, ...]
 
     records.sort(key=lambda chop: (chop.lumberjack, chop.name))
     return tuple(records)
+
+
+def _chop_description_summary(chop: ChopConfig) -> str:
+    """Return the cached description summary, with a direct-config fallback."""
+    if chop.description_summary:
+        return chop.description_summary
+    for line in chop.description.splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return ""
+
+
+def _chop_description_body(chop: ChopConfig) -> str:
+    """Return the cached description body, with a direct-config fallback."""
+    if chop.description_body:
+        return chop.description_body
+    lines = chop.description.splitlines()
+    if len(lines) >= 3 and not lines[1].strip():
+        return "\n".join(lines[2:]).strip()
+    if len(lines) > 1:
+        return "\n".join(lines[1:]).strip()
+    return ""
 
 
 def _available_chop_scripts(

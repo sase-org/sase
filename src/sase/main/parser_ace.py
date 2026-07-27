@@ -208,7 +208,15 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     # sase axe lumberjack list
-    axe_lumberjack_subparsers.add_parser("list", help="List configured lumberjacks")
+    axe_lumberjack_list_parser = axe_lumberjack_subparsers.add_parser(
+        "list", help="List configured lumberjacks"
+    )
+    axe_lumberjack_list_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show full lumberjack descriptions",
+    )
 
     # sase axe lumberjack run <name>
     axe_lumberjack_run_parser = axe_lumberjack_subparsers.add_parser(

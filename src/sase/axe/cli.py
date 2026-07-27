@@ -8,6 +8,9 @@ import argparse
 import json
 import sys
 
+from rich.console import Console
+from rich.text import Text
+
 from sase.ace.hooks.processes import is_process_running
 
 from .chop_runner import (
@@ -19,7 +22,13 @@ from .chop_runner import (
     run_configured_chop_once,
 )
 from .chop_script_runner import discover_chop_script
-from .config import AxeConfig, AxeConfigError, ChopConfig, load_axe_config
+from .config import (
+    AxeConfig,
+    AxeConfigError,
+    ChopConfig,
+    LumberjackConfig,
+    load_axe_config,
+)
 from .state import (
     read_chop_run_log_tail,
     read_lumberjack_status,
@@ -217,23 +226,78 @@ def _print_chop_log_tail(outcome: ChopRunOutcome) -> None:
 
 def handle_axe_lumberjack_list(args: argparse.Namespace) -> None:
     """Print configured lumberjack names and their chops."""
-    from rich.console import Console
-
     console = Console()
     config = _load_axe_config_or_exit()
+    verbose = bool(getattr(args, "verbose", False))
     for i, (name, lumberjack) in enumerate(sorted(config.lumberjacks.items())):
         if i > 0:
             console.print()
-        console.print(f"[bold cyan]{name}[/bold cyan]")
-        if lumberjack.description:
-            console.print(f"  [dim]description:[/dim] {lumberjack.description}")
+        console.print(Text(name, style="bold cyan"))
+        _print_lumberjack_description(console, lumberjack, verbose=verbose)
         console.print(f"  [dim]interval:[/dim] {lumberjack.interval}s")
         enabled_chops = [chop for chop in lumberjack.chops if chop.enabled]
         if enabled_chops:
             console.print("  [dim]chops:[/dim]")
             for chop in enabled_chops:
-                console.print(f"    [green]{chop.name}[/green]")
+                console.print(Text.assemble("    ", (chop.name, "green")))
     sys.exit(0)
+
+
+def _print_lumberjack_description(
+    console: Console,
+    lumberjack: LumberjackConfig,
+    *,
+    verbose: bool,
+) -> None:
+    description = lumberjack.description
+    summary = _description_summary(
+        description,
+        lumberjack.description_summary,
+    )
+    if not summary:
+        return
+
+    line = Text("  ")
+    line.append("description:", style="dim")
+    line.append(f" {summary}")
+    console.print(line)
+
+    if not verbose:
+        return
+
+    body = _description_body(
+        description,
+        lumberjack.description_body,
+    )
+    if not body:
+        return
+
+    label = Text("  ")
+    label.append("details:", style="dim")
+    console.print(label)
+    for body_line in body.splitlines():
+        console.print(Text(f"    {body_line}" if body_line else ""))
+
+
+def _description_summary(description: str, cached_summary: str) -> str:
+    if cached_summary:
+        return cached_summary
+    for line in description.splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return ""
+
+
+def _description_body(description: str, cached_body: str) -> str:
+    if cached_body:
+        return cached_body
+    lines = description.splitlines()
+    if len(lines) >= 3 and not lines[1].strip():
+        return "\n".join(lines[2:]).strip()
+    if len(lines) > 1:
+        return "\n".join(lines[1:]).strip()
+    return ""
 
 
 def handle_axe_lumberjack_run(args: argparse.Namespace) -> None:

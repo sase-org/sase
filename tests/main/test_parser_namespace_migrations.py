@@ -41,6 +41,16 @@ def test_axe_chop_run_debug_option_aliases() -> None:
     assert short_args.force is True
 
 
+def test_axe_lumberjack_list_verbose_option() -> None:
+    args = create_parser().parse_args(["axe", "lumberjack", "list", "--verbose"])
+    short_args = create_parser().parse_args(["axe", "lumberjack", "list", "-v"])
+
+    assert args.axe_subcommand == "lumberjack"
+    assert args.axe_lumberjack_subcommand == "list"
+    assert args.verbose is True
+    assert short_args.verbose is True
+
+
 def test_init_namespace_parses_migrated_leaf_commands() -> None:
     """The init namespace parses its migrated leaf commands."""
     parser = create_parser()
