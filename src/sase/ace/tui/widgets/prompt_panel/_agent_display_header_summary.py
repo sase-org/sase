@@ -66,6 +66,22 @@ def get_cached_detail_header_summary(
     return entry.summary
 
 
+def detail_header_summary_cache_key(
+    widget: object,
+    agent: Agent,
+) -> tuple[object, ...] | None:
+    """Return a panel-local key for the summary currently used by ``agent``.
+
+    The summary object is replaced atomically when enrichment lands. Its
+    identity therefore distinguishes cold, warm, and refreshed header inputs
+    without attempting to hash the summary's list-valued fields.
+    """
+    summary = get_cached_detail_header_summary(widget, agent)
+    if summary is None:
+        return None
+    return (agent.identity, id(summary))
+
+
 def should_refresh_detail_header_summary(
     widget: object,
     agent: Agent,

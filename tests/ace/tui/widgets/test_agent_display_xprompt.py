@@ -11,7 +11,10 @@ from rich.console import Group
 from rich.text import Text
 
 from sase import project_display_names as pdn
-from sase.ace.tui.util.lazy_syntax import MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES
+from sase.ace.tui.util.lazy_syntax import (
+    MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
+    CachedRenderable,
+)
 from sase.ace.tui.util.xprompt_syntax import XPROMPT_TOKEN_STYLES
 
 from tests.ace.tui.widgets._agent_display_helpers import (
@@ -26,6 +29,8 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
 
 
 def _header_text(renderable: object) -> Text:
+    if isinstance(renderable, CachedRenderable):
+        renderable = renderable.renderable
     if isinstance(renderable, Text):
         return renderable
     assert isinstance(renderable, Group)

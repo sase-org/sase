@@ -1,15 +1,25 @@
 """Agent display with file-path hints for the agent prompt panel."""
 
-from collections.abc import Callable
+from __future__ import annotations
 
+from collections import OrderedDict
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from hashlib import blake2b
+from typing import Any, cast
+
+from rich.console import Group, RenderableType
+from rich.syntax import Syntax
 from rich.text import Text
 
+from sase.project_display_names import project_display_name_map_signature
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
 
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, AgentType, wait_display_agent
 from ...models.agent_hoods import agent_owns_lane
+from ...util.lazy_syntax import CachedRenderable
 from ...util.trace import tui_trace
 from ...util.xprompt_syntax import apply_xprompt_overlays
 from ._agent_display_content import (
@@ -22,6 +32,7 @@ from ._agent_display_clan import panel_fold_state_from_widget
 from ._agent_display_context import runner_capacity_for_app
 from ._agent_display_header import AgentHeader, build_header_text
 from ._agent_display_header_summary import (
+    detail_header_summary_cache_key,
     get_cached_detail_header_summary,
     publish_opened_workspaces_cache,
 )
@@ -33,8 +44,186 @@ from ._file_path_hints import (
     resolve_agent_workspace_dir,
 )
 from ._helpers import append_section_heading, format_output
-from ._hint_caps import append_bounded_text_with_file_hints
+from ._hint_caps import (
+    HintContentBudget,
+    append_bounded_text_with_file_hints,
+)
 from ._member_roster import member_jump_map_publisher_for
+
+_AGENT_HINT_RENDER_CACHE_MAX_ENTRIES = 16
+
+
+@dataclass(frozen=True)
+class _AgentHintRenderCacheKey:
+    """Inputs whose changes can alter an annotated hint document."""
+
+    agent_identity: tuple[object, ...]
+    agent_state_digest: str
+    source_digest: str
+    summary_key: tuple[object, ...] | None
+    fold_level: object
+    fold_overrides: tuple[tuple[str, str], ...]
+    context_digest: str
+    cap_parameters: tuple[int, int]
+    attempt_view_mode: str
+    attempt_pinned_number: int | None
+
+
+@dataclass(frozen=True)
+class _AgentHintRenderCacheEntry:
+    """A memoized hint result and its width-cached Rich document."""
+
+    result: AgentHintRender
+    renderable: CachedRenderable
+
+
+def _agent_hint_render_cache(
+    widget: object,
+) -> OrderedDict[_AgentHintRenderCacheKey, _AgentHintRenderCacheEntry]:
+    cache = getattr(widget, "_agent_hint_render_cache", None)
+    if cache is None:
+        cache = OrderedDict()
+        cast(Any, widget)._agent_hint_render_cache = cache
+    return cast(
+        OrderedDict[_AgentHintRenderCacheKey, _AgentHintRenderCacheEntry],
+        cache,
+    )
+
+
+def clear_agent_hint_render_cache(widget: object) -> None:
+    """Clear the panel-local annotated-document cache, when initialized."""
+    cache = getattr(widget, "_agent_hint_render_cache", None)
+    if cache is not None:
+        cache.clear()
+
+
+def _digest_parts(*parts: object) -> str:
+    digest = blake2b(digest_size=16)
+    for part in parts:
+        encoded = repr(part).encode("utf-8", errors="replace")
+        digest.update(len(encoded).to_bytes(8, "big"))
+        digest.update(encoded)
+    return digest.hexdigest()
+
+
+def _source_digest(agent: Agent) -> str:
+    """Digest every body source that can contribute hints for ``agent``."""
+    digest = blake2b(digest_size=16)
+    seen: set[int] = set()
+
+    def add(label: str, value: object) -> None:
+        encoded_label = label.encode("utf-8")
+        encoded_value = repr(value).encode("utf-8", errors="replace")
+        digest.update(len(encoded_label).to_bytes(4, "big"))
+        digest.update(encoded_label)
+        digest.update(len(encoded_value).to_bytes(8, "big"))
+        digest.update(encoded_value)
+
+    def visit(candidate: Agent) -> None:
+        candidate_id = id(candidate)
+        if candidate_id in seen:
+            return
+        seen.add(candidate_id)
+        add("identity", candidate.identity)
+        add("error_traceback", candidate.error_traceback)
+        add("raw_xprompt", candidate.get_raw_xprompt_content())
+        add("prompt", get_prompt_content(candidate))
+        add("reply_chunks", candidate.get_timestamped_reply_chunks())
+        add("live_reply", candidate.get_live_reply_content())
+        add("response", candidate.get_response_content())
+        add("chat_response", candidate.get_chat_response_content())
+        for followup in candidate.followup_agents:
+            visit(followup)
+
+    visit(agent)
+    return digest.hexdigest()
+
+
+def _fold_overrides_key(
+    overrides: Mapping[str, Any],
+) -> tuple[tuple[str, str], ...]:
+    return tuple(
+        sorted((repr(section), repr(level)) for section, level in overrides.items())
+    )
+
+
+def _hint_context_digest(
+    widget: object,
+    agent: Agent,
+    raw_xprompt: str | None,
+) -> str:
+    """Digest warm in-memory header and styling context outside ``agent``."""
+    try:
+        app = widget.app  # type: ignore[attr-defined]
+    except Exception:
+        app = None
+    wait_status_maps = (
+        agent_wait_status_maps_for_app(app)
+        if wait_display_agent(agent).waiting_for
+        else None
+    )
+    lane_owner = agent_owns_lane(agent)
+    projection_resolver = getattr(app, "lane_neighbor_projection_for", None)
+    lane_neighbors = (
+        projection_resolver(agent)
+        if lane_owner and callable(projection_resolver)
+        else None
+    )
+    known_skills = (
+        known_xprompt_skill_names(widget, agent, raw_xprompt)
+        if raw_xprompt
+        else frozenset()
+    )
+    return _digest_parts(
+        getattr(app, "_unread_completed_agent_ids", set()),
+        getattr(app, "_marked_agents", set()),
+        runner_capacity_for_app(app),
+        wait_status_maps,
+        lane_neighbors,
+        slow_tool_call_threshold_ms_from_widget(widget),
+        project_display_name_map_signature(),
+        known_skills,
+    )
+
+
+def _agent_hint_render_cache_key(
+    widget: object,
+    agent: Agent,
+) -> _AgentHintRenderCacheKey:
+    """Build the conservative key for the current annotated document."""
+    fold_level, fold_overrides = panel_fold_state_from_widget(widget)
+    raw_xprompt = agent.get_raw_xprompt_content()
+    return _AgentHintRenderCacheKey(
+        agent_identity=cast(tuple[object, ...], agent.identity),
+        agent_state_digest=_digest_parts(agent),
+        source_digest=_source_digest(agent),
+        summary_key=detail_header_summary_cache_key(widget, agent),
+        fold_level=fold_level,
+        fold_overrides=_fold_overrides_key(fold_overrides),
+        context_digest=_hint_context_digest(widget, agent, raw_xprompt),
+        cap_parameters=(
+            HintContentBudget().remaining_bytes,
+            HintContentBudget().remaining_lines,
+        ),
+        attempt_view_mode=str(getattr(widget, "attempt_view_mode", "merged")),
+        attempt_pinned_number=getattr(widget, "attempt_pinned_number", None),
+    )
+
+
+def _plain_renderable_content(renderable: object) -> str:
+    """Flatten the hint document for introspection without rendering it."""
+    if isinstance(renderable, Text):
+        return renderable.plain
+    if isinstance(renderable, Syntax):
+        return str(renderable.code)
+    if isinstance(renderable, Group):
+        return "\n".join(
+            _plain_renderable_content(child) for child in renderable.renderables
+        )
+    plain = getattr(renderable, "plain", None)
+    if isinstance(plain, str):
+        return plain
+    return str(renderable)
 
 
 def _render_reply_with_hints(
@@ -88,6 +277,20 @@ def _render_reply_with_hints(
 class AgentHintsDisplayMixin:
     """Mixin providing hint-annotated agent display for AgentPromptPanel."""
 
+    _agent_hint_renderable: CachedRenderable | None = None
+
+    def _prepare_cached_hint_renderable(
+        self,
+        renderable: RenderableType,
+    ) -> CachedRenderable:
+        """Wrap and retain a newly built hint document's segment cache."""
+        cached = CachedRenderable(
+            renderable,
+            _plain_renderable_content(renderable),
+        )
+        self._agent_hint_renderable = cached
+        return cached
+
     def update_display_with_hints(self, agent: Agent) -> AgentHintRender:
         """Render the agent display with hints and trace the keystroke path.
 
@@ -95,7 +298,12 @@ class AgentHintsDisplayMixin:
         cost: how much text was annotated, how many hints came out, and whether
         the render ran against a warm or cold detail-header summary.
         """
-        clear_file_hint_resolution_caches()
+        prepare_sections = getattr(self, "prepare_section_document_for_agent", None)
+        if callable(prepare_sections):
+            prepare_sections(agent)
+        self._reset_markdown_render_cache_for_agent(agent)  # type: ignore[attr-defined]
+        cache_key = _agent_hint_render_cache_key(self, agent)
+        cache = _agent_hint_render_cache(self)
         with (
             tui_trace(
                 "widget.prompt_panel.update_display_with_hints",
@@ -103,7 +311,40 @@ class AgentHintsDisplayMixin:
             ) as extra,
             annotated_char_scope() as annotated_chars,
         ):
-            render = self._update_display_with_hints_impl(agent)
+            cached = cache.get(cache_key)
+            if cached is not None:
+                cache.move_to_end(cache_key)
+                self._agent_hint_mode_rendered = True  # type: ignore[attr-defined]
+                self._agent_hint_renderable = cached.renderable
+                cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
+                if callable(cancel_slow_tick):
+                    cancel_slow_tick()
+                summary = get_cached_detail_header_summary(self, agent)
+                if summary is not None:
+                    publish_opened_workspaces_cache(
+                        self,
+                        agent,
+                        summary.opened_workspaces,
+                    )
+                self.update(cached.renderable)  # type: ignore[attr-defined]
+                if cached.result.header_enrichment_pending:
+                    self._start_agent_detail_header_enrichment_from_context(agent)  # type: ignore[attr-defined]
+                extra["cache"] = "hit"
+                render = cached.result
+            else:
+                clear_file_hint_resolution_caches()
+                self._agent_hint_renderable = None
+                render = self._update_display_with_hints_impl(agent)
+                renderable = getattr(self, "_agent_hint_renderable", None)
+                if isinstance(renderable, CachedRenderable):
+                    cache[cache_key] = _AgentHintRenderCacheEntry(
+                        result=render,
+                        renderable=renderable,
+                    )
+                    cache.move_to_end(cache_key)
+                    while len(cache) > _AGENT_HINT_RENDER_CACHE_MAX_ENTRIES:
+                        cache.popitem(last=False)
+                extra["cache"] = "miss"
             extra["hints"] = len(render.file_hints)
             extra["commit_views"] = len(render.commit_views)
             extra["tool_call_reports"] = len(render.tool_call_reports)
@@ -127,10 +368,6 @@ class AgentHintsDisplayMixin:
         Returns:
             File hint mappings and deferred tool-call report specs.
         """
-        prepare_sections = getattr(self, "prepare_section_document_for_agent", None)
-        if callable(prepare_sections):
-            prepare_sections(agent)
-
         # Workflow top-level or bash/python/parallel: no hint support
         if (
             agent.agent_type == AgentType.WORKFLOW
@@ -152,7 +389,6 @@ class AgentHintsDisplayMixin:
         cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
         if callable(cancel_slow_tick):
             cancel_slow_tick()
-        self._reset_markdown_render_cache_for_agent(agent)  # type: ignore[attr-defined]
         humanize_text = self._humanize_display_text  # type: ignore[attr-defined]
         workspace_dir = resolve_agent_workspace_dir(
             agent.effective_workspace_num,
@@ -418,7 +654,7 @@ class AgentHintsDisplayMixin:
         else:
             header_text.append("No prompt file found.\n", style="dim italic")
 
-        self.update(header_text)  # type: ignore[attr-defined]
+        self.update(self._prepare_cached_hint_renderable(header_text))  # type: ignore[attr-defined]
         if summary is None:
             self._start_agent_detail_header_enrichment_from_context(agent)  # type: ignore[attr-defined]
         return AgentHintRender(

@@ -243,7 +243,16 @@ class AgentFamilyDisplayMixin:
                         )
                     )
 
-        self.update(Group(*renderables))  # type: ignore[attr-defined]
+        renderable: object = Group(*renderables)
+        if hint_state is not None:
+            prepare_hint_renderable = getattr(
+                self,
+                "_prepare_cached_hint_renderable",
+                None,
+            )
+            if callable(prepare_hint_renderable):
+                renderable = prepare_hint_renderable(renderable)
+        self.update(renderable)  # type: ignore[attr-defined]
 
     def _family_text_with_hints(
         self,

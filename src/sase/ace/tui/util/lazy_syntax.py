@@ -79,7 +79,7 @@ def _render_options_key(options: object) -> tuple[object, ...]:
     )
 
 
-class _CachedRenderable:
+class CachedRenderable:
     """Rich wrapper that reuses rendered segments per render width."""
 
     def __init__(self, renderable: RenderableType, content: str) -> None:
@@ -96,6 +96,16 @@ class _CachedRenderable:
     def code(self) -> str:
         """Expose source content for tests and plain-text flattening helpers."""
         return self._content
+
+    @property
+    def plain(self) -> str:
+        """Expose the flattened document text for ``Text``-like consumers."""
+        return self._content
+
+    @property
+    def renderable(self) -> RenderableType:
+        """Return the wrapped Rich document."""
+        return self._renderable
 
     def __str__(self) -> str:
         return self._content
@@ -136,7 +146,7 @@ class LazySyntaxRenderCache:
 
     def __init__(self, max_entries: int = 16) -> None:
         self._max_entries = max_entries
-        self._entries: OrderedDict[_SyntaxRenderableKey, _CachedRenderable]
+        self._entries: OrderedDict[_SyntaxRenderableKey, CachedRenderable]
         self._entries = OrderedDict()
         self.hits = 0
         self.misses = 0
@@ -155,7 +165,7 @@ class LazySyntaxRenderCache:
         word_wrap: bool,
         line_range: tuple[int, int] | None,
         line_numbers: bool,
-    ) -> _CachedRenderable:
+    ) -> CachedRenderable:
         key = _SyntaxRenderableKey(
             content_digest=_content_digest(content),
             content_length=len(content),
@@ -172,7 +182,7 @@ class LazySyntaxRenderCache:
             return cached
 
         self.misses += 1
-        renderable = _CachedRenderable(
+        renderable = CachedRenderable(
             Syntax(
                 content,
                 _effective_lexer(lexer),
@@ -200,7 +210,7 @@ class LazySyntaxRenderCache:
         max_render_lines: int,
         truncation_hint: str,
         renderable_factory: Callable[[], RenderableType],
-    ) -> _CachedRenderable:
+    ) -> CachedRenderable:
         """Return a cached over-highlight-cap plain-text renderable."""
         key = _SyntaxRenderableKey(
             content_digest=_content_digest(content),
@@ -221,7 +231,7 @@ class LazySyntaxRenderCache:
             return cached
 
         self.misses += 1
-        cached = _CachedRenderable(renderable_factory(), content)
+        cached = CachedRenderable(renderable_factory(), content)
         self._entries[key] = cached
         if len(self._entries) > self._max_entries:
             self._entries.popitem(last=False)

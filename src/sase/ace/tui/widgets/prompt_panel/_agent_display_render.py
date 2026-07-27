@@ -43,6 +43,7 @@ from ._agent_display_header_summary import (
     get_cached_detail_header_summary,
     publish_opened_workspaces_cache,
 )
+from ._agent_display_hints import clear_agent_hint_render_cache
 from ._agent_display_step_render import AgentStepDisplayMixin
 from ._agent_xprompt_highlighting import known_xprompt_skill_names
 from ._helpers import append_section_heading, format_output
@@ -87,6 +88,7 @@ class AgentDisplayRenderMixin(
             xprompt_cache = getattr(self, "_agent_xprompt_highlight_cache", None)
             if xprompt_cache is not None:
                 xprompt_cache.clear()
+            clear_agent_hint_render_cache(self)
             self._agent_markdown_render_cache_identity = identity
 
     def _display_raw_xprompt(self, agent: Agent, raw_xprompt: str) -> str:
@@ -467,5 +469,6 @@ class AgentDisplayRenderMixin(
         if callable(cancel_tribe_worker):
             cancel_tribe_worker()
         clear_detail_header_summary_cache(self)
+        clear_agent_hint_render_cache(self)
         text = Text("No agent selected", style="dim italic")
         self.update(text)  # type: ignore[attr-defined]
