@@ -83,9 +83,14 @@ def test_config_schema_documents_intrinsic_agents_sidecar_contract() -> None:
     public_schema = schema()
     sidecar = public_schema["definitions"]["sidecarRepo"]["properties"]
 
+    assert "beads" in public_schema["properties"]["default_linked_repos"]["description"]
     assert (
         "hidden agents"
         in public_schema["properties"]["default_linked_repos"]["description"]
+    )
+    assert (
+        "beads"
+        in public_schema["properties"]["repos"]["properties"]["sidecar"]["description"]
     )
     assert (
         "hidden agents"

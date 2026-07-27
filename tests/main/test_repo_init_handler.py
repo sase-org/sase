@@ -44,6 +44,8 @@ def test_repo_init_writes_managed_sidecar_config_local_store_and_gitignore(
         "  sidecar:\n"
         "    - name: plans\n"
         "      auto_clone: true\n"
+        "    - name: beads\n"
+        "      auto_clone: true\n"
         "    - name: research\n"
         "      description: Durable SASE research reports and generated media.\n"
         "    - name: agents\n"
@@ -83,6 +85,7 @@ def test_bare_init_enable_management_also_writes_managed_sidecar_entries(
     config = (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8")
     assert "is_sase_managed: true" in config
     assert "name: plans" in config
+    assert "name: beads" in config
     assert "name: research" in config
     assert "name: agents" in config
     assert "Durable SASE research reports and generated media." in config
@@ -117,6 +120,7 @@ def test_repo_init_appends_plans_without_losing_disabled_research_comments(
     assert "# keep" in text
     assert "name: research # shared" in text
     assert text.count("name: plans") == 1
+    assert text.count("name: beads") == 1
     assert text.count("name: research") == 1
     assert text.count("name: agents") == 1
     assert "Durable SASE research reports" not in text
@@ -132,6 +136,8 @@ def test_repo_init_preserves_existing_managed_sidecar_entries_verbatim(
         "repos:\n"
         "  sidecar:\n"
         "    - name: plans # custom\n"
+        "      disabled: true\n"
+        "    - name: beads # migration opt-out\n"
         "      disabled: true\n"
         "    - name: research # opted out\n"
         "      disabled: true\n"
@@ -178,6 +184,7 @@ def test_repo_init_sidecar_config_update_is_idempotent(
     second_output = capsys.readouterr().out
     assert (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8") == first
     assert "updated" not in second_output
+    assert first.count("name: beads") == 1
     assert first.count("name: agents") == 1
 
 

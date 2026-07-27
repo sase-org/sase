@@ -8,7 +8,10 @@ import subprocess
 import pytest
 
 from sase.core.project_lifecycle_wire import ProjectRecordWire
-from sase._linked_repo_config import DEFAULT_AGENTS_DESCRIPTION
+from sase._linked_repo_config import (
+    DEFAULT_AGENTS_DESCRIPTION,
+    DEFAULT_BEADS_DESCRIPTION,
+)
 from sase.linked_repos import external_repo_clone_dir, hidden_sidecar_clone_dir
 from sase.repo_inventory import collect_repo_inventory
 from sase.sdd.store import write_sdd_store_record
@@ -176,6 +179,71 @@ def test_inventory_surfaces_configured_sidecar_role_and_slug(
     assert sidecar.exists is False
     assert sidecar.source == "repos.sidecar config"
     assert sidecar.remote_url == "git@github.com:acme/shared-research.git"
+
+
+@pytest.mark.parametrize(
+    ("split_beads", "expected_auto_clone"),
+    [(False, False), (True, True)],
+)
+def test_inventory_gates_beads_auto_clone_on_store_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    split_beads: bool,
+    expected_auto_clone: bool,
+) -> None:
+    project = _project_record(tmp_path)
+    primary = Path(project.workspace_dir or "")
+    _set_github_origin(primary)
+    sidecars = {
+        "plans": {
+            "repo": "acme/widget--plans",
+            "remote_url": "git@example.test:acme/widget--plans.git",
+        },
+        "research": {
+            "repo": "acme/widget--research",
+            "remote_url": "git@example.test:acme/widget--research.git",
+        },
+    }
+    if split_beads:
+        sidecars["beads"] = {
+            "repo": "acme/widget--beads",
+            "remote_url": "git@example.test:acme/widget--beads.git",
+        }
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 3 if split_beads else 2,
+            "storage": "sidecar_repos",
+            "sidecars": sidecars,
+        },
+    )
+    config = {
+        "repos": {
+            "sidecar": [
+                {
+                    "name": "beads",
+                    "auto_clone": True,
+                    "description": DEFAULT_BEADS_DESCRIPTION,
+                }
+            ]
+        }
+    }
+    monkeypatch.setattr(
+        "sase.repo_inventory.list_project_records",
+        lambda *_args, **_kwargs: [project],
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.resolution_config",
+        lambda *_args, **_kwargs: config,
+    )
+
+    inventory = collect_repo_inventory(tmp_path / "projects")
+
+    beads = next(record for record in inventory.records if record.name == "beads")
+    assert beads.kind == "sidecar"
+    assert beads.auto_clone is expected_auto_clone
+    assert beads.description == DEFAULT_BEADS_DESCRIPTION
+    assert beads.source == "repos.sidecar config"
 
 
 def test_disabled_configured_sidecar_suppresses_store_record(

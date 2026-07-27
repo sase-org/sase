@@ -227,6 +227,7 @@ def test_repo_path_hidden_agents_uses_stable_path_in_numbered_workspace(
         ("in_tree", "plans", "sdd/plans"),
         ("separate_repo", "research", ".sase/sdd/research"),
         ("sidecar_repos", "research", "sase/repos/research"),
+        ("sidecar_repos", "beads", "sase/repos/plans/beads"),
     ],
 )
 def test_repo_path_preserves_legacy_sdd_layout_resolution(

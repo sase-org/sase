@@ -249,10 +249,13 @@ def test_project_sidecar_entry_overrides_global_entry_by_role(tmp_path: Path) ->
     assert entries[0]["disabled"] is True
 
 
-def test_managed_project_injects_only_default_plans_sidecar(tmp_path: Path) -> None:
+def test_managed_project_injects_default_plans_and_beads_sidecars(
+    tmp_path: Path,
+) -> None:
     primary = tmp_path / "sase"
     plans = tmp_path / "sase--plans"
-    for path in (primary, plans):
+    beads = tmp_path / "sase--beads"
+    for path in (primary, plans, beads):
         path.mkdir()
     project_file = _project_file(tmp_path / "project.sase", primary)
 
@@ -271,9 +274,11 @@ def test_managed_project_injects_only_default_plans_sidecar(tmp_path: Path) -> N
     assert resolution.warnings == ()
     assert [(repo.name, repo.auto_clone) for repo in resolution.repos] == [
         ("sase--plans", True),
+        ("sase--beads", True),
     ]
     assert [Path(repo.workspace_dir) for repo in resolution.repos] == [
         tmp_path / "sase_4" / "sase" / "repos" / "plans",
+        tmp_path / "sase_4" / "sase" / "repos" / "beads",
     ]
 
 
@@ -502,6 +507,7 @@ def test_sidecar_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
 
     assert sdd_sidecar_clone_dirname(primary, "main--plans", config={}) == "plans"
     assert sdd_sidecar_clone_dirname(primary, "main--research", config={}) == "research"
+    assert sdd_sidecar_clone_dirname(primary, "main--beads", config={}) == "beads"
     assert sdd_sidecar_clone_dirname(primary, "core", config={}) is None
 
     write_sdd_store_record(

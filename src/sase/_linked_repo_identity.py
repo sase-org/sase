@@ -89,7 +89,7 @@ def resolve_sidecar_repo_identity(
 
 
 def _store_sidecar_identity(primary: Path, role: str) -> tuple[str, str | None]:
-    if role not in {"plans", "research"}:
+    if role not in {"plans", "research", "beads"}:
         return "", None
     try:
         from sase.sdd.store import read_sdd_store_record

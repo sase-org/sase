@@ -1650,7 +1650,7 @@
     },
     "default_linked_repos": {
       "type": "boolean",
-      "description": "Inject the default plans and intrinsically hidden agents sidecar repositories for SASE-managed projects.",
+      "description": "Inject the default plans and beads sidecar repositories plus the intrinsically hidden agents sidecar repository for SASE-managed projects.",
       "default": true
     },
     "repos": {
@@ -1668,7 +1668,7 @@
         },
         "sidecar": {
           "type": "array",
-          "description": "Project-owned sidecar repositories. Ordinary roles clone below sase/repos/<name>; the hidden agents role is explicitly accessible only at ~/.sase/projects/<project_key>/repos/agents.",
+          "description": "Project-owned sidecar repositories, including the plans, research, and beads roles. Ordinary roles clone below sase/repos/<name>; the hidden agents role is explicitly accessible only at ~/.sase/projects/<project_key>/repos/agents.",
           "items": {
             "$ref": "#/definitions/sidecarRepo"
           },

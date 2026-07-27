@@ -125,7 +125,7 @@ def _sdd_sidecar_repo_dirnames(
     if record is not None:
         store_mapping = {
             _repo_basename(sidecar.repo): kind
-            for kind in ("plans", "research")
+            for kind in ("plans", "research", "beads")
             if (sidecar := record.sidecar_for_kind(kind)) is not None
             and kind not in configured_roles
             and kind not in disabled
@@ -144,7 +144,7 @@ def _sdd_sidecar_repo_dirnames(
         return configured
     fallbacks = {
         slug: kind
-        for kind in ("plans", "research")
+        for kind in ("plans", "research", "beads")
         if kind not in configured_roles
         if kind not in disabled
         if kind not in hidden

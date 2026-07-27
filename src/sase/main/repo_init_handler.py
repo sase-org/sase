@@ -312,7 +312,7 @@ def _summarize_repo_actions(actions: list[InitAction]) -> str:
     if any(action.path.name == "README.md" for action in actions):
         parts.append("refresh sidecar guide files")
     if any(action.path.name == "sase.yml" for action in actions):
-        parts.append("declare the plans, research, and agents sidecars")
+        parts.append("declare the plans, beads, research, and agents sidecars")
     if any(action.path.name == ".gitignore" for action in actions):
         parts.append("update repository ignore rules")
     if not parts:

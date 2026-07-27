@@ -16,6 +16,7 @@ from typing import Any
 
 from sase._linked_repo_config import (
     DEFAULT_AGENTS_DESCRIPTION,
+    DEFAULT_BEADS_DESCRIPTION,
     DEFAULT_PLANS_DESCRIPTION,
     DEFAULT_RESEARCH_DESCRIPTION,
     HIDDEN_SIDECAR_ROLES,
@@ -200,7 +201,7 @@ def _collect_project_repos(
 
     if store_record is not None and store_record.discovery != "not_found":
         if store_record.is_sidecar_storage:
-            for kind in ("plans", "research"):
+            for kind in ("plans", "research", "beads"):
                 sidecar = store_record.sidecar_for_kind(kind)
                 if sidecar is None:
                     continue
@@ -218,11 +219,11 @@ def _collect_project_repos(
                     if metadata.get("is_configured_sidecar") is True
                     else None
                 ) or sidecar_repo_clone_dir(primary, kind)
-                default_description = (
-                    DEFAULT_PLANS_DESCRIPTION
-                    if kind == "plans"
-                    else DEFAULT_RESEARCH_DESCRIPTION
-                )
+                default_description = {
+                    "plans": DEFAULT_PLANS_DESCRIPTION,
+                    "research": DEFAULT_RESEARCH_DESCRIPTION,
+                    "beads": DEFAULT_BEADS_DESCRIPTION,
+                }[kind]
                 records.append(
                     RepoRecord(
                         name=role,
@@ -231,7 +232,9 @@ def _collect_project_repos(
                         project_key=project_key,
                         path=path,
                         exists=Path(path).is_dir(),
-                        auto_clone=bool(metadata.get("auto_clone", kind == "plans")),
+                        auto_clone=bool(
+                            metadata.get("auto_clone", kind in {"plans", "beads"})
+                        ),
                         description=_optional_text(metadata.get("description"))
                         or default_description,
                         source=(
@@ -354,6 +357,14 @@ def _collect_project_repos(
             )
             continue
 
+        auto_clone = entry.get("auto_clone") is True
+        if (
+            is_sidecar
+            and (sidecar_role == "beads" or sidecar_kind == "beads")
+            and (store_record is None or store_record.sidecar_for_kind("beads") is None)
+        ):
+            auto_clone = False
+
         records.append(
             RepoRecord(
                 name=linked_name,
@@ -362,7 +373,7 @@ def _collect_project_repos(
                 project_key=project_key,
                 path=path,
                 exists=Path(path).is_dir(),
-                auto_clone=entry.get("auto_clone") is True,
+                auto_clone=auto_clone,
                 description=_optional_text(entry.get("description")),
                 source=(
                     "auto-injected sidecar"

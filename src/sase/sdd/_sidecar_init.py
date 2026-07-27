@@ -36,7 +36,7 @@ from sase.sdd._store_types import (
 if TYPE_CHECKING:
     from sase.workspace_provider import SddSidecarPreflight
 
-SPLIT_SIDECAR_KINDS = ("plans", "research")
+SPLIT_SIDECAR_KINDS = ("plans", "research", "beads")
 
 
 @dataclass(frozen=True)

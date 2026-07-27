@@ -314,7 +314,8 @@ def _regressed_split_sidecar_paths(primary: Path) -> tuple[Path, Path] | None:
 
     plans = Path(sidecar_repo_clone_dir(primary, "plans"))
     research = Path(sidecar_repo_clone_dir(primary, "research"))
-    if (plans / "beads").is_dir() and research.is_dir():
+    beads = Path(sidecar_repo_clone_dir(primary, "beads"))
+    if ((plans / "beads").is_dir() or beads.is_dir()) and research.is_dir():
         return plans, research
     return None
 

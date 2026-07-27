@@ -27,6 +27,9 @@ AGENTS_SIDECAR_ROLE = "agents"
 DEFAULT_AGENTS_DESCRIPTION = (
     "Hidden sidecar that stores commit-associated sase agent data for this project."
 )
+DEFAULT_BEADS_DESCRIPTION = (
+    "Durable SASE bead state: the append-only event store and its projections."
+)
 DEFAULT_PLANS_DESCRIPTION = "Durable SASE plans, prompt snapshots, and bead state."
 DEFAULT_RESEARCH_DESCRIPTION = "Durable SASE research reports and generated media."
 HIDDEN_SIDECAR_ROLES = frozenset({AGENTS_SIDECAR_ROLE})
@@ -232,7 +235,10 @@ def inject_default_linked_repos(
         )
         if token
     }
-    defaults = (("plans", f"{project_name}--plans", DEFAULT_PLANS_DESCRIPTION, True),)
+    defaults = (
+        ("plans", f"{project_name}--plans", DEFAULT_PLANS_DESCRIPTION, True),
+        ("beads", f"{project_name}--beads", DEFAULT_BEADS_DESCRIPTION, True),
+    )
     for role, name, description, auto_clone in defaults:
         if name in configured_names or {role, name}.intersection(
             configured_sidecar_tokens

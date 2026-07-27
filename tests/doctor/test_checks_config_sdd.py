@@ -175,6 +175,26 @@ def test_config_sdd_errors_when_record_regresses_with_split_clones(
     )
 
 
+def test_config_sdd_errors_when_record_regresses_with_beads_sidecar_clone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repos = tmp_path / "sase" / "repos"
+    for kind in ("plans", "research", "beads"):
+        (repos / kind / ".git").mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.doctor.checks_config_sdd._git_stdout", lambda *_args: None
+    )
+
+    check = check_config_sdd(_doctor_context(tmp_path))
+
+    assert check.status == "ERROR"
+    assert any(
+        issue["code"] == "sdd-record-regressed"
+        for issue in check.data["storage_issues"]
+    )
+
+
 def test_config_sdd_record_regression_check_ignores_legacy_only_layout(
     tmp_path: Path,
 ) -> None:

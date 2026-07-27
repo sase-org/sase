@@ -58,9 +58,10 @@ def test_plan_providerless_project_includes_store_config_and_ignore_actions(
     )
     assert config_action.new_content is not None
     assert "name: plans" in config_action.new_content
+    assert "name: beads" in config_action.new_content
     assert "name: research" in config_action.new_content
     assert "name: agents" in config_action.new_content
-    assert "plans, research, and agents sidecars" in plan.summary
+    assert "plans, beads, research, and agents sidecars" in plan.summary
     assert any(action.path.name == ".gitignore" for action in plan.actions)
     assert any(
         action.path.is_relative_to(tmp_path / ".sase" / "sdd")
@@ -268,7 +269,7 @@ def test_configured_sidecar_specs_suppress_disabled_agents(
 
     specs = _configured_sidecar_specs(tmp_path)
 
-    assert {spec.role for spec in specs} == {"plans", "research"}
+    assert {spec.role for spec in specs} == {"plans", "research", "beads"}
 
 
 def test_plan_non_project_reports_blocker(tmp_path: Path) -> None:

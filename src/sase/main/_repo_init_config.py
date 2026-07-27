@@ -148,6 +148,7 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
         }
         entries = {
             "plans": CommentedMap((("name", "plans"), ("auto_clone", True))),
+            "beads": CommentedMap((("name", "beads"), ("auto_clone", True))),
             "research": CommentedMap(
                 (
                     ("name", "research"),
@@ -292,7 +293,7 @@ def materialized_compatibility_roles(project_root: Path) -> frozenset[str]:
     if record is None or not record.is_sidecar_storage:
         return frozenset()
     return frozenset(
-        role for role in ("plans", "research") if record.sidecar_for_kind(role)
+        role for role in ("plans", "research", "beads") if record.sidecar_for_kind(role)
     )
 
 

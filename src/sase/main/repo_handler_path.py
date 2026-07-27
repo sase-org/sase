@@ -86,7 +86,7 @@ def handle_path_command(
                     workspace_num=workspace_num,
                     expected_remote_url=repo.remote_url,
                 )
-        elif requested in {"plans", "research"} and not sidecar_role_disabled(
+        elif requested in {"plans", "research", "beads"} and not sidecar_role_disabled(
             requested,
             primary_workspace_dir=host_ctx.primary_workspace_dir,
         ):
