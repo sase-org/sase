@@ -3,6 +3,7 @@
 import logging
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from sase.git_lock_retry import (
@@ -87,6 +88,9 @@ def prepare_workspace(
     # to predate the claim is abandoned; clear it as git itself instructs.
     clear_stale_git_index_lock(workspace_dir)
 
+    if not _protect_unpushed_sidecar_bead_commits(workspace_dir):
+        return False
+
     # Clean workspace (saves any existing changes to a diff file)
     print("Cleaning workspace...")
     success, error = run_sase_hg_clean(workspace_dir, f"{cl_name}-{backup_suffix}")
@@ -122,6 +126,128 @@ def prepare_workspace(
 
     print("Workspace ready")
     return True
+
+
+def _protect_unpushed_sidecar_bead_commits(workspace_dir: str) -> bool:
+    """Publish or rescue local bead commits before workspace preparation resets."""
+    repo_root = Path(workspace_dir).expanduser().resolve()
+    beads_dir = _top_level_beads_dir(repo_root)
+    if beads_dir is None:
+        return True
+
+    from sase.bead.sync import (
+        bead_store_git_root,
+        push_bead_work_launch,
+        unpushed_bead_commit_count,
+    )
+
+    if not _beads_dir_belongs_to_repo(beads_dir, repo_root, bead_store_git_root):
+        return True
+
+    local_bead_commits = unpushed_bead_commit_count(repo_root, beads_dir)
+    if local_bead_commits <= 0:
+        return True
+
+    print(
+        "Found "
+        f"{local_bead_commits} unpushed local bead commit(s); publishing before "
+        "workspace cleanup..."
+    )
+    outcome = push_bead_work_launch(beads_dir)
+    remaining = unpushed_bead_commit_count(repo_root, beads_dir)
+    if remaining <= 0:
+        return True
+
+    detail = outcome.error
+    if detail is None:
+        detail = (
+            "managed bead sync reported success but local bead commits remain"
+            if outcome.pushed
+            else "managed bead sync did not publish"
+        )
+    recovery_ref, recovery_error = _retain_current_head_recovery_ref(repo_root)
+    if recovery_error is not None or recovery_ref is None:
+        print(
+            "workspace preparation refused to discard unpushed local bead "
+            f"commits: {detail}; recovery ref failed: "
+            f"{recovery_error or 'unknown error'}",
+            file=sys.stderr,
+        )
+        return False
+
+    if outcome.log_path is not None:
+        detail = f"{detail} (managed sync log: {outcome.log_path})"
+    print(
+        "Warning: retained "
+        f"{remaining} unpushed local bead commit(s) at {recovery_ref} before "
+        f"workspace cleanup; {detail}",
+        file=sys.stderr,
+    )
+    return True
+
+
+def _top_level_beads_dir(repo_root: Path) -> Path | None:
+    beads_dir = repo_root / "beads"
+    if not beads_dir.is_dir():
+        return None
+    return beads_dir
+
+
+def _beads_dir_belongs_to_repo(
+    beads_dir: Path,
+    repo_root: Path,
+    git_root_for_path: Callable[[Path], Path | None],
+) -> bool:
+    try:
+        discovered_root = git_root_for_path(beads_dir)
+    except Exception:  # noqa: BLE001 - safety preflight must not break non-git repos.
+        return False
+    return discovered_root is not None and discovered_root.resolve() == repo_root
+
+
+def _retain_current_head_recovery_ref(repo_root: Path) -> tuple[str | None, str | None]:
+    from sase.sdd._repository_health import default_git_runner, format_git_error
+    from sase.sdd._repository_recovery_git import (
+        recovery_ref,
+        update_and_verify_ref,
+    )
+
+    branch_result = default_git_runner(
+        repo_root,
+        ["symbolic-ref", "--quiet", "--short", "HEAD"],
+        op="workspace.bead_safety.branch",
+    )
+    if branch_result.returncode != 0 or not branch_result.stdout.strip():
+        return (
+            None,
+            format_git_error(
+                "could not resolve the branch for bead recovery", branch_result
+            ),
+        )
+    head_result = default_git_runner(
+        repo_root,
+        ["rev-parse", "--verify", "HEAD"],
+        op="workspace.bead_safety.head",
+    )
+    if head_result.returncode != 0 or not head_result.stdout.strip():
+        return (
+            None,
+            format_git_error("could not resolve HEAD for bead recovery", head_result),
+        )
+
+    branch = branch_result.stdout.strip()
+    head = head_result.stdout.strip()
+    ref = recovery_ref(repo_root, branch, head, time.time())
+    error = update_and_verify_ref(
+        repo_root,
+        ref,
+        head,
+        default_git_runner,
+        "workspace.bead_safety",
+    )
+    if error is not None:
+        return None, error
+    return ref, None
 
 
 def prepare_launch_workspace_repos(

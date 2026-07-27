@@ -211,6 +211,11 @@ def mark_bead_integration(repo_root: Path) -> None:
     mark_integration(repo_root)
 
 
+def bead_store_git_root(path: Path) -> Path | None:
+    """Return the Git worktree root owning a bead-store path, when present."""
+    return _find_git_root(path)
+
+
 def schedule_current_bead_refresh() -> _AsyncPushHandle | None:
     """Best-effort post-command refresh for the currently resolved store."""
     try:
