@@ -32,11 +32,9 @@ def test_search_skill_examples_parse_against_cli_contract() -> None:
     ]
 
     assert examples == [
-        "sase bead search auth --format compact",
-        "sase bead search auth --format json",
+        "sase bead search auth",
         "sase bead search auth --format full --limit 3",
         "sase bead search auth --status open --type phase",
-        "sase bead search auth --type plan --tier epic",
     ]
 
     parser = create_parser()

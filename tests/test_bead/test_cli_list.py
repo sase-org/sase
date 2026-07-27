@@ -33,19 +33,11 @@ def test_list_skill_examples_parse_against_cli_contract() -> None:
 
     assert examples == [
         "sase bead list",
-        "sase bead list --format compact",
         "sase bead list --format json",
         "sase bead list --format full --limit 3",
-        "sase bead list --limit 5",
-        "sase bead list -n 0",
-        "sase bead list --status=open",
-        "sase bead list --status=claimed",
-        "sase bead list --status=in_progress",
-        "sase bead list --status=closed",
-        "sase bead list --type=plan",
-        "sase bead list --type=phase",
-        "sase bead list --tier=epic",
-        "sase bead list --tier=plan",
+        "sase bead list --status open --type phase",
+        "sase bead list --tier epic",
+        "sase bead list --status closed --limit 0",
     ]
 
     parser = create_parser()
