@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from sase.agents_sync.rendering_commits import render_agent_commits
 from sase.agents_sync.rendering_kinship import (
     HoodKinshipProjection,
     render_neighbors_section,
@@ -24,6 +25,7 @@ def render_agent_page(
     run: V2RunRecord,
     *,
     family: V2ContainerRecord | None,
+    commit_url_base: str | None,
     kinship: HoodKinshipProjection,
 ) -> str:
     """Render one agent run page."""
@@ -48,7 +50,11 @@ def render_agent_page(
         f"- Model: {md_escape(_text(metadata.get('model')) or '—')}",
         f"- Provider: {md_escape(_text(metadata.get('llm_provider')) or '—')}",
         f"- Timing: {md_escape(run_timing(run))}",
-        f"- Commits: {len(run.commits)}",
+        (
+            f"- Commits: [{len(run.commits)}](#commits)"
+            if run.commits
+            else "- Commits: 0"
+        ),
         "",
     ]
     refs = dict(run.files)
@@ -59,6 +65,18 @@ def render_agent_page(
     ]
     if links:
         lines.extend(["## Files", "", " · ".join(links), ""])
+    if run.commits:
+        lines.extend(
+            [
+                "## Commits",
+                "",
+                *render_agent_commits(
+                    run.commits,
+                    commit_url_base=commit_url_base,
+                ),
+                "",
+            ]
+        )
     lines.extend(
         render_neighbors_section(
             kinship,

@@ -134,6 +134,54 @@ def test_inventory_keeps_active_and_dismissed_states_but_rejects_imports(
 
 
 @pytest.mark.parametrize(
+    ("returncode", "stdout", "expected"),
+    (
+        (0, "git@github.com:acme/project.git\n", "git@github.com:acme/project.git"),
+        (0, "\n", None),
+        (1, "git@github.com:acme/project.git\n", None),
+    ),
+)
+def test_primary_remote_resolution_is_optional(
+    tmp_path: Path,
+    returncode: int,
+    stdout: str,
+    expected: str | None,
+) -> None:
+    target = _target(tmp_path)
+
+    def runner(
+        cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network
+        assert cwd == target.primary_checkout
+        assert args == ["config", "--get", "remote.origin.url"]
+        assert op == "agents_sync.v2_primary_remote"
+        return subprocess.CompletedProcess(args, returncode, stdout, "")
+
+    assert inventory._primary_remote_url(target, runner) == expected
+
+
+def test_primary_remote_resolution_swallows_git_failure(tmp_path: Path) -> None:
+    target = _target(tmp_path)
+
+    def runner(
+        _cwd: Path,
+        _args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        raise OSError("git unavailable")
+
+    assert inventory._primary_remote_url(target, runner) is None
+
+
+@pytest.mark.parametrize(
     "marker",
     (
         {"imported_source_owner": {"username": "alice", "machine_name": "athena"}},

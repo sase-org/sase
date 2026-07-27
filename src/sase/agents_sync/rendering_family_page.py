@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from sase.agents_sync.rendering_commits import render_family_commits
 from sase.agents_sync.rendering_kinship import (
     HoodKinshipProjection,
     render_neighbors_section,
@@ -32,6 +33,7 @@ def render_family_page(
     family: V2ContainerRecord,
     by_id: dict[str, V2RunRecord],
     *,
+    commit_url_base: str | None,
     kinship: HoodKinshipProjection,
 ) -> str:
     """Render one family container and its member lineage."""
@@ -89,13 +91,34 @@ def render_family_page(
         prompt = _family_file_link(refs.get("prompt"), "Prompt")
         chat = _family_file_link(refs.get("chat"), "Chat")
         anchor = f'<a id="member-{md_html_id(role)}"></a>'
+        commit_count = (
+            f"[{len(run.commits)}]"
+            f"({relative_page_url(source_path, f'agents/{run.global_name}/README.md#commits')})"
+            if run.commits
+            else "0"
+        )
         lines.append(
             f"| {anchor}{md_cell(role)} | {md_cell(run.local_name)} "
             f"| {md_cell(run.state)} | {md_cell(model or '—')} "
-            f"| {md_cell(run_timing(run))} | {len(run.commits)} "
+            f"| {md_cell(run_timing(run))} | {commit_count} "
             f"| {prompt} | {chat} |"
         )
     lines.append("")
+    family_commits = tuple(
+        (commit, _member_role(run)) for run in members for commit in run.commits
+    )
+    if family_commits:
+        lines.extend(
+            [
+                "## Commits",
+                "",
+                *render_family_commits(
+                    family_commits,
+                    commit_url_base=commit_url_base,
+                ),
+                "",
+            ]
+        )
     lines.extend(
         render_neighbors_section(
             kinship,
@@ -130,6 +153,15 @@ def _family_file_link(reference: V2FileReference | None, label: str) -> str:
     if reference is None:
         return "—"
     return f"[{label}]({relative_page_url('families/x.md', reference.path)})"
+
+
+def _member_role(run: V2RunRecord) -> str:
+    parsed = parse_agent_family_name(run.local_name)
+    return (
+        parsed.member_role or "root"
+        if parsed.kind is AgentFamilyNameKind.MEMBER
+        else "root"
+    )
 
 
 def _text(value: object) -> str | None:

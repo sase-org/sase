@@ -17,8 +17,14 @@ The diagram is an optional enhancement; the ordered table below contains the sam
 
 | Role | Agent | State | Model / provider | Timing | Commits | Prompt | Chat |
 |---|---|---|---|---|---:|---|---|
-| <a id="member-code"></a>code | foo.bar.baz--code | active | gpt | 2026-07-23T12:00:00+00:00 | 1 | [Prompt](../agents/alice.athena.foo.bar.baz--code/prompt.md) | — |
+| <a id="member-code"></a>code | foo.bar.baz--code | active | gpt | 2026-07-23T12:00:00+00:00 | [1](../agents/alice.athena.foo.bar.baz--code/README.md#commits) | [Prompt](../agents/alice.athena.foo.bar.baz--code/prompt.md) | — |
 | <a id="member-plan"></a>plan | foo.bar.baz--plan | completed | gpt | 2026-07-23T12:00:00+00:00 → 2026-07-23T12:01:00+00:00 | 0 | [Prompt](../agents/alice.athena.foo.bar.baz--plan/prompt.md) | [Chat](../agents/alice.athena.foo.bar.baz--plan/chat.md) |
+
+## Commits
+
+| Role | Commit | Subject | Committed (UTC) |
+|---|---|---|---|
+| code | `aaaaaaa` | foo.bar.baz--code | 1970-01-01 00:00:01 |
 
 ## Neighbors
 

@@ -49,6 +49,7 @@ class ProjectHoodInventory:
     project_key: str
     runs: tuple[InventoryRun, ...]
     diagnostics: tuple[str, ...] = ()
+    primary_remote_url: str | None = None
     _selection_exclusions: frozenset[str] = field(
         default_factory=frozenset,
         init=False,

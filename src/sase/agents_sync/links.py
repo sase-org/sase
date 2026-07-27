@@ -69,7 +69,7 @@ def resolve_agent_commit_tag(
     link_target = agent_link_target(local_name, owner)
     destination = github_blob_url(
         target.remote_url,
-        provider=_hosted_provider(target.remote_url),
+        provider=hosted_provider(target.remote_url),
         branch=branch,
         path=link_target.path,
     )
@@ -80,7 +80,9 @@ def resolve_agent_commit_tag(
     return LinkedCommitTagValue(global_name, destination)
 
 
-def _hosted_provider(remote_url: str) -> str | None:
+def hosted_provider(remote_url: str) -> str | None:
+    """Return authoritative hosted-provider metadata for a Git remote."""
+
     parsed = parse_hosted_git_remote(remote_url)
     if parsed is None:
         return None
@@ -118,4 +120,4 @@ def _sidecar_branch(repo: Path, git_runner: GitRunner) -> str | None:
     return value.removeprefix("origin/") or None
 
 
-__all__ = ["resolve_agent_commit_tag"]
+__all__ = ["hosted_provider", "resolve_agent_commit_tag"]

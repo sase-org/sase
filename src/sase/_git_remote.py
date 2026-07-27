@@ -88,6 +88,29 @@ def github_blob_url(
     return f"https://{parsed.host}/{encoded_repo}/blob/{encoded_branch}/{encoded_path}"
 
 
+def github_commit_url(
+    remote_url: str,
+    *,
+    provider: str | None,
+    sha: str,
+) -> str | None:
+    """Return a sanitized GitHub commit URL for a valid hexadecimal SHA."""
+
+    if re.fullmatch(r"[0-9a-f]{7,64}", sha) is None:
+        return None
+    parsed = parse_hosted_git_remote(remote_url)
+    if parsed is None:
+        return None
+    provider_is_github = (provider or "").strip().casefold() == "github"
+    if _host_name(parsed.host) != "github.com" and not provider_is_github:
+        return None
+    repo_parts = parsed.repo.split("/")
+    if len(repo_parts) != 2 or not all(repo_parts):
+        return None
+    encoded_repo = "/".join(quote(part, safe="") for part in repo_parts)
+    return f"https://{parsed.host}/{encoded_repo}/commit/{sha}"
+
+
 def _git_remote_identity(value: str) -> str:
     """Return a transport-neutral identity for a hosted or local remote."""
 

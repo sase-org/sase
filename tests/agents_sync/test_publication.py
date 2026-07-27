@@ -274,6 +274,31 @@ def test_full_reconciliation_discovers_only_commit_eligible_hoods(
     assert not (machine / "hoods" / "zap").exists()
 
 
+def test_publication_links_commits_for_github_primary_remote(tmp_path: Path) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    inventory = replace(
+        _inventory(AgentOwnerIdentity("alice", "athena")),
+        primary_remote_url="git@github.com:acme/project.git",
+    )
+
+    publish_agent_hood(
+        target,
+        repo,
+        "foo.bar.baz--code",
+        identity=_identity(),
+        inventory=inventory,
+    )
+
+    page = (
+        repo / "agents" / "alice.athena.foo.bar.baz--code" / "README.md"
+    ).read_text()
+    assert (
+        "[`aaaaaaa`](https://github.com/acme/project/commit/" + "a" * 39 + "3)" in page
+    )
+
+
 def test_two_owner_manifests_coexist_and_indexes_converge(tmp_path: Path) -> None:
     target = _target(tmp_path)
     repo = target.sidecar_path

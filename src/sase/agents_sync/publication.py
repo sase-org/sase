@@ -6,6 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
+from sase._git_remote import github_commit_url
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.inventory import (
     InventoryRun,
@@ -13,6 +14,7 @@ from sase.agents_sync.inventory import (
     build_project_hood_inventory,
 )
 from sase.agents_sync.io import AgentsSyncFormatError
+from sase.agents_sync.links import hosted_provider
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.rendering import render_browsing_payload
 from sase.agents_sync.v2_io import (
@@ -183,7 +185,13 @@ def _publish_hoods(
         override_snapshots=current_snapshots,
         override_payload=payload,
     )
-    payload.update(render_browsing_payload(manifests, snapshots))
+    payload.update(
+        render_browsing_payload(
+            manifests,
+            snapshots,
+            commit_url_base=_commit_url_base(inventory.primary_remote_url),
+        )
+    )
     apply_payload_atomic(repo_root, payload)
     return V2PublicationCounts(
         hoods_published=published,
@@ -193,6 +201,20 @@ def _publish_hoods(
         runs_published=runs,
         diagnostics=inventory.diagnostics,
     )
+
+
+def _commit_url_base(remote_url: str | None) -> str | None:
+    if remote_url is None:
+        return None
+    sentinel_sha = "0" * 7
+    commit_url = github_commit_url(
+        remote_url,
+        provider=hosted_provider(remote_url),
+        sha=sentinel_sha,
+    )
+    if commit_url is None:
+        return None
+    return commit_url.removesuffix(f"/{sentinel_sha}")
 
 
 def _build_hood_snapshot(

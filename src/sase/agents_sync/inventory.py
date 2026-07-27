@@ -76,6 +76,7 @@ def build_project_hood_inventory(
         raise AgentsSyncFormatError("v2 publication requires an owner identity")
     owner = identity.owner
     history = _historical_associations(target, identity, git_runner)
+    primary_remote_url = _primary_remote_url(target, git_runner)
     records, diagnostics = _indexed_records(target)
     runs: list[InventoryRun] = []
     root_cache: dict[str, Path | None] = {}
@@ -156,6 +157,7 @@ def build_project_hood_inventory(
         target.project_key,
         tuple(sorted(unique_runs, key=lambda item: item.source_run_id)),
         tuple(diagnostics),
+        primary_remote_url,
     )
 
 
@@ -391,6 +393,24 @@ def _historical_associations(
         )
         for name, rows in commits.items()
     }
+
+
+def _primary_remote_url(
+    target: ProjectTarget,
+    git_runner: GitRunner,
+) -> str | None:
+    """Read the primary checkout's origin without making publication fragile."""
+
+    try:
+        result = git_runner(
+            target.primary_checkout,
+            ["config", "--get", "remote.origin.url"],
+            op="agents_sync.v2_primary_remote",
+        )
+    except Exception:  # noqa: BLE001 - optional local Git metadata boundary.
+        return None
+    remote_url = result.stdout.strip()
+    return remote_url if result.returncode == 0 and remote_url else None
 
 
 def _footer_is_current_owner(

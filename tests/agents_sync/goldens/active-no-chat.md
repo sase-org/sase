@@ -11,11 +11,17 @@
 - Model: gpt
 - Provider: —
 - Timing: 2026-07-23T12:00:00+00:00
-- Commits: 1
+- Commits: [1](#commits)
 
 ## Files
 
 [Prompt](prompt.md)
+
+## Commits
+
+| Commit | Subject | Committed (UTC) |
+|---|---|---|
+| `aaaaaaa` | foo.bar.baz--code | 1970-01-01 00:00:01 |
 
 ## Neighbors
 

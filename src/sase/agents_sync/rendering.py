@@ -24,6 +24,8 @@ from sase.agents_sync.v2_models import (
 def render_browsing_payload(
     manifests: tuple[V2OwnerManifest, ...],
     snapshots: dict[tuple[str, str, str], V2HoodSnapshot],
+    *,
+    commit_url_base: str | None = None,
 ) -> dict[str, bytes]:
     """Render every derived page from validated manifests and snapshots."""
 
@@ -57,11 +59,20 @@ def render_browsing_payload(
                 payload[f"{hood_root}/README.md"] = page_bytes(
                     render_hood_page(snapshot, hood_root)
                 )
-                payload.update(_render_run_pages(snapshot))
+                payload.update(
+                    _render_run_pages(
+                        snapshot,
+                        commit_url_base=commit_url_base,
+                    )
+                )
     return payload
 
 
-def _render_run_pages(snapshot: V2HoodSnapshot) -> dict[str, bytes]:
+def _render_run_pages(
+    snapshot: V2HoodSnapshot,
+    *,
+    commit_url_base: str | None,
+) -> dict[str, bytes]:
     payload: dict[str, bytes] = {}
     by_id = {run.source_run_id: run for run in snapshot.runs}
     kinship = build_hood_kinship(snapshot)
@@ -72,7 +83,13 @@ def _render_run_pages(snapshot: V2HoodSnapshot) -> dict[str, bytes]:
         for source_id in container.member_source_run_ids:
             families_by_member[source_id] = container
         payload[f"families/{container.global_name}.md"] = page_bytes(
-            render_family_page(snapshot, container, by_id, kinship=kinship)
+            render_family_page(
+                snapshot,
+                container,
+                by_id,
+                commit_url_base=commit_url_base,
+                kinship=kinship,
+            )
         )
     for run in snapshot.runs:
         payload[f"agents/{run.global_name}/README.md"] = page_bytes(
@@ -80,6 +97,7 @@ def _render_run_pages(snapshot: V2HoodSnapshot) -> dict[str, bytes]:
                 snapshot,
                 run,
                 family=families_by_member.get(run.source_run_id),
+                commit_url_base=commit_url_base,
                 kinship=kinship,
             )
         )
