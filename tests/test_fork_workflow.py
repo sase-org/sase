@@ -363,11 +363,20 @@ def test_inline_deferred_fork_survives_workspace_removal_and_late_preprocessing(
             expanded_fork
         )
 
+    # Pin the prettier step off. `format_with_prettier` silently returns its
+    # input when prettier is missing from PATH (it is absent on the CI runner
+    # image) or times out, so leaving it ambient makes the exact whitespace of
+    # `final_prompt` depend on the machine. What this test guards -- the
+    # disabled-region marker landing on its own line -- is prettier
+    # independent, so assert it without prettier's normalization.
+    monkeypatch.setenv("SASE_DISABLE_PRETTIER", "1")
     final_prompt = preprocess_prompt_late(without_workspace, file_ref_mode="skip")
 
     assert "%xprompts_enabled" not in final_prompt
     assert "\n # New Query" not in final_prompt
-    assert final_prompt.endswith("# New Query\n\nContinue the work\n")
+    _, separator, new_query = final_prompt.rpartition("\n# New Query")
+    assert separator, f"missing New Query heading in {final_prompt!r}"
+    assert new_query.strip() == "Continue the work"
 
 
 def test_embedded_family_fork_injects_each_completed_member_reply_once(
