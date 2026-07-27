@@ -101,12 +101,17 @@ def test_resolve_bead_conflicts_rejects_only_non_bead_conflicts(
     assert result.message == "non-bead conflicts remain: notes.txt"
 
 
-def _build_stream_conflict(repo: Path, *, bystanders: int = 0) -> tuple[str, list[str]]:
+def _build_stream_conflict(
+    repo: Path,
+    *,
+    bystanders: int = 0,
+    bystander_label: str = "Quiet",
+) -> tuple[str, list[str]]:
     """Diverge one bead event stream, leaving *bystanders* streams untouched."""
     _init_repo(repo)
     with BeadProject.init(repo, beads_dirname=BEADS_DIRNAME) as project:
         quiet = [
-            project.create(f"Quiet {index}", IssueType.PLAN).id
+            project.create(f"{bystander_label} {index}", IssueType.PLAN).id
             for index in range(bystanders)
         ]
         contested = project.create("Contested", IssueType.PLAN).id
@@ -191,6 +196,33 @@ def test_resolution_leaves_untouched_streams_alone(tmp_path: Path) -> None:
     assert not [path for path in staged if any(name in path for name in quiet)]
     merged = (tmp_path / contested).read_text(encoding="utf-8")
     assert "from local" in merged and "from other" in merged
+
+
+def test_resolution_preserves_non_ascii_bytes_in_untouched_streams(
+    tmp_path: Path,
+) -> None:
+    """The Rust writer emits unescaped UTF-8; escaping it here churns every file."""
+    _contested, quiet = _build_stream_conflict(
+        tmp_path, bystanders=2, bystander_label="Quiét — ünicode"
+    )
+    streams = tmp_path / BEADS_DIRNAME / "events" / "streams"
+    quiet_paths = [streams / f"{stream_id}.jsonl" for stream_id in quiet]
+    quiet_bytes = {path: path.read_bytes() for path in quiet_paths}
+    assert all(b"Qui\xc3\xa9t" in data for data in quiet_bytes.values())
+    # Written by the Rust store writer, and the merge changes no manifest field.
+    manifest_path = tmp_path / BEADS_DIRNAME / "events" / "manifest.json"
+    manifest_bytes = manifest_path.read_bytes()
+
+    result = resolve_bead_conflicts(tmp_path, beads_dir=tmp_path / BEADS_DIRNAME)
+
+    assert result.ok is True, result.message
+    assert {path: path.read_bytes() for path in quiet_paths} == quiet_bytes
+    assert manifest_path.read_bytes() == manifest_bytes
+    staged = _git(tmp_path, "diff", "--cached", "--name-only").stdout.split()
+    assert not [path for path in staged if any(name in path for name in quiet)]
+    issues = (tmp_path / BEADS_DIRNAME / "issues.jsonl").read_bytes()
+    assert b"Qui\xc3\xa9t" in issues
+    assert b"\\u" not in issues
 
 
 def test_failed_stage_read_does_not_silently_drop_one_side(

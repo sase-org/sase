@@ -95,9 +95,16 @@ def export_to_jsonl(conn: sqlite3.Connection, path: Path) -> None:
     """Export all issues to a JSONL file, sorted by ID."""
     issues = db_mod.list_issues(conn)
     issues.sort(key=lambda i: i.id)
-    with open(path, "w") as f:
+    # ensure_ascii=False keeps this byte-identical to the Rust ``serde_json``
+    # writer of the same file; escaping non-ASCII here churns issues.jsonl.
+    with open(path, "w", encoding="utf-8") as f:
         for issue in issues:
-            f.write(json.dumps(_issue_to_dict(issue), separators=(",", ":")) + "\n")
+            f.write(
+                json.dumps(
+                    _issue_to_dict(issue), separators=(",", ":"), ensure_ascii=False
+                )
+                + "\n"
+            )
 
 
 def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
