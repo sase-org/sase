@@ -152,6 +152,7 @@ def close(
     *,
     reason: str | None = None,
     resolution: Resolution | str | None = None,
+    force: bool = False,
     now: str | None = None,
 ) -> tuple[list[Issue], dict[str, Any]]:
     _guard_bead_store_write(beads_dir, "close")
@@ -160,9 +161,27 @@ def close(
         resolution.value if isinstance(resolution, Resolution) else resolution
     )
     payload = _call_issue_operation(
-        binding, str(beads_dir), issue_ids, reason, resolution_value, now
+        binding,
+        str(beads_dir),
+        issue_ids,
+        reason,
+        resolution_value,
+        force,
+        now,
     )
     return issues_from_list(payload.get("issues", [])), payload
+
+
+def open_issue(
+    beads_dir: Path | str,
+    issue_id: str,
+    *,
+    now: str | None = None,
+) -> tuple[Issue, dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "open")
+    binding = require_rust_binding("bead_open")
+    payload = _call_issue_operation(binding, str(beads_dir), issue_id, now)
+    return _issue_payload(payload), payload
 
 
 def remove(
@@ -274,6 +293,7 @@ __all__ = [
     "export_jsonl",
     "init_store",
     "mark_ready_to_work",
+    "open_issue",
     "release_agent_claim",
     "remove",
     "remove_many",

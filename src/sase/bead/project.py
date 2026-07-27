@@ -268,10 +268,12 @@ class BeadProject:
         issue_ids: list[str],
         reason: str | None = None,
         resolution: Resolution | str | None = None,
+        force: bool = False,
     ) -> list[Issue]:
         """Close one or more issues.
 
-        If a plan bead is closed, all its phase children are also closed.
+        Descendants must already be closed unless ``force`` explicitly sweeps
+        them with a non-done resolution and reason.
         """
         from sase.core import bead_mutation_facade as rust_beads
 
@@ -280,10 +282,25 @@ class BeadProject:
             issue_ids,
             reason=reason,
             resolution=resolution,
+            force=force,
             now=_now(),
         )
         self._refresh_db_from_jsonl()
         return closed
+
+    def open(self, issue_id: str) -> tuple[Issue, list[Issue]]:
+        """Reopen an issue and every closed ancestor above it."""
+        from sase.core import bead_mutation_facade as rust_beads
+        from sase.core.bead_wire import issues_from_list
+
+        issue, outcome = rust_beads.open_issue(
+            self.beads_dir,
+            issue_id,
+            now=_now(),
+        )
+        reopened_ancestors = issues_from_list(outcome.get("issues", []))
+        self._refresh_db_from_jsonl()
+        return issue, reopened_ancestors
 
     def remove(self, issue_id: str) -> list[Issue]:
         """Delete an issue and all its children.

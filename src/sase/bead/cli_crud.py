@@ -166,12 +166,14 @@ def handle_bead_update(args: argparse.Namespace) -> None:
 def handle_bead_open(args: argparse.Namespace) -> None:
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         try:
-            issue = mutation.project.update(args.id, status="open")
+            issue, reopened_ancestors = mutation.project.open(args.id)
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
         mutation.commit(f"chore(beads): reopen {issue.id}")
     print(f"○ Opened: {issue.id} — {issue.title}")
+    for ancestor in reopened_ancestors:
+        print(f"○ Reopened ancestor: {ancestor.id} — {ancestor.title}")
 
 
 def handle_bead_close(args: argparse.Namespace) -> None:
@@ -181,9 +183,13 @@ def handle_bead_close(args: argparse.Namespace) -> None:
                 args.ids,
                 reason=args.reason,
                 resolution=getattr(args, "resolution", "done"),
+                force=getattr(args, "force", False),
             )
         except KeyError as e:
             print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
         mutation.commit(f"chore(beads): close {' '.join(args.ids)}")
     for issue in closed:

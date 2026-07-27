@@ -294,7 +294,15 @@ def test_closed_rendered_bead_fails_before_model_callback(
     assert directives.name is not None
 
     with BeadProject(project_dir) as project:
-        project.close([target_id])
+        if target == "epic":
+            project.close(
+                [target_id],
+                reason="Test fixture cancels unfinished work",
+                resolution="canceled",
+                force=True,
+            )
+        else:
+            project.close([target_id])
     store = SddStore(
         storage="in_tree",
         sdd_dir=project_dir / "sdd",

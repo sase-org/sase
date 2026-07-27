@@ -88,12 +88,22 @@ def test_mutation_facade_jsonl_matches_python_after_each_operation(
         _assert_jsonl_equal(py_root, rust_root)
 
         monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:05:00Z")
+        project.close([py_child.id], reason="done")
+        rust_beads.close(
+            rust_root / "sdd/beads",
+            [rust_child.id],
+            reason="done",
+            now="2026-01-01T00:05:00Z",
+        )
+        _assert_jsonl_equal(py_root, rust_root)
+
+        monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:06:00Z")
         py_closed = project.close([py_epic.id], reason="done")
         rust_closed, _ = rust_beads.close(
             rust_root / "sdd/beads",
             [rust_epic.id],
             reason="done",
-            now="2026-01-01T00:05:00Z",
+            now="2026-01-01T00:06:00Z",
         )
         assert [issue.id for issue in rust_closed] == [issue.id for issue in py_closed]
         _assert_jsonl_equal(py_root, rust_root)

@@ -89,9 +89,12 @@ sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.m
 | `in_progress` | `◐`  | Currently being worked on                          |
 | `closed`      | `✓`  | Completed or abandoned                             |
 
-Status can transition freely between any values via `sase bead update --status=<status>`. `sase bead open <id>` is a
-shortcut for `sase bead update <id> --status=open`. `claimed` is machine-managed: the agent runner sets and clears it
-(see [Bead Claim Lifecycle](#bead-claim-lifecycle)), so set it by hand only to deliberately park a bead.
+Status can transition between values via `sase bead update --status=<status>`, with one completion guard: moving a bead
+to `closed` is rejected while any descendant remains open, claimed, or in progress. Close those descendants deliberately
+first; `update --status=closed` never cascades. `sase bead open <id>` reopens the bead and every closed ancestor above
+it, clearing their resolutions so a closed parent never sits above reopened work. `claimed` is machine-managed: the
+agent runner sets and clears it (see [Bead Claim Lifecycle](#bead-claim-lifecycle)), so set it by hand only to
+deliberately park a bead.
 
 Every new close records a typed `resolution`: `done`, `canceled`, or `superseded`. Normal closes default to `done`;
 `close_reason` remains optional free text for the human explanation. Historical closed beads are not backfilled, so
@@ -320,7 +323,9 @@ for by a live agent, so it does not appear in `ready`.
 
 ### `sase bead open <id>`
 
-Reopen an issue by setting its status to `open`. This is equivalent to `sase bead update <id> --status=open`.
+Reopen an issue with an `issue_opened` event. Every closed ancestor above it is reopened in the same mutation, and the
+command prints the ancestor IDs it changed. Resolutions are cleared on the reopened bead and ancestors; historical close
+reasons and timestamps remain available.
 
 ### `sase bead update <id>`
 
@@ -340,20 +345,25 @@ Update one or more fields on an issue.
 
 ### `sase bead close <id> [<id2> ...]`
 
-Close one or more issues.
+Close one or more issues. Every requested bead is checked before the first write, so a batch either closes completely or
+leaves the store untouched. A bead with any non-closed descendant is rejected and names the unfinished work; phase
+agents should continue to close only their assigned phase bead, not the parent epic.
 
-Closing a plan bead also closes all descendant phase and child-plan beads recursively. Use this intentionally: phase
-agents should close only their assigned phase bead, not the parent epic.
+`--force` is the explicit exception for canceling or superseding an unfinished tree. It requires a non-empty reason and
+an explicit `canceled` or `superseded` resolution; `--force --resolution done` is rejected. A forced close recursively
+closes the unfinished descendants with the same non-done resolution, gives each one a close reason naming the forcing
+parent, and records the swept descendant IDs in that parent's close event.
 
 Closing a delegated child plan/epic also closes its parent phase automatically once every child of that phase is closed.
 This upward cascade continues only through phase parents and never auto-closes a parent plan/epic; the parent land agent
 retains that responsibility. Removing a child epic does not trigger the cascade, so its phase stays open and can be
 scheduled again on retry.
 
-| Flag               | Description                                             |
-| ------------------ | ------------------------------------------------------- |
-| `-r, --reason`     | Optional close reason text                              |
-| `-R, --resolution` | `canceled`, `done`, or `superseded`; defaults to `done` |
+| Flag               | Description                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| `-f, --force`      | Sweep unfinished descendants; requires a reason and `canceled` or `superseded`      |
+| `-r, --reason`     | Optional close reason text; required with `--force`                                 |
+| `-R, --resolution` | `canceled`, `done`, or `superseded`; defaults to `done`, which force does not allow |
 
 ### `sase bead rm <id> [<id2> ...]`
 

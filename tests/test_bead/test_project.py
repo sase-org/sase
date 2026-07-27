@@ -309,37 +309,53 @@ def test_close_with_resolution(project):
     assert project.show(epic.id).resolution is Resolution.CANCELED
 
 
-def test_close_plan_cascades_children(project):
+def test_close_plan_rejects_open_children(project):
     epic = project.create("Epic", IssueType.PLAN)
     c1 = project.create("C1", IssueType.PHASE, parent_id=epic.id)
     c2 = project.create("C2", IssueType.PHASE, parent_id=epic.id)
-    closed = project.close([epic.id])
-    closed_ids = [i.id for i in closed]
-    assert c1.id in closed_ids
-    assert c2.id in closed_ids
-    assert epic.id in closed_ids
-    # All should now be closed
+    with pytest.raises(ValueError, match="descendant\\(s\\) are not closed"):
+        project.close([epic.id])
     for issue_id in [c1.id, c2.id, epic.id]:
-        assert project.show(issue_id).status == Status.CLOSED
+        assert project.show(issue_id).status == Status.OPEN
 
 
 def test_close_plan_skips_already_closed_children(project):
     epic = project.create("Epic", IssueType.PLAN)
     c1 = project.create("C1", IssueType.PHASE, parent_id=epic.id)
-    project.create("C2", IssueType.PHASE, parent_id=epic.id)
+    c2 = project.create("C2", IssueType.PHASE, parent_id=epic.id)
     # Close c1 first
     project.close([c1.id])
-    # Now close the plan — c1 should not appear again
+    with pytest.raises(ValueError, match="descendant\\(s\\) are not closed"):
+        project.close([epic.id])
+    project.close([c2.id])
+    # Once every child was closed deliberately, the plan can close normally.
     closed = project.close([epic.id])
     closed_ids = [i.id for i in closed]
     assert c1.id not in closed_ids
+    assert c2.id not in closed_ids
+    assert closed_ids == [epic.id]
 
 
-def test_close_plan_cascades_reason_to_children(project):
+def test_force_close_plan_records_parent_in_child_reason(project):
     epic = project.create("Epic", IssueType.PLAN)
     c1 = project.create("C1", IssueType.PHASE, parent_id=epic.id)
-    project.close([epic.id], reason="completed")
-    assert project.show(c1.id).close_reason == "completed"
+    project.close(
+        [epic.id],
+        reason="No longer needed",
+        resolution="canceled",
+        force=True,
+    )
+    swept = project.show(c1.id)
+    assert swept.close_reason == f"forced by {epic.id}: No longer needed"
+    assert swept.resolution is Resolution.CANCELED
+
+
+def test_force_close_requires_reason_and_non_done_resolution(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    with pytest.raises(ValueError, match="requires a non-empty --reason"):
+        project.close([epic.id], resolution="canceled", force=True)
+    with pytest.raises(ValueError, match="'done' is not allowed"):
+        project.close([epic.id], reason="Finished", force=True)
 
 
 def test_close_not_found(project):
@@ -370,7 +386,8 @@ def test_blocked(project):
 
 def test_stats(project):
     epic = project.create("Epic", IssueType.PLAN)
-    project.create("C1", IssueType.PHASE, parent_id=epic.id)
+    child = project.create("C1", IssueType.PHASE, parent_id=epic.id)
+    project.close([child.id])
     project.close([epic.id])
 
     s = project.stats()

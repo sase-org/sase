@@ -810,7 +810,9 @@ xprompts:
       3. Land. Close the epic with `sase bead close {{ bead_id }}`. AFTER closing, run `just symvision` if available
          (epic-symbol whitelist entries for {{ bead_id }} expire at close) and remove the stale entries and unused code
          it reports. Finally, set `status: done` in the frontmatter of the epic's plan file (the PLAN path shown by
-         `sase bead show`).
+         `sase bead show`). If the close is rejected, the named phases were never completed: finish or reopen them, or
+         record the outcome deliberately with `--force --reason ... --resolution canceled|superseded`. Never force
+         merely to make the command succeed.
 
       If steps 1-2 uncover remaining work, use your /sase_plan skill to plan it and complete the skill's tier-aware
       validate/revalidate/propose loop. Make step 3 the plan's final phase (close, run symvision, mark the plan file done)
@@ -823,7 +825,8 @@ xprompts:
       Can you run the `sase bead ready` command to see which beads are ready to be worked, claim the next ready bead
       by marking it as in-progress, complete the work associated with it, and then close the bead (do NOT close the
       parent epic bead)? Make sure to mark the bead as in-progress before you start working. If there are no non-epic
-      beads ready to work, you should terminate without doing anything. {{ prompt }}
+      beads ready to work, you should terminate without doing anything. Closing an assigned phase bead is unaffected by
+      the parent-close descendant guard. {{ prompt }}
 
       IMPORTANT: Do NOT create any beads of your own. You are meant to work the pre-existing ready bead that you select. If
       you decide to create a plan for this bead, make sure you explicitly mention the bead ID in the plan.
@@ -855,7 +858,8 @@ xprompts:
       Can you complete the work for bead {{ bead_id }}? The bead is already reserved for you and assigned to your agent
       name: it was set to status=claimed while your agent was waiting, and the runtime promoted it to
       status=in_progress before you started reading this. Do not set either status by hand. Read its description and
-      design file, do the work, and close the bead. Do NOT close the parent epic. Do NOT create new beads.
+      design file, do the work, and close the bead. Closing an assigned phase bead is unaffected by the parent-close
+      descendant guard. Do NOT close the parent epic. Do NOT create new beads.
   epic: |
     This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
     keep in mind that each phase will be completed by a distinct agent instance (i.e. a distinct `claude` / `agy` /

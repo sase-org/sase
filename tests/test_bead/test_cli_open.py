@@ -60,3 +60,24 @@ def test_handle_bead_open_missing_id_exits_with_update_style_error(
 
     assert excinfo.value.code == 1
     assert capsys.readouterr().err == "Error: issue not found: beads-missing\n"
+
+
+def test_handle_bead_open_reopens_closed_ancestors(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        epic = proj.create("Epic", IssueType.PLAN)
+        phase = proj.create("Phase", IssueType.PHASE, parent_id=epic.id)
+        proj.close([phase.id])
+        proj.close([epic.id])
+
+    bead_cli.handle_bead_open(argparse.Namespace(id=phase.id))
+
+    with BeadProject(project_dir) as proj:
+        assert proj.show(phase.id).status is Status.OPEN
+        reopened_epic = proj.show(epic.id)
+        assert reopened_epic.status is Status.OPEN
+        assert reopened_epic.resolution is None
+    output = capsys.readouterr().out
+    assert f"○ Reopened ancestor: {epic.id} — Epic" in output

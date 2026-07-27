@@ -28,6 +28,15 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         "close", help="Close one or more issues"
     )
     bead_close_parser.add_argument("ids", nargs="+", help="Issue IDs to close")
+    bead_close_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help=(
+            "Close unfinished descendants; requires --reason and a "
+            "non-done --resolution"
+        ),
+    )
     bead_close_parser.add_argument("-r", "--reason", help="Close reason")
     bead_close_parser.add_argument(
         "-R",
