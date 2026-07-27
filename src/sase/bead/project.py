@@ -166,6 +166,15 @@ class BeadProject:
 
         return rust_beads.history(self.beads_dir, issue_id)
 
+    def lost_notes(
+        self,
+        issue_id: str | None = None,
+    ) -> list[dict[str, object]]:
+        """Return historical note revisions absent from current notes."""
+        from sase.core import bead_read_facade as rust_beads
+
+        return rust_beads.lost_notes(self.beads_dir, issue_id)
+
     def list_issues(
         self,
         statuses: list[Status] | None = None,

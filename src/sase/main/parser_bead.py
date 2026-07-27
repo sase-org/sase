@@ -174,11 +174,12 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase bead history
     bead_history_parser = bead_subparsers.add_parser(
         "history",
-        help="Show one issue's field-level event history",
+        help="Show event history or find overwritten notes",
         description=(
-            "Replay the canonical event streams for one bead. Compact output "
-            "shows one row per event; full output shows the prior and new "
-            "value for every changed field."
+            "Replay the canonical event streams for one bead, or find note "
+            "revisions that no longer appear in current notes. Compact "
+            "history output shows one row per event; full output shows the "
+            "prior and new value for every changed field."
         ),
     )
     bead_history_parser.add_argument(
@@ -205,6 +206,18 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         type=nonnegative_int,
         default=0,
         help="Newest entries to print; 0 means unlimited",
+    )
+    bead_history_parser.add_argument(
+        "-l",
+        "--lost-notes",
+        action="store_true",
+        help="Report beads whose current notes dropped an earlier revision",
+    )
+    bead_history_parser.add_argument(
+        "-R",
+        "--restore",
+        action="store_true",
+        help="With --lost-notes, re-append dropped revisions after confirmation",
     )
 
     # sase bead init

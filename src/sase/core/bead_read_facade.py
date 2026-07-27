@@ -37,6 +37,20 @@ def history(beads_dir: Path | str, issue_id: str) -> dict[str, Any]:
     return payload
 
 
+def lost_notes(
+    beads_dir: Path | str,
+    issue_id: str | None = None,
+) -> list[dict[str, Any]]:
+    binding = require_rust_binding("bead_lost_notes")
+    try:
+        payload: list[dict[str, Any]] = binding(str(beads_dir), issue_id)
+    except ValueError as exc:
+        if issue_id is not None:
+            _raise_key_error_for_missing_issue(issue_id, exc)
+        raise
+    return payload
+
+
 def list_issues(
     beads_dir: Path | str,
     statuses: list[Status] | tuple[Status, ...] | None = None,

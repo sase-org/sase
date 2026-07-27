@@ -262,14 +262,20 @@ actor, operation, and changed field names for each event. Full output prints eve
 earlier note revisions that later updates replaced. JSON emits one envelope with `issue_id`, `schema_version`, and
 `entries`.
 
-The positional ID is optional in the parser so future recovery modes can operate across the store; the current history
-reader reports a clear error when it is omitted.
+Use `--lost-notes` to report notes snapshots whose nonblank text no longer appears in the current notes. With no
+positional ID it scans the whole store; with an ID it checks only that bead. Findings are sorted by bead ID. Add
+`--restore` to preview provenance-tagged appends, prompt once, and restore every finding through the same atomic append
+mutation used by `sase bead note`. Restoration is idempotent: restored text is retained by later append snapshots, so a
+second scan reports nothing. Non-interactive restoration declines safely, and `--restore` without `--lost-notes` is a
+usage error.
 
-| Flag           | Values                    | Description                                          |
-| -------------- | ------------------------- | ---------------------------------------------------- |
-| `-F, --field`  | field name                | Restrict to events changing the field; repeatable    |
-| `-f, --format` | `compact`, `full`, `json` | Output format; defaults to `compact`                 |
-| `-n, --limit`  | non-negative integer      | Newest entries to print; omitted or `0` is unlimited |
+| Flag               | Values                    | Description                                                    |
+| ------------------ | ------------------------- | -------------------------------------------------------------- |
+| `-F, --field`      | field name                | Restrict to events changing the field; repeatable              |
+| `-f, --format`     | `compact`, `full`, `json` | Output format; defaults to `compact`                           |
+| `-n, --limit`      | non-negative integer      | Newest entries to print; omitted or `0` is unlimited           |
+| `-l, --lost-notes` | boolean                   | Report beads whose current notes dropped an earlier revision   |
+| `-R, --restore`    | boolean                   | With `--lost-notes`, re-append findings after one confirmation |
 
 ### `sase bead search <query>`
 
