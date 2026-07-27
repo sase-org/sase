@@ -100,6 +100,42 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
 
+    # sase bead history
+    bead_history_parser = bead_subparsers.add_parser(
+        "history",
+        help="Show one issue's field-level event history",
+        description=(
+            "Replay the canonical event streams for one bead. Compact output "
+            "shows one row per event; full output shows the prior and new "
+            "value for every changed field."
+        ),
+    )
+    bead_history_parser.add_argument(
+        "id",
+        nargs="?",
+        help="Issue ID",
+    )
+    bead_history_parser.add_argument(
+        "-F",
+        "--field",
+        action="append",
+        help="Restrict to events changing this field (repeatable)",
+    )
+    bead_history_parser.add_argument(
+        "-f",
+        "--format",
+        choices=["compact", "full", "json"],
+        default="compact",
+        help="Output format: compact, full, or json (default: compact)",
+    )
+    bead_history_parser.add_argument(
+        "-n",
+        "--limit",
+        type=nonnegative_int,
+        default=0,
+        help="Newest entries to print; 0 means unlimited",
+    )
+
     # sase bead init
     bead_subparsers.add_parser("init", help="Create the effective SDD bead store")
 

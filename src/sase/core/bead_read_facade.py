@@ -27,6 +27,16 @@ def show(beads_dir: Path | str, issue_id: str) -> Issue:
     return issue_from_dict(payload)
 
 
+def history(beads_dir: Path | str, issue_id: str) -> dict[str, Any]:
+    binding = require_rust_binding("bead_history")
+    try:
+        payload: dict[str, Any] = binding(str(beads_dir), issue_id)
+    except ValueError as exc:
+        _raise_key_error_for_missing_issue(issue_id, exc)
+        raise
+    return payload
+
+
 def list_issues(
     beads_dir: Path | str,
     statuses: list[Status] | tuple[Status, ...] | None = None,
@@ -111,6 +121,7 @@ __all__ = [
     "blocked",
     "doctor",
     "get_epic_children",
+    "history",
     "list_issues",
     "ready",
     "search",

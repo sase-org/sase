@@ -154,6 +154,12 @@ class BeadProject:
 
         return rust_beads.show(self.beads_dir, issue_id)
 
+    def history(self, issue_id: str) -> dict[str, object]:
+        """Return the ordered field-level event history for one issue."""
+        from sase.core import bead_read_facade as rust_beads
+
+        return rust_beads.history(self.beads_dir, issue_id)
+
     def list_issues(
         self,
         statuses: list[Status] | None = None,

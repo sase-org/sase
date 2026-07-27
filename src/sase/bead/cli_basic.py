@@ -18,6 +18,7 @@ from sase.bead.cli_crud import (
     handle_bead_update,
     parse_type_arg,
 )
+from sase.bead.cli_history import handle_bead_history
 from sase.bead.cli_query import (
     handle_bead_blocked,
     handle_bead_list,
@@ -37,6 +38,7 @@ __all__ = [
     "handle_bead_dep",
     "handle_bead_doctor",
     "handle_bead_init",
+    "handle_bead_history",
     "handle_bead_list",
     "handle_bead_onboard",
     "handle_bead_open",

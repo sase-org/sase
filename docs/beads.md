@@ -190,6 +190,8 @@ are kept in sync:
 - **Writes** append canonical Rust events first, then regenerate `issues.jsonl` and refresh `beads.db`.
 - **Reads** prefer `events/manifest.json` plus `events/streams/*.jsonl`, falling back to legacy `issues.jsonl` only when
   no event store is present.
+- **History** replays those same streams in projection order; `sase bead history <id>` makes every recorded field
+  revision readable without changing canonical state.
 - **Fresh clones** read directly from the tracked event streams and can rebuild the compatibility mirrors on demand.
 
 The `.gitignore` excludes `beads.db*` files. The event store, `issues.jsonl`, and `config.json` are tracked in git.
@@ -248,6 +250,22 @@ was given, the command falls back to listing closed beads. `--status`, `--type`,
 
 Active (open/claimed/in-progress) listings are unlimited by default. Whenever the final status scope includes `closed`
 and `--limit` is omitted, only the newest 20 beads print; pass `--limit 0` for the full closed history.
+
+### `sase bead history [<id>]`
+
+Replay one bead's canonical event stream as an ordered, field-level timeline. Compact output prints the timestamp,
+actor, operation, and changed field names for each event. Full output prints every prior and new value, including
+earlier note revisions that later updates replaced. JSON emits one envelope with `issue_id`, `schema_version`, and
+`entries`.
+
+The positional ID is optional in the parser so future recovery modes can operate across the store; the current history
+reader reports a clear error when it is omitted.
+
+| Flag           | Values                    | Description                                          |
+| -------------- | ------------------------- | ---------------------------------------------------- |
+| `-F, --field`  | field name                | Restrict to events changing the field; repeatable    |
+| `-f, --format` | `compact`, `full`, `json` | Output format; defaults to `compact`                 |
+| `-n, --limit`  | non-negative integer      | Newest entries to print; omitted or `0` is unlimited |
 
 ### `sase bead search <query>`
 
