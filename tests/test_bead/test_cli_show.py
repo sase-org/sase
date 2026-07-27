@@ -460,3 +460,30 @@ def test_search_json_keeps_phase_size_in_machine_output(
     assert payload["results"][0]["issue"]["id"] == phase.id
     assert payload["results"][0]["issue"]["size"] == "medium"
     assert payload["results"][0]["matched_fields"] == ["size"]
+
+
+def test_show_renders_recorded_and_unrecorded_resolution(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        recorded = project.create("Canceled", IssueType.PLAN)
+        project.close(
+            [recorded.id],
+            reason="Replaced by a newer plan",
+            resolution="canceled",
+        )
+        historical = project.create("Historical", IssueType.PLAN)
+        project.update(historical.id, status="closed")
+
+    recorded_out = _show(recorded, capsys)
+    assert "RESOLUTION" in recorded_out
+    assert "Resolution: canceled" in recorded_out
+    assert "Close reason: Replaced by a newer plan" in recorded_out
+    assert "Closed at:" in recorded_out
+
+    historical_out = _show(historical, capsys)
+    assert "Resolution: (unrecorded)" in historical_out
+
+    payload = json.loads(_show_with_format(recorded, "json", capsys))
+    assert payload["issue"]["resolution"] == "canceled"

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from sase.bead.config import load_config, save_config
-from sase.bead.model import BeadTier, IssueType, PhaseSize, Status
+from sase.bead.model import BeadTier, IssueType, PhaseSize, Resolution, Status
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 
 
@@ -296,6 +296,17 @@ def test_close_with_reason(project):
     epic = project.create("Epic", IssueType.PLAN)
     closed = project.close([epic.id], reason="done")
     assert closed[0].close_reason == "done"
+
+
+def test_close_with_resolution(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    closed = project.close(
+        [epic.id],
+        reason="No longer needed",
+        resolution="canceled",
+    )
+    assert closed[0].resolution is Resolution.CANCELED
+    assert project.show(epic.id).resolution is Resolution.CANCELED
 
 
 def test_close_plan_cascades_children(project):

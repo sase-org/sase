@@ -29,6 +29,13 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     bead_close_parser.add_argument("ids", nargs="+", help="Issue IDs to close")
     bead_close_parser.add_argument("-r", "--reason", help="Close reason")
+    bead_close_parser.add_argument(
+        "-R",
+        "--resolution",
+        choices=["canceled", "done", "superseded"],
+        default="done",
+        help="How this bead was resolved (default: done)",
+    )
 
     # sase bead create
     bead_create_parser = bead_subparsers.add_parser("create", help="Create a new issue")

@@ -8,6 +8,7 @@ from sase.bead.model import (
     Issue,
     IssueType,
     PhaseSize,
+    Resolution,
     Status,
 )
 
@@ -172,6 +173,19 @@ class TestIssueValidation:
         with pytest.raises(ValueError, match="requires changespec_name"):
             issue.validate()
 
+    def test_resolution_requires_closed_status(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="A plan",
+            issue_type=IssueType.PLAN,
+            resolution=Resolution.DONE,
+        )
+        with pytest.raises(ValueError, match="Only closed issues"):
+            issue.validate()
+
+        issue.status = Status.CLOSED
+        issue.validate()
+
 
 class TestDependency:
     def test_dependency_fields(self) -> None:
@@ -205,3 +219,10 @@ class TestEnums:
     def test_issue_type_values(self) -> None:
         assert IssueType.PLAN.value == "plan"
         assert IssueType.PHASE.value == "phase"
+
+    def test_resolution_values(self) -> None:
+        assert [resolution.value for resolution in Resolution] == [
+            "done",
+            "canceled",
+            "superseded",
+        ]

@@ -2,6 +2,11 @@ No open beads to show — defaulting to --status closed.
 ✓ beads-1 · Closed Epic   [CLOSED]
 Type: plan · Tier: epic · Owner: owner@example.com
 
+RESOLUTION
+  Resolution: (unrecorded)
+  Close reason: done
+  Closed at: 2026-01-01T00:03:00Z
+
 CHILDREN
   PHASES
     ✓ beads-1.1: Closed Phase   [CLOSED] · Size: small
@@ -13,6 +18,11 @@ PLAN
 Type: phase · Owner: owner@example.com
 Size: small
 
+RESOLUTION
+  Resolution: (unrecorded)
+  Close reason: done
+  Closed at: 2026-01-01T00:04:00Z
+
 PARENT
   ↑ beads-1.1 ← epic beads-1
 
@@ -22,6 +32,11 @@ EPIC PLAN
 ------------------------------------------------------------
 ✓ beads-2 · Closed Plan   [CLOSED]
 Type: plan · Tier: plan · Owner: owner@example.com
+
+RESOLUTION
+  Resolution: (unrecorded)
+  Close reason: done
+  Closed at: 2026-01-01T00:05:00Z
 
 PLAN
   plans/closed-plan.md

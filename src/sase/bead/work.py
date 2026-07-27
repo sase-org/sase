@@ -229,6 +229,7 @@ def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "updated_at": issue.updated_at,
         "closed_at": issue.closed_at,
         "close_reason": issue.close_reason,
+        "resolution": issue.resolution.value if issue.resolution else None,
         "description": issue.description,
         "notes": issue.notes,
         "design": issue.design,

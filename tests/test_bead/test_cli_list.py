@@ -128,6 +128,7 @@ def test_handle_bead_list_json_outputs_envelope(
     assert payload["statuses"] == ["open", "claimed", "in_progress"]
     assert payload["implied_status_closed"] is False
     assert payload["results"][0]["id"] == issue.id
+    assert payload["results"][0]["resolution"] is None
 
 
 def test_handle_bead_list_json_empty_store_is_valid_envelope(
@@ -162,6 +163,7 @@ def test_handle_bead_list_json_reports_implicit_closed_without_notice(
     assert payload["statuses"] == ["closed"]
     assert payload["implied_status_closed"] is True
     assert payload["results"][0]["id"] == issue.id
+    assert payload["results"][0]["resolution"] == "done"
     assert "No open beads to show" not in output
 
 

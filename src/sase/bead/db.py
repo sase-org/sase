@@ -8,7 +8,15 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from sase.bead.model import BeadTier, Dependency, Issue, IssueType, PhaseSize, Status
+from sase.bead.model import (
+    BeadTier,
+    Dependency,
+    Issue,
+    IssueType,
+    PhaseSize,
+    Resolution,
+    Status,
+)
 from sase.core.rust import require_rust_binding
 
 _SCHEMA = """\
@@ -30,6 +38,8 @@ CREATE TABLE IF NOT EXISTS issues (
     updated_at  TEXT NOT NULL,
     closed_at   TEXT,
     close_reason TEXT,
+    resolution  TEXT
+                  CHECK(resolution IN ('done', 'canceled', 'superseded')),
     description TEXT,
     notes       TEXT,
     design      TEXT,
@@ -85,13 +95,13 @@ _STATUS_CHECK_RELAX_MIGRATION_SQL = (
     + """\
 INSERT INTO _issues_new (
     id, title, status, issue_type, tier, parent_id, owner, assignee,
-    created_at, created_by, updated_at, closed_at, close_reason,
+    created_at, created_by, updated_at, closed_at, close_reason, resolution,
     description, notes, design, model, size, is_ready_to_work,
     changespec_name, changespec_bug_id
 )
 SELECT
     id, title, status, issue_type, tier, parent_id, owner, assignee,
-    created_at, created_by, updated_at, closed_at, close_reason,
+    created_at, created_by, updated_at, closed_at, close_reason, resolution,
     description, notes, design, model, size, is_ready_to_work,
     changespec_name, changespec_bug_id
 FROM issues;
@@ -217,6 +227,21 @@ def _migrate_add_tier(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_add_resolution(conn: sqlite3.Connection) -> None:
+    """Add close-resolution metadata using the Rust migration policy."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
+    ).fetchone()
+    create_table_sql = None if row is None else row["sql"]
+    needs_migration = require_rust_binding("bead_needs_resolution_migration")
+    if not needs_migration(create_table_sql):
+        return
+
+    migration_sql = require_rust_binding("bead_resolution_migration_sql")
+    conn.execute(migration_sql())
+    conn.commit()
+
+
 def _migrate_issue_types(conn: sqlite3.Connection) -> None:
     """Migrate from epic/child to plan/phase schema if needed."""
     row = conn.execute(
@@ -276,6 +301,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _migrate_add_tier(conn)
     _migrate_add_model(conn)
     _migrate_add_size(conn)
+    _migrate_add_resolution(conn)
     _migrate_relax_size_check(conn)
     _migrate_relax_status_check(conn)
     conn.executescript(_SCHEMA)
@@ -297,6 +323,7 @@ def _row_to_issue(row: sqlite3.Row) -> Issue:
         updated_at=row["updated_at"],
         closed_at=row["closed_at"],
         close_reason=row["close_reason"],
+        resolution=Resolution(row["resolution"]) if row["resolution"] else None,
         description=row["description"] or "",
         notes=row["notes"] or "",
         design=row["design"] or "",
@@ -336,9 +363,10 @@ def create_issue(
         "INSERT INTO issues "
         "(id, title, status, issue_type, parent_id, owner, assignee, "
         "tier, created_at, created_by, updated_at, closed_at, close_reason, "
+        "resolution, "
         "description, notes, design, model, size, is_ready_to_work, "
         "changespec_name, changespec_bug_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -353,6 +381,7 @@ def create_issue(
             issue.updated_at,
             issue.closed_at,
             issue.close_reason,
+            issue.resolution.value if issue.resolution else None,
             issue.description,
             issue.notes,
             issue.design,
@@ -424,6 +453,7 @@ def update_issue(
         "updated_at",
         "closed_at",
         "close_reason",
+        "resolution",
         "description",
         "notes",
         "design",

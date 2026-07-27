@@ -11,6 +11,7 @@ from sase.bead.model import (
     Issue,
     IssueType,
     PhaseSize,
+    Resolution,
     Status,
 )
 
@@ -76,6 +77,9 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
         closed_at=None if data.get("closed_at") is None else str(data["closed_at"]),
         close_reason=(
             None if data.get("close_reason") is None else str(data["close_reason"])
+        ),
+        resolution=(
+            Resolution(str(data["resolution"])) if data.get("resolution") else None
         ),
         description=(
             "" if data.get("description") is None else str(data.get("description", ""))

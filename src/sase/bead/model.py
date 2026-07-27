@@ -23,6 +23,12 @@ class BeadTier(Enum):
     EPIC = "epic"
 
 
+class Resolution(Enum):
+    DONE = "done"
+    CANCELED = "canceled"
+    SUPERSEDED = "superseded"
+
+
 class PhaseSize(Enum):
     XSMALL = "xsmall"
     SMALL = "small"
@@ -54,6 +60,7 @@ class Issue:
     updated_at: str = ""
     closed_at: str | None = None
     close_reason: str | None = None
+    resolution: Resolution | None = None
     description: str = ""
     notes: str = ""
     design: str = ""
@@ -86,6 +93,8 @@ class Issue:
             raise ValueError("Phase issues cannot carry ChangeSpec metadata")
         if self.changespec_bug_id and not self.changespec_name:
             raise ValueError("changespec_bug_id requires changespec_name")
+        if self.status != Status.CLOSED and self.resolution is not None:
+            raise ValueError("Only closed issues can carry resolution metadata")
 
 
 @dataclass

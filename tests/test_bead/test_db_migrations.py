@@ -2,6 +2,8 @@
 
 import sqlite3
 
+import pytest
+
 from sase.bead.db import (
     _SCHEMA,
     add_dependency,
@@ -10,7 +12,7 @@ from sase.bead.db import (
     init_db,
     list_issues,
 )
-from sase.bead.model import PhaseSize, Status
+from sase.bead.model import PhaseSize, Resolution, Status
 
 from .db_test_helpers import NOW, child, epic
 
@@ -19,9 +21,44 @@ _SIZE_COLUMN_DEFINITION = """\
                   CHECK(size IN ('xsmall', 'small', 'medium', 'large', 'xlarge')),
 """
 _PHASE_SIZE_TABLE_CHECK = "    CHECK(issue_type = 'phase' OR size IS NULL),\n"
+_RESOLUTION_COLUMN_DEFINITION = """\
+    resolution  TEXT
+                  CHECK(resolution IN ('done', 'canceled', 'superseded')),
+"""
 
 
 class TestMigrationAddsColumn:
+    def test_pre_resolution_db_gets_nullable_constrained_column(self, tmp_path) -> None:
+        db_path = tmp_path / "old_resolution.db"
+        old = sqlite3.connect(str(db_path))
+        schema_without_resolution = _SCHEMA.replace(_RESOLUTION_COLUMN_DEFINITION, "")
+        assert schema_without_resolution != _SCHEMA
+        old.executescript(schema_without_resolution)
+        old.execute(
+            "INSERT INTO issues "
+            "(id, title, status, issue_type, tier, created_at, updated_at) "
+            "VALUES ('e-old', 'Old', 'closed', 'plan', 'epic', ?, ?)",
+            (NOW, NOW),
+        )
+        old.commit()
+        old.close()
+
+        conn = init_db(db_path)
+        try:
+            issue = get_issue(conn, "e-old")
+            assert issue is not None
+            assert issue.resolution is None
+            conn.execute("UPDATE issues SET resolution='canceled' WHERE id='e-old'")
+            updated = get_issue(conn, "e-old")
+            assert updated is not None
+            assert updated.resolution is Resolution.CANCELED
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    "UPDATE issues SET resolution='abandoned' WHERE id='e-old'"
+                )
+        finally:
+            conn.close()
+
     def test_pre_column_db_gets_migrated(self, tmp_path) -> None:
         """A database created without is_ready_to_work gains the column."""
         db_path = tmp_path / "old.db"

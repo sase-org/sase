@@ -93,6 +93,10 @@ Status can transition freely between any values via `sase bead update --status=<
 shortcut for `sase bead update <id> --status=open`. `claimed` is machine-managed: the agent runner sets and clears it
 (see [Bead Claim Lifecycle](#bead-claim-lifecycle)), so set it by hand only to deliberately park a bead.
 
+Every new close records a typed `resolution`: `done`, `canceled`, or `superseded`. Normal closes default to `done`;
+`close_reason` remains optional free text for the human explanation. Historical closed beads are not backfilled, so
+their resolution remains unset and human-readable detail views show `(unrecorded)`.
+
 ### Bead Claim Lifecycle
 
 An agent launched with `%id(<name>, bead=<id>)` reserves its bead before it starts working, so a bead is never silently
@@ -277,10 +281,11 @@ sase bead search auth --type plan --tier epic
 ### `sase bead show <id>`
 
 Display complete details for an issue including status, type, tier, parent lineage, dependencies, blockers, description,
-notes, ChangeSpec metadata, model, and linked plan path. Phase beads show their effective size (`small` for legacy beads
-without a stored size). Any bead's children are grouped as phases (with status and size) and child epics (with tier and
-status), including child epics owned by a phase bead. Nested beads show their complete lineage back to the root plan. A
-`claimed` bead also prints `Claimed by: <assignee> (agent has not started working yet)`.
+notes, ChangeSpec metadata, model, and linked plan path. Closed beads include their resolution, close reason, and close
+timestamp; legacy closures without a resolution show `(unrecorded)`. Phase beads show their effective size (`small` for
+legacy beads without a stored size). Any bead's children are grouped as phases (with status and size) and child epics
+(with tier and status), including child epics owned by a phase bead. Nested beads show their complete lineage back to
+the root plan. A `claimed` bead also prints `Claimed by: <assignee> (agent has not started working yet)`.
 
 `full` is the unchanged default detail block. `compact` prints the same single row as `sase bead list`. `json` emits a
 single-bead envelope with `issue`, `ancestors`, `children`, `depends_on`, `blocks`, and `plan`; every relationship
@@ -327,9 +332,10 @@ This upward cascade continues only through phase parents and never auto-closes a
 retains that responsibility. Removing a child epic does not trigger the cascade, so its phase stays open and can be
 scheduled again on retry.
 
-| Flag           | Description                |
-| -------------- | -------------------------- |
-| `-r, --reason` | Optional close reason text |
+| Flag               | Description                                             |
+| ------------------ | ------------------------------------------------------- |
+| `-r, --reason`     | Optional close reason text                              |
+| `-R, --resolution` | `canceled`, `done`, or `superseded`; defaults to `done` |
 
 ### `sase bead rm <id> [<id2> ...]`
 

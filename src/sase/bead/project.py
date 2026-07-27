@@ -18,6 +18,7 @@ from sase.bead.model import (
     Issue,
     IssueType,
     PhaseSize,
+    Resolution,
     Status,
 )
 from sase.bead.sync import (
@@ -256,7 +257,12 @@ class BeadProject:
         self._refresh_db_from_jsonl()
         return issue, bool(outcome["changed"])
 
-    def close(self, issue_ids: list[str], reason: str | None = None) -> list[Issue]:
+    def close(
+        self,
+        issue_ids: list[str],
+        reason: str | None = None,
+        resolution: Resolution | str | None = None,
+    ) -> list[Issue]:
         """Close one or more issues.
 
         If a plan bead is closed, all its phase children are also closed.
@@ -264,7 +270,11 @@ class BeadProject:
         from sase.core import bead_mutation_facade as rust_beads
 
         closed, _outcome = rust_beads.close(
-            self.beads_dir, issue_ids, reason=reason, now=_now()
+            self.beads_dir,
+            issue_ids,
+            reason=reason,
+            resolution=resolution,
+            now=_now(),
         )
         self._refresh_db_from_jsonl()
         return closed

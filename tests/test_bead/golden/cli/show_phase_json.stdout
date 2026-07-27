@@ -13,6 +13,7 @@
     "updated_at": "2026-01-01T00:01:00Z",
     "closed_at": null,
     "close_reason": null,
+    "resolution": null,
     "description": "",
     "notes": "",
     "design": "",

@@ -11,7 +11,14 @@ import sqlite3
 from pathlib import Path
 
 from sase.bead import db as db_mod
-from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
+from sase.bead.model import (
+    BeadTier,
+    Dependency,
+    Issue,
+    IssueType,
+    Resolution,
+    Status,
+)
 
 
 def _optional_str(value: object) -> str:
@@ -33,6 +40,7 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
         "updated_at": issue.updated_at,
         "closed_at": issue.closed_at,
         "close_reason": issue.close_reason,
+        **({"resolution": issue.resolution.value} if issue.resolution else {}),
         "description": issue.description,
         "notes": issue.notes,
         "design": issue.design,
@@ -78,6 +86,9 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
         updated_at=str(data.get("updated_at", "")),
         closed_at=str(data["closed_at"]) if data.get("closed_at") else None,
         close_reason=(str(data["close_reason"]) if data.get("close_reason") else None),
+        resolution=(
+            Resolution(str(data["resolution"])) if data.get("resolution") else None
+        ),
         description=_optional_str(data.get("description", "")),
         notes=_optional_str(data.get("notes", "")),
         design=_optional_str(data.get("design", "")),
@@ -154,6 +165,9 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                     updated_at=issue.updated_at,
                     closed_at=issue.closed_at,
                     close_reason=issue.close_reason,
+                    resolution=(
+                        issue.resolution.value if issue.resolution is not None else None
+                    ),
                     description=issue.description,
                     notes=issue.notes,
                     design=issue.design,

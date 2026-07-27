@@ -177,7 +177,11 @@ def handle_bead_open(args: argparse.Namespace) -> None:
 def handle_bead_close(args: argparse.Namespace) -> None:
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         try:
-            closed = mutation.project.close(args.ids, reason=args.reason)
+            closed = mutation.project.close(
+                args.ids,
+                reason=args.reason,
+                resolution=getattr(args, "resolution", "done"),
+            )
         except KeyError as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)

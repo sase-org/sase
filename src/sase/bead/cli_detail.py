@@ -109,6 +109,19 @@ def render_issue_detail(
         lines.append(f"Model: {issue.model}")
     if issue.issue_type == IssueType.PHASE:
         lines.append(f"Size: {_phase_size_value(issue)}")
+    if issue.status == Status.CLOSED:
+        lines.extend(
+            [
+                "",
+                "RESOLUTION",
+                (
+                    "  Resolution: "
+                    f"{issue.resolution.value if issue.resolution else '(unrecorded)'}"
+                ),
+                f"  Close reason: {issue.close_reason or '(none)'}",
+                f"  Closed at: {issue.closed_at or '(unknown)'}",
+            ]
+        )
 
     if issue.parent_id:
         lineage = [issue.id]
@@ -234,6 +247,7 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "updated_at": issue.updated_at,
         "closed_at": issue.closed_at,
         "close_reason": issue.close_reason,
+        "resolution": issue.resolution.value if issue.resolution else None,
         "description": issue.description,
         "notes": issue.notes,
         "design": issue.design,

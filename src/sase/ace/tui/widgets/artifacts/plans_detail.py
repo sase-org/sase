@@ -101,6 +101,13 @@ def bead_properties_header(
             ("Closed", issue.closed_at or ""),
         ]
     )
+    if issue.status is Status.CLOSED:
+        properties.append(
+            (
+                "Resolution",
+                issue.resolution.value if issue.resolution else "(unrecorded)",
+            )
+        )
     if issue.close_reason:
         properties.append(("Close reason", issue.close_reason))
     properties.append(
@@ -305,6 +312,11 @@ def bead_preview_markdown(
     )
     if issue.closed_at:
         lines.append(f"- Closed: {issue.closed_at}")
+    if issue.status is Status.CLOSED:
+        lines.append(
+            "- Resolution: "
+            f"{issue.resolution.value if issue.resolution else '(unrecorded)'}"
+        )
     if issue.close_reason:
         lines.append(f"- Close reason: {issue.close_reason}")
     return "\n".join(lines)

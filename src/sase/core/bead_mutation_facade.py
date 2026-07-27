@@ -5,7 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sase.bead.model import BeadTier, Dependency, Issue, IssueType, PhaseSize
+from sase.bead.model import (
+    BeadTier,
+    Dependency,
+    Issue,
+    IssueType,
+    PhaseSize,
+    Resolution,
+)
 from sase.bead.project import AlreadyReadyError, NotAPlanError
 from sase.core.bead_wire import (
     issue_from_dict,
@@ -144,11 +151,17 @@ def close(
     issue_ids: list[str],
     *,
     reason: str | None = None,
+    resolution: Resolution | str | None = None,
     now: str | None = None,
 ) -> tuple[list[Issue], dict[str, Any]]:
     _guard_bead_store_write(beads_dir, "close")
     binding = require_rust_binding("bead_close")
-    payload = _call_issue_operation(binding, str(beads_dir), issue_ids, reason, now)
+    resolution_value = (
+        resolution.value if isinstance(resolution, Resolution) else resolution
+    )
+    payload = _call_issue_operation(
+        binding, str(beads_dir), issue_ids, reason, resolution_value, now
+    )
     return issues_from_list(payload.get("issues", [])), payload
 
 
