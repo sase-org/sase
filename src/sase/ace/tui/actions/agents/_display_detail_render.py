@@ -247,6 +247,9 @@ class AgentDetailRenderMixin:
         current_agent: Agent,
     ) -> None:
         """Render the Agents detail prompt with hints and refresh hint state."""
+        ready = getattr(self, "_agent_hint_render_ready", None)
+        if ready is not None and not ready.is_set():
+            return
         with tui_trace("agents.view_hints_refresh") as extra:
             extra["family_container"] = current_agent.is_family_container_row
             hint_render = agent_detail.update_display_with_hints(current_agent)

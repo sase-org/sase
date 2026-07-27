@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -13,7 +14,7 @@ from ....changespec import ChangeSpec
 from ...tools.report import SlowToolCallReportSpec
 from ...models.agent import Agent
 from ...widgets import HintInputBar
-from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
+from ...widgets.prompt_panel._agent_display_state import AgentHintRender, CommitViewSpec
 
 
 class HintMixinBase:
@@ -41,6 +42,10 @@ class HintMixinBase:
     _hint_to_entry_id: dict[int, str]
     _mentor_hint_to_info: dict[int, tuple[str, str]]
     _hint_changespec_name: str
+    _agent_hint_render_session: int
+    _agent_hint_render_identity: tuple[object, ...] | None
+    _agent_hint_render_ready: asyncio.Event | None
+    _agent_hint_render_task: asyncio.Task[AgentHintRender | None] | None
 
     # Accept mode state
     _accept_mode_active: bool
@@ -84,3 +89,23 @@ class HintMixinBase:
         except Exception:
             pass
         return True
+
+    def _cancel_agent_hint_render_tasks(self) -> None:
+        """Cancel the current Agents-tab hint render and release its waiters."""
+        try:
+            current_task = asyncio.current_task()
+        except RuntimeError:
+            current_task = None
+        for task in tuple(getattr(self, "_agent_hint_render_tasks", ())):
+            if task is not current_task:
+                task.cancel()
+
+        ready = getattr(self, "_agent_hint_render_ready", None)
+        if ready is not None:
+            ready.set()
+        self._agent_hint_render_session = (
+            getattr(self, "_agent_hint_render_session", 0) + 1
+        )
+        self._agent_hint_render_identity = None
+        self._agent_hint_render_ready = None
+        self._agent_hint_render_task = None

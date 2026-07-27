@@ -532,6 +532,8 @@ class AceApp(
         # the new tab will redraw fresh and the deferred work would land in a
         # now-hidden view.
         if old_tab == "agents":
+            if getattr(self, "_agent_hint_render_identity", None) is not None:
+                self._remove_hint_input_bar(refresh=False)
             self._exit_agent_metadata_search_for_context_change()
             self._agent_detail_debouncer.cancel()
             self._expanded_panel_focus = False

@@ -29,6 +29,11 @@ class LifecycleMixin:
         """Clean up resources when Textual tears the app down."""
         from ..util.pump_tasks import cancel_pump_free_tasks
 
+        cancel_agent_hint_render = getattr(
+            self, "_cancel_agent_hint_render_tasks", None
+        )
+        if callable(cancel_agent_hint_render):
+            cancel_agent_hint_render()
         cancel_pump_free_tasks(self)
         self._stop_tui_stall_watchdog()
         stop_watcher = getattr(self, "_stop_artifact_watcher", None)

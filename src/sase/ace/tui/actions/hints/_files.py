@@ -2,14 +2,24 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ....hint_types import ViewFilesResult
 from ....hints import build_editor_args
+from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 from ...widgets import AgentDetail, ChangeSpecDetail, HintInputBar
 from ._types import HintMixinBase
+
+if TYPE_CHECKING:
+    from ...models.agent import Agent
+    from ...widgets.prompt_panel._agent_display_state import AgentHintRender
+
+
+_AGENT_HINT_RENDER_REGISTRY = "_agent_hint_render_tasks"
 
 
 class FileViewingMixin(HintMixinBase):
@@ -90,44 +100,138 @@ class FileViewingMixin(HintMixinBase):
 
         extra["family_container"] = agent.is_family_container_row
 
-        # Re-render prompt panel with file path hints
-        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        hint_render = agent_detail.update_display_with_hints(agent)
-        hint_mappings = hint_render.file_hints
-        commit_views = hint_render.commit_views
-        extra["hints"] = len(hint_mappings)
-        extra["commit_views"] = len(commit_views)
-        extra["header_enrichment_pending"] = hint_render.header_enrichment_pending
-
-        if (
-            not hint_mappings
-            and not commit_views
-            and not hint_render.header_enrichment_pending
-        ):
-            self.notify(  # type: ignore[attr-defined]
-                "No files or commits found in agent details", severity="warning"
-            )
-            self._refresh_agents_display()  # type: ignore[attr-defined]
-            extra["outcome"] = "empty"
-            return
-
-        # Store state for later processing
+        # Enter hint mode and paint the input before starting the annotated
+        # document render. The readiness event bridges the after-refresh spawn
+        # gap so a submission can never race partially published mappings.
+        self._cancel_agent_hint_render_tasks()
+        session = self._agent_hint_render_session
+        agent_identity = tuple(agent.identity)
+        ready = asyncio.Event()
+        self._agent_hint_render_identity = agent_identity
+        self._agent_hint_render_ready = ready
         self._hint_mode_active = True
         self._hint_mode_hints_for = None  # "all" hints
-        self._hint_mappings = hint_mappings
-        self._hint_tool_call_reports = hint_render.tool_call_reports
-        self._hint_commit_views = commit_views
+        self._hint_mappings = {}
+        self._hint_tool_call_reports = {}
+        self._hint_commit_views = {}
         self._hint_changespec_name = agent.cl_name
 
         # Mount the hint input bar in the agent detail container
         detail_container = self.query_one("#agent-detail-container")  # type: ignore[attr-defined]
         if not detail_container.is_attached:
+            self._cancel_agent_hint_render_tasks()
+            self._hint_mode_active = False
+            self._hint_mode_hints_for = None
             extra["outcome"] = "detached_container"
             return
         with tui_trace("agents.view_hint_bar_mount"):
             hint_bar = HintInputBar(mode="view", id="hint-input-bar")
             detail_container.mount(hint_bar)
-        extra["outcome"] = "mounted"
+        extra["outcome"] = "mounted_render_pending"
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+
+        def spawn_render() -> None:
+            self._spawn_agent_hint_render_task(
+                agent_detail,
+                agent,
+                agent_identity,
+                session,
+                ready,
+            )
+
+        call_after_refresh = getattr(self, "call_after_refresh", None)
+        if callable(call_after_refresh):
+            call_after_refresh(spawn_render)
+        else:
+            # Narrow unit-test/fallback apps do not own a Textual refresh
+            # scheduler, but still exercise the same pump-free task path.
+            spawn_render()
+
+    def _spawn_agent_hint_render_task(
+        self,
+        agent_detail: AgentDetail,
+        agent: Agent,
+        agent_identity: tuple[object, ...],
+        session: int,
+        ready: asyncio.Event,
+    ) -> None:
+        """Spawn one session-scoped annotated render outside Textual's pump."""
+        if not self._agent_hint_render_session_is_current(session, agent_identity):
+            ready.set()
+            return
+
+        task = spawn_pump_free_task(
+            self,
+            self._render_agent_hint_document(
+                agent_detail,
+                agent,
+                agent_identity,
+                session,
+                ready,
+            ),
+            name="ace-agent-view-hints",
+            registry_attr=_AGENT_HINT_RENDER_REGISTRY,
+        )
+        if task is None:
+            ready.set()
+            return
+        self._agent_hint_render_task = task
+
+    async def _render_agent_hint_document(
+        self,
+        agent_detail: AgentDetail,
+        agent: Agent,
+        agent_identity: tuple[object, ...],
+        session: int,
+        ready: asyncio.Event,
+    ) -> AgentHintRender | None:
+        """Render and publish hints only while their originating view is current."""
+        try:
+            # Keep this task observably deferred even in fallback apps where it
+            # was not spawned from an after-refresh callback.
+            await asyncio.sleep(0)
+            if not self._agent_hint_render_session_is_current(session, agent_identity):
+                return None
+
+            hint_render = agent_detail.update_display_with_hints(agent)
+            if not self._agent_hint_render_session_is_current(session, agent_identity):
+                return None
+
+            self._hint_mappings = hint_render.file_hints
+            self._hint_tool_call_reports = hint_render.tool_call_reports
+            self._hint_commit_views = hint_render.commit_views
+            if (
+                not hint_render.file_hints
+                and not hint_render.commit_views
+                and not hint_render.header_enrichment_pending
+            ):
+                self.notify(  # type: ignore[attr-defined]
+                    "No files or commits found in agent details",
+                    severity="warning",
+                )
+                self._remove_hint_input_bar()  # type: ignore[attr-defined]
+            return hint_render
+        finally:
+            if self._agent_hint_render_session == session:
+                self._agent_hint_render_task = None
+                ready.set()
+
+    def _agent_hint_render_session_is_current(
+        self,
+        session: int,
+        agent_identity: tuple[object, ...],
+    ) -> bool:
+        """Return whether a deferred render may still publish into the UI."""
+        if (
+            self._agent_hint_render_session != session
+            or self._agent_hint_render_identity != agent_identity
+            or not self._hint_mode_active
+            or self.current_tab != "agents"
+        ):
+            return False
+        selected = self._get_selected_agent()  # type: ignore[attr-defined]
+        return selected is not None and tuple(selected.identity) == agent_identity
 
     def _open_files_in_editor(self, result: ViewFilesResult) -> None:
         """Open files in $EDITOR (requires suspend)."""

@@ -38,7 +38,10 @@ if TYPE_CHECKING:
     from ..models.agent_fold_persistence import AgentsFoldStateSnapshot
     from ..models.agent_panels import PanelIsolationRevert
     from ..tools.report import SlowToolCallReportSpec
-    from ..widgets.prompt_panel._agent_display_state import CommitViewSpec
+    from ..widgets.prompt_panel._agent_display_state import (
+        AgentHintRender,
+        CommitViewSpec,
+    )
     from ..widgets.prompt_panel._member_roster import (
         MemberJumpContainerIdentity,
         MemberJumpMap,
@@ -226,6 +229,10 @@ class StateInitMixin:
         self._hook_hint_to_idx: dict[int, int] = {}
         self._hint_to_entry_id: dict[int, str] = {}
         self._hint_changespec_name: str = ""
+        self._agent_hint_render_session = 0
+        self._agent_hint_render_identity: tuple[object, ...] | None = None
+        self._agent_hint_render_ready: asyncio.Event | None = None
+        self._agent_hint_render_task: asyncio.Task[AgentHintRender | None] | None = None
 
         # Accept mode state
         self._accept_mode_active: bool = False
