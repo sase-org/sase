@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.bead import cli as bead_cli
 from tests.sdd_policy_helpers import patched_sdd_policy, set_sdd_policy
 
 from sase.bead.cli import _find_beads_location
@@ -15,11 +16,15 @@ from sase.bead.cli_common import (
     get_project,
     get_read_view,
     resolve_beads_location,
+    resolved_beads_location_is_usable,
     storage_plan_path,
 )
 from sase.bead.model import IssueType
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
+from sase.main.parser import create_parser
 from sase.sdd.store import write_sdd_store_record
+from sase.sdd._store_types import SddMaterializationError
+from tests.sdd_store._helpers import clone, commit_all, git, init_bare_repo
 from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
 
@@ -201,6 +206,138 @@ def test_get_project_opens_warm_store_without_materialization(
         assert project.beads_dir == sdd_dir / "beads"
 
 
+def test_bead_list_materializes_missing_split_sidecar(
+    tmp_path: Path,
+    monkeypatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    primary = tmp_path / "project"
+    primary.mkdir()
+    _mark_managed(primary)
+    _write_checkout_marker(primary, primary, workspace_num=1)
+    plans_remote = _seed_sidecar_remote(
+        tmp_path,
+        name="plans",
+        beads_dirname=None,
+    )
+    beads_remote = _seed_sidecar_remote(
+        tmp_path,
+        name="beads",
+        beads_dirname=BEADS_DIRNAME_ROOT,
+    )
+    _write_sidecar_record_with_remotes(
+        primary,
+        plans_remote=plans_remote,
+        beads_remote=beads_remote,
+    )
+    monkeypatch.chdir(primary)
+
+    bead_cli.handle_bead_list(
+        create_parser().parse_args(["bead", "list", "--format", "json"])
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert [issue["title"] for issue in payload["results"]] == ["Remote bead"]
+    beads_clone = primary / "sase" / "repos" / "beads"
+    assert (beads_clone / ".git").is_dir()
+    assert git(["remote", "get-url", "origin"], beads_clone).stdout.strip() == str(
+        beads_remote
+    )
+
+
+def test_bead_list_reports_actionable_split_sidecar_clone_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    primary = tmp_path / "project"
+    primary.mkdir()
+    _mark_managed(primary)
+    _write_checkout_marker(primary, primary, workspace_num=1)
+    plans_remote = _seed_sidecar_remote(
+        tmp_path,
+        name="plans",
+        beads_dirname=None,
+    )
+    missing_beads_remote = tmp_path / "missing-beads.git"
+    _write_sidecar_record_with_remotes(
+        primary,
+        plans_remote=plans_remote,
+        beads_remote=missing_beads_remote,
+    )
+    monkeypatch.chdir(primary)
+
+    with pytest.raises(SddMaterializationError) as excinfo:
+        bead_cli.handle_bead_list(
+            create_parser().parse_args(["bead", "list", "--format", "json"])
+        )
+
+    message = str(excinfo.value)
+    assert "could not materialize beads sidecar repository acme/project--beads" in (
+        message
+    )
+    assert str(missing_beads_remote) in message
+    assert "Git credentials" in message
+
+
+def test_bead_list_keeps_schema_two_store_in_plans_sidecar(
+    tmp_path: Path,
+    monkeypatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    primary = tmp_path / "project"
+    primary.mkdir()
+    _mark_managed(primary)
+    _write_checkout_marker(primary, primary, workspace_num=1)
+    plans_remote = _seed_sidecar_remote(
+        tmp_path,
+        name="plans",
+        beads_dirname="beads",
+    )
+    _write_sidecar_record_with_remotes(
+        primary,
+        plans_remote=plans_remote,
+        beads_remote=None,
+    )
+    monkeypatch.chdir(primary)
+
+    bead_cli.handle_bead_list(
+        create_parser().parse_args(["bead", "list", "--format", "json"])
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert [issue["title"] for issue in payload["results"]] == ["Remote bead"]
+    assert (primary / "sase" / "repos" / "plans" / "beads").is_dir()
+    assert not (primary / "sase" / "repos" / "beads").exists()
+
+
+def test_split_sidecar_with_mismatched_origin_is_not_usable(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    primary = tmp_path / "project"
+    primary.mkdir()
+    _write_checkout_marker(primary, primary, workspace_num=1)
+    expected_remote = tmp_path / "expected-beads.git"
+    _write_sidecar_record_with_remotes(
+        primary,
+        plans_remote=tmp_path / "plans.git",
+        beads_remote=expected_remote,
+    )
+    beads = primary / "sase" / "repos" / "beads"
+    beads.mkdir(parents=True)
+    git(["init"], beads)
+    git(["remote", "add", "origin", str(tmp_path / "wrong-beads.git")], beads)
+    with BeadProject.init(beads, beads_dirname=BEADS_DIRNAME_ROOT):
+        pass
+    monkeypatch.chdir(primary)
+
+    location = resolve_beads_location(require_existing=True)
+
+    assert location is not None
+    assert location.expected_remote_url == str(expected_remote)
+    assert resolved_beads_location_is_usable(location) is False
+
+
 def test_isolated_fixture_resolves_store_below_pytest_sandbox(
     tmp_path: Path,
     monkeypatch,
@@ -361,6 +498,65 @@ def _write_sidecar_record(checkout: Path, *, split_beads: bool = False) -> None:
             "provider": "github",
             "sidecars": sidecars,
         },
+    )
+
+
+def _write_sidecar_record_with_remotes(
+    checkout: Path,
+    *,
+    plans_remote: Path,
+    beads_remote: Path | None,
+) -> None:
+    sidecars = {
+        "plans": {
+            "repo": "acme/project--plans",
+            "remote_url": str(plans_remote),
+        },
+        "research": {
+            "repo": "acme/project--research",
+            "remote_url": str(checkout.parent / "research.git"),
+        },
+    }
+    if beads_remote is not None:
+        sidecars["beads"] = {
+            "repo": "acme/project--beads",
+            "remote_url": str(beads_remote),
+        }
+    write_sdd_store_record(
+        checkout,
+        {
+            "schema_version": 3 if beads_remote is not None else 2,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": sidecars,
+        },
+    )
+
+
+def _seed_sidecar_remote(
+    tmp_path: Path,
+    *,
+    name: str,
+    beads_dirname: str | None,
+) -> Path:
+    remote = tmp_path / f"{name}.git"
+    seed = tmp_path / f"{name}-seed"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    if beads_dirname is None:
+        (seed / "README.md").write_text("# Plans\n", encoding="utf-8")
+    else:
+        with BeadProject.init(seed, beads_dirname=beads_dirname) as project:
+            project.create("Remote bead", IssueType.PLAN)
+    commit_all(seed, f"Seed {name}")
+    git(["push", "-u", "origin", "main"], seed)
+    return remote
+
+
+def _mark_managed(primary: Path) -> None:
+    (primary / "sase.yml").write_text(
+        "is_sase_managed: true\n",
+        encoding="utf-8",
     )
 
 

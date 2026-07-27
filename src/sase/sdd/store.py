@@ -38,6 +38,7 @@ from sase.sdd._store_types import (
     SddStoreRecord,
 )
 from sase.sdd._store_workspace import (
+    ensure_beads_sidecar_clone as _ensure_beads_sidecar_clone,
     ensure_sdd_kind_clone as _ensure_sdd_kind_clone,
     ensure_workspace_sdd_clone as _ensure_workspace_sdd_clone,
 )
@@ -56,6 +57,7 @@ __all__ = [
     "SddStoreRecord",
     "create_and_materialize_sdd_store",
     "delete_sdd_store_record",
+    "ensure_beads_sidecar_clone",
     "ensure_workspace_sdd_clone",
     "ensure_sdd_kind_clone",
     "materialized_sdd_clone",
@@ -155,6 +157,19 @@ def ensure_workspace_sdd_clone(
         workspace_num,
         strict=strict,
         resolve_store=resolve_sdd_store,
+        primary_workspace_resolver=get_primary_workspace_dir,
+    )
+
+
+def ensure_beads_sidecar_clone(
+    workspace_dir: str | Path,
+    workspace_num: int,
+) -> Path | None:
+    """Materialize the recorded beads sidecar for one workspace, if present."""
+
+    return _ensure_beads_sidecar_clone(
+        workspace_dir,
+        workspace_num,
         primary_workspace_resolver=get_primary_workspace_dir,
     )
 

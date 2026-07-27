@@ -34,6 +34,7 @@ class _BeadsLocation:
     storage: str | None = None
     store: SddStore | None = None
     read_only: bool = False
+    expected_remote_url: str | None = None
 
     @property
     def beads_dir(self) -> Path:
@@ -103,11 +104,17 @@ def resolve_beads_location(
             resolve_sdd_store,
         )
 
-        store = (
-            materialize_sdd_store(context.root, context.workspace_num)
-            if materialize
-            else resolve_sdd_store(context.root, context.workspace_num)
-        )
+        if materialize:
+            store = materialize_sdd_store(context.root, context.workspace_num)
+            if (
+                store.storage == SDD_STORAGE_SIDECAR_REPOS
+                and store.beads_dir is not None
+            ):
+                from sase.sdd.store import ensure_beads_sidecar_clone
+
+                ensure_beads_sidecar_clone(context.root, context.workspace_num)
+        else:
+            store = resolve_sdd_store(context.root, context.workspace_num)
         if store.storage == SDD_STORAGE_IN_TREE:
             root = _select_in_tree_beads_root(
                 current,
@@ -127,15 +134,19 @@ def resolve_beads_location(
             if store.beads_dir is not None:
                 root = store.beads_dir
                 beads_dirname = BEADS_DIRNAME_ROOT
+                expected_remote_url = _recorded_beads_remote_url(context.primary)
             else:
                 root = store.kind_root("plans")
                 beads_dirname = BEADS_DIRNAME_NON_VC
+                expected_remote_url = store.remote_url
         elif store.storage == SDD_STORAGE_SEPARATE_REPO:
             root = store.sdd_dir
             beads_dirname = BEADS_DIRNAME_NON_VC
+            expected_remote_url = store.remote_url
         elif store.storage == SDD_STORAGE_LOCAL:
             root = context.primary / ".sase" / "sdd"
             beads_dirname = BEADS_DIRNAME_NON_VC
+            expected_remote_url = None
             if store.sdd_dir != root:
                 store = SddStore(
                     storage=store.storage,
@@ -147,6 +158,7 @@ def resolve_beads_location(
         else:
             root = context.primary / ".sase" / "sdd"
             beads_dirname = BEADS_DIRNAME_NON_VC
+            expected_remote_url = None
 
         if require_existing and not _bead_store_exists(root, beads_dirname):
             return None
@@ -155,6 +167,7 @@ def resolve_beads_location(
             beads_dirname=beads_dirname,
             storage=store.storage,
             store=store,
+            expected_remote_url=expected_remote_url,
         )
 
     checkout_location = _resolve_checkout_record_beads_location(
@@ -199,6 +212,17 @@ def _resolve_checkout_record_beads_location(
             read_only=True,
         )
     return None
+
+
+def _recorded_beads_remote_url(primary: Path) -> str | None:
+    """Return the authoritative remote for a recorded beads sidecar."""
+
+    from sase.sdd._store_records import read_sdd_store_record
+
+    record = read_sdd_store_record(primary)
+    if record is None or record.beads is None:
+        return None
+    return record.beads.remote_url
 
 
 def _resolve_workspace_context(cwd: Path) -> _WorkspaceContext | None:
@@ -469,12 +493,16 @@ def resolved_beads_location_is_usable(location: _BeadsLocation) -> bool:
     if not _bead_store_exists(location.root, location.beads_dirname):
         return False
     store = location.store
-    if store is None or location.is_in_tree or not store.remote_url:
+    if store is None or location.is_in_tree:
+        return True
+    expected_remote_url = location.expected_remote_url or store.remote_url
+    if not expected_remote_url:
         return True
     try:
-        from sase.sdd._store_link import is_matching_store_clone
+        from sase.sdd._store_git import git_remote_url, same_git_remote
 
-        return is_matching_store_clone(location.root, store)
+        origin = git_remote_url(location.root)
+        return origin is not None and same_git_remote(origin, expected_remote_url)
     except Exception:
         return False
 

@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from sase.sdd._paths import get_primary_workspace_dir
+from sase.sdd._store_adoption import materialization_lock
 from sase.sdd._store_link import ensure_workspace_sdd_clone as _ensure_sdd_clone
 from sase.sdd._store_records import is_materialized_record, read_sdd_store_record
 from sase.sdd._store_resolution import resolve_sdd_store
@@ -104,6 +105,18 @@ def ensure_sdd_kind_clone(
             )
         return root
 
+    if kind == "beads" and store.beads_dir is not None:
+        clone = ensure_beads_sidecar_clone(
+            workspace_dir,
+            workspace_num,
+            primary_workspace_resolver=primary_workspace_resolver,
+        )
+        if clone is None and strict:
+            raise SddMaterializationError(
+                "no beads sidecar is recorded for this SDD store"
+            )
+        return root
+
     remote_url = store.research_remote_url if kind == "research" else store.remote_url
     if remote_url is None:
         if strict:
@@ -118,6 +131,66 @@ def ensure_sdd_kind_clone(
         strict=strict,
     )
     return root
+
+
+def ensure_beads_sidecar_clone(
+    workspace_dir: str | Path,
+    workspace_num: int,
+    *,
+    primary_workspace_resolver: PrimaryWorkspaceResolver = get_primary_workspace_dir,
+) -> Path | None:
+    """Materialize the recorded beads sidecar for one workspace.
+
+    Schema-2 stores deliberately keep bead state in the plans sidecar, so they
+    return ``None`` without creating a ``sase/repos/beads`` clone.
+    """
+
+    owner_anchor = _inherited_sdd_record_owner_anchor(
+        workspace_dir,
+        workspace_num,
+        primary_workspace_resolver=primary_workspace_resolver,
+    )
+    if owner_anchor is not None:
+        return ensure_beads_sidecar_clone(
+            owner_anchor,
+            workspace_num,
+            primary_workspace_resolver=primary_workspace_resolver,
+        )
+
+    workspace = Path(workspace_dir).expanduser()
+    primary = Path(
+        primary_workspace_resolver(str(workspace), workspace_num)
+    ).expanduser()
+
+    with materialization_lock(primary):
+        record = read_sdd_store_record(primary)
+        if (
+            not is_materialized_record(record)
+            or record is None
+            or not record.is_sidecar_storage
+            or record.beads is None
+        ):
+            return None
+
+        from sase._linked_repo_paths import sidecar_repo_clone_dir
+        from sase.sdd._store_link import ensure_sidecar_sdd_clone
+
+        clone_dir = Path(sidecar_repo_clone_dir(workspace, "beads"))
+        try:
+            ensure_sidecar_sdd_clone(
+                clone_dir,
+                record.beads.remote_url,
+                strict=True,
+            )
+        except Exception as exc:
+            detail = str(exc) or type(exc).__name__
+            raise SddMaterializationError(
+                "could not materialize beads sidecar repository "
+                f"{record.beads.repo} from {record.beads.remote_url} at "
+                f"{clone_dir}: {detail}. Verify that the repository exists "
+                "and your Git credentials can read it."
+            ) from exc
+        return clone_dir
 
 
 def _inherited_sdd_record_owner_anchor(
