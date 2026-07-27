@@ -130,17 +130,34 @@ class DepGraph:
         ``levels=0`` is unlimited.  Cycle detection is local to the current
         path, while repeat detection is shared across the whole walk.
         """
+        return self.walk_many(
+            (issue_id,),
+            direction=direction,
+            levels=levels,
+        )[0]
+
+    def walk_many(
+        self,
+        issue_ids: Iterable[str],
+        *,
+        direction: DepDirection,
+        levels: int = 0,
+    ) -> tuple[DepTraversalNode, ...]:
+        """Walk a forest while sharing repeat detection across every root."""
         if levels < 0:
             raise ValueError("levels must be non-negative")
         expanded: set[str] = set()
-        return self._walk_node(
-            issue_id,
-            edge=None,
-            direction=direction,
-            depth=0,
-            levels=levels,
-            path=frozenset(),
-            expanded=expanded,
+        return tuple(
+            self._walk_node(
+                issue_id,
+                edge=None,
+                direction=direction,
+                depth=0,
+                levels=levels,
+                path=frozenset(),
+                expanded=expanded,
+            )
+            for issue_id in issue_ids
         )
 
     def _walk_node(

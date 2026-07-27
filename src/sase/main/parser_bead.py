@@ -156,6 +156,51 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         nargs="+",
         help="Issues no longer depended on",
     )
+    bead_dep_tree_parser = bead_dep_subparsers.add_parser(
+        "tree",
+        help="Walk the dependency graph as a tree",
+        description=(
+            "Walk dependencies, blockers, or both as a deterministic tree. "
+            "A scoped tree includes every status by default; a store-wide tree "
+            "defaults to open, claimed, and in-progress beads."
+        ),
+    )
+    bead_dep_tree_parser.add_argument("id", nargs="?", help="Issue ID")
+    bead_dep_tree_parser.add_argument(
+        "-c",
+        "--color",
+        choices=["always", "auto", "never"],
+        default="auto",
+        help="Color output: always, auto, or never (default: auto)",
+    )
+    bead_dep_tree_parser.add_argument(
+        "-d",
+        "--direction",
+        choices=["both", "in", "out"],
+        default="out",
+        help="Direction to walk: both, in, or out (default: out)",
+    )
+    bead_dep_tree_parser.add_argument(
+        "-f",
+        "--format",
+        choices=["compact", "full", "json"],
+        default="compact",
+        help="Output format: compact, full, or json (default: compact)",
+    )
+    bead_dep_tree_parser.add_argument(
+        "-L",
+        "--levels",
+        type=nonnegative_int,
+        default=0,
+        help="Maximum levels to descend; 0 means unlimited",
+    )
+    bead_dep_tree_parser.add_argument(
+        "-s",
+        "--status",
+        choices=["claimed", "closed", "in_progress", "open"],
+        action="append",
+        help="Filter by status (repeatable)",
+    )
 
     # sase bead doctor
     bead_doctor_parser = bead_subparsers.add_parser(
