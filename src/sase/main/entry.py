@@ -78,6 +78,7 @@ def main() -> NoReturn:
             handle_bead_history,
             handle_bead_init,
             handle_bead_list,
+            handle_bead_note,
             handle_bead_onboard,
             handle_bead_open,
             handle_bead_ready,
@@ -110,6 +111,7 @@ def main() -> NoReturn:
             "stats": handle_bead_stats,
             "doctor": handle_bead_doctor,
             "history": handle_bead_history,
+            "note": handle_bead_note,
             "onboard": handle_bead_onboard,
             "work": handle_bead_work,
         }

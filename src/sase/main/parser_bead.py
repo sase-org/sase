@@ -205,6 +205,23 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Filter by type (repeatable)",
     )
 
+    # sase bead note
+    bead_note_parser = bead_subparsers.add_parser(
+        "note", help="Append an attributed note entry"
+    )
+    bead_note_parser.add_argument("id", help="Issue ID")
+    bead_note_parser.add_argument(
+        "text",
+        nargs="+",
+        help="Note text to append",
+    )
+    bead_note_parser.add_argument(
+        "-a",
+        "--author",
+        metavar="NAME",
+        help="Author recorded on the entry (default: current agent, else store owner)",
+    )
+
     # sase bead onboard
     bead_subparsers.add_parser("onboard", help="Show quick-start guide")
 

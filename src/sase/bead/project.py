@@ -83,6 +83,12 @@ class BeadProject:
             self._conn_cache = db_mod.init_db(self.beads_dir / "beads.db")
         return self._conn_cache
 
+    @property
+    def owner(self) -> str:
+        """Return the configured bead-store owner."""
+        owner = self._config.get("owner", "")
+        return owner if isinstance(owner, str) else str(owner)
+
     def _close_connection(self) -> None:
         if self._conn_cache is not None:
             self._conn_cache.close()
@@ -220,6 +226,26 @@ class BeadProject:
             _validate_issue_update(old_issue, fields)
         issue, _outcome = rust_beads.update(
             self.beads_dir, issue_id, **fields, now=_now()
+        )
+        self._refresh_db_from_jsonl()
+        return issue
+
+    def append_note(
+        self,
+        issue_id: str,
+        entry: str,
+        *,
+        author: str | None = None,
+    ) -> Issue:
+        """Append one attributed entry to an issue's notes."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        issue, _outcome = rust_beads.append_note(
+            self.beads_dir,
+            issue_id,
+            entry,
+            author=author,
+            now=_now(),
         )
         self._refresh_db_from_jsonl()
         return issue

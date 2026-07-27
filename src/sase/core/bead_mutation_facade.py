@@ -89,6 +89,22 @@ def update(
     return _issue_payload(payload), payload
 
 
+def append_note(
+    beads_dir: Path | str,
+    issue_id: str,
+    entry: str,
+    *,
+    author: str | None = None,
+    now: str | None = None,
+) -> tuple[Issue, dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "append_note")
+    binding = require_rust_binding("bead_append_note")
+    payload = _call_issue_operation(
+        binding, str(beads_dir), issue_id, entry, author, now
+    )
+    return _issue_payload(payload), payload
+
+
 def claim_for_agent_launch(
     beads_dir: Path | str,
     bead_id: str,
@@ -286,6 +302,7 @@ def _optional_text(value: str | int | None) -> str:
 
 __all__ = [
     "add_dependency",
+    "append_note",
     "claim_for_agent_launch",
     "claim_for_agent_wait",
     "close",

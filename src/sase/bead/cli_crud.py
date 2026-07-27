@@ -7,6 +7,7 @@ import re
 import sys
 from pathlib import Path
 
+from sase.agent.identity import discover_agent_identity
 from sase.bead.cli_common import (
     auto_commit_bead_store,
     bead_store_mutation,
@@ -161,6 +162,29 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             sys.exit(1)
         mutation.commit(f"chore(beads): update {issue.id}")
     print(f"✓ Updated issue: {issue.id} — {issue.title}")
+
+
+def handle_bead_note(args: argparse.Namespace) -> None:
+    text = args.text
+    if isinstance(text, list):
+        text = " ".join(text)
+    with bead_store_mutation(auto_commit_bead_store) as mutation:
+        try:
+            author = args.author
+            if author is None:
+                identity = discover_agent_identity()
+                author = (
+                    identity.name if identity is not None else mutation.project.owner
+                )
+            issue = mutation.project.append_note(args.id, str(text), author=author)
+        except KeyError:
+            print(f"Error: issue not found: {args.id}", file=sys.stderr)
+            sys.exit(1)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        mutation.commit(f"chore(beads): note {issue.id}")
+    print(f"Noted: {issue.id} — {issue.title}")
 
 
 def handle_bead_open(args: argparse.Namespace) -> None:

@@ -155,6 +155,33 @@ def test_remove_many_facade_returns_unique_expanded_removals(
     assert outcome["issue_ids"] == [child.id, epic.id, independent.id]
 
 
+def test_append_note_facade_returns_issue_and_repairs_projection(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "rust"
+    _init_store(root)
+    issue, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Noted",
+        issue_type=IssueType.PLAN,
+        now="2026-01-01T00:00:00Z",
+    )
+
+    noted, outcome = rust_beads.append_note(
+        root / "sdd/beads",
+        issue.id,
+        "done",
+        author="agent-1",
+        now="2026-01-01T00:01:00Z",
+    )
+
+    assert outcome["operation"] == "note"
+    assert outcome["issue_ids"] == [issue.id]
+    assert noted.notes == "[2026-01-01T00:01:00Z · agent-1] done"
+    projection = (root / "sdd/beads/issues.jsonl").read_text(encoding="utf-8")
+    assert "[2026-01-01T00:01:00Z · agent-1] done" in projection
+
+
 def test_mutation_facade_refuses_unsandboxed_pytest_store_before_binding(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

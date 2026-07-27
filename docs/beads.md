@@ -40,6 +40,7 @@ sase bead search auth                                   # Search issues in every
 sase bead ready                                         # Show issues ready to work on
 sase bead show beads-001                                # View issue details
 sase bead update beads-001.1 --status=in_progress       # Claim an issue
+sase bead note beads-001.1 "Verified with just check"   # Append an attributed note
 sase bead open beads-001.1                              # Reopen an issue
 sase bead close beads-001.1                             # Close an issue
 sase bead dep add beads-001.2 beads-001.1               # Add dependency
@@ -336,12 +337,25 @@ Update one or more fields on an issue.
 | `-s, --status`      | Change status                                                                 |
 | `-t, --title`       | Change title                                                                  |
 | `-d, --description` | Change description                                                            |
-| `-n, --notes`       | Change notes                                                                  |
+| `-n, --notes`       | Replace notes                                                                 |
 | `-D, --design`      | Change plan path                                                              |
 | `-a, --assignee`    | Change assignee                                                               |
 | `--tier`            | Change plan tier                                                              |
 | `-m, --model`       | Change the launch model. Pass an empty string to clear.                       |
 | `-z, --size`        | Change a phase bead's `xsmall`, `small`, `medium`, `large`, or `xlarge` size. |
+
+Use `sase bead update --notes` for an explicit field replacement. Use `sase bead note` when recording progress that
+should accumulate with earlier notes.
+
+### `sase bead note <id> <text>`
+
+Append one timestamped, attributed entry to an issue's notes. The entry is recorded as
+`[<timestamp> · <author>] <text>`, separated from existing notes by a blank line. The mutation runs atomically in the
+Rust bead store, so concurrent note writers append to the current value rather than replacing each other.
+
+| Flag           | Description                                                               |
+| -------------- | ------------------------------------------------------------------------- |
+| `-a, --author` | Author recorded on the entry; defaults to current agent, then store owner |
 
 ### `sase bead close <id> [<id2> ...]`
 
