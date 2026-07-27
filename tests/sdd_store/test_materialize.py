@@ -416,7 +416,7 @@ def test_old_negative_record_is_retried_and_replaced(
         ),
         json.dumps(
             {
-                "schema_version": 3,
+                "schema_version": 4,
                 "storage": "sidecar_repos",
                 "discovery": "found",
             }

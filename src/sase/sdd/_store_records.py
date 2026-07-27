@@ -24,7 +24,7 @@ from sase.sdd._store_types import (
     SddStoreRecord,
 )
 
-_MAX_SUPPORTED_SCHEMA_VERSION = 2
+_MAX_SUPPORTED_SCHEMA_VERSION = 3
 
 # Read-only compatibility for split-store records written before the sidecar
 # terminology shipped. Serialization always uses the canonical spellings.
@@ -141,7 +141,9 @@ def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
 
     provider = _optional_str(raw.get("provider"))
     host = _optional_str(raw.get("host"))
-    plans, research = _sidecars_from_raw(raw, provider=provider, host=host)
+    plans, research, beads = _sidecars_from_raw(raw, provider=provider, host=host)
+    if beads is not None and schema_version_int < 3:
+        raise _foreign_record_error(record_path)
     if discovery == "not_found":
         return SddStoreRecord(
             schema_version=schema_version_int,
@@ -154,13 +156,21 @@ def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
             probed_at=_optional_str(raw.get("probed_at")),
             plans=plans,
             research=research,
+            beads=beads,
         )
     if storage == SDD_STORAGE_SIDECAR_REPOS and (
         schema_version_int < 2 or plans is None or research is None
     ):
         raise _foreign_record_error(record_path)
+    normalized_schema_version = (
+        3
+        if storage == SDD_STORAGE_SIDECAR_REPOS and beads is not None
+        else 2
+        if storage == SDD_STORAGE_SIDECAR_REPOS
+        else schema_version_int
+    )
     return SddStoreRecord(
-        schema_version=schema_version_int,
+        schema_version=normalized_schema_version,
         storage=cast(SddStorage, storage),
         provider=provider,
         host=host,
@@ -170,6 +180,7 @@ def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
         probed_at=_optional_str(raw.get("probed_at")),
         plans=plans,
         research=research,
+        beads=beads,
     )
 
 
@@ -201,6 +212,8 @@ def _coerce_sdd_store_record(
     record: SddStoreRecord | Mapping[str, Any],
 ) -> SddStoreRecord:
     if isinstance(record, SddStoreRecord):
+        if record.beads is not None and record.schema_version < 3:
+            raise ValueError("beads sidecars require schema_version >= 3")
         raw: Mapping[str, Any] = _record_to_json(record)
     else:
         raw = record
@@ -227,7 +240,9 @@ def _coerce_sdd_store_record(
 
     provider = _optional_str(raw.get("provider"))
     host = _optional_str(raw.get("host"))
-    plans, research = _sidecars_from_raw(raw, provider=provider, host=host)
+    plans, research, beads = _sidecars_from_raw(raw, provider=provider, host=host)
+    if beads is not None and schema_version_int < 3:
+        raise ValueError("beads sidecars require schema_version >= 3")
     if storage == SDD_STORAGE_SIDECAR_REPOS:
         if schema_version_int < 2:
             raise ValueError("sidecar SDD store records require schema_version >= 2")
@@ -236,8 +251,15 @@ def _coerce_sdd_store_record(
                 "sidecar SDD store records require plans and research mappings"
             )
 
+    normalized_schema_version = (
+        3
+        if storage == SDD_STORAGE_SIDECAR_REPOS and beads is not None
+        else 2
+        if storage == SDD_STORAGE_SIDECAR_REPOS
+        else schema_version_int
+    )
     return SddStoreRecord(
-        schema_version=schema_version_int,
+        schema_version=normalized_schema_version,
         storage=cast(SddStorage, storage),
         provider=provider,
         host=host,
@@ -247,6 +269,7 @@ def _coerce_sdd_store_record(
         probed_at=_optional_str(raw.get("probed_at")) or _utc_now_iso(),
         plans=plans,
         research=research,
+        beads=beads,
     )
 
 
@@ -260,10 +283,14 @@ def _record_to_json(record: SddStoreRecord) -> dict[str, Any]:
         if value is not None:
             data[key] = value
     if record.storage == SDD_STORAGE_SIDECAR_REPOS:
-        data["sidecars"] = {
+        sidecars = {
             "plans": _sidecar_to_json(record.plans),
             "research": _sidecar_to_json(record.research),
         }
+        if record.beads is not None:
+            sidecars["beads"] = _sidecar_to_json(record.beads)
+        data["schema_version"] = 3 if record.beads is not None else 2
+        data["sidecars"] = sidecars
     return data
 
 
@@ -272,12 +299,12 @@ def _sidecars_from_raw(
     *,
     provider: str | None,
     host: str | None,
-) -> tuple[SddSidecar | None, SddSidecar | None]:
+) -> tuple[SddSidecar | None, SddSidecar | None, SddSidecar | None]:
     sidecars = raw.get("sidecars")
     if not isinstance(sidecars, Mapping) and "sidecars" not in raw:
         sidecars = raw.get(_LEGACY_SIDECARS_KEY)
     if not isinstance(sidecars, Mapping):
-        return None, None
+        return None, None, None
     return (
         _coerce_sidecar(
             sidecars.get("plans"), provider=provider, host=host, kind="plans"
@@ -287,6 +314,12 @@ def _sidecars_from_raw(
             provider=provider,
             host=host,
             kind="research",
+        ),
+        _coerce_sidecar(
+            sidecars.get("beads"),
+            provider=provider,
+            host=host,
+            kind="beads",
         ),
     )
 

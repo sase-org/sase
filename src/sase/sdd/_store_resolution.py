@@ -75,6 +75,11 @@ def resolve_sdd_store(
 
         plans_dir = Path(sidecar_repo_clone_dir(workspace_dir, "plans"))
         research_dir = Path(sidecar_repo_clone_dir(workspace_dir, "research"))
+        beads_dir = (
+            Path(sidecar_repo_clone_dir(workspace_dir, "beads"))
+            if record.has_split_beads
+            else None
+        )
         return SddStore(
             storage=storage,
             sdd_dir=plans_dir,
@@ -83,6 +88,7 @@ def resolve_sdd_store(
             remote_url=record.plans.remote_url,
             research_dir=research_dir,
             research_remote_url=record.research.remote_url,
+            beads_dir=beads_dir,
         )
 
     sdd_dir = _sdd_dir_for_storage(

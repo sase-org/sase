@@ -47,16 +47,25 @@ class SddStoreRecord:
     probed_at: str | None = None
     plans: SddSidecar | None = None
     research: SddSidecar | None = None
+    beads: SddSidecar | None = None
 
     @property
     def is_sidecar_storage(self) -> bool:
         return self.storage == SDD_STORAGE_SIDECAR_REPOS
 
+    @property
+    def has_split_beads(self) -> bool:
+        """Return whether bead state has its own recorded sidecar."""
+
+        return self.beads is not None
+
     def sidecar_for_kind(self, kind: str) -> SddSidecar | None:
-        if kind in {"plans", "beads"}:
+        if kind == "plans":
             return self.plans
         if kind == "research":
             return self.research
+        if kind == "beads":
+            return self.beads
         raise ValueError(f"unknown SDD kind: {kind}")
 
 
@@ -71,6 +80,7 @@ class SddStore:
     remote_url: str | None = None
     research_dir: Path | None = None
     research_remote_url: str | None = None
+    beads_dir: Path | None = None
 
     @property
     def is_in_tree(self) -> bool:
@@ -89,9 +99,20 @@ class SddStore:
                     raise ValueError("sidecar SDD store has no research root")
                 return self.research_dir
             if kind == "beads":
-                return self.sdd_dir / "beads"
+                return self.beads_dir or self.sdd_dir / "beads"
             if kind == "plans":
                 return self.sdd_dir
         if kind in {"beads", "plans", "research"}:
             return self.sdd_dir / kind
+        raise ValueError(f"unknown SDD kind: {kind}")
+
+    def repo_root_for_kind(self, kind: str) -> Path:
+        """Return the git repository root that owns one logical SDD kind."""
+
+        if kind == "beads" and self.beads_dir is not None:
+            return self.beads_dir
+        if kind == "research" and self.research_dir is not None:
+            return self.research_dir
+        if kind in {"beads", "plans", "research"}:
+            return self.repo_root
         raise ValueError(f"unknown SDD kind: {kind}")

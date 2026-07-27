@@ -114,6 +114,8 @@ def test_sidecar_record_round_trips_and_routes_kind_roots(
         },
     )
 
+    assert not written.has_split_beads
+    assert written.sidecar_for_kind("beads") is None
     assert read_sdd_store_record(primary) == written
     store = resolve_sdd_store(workspace, 2)
     plans = workspace / "sase" / "repos" / "plans"
@@ -125,6 +127,183 @@ def test_sidecar_record_round_trips_and_routes_kind_roots(
     assert resolve_sdd_kind_dir(workspace, 2, "plans") == plans
     assert resolve_sdd_kind_dir(workspace, 2, "beads") == plans / "beads"
     assert resolve_sdd_kind_dir(workspace, 2, "research") == research
+    assert store.repo_root_for_kind("plans") == plans
+    assert store.repo_root_for_kind("beads") == plans
+    assert store.repo_root_for_kind("research") == research
+
+
+def test_schema_three_sidecar_record_round_trips_and_routes_beads(
+    tmp_path: Path,
+    provider_patch,
+) -> None:
+    workspace = tmp_path / "repo_2"
+    primary = tmp_path / "repo"
+    workspace.mkdir()
+    primary.mkdir()
+    provider_patch("bare_git")
+
+    written = write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 3,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": {
+                "plans": {
+                    "repo": "owner/repo--plans",
+                    "remote_url": "git@github.com:owner/repo--plans.git",
+                },
+                "research": {
+                    "repo": "owner/repo--research",
+                    "remote_url": "git@github.com:owner/repo--research.git",
+                },
+                "beads": {
+                    "repo": "owner/repo--beads",
+                    "remote_url": "git@github.com:owner/repo--beads.git",
+                },
+            },
+        },
+    )
+
+    assert written.has_split_beads
+    assert written.sidecar_for_kind("beads") == written.beads
+    assert read_sdd_store_record(primary) == written
+    assert (
+        json.loads((primary / ".sase" / "sdd-store.json").read_text(encoding="utf-8"))[
+            "schema_version"
+        ]
+        == 3
+    )
+
+    store = resolve_sdd_store(workspace, 2)
+    plans = workspace / "sase" / "repos" / "plans"
+    research = workspace / "sase" / "repos" / "research"
+    beads = workspace / "sase" / "repos" / "beads"
+    assert store.kind_root("plans") == plans
+    assert store.kind_root("research") == research
+    assert store.kind_root("beads") == beads
+    assert store.repo_root_for_kind("plans") == plans
+    assert store.repo_root_for_kind("research") == research
+    assert store.repo_root_for_kind("beads") == beads
+
+
+def test_schema_two_record_rejects_beads_sidecar(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="beads sidecars require schema_version >= 3"):
+        write_sdd_store_record(
+            tmp_path,
+            {
+                "schema_version": 2,
+                "storage": "sidecar_repos",
+                "sidecars": {
+                    "plans": {
+                        "repo": "owner/repo--plans",
+                        "remote_url": "plans-remote",
+                    },
+                    "research": {
+                        "repo": "owner/repo--research",
+                        "remote_url": "research-remote",
+                    },
+                    "beads": {
+                        "repo": "owner/repo--beads",
+                        "remote_url": "beads-remote",
+                    },
+                },
+            },
+        )
+
+
+def test_loading_schema_two_record_rejects_beads_sidecar(tmp_path: Path) -> None:
+    record_path = tmp_path / ".sase" / "sdd-store.json"
+    record_path.parent.mkdir(parents=True)
+    record_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "storage": "sidecar_repos",
+                "sidecars": {
+                    "plans": {
+                        "repo": "owner/repo--plans",
+                        "remote_url": "plans-remote",
+                    },
+                    "research": {
+                        "repo": "owner/repo--research",
+                        "remote_url": "research-remote",
+                    },
+                    "beads": {
+                        "repo": "owner/repo--beads",
+                        "remote_url": "beads-remote",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SddMaterializationError, match="refusing to touch it"):
+        read_sdd_store_record(tmp_path)
+
+
+def test_writing_unsplit_record_keeps_schema_version_two(tmp_path: Path) -> None:
+    written = write_sdd_store_record(
+        tmp_path,
+        {
+            "schema_version": 3,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "owner/repo--plans",
+                    "remote_url": "plans-remote",
+                },
+                "research": {
+                    "repo": "owner/repo--research",
+                    "remote_url": "research-remote",
+                },
+            },
+        },
+    )
+
+    persisted = json.loads(
+        (tmp_path / ".sase" / "sdd-store.json").read_text(encoding="utf-8")
+    )
+    assert written.schema_version == 2
+    assert read_sdd_store_record(tmp_path) == written
+    assert persisted["schema_version"] == 2
+    assert set(persisted["sidecars"]) == {"plans", "research"}
+
+
+@pytest.mark.parametrize(
+    ("storage", "sdd_suffix"),
+    [
+        (SDD_STORAGE_IN_TREE, "sdd"),
+        (SDD_STORAGE_LOCAL, ".sase/sdd"),
+        (SDD_STORAGE_SEPARATE_REPO, ".sase/sdd"),
+    ],
+)
+def test_repo_root_for_kind_in_non_sidecar_layouts(
+    tmp_path: Path,
+    provider_patch,
+    storage: str,
+    sdd_suffix: str,
+) -> None:
+    workspace = tmp_path / "repo_2"
+    primary = tmp_path / "repo"
+    workspace.mkdir()
+    primary.mkdir()
+    detected_vcs = {
+        SDD_STORAGE_IN_TREE: "bare_git",
+        SDD_STORAGE_LOCAL: None,
+        SDD_STORAGE_SEPARATE_REPO: "github",
+    }[storage]
+    provider_patch(detected_vcs)
+
+    store = resolve_sdd_store(workspace, 2)
+    expected_root = (
+        workspace / sdd_suffix if storage != SDD_STORAGE_LOCAL else primary / sdd_suffix
+    )
+    assert store.storage == storage
+    assert store.repo_root_for_kind("plans") == expected_root
+    assert store.repo_root_for_kind("research") == expected_root
+    assert store.repo_root_for_kind("beads") == expected_root
 
 
 def test_legacy_github_https_sidecars_resolve_to_ssh_without_rewriting_record(
@@ -334,7 +513,7 @@ def test_resolution_rejects_foreign_record_without_local_fallback(
     record_path.write_text(
         json.dumps(
             {
-                "schema_version": 3,
+                "schema_version": 4,
                 "storage": "sidecar_repos",
                 "discovery": "found",
             }
