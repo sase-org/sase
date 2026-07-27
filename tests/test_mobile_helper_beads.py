@@ -198,6 +198,33 @@ def test_beads_show_bridge_returns_detail(
     assert data["bead"]["workspace_display"] == str(tmp_path / "alpha")  # type: ignore[index]
 
 
+def test_beads_bridge_returns_resolved_plan_path_when_available(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    alpha_root = tmp_path / "alpha"
+    alpha_dir, alpha_epic, _, _ = seed_bead_project(alpha_root)
+    plan = alpha_root / "sdd/plans/alpha.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Alpha plan\n", encoding="utf-8")
+    seed_known_projects(tmp_path, {"alpha": alpha_dir})
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.resolve_plan_roots",
+        lambda *_args: (plan.parent,),
+    )
+
+    code, data, stderr = run_bridge(
+        {"schema_version": 1, "project": "alpha", "bead_id": alpha_epic.id},
+        "beads-show",
+    )
+
+    assert code == 0
+    assert stderr == ""
+    assert data["bead"]["design_path_display"] == str(plan.resolve())  # type: ignore[index]
+    assert data["bead"]["summary"]["plan_path_display"] == str(plan.resolve())  # type: ignore[index]
+
+
 def test_beads_show_bridge_does_not_search_extra_project_stores(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

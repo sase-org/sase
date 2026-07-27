@@ -67,6 +67,26 @@ def resolve_plan_roots(
     return tuple(resolved)
 
 
+def workspace_context_for_plan_resolution(
+    workspace_dir: str | Path,
+) -> tuple[Path, int]:
+    """Normalize a path to its managed checkout root and workspace number."""
+
+    try:
+        from sase.workspace_provider import find_marker_from_cwd
+
+        found = find_marker_from_cwd(str(workspace_dir))
+    except Exception:
+        found = None
+    if found is None:
+        return Path(workspace_dir).expanduser().resolve(strict=False), 1
+    workspace_num = found[1].workspace_num
+    return (
+        Path(found[0]).expanduser().resolve(strict=False),
+        workspace_num if workspace_num > 0 else 1,
+    )
+
+
 def parse_plan_reference(value: str) -> ParsedPlanReference:
     """Parse *value* through the shared reference grammar."""
 
@@ -111,6 +131,19 @@ def resolve_plan_reference(
     """Resolve a logical reference or legacy path against active plan roots."""
 
     roots = resolve_plan_roots(workspace_dir, workspace_num)
+    return resolve_plan_reference_from_roots(value, roots=roots)
+
+
+def resolve_plan_reference_from_roots(
+    value: str,
+    *,
+    roots: tuple[Path, ...],
+) -> PlanReferenceResolution:
+    """Resolve *value* through the shared core against explicit plan roots."""
+
+    normalized_roots = tuple(
+        dict.fromkeys(root.expanduser().resolve(strict=False) for root in roots)
+    )
     version_binding = require_rust_binding(
         "plan_reference_resolution_wire_schema_version"
     )
@@ -125,7 +158,7 @@ def resolve_plan_reference(
     binding = require_rust_binding("plan_reference_resolve")
     raw = cast(
         dict[str, Any],
-        binding(value, [str(root) for root in roots]),
+        binding(value, [str(root) for root in normalized_roots]),
     )
     schema_version = int(raw["schema_version"])
     if schema_version != PLAN_REFERENCE_RESOLUTION_WIRE_SCHEMA_VERSION:
@@ -196,5 +229,7 @@ __all__ = [
     "plan_ref_for_store",
     "render_plan_reference",
     "resolve_plan_reference",
+    "resolve_plan_reference_from_roots",
     "resolve_plan_roots",
+    "workspace_context_for_plan_resolution",
 ]

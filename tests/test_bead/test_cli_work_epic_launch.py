@@ -317,6 +317,7 @@ def test_snapshot_failure_warns_and_launches_without_snapshot_metadata(
 )
 def test_snapshot_source_resolution_uses_non_vc_bead_store_root(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     layout: str,
     plan_ref: str,
     source_relative: str,
@@ -329,6 +330,11 @@ def test_snapshot_source_resolution_uses_non_vc_bead_store_root(
     source = root / source_relative
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("approved", encoding="utf-8")
+    plan_root = root / "plans" if layout == "local" else root
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.resolve_plan_roots",
+        lambda *_args: (plan_root,),
+    )
 
     with BeadProject(root, beads_dirname="beads") as project:
         assert _epic_plan_source_path(project, plan_ref) == source.resolve()

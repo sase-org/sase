@@ -18,6 +18,10 @@ from sase.sdd.plan_display import (
     render_plan_document,
     render_plan_lines,
 )
+from sase.sdd.plan_refs import (
+    resolve_plan_reference,
+    workspace_context_for_plan_resolution,
+)
 
 PLAN_SUMMARY_WIDTH = 76
 PLAN_SUMMARY_MAX_UTF8_BYTES = 30 * 1024
@@ -55,10 +59,24 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _resolve_plan_reference(plan_ref: str) -> Path:
-    expanded = Path(plan_ref).expanduser()
-    if expanded.is_absolute():
-        return expanded.resolve(strict=False)
-    return (Path.cwd() / expanded).resolve(strict=False)
+    workspace_dir, workspace_num = workspace_context_for_plan_resolution(Path.cwd())
+    resolution = resolve_plan_reference(
+        plan_ref,
+        workspace_dir=workspace_dir,
+        workspace_num=workspace_num,
+    )
+    if resolution.resolved_path is not None:
+        return resolution.resolved_path
+
+    legacy_path = Path(plan_ref).expanduser()
+    fallback = (
+        legacy_path if legacy_path.is_absolute() else Path.cwd() / legacy_path
+    ).resolve(strict=False)
+    if fallback.is_file():
+        return fallback
+    if resolution.status == "ambiguous":
+        raise ValueError(f"plan reference is ambiguous: {plan_ref!r}")
+    raise ValueError(f"plan reference could not be resolved: {plan_ref!r}")
 
 
 def _render_plan_summary(summary: PlanDisplay) -> str:

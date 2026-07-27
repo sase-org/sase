@@ -77,8 +77,8 @@ def beads_list_response(request: dict[str, Any]) -> dict[str, Any]:
     projected_values.sort(key=lambda row: _issue_sort_key(row[1]), reverse=True)
     projected_values.sort(key=lambda row: row[0])
     summaries = [
-        _bead_summary_wire(issue, project, all_issues)
-        for project, issue, all_issues, _ in projected_values
+        _bead_summary_wire(issue, project, all_issues, beads_dir)
+        for project, issue, all_issues, beads_dir in projected_values
     ]
     total_count = len(summaries)
     if limit is not None:
@@ -245,9 +245,15 @@ def _bead_summary_wire(
     issue: Issue,
     project: str | None,
     all_issues: list[Issue],
+    beads_dir: Path | None,
 ) -> dict[str, Any]:
     issue_by_id = {row.id: row for row in all_issues}
-    design = _issue_plan_path(issue, issue_by_id)
+    design = _issue_plan_path(
+        issue,
+        issue_by_id,
+        project=project,
+        beads_dir=beads_dir,
+    )
     return {
         "id": issue.id,
         "title": issue.title,
@@ -282,11 +288,21 @@ def _bead_detail_wire(
     )
     children = sorted(row.id for row in all_issues if row.parent_id == issue.id)
     return {
-        "summary": _bead_summary_wire(issue, project, all_issues),
+        "summary": _bead_summary_wire(
+            issue,
+            project,
+            all_issues,
+            representative_dir,
+        ),
         "description": issue.description or None,
         "notes": issue.notes or None,
         "model": issue.model or None,
-        "design_path_display": _issue_plan_path(issue, issue_by_id),
+        "design_path_display": _issue_plan_path(
+            issue,
+            issue_by_id,
+            project=project,
+            beads_dir=representative_dir,
+        ),
         "dependencies": [dependency.depends_on_id for dependency in issue.dependencies],
         "blocks": blocks,
         "children": children,
@@ -294,13 +310,61 @@ def _bead_detail_wire(
     }
 
 
-def _issue_plan_path(issue: Issue, issue_by_id: dict[str, Issue]) -> str | None:
+def _issue_plan_path(
+    issue: Issue,
+    issue_by_id: dict[str, Issue],
+    *,
+    project: str | None,
+    beads_dir: Path | None,
+) -> str | None:
+    reference: str | None = None
     if issue.design:
-        return issue.design
-    if issue.parent_id:
+        reference = issue.design
+    elif issue.parent_id:
         parent = issue_by_id.get(issue.parent_id)
         if parent is not None and parent.design:
-            return parent.design
+            reference = parent.design
+    if reference is None:
+        return None
+
+    workspace_dir = _plan_resolution_workspace(project, beads_dir)
+    if workspace_dir is None:
+        return reference
+    try:
+        from sase.sdd.plan_refs import resolve_plan_reference
+
+        resolution = resolve_plan_reference(
+            reference,
+            workspace_dir=workspace_dir,
+            workspace_num=1,
+        )
+    except Exception:
+        return reference
+    return (
+        str(resolution.resolved_path)
+        if resolution.resolved_path is not None
+        else reference
+    )
+
+
+def _plan_resolution_workspace(
+    project: str | None,
+    beads_dir: Path | None,
+) -> Path | None:
+    if project is not None:
+        try:
+            from sase.running_field import get_workspace_directory
+
+            return Path(get_workspace_directory(project, 1))
+        except Exception:
+            pass
+    if beads_dir is None:
+        return None
+    parts = beads_dir.parts
+    if len(parts) >= 3 and parts[-3:] == (".sase", "sdd", "beads"):
+        return beads_dir.parents[2]
+    if len(parts) >= 2 and parts[-2:] == ("sdd", "beads"):
+        return beads_dir.parents[1]
     return None
 
 

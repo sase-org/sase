@@ -422,7 +422,10 @@ def test_modern_phase_plan_failures_stay_bare_and_never_expose_epic(
     assert enrichment.phase_bead.description is None
     assert enrichment.phase_bead.epic_title is None
     assert enrichment.phase_bead.size is None
-    assert enrichment.phase_bead.actual_plan_path == str(plan.resolve())
+    expected_path = (
+        tmp_path / ".sase/sdd/plans/epic.md" if failure == "missing" else plan
+    )
+    assert enrichment.phase_bead.actual_plan_path == str(expected_path.resolve())
     assert enrichment.phase_bead.display_plan_path == "plans/epic.md"
     assert enrichment.phase_bead.plan_exists is (failure != "missing")
     assert enrichment.phase_bead.plan_readable is (failure != "missing")

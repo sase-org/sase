@@ -6,6 +6,11 @@ import os
 from pathlib import Path
 
 from sase.core.paths import shorten_path
+from sase.sdd.plan_refs import (
+    PlanReferenceResolution,
+    resolve_plan_reference as resolve_shared_plan_reference,
+    resolve_plan_reference_from_roots,
+)
 
 from ._agent_associated_plan_types import PlanAssociationCacheKey
 from .agent import Agent
@@ -26,30 +31,48 @@ def association_key(
 
 
 def resolve_plan_reference(reference: str, agent: Agent) -> Path:
-    raw_path = Path(reference).expanduser()
-    if raw_path.is_absolute():
-        return raw_path.resolve(strict=False)
+    resolution = resolve_plan_reference_resolution(reference, agent)
+    if resolution.best_path is not None:
+        return resolution.best_path
+    return Path(reference).expanduser().resolve(strict=False)
+
+
+def resolve_plan_reference_resolution(
+    reference: str,
+    agent: Agent,
+) -> PlanReferenceResolution:
+    """Return the shared resolution outcome, preserving legacy workspace files."""
 
     workspace_dir = _agent_workspace_dir(agent)
     workspace_num = agent.effective_workspace_num or 1
-    candidates: list[Path] = []
-    if workspace_dir is not None:
-        candidates.append(workspace_dir / raw_path)
-        primary = _primary_workspace_dir(workspace_dir, workspace_num)
-        if primary is not None:
-            candidates.append(primary / raw_path)
-        candidates.extend(_sdd_plan_candidates(workspace_dir, workspace_num, raw_path))
-    if not candidates:
-        candidates.append(raw_path)
+    resolution_dir = workspace_dir or Path.cwd()
+    raw_path = Path(reference).expanduser()
+    if raw_path.is_absolute():
+        resolution = resolve_plan_reference_from_roots(reference, roots=())
+    else:
+        resolution = resolve_shared_plan_reference(
+            reference,
+            workspace_dir=resolution_dir,
+            workspace_num=workspace_num,
+        )
+    if resolution.resolved_path is not None:
+        return resolution
 
-    normalized = _dedupe_paths(candidates)
-    for candidate in normalized:
-        try:
-            if candidate.is_file():
-                return candidate
-        except OSError:
-            continue
-    return normalized[0]
+    try:
+        fallback = (
+            raw_path if raw_path.is_absolute() else resolution_dir / raw_path
+        ).resolve(strict=False)
+        fallback_is_file = fallback.is_file()
+    except (OSError, ValueError):
+        return resolution
+    if not fallback_is_file:
+        return resolution
+    return PlanReferenceResolution(
+        schema_version=resolution.schema_version,
+        status="exact",
+        resolved_path=fallback,
+        candidates=(*resolution.candidates, fallback),
+    )
 
 
 def display_plan_path(
@@ -82,53 +105,6 @@ def _agent_workspace_dir(agent: Agent) -> Path | None:
     if not workspace_dir:
         return None
     return Path(workspace_dir).expanduser().resolve(strict=False)
-
-
-def _primary_workspace_dir(workspace_dir: Path, workspace_num: int) -> Path | None:
-    try:
-        from sase.sdd._paths import get_primary_workspace_dir
-
-        primary = get_primary_workspace_dir(str(workspace_dir), workspace_num)
-    except Exception:
-        return None
-    return Path(primary).expanduser().resolve(strict=False) if primary else None
-
-
-def _sdd_plan_candidates(
-    workspace_dir: Path,
-    workspace_num: int,
-    reference: Path,
-) -> list[Path]:
-    try:
-        from sase.sdd.store import resolve_sdd_store
-
-        plan_root = resolve_sdd_store(workspace_dir, workspace_num).kind_root("plans")
-    except Exception:
-        return []
-
-    parts = reference.parts
-    relative = reference
-    for prefix in (
-        (".sase", "sdd", "plans"),
-        ("sdd", "plans"),
-        ("plans",),
-    ):
-        if parts[: len(prefix)] == prefix:
-            relative = Path(*parts[len(prefix) :])
-            break
-    return [plan_root / relative]
-
-
-def _dedupe_paths(paths: list[Path]) -> list[Path]:
-    seen: set[Path] = set()
-    result: list[Path] = []
-    for path in paths:
-        normalized = path.expanduser().resolve(strict=False)
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        result.append(normalized)
-    return result
 
 
 def agent_project_name(agent: Agent) -> str | None:

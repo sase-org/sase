@@ -11,6 +11,10 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from sase.bead.project import BeadProject
+from sase.sdd.plan_refs import (
+    resolve_plan_reference,
+    workspace_context_for_plan_resolution,
+)
 
 if TYPE_CHECKING:
     from sase.bead.work import VCSLaunchContext
@@ -18,71 +22,32 @@ if TYPE_CHECKING:
 
 def epic_plan_source_path(proj: BeadProject, plan_ref: str) -> Path:
     """Resolve an epic's approved plan from its authoritative bead store."""
-    expanded = Path(plan_ref).expanduser()
-    if expanded.is_absolute():
-        return expanded.resolve(strict=False)
     if not plan_ref.strip():
         raise ValueError("the epic has no approved plan reference")
 
-    root = proj.root_dir.expanduser().resolve(strict=False)
-    beads_dir = proj.beads_dir.expanduser().resolve(strict=False)
-    try:
-        beads_relative = beads_dir.relative_to(root)
-    except ValueError as exc:
-        raise ValueError("the bead store is outside its project root") from exc
-
-    parts = tuple(part for part in Path(plan_ref.replace("\\", "/")).parts if part)
-    if beads_relative == Path("sdd/beads"):
-        plans_root = root / "sdd" / "plans"
-        relative = plan_ref_after_marker(parts, ("sdd", "plans"))
-        if relative is None:
-            relative = plan_ref_after_marker(parts, ("plans",)) or parts
-    elif beads_relative == Path("beads"):
-        sidecar_relative = plan_ref_after_marker(
-            parts,
-            ("sase", "repos", "plans"),
-        )
-        local_relative = plan_ref_after_marker(
-            parts,
-            (".sase", "sdd", "plans"),
-        )
-        if sidecar_relative is not None:
-            plans_root = root
-            relative = sidecar_relative
-        elif local_relative is not None:
-            plans_root = root / "plans"
-            relative = local_relative
-        else:
-            plans_relative = plan_ref_after_marker(parts, ("plans",))
-            local_layout = root.name == "sdd" and root.parent.name == ".sase"
-            if plans_relative is not None or local_layout or (root / "plans").is_dir():
-                plans_root = root / "plans"
-                relative = plans_relative or parts
-            else:
-                plans_root = root
-                relative = parts
-    else:
-        raise ValueError(f"unsupported bead store layout: {beads_relative}")
-
-    resolved_root = plans_root.resolve(strict=False)
-    source = resolved_root.joinpath(*relative).resolve(strict=False)
-    try:
-        source.relative_to(resolved_root)
-    except ValueError as exc:
-        raise ValueError("the relative plan reference escapes its plans store") from exc
-    return source
+    workspace_dir, workspace_num = _snapshot_resolution_workspace(proj)
+    resolution = resolve_plan_reference(
+        plan_ref,
+        workspace_dir=workspace_dir,
+        workspace_num=workspace_num,
+    )
+    if resolution.resolved_path is not None:
+        return resolution.resolved_path
+    if resolution.status == "ambiguous":
+        raise ValueError(f"the approved plan reference is ambiguous: {plan_ref!r}")
+    raise ValueError(f"the approved plan reference could not be resolved: {plan_ref!r}")
 
 
-def plan_ref_after_marker(
-    parts: tuple[str, ...],
-    marker: tuple[str, ...],
-) -> tuple[str, ...] | None:
-    """Return the suffix after a known storage marker in a plan reference."""
-    marker_length = len(marker)
-    for index in range(len(parts) - marker_length + 1):
-        if parts[index : index + marker_length] == marker:
-            return parts[index + marker_length :]
-    return None
+def _snapshot_resolution_workspace(proj: BeadProject) -> tuple[Path, int]:
+    """Return the checkout context that owns *proj*'s active SDD store."""
+
+    current_dir, current_num = workspace_context_for_plan_resolution(Path.cwd())
+    project_root = proj.root_dir.expanduser().resolve(strict=False)
+    if project_root == current_dir or current_dir in project_root.parents:
+        return current_dir, current_num
+    if project_root in current_dir.parents:
+        return project_root, current_num
+    return workspace_context_for_plan_resolution(project_root)
 
 
 def epic_plan_snapshot_destination(project_name: str, epic_id: str) -> Path:

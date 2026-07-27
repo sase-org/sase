@@ -237,11 +237,9 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-9z(ParsedPlanReference)' \
-        --epic-symbol 'sase-9z(PlanReferenceResolution)' \
         --epic-symbol 'sase-9z(canonicalize_plan_reference)' \
-        --epic-symbol 'sase-9z(parse_plan_reference)' \
         --epic-symbol 'sase-9z(render_plan_reference)' \
-        --epic-symbol 'sase-9z(resolve_plan_roots)' \
+        --epic-symbol 'sase-9z(resolve_plan_reference_resolution)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

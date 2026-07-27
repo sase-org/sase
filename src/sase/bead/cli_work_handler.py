@@ -32,7 +32,6 @@ from sase.bead.cli_work_plan_snapshot import (
     atomic_copy_epic_plan,
     epic_plan_snapshot_destination,
     epic_plan_source_path,
-    plan_ref_after_marker,
     snapshot_epic_plan,
 )
 from sase.bead.cli_work_entry import handle_bead_work as dispatch_bead_work
@@ -112,7 +111,6 @@ def handle_bead_work(args: argparse.Namespace) -> None:
 
 # Compatibility aliases for callers that imported the former private helpers.
 _epic_plan_source_path = epic_plan_source_path
-_plan_ref_after_marker = plan_ref_after_marker
 _epic_plan_snapshot_destination = epic_plan_snapshot_destination
 
 

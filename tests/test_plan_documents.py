@@ -31,6 +31,7 @@ def _owner(workspace: Path, plans: Path) -> PlanWorkspace:
         ("sdd/plans/202607/plan.md", "plans"),
         (".sase/sdd/plans/202607/plan.md", "plans"),
         ("plans/202607/plan.md", "plans"),
+        ("plans:202607/plan.md", "plans"),
         ("202607/plan.md", "plans"),
     ),
 )

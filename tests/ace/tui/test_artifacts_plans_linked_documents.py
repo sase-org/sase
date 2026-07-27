@@ -55,6 +55,7 @@ def _patch_project_loaders(
         ("workspace/sdd", "plans/202607/linked.md", "sdd"),
         ("workspace/.sase/sdd", "plans/202607/linked.md", "local"),
         ("sidecar", "202607/linked.md", "plans-relative"),
+        ("sidecar", "202607/linked.md", "typed"),
     ),
 )
 def test_snapshot_loads_reference_forms_and_phase_inheritance(
@@ -77,6 +78,7 @@ def test_snapshot_loads_reference_forms_and_phase_inheritance(
         "sdd": "sdd/plans/202607/linked.md",
         "local": ".sase/sdd/plans/202607/linked.md",
         "plans-relative": "202607/linked.md",
+        "typed": "plans:202607/linked.md",
     }[reference_kind]
     with BeadProject.init(sdd_root, beads_dirname="beads") as project:
         epic = project.create(
