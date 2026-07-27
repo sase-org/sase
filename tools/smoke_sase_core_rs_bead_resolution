@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""Smoke typed bead resolutions in the exact published Rust-core minimum."""
+
+from __future__ import annotations
+
+import importlib
+import importlib.metadata
+import sys
+import tempfile
+from pathlib import Path
+from types import ModuleType
+from typing import Any
+
+
+REQUIRED_BINDINGS = (
+    "bead_init_store",
+    "bead_create",
+    "bead_close",
+    "bead_show",
+)
+SMOKE_RESOLUTION = "canceled"
+
+
+def _require_bindings(module: ModuleType) -> None:
+    missing = [
+        name for name in REQUIRED_BINDINGS if not callable(getattr(module, name, None))
+    ]
+    if missing:
+        raise RuntimeError("missing bead binding(s): " + ", ".join(missing))
+
+
+def validate_round_trip(module: ModuleType) -> dict[str, Any]:
+    """Create and close a bead with an explicit non-default resolution."""
+
+    _require_bindings(module)
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-resolution-smoke-") as tmp:
+        module.bead_init_store(tmp, "beads", "smoke", "smoke@example.com")
+        beads_dir = str(Path(tmp) / "beads")
+        created = module.bead_create(
+            beads_dir,
+            {
+                "title": "Typed resolution smoke",
+                "issue_type": "plan",
+                "tier": "plan",
+                "parent_id": None,
+                "description": "",
+                "notes": "",
+                "design": "",
+                "assignee": "",
+                "changespec_name": "",
+                "changespec_bug_id": "",
+                "model": "",
+                "size": None,
+                "now": "2026-01-01T00:00:00Z",
+            },
+        )
+        issue = created.get("issue")
+        if not isinstance(issue, dict) or not isinstance(issue.get("id"), str):
+            raise RuntimeError(f"unexpected bead_create result: {created!r}")
+        issue_id = issue["id"]
+
+        closed = module.bead_close(
+            beads_dir,
+            [issue_id],
+            reason="published-wheel smoke",
+            resolution=SMOKE_RESOLUTION,
+            now="2026-01-01T00:00:01Z",
+        )
+        closed_issues = closed.get("issues")
+        if not isinstance(closed_issues, list) or len(closed_issues) != 1:
+            raise RuntimeError(f"unexpected bead_close result: {closed!r}")
+        returned_resolution = closed_issues[0].get("resolution")
+        if returned_resolution != SMOKE_RESOLUTION:
+            raise RuntimeError(
+                "bead_close did not return the explicit resolution: "
+                f"{returned_resolution!r}"
+            )
+
+        persisted = module.bead_show(beads_dir, issue_id)
+        persisted_resolution = persisted.get("resolution")
+        if persisted_resolution != SMOKE_RESOLUTION:
+            raise RuntimeError(
+                "bead_show did not persist the explicit resolution: "
+                f"{persisted_resolution!r}"
+            )
+
+        return {
+            "issue_id": issue_id,
+            "returned_resolution": returned_resolution,
+            "persisted_resolution": persisted_resolution,
+        }
+
+
+def main() -> int:
+    try:
+        module = importlib.import_module("sase_core_rs")
+        version = importlib.metadata.version("sase-core-rs")
+        result = validate_round_trip(module)
+    except Exception as error:
+        print(f"[bead-resolution-smoke] {error}", file=sys.stderr)
+        return 1
+    print(f"[bead-resolution-smoke] sase-core-rs {version}: {result}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
