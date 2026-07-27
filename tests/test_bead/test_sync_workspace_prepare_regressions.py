@@ -13,7 +13,7 @@ from sase.bead.sync import commit_bead_claim
 from sase.sdd._repository_recovery_reaper import safe_reap_sdd_recovery_snapshots
 from sase.vcs_provider import VCS_DEFAULT_REVISION
 
-from .test_sync_conflict_regressions import _git, _seed_claim_soak_remote
+from .sync_conflict_regression_helpers import _git, _seed_claim_soak_remote
 
 
 def test_prepare_workspace_rescues_unpushed_bead_commits_before_sidecar_reset(
