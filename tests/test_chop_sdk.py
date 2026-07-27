@@ -181,6 +181,7 @@ def test_all_builtin_chop_modules_use_the_registry() -> None:
     modules = {
         "comment_checks",
         "comment_zombie_checks",
+        "epic_launch_flush",
         "error_digest",
         "hook_checks",
         "managed_tmp_reap",

@@ -4,6 +4,7 @@ import importlib
 import json
 import os
 import time
+from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -155,6 +156,47 @@ def test_managed_tmp_reap_emits_noop_summary(
         "removed": 0,
         "scanned": 0,
         "subdirs": 0,
+    }
+
+
+def test_epic_launch_flush_emits_noop_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_epic_launch_flush")
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    monkeypatch.setattr(
+        script,
+        "flush_orphaned_deferrals",
+        lambda: SimpleNamespace(
+            pending_scanned=2,
+            active=0,
+            young=2,
+            flushed=0,
+            settled_reaped=0,
+            errors=0,
+        ),
+    )
+
+    run_builtin_chop("epic_launch_flush", ["--context", str(context_path)])
+
+    out = capsys.readouterr().out
+    assert "epic_launch_flush:" in out
+    assert "pending=2" in out
+    assert "young=2" in out
+    assert "reason=nothing_due" in out
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "no_op"
+    assert result["reason"] == "nothing_due"
+    assert result["counters"] == {
+        "active": 0,
+        "errors": 0,
+        "flushed": 0,
+        "pending": 2,
+        "settled_reaped": 0,
+        "young": 2,
     }
 
 

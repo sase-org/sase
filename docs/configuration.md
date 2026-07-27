@@ -1325,6 +1325,14 @@ axe:
             Finds projects with a live agent waiting on bead completion and refreshes each canonical store at most
             every 30 seconds. The two-minute timeout is protected by bounded per-project lock waits, a whole-pass work
             budget, and persistent exponential backoff so one contended store cannot stall all waiters.
+        - name: epic_launch_flush
+          script: sase_chop_epic_launch_flush
+          run_every: "30s"
+          description: |-
+            Flush planner completion notifications orphaned by an unsettled epic launch
+
+            Preserves deferrals while a matching detached epic-launch task is active, flushes unowned deferrals after
+            a 90-second grace period with a resume command, and reaps unclaimed settle markers after one hour.
         - name: wait_checks
           script: sase_chop_wait_checks
           description: |-

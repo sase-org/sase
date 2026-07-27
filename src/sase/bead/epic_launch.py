@@ -235,20 +235,26 @@ def finish_epic_launch(
             pass
 
     try:
+        from sase.bead.epic_launch_handoff import (
+            claim_epic_completion,
+            fold_epic_launch_outcome,
+            send_completion_payload,
+        )
         from sase.notifications.senders import notify_workflow_complete
 
+        argv = build_epic_launch_argv(
+            plan_file,
+            artifacts_dir=artifacts_dir,
+            cl_name=cl_name,
+            yes_to_all=False,
+        )
         if success:
+            detail = ""
             notes = [
                 f"Epic {epic_id} launched from {Path(plan_file).name}",
                 f"Plan: {archived_plan_path or plan_file}",
             ]
         else:
-            argv = build_epic_launch_argv(
-                plan_file,
-                artifacts_dir=artifacts_dir,
-                cl_name=cl_name,
-                yes_to_all=False,
-            )
             if error is not None:
                 detail = str(error)
             elif epic_id and not launched:
@@ -259,6 +265,29 @@ def finish_epic_launch(
                 f"Epic launch failed: {detail}",
                 f"Resume with: {shlex.join(argv)}",
             ]
+        deferred = claim_epic_completion(
+            artifacts_dir,
+            outcome={
+                "success": success,
+                "epic_id": str(epic_id) if epic_id is not None else None,
+                "plan_file": plan_file,
+                "detail": detail,
+                "settled_at": datetime.now(UTC).isoformat(),
+            },
+        )
+        if deferred is not None:
+            send_completion_payload(
+                fold_epic_launch_outcome(
+                    deferred,
+                    success=success,
+                    epic_id=str(epic_id) if epic_id is not None else None,
+                    plan_file=plan_file,
+                    archived_plan_path=archived_plan_path,
+                    detail=detail,
+                    resume_argv=argv,
+                )
+            )
+            return
         notify_workflow_complete(
             "epic-launch",
             cl_name,

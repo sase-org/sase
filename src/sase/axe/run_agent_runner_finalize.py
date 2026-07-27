@@ -17,6 +17,7 @@ from sase.axe.image_attachments import (
 from sase.axe.run_agent_helpers import read_commit_result_metadata
 from sase.axe.run_agent_phases import build_done_marker, record_stop_time
 from sase.axe.run_agent_repeat_stop import STOP_OUTPUT_VARIABLE
+from sase.bead.epic_launch_handoff import CompletionNotificationPayload
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -232,7 +233,6 @@ def send_completion_notification(
     from sase.attachments.markdown_pdf import MAX_MARKDOWN_PDF_ATTACHMENTS
     from sase.agent.bead_display import format_agent_bead_display_for_name
     from sase.llm_provider.registry import format_provider_model_label
-    from sase.notifications.senders import notify_workflow_complete
 
     if outcome == "plan_rejected":
         return
@@ -337,7 +337,7 @@ def send_completion_notification(
             **output_variables_data,
         }
 
-    notify_workflow_complete(
+    payload = CompletionNotificationPayload(
         sender="user-agent",
         cl_name=cl_name,
         success=success,
@@ -348,3 +348,12 @@ def send_completion_notification(
         silent=agent_hidden,
         tags=["done"] if success and action == "JumpToAgent" else None,
     )
+    if outcome == "epic_approved":
+        from sase.bead.epic_launch_handoff import defer_epic_completion
+
+        if defer_epic_completion(current_artifacts_dir, payload):
+            return
+
+    from sase.bead.epic_launch_handoff import send_completion_payload
+
+    send_completion_payload(payload)

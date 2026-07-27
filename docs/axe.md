@@ -181,6 +181,7 @@ Fast-polling agent dependency resolution:
 | Chop                 | Description                                                                |
 | -------------------- | -------------------------------------------------------------------------- |
 | `bead_store_refresh` | Integrate canonical stores for projects with live, unresolved bead waiters |
+| `epic_launch_flush`  | Flush planner completions orphaned by unsettled epic launches              |
 | `wait_checks`        | Resolve successful agent and closed-bead waits; write `ready.json`         |
 
 `wait_checks` only unblocks a named dependency when the newest matching agent, or the newest matching workflow root and
