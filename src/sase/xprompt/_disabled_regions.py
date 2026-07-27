@@ -12,8 +12,22 @@ _DISABLED_REGION_RE = re.compile(
     r"^[ \t]*%xprompts_enabled:false[ \t]*\n([\s\S]*?)(?:^[ \t]*|[ \t]+)%xprompts_enabled:true[ \t]*\n?",
     re.MULTILINE,
 )
+_DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
 _PLACEHOLDER_PREFIX = "\x00XPD_"
 _PLACEHOLDER_SUFFIX = "\x00"
+
+
+def ensure_disabled_region_at_line_start(content: str, is_at_line_start: bool) -> str:
+    """Keep a leading disabled-region marker on a line boundary.
+
+    Prompt-part references can appear after other content on the same line.
+    When their rendered content begins with ``%xprompts_enabled:false``, the
+    marker needs its own line so downstream disabled-region processing can
+    recognize it.
+    """
+    if content and not is_at_line_start and _DISABLED_REGION_START_RE.match(content):
+        return "\n" + content
+    return content
 
 
 def protect_disabled_regions(text: str, regions: list[str]) -> str:

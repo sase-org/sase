@@ -1,7 +1,6 @@
 """Types and helpers for embedded workflow execution."""
 
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -11,11 +10,6 @@ from sase.xprompt.models import OutputSpec
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 _logger = logging.getLogger(__name__)
-
-# Matches content starting with a %xprompts_enabled:false marker.
-# Used to detect when expanded content needs a preceding newline so the
-# marker remains at line-start (required by disabled-region handling).
-_DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
 
 # Pattern to match workflow references in prompts (same as processor.py)
 _WORKFLOW_REF_PATTERN = (

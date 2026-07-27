@@ -8,6 +8,7 @@ from collections.abc import Collection
 from typing import Any
 
 from sase.xprompt._disabled_regions import (
+    ensure_disabled_region_at_line_start,
     protect_disabled_regions,
     unprotect_disabled_regions,
 )
@@ -40,9 +41,6 @@ from .models import XPrompt
 
 # Maximum number of expansion iterations to prevent infinite loops
 _MAX_EXPANSION_ITERATIONS = 100
-
-# Matches content starting with a %xprompts_enabled:false marker.
-_DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
 
 # Pattern to match xprompt references: #name, #name(, #name:arg, or #name+
 # Must be at start of string, after whitespace, or after certain punctuation
@@ -536,17 +534,9 @@ def process_xprompt_references_with_catalog(
                 ):
                     expanded += "\n\n"
 
-                # Ensure disabled-region markers start on their own line.
-                # When expanded content begins with %xprompts_enabled:false
-                # but the insertion point is mid-line (e.g. after an
-                # unexpanded VCS ref), prepend a newline so downstream
-                # protect/strip_disabled_region_markers can match it.
-                if (
-                    expanded
-                    and not is_at_line_start
-                    and _DISABLED_REGION_START_RE.match(expanded)
-                ):
-                    expanded = "\n" + expanded
+                expanded = ensure_disabled_region_at_line_start(
+                    expanded, is_at_line_start
+                )
 
                 prompt = prompt[: match.start()] + expanded + prompt[match_end:]
         except XPromptError as e:

@@ -10,6 +10,7 @@ from sase.content import (
     apply_section_marker_handling,
     content_ends_with_markdown_heading,
 )
+from sase.xprompt._disabled_regions import ensure_disabled_region_at_line_start
 from sase.xprompt.workflow_models import WorkflowStep
 
 
@@ -177,13 +178,13 @@ def expand_embedded_workflows_in_query(
                 os.environ[key] = rendered
 
         # Render prompt_part with the embedded context (args + pre-step outputs)
+        is_at_line_start = ref.start == 0 or query[ref.start - 1] == "\n"
         prompt_part_content = workflow.get_prompt_part_content()
         if prompt_part_content:
             prompt_part_content = render_template(prompt_part_content, embedded_context)
             prompt_part_content = process_xprompt_references(prompt_part_content)
 
             # Handle section markers (### or ---) with proper line positioning
-            is_at_line_start = ref.start == 0 or query[ref.start - 1] == "\n"
             prompt_part_content = apply_section_marker_handling(
                 prompt_part_content, is_at_line_start
             )
@@ -200,6 +201,10 @@ def expand_embedded_workflows_in_query(
             and query[match_end] != "\n"
         ):
             prompt_part_content += "\n\n"
+
+        prompt_part_content = ensure_disabled_region_at_line_start(
+            prompt_part_content, is_at_line_start
+        )
 
         # Replace the workflow reference with the prompt_part content
         query = query[: ref.start] + prompt_part_content + query[match_end:]

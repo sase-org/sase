@@ -164,6 +164,47 @@ def test_expand_deferred_launch_xprompts_limits_embedded_expansion(
     )
 
 
+def test_deferred_fork_starts_disabled_marker_after_workspace_line(
+    tmp_path: Path,
+) -> None:
+    from sase.xprompt.workflow_models import Workflow, WorkflowStep
+
+    fork = Workflow(
+        name="fork",
+        steps=[
+            WorkflowStep(
+                name="inject",
+                prompt_part=(
+                    "%xprompts_enabled:false\n"
+                    "# Previous Conversation\n"
+                    "history\n"
+                    "%xprompts_enabled:true\n"
+                    "# New Query"
+                ),
+            )
+        ],
+    )
+
+    with (
+        patch(
+            "sase.xprompt.processor.process_xprompt_references",
+            side_effect=lambda prompt, **_kwargs: prompt,
+        ),
+        patch(
+            "sase.xprompt.loader.get_all_workflows",
+            return_value={"fork": fork},
+        ),
+        patch("sase.xprompt.used_xprompts.write_used_xprompts"),
+    ):
+        expanded = expand_deferred_launch_xprompts(
+            "#gh:sase #fork Continue the work",
+            str(tmp_path),
+        )
+
+    assert expanded.startswith("#gh:sase \n%xprompts_enabled:false\n")
+    assert "#gh:sase %xprompts_enabled:false" not in expanded
+
+
 def test_deferred_launch_xprompts_preserve_original_usage_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -3,11 +3,36 @@
 from unittest.mock import MagicMock, patch
 
 from sase.xprompt._disabled_regions import (
+    ensure_disabled_region_at_line_start,
     protect_disabled_regions,
     strip_disabled_regions,
     strip_disabled_region_markers,
     unprotect_disabled_regions,
 )
+
+
+class TestEnsureDisabledRegionAtLineStart:
+    """Tests for prompt-part disabled-marker positioning."""
+
+    def test_mid_line_marker_gets_exactly_one_newline(self) -> None:
+        content = " \t%xprompts_enabled:false\nhistory"
+
+        assert ensure_disabled_region_at_line_start(content, False) == (
+            "\n \t%xprompts_enabled:false\nhistory"
+        )
+
+    def test_line_start_marker_is_unchanged(self) -> None:
+        content = "%xprompts_enabled:false\nhistory"
+
+        assert ensure_disabled_region_at_line_start(content, True) == content
+
+    def test_non_marker_content_is_unchanged(self) -> None:
+        content = "# New Query"
+
+        assert ensure_disabled_region_at_line_start(content, False) == content
+
+    def test_empty_content_is_unchanged(self) -> None:
+        assert ensure_disabled_region_at_line_start("", False) == ""
 
 
 class TestProtectUnprotectRoundTrip:

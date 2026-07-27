@@ -9,8 +9,10 @@ from unittest.mock import patch
 import pytest
 
 from sase.axe.run_agent_runner_setup import expand_deferred_launch_xprompts
+from sase.llm_provider.preprocessing import preprocess_prompt_late
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 from sase.xprompt.models import UNSET
+from sase.xprompt.tags import XPromptTag
 from sase.xprompt.workflow_executor import WorkflowExecutor
 from sase.xprompt.workflow_loader import _load_workflow_from_file
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
@@ -307,6 +309,65 @@ def test_completed_clan_fork_expands_during_post_wait_runner_setup(
     assert "Beta prompt" in expanded
     assert "#fork:review" not in expanded
     assert expanded.endswith("# New Query\nContinue")
+
+
+def test_inline_deferred_fork_survives_workspace_removal_and_late_preprocessing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    chat_path = tmp_path / "previous-chat.md"
+    chat_path.write_text(
+        "## Prompt\n\nOld question\n\n## Response\n\nOld answer\n",
+        encoding="utf-8",
+    )
+    _write_completed_agent(
+        tmp_path,
+        "20260727010101",
+        "builder",
+        response_path=chat_path,
+    )
+
+    artifacts_dir = tmp_path / "runner-artifacts"
+    artifacts_dir.mkdir()
+    with (
+        patch(
+            "sase.xprompt.loader.get_all_workflows",
+            return_value={"fork": _load_fork_workflow()},
+        ),
+        patch("sase.xprompt.used_xprompts.write_used_xprompts"),
+    ):
+        expanded_fork = expand_deferred_launch_xprompts(
+            "#gh:sase #fork:builder Continue the work",
+            str(artifacts_dir),
+        )
+
+    marker_index = expanded_fork.index("%xprompts_enabled:false")
+    assert expanded_fork[marker_index - 1] == "\n"
+
+    workspace_workflow = Workflow(
+        name="gh",
+        steps=[WorkflowStep(name="inject", prompt_part="")],
+        tags=frozenset({XPromptTag.vcs}),
+    )
+    parent_workflow = Workflow(
+        name="parent",
+        steps=[WorkflowStep(name="review", agent=expanded_fork)],
+    )
+    executor = WorkflowExecutor(parent_workflow, {}, str(artifacts_dir))
+    with patch(
+        "sase.xprompt.loader.get_all_workflows",
+        return_value={"gh": workspace_workflow},
+    ):
+        without_workspace, _, _ = executor._expand_embedded_workflows_in_prompt(
+            expanded_fork
+        )
+
+    final_prompt = preprocess_prompt_late(without_workspace, file_ref_mode="skip")
+
+    assert "%xprompts_enabled" not in final_prompt
+    assert "\n # New Query" not in final_prompt
+    assert final_prompt.endswith("# New Query\n\nContinue the work\n")
 
 
 def test_embedded_family_fork_injects_each_completed_member_reply_once(

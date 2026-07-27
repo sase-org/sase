@@ -14,6 +14,7 @@ from sase.content import (
     content_ends_with_markdown_heading,
 )
 from sase.xprompt._disabled_regions import (
+    ensure_disabled_region_at_line_start,
     protect_disabled_regions,
     unprotect_disabled_regions,
 )
@@ -21,7 +22,6 @@ from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_
 from sase.xprompt.input_binding import InputBindingError, bind_input_args
 from sase.xprompt.workflow_executor_steps_embedded_types import (
     EmbeddedWorkflowInfo,
-    _DISABLED_REGION_START_RE,
     PendingEmbeddedWorkflow,
     format_inline_workflow_reference_error,
     parse_workflow_reference_args,
@@ -315,18 +315,10 @@ class EmbeddedWorkflowExpandMixin:
         # ── Phase 4: Text replacement ────────────────────────────────────
         # Sort by match_start descending so right-to-left replacement is position-safe.
         for p in sorted(pending, key=lambda x: x.match_start, reverse=True):
-            replacement = p.rendered_prompt_part
-            # When the rendered content starts with a disabled-region marker
-            # but the insertion point is mid-line (e.g. after an unexpanded
-            # workspace ref like #gh:sase), prepend a newline so the marker starts
-            # at a line boundary — required for downstream protect/strip.
-            if (
-                replacement
-                and p.match_start > 0
-                and prompt[p.match_start - 1] != "\n"
-                and _DISABLED_REGION_START_RE.match(replacement)
-            ):
-                replacement = "\n" + replacement
+            is_at_line_start = p.match_start == 0 or prompt[p.match_start - 1] == "\n"
+            replacement = ensure_disabled_region_at_line_start(
+                p.rendered_prompt_part, is_at_line_start
+            )
             prompt = prompt[: p.match_start] + replacement + prompt[p.match_end :]
 
         # Restore fenced code blocks now that matching and replacement are done.
