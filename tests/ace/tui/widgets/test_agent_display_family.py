@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -23,8 +24,15 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header
 from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
     cache_detail_header_summary,
 )
-from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailHeaderSummary
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
+    DetailHeaderSummary,
+    HeaderHintState,
+)
 from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
+from sase.ace.tui.widgets.prompt_panel._hint_caps import (
+    HINT_TRUNCATION_MESSAGE,
+    HintContentBudget,
+)
 from tests.ace.tui.widgets._agent_display_plan_helpers import plan_summary
 from tests.ace.tui.widgets._agent_display_helpers import FakePromptPanel, plain_of
 
@@ -624,4 +632,78 @@ def test_family_content_hints_follow_visibility_and_phase_workspace(
         str(root_workspace / "root/visible-reply.txt"),
         str(child_workspace / "child/hidden-reply.txt"),
         str(child_workspace / "child/visible-reply.txt"),
+    }
+
+
+def test_family_hint_render_caps_total_member_content(tmp_path: Path) -> None:
+    root, child = _family(tmp_path)
+    root_workspace = tmp_path / "root-workspace"
+    child_workspace = tmp_path / "child-workspace"
+    root_workspace.mkdir()
+    child_workspace.mkdir()
+    root.workspace_dir = str(root_workspace)
+    child.workspace_dir = str(child_workspace)
+    root_reply = Path(root.response_path or "")
+    child_reply = Path(child.response_path or "")
+    root_reply.write_text(
+        "root/head.py\n" + ("root filler\n" * 8_000) + "root/tail.py\n",
+        encoding="utf-8",
+    )
+    child_reply.write_text(
+        "child/head.py\n" + ("child filler\n" * 8_000) + "child/tail.py\n",
+        encoding="utf-8",
+    )
+    panel = FakePromptPanel()
+    panel.app = SimpleNamespace(
+        panel_fold_level=FoldLevel.FULLY_EXPANDED,
+        _panel_fold_overrides=SimpleNamespace(snapshot=lambda: {}),
+    )
+    cache_detail_header_summary(panel, root, DetailHeaderSummary())
+
+    result = panel.update_display_with_hints(root)
+    plain = plain_of(panel.captured[-1])
+
+    assert HINT_TRUNCATION_MESSAGE in plain
+    assert list(result.file_hints) == list(range(1, len(result.file_hints) + 1))
+    assert str(root_workspace / "root/head.py") in result.file_hints.values()
+    assert str(child_workspace / "child/tail.py") not in result.file_hints.values()
+
+
+def test_family_reply_resolves_workspace_once_for_all_chunks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _child = _family(tmp_path)
+    chunks = [
+        (
+            datetime(2026, 7, 18, 12, minute).isoformat(),
+            f"see src/chunk-{minute}.py",
+        )
+        for minute in range(3)
+    ]
+    monkeypatch.setattr(
+        Agent,
+        "get_timestamped_reply_chunks",
+        lambda _agent: chunks,
+    )
+    resolve_workspace = Mock(return_value="/workspace")
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_family_render."
+        "resolve_agent_workspace_dir",
+        resolve_workspace,
+    )
+    panel = FakePromptPanel()
+    hint_state = HeaderHintState(1, {}, None, {})
+
+    panel._family_reply_renderables_with_hints(
+        root,
+        hint_state,
+        budget=HintContentBudget(),
+    )
+
+    resolve_workspace.assert_called_once()
+    assert hint_state.hint_mappings == {
+        1: "/workspace/src/chunk-0.py",
+        2: "/workspace/src/chunk-1.py",
+        3: "/workspace/src/chunk-2.py",
     }

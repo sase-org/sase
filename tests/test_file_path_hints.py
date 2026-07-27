@@ -1,10 +1,19 @@
 """Tests for file path detection and hint rendering in agent displays."""
 
+from unittest.mock import Mock
+
 from rich.text import Text
 
+from sase.ace.tui.util.lazy_syntax import PLAIN_RENDER_MAX_LINES
 from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
     _FILE_PATH_RE,
     append_text_with_file_hints,
+    resolve_agent_workspace_dir,
+    resolve_file_path,
+)
+from sase.ace.tui.widgets.prompt_panel._hint_caps import (
+    HINT_TRUNCATION_MESSAGE,
+    append_bounded_text_with_file_hints,
 )
 
 
@@ -208,3 +217,92 @@ def test_append_relative_path_no_workspace() -> None:
     # Should be an absolute path (via os.path.abspath)
     assert mappings[1].startswith("/")
     assert mappings[1].endswith("src/main.py")
+
+
+def test_bounded_append_omits_tail_hints_without_renumbering_head() -> None:
+    """Only the retained prefix is scanned and its numbering stays stable."""
+    content = "\n".join(
+        [
+            "see src/head.py",
+            *(f"plain line {index}" for index in range(PLAIN_RENDER_MAX_LINES)),
+            "see src/tail.py",
+        ]
+    )
+    text = Text()
+    mappings: dict[int, str] = {}
+
+    counter = append_bounded_text_with_file_hints(
+        text,
+        content,
+        7,
+        mappings,
+        "/workspace",
+    )
+
+    assert counter == 8
+    assert mappings == {7: "/workspace/src/head.py"}
+    assert "[7] src/head.py" in text.plain
+    assert "src/tail.py" not in text.plain
+    assert HINT_TRUNCATION_MESSAGE in text.plain
+
+
+def test_bounded_append_drops_path_cut_by_byte_cap() -> None:
+    """A byte boundary cannot turn a path prefix into a different mapping."""
+    prefix = "x" * 127_990
+    content = f"{prefix} src/path-that-crosses-the-byte-limit.py"
+    text = Text()
+    mappings: dict[int, str] = {}
+
+    counter = append_bounded_text_with_file_hints(
+        text,
+        content,
+        1,
+        mappings,
+        "/workspace",
+    )
+
+    assert counter == 1
+    assert mappings == {}
+    assert HINT_TRUNCATION_MESSAGE in text.plain
+
+
+def test_workspace_resolution_is_memoized_by_inputs(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Repeated render fragments do not repeat project/workspace disk work."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    project_file = str(tmp_path / "project.sase")
+    detect = Mock(return_value="git")
+    parse = Mock(return_value=str(tmp_path))
+    get_workspace = Mock(return_value=str(workspace))
+    monkeypatch.setattr("sase.workspace_provider.detect_workflow_type", detect)
+    monkeypatch.setattr("sase.workspace_provider.utils.parse_workspace_dir", parse)
+    monkeypatch.setattr(
+        "sase.workspace_provider.get_workspace_directory",
+        get_workspace,
+    )
+    resolve_agent_workspace_dir.cache_clear()
+
+    first = resolve_agent_workspace_dir(21, project_file, None)
+    second = resolve_agent_workspace_dir(21, project_file, None)
+
+    assert first == second == str(workspace)
+    detect.assert_called_once_with(project_file)
+    parse.assert_called_once_with(project_file)
+    get_workspace.assert_called_once()
+
+
+def test_file_path_resolution_is_memoized_by_inputs(monkeypatch) -> None:
+    """Repeated matches of one path reuse the resolved absolute path."""
+    expanduser = Mock(side_effect=lambda path: path)
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._file_path_hints.os.path.expanduser",
+        expanduser,
+    )
+    resolve_file_path.cache_clear()
+
+    assert resolve_file_path("src/main.py", "/workspace") == ("/workspace/src/main.py")
+    assert resolve_file_path("src/main.py", "/workspace") == ("/workspace/src/main.py")
+    expanduser.assert_called_once_with("src/main.py")

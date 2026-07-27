@@ -37,6 +37,7 @@ from ._file_path_hints import (
     append_text_with_file_hints,
     resolve_agent_workspace_dir,
 )
+from ._hint_caps import HintContentBudget, bound_hint_content
 
 
 class AgentFamilyDisplayMixin:
@@ -82,6 +83,7 @@ class AgentFamilyDisplayMixin:
             else {}
         )
         renderables: list[Any] = [header_text]
+        hint_budget = HintContentBudget() if hint_state is not None else None
 
         error_level = effective_family_fold_level("error", level, overrides)
         if error_tb_syntax is not None and error_level != FoldLevel.COLLAPSED:
@@ -122,6 +124,7 @@ class AgentFamilyDisplayMixin:
                         xprompt,
                         hint_state,
                         workspace_dir=hint_state.workspace_dir,
+                        budget=hint_budget,
                         xprompt_agent=agent,
                         raw_xprompt=raw_xprompt,
                     )
@@ -159,6 +162,7 @@ class AgentFamilyDisplayMixin:
                             prompt,
                             hint_state,
                             workspace_dir=hint_state.workspace_dir,
+                            budget=hint_budget,
                         )
                     )
             else:
@@ -170,6 +174,7 @@ class AgentFamilyDisplayMixin:
                             self._humanize_display_text(prompt_content),
                             hint_state,
                             workspace_dir=hint_state.workspace_dir,
+                            budget=hint_budget,
                         )
                     )
             rendered_content_section = True
@@ -213,6 +218,7 @@ class AgentFamilyDisplayMixin:
                                 phase,
                                 reply_preview.plain,
                             ),
+                            budget=hint_budget,
                         )
                     )
         else:
@@ -233,6 +239,7 @@ class AgentFamilyDisplayMixin:
                         self._family_reply_renderables_with_hints(
                             phase,
                             hint_state,
+                            budget=hint_budget,
                         )
                     )
 
@@ -244,12 +251,14 @@ class AgentFamilyDisplayMixin:
         hint_state: HeaderHintState,
         *,
         workspace_dir: str | None,
+        budget: HintContentBudget | None,
         xprompt_agent: Agent | None = None,
         raw_xprompt: str | None = None,
     ) -> Text:
         """Return one visible family content fragment with numbered paths."""
         source = content if isinstance(content, Text) else Text(content)
-        source_text = source.plain
+        bounded = bound_hint_content(source.plain, budget=budget)
+        source_text = bounded.content
         counter = hint_state.hint_counter
         insertions = tuple(
             (
@@ -267,13 +276,18 @@ class AgentFamilyDisplayMixin:
             workspace_dir,
         )
         for span in source.spans:
+            if span.start >= len(source_text):
+                continue
+            span_end = min(span.end, len(source_text))
             start = span.start + sum(
                 width for position, width in insertions if position <= span.start
             )
-            end = span.end + sum(
-                width for position, width in insertions if position < span.end
+            end = span_end + sum(
+                width for position, width in insertions if position < span_end
             )
             text.stylize(span.style, start, end)
+        if bounded.notice is not None:
+            text.append_text(bounded.notice)
         if xprompt_agent is None or raw_xprompt is None:
             return text
 
@@ -309,24 +323,35 @@ class AgentFamilyDisplayMixin:
         self,
         agent: Agent,
         hint_state: HeaderHintState,
+        *,
+        budget: HintContentBudget | None,
     ) -> list[object]:
         """Render one fully-open family phase reply with phase-local hints."""
         renderables: list[object] = []
         chunks = agent.get_timestamped_reply_chunks()
         if chunks:
-            for timestamp, chunk_text in chunks:
+            visible_chunks = [
+                (
+                    timestamp,
+                    self._humanize_display_text(chunk_text.strip())
+                    if chunk_text.strip()
+                    else "",
+                )
+                for timestamp, chunk_text in chunks
+            ]
+            workspace_dir = self._family_member_hint_workspace(
+                agent,
+                "\n".join(content for _timestamp, content in visible_chunks),
+            )
+            for timestamp, content in visible_chunks:
                 renderables.append(render_timestamp_divider(timestamp))
-                content = chunk_text.strip()
                 if content:
-                    content = self._humanize_display_text(content)
                     renderables.append(
                         self._family_text_with_hints(
                             content,
                             hint_state,
-                            workspace_dir=self._family_member_hint_workspace(
-                                agent,
-                                content,
-                            ),
+                            workspace_dir=workspace_dir,
+                            budget=budget,
                         )
                     )
             return renderables
@@ -346,6 +371,7 @@ class AgentFamilyDisplayMixin:
                         agent,
                         reply_content,
                     ),
+                    budget=budget,
                 )
             )
         return renderables

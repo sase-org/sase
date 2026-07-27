@@ -29,10 +29,11 @@ from ._agent_display_state import AgentHintRender, HeaderHintState
 from ._agent_xprompt_highlighting import known_xprompt_skill_names
 from ._file_path_hints import (
     annotated_char_scope,
-    append_text_with_file_hints,
+    clear_file_hint_resolution_caches,
     resolve_agent_workspace_dir,
 )
 from ._helpers import append_section_heading, format_output
+from ._hint_caps import append_bounded_text_with_file_hints
 from ._member_roster import member_jump_map_publisher_for
 
 
@@ -52,7 +53,7 @@ def _render_reply_with_hints(
             content = chunk_text.strip()
             if content:
                 content = humanize_text(content)
-                hint_counter = append_text_with_file_hints(
+                hint_counter = append_bounded_text_with_file_hints(
                     target,
                     content + "\n",
                     hint_counter,
@@ -64,7 +65,7 @@ def _render_reply_with_hints(
     live_reply = agent.get_live_reply_content()
     if live_reply:
         live_reply = humanize_text(live_reply)
-        return append_text_with_file_hints(
+        return append_bounded_text_with_file_hints(
             target,
             live_reply + "\n",
             hint_counter,
@@ -74,7 +75,7 @@ def _render_reply_with_hints(
     response_content = agent.get_response_content()
     if response_content:
         response_content = humanize_text(response_content)
-        return append_text_with_file_hints(
+        return append_bounded_text_with_file_hints(
             target,
             response_content + "\n",
             hint_counter,
@@ -94,6 +95,7 @@ class AgentHintsDisplayMixin:
         cost: how much text was annotated, how many hints came out, and whether
         the render ran against a warm or cold detail-header summary.
         """
+        clear_file_hint_resolution_caches()
         with (
             tui_trace(
                 "widget.prompt_panel.update_display_with_hints",
@@ -234,7 +236,7 @@ class AgentHintsDisplayMixin:
 
         # Error traceback as text with hints (not Syntax)
         if agent.error_traceback:
-            hint_counter = append_text_with_file_hints(
+            hint_counter = append_bounded_text_with_file_hints(
                 header_text,
                 agent.error_traceback + "\n",
                 hint_counter,
@@ -249,7 +251,7 @@ class AgentHintsDisplayMixin:
             raw_xprompt = humanize_text(source_xprompt)
             append_section_heading(header_text, "AGENT XPROMPT")
             xprompt_start = len(header_text.plain)
-            hint_counter = append_text_with_file_hints(
+            hint_counter = append_bounded_text_with_file_hints(
                 header_text,
                 raw_xprompt + "\n",
                 hint_counter,
@@ -285,7 +287,7 @@ class AgentHintsDisplayMixin:
         prompt_content = get_prompt_content(agent)
         if prompt_content:
             prompt_content = humanize_text(prompt_content)
-            hint_counter = append_text_with_file_hints(
+            hint_counter = append_bounded_text_with_file_hints(
                 header_text,
                 prompt_content + "\n",
                 hint_counter,
@@ -357,7 +359,7 @@ class AgentHintsDisplayMixin:
                         content = chunk_text.strip()
                         if content:
                             content = humanize_text(content)
-                            hint_counter = append_text_with_file_hints(
+                            hint_counter = append_bounded_text_with_file_hints(
                                 header_text,
                                 content + "\n",
                                 hint_counter,
@@ -367,7 +369,7 @@ class AgentHintsDisplayMixin:
                             header_text.append("\n")
                 elif response_content:
                     response_content = humanize_text(response_content)
-                    hint_counter = append_text_with_file_hints(
+                    hint_counter = append_bounded_text_with_file_hints(
                         header_text,
                         response_content + "\n",
                         hint_counter,
@@ -391,7 +393,7 @@ class AgentHintsDisplayMixin:
                         content = chunk_text.strip()
                         if content:
                             content = humanize_text(content)
-                            hint_counter = append_text_with_file_hints(
+                            hint_counter = append_bounded_text_with_file_hints(
                                 header_text,
                                 content + "\n",
                                 hint_counter,
@@ -401,7 +403,7 @@ class AgentHintsDisplayMixin:
                             header_text.append("\n")
                 elif live_reply:
                     live_reply = humanize_text(live_reply)
-                    hint_counter = append_text_with_file_hints(
+                    hint_counter = append_bounded_text_with_file_hints(
                         header_text,
                         live_reply + "\n",
                         hint_counter,

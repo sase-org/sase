@@ -278,10 +278,11 @@ def _utf8_prefix(content: str, max_bytes: int) -> str:
     return encoded[:max_bytes].decode("utf-8", errors="ignore")
 
 
-def _truncate_plain_content(
+def truncate_plain_content(
     content: str,
     *,
     max_lines: int,
+    max_bytes: int = PLAIN_RENDER_MAX_BYTES,
 ) -> tuple[str, int, int, bool, bool]:
     """Return a bounded head prefix and details about what was elided."""
     total_lines = _line_count(content)
@@ -299,15 +300,15 @@ def _truncate_plain_content(
         line_end = len(content) if newline == -1 else newline + 1
         line = content[line_start:line_end]
         line_bytes = len(line.encode("utf-8", errors="replace"))
-        if rendered_bytes + line_bytes <= PLAIN_RENDER_MAX_BYTES:
+        if rendered_bytes + line_bytes <= max_bytes:
             rendered_lines.append(line)
             rendered_bytes += line_bytes
             line_start = line_end
             continue
 
         byte_truncated = True
-        if not rendered_lines:
-            rendered_lines.append(_utf8_prefix(line, PLAIN_RENDER_MAX_BYTES))
+        if not rendered_lines and max_bytes > 0:
+            rendered_lines.append(_utf8_prefix(line, max_bytes))
         break
 
     rendered_content = "".join(rendered_lines)
@@ -412,7 +413,7 @@ def lazy_renderable(
             remaining_bytes,
             line_truncated,
             byte_truncated,
-        ) = _truncate_plain_content(
+        ) = truncate_plain_content(
             visible,
             max_lines=effective_max_render_lines,
         )

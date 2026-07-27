@@ -4,6 +4,7 @@ import os
 import re
 from collections.abc import Generator
 from contextlib import contextmanager
+from functools import lru_cache
 from typing import Protocol
 
 from rich.style import StyleType
@@ -63,6 +64,7 @@ class _AppendableText(Protocol):
     ) -> object: ...
 
 
+@lru_cache(maxsize=256)
 def resolve_agent_workspace_dir(
     workspace_num: int | None,
     project_file: str,
@@ -115,6 +117,7 @@ def resolve_agent_workspace_dir(
     return explicit_dir
 
 
+@lru_cache(maxsize=4_096)
 def resolve_file_path(path: str, workspace_dir: str | None) -> str:
     """Resolve a file path to absolute.
 
@@ -127,6 +130,12 @@ def resolve_file_path(path: str, workspace_dir: str | None) -> str:
     if workspace_dir:
         return os.path.join(workspace_dir, expanded)
     return os.path.abspath(expanded)
+
+
+def clear_file_hint_resolution_caches() -> None:
+    """Start a fresh bounded memoization scope for one hint render."""
+    resolve_agent_workspace_dir.cache_clear()
+    resolve_file_path.cache_clear()
 
 
 def append_text_with_file_hints(
