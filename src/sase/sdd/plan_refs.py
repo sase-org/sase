@@ -21,7 +21,7 @@ PlanReferenceResolutionStatus = Literal[
 
 
 @dataclass(frozen=True)
-class ParsedPlanReference:
+class _ParsedPlanReference:
     """A typed logical plan reference or an accepted legacy path."""
 
     kind: str
@@ -87,36 +87,17 @@ def workspace_context_for_plan_resolution(
     )
 
 
-def parse_plan_reference(value: str) -> ParsedPlanReference:
+def parse_plan_reference(value: str) -> _ParsedPlanReference:
     """Parse *value* through the shared reference grammar."""
 
     binding = require_rust_binding("plan_reference_parse")
     raw = cast(dict[str, Any], binding(value))
-    return ParsedPlanReference(
+    return _ParsedPlanReference(
         kind=str(raw["kind"]),
         path=str(raw["path"]),
         legacy=bool(raw["legacy"]),
         rendered=str(raw["rendered"]),
     )
-
-
-def render_plan_reference(path: str, *, kind: str = "plans") -> str:
-    """Validate and render a typed logical plan reference."""
-
-    binding = require_rust_binding("plan_reference_render")
-    return str(binding(kind, path))
-
-
-def canonicalize_plan_reference(
-    plan_path: str | Path,
-    *,
-    workspace_dir: str | Path,
-    workspace_num: int,
-) -> str | None:
-    """Return a canonical reference when *plan_path* lies below a plan root."""
-
-    roots = resolve_plan_roots(workspace_dir, workspace_num)
-    return canonicalize_plan_reference_from_roots(plan_path, roots=roots)
 
 
 def canonicalize_plan_reference_from_roots(
@@ -242,14 +223,11 @@ def _normalized_unique_roots(roots: tuple[Path, ...]) -> tuple[Path, ...]:
 
 __all__ = [
     "PLAN_REFERENCE_RESOLUTION_WIRE_SCHEMA_VERSION",
-    "ParsedPlanReference",
     "PlanReferenceResolution",
     "PlanReferenceResolutionStatus",
-    "canonicalize_plan_reference",
     "canonicalize_plan_reference_from_roots",
     "parse_plan_reference",
     "plan_ref_for_store",
-    "render_plan_reference",
     "resolve_plan_reference",
     "resolve_plan_reference_from_roots",
     "resolve_plan_roots",

@@ -38,7 +38,7 @@ def test_resolve_plan_roots_is_store_first_and_deduplicated(
     assert plan_refs.resolve_plan_roots(tmp_path / "workspace", 7) == (store_root,)
 
 
-def test_parse_and_render_use_rust_bindings(
+def test_parse_uses_rust_binding(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[str, tuple[Any, ...]]] = []
@@ -46,41 +46,34 @@ def test_parse_and_render_use_rust_bindings(
     def require(name: str) -> Any:
         def binding(*args: Any) -> Any:
             calls.append((name, args))
-            if name == "plan_reference_parse":
-                return {
-                    "kind": "plans",
-                    "path": "202607/plan.md",
-                    "legacy": False,
-                    "rendered": "plans:202607/plan.md",
-                }
-            return "plans:202607/plan.md"
+            return {
+                "kind": "plans",
+                "path": "202607/plan.md",
+                "legacy": False,
+                "rendered": "plans:202607/plan.md",
+            }
 
         return binding
 
     monkeypatch.setattr(plan_refs, "require_rust_binding", require)
 
     assert plan_refs.parse_plan_reference("plans:202607/plan.md") == (
-        plan_refs.ParsedPlanReference(
+        plan_refs._ParsedPlanReference(
             kind="plans",
             path="202607/plan.md",
             legacy=False,
             rendered="plans:202607/plan.md",
         )
     )
-    assert plan_refs.render_plan_reference("202607/plan.md") == "plans:202607/plan.md"
     assert calls == [
         (
             "plan_reference_parse",
             ("plans:202607/plan.md",),
         ),
-        (
-            "plan_reference_render",
-            ("plans", "202607/plan.md"),
-        ),
     ]
 
 
-def test_canonicalize_and_resolve_use_discovered_roots(
+def test_resolve_uses_discovered_roots(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -93,8 +86,6 @@ def test_canonicalize_and_resolve_use_discovered_roots(
             calls.append((name, args))
             if name == "plan_reference_resolution_wire_schema_version":
                 return 1
-            if name == "plan_reference_canonicalize":
-                return "plans:202607/plan.md"
             return {
                 "schema_version": 1,
                 "status": "missing",
@@ -108,16 +99,7 @@ def test_canonicalize_and_resolve_use_discovered_roots(
         return binding
 
     monkeypatch.setattr(plan_refs, "require_rust_binding", require)
-    plan_path = roots[0] / "202607/plan.md"
 
-    assert (
-        plan_refs.canonicalize_plan_reference(
-            plan_path,
-            workspace_dir=tmp_path,
-            workspace_num=4,
-        )
-        == "plans:202607/plan.md"
-    )
     resolution = plan_refs.resolve_plan_reference(
         "plans:202607/plan.md",
         workspace_dir=tmp_path,
@@ -127,10 +109,6 @@ def test_canonicalize_and_resolve_use_discovered_roots(
     assert resolution.resolved_path is None
     assert resolution.best_path == roots[0] / "202607/plan.md"
     assert calls == [
-        (
-            "plan_reference_canonicalize",
-            (str(plan_path), [str(root) for root in roots]),
-        ),
         (
             "plan_reference_resolution_wire_schema_version",
             (),

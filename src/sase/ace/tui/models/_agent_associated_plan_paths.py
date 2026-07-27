@@ -31,13 +31,13 @@ def association_key(
 
 
 def resolve_plan_reference(reference: str, agent: Agent) -> Path:
-    resolution = resolve_plan_reference_resolution(reference, agent)
+    resolution = _resolve_plan_reference_resolution(reference, agent)
     if resolution.best_path is not None:
         return resolution.best_path
     return Path(reference).expanduser().resolve(strict=False)
 
 
-def resolve_plan_reference_resolution(
+def _resolve_plan_reference_resolution(
     reference: str,
     agent: Agent,
 ) -> PlanReferenceResolution:

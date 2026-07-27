@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 from sase.ace.tui.models._agent_associated_plan_paths import (
+    _resolve_plan_reference_resolution as resolve_agent_plan_reference_resolution,
     resolve_plan_reference as resolve_agent_plan_reference,
-    resolve_plan_reference_resolution as resolve_agent_plan_reference_resolution,
 )
 from sase.bead.cli_work_plan_snapshot import epic_plan_source_path
 from sase.bead.project import BeadProject
