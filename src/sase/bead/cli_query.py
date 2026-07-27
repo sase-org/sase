@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
-import io
 import json
 import os
 from pathlib import Path
@@ -44,22 +42,50 @@ def handle_bead_list(args: argparse.Namespace) -> None:
             issues = view.list_issues(
                 statuses=[Status.CLOSED], issue_types=issue_types, tiers=tiers
             )
+            statuses = [Status.CLOSED]
             implicit_closed = bool(issues)
-        if not issues:
-            print("No issues found.")
-            return
-        if implicit_closed:
-            print("No open beads to show — defaulting to --status closed.")
+        total = len(issues)
         closed_in_scope = implicit_closed or Status.CLOSED in statuses
         limit = getattr(args, "limit", None)
         if limit is None and closed_in_scope:
             limit = DEFAULT_CLOSED_LIST_LIMIT
         if limit:
             issues = issues[-limit:]
-        for issue in issues:
-            icon = status_icon(issue.status)
-            parent = f" ← {issue.parent_id}" if issue.parent_id else ""
-            print(f"{icon} {issue.id} · {issue.title}{parent}")
+
+        match args.format:
+            case "compact":
+                if not issues:
+                    print("No issues found.")
+                    return
+                if implicit_closed:
+                    print("No open beads to show — defaulting to --status closed.")
+                print(_render_list_compact(issues), end="")
+            case "json":
+                print(
+                    _render_list_json(
+                        issues,
+                        total=total,
+                        statuses=statuses,
+                        implied_status_closed=implicit_closed,
+                    ),
+                    end="",
+                )
+            case "full":
+                if not issues:
+                    print("No issues found.")
+                    return
+                if implicit_closed:
+                    print("No open beads to show — defaulting to --status closed.")
+                print(
+                    _render_list_full(
+                        view,
+                        issues,
+                        relativize_design=_design_paths_are_relative(),
+                    ),
+                    end="",
+                )
+            case _:
+                raise AssertionError(f"unknown list format: {args.format}")
 
 
 def handle_bead_show(args: argparse.Namespace) -> None:
@@ -70,121 +96,160 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
 
-        icon = status_icon(issue.status)
-        print(f"{icon} {issue.id} · {issue.title}   [{issue.status.value.upper()}]")
-        tier = f" · Tier: {issue.tier.value}" if issue.tier else ""
         print(
-            f"Type: {issue.issue_type.value}{tier} · Owner: {issue.owner or '(none)'}"
+            _render_issue_detail(
+                view,
+                issue,
+                relativize_design=_design_paths_are_relative(),
+            ),
+            end="",
         )
-        if issue.assignee:
-            print(f"Assignee: {issue.assignee}")
-        if issue.status == Status.CLAIMED:
-            print(f"Claimed by: {issue.assignee} (agent has not started working yet)")
-        if issue.model:
-            print(f"Model: {issue.model}")
-        if issue.issue_type == IssueType.PHASE:
-            print(f"Size: {_phase_size_value(issue)}")
-        ancestors: list[Issue] = []
-        unresolved_parent_id: str | None = None
-        if issue.parent_id:
-            ancestors, unresolved_parent_id = _parent_lineage(view, issue)
-            lineage = [issue.id]
-            lineage.extend(
-                f"{_lineage_kind(parent)} {parent.id}" for parent in ancestors
-            )
-            if unresolved_parent_id is not None:
-                lineage.append(f"{unresolved_parent_id} (not found)")
-            print(f"\nPARENT\n  ↑ {' ← '.join(lineage)}")
-        children = view.get_epic_children(issue.id)
-        if children:
-            print("\nCHILDREN")
-            phases = [
-                child for child in children if child.issue_type == IssueType.PHASE
+
+
+def _render_issue_detail(
+    view: BeadProject,
+    issue: Issue,
+    *,
+    relativize_design: bool,
+) -> str:
+    lines = [
+        (
+            f"{status_icon(issue.status)} {issue.id} · {issue.title}"
+            f"   [{issue.status.value.upper()}]"
+        )
+    ]
+    tier = f" · Tier: {issue.tier.value}" if issue.tier else ""
+    lines.append(
+        f"Type: {issue.issue_type.value}{tier} · Owner: {issue.owner or '(none)'}"
+    )
+    if issue.assignee:
+        lines.append(f"Assignee: {issue.assignee}")
+    if issue.status == Status.CLAIMED:
+        lines.append(
+            f"Claimed by: {issue.assignee} (agent has not started working yet)"
+        )
+    if issue.model:
+        lines.append(f"Model: {issue.model}")
+    if issue.issue_type == IssueType.PHASE:
+        lines.append(f"Size: {_phase_size_value(issue)}")
+
+    ancestors: list[Issue] = []
+    unresolved_parent_id: str | None = None
+    if issue.parent_id:
+        ancestors, unresolved_parent_id = _parent_lineage(view, issue)
+        lineage = [issue.id]
+        lineage.extend(f"{_lineage_kind(parent)} {parent.id}" for parent in ancestors)
+        if unresolved_parent_id is not None:
+            lineage.append(f"{unresolved_parent_id} (not found)")
+        lines.extend(["", "PARENT", f"  ↑ {' ← '.join(lineage)}"])
+
+    children = view.get_epic_children(issue.id)
+    if children:
+        lines.extend(["", "CHILDREN"])
+        phases = [child for child in children if child.issue_type == IssueType.PHASE]
+        child_epics = [
+            child for child in children if child.issue_type == IssueType.PLAN
+        ]
+        if phases:
+            lines.append("  PHASES")
+            for child in phases:
+                lines.append(
+                    f"    {status_icon(child.status)} {child.id}: {child.title}"
+                    f"   [{child.status.value.upper()}]"
+                    f" · Size: {_phase_size_value(child)}"
+                )
+        if child_epics:
+            lines.append("  CHILD EPICS")
+            for child in child_epics:
+                child_tier = child.tier.value if child.tier else "(none)"
+                lines.append(
+                    f"    {status_icon(child.status)} {child.id}: {child.title}"
+                    f"   [{child.status.value.upper()}] · Tier: {child_tier}"
+                )
+
+    deps_on = list(issue.dependencies)
+    if deps_on:
+        lines.extend(["", "DEPENDS ON"])
+        for dependency in deps_on:
+            try:
+                dep_issue = view.show(dependency.depends_on_id)
+                lines.append(
+                    f"  → {status_icon(dep_issue.status)} {dep_issue.id}:"
+                    f" {dep_issue.title}   [{dep_issue.status.value.upper()}]"
+                )
+            except KeyError:
+                lines.append(f"  → {dependency.depends_on_id} (not found)")
+
+    blocks: list[str] = []
+    for other in view.list_issues():
+        for dependency in other.dependencies:
+            if dependency.depends_on_id == issue.id:
+                blocks.append(other.id)
+    if blocks:
+        lines.extend(["", "BLOCKS"])
+        for blocked_id in blocks:
+            try:
+                blocked = view.show(blocked_id)
+                lines.append(
+                    f"  ← {status_icon(blocked.status)} {blocked.id}:"
+                    f" {blocked.title}   [{blocked.status.value.upper()}]"
+                )
+            except KeyError:
+                lines.append(f"  ← {blocked_id} (not found)")
+
+    if issue.description:
+        lines.extend(["", "DESCRIPTION", f"  {issue.description}"])
+    if issue.notes:
+        lines.extend(["", "NOTES", f"  {issue.notes}"])
+    if issue.issue_type == IssueType.PLAN and (
+        issue.changespec_name or issue.changespec_bug_id
+    ):
+        lines.extend(["", "CHANGESPEC"])
+        if issue.changespec_name:
+            lines.append(f"  Name: {issue.changespec_name}")
+        if issue.changespec_bug_id:
+            lines.append(f"  Bug ID: {issue.changespec_bug_id}")
+
+    if issue.design:
+        section = (
+            "EPIC PLAN" if issue.parent_id and issue.tier == BeadTier.EPIC else "PLAN"
+        )
+        lines.extend(
+            [
+                "",
+                section,
+                f"  {_display_design_path(issue.design, relativize=relativize_design)}",
             ]
-            child_epics = [
-                child for child in children if child.issue_type == IssueType.PLAN
+        )
+    elif (
+        issue.issue_type == IssueType.PHASE
+        and ancestors
+        and ancestors[0].issue_type == IssueType.PLAN
+        and ancestors[0].design
+    ):
+        resolved_parent = ancestors[0]
+        is_epic_parent = resolved_parent.tier == BeadTier.EPIC
+        section = "EPIC PLAN" if is_epic_parent else "PARENT PLAN"
+        parent_kind = "epic" if is_epic_parent else "plan"
+        lines.extend(
+            [
+                "",
+                section,
+                (
+                    f"  From parent {parent_kind} bead "
+                    f"{resolved_parent.id} · {resolved_parent.title}"
+                ),
+                (
+                    "  "
+                    + _display_design_path(
+                        resolved_parent.design,
+                        relativize=relativize_design,
+                    )
+                ),
             ]
-            if phases:
-                print("  PHASES")
-                for child in phases:
-                    ci = status_icon(child.status)
-                    print(
-                        f"    {ci} {child.id}: {child.title}"
-                        f"   [{child.status.value.upper()}]"
-                        f" · Size: {_phase_size_value(child)}"
-                    )
-            if child_epics:
-                print("  CHILD EPICS")
-                for child in child_epics:
-                    ci = status_icon(child.status)
-                    tier = child.tier.value if child.tier else "(none)"
-                    print(
-                        f"    {ci} {child.id}: {child.title}"
-                        f"   [{child.status.value.upper()}] · Tier: {tier}"
-                    )
-        deps_on = list(issue.dependencies)
-        if deps_on:
-            print("\nDEPENDS ON")
-            for d in deps_on:
-                try:
-                    dep_issue = view.show(d.depends_on_id)
-                    di = status_icon(dep_issue.status)
-                    print(
-                        f"  → {di} {dep_issue.id}: {dep_issue.title}"
-                        f"   [{dep_issue.status.value.upper()}]"
-                    )
-                except KeyError:
-                    print(f"  → {d.depends_on_id} (not found)")
-        all_issues = view.list_issues()
-        blocks: list[str] = []
-        for other in all_issues:
-            for d in other.dependencies:
-                if d.depends_on_id == issue.id:
-                    blocks.append(other.id)
-        if blocks:
-            print("\nBLOCKS")
-            for bid in blocks:
-                try:
-                    b = view.show(bid)
-                    bi = status_icon(b.status)
-                    print(f"  ← {bi} {b.id}: {b.title}   [{b.status.value.upper()}]")
-                except KeyError:
-                    print(f"  ← {bid} (not found)")
-        if issue.description:
-            print(f"\nDESCRIPTION\n  {issue.description}")
-        if issue.notes:
-            print(f"\nNOTES\n  {issue.notes}")
-        if issue.issue_type == IssueType.PLAN and (
-            issue.changespec_name or issue.changespec_bug_id
-        ):
-            print("\nCHANGESPEC")
-            if issue.changespec_name:
-                print(f"  Name: {issue.changespec_name}")
-            if issue.changespec_bug_id:
-                print(f"  Bug ID: {issue.changespec_bug_id}")
-        if issue.design:
-            section = (
-                "EPIC PLAN"
-                if issue.parent_id and issue.tier == BeadTier.EPIC
-                else "PLAN"
-            )
-            print(f"\n{section}\n  {_display_design_path(issue.design)}")
-        elif (
-            issue.issue_type == IssueType.PHASE
-            and ancestors
-            and ancestors[0].issue_type == IssueType.PLAN
-            and ancestors[0].design
-        ):
-            resolved_parent = ancestors[0]
-            is_epic_parent = resolved_parent.tier == BeadTier.EPIC
-            section = "EPIC PLAN" if is_epic_parent else "PARENT PLAN"
-            parent_kind = "epic" if is_epic_parent else "plan"
-            print(
-                f"\n{section}\n"
-                f"  From parent {parent_kind} bead "
-                f"{resolved_parent.id} · {resolved_parent.title}\n"
-                f"  {_display_design_path(resolved_parent.design)}"
-            )
+        )
+
+    return "\n".join(lines) + "\n"
 
 
 def _parent_lineage(
@@ -217,10 +282,14 @@ def _phase_size_value(issue: Issue) -> str:
     return issue.size.value if issue.size else "small"
 
 
-def _display_design_path(design: str) -> str:
+def _design_paths_are_relative() -> bool:
     from sase.sdd.store import resolve_sdd_store
 
-    if resolve_sdd_store(Path.cwd(), 1).is_in_tree:
+    return resolve_sdd_store(Path.cwd(), 1).is_in_tree
+
+
+def _display_design_path(design: str, *, relativize: bool) -> str:
+    if relativize:
         return os.path.relpath(design)
     return design
 
@@ -242,15 +311,23 @@ def handle_bead_search(args: argparse.Namespace) -> None:
             limit=args.limit,
         )
 
-    match args.format:
-        case "compact":
-            print(_render_search_compact(matches, args.query), end="")
-        case "json":
-            print(_render_search_json(matches, args.query), end="")
-        case "full":
-            print(_render_search_full(matches, args.query), end="")
-        case _:
-            raise AssertionError(f"unknown search format: {args.format}")
+        match args.format:
+            case "compact":
+                print(_render_search_compact(matches, args.query), end="")
+            case "json":
+                print(_render_search_json(matches, args.query), end="")
+            case "full":
+                print(
+                    _render_search_full(
+                        view,
+                        matches,
+                        args.query,
+                        relativize_design=_design_paths_are_relative(),
+                    ),
+                    end="",
+                )
+            case _:
+                raise AssertionError(f"unknown search format: {args.format}")
 
 
 def handle_bead_ready(args: argparse.Namespace) -> None:
@@ -289,6 +366,48 @@ def handle_bead_stats(args: argparse.Namespace) -> None:
         print(f"  Closed:      {s.get('closed', 0)}")
         print(f"  Plans:       {s.get('plan', 0)}")
         print(f"  Phases:      {s.get('phase', 0)}")
+
+
+def _render_list_compact(issues: list[Issue]) -> str:
+    lines = []
+    for issue in issues:
+        parent = f" ← {issue.parent_id}" if issue.parent_id else ""
+        lines.append(f"{status_icon(issue.status)} {issue.id} · {issue.title}{parent}")
+    return "\n".join(lines) + "\n"
+
+
+def _render_list_full(
+    view: BeadProject,
+    issues: list[Issue],
+    *,
+    relativize_design: bool,
+) -> str:
+    sections = [
+        _render_issue_detail(
+            view,
+            issue,
+            relativize_design=relativize_design,
+        ).rstrip("\n")
+        for issue in issues
+    ]
+    return f"\n{'-' * 60}\n".join(sections) + "\n"
+
+
+def _render_list_json(
+    issues: list[Issue],
+    *,
+    total: int,
+    statuses: list[Status],
+    implied_status_closed: bool,
+) -> str:
+    envelope = {
+        "count": len(issues),
+        "total": total,
+        "statuses": [status.value for status in statuses],
+        "implied_status_closed": implied_status_closed,
+        "results": [_issue_to_wire_dict(issue) for issue in issues],
+    }
+    return json.dumps(envelope, indent=2) + "\n"
 
 
 def _render_search_compact(matches: list[BeadSearchMatch], query: str) -> str:
@@ -383,16 +502,24 @@ def _render_search_json(matches: list[BeadSearchMatch], query: str) -> str:
     return json.dumps(envelope, indent=2) + "\n"
 
 
-def _render_search_full(matches: list[BeadSearchMatch], query: str) -> str:
+def _render_search_full(
+    view: BeadProject,
+    matches: list[BeadSearchMatch],
+    query: str,
+    *,
+    relativize_design: bool,
+) -> str:
     if not matches:
         return f'No beads match "{query}".\n'
 
-    sections: list[str] = []
-    for match in matches:
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            handle_bead_show(argparse.Namespace(id=match.issue.id))
-        sections.append(output.getvalue().rstrip("\n"))
+    sections = [
+        _render_issue_detail(
+            view,
+            match.issue,
+            relativize_design=relativize_design,
+        ).rstrip("\n")
+        for match in matches
+    ]
     return f"\n{'-' * 60}\n".join(sections) + "\n"
 
 

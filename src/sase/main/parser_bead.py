@@ -86,7 +86,32 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_subparsers.add_parser("init", help="Create the effective SDD bead store")
 
     # sase bead list
-    bead_list_parser = bead_subparsers.add_parser("list", help="List issues")
+    bead_list_parser = bead_subparsers.add_parser(
+        "list",
+        help="List issues",
+        description=(
+            "List open, claimed, and in-progress beads by default. If none "
+            "match and --status was not provided, list closed beads instead. "
+            "Closed listings default to the newest 20 beads unless --limit 0 "
+            "is used. Bare 'sase bead' defaults to this command."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead list\n"
+            "  sase bead list --status open --type phase\n"
+            "  sase bead list --format json\n"
+            "  sase bead list --format full --limit 3\n"
+            "  sase bead list --status closed --limit 0"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    bead_list_parser.add_argument(
+        "-f",
+        "--format",
+        choices=["compact", "json", "full"],
+        default="compact",
+        help="Output format: compact, json, or full (default: compact)",
+    )
     bead_list_parser.add_argument(
         "-n",
         "--limit",

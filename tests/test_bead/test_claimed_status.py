@@ -72,7 +72,13 @@ def test_default_list_includes_claimed_with_shared_glyph(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     cli_query.handle_bead_list(
-        argparse.Namespace(status=None, type=None, tier=None, limit=None)
+        argparse.Namespace(
+            status=None,
+            type=None,
+            tier=None,
+            limit=None,
+            format="compact",
+        )
     )
 
     assert claimed_view.list_statuses == [

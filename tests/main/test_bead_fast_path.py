@@ -330,6 +330,7 @@ def test_fast_path_defers_list_to_argparse(monkeypatch) -> None:
 
     assert try_handle_bead_fast_path(["list"]) is None
     assert try_handle_bead_fast_path(["list", "--status", "closed"]) is None
+    assert try_handle_bead_fast_path(["list", "--format", "json"]) is None
 
 
 def test_fast_path_defers_show_to_argparse(monkeypatch) -> None:

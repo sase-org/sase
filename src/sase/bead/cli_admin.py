@@ -58,6 +58,7 @@ Quick Start:
   sase bead create -t "New feature" --type plan(sdd/plans/202605/feature.md) --tier plan
   sase bead create -t "Epic" --type plan(sdd/plans/202605/epic.md) --tier epic
   sase bead list                                 List open/claimed/in-progress issues
+  sase bead list --format=json                   Machine-readable listing
   sase bead list --limit=5                       Limit printed issues
   sase bead list --status=open                   List open issues
   sase bead list --status=closed                 List newest 20 closed issues (-n 0 for all)

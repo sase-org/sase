@@ -181,6 +181,24 @@ def _run_cli(
             stdout=_read_expected("list.stdout"),
         ),
         CliCase(
+            "list_full",
+            ["bead", "list", "--format", "full"],
+            "current",
+            stdout=_read_expected("list_full.stdout"),
+        ),
+        CliCase(
+            "list_json",
+            ["bead", "list", "--format", "json"],
+            "current",
+            stdout=_read_expected("list_json.stdout"),
+        ),
+        CliCase(
+            "list_json_limit",
+            ["bead", "list", "--status", "closed", "--format", "json"],
+            "closed_many",
+            stdout=_read_expected("list_json_limit.stdout"),
+        ),
+        CliCase(
             "list_limit",
             ["bead", "list", "--limit", "2"],
             "current",
@@ -197,6 +215,18 @@ def _run_cli(
             ["bead", "list"],
             "closed_only",
             stdout=_read_expected("list_implicit_closed.stdout"),
+        ),
+        CliCase(
+            "list_implicit_closed_full",
+            ["bead", "list", "--format", "full"],
+            "closed_only",
+            stdout=_read_expected("list_implicit_closed_full.stdout"),
+        ),
+        CliCase(
+            "list_implicit_closed_json",
+            ["bead", "list", "--format", "json"],
+            "closed_only",
+            stdout=_read_expected("list_implicit_closed_json.stdout"),
         ),
         CliCase(
             "list_implicit_closed_limit",
@@ -245,6 +275,12 @@ def _run_cli(
             ["bead", "list"],
             "initialized",
             stdout=_read_expected("list_empty.stdout"),
+        ),
+        CliCase(
+            "list_empty_json",
+            ["bead", "list", "--format", "json"],
+            "initialized",
+            stdout=_read_expected("list_empty_json.stdout"),
         ),
         CliCase(
             "show",
