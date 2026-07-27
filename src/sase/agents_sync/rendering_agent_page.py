@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from sase.agents_sync.rendering_kinship import (
+    HoodKinshipProjection,
+    render_neighbors_section,
+)
 from sase.agents_sync.rendering_markdown import (
     md_code,
     md_escape,
@@ -20,6 +24,7 @@ def render_agent_page(
     run: V2RunRecord,
     *,
     family: V2ContainerRecord | None,
+    kinship: HoodKinshipProjection,
 ) -> str:
     """Render one agent run page."""
 
@@ -54,6 +59,13 @@ def render_agent_page(
     ]
     if links:
         lines.extend(["## Files", "", " · ".join(links), ""])
+    lines.extend(
+        render_neighbors_section(
+            kinship,
+            lane_name=kinship.lane_for_source(run.source_run_id),
+            source_path=source_path,
+        )
+    )
     return "\n".join(lines)
 
 

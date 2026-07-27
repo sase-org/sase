@@ -19,3 +19,14 @@ The diagram is an optional enhancement; the ordered table below contains the sam
 |---|---|---|---|---|---:|---|---|
 | <a id="member-code"></a>code | foo.bar.baz--code | active | gpt | 2026-07-23T12:00:00+00:00 | 1 | [Prompt](../agents/alice.athena.foo.bar.baz--code/prompt.md) | — |
 | <a id="member-plan"></a>plan | foo.bar.baz--plan | completed | gpt | 2026-07-23T12:00:00+00:00 → 2026-07-23T12:01:00+00:00 | 0 | [Prompt](../agents/alice.athena.foo.bar.baz--plan/prompt.md) | [Chat](../agents/alice.athena.foo.bar.baz--plan/chat.md) |
+
+## Neighbors
+
+| Agent | Relation | State |
+|---|---|---|
+| [foo.bar](../agents/alice.athena.foo.bar/README.md) | ancestor | completed |
+| [foo](../agents/alice.athena.foo/README.md) | ancestor | completed |
+| [foo.bar.kazam](../agents/alice.athena.foo.bar.kazam/README.md) | foo.bar hood | failed |
+| [foo.archive](../agents/alice.athena.foo.archive/README.md) | foo hood | dismissed |
+| [foo.boom](../agents/alice.athena.foo.boom/README.md) | foo hood | waiting |
+| [foo.rootless](alice.athena.foo.rootless.md) (family · 2) | foo hood | completed 2 |

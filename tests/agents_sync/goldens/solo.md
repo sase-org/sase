@@ -16,3 +16,14 @@
 ## Files
 
 [Chat](chat.md) · [Prompt](prompt.md)
+
+## Neighbors
+
+| Agent | Relation | State |
+|---|---|---|
+| [foo.archive](../alice.athena.foo.archive/README.md) | descendant | dismissed |
+| [foo.bar](../alice.athena.foo.bar/README.md) | descendant | completed |
+| [foo.bar.baz](../../families/alice.athena.foo.bar.baz.md) (family · 2) | descendant | active 1, completed 1 |
+| [foo.bar.kazam](../alice.athena.foo.bar.kazam/README.md) | descendant | failed |
+| [foo.boom](../alice.athena.foo.boom/README.md) | descendant | waiting |
+| [foo.rootless](../../families/alice.athena.foo.rootless.md) (family · 2) | descendant | completed 2 |

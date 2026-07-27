@@ -12,6 +12,7 @@ from sase.agents_sync.rendering_index_pages import (
     render_root_page,
     render_user_page,
 )
+from sase.agents_sync.rendering_kinship import build_hood_kinship
 from sase.agents_sync.rendering_markdown import page_bytes
 from sase.agents_sync.v2_models import (
     V2ContainerRecord,
@@ -63,6 +64,7 @@ def render_browsing_payload(
 def _render_run_pages(snapshot: V2HoodSnapshot) -> dict[str, bytes]:
     payload: dict[str, bytes] = {}
     by_id = {run.source_run_id: run for run in snapshot.runs}
+    kinship = build_hood_kinship(snapshot)
     families_by_member: dict[str, V2ContainerRecord] = {}
     for container in snapshot.containers:
         if container.kind != "family":
@@ -70,7 +72,7 @@ def _render_run_pages(snapshot: V2HoodSnapshot) -> dict[str, bytes]:
         for source_id in container.member_source_run_ids:
             families_by_member[source_id] = container
         payload[f"families/{container.global_name}.md"] = page_bytes(
-            render_family_page(snapshot, container, by_id)
+            render_family_page(snapshot, container, by_id, kinship=kinship)
         )
     for run in snapshot.runs:
         payload[f"agents/{run.global_name}/README.md"] = page_bytes(
@@ -78,6 +80,7 @@ def _render_run_pages(snapshot: V2HoodSnapshot) -> dict[str, bytes]:
                 snapshot,
                 run,
                 family=families_by_member.get(run.source_run_id),
+                kinship=kinship,
             )
         )
     return payload

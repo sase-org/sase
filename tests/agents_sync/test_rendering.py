@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import posixpath
+import re
+
 from sase.agents_sync.rendering import render_browsing_payload
 from sase.agents_sync.v2_models import (
     V2ContainerRecord,
@@ -112,3 +115,66 @@ def test_agent_and_family_pages_render_relative_breadcrumbs() -> None:
         "[foo](../users/alice/machines/athena/hoods/foo/README.md) / foo.bar"
         in family_page
     )
+
+
+def test_agent_and_family_neighbor_links_resolve_inside_payload() -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    project = V2ProjectIdentity("proj", "Project")
+    family_run = V2RunRecord(
+        "run-family",
+        "foo.bar--code",
+        "alice.athena.foo.bar--code",
+        "completed",
+    )
+    sibling_run = V2RunRecord(
+        "run-sibling",
+        "foo.sibling",
+        "alice.athena.foo.sibling",
+        "failed",
+    )
+    family = V2ContainerRecord(
+        "family",
+        "alice.athena.foo.bar",
+        ("run-family",),
+    )
+    snapshot = V2HoodSnapshot(
+        owner,
+        project,
+        "foo",
+        "alice.athena.foo",
+        runs=(family_run, sibling_run),
+        containers=(family,),
+    )
+    manifest = V2OwnerManifest(
+        owner,
+        project,
+        (("foo", V2OwnerHoodEntry("a" * 64, (), 2, 1)),),
+    )
+
+    payload = render_browsing_payload(
+        (manifest,),
+        {("alice", "athena", "foo"): snapshot},
+    )
+    family_agent_path = "agents/alice.athena.foo.bar--code/README.md"
+    family_path = "families/alice.athena.foo.bar.md"
+    sibling_path = "agents/alice.athena.foo.sibling/README.md"
+
+    family_agent_page = payload[family_agent_path].decode()
+    family_page = payload[family_path].decode()
+    sibling_page = payload[sibling_path].decode()
+    assert "## Neighbors" in family_agent_page
+    assert "## Neighbors" in family_page
+    assert "[foo.sibling](../alice.athena.foo.sibling/README.md)" in family_agent_page
+    assert "[foo.sibling](../agents/alice.athena.foo.sibling/README.md)" in family_page
+    assert (
+        "[foo.bar](../../families/alice.athena.foo.bar.md) (family · 1)" in sibling_page
+    )
+
+    for source_path in (family_agent_path, family_path, sibling_path):
+        page = payload[source_path].decode()
+        section = page.partition("## Neighbors")[2]
+        for target in re.findall(r"\[[^]]+\]\(([^)]+)\)", section):
+            resolved = posixpath.normpath(
+                posixpath.join(posixpath.dirname(source_path), target)
+            )
+            assert resolved in payload

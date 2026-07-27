@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from sase.agents_sync.rendering_kinship import (
+    HoodKinshipProjection,
+    render_neighbors_section,
+)
 from sase.agents_sync.rendering_markdown import (
     md_cell,
     md_code,
@@ -27,6 +31,8 @@ def render_family_page(
     snapshot: V2HoodSnapshot,
     family: V2ContainerRecord,
     by_id: dict[str, V2RunRecord],
+    *,
+    kinship: HoodKinshipProjection,
 ) -> str:
     """Render one family container and its member lineage."""
 
@@ -90,6 +96,13 @@ def render_family_page(
             f"| {prompt} | {chat} |"
         )
     lines.append("")
+    lines.extend(
+        render_neighbors_section(
+            kinship,
+            lane_name=local_family,
+            source_path=source_path,
+        )
+    )
     return "\n".join(lines)
 
 
