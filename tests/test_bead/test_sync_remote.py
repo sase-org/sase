@@ -408,7 +408,7 @@ def test_push_bead_work_launch_pushes_to_remote(tmp_path):
     assert local_head == remote_head
 
 
-def test_push_bead_work_launch_rebases_and_retries_rejected_push(tmp_path):
+def test_push_bead_work_launch_rebases_and_retries_rejected_push(tmp_path, monkeypatch):
     bare = tmp_path / "remote.git"
     subprocess.run(
         ["git", "init", "--bare", "-b", "main", str(bare)],
@@ -454,7 +454,6 @@ def test_push_bead_work_launch_rebases_and_retries_rejected_push(tmp_path):
         capture_output=True,
         check=True,
     )
-    subprocess.run(["git", "push"], cwd=other, capture_output=True, check=True)
 
     beads_dir = repo / "sdd/beads"
     beads_dir.mkdir(parents=True)
@@ -471,12 +470,38 @@ def test_push_bead_work_launch_rebases_and_retries_rejected_push(tmp_path):
         capture_output=True,
         check=True,
     )
+    from sase.sdd._repository_health import default_git_runner
+
+    raced = False
+
+    def push_remote_just_before_local_push(repo_root, args, *, op, network=False):
+        nonlocal raced
+        if args == ["push"] and not raced:
+            raced = True
+            subprocess.run(
+                ["git", "push"],
+                cwd=other,
+                capture_output=True,
+                check=True,
+            )
+        return default_git_runner(
+            repo_root,
+            args,
+            op=op,
+            network=network,
+        )
+
+    monkeypatch.setattr(
+        "sase.bead.sync_worker._git",
+        push_remote_just_before_local_push,
+    )
 
     outcome = push_bead_work_launch(beads_dir)
 
     assert outcome.pushed is True
     assert outcome.skipped_no_remote is False
     assert outcome.error is None
+    assert raced is True
     assert (repo / "remote.md").read_text(encoding="utf-8") == "remote\n"
 
     verify = tmp_path / "verify"

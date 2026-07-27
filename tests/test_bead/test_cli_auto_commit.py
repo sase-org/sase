@@ -160,10 +160,26 @@ def test_bead_create_in_separate_repo_writes_and_commits_workspace_local_clone(
         assignee=None,
         model=None,
     )
+    from sase.sdd.files import commit_sdd_store_files as real_commit
+    from sase.sdd._git_contention import store_write_lock_is_held
+
+    commit_lock_observations: list[tuple[bool, bool]] = []
+
+    def recording_commit(store_arg, message, **kwargs):
+        commit_lock_observations.append(
+            (
+                bool(kwargs.get("already_locked")),
+                store_write_lock_is_held(store_arg.repo_root),
+            )
+        )
+        return real_commit(store_arg, message, **kwargs)
+
+    monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", recording_commit)
 
     bead_cli.handle_bead_create(args)
 
     assert "Created plan:" in capsys.readouterr().out
+    assert commit_lock_observations == [(True, True)]
     assert _git_status(workspace_sdd) == ""
     log = _git(workspace_sdd, "log", "--oneline", "-1").stdout
     assert "chore(beads): create" in log
@@ -212,7 +228,11 @@ def test_handle_bead_update_auto_commit_message(project_dir: Path) -> None:
             )
         )
 
-    auto_commit.assert_called_once_with(f"chore(beads): update {issue.id}")
+    auto_commit.assert_called_once_with(
+        f"chore(beads): update {issue.id}",
+        push_after_commit=False,
+        already_locked=False,
+    )
 
 
 def test_handle_bead_open_auto_commit_message(project_dir: Path) -> None:
@@ -223,7 +243,11 @@ def test_handle_bead_open_auto_commit_message(project_dir: Path) -> None:
     with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_open(argparse.Namespace(id=issue.id))
 
-    auto_commit.assert_called_once_with(f"chore(beads): reopen {issue.id}")
+    auto_commit.assert_called_once_with(
+        f"chore(beads): reopen {issue.id}",
+        push_after_commit=False,
+        already_locked=False,
+    )
 
 
 def test_handle_bead_close_auto_commit_message(project_dir: Path) -> None:
@@ -232,7 +256,11 @@ def test_handle_bead_close_auto_commit_message(project_dir: Path) -> None:
     with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_close(argparse.Namespace(ids=[issue.id], reason="done"))
 
-    auto_commit.assert_called_once_with(f"chore(beads): close {issue.id}")
+    auto_commit.assert_called_once_with(
+        f"chore(beads): close {issue.id}",
+        push_after_commit=False,
+        already_locked=False,
+    )
 
 
 def test_handle_bead_rm_auto_commit_message_includes_all_requested_ids(
@@ -244,7 +272,11 @@ def test_handle_bead_rm_auto_commit_message_includes_all_requested_ids(
     with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_rm(argparse.Namespace(ids=[first.id, second.id]))
 
-    auto_commit.assert_called_once_with(f"chore(beads): remove {first.id} {second.id}")
+    auto_commit.assert_called_once_with(
+        f"chore(beads): remove {first.id} {second.id}",
+        push_after_commit=False,
+        already_locked=False,
+    )
 
 
 def test_handle_bead_rm_missing_id_does_not_remove_or_commit(
@@ -275,7 +307,9 @@ def test_handle_bead_dep_add_auto_commit_message(project_dir: Path) -> None:
         )
 
     auto_commit.assert_called_once_with(
-        f"chore(beads): link {blocked.id} -> {dependency.id}"
+        f"chore(beads): link {blocked.id} -> {dependency.id}",
+        push_after_commit=False,
+        already_locked=False,
     )
 
 

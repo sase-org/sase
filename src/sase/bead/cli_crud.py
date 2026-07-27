@@ -9,8 +9,8 @@ from pathlib import Path
 
 from sase.bead.cli_common import (
     auto_commit_bead_store,
+    bead_store_mutation,
     find_beads_location,
-    get_project,
     init_beads,
     storage_plan_path,
 )
@@ -96,7 +96,8 @@ def handle_bead_create(args: argparse.Namespace) -> None:
             sys.exit(1)
         design = storage_plan_path(plan_file.resolve())
 
-    with get_project() as proj:
+    with bead_store_mutation(auto_commit_bead_store) as mutation:
+        proj = mutation.project
         if parent_id:
             try:
                 proj.show(parent_id)
@@ -121,12 +122,13 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-    auto_commit_bead_store(f"chore(beads): create {issue.id}")
+        mutation.commit(f"chore(beads): create {issue.id}")
     print(f"Created {issue.issue_type.value}: {issue.id} — {issue.title}")
 
 
 def handle_bead_update(args: argparse.Namespace) -> None:
-    with get_project() as proj:
+    with bead_store_mutation(auto_commit_bead_store) as mutation:
+        proj = mutation.project
         fields: dict[str, str | int | None] = {}
         if args.status:
             fields["status"] = args.status
@@ -157,43 +159,43 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-    auto_commit_bead_store(f"chore(beads): update {issue.id}")
+        mutation.commit(f"chore(beads): update {issue.id}")
     print(f"✓ Updated issue: {issue.id} — {issue.title}")
 
 
 def handle_bead_open(args: argparse.Namespace) -> None:
-    with get_project() as proj:
+    with bead_store_mutation(auto_commit_bead_store) as mutation:
         try:
-            issue = proj.update(args.id, status="open")
+            issue = mutation.project.update(args.id, status="open")
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
-    auto_commit_bead_store(f"chore(beads): reopen {issue.id}")
+        mutation.commit(f"chore(beads): reopen {issue.id}")
     print(f"○ Opened: {issue.id} — {issue.title}")
 
 
 def handle_bead_close(args: argparse.Namespace) -> None:
-    with get_project() as proj:
+    with bead_store_mutation(auto_commit_bead_store) as mutation:
         try:
-            closed = proj.close(args.ids, reason=args.reason)
+            closed = mutation.project.close(args.ids, reason=args.reason)
         except KeyError as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
-    auto_commit_bead_store(f"chore(beads): close {' '.join(args.ids)}")
+        mutation.commit(f"chore(beads): close {' '.join(args.ids)}")
     for issue in closed:
         print(f"✓ Closed: {issue.id} — {issue.title}")
 
 
 def handle_bead_rm(args: argparse.Namespace) -> None:
-    with get_project() as proj:
+    with bead_store_mutation(auto_commit_bead_store) as mutation:
         try:
-            removed = proj.remove_many(args.ids)
+            removed = mutation.project.remove_many(args.ids)
         except KeyError as exc:
             message = str(exc.args[0]) if exc.args else ""
             missing_id = message.rsplit("Issue not found:", 1)[-1].strip()
             print(f"Error: issue not found: {missing_id}", file=sys.stderr)
             sys.exit(1)
-    auto_commit_bead_store(f"chore(beads): remove {' '.join(args.ids)}")
+        mutation.commit(f"chore(beads): remove {' '.join(args.ids)}")
     for issue in removed:
         print(f"✗ Removed: {issue.id} — {issue.title}")
 

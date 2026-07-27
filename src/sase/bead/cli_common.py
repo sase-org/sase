@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 import logging
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.bead.model import Status
 from sase.bead.project import (
@@ -46,6 +48,17 @@ class _WorkspaceContext:
     primary: Path
     workspace_num: int
     project_name: str | None = None
+
+
+@dataclass
+class _BeadStoreMutation:
+    """One CLI mutation whose commit remains inside the store lock."""
+
+    project: BeadProject
+    commit_message: str | None = None
+
+    def commit(self, message: str) -> None:
+        self.commit_message = message
 
 
 def find_beads_location(*, materialize: bool = False) -> tuple[Path, str]:
@@ -394,10 +407,72 @@ def auto_commit_bead_store(
     message: str,
     *,
     push_after_commit: bool | Literal["async"] | None = None,
-) -> None:
+    already_locked: bool = False,
+) -> bool:
     """Best-effort commit/push for non-in-tree SDD bead store mutations."""
     try:
         from sase.sdd.files import commit_sdd_store_files
+        from sase.sdd.store import SddStore
+
+        location = resolve_beads_location(require_existing=True)
+        if location is None or location.is_in_tree:
+            return False
+        store = location.store or SddStore(
+            storage="local",
+            sdd_dir=location.root,
+            repo_root=location.root,
+        )
+        commit_kwargs: dict[str, Any] = {}
+        if push_after_commit is not None:
+            commit_kwargs["push_after_commit"] = push_after_commit
+        if already_locked:
+            commit_kwargs["already_locked"] = True
+        return commit_sdd_store_files(
+            store,
+            message,
+            auto_commit_type="beads",
+            paths=[location.beads_dir],
+            **commit_kwargs,
+        )
+    except Exception as exc:
+        from sase.sdd._repository_transaction import SddRepositoryHealthError
+        from sase.sdd._store_types import SddMaterializationError
+
+        if isinstance(exc, (SddMaterializationError, SddRepositoryHealthError)):
+            raise
+        _logger.warning(
+            "Failed to auto-commit SDD bead store changes",
+            exc_info=True,
+        )
+        return False
+
+
+@contextmanager
+def bead_store_mutation(
+    auto_commit: Callable[..., bool] = auto_commit_bead_store,
+) -> Iterator[_BeadStoreMutation]:
+    """Keep one CLI bead mutation and its commit under one store lock."""
+    from sase.bead.sync import bead_store_write_lock
+
+    committed = False
+    with get_project() as project:
+        with bead_store_write_lock(project.beads_dir) as already_locked:
+            mutation = _BeadStoreMutation(project)
+            yield mutation
+            if mutation.commit_message is not None:
+                committed = auto_commit(
+                    mutation.commit_message,
+                    push_after_commit=False,
+                    already_locked=already_locked,
+                )
+    if committed:
+        _push_committed_bead_store()
+
+
+def _push_committed_bead_store() -> None:
+    """Apply the configured push policy after the mutation lock is released."""
+    try:
+        from sase.sdd._commit_store import push_sdd_store_after_commit
         from sase.sdd.store import SddStore
 
         location = resolve_beads_location(require_existing=True)
@@ -408,29 +483,10 @@ def auto_commit_bead_store(
             sdd_dir=location.root,
             repo_root=location.root,
         )
-        if push_after_commit is None:
-            commit_sdd_store_files(
-                store,
-                message,
-                auto_commit_type="beads",
-                paths=[location.beads_dir],
-            )
-        else:
-            commit_sdd_store_files(
-                store,
-                message,
-                auto_commit_type="beads",
-                paths=[location.beads_dir],
-                push_after_commit=push_after_commit,
-            )
-    except Exception as exc:
-        from sase.sdd._repository_transaction import SddRepositoryHealthError
-        from sase.sdd._store_types import SddMaterializationError
-
-        if isinstance(exc, (SddMaterializationError, SddRepositoryHealthError)):
-            raise
+        push_sdd_store_after_commit(store, push_after_commit=None)
+    except Exception:
         _logger.warning(
-            "Failed to auto-commit SDD bead store changes",
+            "Failed to synchronize committed SDD bead store changes",
             exc_info=True,
         )
 

@@ -6,16 +6,18 @@ import argparse
 import sys
 
 from sase.bead.conflict_resolver import handle_resolve_conflicts_command
-from sase.bead.cli_common import auto_commit_bead_store, get_project
+from sase.bead.cli_common import (
+    auto_commit_bead_store,
+    bead_store_mutation,
+    get_project,
+)
 
 
 def handle_bead_dep(args: argparse.Namespace) -> None:
     if args.dep_action == "add":
-        with get_project() as proj:
-            dep = proj.add_dependency(args.issue, args.depends_on)
-        auto_commit_bead_store(
-            f"chore(beads): link {dep.issue_id} -> {dep.depends_on_id}"
-        )
+        with bead_store_mutation(auto_commit_bead_store) as mutation:
+            dep = mutation.project.add_dependency(args.issue, args.depends_on)
+            mutation.commit(f"chore(beads): link {dep.issue_id} -> {dep.depends_on_id}")
         print(f"✓ Added dependency: {dep.issue_id} depends on {dep.depends_on_id}")
     else:
         print(f"Unknown dep action: {args.dep_action}", file=sys.stderr)

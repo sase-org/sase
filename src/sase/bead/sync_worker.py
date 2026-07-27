@@ -12,6 +12,11 @@ from pathlib import Path
 from typing import Any
 
 from sase.sdd._repository_health import default_git_runner as _git
+from sase.sdd._repository_types import SddIntegrationOutcome
+
+_MAX_PUSH_ATTEMPTS = 3
+_MAX_LOCAL_CHANGES_ATTEMPTS = 3
+_LOCAL_CHANGES_RETRY_DELAY_SECONDS = 0.05
 
 
 @dataclass(frozen=True)
@@ -64,57 +69,132 @@ def _run_locked_sync(
 
     from sase.sdd._git_contention import store_git_write_lock_factory
     from sase.sdd._repository_recovery_markers import clear_failed_integration_marker
-    from sase.sdd._repository_transaction import integrate_sdd_repository
 
-    integration = integrate_sdd_repository(
-        repo_root,
-        beads_dir=beads_dir,
-        op_prefix="bead.sync",
-        git_runner=_git,
-        lock_factory=store_git_write_lock_factory(
-            op="bead.sync.transaction",
-            mutates_worktree=True,
-        ),
-        event_logger=lambda event, **fields: _log(log_path, event, **fields),
-    )
-    _log(
-        log_path,
-        "integration",
-        status=integration.status.value,
-        integrated=integration.integrated,
-        restored=integration.restored,
-        resolved_files=list(integration.resolved_files),
-    )
-    if not integration.succeeded:
-        return _failure(
+    integrated = False
+    for push_attempt in range(1, _MAX_PUSH_ATTEMPTS + 1):
+        integration = _integrate_with_transient_dirty_retry(
+            repo_root,
+            beads_dir,
             log_path,
-            integration.error
-            or f"SDD integration ended with {integration.status.value}",
+        )
+        integrated = integrated or integration.integrated
+        if not integration.succeeded:
+            return _failure(
+                log_path,
+                integration.error
+                or f"SDD integration ended with {integration.status.value}",
+                integrated=integrated,
+            )
+
+        # Any successful integration ends the clone's failed-integration
+        # cooldown, not only the pull path that recorded it.
+        clear_failed_integration_marker(
+            repo_root,
+            git_runner=_git,
+            lock_factory=store_git_write_lock_factory(
+                op="bead.sync.integration_success",
+                mutates_worktree=False,
+            ),
         )
 
-    # Any successful integration ends the clone's failed-integration cooldown,
-    # not only the pull path that recorded it.
-    clear_failed_integration_marker(
-        repo_root,
-        git_runner=_git,
-        lock_factory=store_git_write_lock_factory(
-            op="bead.sync.integration_success",
-            mutates_worktree=False,
-        ),
+        pushed = _git(
+            repo_root,
+            ["push"],
+            op="bead.sync.push",
+            network=True,
+        )
+        if pushed.returncode == 0:
+            _log(
+                log_path,
+                "completed",
+                pushed=True,
+                integrated=integrated,
+                push_attempts=push_attempt,
+            )
+            return _ManagedSyncOutcome(pushed=True, integrated=integrated)
+        if not _is_non_fast_forward_rejection(pushed):
+            return _failure(
+                log_path,
+                "git push failed",
+                pushed,
+                integrated=integrated,
+            )
+        if push_attempt == _MAX_PUSH_ATTEMPTS:
+            return _failure(
+                log_path,
+                f"git push rejected after {_MAX_PUSH_ATTEMPTS} attempts",
+                pushed,
+                integrated=integrated,
+            )
+        _log(
+            log_path,
+            "push_rejected_retry",
+            attempt=push_attempt,
+            max_attempts=_MAX_PUSH_ATTEMPTS,
+        )
+
+    raise AssertionError("bounded push loop ended without a terminal outcome")
+
+
+def _integrate_with_transient_dirty_retry(
+    repo_root: Path,
+    beads_dir: Path,
+    log_path: Path,
+) -> SddIntegrationOutcome:
+    """Retry a short-lived dirty state without accepting persistent edits."""
+    from sase.sdd._git_contention import store_git_write_lock_factory
+    from sase.sdd._repository_transaction import (
+        SddIntegrationStatus,
+        integrate_sdd_repository,
     )
 
-    integrated = integration.integrated
-    pushed = _git(
-        repo_root,
-        ["push"],
-        op="bead.sync.push",
-        network=True,
-    )
-    if pushed.returncode != 0:
-        return _failure(log_path, "git push failed", pushed, integrated=integrated)
+    for attempt in range(1, _MAX_LOCAL_CHANGES_ATTEMPTS + 1):
+        integration = integrate_sdd_repository(
+            repo_root,
+            beads_dir=beads_dir,
+            op_prefix="bead.sync",
+            git_runner=_git,
+            lock_factory=store_git_write_lock_factory(
+                op="bead.sync.transaction",
+                mutates_worktree=True,
+            ),
+            event_logger=lambda event, **fields: _log(log_path, event, **fields),
+        )
+        _log(
+            log_path,
+            "integration",
+            attempt=attempt,
+            status=integration.status.value,
+            integrated=integration.integrated,
+            restored=integration.restored,
+            resolved_files=list(integration.resolved_files),
+        )
+        if (
+            integration.status is not SddIntegrationStatus.LOCAL_CHANGES
+            or attempt == _MAX_LOCAL_CHANGES_ATTEMPTS
+        ):
+            return integration
+        _log(
+            log_path,
+            "local_changes_retry",
+            attempt=attempt,
+            max_attempts=_MAX_LOCAL_CHANGES_ATTEMPTS,
+        )
+        time.sleep(_LOCAL_CHANGES_RETRY_DELAY_SECONDS)
 
-    _log(log_path, "completed", pushed=True, integrated=integrated)
-    return _ManagedSyncOutcome(pushed=True, integrated=integrated)
+    raise AssertionError("bounded local-changes loop ended without an outcome")
+
+
+def _is_non_fast_forward_rejection(
+    result: subprocess.CompletedProcess[str],
+) -> bool:
+    """Return whether a push lost a race and can succeed after integration."""
+    output = f"{result.stdout or ''}\n{result.stderr or ''}".lower()
+    return (
+        "non-fast-forward" in output
+        or "fetch first" in output
+        or ("[rejected]" in output and "failed to push some refs" in output)
+    )
 
 
 def _failure(

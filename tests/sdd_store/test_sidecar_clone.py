@@ -196,6 +196,60 @@ def test_failed_integration_cooldown_suppresses_repeated_rebases(
     assert all(record["status"] == "suppressed" for record in cooldown_records)
 
 
+def test_failed_integration_cooldown_does_not_park_unpushed_bead_commits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    clone_dir = tmp_path / "plans"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("seed\n", encoding="utf-8")
+    commit_all(seed, "seed")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, clone_dir)
+
+    bead_stream = clone_dir / "beads" / "events" / "streams" / "sase-1.jsonl"
+    bead_stream.parent.mkdir(parents=True)
+    bead_stream.write_text('{"event_id":"sase-1:1"}\n', encoding="utf-8")
+    commit_all(clone_dir, "local bead event")
+
+    from sase.sdd import _repository_transaction
+    from sase.sdd._repository_transaction import (
+        SddIntegrationOutcome,
+        SddIntegrationStatus,
+    )
+
+    assert record_failed_integration_marker(
+        clone_dir,
+        SddIntegrationOutcome(
+            SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS,
+            upstream_present=True,
+            error="injected failed integration",
+        ),
+        clock=lambda: 100.0,
+    )
+    integrations: list[Path] = []
+
+    def integrate(repo_root: Path, **_kwargs):
+        integrations.append(repo_root)
+        return SddIntegrationOutcome(
+            SddIntegrationStatus.SUCCESS,
+            upstream_present=True,
+        )
+
+    monkeypatch.setattr(
+        _repository_transaction,
+        "integrate_machine_managed_sdd_repository",
+        integrate,
+    )
+
+    assert _pull_sdd_clone(clone_dir, fresh=True, clock=lambda: 101.0) is True
+    assert integrations == [clone_dir]
+    assert not (clone_dir / ".git" / FAILED_INTEGRATION_MARKER).exists()
+
+
 def test_successful_pull_clears_failed_integration_marker(
     tmp_path: Path,
 ) -> None:

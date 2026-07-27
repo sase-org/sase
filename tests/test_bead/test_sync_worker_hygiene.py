@@ -10,6 +10,10 @@ from types import SimpleNamespace
 from sase.bead.sync import _new_sync_log_path
 from sase.bead.sync_worker import run_managed_sync_worker
 from sase.sdd._repository_recovery_markers import FAILED_INTEGRATION_MARKER
+from sase.sdd._repository_types import (
+    SddIntegrationOutcome,
+    SddIntegrationStatus,
+)
 
 from .sync_test_helpers import init_git_repo
 
@@ -146,6 +150,164 @@ def test_managed_sync_worker_redacts_credentials_in_push_errors(tmp_path, monkey
     assert "https://<redacted>@example.test/plans.git" in outcome.error
     log_text = log_path.read_text(encoding="utf-8")
     assert "ghp_secrettoken" not in log_text
+
+
+def test_managed_sync_worker_reintegrates_after_push_race(tmp_path, monkeypatch):
+    init_git_repo(tmp_path)
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    integrations: list[int] = []
+
+    def integrate(*_args, **_kwargs):
+        integrations.append(len(integrations) + 1)
+        return SddIntegrationOutcome(
+            SddIntegrationStatus.SUCCESS,
+            integrated=bool(len(integrations) > 1),
+            upstream_present=True,
+        )
+
+    monkeypatch.setattr(
+        "sase.sdd._repository_transaction.integrate_sdd_repository",
+        integrate,
+    )
+    pushes = iter(
+        [
+            subprocess.CompletedProcess(
+                ["git", "push"],
+                returncode=1,
+                stdout="",
+                stderr=(
+                    "! [rejected] main -> main (fetch first)\n"
+                    "error: failed to push some refs"
+                ),
+            ),
+            subprocess.CompletedProcess(
+                ["git", "push"], returncode=0, stdout="", stderr=""
+            ),
+        ]
+    )
+
+    def fake_git(repo_root, args, *, op, network=False):
+        del op, network
+        if args[:2] == ["rev-parse", "--git-dir"]:
+            return subprocess.CompletedProcess(
+                ["git", *args],
+                returncode=0,
+                stdout=str(repo_root / ".git") + "\n",
+                stderr="",
+            )
+        if args == ["push"]:
+            return next(pushes)
+        raise AssertionError(f"unexpected git call: {args}")
+
+    monkeypatch.setattr("sase.bead.sync_worker._git", fake_git)
+    log_path = tmp_path / "sync.log"
+
+    outcome = run_managed_sync_worker(tmp_path, beads_dir, log_path=log_path)
+
+    assert outcome.pushed is True
+    assert outcome.integrated is True
+    assert integrations == [1, 2]
+    events = [
+        json.loads(line)["event"]
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert events.count("push_rejected_retry") == 1
+
+
+def test_managed_sync_worker_bounds_rejected_push_retries(tmp_path, monkeypatch):
+    init_git_repo(tmp_path)
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    integration_count = 0
+
+    def integrate(*_args, **_kwargs):
+        nonlocal integration_count
+        integration_count += 1
+        return SddIntegrationOutcome(
+            SddIntegrationStatus.SUCCESS,
+            upstream_present=True,
+        )
+
+    monkeypatch.setattr(
+        "sase.sdd._repository_transaction.integrate_sdd_repository",
+        integrate,
+    )
+
+    def fake_git(repo_root, args, *, op, network=False):
+        del op, network
+        if args[:2] == ["rev-parse", "--git-dir"]:
+            return subprocess.CompletedProcess(
+                ["git", *args],
+                returncode=0,
+                stdout=str(repo_root / ".git") + "\n",
+                stderr="",
+            )
+        if args == ["push"]:
+            return subprocess.CompletedProcess(
+                ["git", "push"],
+                returncode=1,
+                stdout="",
+                stderr="[rejected] (non-fast-forward)\nfailed to push some refs",
+            )
+        raise AssertionError(f"unexpected git call: {args}")
+
+    monkeypatch.setattr("sase.bead.sync_worker._git", fake_git)
+
+    outcome = run_managed_sync_worker(
+        tmp_path,
+        beads_dir,
+        log_path=tmp_path / "sync.log",
+    )
+
+    assert outcome.pushed is False
+    assert outcome.error is not None
+    assert "rejected after 3 attempts" in outcome.error
+    assert integration_count == 3
+
+
+def test_managed_sync_worker_retries_only_transient_local_changes(
+    tmp_path, monkeypatch
+):
+    init_git_repo(tmp_path)
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    outcomes = iter(
+        [
+            SddIntegrationOutcome(
+                SddIntegrationStatus.LOCAL_CHANGES,
+                upstream_present=True,
+                error="tracked worktree changes",
+            ),
+            SddIntegrationOutcome(
+                SddIntegrationStatus.SUCCESS,
+                upstream_present=True,
+            ),
+        ]
+    )
+    monkeypatch.setattr(
+        "sase.sdd._repository_transaction.integrate_sdd_repository",
+        lambda *_args, **_kwargs: next(outcomes),
+    )
+    monkeypatch.setattr("sase.bead.sync_worker.time.sleep", lambda _delay: None)
+    monkeypatch.setattr(
+        "sase.bead.sync_worker._git",
+        _fake_git_factory(
+            subprocess.CompletedProcess(
+                ["git", "push"], returncode=0, stdout="", stderr=""
+            )
+        ),
+    )
+    log_path = tmp_path / "sync.log"
+
+    outcome = run_managed_sync_worker(tmp_path, beads_dir, log_path=log_path)
+
+    assert outcome.pushed is True
+    events = [
+        json.loads(line)["event"]
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert events.count("local_changes_retry") == 1
 
 
 def test_new_sync_log_paths_are_unique_within_one_second(tmp_path, monkeypatch):

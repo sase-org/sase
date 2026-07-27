@@ -351,7 +351,7 @@ def bead_sync_diagnostics(beads_dir: Path) -> list[str]:
         elif behind:
             messages.append(f"WARNING: bead store is {behind} commit(s) behind")
         if ahead:
-            bead_commits = _unpushed_bead_commit_count(
+            bead_commits = unpushed_bead_commit_count(
                 repo_root,
                 beads_dir,
             )
@@ -409,7 +409,7 @@ def bead_sync_diagnostics(beads_dir: Path) -> list[str]:
     return messages
 
 
-def _unpushed_bead_commit_count(repo_root: Path, beads_dir: Path) -> int:
+def unpushed_bead_commit_count(repo_root: Path, beads_dir: Path) -> int:
     """Count local-only commits that touch canonical bead state."""
     try:
         rel_beads = _relative_pathspec(beads_dir, repo_root)

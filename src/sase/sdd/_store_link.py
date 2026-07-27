@@ -280,11 +280,13 @@ def _pull_sdd_clone(
     from sase.sdd._repository_transaction import SddIntegrationStatus
 
     cooldown_seconds = machine_recovery_cooldown_seconds()
-    cooldown = admit_failed_integration_cooldown(
-        workspace_sdd,
-        cooldown_seconds=cooldown_seconds,
-        clock=clock,
-    )
+    cooldown = None
+    if not _has_unpushed_bead_commits(workspace_sdd):
+        cooldown = admit_failed_integration_cooldown(
+            workspace_sdd,
+            cooldown_seconds=cooldown_seconds,
+            clock=clock,
+        )
     if cooldown is not None:
         _log_failed_integration_cooldown(
             workspace_sdd,
@@ -366,6 +368,24 @@ def _pull_sdd_clone(
     }:
         raise SddMaterializationError(detail)
     return False
+
+
+def _has_unpushed_bead_commits(workspace_sdd: Path) -> bool:
+    """Keep unpublished bead history out of failed-integration cooldown."""
+    try:
+        from sase.bead.sync import unpushed_bead_commit_count
+
+        return (
+            unpushed_bead_commit_count(
+                workspace_sdd,
+                workspace_sdd / "beads",
+            )
+            > 0
+        )
+    except Exception:
+        # Cooldown is only an optimization. If the safety probe cannot tell,
+        # attempt integration instead of parking potentially unpublished work.
+        return True
 
 
 def _records_failed_integration_cooldown(outcome: object) -> bool:
