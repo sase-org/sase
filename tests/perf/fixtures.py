@@ -20,6 +20,11 @@ CHANGESPEC_SIZES: tuple[int, ...] = (100, 500, 2000)
 AGENT_SIZES: tuple[int, ...] = (50, 200, 1000)
 LARGE_REPLY_SIZES_MB: tuple[int, ...] = (1, 5, 20)
 
+# View-hints scenario sizing. 100 KB matches the observed p99/max of real
+# ``live_reply.md`` files, and five members is a plausible family width.
+HINT_REPLY_SIZE_KB: int = 100
+HINT_FAMILY_MEMBER_COUNT: int = 5
+
 
 def make_changespec(name: str, file_path: Path, *, status: str = "WIP") -> ChangeSpec:
     """Return a minimal :class:`ChangeSpec` suitable for harness fixtures."""
@@ -88,6 +93,114 @@ def make_large_reply(mb: int) -> str:
     target_bytes = mb * 1024 * 1024
     repeats = (target_bytes // len(line)) + 1
     return (line * repeats)[:target_bytes]
+
+
+def make_hinted_reply(kb: int) -> str:
+    """Return a synthetic reply whose file-path density matches real replies.
+
+    Unlike :func:`make_large_reply`, this deliberately seeds paths the hint
+    scanner recognizes (``FILE_PATH_RE``), so the ``view_hints`` scenarios
+    measure a document with hints in it rather than a plain-prose wall.
+    """
+    block = (
+        "Inspected src/sase/ace/tui/widgets/prompt_panel/_agent_display.py and\n"
+        "tests/ace/tui/widgets/test_agent_display.py for the render path.\n"
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit sed do.\n"
+        "Wrote the summary to ~/.sase/perf/tui_trace.jsonl for later diffing.\n"
+        "Eiusmod tempor incididunt ut labore et dolore magna aliqua enim.\n"
+    )
+    target_bytes = kb * 1024
+    repeats = (target_bytes // len(block)) + 1
+    return (block * repeats)[:target_bytes]
+
+
+def write_agent_artifacts(
+    artifacts_root: Path,
+    name: str,
+    *,
+    reply: str,
+    prompt: str | None = None,
+    xprompt: str | None = None,
+) -> Path:
+    """Materialize a minimal on-disk agent artifacts dir and return its path.
+
+    The view-hints keypath reads ``raw_xprompt.md``, ``*_prompt.md``, and
+    ``live_reply.md`` off disk, so these scenarios cannot use the disk-free
+    agent rows the other benches share.
+    """
+    artifacts_dir = artifacts_root / name
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        xprompt or "#gh:sase Review src/sase/ace/tui/util/trace.py and report back.\n"
+    )
+    (artifacts_dir / f"{name}_prompt.md").write_text(
+        prompt or "Review the hint render path in src/sase/ace/tui/widgets/.\n"
+    )
+    (artifacts_dir / "live_reply.md").write_text(reply)
+    return artifacts_dir
+
+
+def make_hint_agent(
+    idx: int,
+    *,
+    artifacts_root: Path,
+    project_file: str,
+    reply_kb: int = HINT_REPLY_SIZE_KB,
+    status: str = "RUNNING",
+    parent_timestamp: str | None = None,
+    agent_family_role: str | None = None,
+) -> Agent:
+    """Return one agent row backed by real artifact files on disk."""
+    suffix = f"2026072712{idx:04d}"
+    artifacts_dir = write_agent_artifacts(
+        artifacts_root,
+        f"hint_agent_{idx:03d}",
+        reply=make_hinted_reply(reply_kb),
+    )
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="hint_bench",
+        project_file=project_file,
+        status=status,
+        start_time=None,
+        raw_suffix=suffix,
+        artifacts_dir=str(artifacts_dir),
+        parent_timestamp=parent_timestamp,
+        agent_family_role=agent_family_role,
+    )
+
+
+def make_hint_family_container(
+    *,
+    artifacts_root: Path,
+    project_file: str,
+    members: int = HINT_FAMILY_MEMBER_COUNT,
+    reply_kb: int = HINT_REPLY_SIZE_KB,
+) -> Agent:
+    """Return a family-container row with ``members`` on-disk family members.
+
+    The family hint path renders every member's reply, so this row is the
+    scenario that exposes cost scaling with family width.
+    """
+    root = make_hint_agent(
+        900,
+        artifacts_root=artifacts_root,
+        project_file=project_file,
+        reply_kb=reply_kb,
+        agent_family_role="root",
+    )
+    root.followup_agents = [
+        make_hint_agent(
+            901 + i,
+            artifacts_root=artifacts_root,
+            project_file=project_file,
+            reply_kb=reply_kb,
+            parent_timestamp=root.raw_suffix,
+            agent_family_role="phase",
+        )
+        for i in range(members)
+    ]
+    return root
 
 
 @dataclass(frozen=True)

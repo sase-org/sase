@@ -41,6 +41,9 @@ Timed spans currently wired (by file):
 - `actions/agents/_display_panels.py` — `agents.refresh_panel_widgets`, `agents.refresh_panel_highlights`
 - `actions/agents/_loading_helpers.py` — `agents.load_from_disk`
 - `actions/agents/_loading_live_hints.py` — `agents.live_hint_refresh`
+- `actions/agents/_display_detail_render.py` — `agents.view_hints_refresh`
+- `actions/hints/_files.py` — `agents.view_files`, `agents.view_agent_files`, `agents.view_hint_bar_mount`
+- `widgets/prompt_panel/_agent_display_hints.py` — `widget.prompt_panel.update_display_with_hints`
 - `widgets/changespec_list.py` — `widget.changespec_list.update_list`, `widget.changespec_list.update_highlight`,
   `widget.changespec_list.patch_changespec_row`
 - `widgets/changespec_detail.py` — `widget.changespec_detail.update_display`
@@ -63,6 +66,51 @@ only cheap persisted `diff_path` badges. After that agents list has applied, `ag
 for active, non-terminal rows that do not yet have a persisted diff and patches changed rows in place. During startup
 investigations, treat `agents.load_from_disk` and `agents.live_hint_refresh` as separate costs: the former controls time
 to first interactive Agents-tab paint, while the latter explains deferred pencil-badge updates.
+
+### Reading a view-hints capture
+
+Pressing `v` on the Agents tab nests four spans, outermost first:
+
+```text
+agents.view_files                              whole v keypath (both tabs)
+└─ agents.view_agent_files                     Agents-tab branch only
+   ├─ widget.prompt_panel.update_display_with_hints    the annotated render
+   └─ agents.view_hint_bar_mount               mounting the HintInputBar
+```
+
+`agents.view_files` is the keypress → hint-bar-mounted interval: today the bar is mounted last, so this span is
+effectively the render cost plus the mount cost. Subtracting `agents.view_hint_bar_mount` from it gives the part of the
+wait the user pays for work that is not the bar appearing.
+
+`agents.view_hints_refresh` is the same annotated render fired again from an Agents-tab detail repaint or from the
+detail-header enrichment message, rather than from a keypress. Seeing it repeatedly with hint mode active is the signal
+that the document is being rebuilt on refresh.
+
+Useful counters:
+
+```text
+agents.view_files          tab
+agents.view_agent_files    family_container, hints, commit_views,
+                           header_enrichment_pending, outcome
+                           (mounted | refocused | empty | no_agent |
+                            detached_container)
+agents.view_hints_refresh  family_container, hints, commit_views
+update_display_with_hints  family_container, hints, commit_views,
+                           tool_call_reports, annotated_chars,
+                           header_summary (warm | cold)
+```
+
+`annotated_chars` counts every character handed to the hint scanner, summed across fragments and family members, so it
+is the size term to divide a duration by. `header_summary` says whether the render had a warm detail-header summary: a
+`cold` render omits the SASE CONTEXT hints entirely and will be rebuilt when the enrichment worker lands.
+
+Slice one press out of a capture with:
+
+```bash
+jq -c 'select(.span | startswith("agents.view_") or . == "widget.prompt_panel.update_display_with_hints")
+       | {span, duration_ms, hints, annotated_chars, header_summary, family_container, outcome}' \
+   ~/.sase/perf/tui_trace.jsonl | tail -20
+```
 
 Trace events currently wired include:
 
@@ -204,6 +252,46 @@ Scenarios per fixture size:
 
 The per-scenario summary records wall-clock times, then aggregates p50 / p95 / max for every trace span and key-to-paint
 action observed during that scenario.
+
+### View-hints scenarios and committed baseline
+
+The Agents-tab `v` keypath has its own scenario set, run separately because it needs disk-backed fixtures — the hint
+render reads `raw_xprompt.md`, `*_prompt.md`, and `live_reply.md` from a real artifacts dir:
+
+```text
+large_reply_first_press           v on a plain agent with a 100 KB reply, cold header summary
+large_reply_repeat_press          v again on the same row after the bar is torn down
+family_container_press            v on a 5-member family container at the default panel fold
+family_container_unfolded_press   the same row at FoldLevel.FULLY_EXPANDED, where every
+                                  member's reply is annotated in full
+hint_mode_auto_refresh            an Agents-tab refresh tick while hint mode is active
+```
+
+Spans are sliced per step rather than pooled, so the plain-agent and family-container costs can be compared
+independently. Each step also carries a `hint_counters` block (`annotated_chars`, `hints`, `commit_views`,
+`header_summary`, `family_container`) so a duration change can be attributed to the document actually getting smaller
+rather than to a quieter machine.
+
+Run just these scenarios and print the table:
+
+```bash
+pytest -s -m slow tests/perf/bench_tui_trace.py::test_view_hints_scenario
+```
+
+Regenerate the committed baseline (5 runs, median per step and span, plus every raw run):
+
+```bash
+python -m tests.perf.bench_tui_trace --view-hints-baseline
+# writes tests/perf/baselines/view_hints_baseline.json
+```
+
+Compare against `tests/perf/baselines/view_hints_baseline.json` rather than a transient capture. Two caveats when
+reading it:
+
+- `wall_ms` measures key dispatch through Pilot settle, so it carries unrelated repaint work and is much larger and much
+  noisier than the spans. Compare the per-step `spans` table, not `wall_ms`.
+- An `agents.view_hints_refresh` span can appear inside a press step: a detail repaint often lands inside that step's
+  settle window. That is real behavior, not bookkeeping noise.
 
 ## Targets per phase gate
 

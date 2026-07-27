@@ -83,7 +83,10 @@ class _EmptyAgentDetail:
 
 class _PendingAgentViewApp(FileViewingMixin):
     def __init__(self) -> None:
-        self.agent = SimpleNamespace(cl_name="pending-agent")
+        self.agent = SimpleNamespace(
+            cl_name="pending-agent",
+            is_family_container_row=False,
+        )
         self.detail = _PendingAgentDetail()
         self.container = _PendingHintContainer()
         self.current_tab = "agents"

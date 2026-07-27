@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from ...util.trace import tui_trace
 from ...widgets.prompt_panel._messages import (
     AgentDetailHeaderEnriched,
     ClanSectionSnapshotLoaded,
@@ -246,10 +247,14 @@ class AgentDetailRenderMixin:
         current_agent: Agent,
     ) -> None:
         """Render the Agents detail prompt with hints and refresh hint state."""
-        hint_render = agent_detail.update_display_with_hints(current_agent)
-        self._hint_mappings = hint_render.file_hints
-        self._hint_commit_views = hint_render.commit_views
-        self._hint_tool_call_reports = hint_render.tool_call_reports
+        with tui_trace("agents.view_hints_refresh") as extra:
+            extra["family_container"] = current_agent.is_family_container_row
+            hint_render = agent_detail.update_display_with_hints(current_agent)
+            extra["hints"] = len(hint_render.file_hints)
+            extra["commit_views"] = len(hint_render.commit_views)
+            self._hint_mappings = hint_render.file_hints
+            self._hint_commit_views = hint_render.commit_views
+            self._hint_tool_call_reports = hint_render.tool_call_reports
 
     def on_agent_detail_header_enriched(
         self,

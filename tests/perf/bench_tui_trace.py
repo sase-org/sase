@@ -25,7 +25,15 @@ Scenarios per fixture size:
 - auto-refresh with no changes
 - large-reply select
 
-Out of scope: any actual hot-path optimization (Phase 1 only measures).
+The Agents-tab ``v`` keypath has its own scenario set (``VIEW_HINTS_STEPS``,
+bead sase-a5.1 / plans:202607/agents_view_hints_perf.md), run separately
+because it needs disk-backed agent artifacts rather than the disk-free rows
+the other scenarios share. Its committed baseline lives at
+``tests/perf/baselines/view_hints_baseline.json``; regenerate it with::
+
+    python -m tests.perf.bench_tui_trace --view-hints-baseline
+
+Out of scope: any actual hot-path optimization (these scenarios only measure).
 """
 
 from __future__ import annotations
@@ -45,13 +53,18 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.app import AceApp
+from sase.ace.tui.models.fold_state import FoldLevel
 from sase.xprompt import xprompt_inspect
 
 from .fixtures import (
     AGENT_SIZES,
     CHANGESPEC_SIZES,
+    HINT_FAMILY_MEMBER_COUNT,
+    HINT_REPLY_SIZE_KB,
     LARGE_REPLY_SIZES_MB,
     build_fixture,
+    make_hint_agent,
+    make_hint_family_container,
     make_large_reply,
 )
 
@@ -241,6 +254,232 @@ async def _run_scenario(
     }
 
 
+_HINT_RENDER_SPAN = "widget.prompt_panel.update_display_with_hints"
+
+
+def _summarize_hint_counters(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    """Summarize the size counters carried on the hint-render span.
+
+    Durations alone cannot say whether a phase got faster because it bounded
+    the document or because the machine was quieter, so the baseline records
+    how much text was annotated and how many hints came out alongside them.
+    """
+    hint_records = [r for r in records if r.get("span") == _HINT_RENDER_SPAN]
+    if not hint_records:
+        return {}
+    return {
+        "renders": len(hint_records),
+        "annotated_chars": int(
+            statistics.median(int(r.get("annotated_chars", 0)) for r in hint_records)
+        ),
+        "hints": int(statistics.median(int(r.get("hints", 0)) for r in hint_records)),
+        "commit_views": int(
+            statistics.median(int(r.get("commit_views", 0)) for r in hint_records)
+        ),
+        "header_summary": sorted(
+            {str(r.get("header_summary", "")) for r in hint_records}
+        ),
+        "family_container": sorted(
+            {bool(r.get("family_container")) for r in hint_records}
+        ),
+    }
+
+
+VIEW_HINTS_STEPS: tuple[str, ...] = (
+    "large_reply_first_press",
+    "large_reply_repeat_press",
+    "family_container_press",
+    "family_container_unfolded_press",
+    "hint_mode_auto_refresh",
+)
+
+
+async def _run_view_hints_scenario(
+    *,
+    gp_file: Path,
+    artifacts_root: Path,
+    trace_path: Path,
+) -> dict[str, Any]:
+    """Drive the Agents-tab ``v`` keypath and time each step separately.
+
+    Covers the four steps phase ``measure`` of
+    ``plans:202607/agents_view_hints_perf.md`` calls for: a first press on a
+    plain agent with a large reply, a repeat press on that same row, a press on
+    a family-container row, and an auto-refresh tick while hint mode is active.
+
+    Unlike the other scenarios these fixtures are disk-backed — the hint render
+    reads ``raw_xprompt.md`` / ``*_prompt.md`` / ``live_reply.md`` — so the
+    numbers include the artifact reads a real press pays.
+
+    Spans are sliced per step off ``trace_path`` rather than pooled across the
+    whole run, because the plain-agent and family-container presses are the two
+    costs later phases need to compare independently. ``wall_ms`` measures
+    dispatch through Pilot settle and therefore carries unrelated repaint work;
+    treat the per-step ``spans`` table as the comparison metric.
+    """
+    plain_agent = make_hint_agent(
+        1,
+        artifacts_root=artifacts_root,
+        project_file=str(gp_file),
+    )
+    family_agent = make_hint_family_container(
+        artifacts_root=artifacts_root,
+        project_file=str(gp_file),
+    )
+
+    steps: dict[str, dict[str, Any]] = {}
+
+    def _trace_len() -> int:
+        return len(_read_jsonl(trace_path))
+
+    with patch("sase.ace.changespec.find_all_changespecs_cached", return_value=[]):
+        app = AceApp(
+            query='"hint_bench"',
+            auto_start_axe=False,
+            initial_tab="agents",
+        )
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await _wait_for_startup(app, pilot)
+
+            # Startup is done, so pin the agent list: any further disk load
+            # would replace the fixture rows with this machine's real agents
+            # and silently measure the wrong document.
+            app._load_agents = lambda *_a, **_k: None  # type: ignore[assignment]
+            app._schedule_agents_async_refresh = lambda *_a, **_k: None  # type: ignore[assignment]
+            await pilot.pause()
+
+            async def _select(agent: Any) -> None:
+                app._agents = [agent]  # type: ignore[attr-defined]
+                app.current_idx = 0
+                app._refresh_agents_display()  # type: ignore[attr-defined]
+                await pilot.pause()
+
+            async def _teardown_bar() -> None:
+                app._remove_hint_input_bar()  # type: ignore[attr-defined]
+                await pilot.pause()
+
+            async def _timed(step: str, action: Any) -> None:
+                cursor = _trace_len()
+                started = time.perf_counter()
+                await action()
+                await pilot.pause()
+                elapsed_ms = (time.perf_counter() - started) * 1000.0
+                records = _read_jsonl(trace_path)[cursor:]
+                steps[step] = {
+                    "wall_ms": elapsed_ms,
+                    "spans": _summarize_spans(records),
+                    "hint_counters": _summarize_hint_counters(records),
+                }
+
+            async def _press_v() -> None:
+                await pilot.press("v")
+
+            await _select(plain_agent)
+            await _timed("large_reply_first_press", _press_v)
+
+            # Tear the bar down so the repeat press re-renders rather than
+            # short-circuiting through _refocus_existing_hint_bar.
+            await _teardown_bar()
+            await _timed("large_reply_repeat_press", _press_v)
+
+            async def _auto_refresh() -> None:
+                app._refresh_agents_display()  # type: ignore[attr-defined]
+
+            # Auto-refresh tick with hint mode still active.
+            await _timed("hint_mode_auto_refresh", _auto_refresh)
+            await _teardown_bar()
+
+            await _select(family_agent)
+            await _timed("family_container_press", _press_v)
+            await _teardown_bar()
+
+            # At the default panel fold the family reply section renders tail
+            # previews of each member. The fully-expanded fold is the branch
+            # that annotates every member's reply in full, which is where the
+            # per-chunk family hint work the plan flags actually runs.
+            app.panel_fold_level = FoldLevel.FULLY_EXPANDED  # type: ignore[assignment]
+            await pilot.pause()
+            await _timed("family_container_unfolded_press", _press_v)
+            await _teardown_bar()
+
+    return {
+        "reply_kb": HINT_REPLY_SIZE_KB,
+        "family_members": HINT_FAMILY_MEMBER_COUNT,
+        "steps": steps,
+    }
+
+
+VIEW_HINTS_BASELINE_PATH = (
+    Path(__file__).parent / "baselines" / "view_hints_baseline.json"
+)
+VIEW_HINTS_BASELINE_RUNS = 5
+
+
+async def run_view_hints_baseline(
+    *,
+    gp_file: Path,
+    trace_path: Path,
+    runs: int = VIEW_HINTS_BASELINE_RUNS,
+) -> dict[str, Any]:
+    """Run the view-hints scenario ``runs`` times and aggregate the samples.
+
+    A single Pilot-driven press is noisy, so the committed baseline stores the
+    median across runs per (step, span) plus every raw run, letting a later
+    phase re-derive the aggregate or inspect the spread.
+    """
+    raw_runs: list[dict[str, Any]] = []
+    for run_idx in range(runs):
+        if trace_path.exists():
+            trace_path.unlink()
+        raw_runs.append(
+            await _run_view_hints_scenario(
+                gp_file=gp_file,
+                artifacts_root=gp_file.parent / f"view_hints_artifacts_{run_idx}",
+                trace_path=trace_path,
+            )
+        )
+
+    aggregate: dict[str, Any] = {}
+    for step in VIEW_HINTS_STEPS:
+        step_runs = [r["steps"][step] for r in raw_runs if step in r["steps"]]
+        if not step_runs:
+            continue
+        span_names = sorted({name for r in step_runs for name in r["spans"]})
+        aggregate[step] = {
+            "wall_ms": statistics.median(float(r["wall_ms"]) for r in step_runs),
+            "hint_counters": next(
+                (r["hint_counters"] for r in step_runs if r.get("hint_counters")),
+                {},
+            ),
+            "spans": {
+                name: {
+                    "p50_ms": statistics.median(
+                        float(r["spans"][name]["p50_ms"])
+                        for r in step_runs
+                        if name in r["spans"]
+                    ),
+                    "max_ms": max(
+                        float(r["spans"][name]["max_ms"])
+                        for r in step_runs
+                        if name in r["spans"]
+                    ),
+                }
+                for name in span_names
+            },
+        }
+
+    return {
+        "version": 1,
+        "runs": runs,
+        "reply_kb": HINT_REPLY_SIZE_KB,
+        "family_members": HINT_FAMILY_MEMBER_COUNT,
+        "steps": VIEW_HINTS_STEPS,
+        "median": aggregate,
+        "raw_runs": raw_runs,
+    }
+
+
 async def _run_full_baseline(
     output_path: Path,
     *,
@@ -274,12 +513,23 @@ async def _run_full_baseline(
         result["jk_paint"] = _summarize_jk(_read_jsonl(perf_path))
         scenarios.append(result)
 
+    if trace_path.exists():
+        trace_path.unlink()
+    if perf_path.exists():
+        perf_path.unlink()
+    view_hints = await _run_view_hints_scenario(
+        gp_file=gp_file,
+        artifacts_root=gp_file.parent / "view_hints_artifacts",
+        trace_path=trace_path,
+    )
+
     baseline = {
-        "version": 1,
+        "version": 2,
         "j_keys_per_burst": _DEFAULT_J_KEYS,
         "query_edit_sequence": list(_QUERY_EDIT_SEQUENCE),
         "large_reply_mb": LARGE_REPLY_SIZES_MB[0],
         "scenarios": scenarios,
+        "view_hints": view_hints,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(baseline, indent=2) + "\n")
@@ -381,6 +631,50 @@ def test_xprompt_tokenizer_code_heavy_benchmark() -> None:
     assert p95_ms < 16.0
 
 
+async def test_view_hints_scenario(_trace_env: tuple[Path, Path, Path]) -> None:
+    """Run the ``v`` keypath scenarios and print the span table.
+
+    Also acts as the wiring check for the phase ``measure`` spans: if any of
+    them stops firing, this fails rather than silently reporting an empty
+    baseline.
+    """
+    trace_path, _perf_path, gp_file = _trace_env
+    result = await _run_view_hints_scenario(
+        gp_file=gp_file,
+        artifacts_root=gp_file.parent / "view_hints_artifacts",
+        trace_path=trace_path,
+    )
+    steps = result["steps"]
+    for step in VIEW_HINTS_STEPS:
+        assert step in steps, f"missing step {step}; saw {sorted(steps)}"
+
+    press_spans = steps["large_reply_first_press"]["spans"]
+    for span in (
+        "agents.view_files",
+        "agents.view_agent_files",
+        "agents.view_hint_bar_mount",
+        "widget.prompt_panel.update_display_with_hints",
+    ):
+        assert span in press_spans, f"missing {span} span; saw {sorted(press_spans)}"
+    refresh_spans = steps["hint_mode_auto_refresh"]["spans"]
+    assert "agents.view_hints_refresh" in refresh_spans, (
+        f"missing agents.view_hints_refresh span; saw {sorted(refresh_spans)}"
+    )
+
+    # The size counters are what later phases attribute a duration change to,
+    # so a silently-dropped counter must fail here rather than at compare time.
+    plain_counters = steps["large_reply_first_press"]["hint_counters"]
+    assert plain_counters["annotated_chars"] > HINT_REPLY_SIZE_KB * 1024
+    assert plain_counters["hints"] > 0
+    assert plain_counters["family_container"] == [False]
+    family_counters = steps["family_container_unfolded_press"]["hint_counters"]
+    assert family_counters["family_container"] == [True]
+    assert family_counters["annotated_chars"] > plain_counters["annotated_chars"], (
+        "an unfolded family container should annotate more than one member"
+    )
+    print(json.dumps(result, indent=2), file=sys.stderr)
+
+
 async def test_full_baseline(
     _trace_env: tuple[Path, Path, Path], tmp_path: Path
 ) -> None:
@@ -410,8 +704,12 @@ def main(argv: list[str] | None = None) -> int:
         "-o",
         "--output",
         type=Path,
-        default=Path.home() / ".sase" / "perf" / "tui_perf_baseline.json",
-        help="Where to write the baseline numbers JSON.",
+        default=None,
+        help=(
+            "Where to write the baseline numbers JSON. Defaults to "
+            "~/.sase/perf/tui_perf_baseline.json, or the committed "
+            "view-hints baseline under --view-hints-baseline."
+        ),
     )
     parser.add_argument(
         "-t",
@@ -427,6 +725,20 @@ def main(argv: list[str] | None = None) -> int:
         default=Path.home() / ".sase" / "perf" / "tui_jk.jsonl",
         help="JSONL path for j/k key-to-paint samples.",
     )
+    parser.add_argument(
+        "--view-hints-baseline",
+        action="store_true",
+        help=(
+            "Run only the Agents-tab view-hints scenarios and write the "
+            f"committed baseline to --output (default {VIEW_HINTS_BASELINE_PATH})."
+        ),
+    )
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=VIEW_HINTS_BASELINE_RUNS,
+        help="Repeat count for --view-hints-baseline.",
+    )
     args = parser.parse_args(argv)
 
     os.environ["SASE_TUI_TRACE"] = "1"
@@ -436,12 +748,32 @@ def main(argv: list[str] | None = None) -> int:
 
     import tempfile
 
+    if args.view_hints_baseline:
+        output = args.output or VIEW_HINTS_BASELINE_PATH
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gp_file = Path(tmpdir) / "bench.sase"
+            gp_file.write_text("")
+            baseline = asyncio.run(
+                run_view_hints_baseline(
+                    gp_file=gp_file,
+                    trace_path=args.trace_path,
+                    runs=args.runs,
+                )
+            )
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(baseline, indent=2) + "\n")
+        print(f"view-hints baseline written to {output}")
+        return 0
+
+    full_output = args.output or (
+        Path.home() / ".sase" / "perf" / "tui_perf_baseline.json"
+    )
     with tempfile.TemporaryDirectory() as tmpdir:
         gp_file = Path(tmpdir) / "bench.sase"
         gp_file.write_text("")
         baseline = asyncio.run(
             _run_full_baseline(
-                args.output,
+                full_output,
                 trace_path=args.trace_path,
                 perf_path=args.perf_path,
                 gp_file=gp_file,

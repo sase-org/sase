@@ -1,0 +1,2089 @@
+{
+  "version": 1,
+  "runs": 5,
+  "reply_kb": 100,
+  "family_members": 5,
+  "steps": [
+    "large_reply_first_press",
+    "large_reply_repeat_press",
+    "family_container_press",
+    "family_container_unfolded_press",
+    "hint_mode_auto_refresh"
+  ],
+  "median": {
+    "large_reply_first_press": {
+      "wall_ms": 3067.744133004453,
+      "hint_counters": {
+        "renders": 2,
+        "annotated_chars": 102541,
+        "hints": 924,
+        "commit_views": 0,
+        "header_summary": [
+          "cold",
+          "warm"
+        ],
+        "family_container": [
+          false
+        ]
+      },
+      "spans": {
+        "agents.update_info_panel": {
+          "p50_ms": 2.2784510074416175,
+          "max_ms": 3.567922001820989
+        },
+        "agents.view_agent_files": {
+          "p50_ms": 30.395326000871137,
+          "max_ms": 39.761230000294745
+        },
+        "agents.view_files": {
+          "p50_ms": 30.949383988627233,
+          "max_ms": 40.52981801214628
+        },
+        "agents.view_hint_bar_mount": {
+          "p50_ms": 0.9464070026297122,
+          "max_ms": 1.2204999948153272
+        },
+        "agents.view_hints_refresh": {
+          "p50_ms": 25.58754599886015,
+          "max_ms": 42.589869000948966
+        },
+        "changespec.filter": {
+          "p50_ms": 0.13028650209889747,
+          "max_ms": 0.1740320003591478
+        },
+        "widget.agent_list.patch_agent_row": {
+          "p50_ms": 0.45812449388904497,
+          "max_ms": 1.1375019967090338
+        },
+        "widget.prompt_panel.update_display_with_hints": {
+          "p50_ms": 28.936631002579816,
+          "max_ms": 41.87591599475127
+        }
+      }
+    },
+    "large_reply_repeat_press": {
+      "wall_ms": 3075.4987859982066,
+      "hint_counters": {
+        "renders": 1,
+        "annotated_chars": 102541,
+        "hints": 924,
+        "commit_views": 0,
+        "header_summary": [
+          "warm"
+        ],
+        "family_container": [
+          false
+        ]
+      },
+      "spans": {
+        "": {
+          "p50_ms": 0.0,
+          "max_ms": 0.0
+        },
+        "agents.apply_loaded_agents_prepared": {
+          "p50_ms": 32.228240503172856,
+          "max_ms": 39.74654100602493
+        },
+        "agents.attempt_history_for": {
+          "p50_ms": 0.013324992323759943,
+          "max_ms": 0.013775992556475103
+        },
+        "agents.final_display_refresh": {
+          "p50_ms": 28.739198998664506,
+          "max_ms": 35.289981999085285
+        },
+        "agents.finalize_plan": {
+          "p50_ms": 1.522737496998161,
+          "max_ms": 1.7716519942041487
+        },
+        "agents.finalize_query_filter": {
+          "p50_ms": 0.014623001334257424,
+          "max_ms": 0.014798002666793764
+        },
+        "agents.fold_filtering": {
+          "p50_ms": 0.7536045013694093,
+          "max_ms": 0.7986150012584403
+        },
+        "agents.incomplete_load_merge": {
+          "p50_ms": 0.0032059906516224146,
+          "max_ms": 0.004117988282814622
+        },
+        "agents.live_hint_refresh": {
+          "p50_ms": 1753.7319640032365,
+          "max_ms": 1758.8238930038642
+        },
+        "agents.load_from_disk": {
+          "p50_ms": 1970.9235940026701,
+          "max_ms": 1988.643795993994
+        },
+        "agents.refresh_display": {
+          "p50_ms": 27.40870849811472,
+          "max_ms": 33.43771499930881
+        },
+        "agents.refresh_panel_widgets": {
+          "p50_ms": 19.78744149528211,
+          "max_ms": 25.64150899706874
+        },
+        "agents.update_info_panel": {
+          "p50_ms": 2.219799003796652,
+          "max_ms": 6.370665010763332
+        },
+        "agents.view_agent_files": {
+          "p50_ms": 20.641783004975878,
+          "max_ms": 37.47338100220077
+        },
+        "agents.view_files": {
+          "p50_ms": 20.905326993670315,
+          "max_ms": 38.18402699835133
+        },
+        "agents.view_hint_bar_mount": {
+          "p50_ms": 0.8862620015861467,
+          "max_ms": 0.9220500069204718
+        },
+        "agents.view_hints_refresh": {
+          "p50_ms": 16.343475501344074,
+          "max_ms": 17.113045003497973
+        },
+        "agents.worker_prep": {
+          "p50_ms": 33.66599649598356,
+          "max_ms": 41.39166200184263
+        },
+        "changespec.filter": {
+          "p50_ms": 0.11582099250517786,
+          "max_ms": 0.14913499762769789
+        },
+        "widget.agent_list.patch_agent_row": {
+          "p50_ms": 0.40609600546304137,
+          "max_ms": 1.7429479921702296
+        },
+        "widget.agent_list.update_list": {
+          "p50_ms": 6.7618704997585155,
+          "max_ms": 11.036352996597998
+        },
+        "widget.prompt_panel.update_display_with_hints": {
+          "p50_ms": 18.225831008749083,
+          "max_ms": 35.469514987198636
+        }
+      }
+    },
+    "family_container_press": {
+      "wall_ms": 3060.818907004432,
+      "hint_counters": {
+        "renders": 1,
+        "annotated_chars": 1680,
+        "hints": 13,
+        "commit_views": 0,
+        "header_summary": [
+          "warm"
+        ],
+        "family_container": [
+          true
+        ]
+      },
+      "spans": {
+        "": {
+          "p50_ms": 0.0,
+          "max_ms": 0.0
+        },
+        "agents.update_info_panel": {
+          "p50_ms": 3.07315275495057,
+          "max_ms": 3.36535599490162
+        },
+        "agents.view_agent_files": {
+          "p50_ms": 5.487948990776204,
+          "max_ms": 6.873563994304277
+        },
+        "agents.view_files": {
+          "p50_ms": 5.859437995241024,
+          "max_ms": 7.256063996464945
+        },
+        "agents.view_hint_bar_mount": {
+          "p50_ms": 0.7642389973625541,
+          "max_ms": 0.9385330049553886
+        },
+        "changespec.filter": {
+          "p50_ms": 0.12095275451429188,
+          "max_ms": 0.14972500503063202
+        },
+        "widget.agent_list.patch_agent_row": {
+          "p50_ms": 0.47162100236164406,
+          "max_ms": 1.3436559966066852
+        },
+        "widget.prompt_panel.update_display_with_hints": {
+          "p50_ms": 3.808251000009477,
+          "max_ms": 5.222822001087479
+        }
+      }
+    },
+    "family_container_unfolded_press": {
+      "wall_ms": 6025.639579995186,
+      "hint_counters": {
+        "renders": 1,
+        "annotated_chars": 614538,
+        "hints": 5539,
+        "commit_views": 0,
+        "header_summary": [
+          "warm"
+        ],
+        "family_container": [
+          true
+        ]
+      },
+      "spans": {
+        "": {
+          "p50_ms": 0.0,
+          "max_ms": 0.0
+        },
+        "agents.update_info_panel": {
+          "p50_ms": 2.2325629979604855,
+          "max_ms": 3.280453005572781
+        },
+        "agents.view_agent_files": {
+          "p50_ms": 85.07517000543885,
+          "max_ms": 182.54251200414728
+        },
+        "agents.view_files": {
+          "p50_ms": 85.4017530073179,
+          "max_ms": 182.94623200199567
+        },
+        "agents.view_hint_bar_mount": {
+          "p50_ms": 0.9406760073034093,
+          "max_ms": 0.9528100054012612
+        },
+        "changespec.filter": {
+          "p50_ms": 0.10209500760538504,
+          "max_ms": 0.12315499770920724
+        },
+        "widget.agent_list.patch_agent_row": {
+          "p50_ms": 0.43297698721289635,
+          "max_ms": 5.745169997680932
+        },
+        "widget.prompt_panel.update_display_with_hints": {
+          "p50_ms": 83.4502869984135,
+          "max_ms": 181.00736099586356
+        }
+      }
+    },
+    "hint_mode_auto_refresh": {
+      "wall_ms": 1275.432976995944,
+      "hint_counters": {
+        "renders": 1,
+        "annotated_chars": 102541,
+        "hints": 924,
+        "commit_views": 0,
+        "header_summary": [
+          "warm"
+        ],
+        "family_container": [
+          false
+        ]
+      },
+      "spans": {
+        "agents.attempt_history_for": {
+          "p50_ms": 0.017313010175712407,
+          "max_ms": 0.03936499706469476
+        },
+        "agents.refresh_display": {
+          "p50_ms": 29.89618199353572,
+          "max_ms": 47.416956003871746
+        },
+        "agents.refresh_panel_highlights": {
+          "p50_ms": 2.0507860026555136,
+          "max_ms": 2.710925997234881
+        },
+        "agents.update_info_panel": {
+          "p50_ms": 1.9807119970209897,
+          "max_ms": 3.2956030045170337
+        },
+        "agents.view_hints_refresh": {
+          "p50_ms": 22.186924004927278,
+          "max_ms": 35.84735598997213
+        },
+        "changespec.filter": {
+          "p50_ms": 0.09436000254936516,
+          "max_ms": 0.09436000254936516
+        },
+        "widget.agent_list.patch_agent_row": {
+          "p50_ms": 0.39084599120542407,
+          "max_ms": 1.2071149976691231
+        },
+        "widget.agent_list.update_highlight": {
+          "p50_ms": 0.18289900617673993,
+          "max_ms": 0.8848800061969087
+        },
+        "widget.prompt_panel.update_display_with_hints": {
+          "p50_ms": 21.74084199941717,
+          "max_ms": 35.429347000899725
+        }
+      }
+    }
+  },
+  "raw_runs": [
+    {
+      "reply_kb": 100,
+      "family_members": 5,
+      "steps": {
+        "large_reply_first_press": {
+          "wall_ms": 3703.356388999964,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 2.0,
+              "p50_ms": 31.09616800065851,
+              "p95_ms": 41.87591599475127,
+              "max_ms": 41.87591599475127
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.838421008666046,
+              "p95_ms": 0.838421008666046,
+              "max_ms": 0.838421008666046
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 22.30936600244604,
+              "p95_ms": 22.30936600244604,
+              "max_ms": 22.30936600244604
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 22.855709001305513,
+              "p95_ms": 22.855709001305513,
+              "max_ms": 22.855709001305513
+            },
+            "agents.update_info_panel": {
+              "n": 4.0,
+              "p50_ms": 2.1830475016031414,
+              "p95_ms": 3.1890079990262166,
+              "max_ms": 3.1890079990262166
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 20.0,
+              "p50_ms": 0.4197669986751862,
+              "p95_ms": 0.6923319888301194,
+              "max_ms": 0.8169100037775934
+            },
+            "changespec.filter": {
+              "n": 2.0,
+              "p50_ms": 0.13415099965641275,
+              "p95_ms": 0.1740320003591478,
+              "max_ms": 0.1740320003591478
+            },
+            "agents.view_hints_refresh": {
+              "n": 1.0,
+              "p50_ms": 42.589869000948966,
+              "p95_ms": 42.589869000948966,
+              "max_ms": 42.589869000948966
+            }
+          },
+          "hint_counters": {
+            "renders": 2,
+            "annotated_chars": 102541,
+            "hints": 924,
+            "commit_views": 0,
+            "header_summary": [
+              "cold",
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "large_reply_repeat_press": {
+          "wall_ms": 3043.9917580079054,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 18.225831008749083,
+              "p95_ms": 18.225831008749083,
+              "max_ms": 18.225831008749083
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.77994899766054,
+              "p95_ms": 0.77994899766054,
+              "max_ms": 0.77994899766054
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 20.655810003518127,
+              "p95_ms": 20.655810003518127,
+              "max_ms": 20.655810003518127
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 20.905326993670315,
+              "p95_ms": 20.905326993670315,
+              "max_ms": 20.905326993670315
+            },
+            "agents.update_info_panel": {
+              "n": 3.0,
+              "p50_ms": 2.342002000659704,
+              "p95_ms": 3.1542719952994958,
+              "max_ms": 3.1542719952994958
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 15.0,
+              "p50_ms": 0.48811199667397887,
+              "p95_ms": 0.8567949989810586,
+              "max_ms": 1.2506180064519867
+            },
+            "changespec.filter": {
+              "n": 1.0,
+              "p50_ms": 0.1049109996529296,
+              "p95_ms": 0.1049109996529296,
+              "max_ms": 0.1049109996529296
+            },
+            "": {
+              "n": 2.0,
+              "p50_ms": 0.0,
+              "p95_ms": 0.0,
+              "max_ms": 0.0
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 102541,
+            "hints": 924,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "hint_mode_auto_refresh": {
+          "wall_ms": 1298.0664689966943,
+          "spans": {
+            "widget.agent_list.update_highlight": {
+              "n": 1.0,
+              "p50_ms": 0.18289900617673993,
+              "p95_ms": 0.18289900617673993,
+              "max_ms": 0.18289900617673993
+            },
+            "agents.refresh_panel_highlights": {
+              "n": 1.0,
+              "p50_ms": 2.1505970071302727,
+              "p95_ms": 2.1505970071302727,
+              "max_ms": 2.1505970071302727
+            },
+            "agents.update_info_panel": {
+              "n": 2.0,
+              "p50_ms": 1.9807119970209897,
+              "p95_ms": 1.9914729928132147,
+              "max_ms": 1.9914729928132147
+            },
+            "agents.attempt_history_for": {
+              "n": 1.0,
+              "p50_ms": 0.016431004041805863,
+              "p95_ms": 0.016431004041805863,
+              "max_ms": 0.016431004041805863
+            },
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 35.429347000899725,
+              "p95_ms": 35.429347000899725,
+              "max_ms": 35.429347000899725
+            },
+            "agents.view_hints_refresh": {
+              "n": 1.0,
+              "p50_ms": 35.84735598997213,
+              "p95_ms": 35.84735598997213,
+              "max_ms": 35.84735598997213
+            },
+            "agents.refresh_display": {
+              "n": 1.0,
+              "p50_ms": 47.416956003871746,
+              "p95_ms": 47.416956003871746,
+              "max_ms": 47.416956003871746
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 5.0,
+              "p50_ms": 0.36511701182462275,
+              "p95_ms": 0.6285700073931366,
+              "max_ms": 0.6285700073931366
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 102541,
+            "hints": 924,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "family_container_press": {
+          "wall_ms": 3060.818907004432,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 3.2908139983192086,
+              "p95_ms": 3.2908139983192086,
+              "max_ms": 3.2908139983192086
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.7292619993677363,
+              "p95_ms": 0.7292619993677363,
+              "max_ms": 0.7292619993677363
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 4.904645000351593,
+              "p95_ms": 4.904645000351593,
+              "max_ms": 4.904645000351593
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 5.230616996414028,
+              "p95_ms": 5.230616996414028,
+              "max_ms": 5.230616996414028
+            },
+            "agents.update_info_panel": {
+              "n": 3.0,
+              "p50_ms": 2.08374900103081,
+              "p95_ms": 2.9314760031411424,
+              "max_ms": 2.9314760031411424
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 15.0,
+              "p50_ms": 0.46909600496292114,
+              "p95_ms": 0.8279309986392036,
+              "max_ms": 1.014848006889224
+            },
+            "": {
+              "n": 2.0,
+              "p50_ms": 0.0,
+              "p95_ms": 0.0,
+              "max_ms": 0.0
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 1680,
+            "hints": 13,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              true
+            ]
+          }
+        },
+        "family_container_unfolded_press": {
+          "wall_ms": 5712.881771003595,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 88.60839699627832,
+              "p95_ms": 88.60839699627832,
+              "max_ms": 88.60839699627832
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.9204480011248961,
+              "p95_ms": 0.9204480011248961,
+              "max_ms": 0.9204480011248961
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 90.15678300056607,
+              "p95_ms": 90.15678300056607,
+              "max_ms": 90.15678300056607
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 90.87257999635767,
+              "p95_ms": 90.87257999635767,
+              "max_ms": 90.87257999635767
+            },
+            "agents.update_info_panel": {
+              "n": 2.0,
+              "p50_ms": 2.4144750059349462,
+              "p95_ms": 2.8403230098774657,
+              "max_ms": 2.8403230098774657
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 10.0,
+              "p50_ms": 0.3766744994209148,
+              "p95_ms": 0.6616739992750809,
+              "max_ms": 0.6616739992750809
+            },
+            "changespec.filter": {
+              "n": 1.0,
+              "p50_ms": 0.12315499770920724,
+              "p95_ms": 0.12315499770920724,
+              "max_ms": 0.12315499770920724
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 614538,
+            "hints": 5539,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    {
+      "reply_kb": 100,
+      "family_members": 5,
+      "steps": {
+        "large_reply_first_press": {
+          "wall_ms": 1965.5693219974637,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 36.17302799830213,
+              "p95_ms": 36.17302799830213,
+              "max_ms": 36.17302799830213
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 1.2204999948153272,
+              "p95_ms": 1.2204999948153272,
+              "max_ms": 1.2204999948153272
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 39.761230000294745,
+              "p95_ms": 39.761230000294745,
+              "max_ms": 39.761230000294745
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 40.52981801214628,
+              "p95_ms": 40.52981801214628,
+              "max_ms": 40.52981801214628
+            },
+            "agents.update_info_panel": {
+              "n": 2.0,
+              "p50_ms": 2.833139500580728,
+              "p95_ms": 3.567922001820989,
+              "max_ms": 3.567922001820989
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 10.0,
+              "p50_ms": 0.45812449388904497,
+              "p95_ms": 0.9995790023822337,
+              "max_ms": 0.9995790023822337
+            },
+            "changespec.filter": {
+              "n": 1.0,
+              "p50_ms": 0.08760800119489431,
+              "p95_ms": 0.08760800119489431,
+              "max_ms": 0.08760800119489431
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 102541,
+            "hints": 924,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "large_reply_repeat_press": {
+          "wall_ms": 3050.221956000314,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 17.914104988449253,
+              "p95_ms": 17.914104988449253,
+              "max_ms": 17.914104988449253
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.7808109949110076,
+              "p95_ms": 0.7808109949110076,
+              "max_ms": 0.7808109949110076
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 19.281254993984476,
+              "p95_ms": 19.281254993984476,
+              "max_ms": 19.281254993984476
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 19.631262999610044,
+              "p95_ms": 19.631262999610044,
+              "max_ms": 19.631262999610044
+            },
+            "agents.update_info_panel": {
+              "n": 3.0,
+              "p50_ms": 2.0870250009465963,
+              "p95_ms": 2.1699040080420673,
+              "max_ms": 2.1699040080420673
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 15.0,
+              "p50_ms": 0.3817789984168485,
+              "p95_ms": 0.6346820009639487,
+              "max_ms": 1.007593993563205
+            },
+            "": {
+              "n": 2.0,
+              "p50_ms": 0.0,
+              "p95_ms": 0.0,
+              "max_ms": 0.0
+            },
+            "changespec.filter": {
+              "n": 1.0,
+              "p50_ms": 0.14913499762769789,
+              "p95_ms": 0.14913499762769789,
+              "max_ms": 0.14913499762769789
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 102541,
+            "hints": 924,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "hint_mode_auto_refresh": {
+          "wall_ms": 1185.7215630006976,
+          "spans": {
+            "widget.agent_list.update_highlight": {
+              "n": 1.0,
+              "p50_ms": 0.08469198655802757,
+              "p95_ms": 0.08469198655802757,
+              "max_ms": 0.08469198655802757
+            },
+            "agents.refresh_panel_highlights": {
+              "n": 1.0,
+              "p50_ms": 1.1382730008335784,
+              "p95_ms": 1.1382730008335784,
+              "max_ms": 1.1382730008335784
+            },
+            "agents.update_info_panel": {
+              "n": 2.0,
+              "p50_ms": 1.802998005587142,
+              "p95_ms": 2.177458009100519,
+              "max_ms": 2.177458009100519
+            },
+            "agents.attempt_history_for": {
+              "n": 1.0,
+              "p50_ms": 0.03936499706469476,
+              "p95_ms": 0.03936499706469476,
+              "max_ms": 0.03936499706469476
+            },
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 23.091430994099937,
+              "p95_ms": 23.091430994099937,
+              "max_ms": 23.091430994099937
+            },
+            "agents.view_hints_refresh": {
+              "n": 1.0,
+              "p50_ms": 23.923720000311732,
+              "p95_ms": 23.923720000311732,
+              "max_ms": 23.923720000311732
+            },
+            "agents.refresh_display": {
+              "n": 1.0,
+              "p50_ms": 31.28794999793172,
+              "p95_ms": 31.28794999793172,
+              "max_ms": 31.28794999793172
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 5.0,
+              "p50_ms": 0.39084599120542407,
+              "p95_ms": 0.7428180106217042,
+              "max_ms": 0.7428180106217042
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 102541,
+            "hints": 924,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "family_container_press": {
+          "wall_ms": 451.0708719899412,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 3.8726539933122694,
+              "p95_ms": 3.8726539933122694,
+              "max_ms": 3.8726539933122694
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.7642389973625541,
+              "p95_ms": 0.7642389973625541,
+              "max_ms": 0.7642389973625541
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 5.383518990129232,
+              "p95_ms": 5.383518990129232,
+              "max_ms": 5.383518990129232
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 5.676086992025375,
+              "p95_ms": 5.676086992025375,
+              "max_ms": 5.676086992025375
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 1680,
+            "hints": 13,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              true
+            ]
+          }
+        },
+        "family_container_unfolded_press": {
+          "wall_ms": 5592.334775006748,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 78.06023600278422,
+              "p95_ms": 78.06023600278422,
+              "max_ms": 78.06023600278422
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.7934149907669052,
+              "p95_ms": 0.7934149907669052,
+              "max_ms": 0.7934149907669052
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 79.43595301185269,
+              "p95_ms": 79.43595301185269,
+              "max_ms": 79.43595301185269
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 79.7659539966844,
+              "p95_ms": 79.7659539966844,
+              "max_ms": 79.7659539966844
+            },
+            "agents.update_info_panel": {
+              "n": 2.0,
+              "p50_ms": 2.611832504044287,
+              "p95_ms": 3.0274110031314194,
+              "max_ms": 3.0274110031314194
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 10.0,
+              "p50_ms": 0.5715059960493818,
+              "p95_ms": 1.294140995014459,
+              "max_ms": 1.294140995014459
+            },
+            "changespec.filter": {
+              "n": 1.0,
+              "p50_ms": 0.09608399705030024,
+              "p95_ms": 0.09608399705030024,
+              "max_ms": 0.09608399705030024
+            },
+            "": {
+              "n": 2.0,
+              "p50_ms": 0.0,
+              "p95_ms": 0.0,
+              "max_ms": 0.0
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 614538,
+            "hints": 5539,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    {
+      "reply_kb": 100,
+      "family_members": 5,
+      "steps": {
+        "large_reply_first_press": {
+          "wall_ms": 3277.4590690096375,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 2.0,
+              "p50_ms": 27.248066995525733,
+              "p95_ms": 32.027502995333634,
+              "max_ms": 32.027502995333634
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 1.117724008508958,
+              "p95_ms": 1.117724008508958,
+              "max_ms": 1.117724008508958
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 34.884428008808754,
+              "p95_ms": 34.884428008808754,
+              "max_ms": 34.884428008808754
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 35.557463008444756,
+              "p95_ms": 35.557463008444756,
+              "max_ms": 35.557463008444756
+            },
+            "agents.view_hints_refresh": {
+              "n": 1.0,
+              "p50_ms": 22.942406008951366,
+              "p95_ms": 22.942406008951366,
+              "max_ms": 22.942406008951366
+            },
+            "agents.update_info_panel": {
+              "n": 3.0,
+              "p50_ms": 2.2784510074416175,
+              "p95_ms": 2.946414999314584,
+              "max_ms": 2.946414999314584
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 15.0,
+              "p50_ms": 0.46287399891298264,
+              "p95_ms": 0.7307260093512014,
+              "max_ms": 0.7492099975934252
+            },
+            "changespec.filter": {
+              "n": 1.0,
+              "p50_ms": 0.1264220045413822,
+              "p95_ms": 0.1264220045413822,
+              "max_ms": 0.1264220045413822
+            }
+          },
+          "hint_counters": {
+            "renders": 2,
+            "annotated_chars": 102541,
+            "hints": 924,
+            "commit_views": 0,
+            "header_summary": [
+              "cold",
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "large_reply_repeat_press": {
+          "wall_ms": 4895.706976996735,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 2.0,
+              "p50_ms": 17.368016997352242,
+              "p95_ms": 18.40853899193462,
+              "max_ms": 18.40853899193462
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.9220500069204718,
+              "p95_ms": 0.9220500069204718,
+              "max_ms": 0.9220500069204718
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 20.128632997511886,
+              "p95_ms": 20.128632997511886,
+              "max_ms": 20.128632997511886
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 20.718810992548242,
+              "p95_ms": 20.718810992548242,
+              "max_ms": 20.718810992548242
+            },
+            "agents.update_info_panel": {
+              "n": 7.0,
+              "p50_ms": 2.312384996912442,
+              "p95_ms": 6.2313480011653155,
+              "max_ms": 6.2313480011653155
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 25.0,
+              "p50_ms": 0.4636349913198501,
+              "p95_ms": 1.553366004372947,
+              "max_ms": 1.7429479921702296
+            },
+            "agents.load_from_disk": {
+              "n": 1.0,
+              "p50_ms": 1953.2033920113463,
+              "p95_ms": 1953.2033920113463,
+              "max_ms": 1953.2033920113463
+            },
+            "": {
+              "n": 5.0,
+              "p50_ms": 0.0,
+              "p95_ms": 0.0,
+              "max_ms": 0.0
+            },
+            "agents.incomplete_load_merge": {
+              "n": 1.0,
+              "p50_ms": 0.0022939930204302073,
+              "p95_ms": 0.0022939930204302073,
+              "max_ms": 0.0022939930204302073
+            },
+            "agents.fold_filtering": {
+              "n": 1.0,
+              "p50_ms": 0.7085940014803782,
+              "p95_ms": 0.7085940014803782,
+              "max_ms": 0.7085940014803782
+            },
+            "agents.worker_prep": {
+              "n": 1.0,
+              "p50_ms": 25.940330990124494,
+              "p95_ms": 25.940330990124494,
+              "max_ms": 25.940330990124494
+            },
+            "agents.finalize_query_filter": {
+              "n": 1.0,
+              "p50_ms": 0.014448000001721084,
+              "p95_ms": 0.014448000001721084,
+              "max_ms": 0.014448000001721084
+            },
+            "agents.finalize_plan": {
+              "n": 1.0,
+              "p50_ms": 1.7716519942041487,
+              "p95_ms": 1.7716519942041487,
+              "max_ms": 1.7716519942041487
+            },
+            "widget.agent_list.update_list": {
+              "n": 3.0,
+              "p50_ms": 5.011639004806057,
+              "p95_ms": 5.227090994594619,
+              "max_ms": 5.227090994594619
+            },
+            "agents.refresh_panel_widgets": {
+              "n": 1.0,
+              "p50_ms": 13.93337399349548,
+              "p95_ms": 13.93337399349548,
+              "max_ms": 13.93337399349548
+            },
+            "agents.refresh_display": {
+              "n": 1.0,
+              "p50_ms": 21.37970199692063,
+              "p95_ms": 21.37970199692063,
+              "max_ms": 21.37970199692063
+            },
+            "agents.final_display_refresh": {
+              "n": 1.0,
+              "p50_ms": 22.188415998243727,
+              "p95_ms": 22.188415998243727,
+              "max_ms": 22.188415998243727
+            },
+            "agents.apply_loaded_agents_prepared": {
+              "n": 1.0,
+              "p50_ms": 24.709940000320785,
+              "p95_ms": 24.709940000320785,
+              "max_ms": 24.709940000320785
+            },
+            "agents.attempt_history_for": {
+              "n": 1.0,
+              "p50_ms": 0.012873992091044784,
+              "p95_ms": 0.012873992091044784,
+              "max_ms": 0.012873992091044784
+            },
+            "agents.view_hints_refresh": {
+              "n": 1.0,
+              "p50_ms": 17.113045003497973,
+              "p95_ms": 17.113045003497973,
+              "max_ms": 17.113045003497973
+            },
+            "agents.live_hint_refresh": {
+              "n": 1.0,
+              "p50_ms": 1748.6400350026088,
+              "p95_ms": 1748.6400350026088,
+              "max_ms": 1748.6400350026088
+            },
+            "changespec.filter": {
+              "n": 1.0,
+              "p50_ms": 0.11582099250517786,
+              "p95_ms": 0.11582099250517786,
+              "max_ms": 0.11582099250517786
+            }
+          },
+          "hint_counters": {
+            "renders": 2,
+            "annotated_chars": 53812,
+            "hints": 465,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "hint_mode_auto_refresh": {
+          "wall_ms": 1275.432976995944,
+          "spans": {
+            "widget.agent_list.update_highlight": {
+              "n": 1.0,
+              "p50_ms": 0.8848800061969087,
+              "p95_ms": 0.8848800061969087,
+              "max_ms": 0.8848800061969087
+            },
+            "agents.refresh_panel_highlights": {
+              "n": 1.0,
+              "p50_ms": 2.0507860026555136,
+              "p95_ms": 2.0507860026555136,
+              "max_ms": 2.0507860026555136
+            },
+            "agents.update_info_panel": {
+              "n": 2.0,
+              "p50_ms": 2.536738997150678,
+              "p95_ms": 3.1871459941612557,
+              "max_ms": 3.1871459941612557
+            },
+            "agents.attempt_history_for": {
+              "n": 1.0,
+              "p50_ms": 0.01395599974785,
+              "p95_ms": 0.01395599974785,
+              "max_ms": 0.01395599974785
+            },
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 8.684371001436375,
+              "p95_ms": 8.684371001436375,
+              "max_ms": 8.684371001436375
+            },
+            "agents.view_hints_refresh": {
+              "n": 1.0,
+              "p50_ms": 9.03458999528084,
+              "p95_ms": 9.03458999528084,
+              "max_ms": 9.03458999528084
+            },
+            "agents.refresh_display": {
+              "n": 1.0,
+              "p50_ms": 18.12721200985834,
+              "p95_ms": 18.12721200985834,
+              "max_ms": 18.12721200985834
+            },
+            "changespec.filter": {
+              "n": 1.0,
+              "p50_ms": 0.09436000254936516,
+              "p95_ms": 0.09436000254936516,
+              "max_ms": 0.09436000254936516
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 5.0,
+              "p50_ms": 0.39251899579539895,
+              "p95_ms": 1.0351059900131077,
+              "max_ms": 1.0351059900131077
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 5084,
+            "hints": 6,
+            "commit_views": 1,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "family_container_press": {
+          "wall_ms": 3062.996975000715,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 3.671320009743795,
+              "p95_ms": 3.671320009743795,
+              "max_ms": 3.671320009743795
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.7791179959895089,
+              "p95_ms": 0.7791179959895089,
+              "max_ms": 0.7791179959895089
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 5.487948990776204,
+              "p95_ms": 5.487948990776204,
+              "max_ms": 5.487948990776204
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 5.859437995241024,
+              "p95_ms": 5.859437995241024,
+              "max_ms": 5.859437995241024
+            },
+            "agents.update_info_panel": {
+              "n": 3.0,
+              "p50_ms": 3.336320005473681,
+              "p95_ms": 3.36535599490162,
+              "max_ms": 3.36535599490162
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 15.0,
+              "p50_ms": 0.474145999760367,
+              "p95_ms": 0.9931259992299601,
+              "max_ms": 1.3436559966066852
+            },
+            "": {
+              "n": 2.0,
+              "p50_ms": 0.0,
+              "p95_ms": 0.0,
+              "max_ms": 0.0
+            },
+            "changespec.filter": {
+              "n": 2.0,
+              "p50_ms": 0.10948350245598704,
+              "p95_ms": 0.14972500503063202,
+              "max_ms": 0.14972500503063202
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 1680,
+            "hints": 13,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              true
+            ]
+          }
+        },
+        "family_container_unfolded_press": {
+          "wall_ms": 11270.092767997994,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 181.00736099586356,
+              "p95_ms": 181.00736099586356,
+              "max_ms": 181.00736099586356
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.9423690062249079,
+              "p95_ms": 0.9423690062249079,
+              "max_ms": 0.9423690062249079
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 182.54251200414728,
+              "p95_ms": 182.54251200414728,
+              "max_ms": 182.54251200414728
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 182.94623200199567,
+              "p95_ms": 182.94623200199567,
+              "max_ms": 182.94623200199567
+            },
+            "agents.update_info_panel": {
+              "n": 3.0,
+              "p50_ms": 2.202846997533925,
+              "p95_ms": 2.5124079984379932,
+              "max_ms": 2.5124079984379932
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 15.0,
+              "p50_ms": 0.47786199138499796,
+              "p95_ms": 1.7933339986484498,
+              "max_ms": 5.745169997680932
+            },
+            "changespec.filter": {
+              "n": 3.0,
+              "p50_ms": 0.09670401050243527,
+              "p95_ms": 0.11797499610111117,
+              "max_ms": 0.11797499610111117
+            },
+            "": {
+              "n": 2.0,
+              "p50_ms": 0.0,
+              "p95_ms": 0.0,
+              "max_ms": 0.0
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 614538,
+            "hints": 5539,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    {
+      "reply_kb": 100,
+      "family_members": 5,
+      "steps": {
+        "large_reply_first_press": {
+          "wall_ms": 2746.325792002608,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 2.0,
+              "p50_ms": 23.507609497755766,
+              "p95_ms": 25.03169399278704,
+              "max_ms": 25.03169399278704
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.9464070026297122,
+              "p95_ms": 0.9464070026297122,
+              "max_ms": 0.9464070026297122
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 25.92717600055039,
+              "p95_ms": 25.92717600055039,
+              "max_ms": 25.92717600055039
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 26.374669003416784,
+              "p95_ms": 26.374669003416784,
+              "max_ms": 26.374669003416784
+            },
+            "agents.update_info_panel": {
+              "n": 3.0,
+              "p50_ms": 2.1928570058662444,
+              "p95_ms": 3.116970998235047,
+              "max_ms": 3.116970998235047
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 15.0,
+              "p50_ms": 0.42005200521089137,
+              "p95_ms": 1.1170130019309,
+              "max_ms": 1.1375019967090338
+            },
+            "agents.view_hints_refresh": {
+              "n": 1.0,
+              "p50_ms": 25.58754599886015,
+              "p95_ms": 25.58754599886015,
+              "max_ms": 25.58754599886015
+            }
+          },
+          "hint_counters": {
+            "renders": 2,
+            "annotated_chars": 102541,
+            "hints": 924,
+            "commit_views": 0,
+            "header_summary": [
+              "cold",
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "large_reply_repeat_press": {
+          "wall_ms": 3075.4987859982066,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 18.8701609877171,
+              "p95_ms": 18.8701609877171,
+              "max_ms": 18.8701609877171
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.9187840041704476,
+              "p95_ms": 0.9187840041704476,
+              "max_ms": 0.9187840041704476
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 20.641783004975878,
+              "p95_ms": 20.641783004975878,
+              "max_ms": 20.641783004975878
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 21.64249301131349,
+              "p95_ms": 21.64249301131349,
+              "max_ms": 21.64249301131349
+            },
+            "agents.update_info_panel": {
+              "n": 3.0,
+              "p50_ms": 2.193437991081737,
+              "p95_ms": 2.2960450005484745,
+              "max_ms": 2.2960450005484745
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 15.0,
+              "p50_ms": 0.385947001632303,
+              "p95_ms": 0.7458440086338669,
+              "max_ms": 0.7770740048727021
+            },
+            "changespec.filter": {
+              "n": 2.0,
+              "p50_ms": 0.09088849765248597,
+              "p95_ms": 0.11417799396440387,
+              "max_ms": 0.11417799396440387
+            },
+            "": {
+              "n": 2.0,
+              "p50_ms": 0.0,
+              "p95_ms": 0.0,
+              "max_ms": 0.0
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 102541,
+            "hints": 924,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "hint_mode_auto_refresh": {
+          "wall_ms": 1560.2392100117868,
+          "spans": {
+            "widget.agent_list.update_highlight": {
+              "n": 1.0,
+              "p50_ms": 0.11054100468754768,
+              "p95_ms": 0.11054100468754768,
+              "max_ms": 0.11054100468754768
+            },
+            "agents.refresh_panel_highlights": {
+              "n": 1.0,
+              "p50_ms": 1.4249399973778054,
+              "p95_ms": 1.4249399973778054,
+              "max_ms": 1.4249399973778054
+            },
+            "agents.update_info_panel": {
+              "n": 2.0,
+              "p50_ms": 1.88717849960085,
+              "p95_ms": 2.1279329957906157,
+              "max_ms": 2.1279329957906157
+            },
+            "agents.attempt_history_for": {
+              "n": 1.0,
+              "p50_ms": 0.017313010175712407,
+              "p95_ms": 0.017313010175712407,
+              "max_ms": 0.017313010175712407
+            },
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 21.74084199941717,
+              "p95_ms": 21.74084199941717,
+              "max_ms": 21.74084199941717
+            },
+            "agents.view_hints_refresh": {
+              "n": 1.0,
+              "p50_ms": 22.186924004927278,
+              "p95_ms": 22.186924004927278,
+              "max_ms": 22.186924004927278
+            },
+            "agents.refresh_display": {
+              "n": 1.0,
+              "p50_ms": 29.89618199353572,
+              "p95_ms": 29.89618199353572,
+              "max_ms": 29.89618199353572
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 5.0,
+              "p50_ms": 0.41333999251946807,
+              "p95_ms": 1.0449450055602938,
+              "max_ms": 1.0449450055602938
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 102541,
+            "hints": 924,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "family_container_press": {
+          "wall_ms": 3074.6131560008507,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 3.808251000009477,
+              "p95_ms": 3.808251000009477,
+              "max_ms": 3.808251000009477
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.7503630040446296,
+              "p95_ms": 0.7503630040446296,
+              "max_ms": 0.7503630040446296
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 5.542002007132396,
+              "p95_ms": 5.542002007132396,
+              "max_ms": 5.542002007132396
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 6.162056000903249,
+              "p95_ms": 6.162056000903249,
+              "max_ms": 6.162056000903249
+            },
+            "agents.update_info_panel": {
+              "n": 3.0,
+              "p50_ms": 3.0621260084444657,
+              "p95_ms": 3.1236249924404547,
+              "max_ms": 3.1236249924404547
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 15.0,
+              "p50_ms": 0.45530899660661817,
+              "p95_ms": 0.7586889987578616,
+              "max_ms": 0.9991070110118017
+            },
+            "changespec.filter": {
+              "n": 1.0,
+              "p50_ms": 0.13242200657259673,
+              "p95_ms": 0.13242200657259673,
+              "max_ms": 0.13242200657259673
+            },
+            "": {
+              "n": 2.0,
+              "p50_ms": 0.0,
+              "p95_ms": 0.0,
+              "max_ms": 0.0
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 1680,
+            "hints": 13,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              true
+            ]
+          }
+        },
+        "family_container_unfolded_press": {
+          "wall_ms": 6025.639579995186,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 79.33712399972137,
+              "p95_ms": 79.33712399972137,
+              "max_ms": 79.33712399972137
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.9406760073034093,
+              "p95_ms": 0.9406760073034093,
+              "max_ms": 0.9406760073034093
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 81.25588799885008,
+              "p95_ms": 81.25588799885008,
+              "max_ms": 81.25588799885008
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 81.54146299057174,
+              "p95_ms": 81.54146299057174,
+              "max_ms": 81.54146299057174
+            },
+            "agents.update_info_panel": {
+              "n": 2.0,
+              "p50_ms": 2.2325629979604855,
+              "p95_ms": 2.4291180016007274,
+              "max_ms": 2.4291180016007274
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 10.0,
+              "p50_ms": 0.4270154968253337,
+              "p95_ms": 0.7022009958745912,
+              "max_ms": 0.7022009958745912
+            },
+            "changespec.filter": {
+              "n": 2.0,
+              "p50_ms": 0.10625250433804467,
+              "p95_ms": 0.11357601033523679,
+              "max_ms": 0.11357601033523679
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 614538,
+            "hints": 5539,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    {
+      "reply_kb": 100,
+      "family_members": 5,
+      "steps": {
+        "large_reply_first_press": {
+          "wall_ms": 3067.744133004453,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 28.936631002579816,
+              "p95_ms": 28.936631002579816,
+              "max_ms": 28.936631002579816
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.8239839953603223,
+              "p95_ms": 0.8239839953603223,
+              "max_ms": 0.8239839953603223
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 30.395326000871137,
+              "p95_ms": 30.395326000871137,
+              "max_ms": 30.395326000871137
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 30.949383988627233,
+              "p95_ms": 30.949383988627233,
+              "max_ms": 30.949383988627233
+            },
+            "agents.update_info_panel": {
+              "n": 3.0,
+              "p50_ms": 3.023693003342487,
+              "p95_ms": 3.2207809999817982,
+              "max_ms": 3.2207809999817982
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 15.0,
+              "p50_ms": 0.5224670021561906,
+              "p95_ms": 0.894287004484795,
+              "max_ms": 0.9608550026314333
+            },
+            "changespec.filter": {
+              "n": 1.0,
+              "p50_ms": 0.1497859921073541,
+              "p95_ms": 0.1497859921073541,
+              "max_ms": 0.1497859921073541
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 102541,
+            "hints": 924,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "large_reply_repeat_press": {
+          "wall_ms": 4634.618665004382,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 2.0,
+              "p50_ms": 25.346776994410902,
+              "p95_ms": 35.469514987198636,
+              "max_ms": 35.469514987198636
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.8862620015861467,
+              "p95_ms": 0.8862620015861467,
+              "max_ms": 0.8862620015861467
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 37.47338100220077,
+              "p95_ms": 37.47338100220077,
+              "max_ms": 37.47338100220077
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 38.18402699835133,
+              "p95_ms": 38.18402699835133,
+              "max_ms": 38.18402699835133
+            },
+            "agents.update_info_panel": {
+              "n": 5.0,
+              "p50_ms": 2.219799003796652,
+              "p95_ms": 6.370665010763332,
+              "max_ms": 6.370665010763332
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 15.0,
+              "p50_ms": 0.40609600546304137,
+              "p95_ms": 0.8190240041585639,
+              "max_ms": 1.3107730046613142
+            },
+            "changespec.filter": {
+              "n": 1.0,
+              "p50_ms": 0.12988799426238984,
+              "p95_ms": 0.12988799426238984,
+              "max_ms": 0.12988799426238984
+            },
+            "agents.load_from_disk": {
+              "n": 1.0,
+              "p50_ms": 1988.643795993994,
+              "p95_ms": 1988.643795993994,
+              "max_ms": 1988.643795993994
+            },
+            "": {
+              "n": 5.0,
+              "p50_ms": 0.0,
+              "p95_ms": 0.0,
+              "max_ms": 0.0
+            },
+            "agents.incomplete_load_merge": {
+              "n": 1.0,
+              "p50_ms": 0.004117988282814622,
+              "p95_ms": 0.004117988282814622,
+              "max_ms": 0.004117988282814622
+            },
+            "agents.fold_filtering": {
+              "n": 1.0,
+              "p50_ms": 0.7986150012584403,
+              "p95_ms": 0.7986150012584403,
+              "max_ms": 0.7986150012584403
+            },
+            "agents.worker_prep": {
+              "n": 1.0,
+              "p50_ms": 41.39166200184263,
+              "p95_ms": 41.39166200184263,
+              "max_ms": 41.39166200184263
+            },
+            "agents.finalize_query_filter": {
+              "n": 1.0,
+              "p50_ms": 0.014798002666793764,
+              "p95_ms": 0.014798002666793764,
+              "max_ms": 0.014798002666793764
+            },
+            "agents.finalize_plan": {
+              "n": 1.0,
+              "p50_ms": 1.2738229997921735,
+              "p95_ms": 1.2738229997921735,
+              "max_ms": 1.2738229997921735
+            },
+            "widget.agent_list.update_list": {
+              "n": 3.0,
+              "p50_ms": 8.512101994710974,
+              "p95_ms": 11.036352996597998,
+              "max_ms": 11.036352996597998
+            },
+            "agents.refresh_panel_widgets": {
+              "n": 1.0,
+              "p50_ms": 25.64150899706874,
+              "p95_ms": 25.64150899706874,
+              "max_ms": 25.64150899706874
+            },
+            "agents.refresh_display": {
+              "n": 1.0,
+              "p50_ms": 33.43771499930881,
+              "p95_ms": 33.43771499930881,
+              "max_ms": 33.43771499930881
+            },
+            "agents.final_display_refresh": {
+              "n": 1.0,
+              "p50_ms": 35.289981999085285,
+              "p95_ms": 35.289981999085285,
+              "max_ms": 35.289981999085285
+            },
+            "agents.apply_loaded_agents_prepared": {
+              "n": 1.0,
+              "p50_ms": 39.74654100602493,
+              "p95_ms": 39.74654100602493,
+              "max_ms": 39.74654100602493
+            },
+            "agents.live_hint_refresh": {
+              "n": 1.0,
+              "p50_ms": 1758.8238930038642,
+              "p95_ms": 1758.8238930038642,
+              "max_ms": 1758.8238930038642
+            },
+            "agents.attempt_history_for": {
+              "n": 1.0,
+              "p50_ms": 0.013775992556475103,
+              "p95_ms": 0.013775992556475103,
+              "max_ms": 0.013775992556475103
+            },
+            "agents.view_hints_refresh": {
+              "n": 1.0,
+              "p50_ms": 15.573905999190174,
+              "p95_ms": 15.573905999190174,
+              "max_ms": 15.573905999190174
+            }
+          },
+          "hint_counters": {
+            "renders": 2,
+            "annotated_chars": 53812,
+            "hints": 465,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "hint_mode_auto_refresh": {
+          "wall_ms": 1110.6426729966188,
+          "spans": {
+            "widget.agent_list.update_highlight": {
+              "n": 1.0,
+              "p50_ms": 0.8609640062786639,
+              "p95_ms": 0.8609640062786639,
+              "max_ms": 0.8609640062786639
+            },
+            "agents.refresh_panel_highlights": {
+              "n": 1.0,
+              "p50_ms": 2.710925997234881,
+              "p95_ms": 2.710925997234881,
+              "max_ms": 2.710925997234881
+            },
+            "agents.update_info_panel": {
+              "n": 2.0,
+              "p50_ms": 2.686891006305814,
+              "p95_ms": 3.2956030045170337,
+              "max_ms": 3.2956030045170337
+            },
+            "agents.attempt_history_for": {
+              "n": 1.0,
+              "p50_ms": 0.019637998775579035,
+              "p95_ms": 0.019637998775579035,
+              "max_ms": 0.019637998775579035
+            },
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 9.515787998680025,
+              "p95_ms": 9.515787998680025,
+              "max_ms": 9.515787998680025
+            },
+            "agents.view_hints_refresh": {
+              "n": 1.0,
+              "p50_ms": 9.716111002489924,
+              "p95_ms": 9.716111002489924,
+              "max_ms": 9.716111002489924
+            },
+            "agents.refresh_display": {
+              "n": 1.0,
+              "p50_ms": 21.373069001128897,
+              "p95_ms": 21.373069001128897,
+              "max_ms": 21.373069001128897
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 5.0,
+              "p50_ms": 0.3879209980368614,
+              "p95_ms": 1.2071149976691231,
+              "max_ms": 1.2071149976691231
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 5084,
+            "hints": 6,
+            "commit_views": 1,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              false
+            ]
+          }
+        },
+        "family_container_press": {
+          "wall_ms": 1844.2722870095167,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 5.222822001087479,
+              "p95_ms": 5.222822001087479,
+              "max_ms": 5.222822001087479
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.9385330049553886,
+              "p95_ms": 0.9385330049553886,
+              "max_ms": 0.9385330049553886
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 6.873563994304277,
+              "p95_ms": 6.873563994304277,
+              "max_ms": 6.873563994304277
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 7.256063996464945,
+              "p95_ms": 7.256063996464945,
+              "max_ms": 7.256063996464945
+            },
+            "agents.update_info_panel": {
+              "n": 2.0,
+              "p50_ms": 3.084179501456674,
+              "p95_ms": 3.2412389991804957,
+              "max_ms": 3.2412389991804957
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 10.0,
+              "p50_ms": 0.6722285033902153,
+              "p95_ms": 1.121490990044549,
+              "max_ms": 1.121490990044549
+            },
+            "": {
+              "n": 2.0,
+              "p50_ms": 0.0,
+              "p95_ms": 0.0,
+              "max_ms": 0.0
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 1680,
+            "hints": 13,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              true
+            ]
+          }
+        },
+        "family_container_unfolded_press": {
+          "wall_ms": 11150.76083499298,
+          "spans": {
+            "widget.prompt_panel.update_display_with_hints": {
+              "n": 1.0,
+              "p50_ms": 83.4502869984135,
+              "p95_ms": 83.4502869984135,
+              "max_ms": 83.4502869984135
+            },
+            "agents.view_hint_bar_mount": {
+              "n": 1.0,
+              "p50_ms": 0.9528100054012612,
+              "p95_ms": 0.9528100054012612,
+              "max_ms": 0.9528100054012612
+            },
+            "agents.view_agent_files": {
+              "n": 1.0,
+              "p50_ms": 85.07517000543885,
+              "p95_ms": 85.07517000543885,
+              "max_ms": 85.07517000543885
+            },
+            "agents.view_files": {
+              "n": 1.0,
+              "p50_ms": 85.4017530073179,
+              "p95_ms": 85.4017530073179,
+              "max_ms": 85.4017530073179
+            },
+            "agents.update_info_panel": {
+              "n": 3.0,
+              "p50_ms": 2.075060998322442,
+              "p95_ms": 3.280453005572781,
+              "max_ms": 3.280453005572781
+            },
+            "widget.agent_list.patch_agent_row": {
+              "n": 15.0,
+              "p50_ms": 0.43297698721289635,
+              "p95_ms": 0.7740879955235869,
+              "max_ms": 0.8761630015214905
+            },
+            "changespec.filter": {
+              "n": 2.0,
+              "p50_ms": 0.10209500760538504,
+              "p95_ms": 0.10358801227994263,
+              "max_ms": 0.10358801227994263
+            },
+            "": {
+              "n": 2.0,
+              "p50_ms": 0.0,
+              "p95_ms": 0.0,
+              "max_ms": 0.0
+            }
+          },
+          "hint_counters": {
+            "renders": 1,
+            "annotated_chars": 614538,
+            "hints": 5539,
+            "commit_views": 0,
+            "header_summary": [
+              "warm"
+            ],
+            "family_container": [
+              true
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

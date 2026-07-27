@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ....hint_types import ViewFilesResult
 from ....hints import build_editor_args
+from ...util.trace import tui_trace
 from ...widgets import AgentDetail, ChangeSpecDetail, HintInputBar
 from ._types import HintMixinBase
 
@@ -15,6 +16,15 @@ class FileViewingMixin(HintMixinBase):
     """Mixin providing file viewing actions."""
 
     def action_view_files(self) -> None:
+        """View files for the current ChangeSpec or Agent, tracing the keypath.
+
+        Wraps the whole ``v`` keypath so a capture can read the keypress →
+        hint-bar-visible interval out of ``tui_trace.jsonl`` directly.
+        """
+        with tui_trace("agents.view_files", tab=self.current_tab):
+            self._action_view_files_impl()
+
+    def _action_view_files_impl(self) -> None:
         """View files for the current ChangeSpec or Agent."""
         if self._refocus_existing_hint_bar():
             return
@@ -63,19 +73,31 @@ class FileViewingMixin(HintMixinBase):
         detail_container.mount(hint_bar)
 
     def _view_agent_files(self) -> None:
+        """View files for the current agent (Agents tab), traced end to end."""
+        with tui_trace("agents.view_agent_files") as extra:
+            self._view_agent_files_impl(extra)
+
+    def _view_agent_files_impl(self, extra: dict[str, object]) -> None:
         """View files for the current agent (Agents tab)."""
         if self._refocus_existing_hint_bar():
+            extra["outcome"] = "refocused"
             return
 
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
+            extra["outcome"] = "no_agent"
             return
+
+        extra["family_container"] = agent.is_family_container_row
 
         # Re-render prompt panel with file path hints
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         hint_render = agent_detail.update_display_with_hints(agent)
         hint_mappings = hint_render.file_hints
         commit_views = hint_render.commit_views
+        extra["hints"] = len(hint_mappings)
+        extra["commit_views"] = len(commit_views)
+        extra["header_enrichment_pending"] = hint_render.header_enrichment_pending
 
         if (
             not hint_mappings
@@ -86,6 +108,7 @@ class FileViewingMixin(HintMixinBase):
                 "No files or commits found in agent details", severity="warning"
             )
             self._refresh_agents_display()  # type: ignore[attr-defined]
+            extra["outcome"] = "empty"
             return
 
         # Store state for later processing
@@ -99,9 +122,12 @@ class FileViewingMixin(HintMixinBase):
         # Mount the hint input bar in the agent detail container
         detail_container = self.query_one("#agent-detail-container")  # type: ignore[attr-defined]
         if not detail_container.is_attached:
+            extra["outcome"] = "detached_container"
             return
-        hint_bar = HintInputBar(mode="view", id="hint-input-bar")
-        detail_container.mount(hint_bar)
+        with tui_trace("agents.view_hint_bar_mount"):
+            hint_bar = HintInputBar(mode="view", id="hint-input-bar")
+            detail_container.mount(hint_bar)
+        extra["outcome"] = "mounted"
 
     def _open_files_in_editor(self, result: ViewFilesResult) -> None:
         """Open files in $EDITOR (requires suspend)."""

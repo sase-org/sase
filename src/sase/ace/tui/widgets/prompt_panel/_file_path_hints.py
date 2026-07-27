@@ -2,6 +2,8 @@
 
 import os
 import re
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import Protocol
 
 from rich.style import StyleType
@@ -29,6 +31,28 @@ FILE_PATH_RE = re.compile(
     r")"
 )
 _FILE_PATH_RE = FILE_PATH_RE
+
+
+_annotated_char_scopes: list[list[int]] = []
+
+
+@contextmanager
+def annotated_char_scope() -> Generator[list[int], None, None]:
+    """Count the characters scanned for hints inside the ``with`` block.
+
+    Yields a one-element list holding the running total; read it after the
+    block exits. The count is what a hint render actually paid the regex scan
+    for, across every fragment and every family member, which is the size term
+    the view-hints trace spans report. Scopes nest, and an inner scope's
+    characters also count toward each enclosing scope. Costs nothing when no
+    scope is open.
+    """
+    counter = [0]
+    _annotated_char_scopes.append(counter)
+    try:
+        yield counter
+    finally:
+        _annotated_char_scopes.remove(counter)
 
 
 class _AppendableText(Protocol):
@@ -129,6 +153,9 @@ def append_text_with_file_hints(
     Returns:
         Updated hint counter.
     """
+    for counter in _annotated_char_scopes:
+        counter[0] += len(content)
+
     last_end = 0
     for match in FILE_PATH_RE.finditer(content):
         at_prefix = match.group(1)

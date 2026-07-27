@@ -28,6 +28,7 @@ from ._agent_display_header_summary import (
 from ._agent_display_state import AgentHintRender, HeaderHintState
 from ._agent_xprompt_highlighting import known_xprompt_skill_names
 from ._file_path_hints import (
+    annotated_char_scope,
     append_text_with_file_hints,
     resolve_agent_workspace_dir,
 )
@@ -87,9 +88,28 @@ class AgentHintsDisplayMixin:
     """Mixin providing hint-annotated agent display for AgentPromptPanel."""
 
     def update_display_with_hints(self, agent: Agent) -> AgentHintRender:
-        """Render the agent display with hints and trace the keystroke path."""
-        with tui_trace("widget.prompt_panel.update_display_with_hints"):
-            return self._update_display_with_hints_impl(agent)
+        """Render the agent display with hints and trace the keystroke path.
+
+        The span carries the counters a view-hints capture needs to apportion
+        cost: how much text was annotated, how many hints came out, and whether
+        the render ran against a warm or cold detail-header summary.
+        """
+        with (
+            tui_trace(
+                "widget.prompt_panel.update_display_with_hints",
+                family_container=agent.is_family_container_row,
+            ) as extra,
+            annotated_char_scope() as annotated_chars,
+        ):
+            render = self._update_display_with_hints_impl(agent)
+            extra["hints"] = len(render.file_hints)
+            extra["commit_views"] = len(render.commit_views)
+            extra["tool_call_reports"] = len(render.tool_call_reports)
+            extra["header_summary"] = (
+                "cold" if render.header_enrichment_pending else "warm"
+            )
+            extra["annotated_chars"] = annotated_chars[0]
+            return render
 
     def _update_display_with_hints_impl(self, agent: Agent) -> AgentHintRender:
         """Render agent display with ``[N]`` file path hints.
