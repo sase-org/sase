@@ -23,6 +23,7 @@ from sase.sdd._commit import (
 from sase.sdd._expand import dry_expand_embedded_workflows, expand_prompt_for_spec
 from sase.sdd._init_files import (
     SDD_SIDECAR_DIRECTORY_MAP_FILENAMES,
+    SDD_SIDECAR_GUIDE_KINDS,
     SDD_SIDECAR_KINDS,
     SDD_DIRECTORY_MAP_FILENAME,
     SDD_DIRECTORY_MAP_RELATIVE_PATH,
@@ -169,6 +170,7 @@ def write_sdd_spec(
 
 __all__ = [
     "SDD_SIDECAR_DIRECTORY_MAP_FILENAMES",
+    "SDD_SIDECAR_GUIDE_KINDS",
     "SDD_SIDECAR_KINDS",
     "SDD_DIRECTORY_MAP_FILENAME",
     "SDD_DIRECTORY_MAP_RELATIVE_PATH",

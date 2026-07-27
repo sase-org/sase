@@ -15,9 +15,11 @@ from sase.sdd._types import (
 SDD_DIRECTORY_MAP_FILENAME = "sdd-directory-map.png"
 SDD_DIRECTORY_MAP_RELATIVE_PATH = f"assets/{SDD_DIRECTORY_MAP_FILENAME}"
 SDD_SIDECAR_KINDS = ("plans", "research")
+SDD_SIDECAR_GUIDE_KINDS = ("plans", "research", "beads")
 SDD_SIDECAR_DIRECTORY_MAP_FILENAMES = {
     "plans": "plans-directory-map.png",
     "research": "research-directory-map.png",
+    "beads": "beads-directory-map.png",
 }
 AGENTS_SIDECAR_SCHEMA = (
     '{"authority":"owner-sharded","format":"sase-agents-sidecar",'
@@ -81,8 +83,8 @@ def expected_sdd_sidecar_files(
 ) -> tuple[SddExpectedTextFile | SddExpectedBytesFile, ...]:
     """Return deterministic generated files for one sidecar root.
 
-    The historical plans and research roles retain their illustrated guide
-    templates, while agents receives its privacy-forward bundle scaffold.
+    The plans, research, and beads roles use illustrated guide templates,
+    while agents receives its privacy-forward bundle scaffold.
     Custom roles receive a small deterministic README so repo init can seed
     arbitrary configured sidecars without inventing role-specific layouts.
     """
@@ -111,7 +113,7 @@ def expected_sdd_sidecar_files(
                 content="",
             ),
         )
-    if kind not in SDD_SIDECAR_KINDS:
+    if kind not in SDD_SIDECAR_GUIDE_KINDS:
         return (
             SddExpectedTextFile(
                 path=sidecar_root / "README.md",
@@ -295,7 +297,7 @@ def _read_sdd_sidecar_directory_map_bytes(kind: str) -> bytes:
 
 
 def _validate_sidecar_kind(kind: str) -> None:
-    if kind not in SDD_SIDECAR_KINDS:
+    if kind not in SDD_SIDECAR_GUIDE_KINDS:
         raise ValueError(f"unknown SDD sidecar kind: {kind}")
 
 

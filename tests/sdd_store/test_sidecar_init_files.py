@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sase.sdd._init_files import (
     ensure_sdd_sidecar_initialized,
+    expected_sdd_directory_readmes,
     expected_sdd_sidecar_files,
     plan_sdd_sidecar_init_actions,
 )
@@ -16,7 +17,7 @@ def test_sidecar_generated_files_are_deterministic_and_drift_tracked(
     tmp_path: Path,
     real_directory_map_assets: None,
 ) -> None:
-    for kind in ("plans", "research"):
+    for kind in ("plans", "research", "beads"):
         root = tmp_path / kind
         actions = plan_sdd_sidecar_init_actions(kind, root)
         assert {action.path.name for action in actions} == {
@@ -34,6 +35,17 @@ def test_sidecar_generated_files_are_deterministic_and_drift_tracked(
             .startswith(b"\x89PNG\r\n\x1a\n")
         )
         assert plan_sdd_sidecar_init_actions(kind, root) == ()
+
+
+def test_legacy_directory_readmes_exclude_beads(tmp_path: Path) -> None:
+    readmes = expected_sdd_directory_readmes(str(tmp_path))
+
+    assert tuple(
+        readme.path.relative_to(tmp_path).as_posix() for readme in readmes
+    ) == (
+        "sdd/plans/README.md",
+        "sdd/research/README.md",
+    )
 
 
 def test_agents_sidecar_generated_files_are_privacy_forward_and_idempotent(
