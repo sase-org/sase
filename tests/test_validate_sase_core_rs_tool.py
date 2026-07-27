@@ -44,6 +44,11 @@ def test_validate_sase_core_rs_requires_plan_validation_bindings() -> None:
     plan_bindings = {
         "plan_validate",
         "plan_frontmatter_schema",
+        "plan_reference_parse",
+        "plan_reference_render",
+        "plan_reference_canonicalize",
+        "plan_reference_resolve",
+        "plan_reference_resolution_wire_schema_version",
         "sdd_artifact_link_parse",
         "sdd_artifact_link_render",
         "sdd_artifact_link_upsert",
