@@ -305,6 +305,19 @@ test-visual *args: _setup-visual (_header "test-visual")
     @printf "\n---------- Running visual pytest subset... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest visual "$@"
 
+# Reproduce visual convergence flakes by running a fixed 26-worker pool on two
+# CPUs (13x oversubscription). Pre-fix baseline, measured 2026-07-27:
+# 116 failed, 246 passed, 1 skipped in 567.51s, including one convergence timeout.
+# Post-fix: 15 failed, 347 passed, 1 skipped in 566.68s, with no convergence
+# timeout; the residual capture/state races are tracked by the next epic phase.
+# Override the CPU list or worker count with SASE_VISUAL_CONTENTION_CPUS and
+# SASE_VISUAL_CONTENTION_WORKERS.
+[positional-arguments]
+test-visual-contention *args: _setup-visual (_header "test-visual-contention")
+    @printf "\n---------- Running visual pytest contention harness... ----------\n"
+    @command -v taskset >/dev/null || { printf "test-visual-contention requires taskset\\n" >&2; exit 1; }
+    @taskset -c "${SASE_VISUAL_CONTENTION_CPUS:-0,1}" env SASE_PYTEST_WORKERS="${SASE_VISUAL_CONTENTION_WORKERS:-26}" SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest visual "$@"
+
 # Regenerate the complete ACE PNG golden corpus. The visual-suite fingerprint
 # fixture refuses updates outside the pinned renderer environment or canonical
 # Linux platform.

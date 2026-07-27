@@ -65,11 +65,7 @@ _VISUAL_DEBOUNCERS = (
     "_agent_detail_debouncer",
     "_axe_detail_debouncer",
 )
-_VISUAL_STABLE_FRAME_COUNT = 3
-# Three queue-drain cycles can complete before a deferred Textual style update
-# is scheduled. Require the unchanged frame to survive a small amount of real
-# time as well, without paying Pilot's much longer CPU-idle heuristic.
-_VISUAL_STABLE_MIN_SECONDS = 0.1
+_VISUAL_STABLE_FRAME_COUNT = 5
 # Short one-shot timers cover input diagnostics, validation, and pressed-state
 # cleanup. Longer one-shots (for example toast expiry) intentionally keep a
 # stable visible surface alive and must not be awaited until it disappears.
@@ -94,6 +90,13 @@ def _disable_cursor_blink(page: AcePage) -> None:
         for widget in screen.walk_children():
             if isinstance(widget, (Input, TextArea)):
                 widget.cursor_blink = False
+                # Setting cursor_blink=False only forces the cursor visible
+                # when Textual's watcher observes a value transition after the
+                # blink timer is mounted. A focused input that blurred while
+                # blinking was already disabled can therefore retain
+                # _cursor_visible=False indefinitely. Normalize both the timer
+                # and visibility on every convergence cycle.
+                widget._pause_blink(visible=widget.has_focus)
 
 
 def _pending_visual_work(page: AcePage) -> tuple[list[str], list[str], list[str]]:
@@ -135,24 +138,24 @@ def _pending_visual_work(page: AcePage) -> tuple[list[str], list[str], list[str]
     return debouncers, workers, timers
 
 
-async def wait_for_visual_idle(page: AcePage, *, timeout: float = 8.0) -> None:
+async def wait_for_visual_idle(page: AcePage, *, timeout: float = 15.0) -> None:
     """Wait for finite work to finish and the rendered SVG frame to converge."""
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     previous_svg: str | None = None
     stable_frames = 0
-    stable_since: float | None = None
     frame_digests: list[str] = []
     pending: tuple[list[str], list[str], list[str]] = ([], [], [])
 
-    # A long-running visual-suite process can have CPU-bound layout or syntax
-    # work outside Textual's message/worker registries. Pay the CPU-idle
-    # heuristic once so that work lands, then use cheap queue drains while the
-    # explicit pending-work and frame-convergence barriers prove stability.
-    await page.pause()
-
     while True:
-        await page.pause(0)
+        # A zero-delay queue drain may return the same frame repeatedly simply
+        # because a starved app has not been scheduled. Pilot's full pause
+        # waits for the screen message counters and yields through its CPU-idle
+        # heuristic, so every accepted sample is separated by actual scheduler
+        # and Textual refresh progress. Five full pauses cost about the same as
+        # the former fixed 100 ms quiet period when the app is already idle,
+        # while naturally taking longer when CPU-bound work is still active.
+        await page.pause()
         _clear_transient_button_state(page)
         _disable_cursor_blink(page)
         pending = _pending_visual_work(page)
@@ -160,7 +163,6 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 8.0) -> None:
         if any(pending):
             previous_svg = None
             stable_frames = 0
-            stable_since = None
         else:
             # Exporting forces Textual to materialize the compositor's current
             # frame. Requiring the same result across separate idle/layout
@@ -174,13 +176,8 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 8.0) -> None:
                 stable_frames += 1
             else:
                 stable_frames = 1
-                stable_since = loop.time()
             previous_svg = svg
-            if (
-                stable_frames >= _VISUAL_STABLE_FRAME_COUNT
-                and stable_since is not None
-                and loop.time() - stable_since >= _VISUAL_STABLE_MIN_SECONDS
-            ):
+            if stable_frames >= _VISUAL_STABLE_FRAME_COUNT:
                 return
 
         if loop.time() >= deadline:
@@ -192,7 +189,3 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 8.0) -> None:
                 f"pending_debouncers={debouncers}; pending_workers={workers}; "
                 f"pending_one_shot_timers={timers}"
             )
-
-        # ``Pilot.pause`` yields until the current queue is idle, but finite
-        # timers and thread workers need a small amount of wall-clock progress.
-        await asyncio.sleep(min(0.01, max(0.0, deadline - loop.time())))
