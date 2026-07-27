@@ -39,6 +39,7 @@ from sase.bead.cli_work_from_plan_store import (
     require_epic_launch_store_health,
     require_plan_store_health as _require_plan_store_health,
     resolve_plan_file_context as _resolve_context,
+    write_and_commit_plan_file as _write_and_commit_plan_file,
 )
 from sase.bead.cli_work_from_plan_types import (
     PlanFileWorkError,
@@ -308,11 +309,12 @@ def _work_from_plan_file_locked(
     )
     launched_names: tuple[str, ...] = ()
 
-    def commit_plan_link(path: Path, message: str) -> bool:
-        return _commit_plan_file(
+    def commit_plan_link(path: Path, content: str, message: str) -> bool:
+        return _write_and_commit_plan_file(
             store,
             workspace_dir=workspace_dir,
             plan_path=path,
+            content=content,
             message=message,
         )
 

@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import subprocess
 import threading
 
 import pytest
@@ -10,6 +11,8 @@ from sase.bead.cli_work_from_plan import work_from_plan_file
 from sase.bead.project import BeadProject
 from sase.sdd.frontmatter import parse_frontmatter
 from sase.sdd.store import SddStore
+from tests.test_bead.cli_work_from_plan_helpers import write_plan_update
+from tests.test_bead.sync_test_helpers import configure_git_identity
 
 
 EPIC_PLAN = """---
@@ -70,6 +73,11 @@ def test_concurrent_plan_file_launches_serialize_through_terminal_push(
         plan_module,
         "_commit_plan_file",
         lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        plan_module,
+        "_write_and_commit_plan_file",
+        write_plan_update,
     )
 
     events: list[tuple[str, str]] = []
@@ -140,3 +148,133 @@ def test_concurrent_plan_file_launches_serialize_through_terminal_push(
                 result.archived_plan_path.read_text(encoding="utf-8")
             )
             assert frontmatter["bead_id"] == result.epic_id
+
+
+def test_plan_link_write_and_commit_exclude_recovery_writer(
+    project_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_common import _BeadsLocation
+    from sase.sdd._git_contention import store_git_write_lock
+    from sase.sdd.files import commit_sdd_store_files as real_commit_sdd_store_files
+
+    monkeypatch.setattr(
+        "sase.file_references.format_with_prettier",
+        lambda content: content,
+    )
+    sidecar = tmp_path / "plans-sidecar"
+    with BeadProject.init(sidecar, beads_dirname="beads"):
+        pass
+    subprocess.run(
+        ["git", "init", "-b", "main"],
+        cwd=sidecar,
+        check=True,
+        capture_output=True,
+    )
+    configure_git_identity(sidecar)
+    subprocess.run(["git", "add", "."], cwd=sidecar, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initialize plans sidecar"],
+        cwd=sidecar,
+        check=True,
+        capture_output=True,
+    )
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=sidecar,
+        repo_root=sidecar,
+    )
+    location = _BeadsLocation(
+        root=sidecar,
+        beads_dirname="beads",
+        storage=store.storage,
+        store=store,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._resolve_context",
+        lambda *, dry_run: (location, store, project_dir),
+    )
+
+    source = project_dir / "race.md"
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+    link_ready_to_commit = threading.Event()
+    finish_link_commit = threading.Event()
+    competitor_entered = threading.Event()
+    commit_messages: list[str] = []
+    launched: list[str] = []
+
+    def pause_link_commit(
+        commit_store: SddStore,
+        message: str,
+        *,
+        paths: list[Path],
+        push_after_commit: bool,
+        already_locked: bool = False,
+    ) -> bool:
+        commit_messages.append(message)
+        if message.startswith("Link approved epic plan"):
+            assert already_locked is True
+            frontmatter, _body, _had_frontmatter = parse_frontmatter(
+                paths[0].read_text(encoding="utf-8")
+            )
+            assert frontmatter["bead_id"]
+            link_ready_to_commit.set()
+            assert finish_link_commit.wait(timeout=5.0)
+        assert already_locked is not message.startswith("Archive approved plan")
+        return real_commit_sdd_store_files(
+            commit_store,
+            message,
+            paths=paths,
+            push_after_commit=push_after_commit,
+            already_locked=already_locked,
+        )
+
+    monkeypatch.setattr(
+        "sase.sdd.files.commit_sdd_store_files",
+        pause_link_commit,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        lambda _project, epic_id, **_kwargs: not launched.append(epic_id),
+    )
+
+    def compete_for_store() -> bool:
+        with store_git_write_lock(
+            sidecar,
+            timeout=2.0,
+            op="test.recovery_writer",
+            mutates_worktree=True,
+        ) as acquired:
+            if acquired:
+                competitor_entered.set()
+            return acquired
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        launch_future = executor.submit(
+            work_from_plan_file,
+            str(source),
+            dry_run=False,
+            yes=True,
+            no_push=False,
+            render=False,
+        )
+        if not link_ready_to_commit.wait(timeout=5.0):
+            finish_link_commit.set()
+            exception = launch_future.exception(timeout=5.0)
+            pytest.fail(f"plan launch did not reach its link commit: {exception}")
+        competitor_future = executor.submit(compete_for_store)
+        assert competitor_entered.wait(timeout=0.2) is False
+        finish_link_commit.set()
+        result = launch_future.result(timeout=10.0)
+        assert competitor_future.result(timeout=5.0) is True
+
+    assert competitor_entered.is_set()
+    assert launched == [result.epic_id]
+    assert not any(
+        message.startswith("Restore approved epic plan") for message in commit_messages
+    )
+    frontmatter, _body, _had_frontmatter = parse_frontmatter(
+        result.archived_plan_path.read_text(encoding="utf-8")
+    )
+    assert frontmatter["bead_id"] == result.epic_id

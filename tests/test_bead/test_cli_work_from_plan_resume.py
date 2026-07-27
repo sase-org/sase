@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -12,7 +13,8 @@ from sase.bead.model import BeadTier, IssueType
 from sase.bead.project import BeadProject
 from sase.sdd.frontmatter import parse_frontmatter
 from sase.sdd.store import SddStore
-from tests.test_bead.cli_work_from_plan_helpers import EPIC_PLAN
+from tests.test_bead.cli_work_from_plan_helpers import EPIC_PLAN, write_plan_update
+from tests.test_bead.sync_test_helpers import configure_git_identity
 
 
 @pytest.fixture(autouse=True)
@@ -100,6 +102,10 @@ def test_retrying_original_file_preserves_archived_bead_link(
         "sase.bead.cli_work_from_plan._commit_plan_file",
         lambda *_args, **_kwargs: True,
     )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
+    )
     confirmations: list[bool] = []
     monkeypatch.setattr(
         "sase.bead.cli_work_handler.launch_epic_bead_work",
@@ -162,6 +168,10 @@ def test_plan_file_launch_failure_rolls_back_for_resume(
         lambda *_args, **_kwargs: True,
     )
     monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
+    )
+    monkeypatch.setattr(
         "sase.bead.cli_work_handler.launch_epic_bead_work",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             BeadWorkError("agent launch failed")
@@ -200,6 +210,20 @@ def test_zero_spawn_after_publication_commits_and_publishes_rollback(
     sidecar = tmp_path / "plans-sidecar"
     with BeadProject.init(sidecar, beads_dirname="beads"):
         pass
+    subprocess.run(
+        ["git", "init", "-b", "main"],
+        cwd=sidecar,
+        check=True,
+        capture_output=True,
+    )
+    configure_git_identity(sidecar)
+    subprocess.run(["git", "add", "."], cwd=sidecar, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initialize plans sidecar"],
+        cwd=sidecar,
+        check=True,
+        capture_output=True,
+    )
     store = SddStore(
         storage="sidecar_repos",
         sdd_dir=sidecar,
@@ -224,8 +248,10 @@ def test_zero_spawn_after_publication_commits_and_publishes_rollback(
         *,
         paths: list[Path],
         push_after_commit: bool,
+        already_locked: bool = False,
     ) -> bool:
         del paths
+        assert already_locked is not _message.startswith("Archive approved plan")
         commit_pushes.append(push_after_commit)
         return True
 
@@ -233,6 +259,10 @@ def test_zero_spawn_after_publication_commits_and_publishes_rollback(
     monkeypatch.setattr(
         "sase.bead.sync.commit_epic_graph_checkpoint",
         lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.bead_state_is_clean",
+        lambda _beads_dir: True,
     )
     publications: list[str] = []
     monkeypatch.setattr(

@@ -47,6 +47,11 @@ Execute the rollout.
 """
 
 
+def _write_plan_update(path: Path, content: str, _message: str) -> bool:
+    path.write_text(content, encoding="utf-8")
+    return True
+
+
 def test_create_and_launch_maps_frontmatter_in_order(
     project_dir: Path,
 ) -> None:
@@ -58,8 +63,8 @@ def test_create_and_launch_maps_frontmatter_in_order(
 
     with BeadProject(project_dir) as proj:
 
-        def commit_plan_update(path: Path, _message: str) -> bool:
-            commits.append(path.read_text(encoding="utf-8"))
+        def commit_plan_update(path: Path, content: str, _message: str) -> bool:
+            commits.append(content)
             # The plan link is not committed until the complete DAG exists.
             frontmatter, _body, _had_frontmatter = parse_frontmatter(commits[-1])
             assert [
@@ -70,6 +75,7 @@ def test_create_and_launch_maps_frontmatter_in_order(
                 f"{frontmatter['bead_id']}.2",
                 f"{frontmatter['bead_id']}.3",
             ]
+            path.write_text(content, encoding="utf-8")
             return True
 
         def launch_work(project: BeadProject, epic_id: str) -> bool:
@@ -149,7 +155,9 @@ def test_creation_failure_removes_epic_and_restores_plan(
                 proj,
                 plan_path=plan_path,
                 plan_ref="rollout.md",
-                commit_plan_update=lambda _path, _message: True,
+                commit_plan_update=lambda *_args: pytest.fail(
+                    "plan update ran before the complete DAG existed"
+                ),
                 launch_work=lambda _project, _epic_id: True,
             )
         assert proj.list_issues() == []
@@ -189,7 +197,7 @@ def test_epic_creation_rollback_respects_runner_spawn_boundary(
                 proj,
                 plan_path=plan_path,
                 plan_ref="rollout.md",
-                commit_plan_update=lambda _path, _message: True,
+                commit_plan_update=_write_plan_update,
                 launch_work=lambda _project, _epic_id: (_ for _ in ()).throw(
                     BeadWorkError(message, **error_kwargs)
                 ),
@@ -225,7 +233,7 @@ def test_existing_bead_link_refuses_duplicate_creation(project_dir: Path) -> Non
                 proj,
                 plan_path=plan_path,
                 plan_ref="rollout.md",
-                commit_plan_update=lambda _path, _message: True,
+                commit_plan_update=_write_plan_update,
                 launch_work=lambda _project, _epic_id: True,
             )
         assert proj.list_issues() == []
@@ -248,7 +256,9 @@ def test_invalid_plan_creates_nothing_and_does_not_launch(
                 proj,
                 plan_path=plan_path,
                 plan_ref="invalid.md",
-                commit_plan_update=lambda path, _message: not commits.append(path),
+                commit_plan_update=lambda path, _content, _message: (
+                    not commits.append(path)
+                ),
                 launch_work=lambda _project, epic_id: not launches.append(epic_id),
             )
         assert proj.list_issues() == []
@@ -301,7 +311,7 @@ def test_valid_plan_runs_real_bead_work_wave_path(
             proj,
             plan_path=plan_path,
             plan_ref="rollout.md",
-            commit_plan_update=lambda _path, _message: True,
+            commit_plan_update=_write_plan_update,
             launch_work=lambda project, epic_id: launch_epic_bead_work(
                 project,
                 epic_id,
@@ -324,3 +334,37 @@ def test_valid_plan_runs_real_bead_work_wave_path(
     assert f"bead={result.epic.id}" in query
     assert f"%w:{result.phases[0].id}" in query
     assert f"%w:{result.phases[0].id},{result.phases[1].id}" in query
+
+
+def test_failed_forward_plan_commit_removes_graph_without_launch(
+    project_dir: Path,
+) -> None:
+    plan_path = project_dir / "rollout.md"
+    plan_path.write_text(EPIC_PLAN, encoding="utf-8")
+    updates: list[tuple[str, str]] = []
+    launches: list[str] = []
+
+    def fail_commit(path: Path, content: str, message: str) -> bool:
+        updates.append((content, message))
+        path.write_text(content, encoding="utf-8")
+        return False
+
+    with BeadProject(project_dir) as proj:
+        with pytest.raises(RuntimeError, match="failed to commit bead_id"):
+            create_and_launch_epic_from_plan(
+                proj,
+                plan_path=plan_path,
+                plan_ref="rollout.md",
+                commit_plan_update=fail_commit,
+                launch_work=lambda _project, epic_id: not launches.append(epic_id),
+            )
+        assert proj.list_issues() == []
+
+    assert len(updates) == 2
+    assert updates[0][1].startswith("Link approved epic plan")
+    assert updates[1] == (
+        EPIC_PLAN,
+        "Restore approved epic plan after failed launch: rollout",
+    )
+    assert launches == []
+    assert plan_path.read_text(encoding="utf-8") == EPIC_PLAN

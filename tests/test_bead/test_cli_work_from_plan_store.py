@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 import json
 from pathlib import Path
 import subprocess
@@ -13,7 +15,7 @@ from sase.bead.cli_work_from_plan import PlanFileWorkError, work_from_plan_file
 from sase.bead.project import BeadProject
 from sase.sdd.store import SddStore
 from tests.test_bead.cli_work_helpers import FakeLaunchResult
-from tests.test_bead.cli_work_from_plan_helpers import EPIC_PLAN
+from tests.test_bead.cli_work_from_plan_helpers import EPIC_PLAN, write_plan_update
 from tests.test_bead.sync_test_helpers import configure_git_identity
 
 
@@ -57,6 +59,10 @@ def test_plan_file_mode_uses_sidecar_store(
         lambda *_args, **_kwargs: True,
     )
     monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
+    )
+    monkeypatch.setattr(
         "sase.bead.cli_work_handler.launch_epic_bead_work",
         lambda _project, _epic_id, **_kwargs: True,
     )
@@ -74,6 +80,49 @@ def test_plan_file_mode_uses_sidecar_store(
         assert project.show(result.epic_id or "").design == (
             f"plans:{result.archived_plan_path.relative_to(sidecar).as_posix()}"
         )
+
+
+def test_plan_update_lock_failure_leaves_original_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_work_from_plan_store import write_and_commit_plan_file
+    from sase.sdd._repository_transaction import SddRepositoryHealthError
+
+    repo = tmp_path / "plans"
+    repo.mkdir()
+    plan = repo / "approved.md"
+    original = EPIC_PLAN.encode()
+    plan.write_bytes(original)
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=repo,
+        repo_root=repo,
+    )
+
+    @contextmanager
+    def unavailable_lock(*_args: object, **_kwargs: object) -> Iterator[bool]:
+        yield False
+
+    monkeypatch.setattr(
+        "sase.sdd._git_contention.store_git_write_lock",
+        unavailable_lock,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.files.commit_sdd_store_files",
+        lambda *_args, **_kwargs: pytest.fail("commit ran without the store lock"),
+    )
+
+    with pytest.raises(SddRepositoryHealthError, match="plan was not changed"):
+        write_and_commit_plan_file(
+            store,
+            workspace_dir=repo,
+            plan_path=plan,
+            content=EPIC_PLAN.replace("tier: epic", "tier: epic\nbead_id: sase-1"),
+            message="Link approved plan",
+        )
+
+    assert plan.read_bytes() == original
 
 
 def test_plan_file_refuses_poisoned_sidecar_before_archive_or_bead_open(
@@ -161,6 +210,10 @@ def test_neutral_gate_plan_archives_under_original_stem(
         lambda *_args, **_kwargs: True,
     )
     monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
+    )
+    monkeypatch.setattr(
         "sase.bead.cli_work_handler.launch_epic_bead_work",
         lambda _project, _epic_id, **_kwargs: True,
     )
@@ -218,6 +271,20 @@ def test_plan_file_publishes_graph_before_launch_and_reconciles_afterward(
     sidecar = tmp_path / "plans-sidecar"
     with BeadProject.init(sidecar, beads_dirname="beads"):
         pass
+    subprocess.run(
+        ["git", "init", "-b", "main"],
+        cwd=sidecar,
+        check=True,
+        capture_output=True,
+    )
+    configure_git_identity(sidecar)
+    subprocess.run(["git", "add", "."], cwd=sidecar, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initialize plans sidecar"],
+        cwd=sidecar,
+        check=True,
+        capture_output=True,
+    )
     store = SddStore(
         storage="sidecar_repos",
         sdd_dir=sidecar,
@@ -242,8 +309,10 @@ def test_plan_file_publishes_graph_before_launch_and_reconciles_afterward(
         *,
         paths: list[Path],
         push_after_commit: bool,
+        already_locked: bool = False,
     ) -> bool:
         del paths
+        assert already_locked is not message.startswith("Archive approved plan")
         events.append(("commit", (message, push_after_commit)))
         return True
 
@@ -263,6 +332,10 @@ def test_plan_file_publishes_graph_before_launch_and_reconciles_afterward(
     monkeypatch.setattr(
         "sase.bead.sync.commit_epic_graph_checkpoint",
         lambda _beads_dir, epic_id: events.append(("graph-commit", epic_id)) or True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.bead_state_is_clean",
+        lambda _beads_dir: True,
     )
     monkeypatch.setattr(
         "sase.bead.cli_work_from_plan._publish_epic_graph_before_launch",
@@ -327,6 +400,10 @@ def test_detached_store_no_push_preserves_linked_graph_without_launch(
     monkeypatch.setattr(
         "sase.bead.cli_work_from_plan._commit_plan_file",
         lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
     )
     monkeypatch.setattr(
         "sase.bead.sync.commit_epic_graph_checkpoint",
@@ -425,6 +502,10 @@ def test_synchronous_graph_push_failure_preserves_state_and_stops_launch(
     monkeypatch.setattr(
         "sase.bead.cli_work_from_plan._commit_plan_file",
         lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
     )
     monkeypatch.setattr(
         "sase.bead.sync.commit_epic_graph_checkpoint",

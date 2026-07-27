@@ -17,6 +17,7 @@ from sase.sdd.frontmatter import parse_frontmatter
 from tests.test_bead.cli_work_from_plan_helpers import (
     EPIC_PLAN,
     epic_plan_with_parent,
+    write_plan_update,
 )
 
 
@@ -51,6 +52,10 @@ def test_plan_file_mode_creates_links_and_launches_in_tree(
     monkeypatch.setattr(
         "sase.bead.cli_work_from_plan._commit_plan_file",
         lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
     )
     launches: list[str] = []
     monkeypatch.setattr(
@@ -110,6 +115,10 @@ def test_plan_file_creates_hierarchical_child_epic_from_managed_parent(
         lambda *_args, **_kwargs: True,
     )
     monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
+    )
+    monkeypatch.setattr(
         "sase.bead.cli_work_handler.launch_epic_bead_work",
         lambda _project, _epic_id, **_kwargs: True,
     )
@@ -150,6 +159,10 @@ def test_plan_file_parent_override_and_force_top_level(
     monkeypatch.setattr(
         "sase.bead.cli_work_from_plan._commit_plan_file",
         lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
     )
     monkeypatch.setattr(
         "sase.bead.cli_work_handler.launch_epic_bead_work",

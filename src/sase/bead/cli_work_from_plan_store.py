@@ -177,18 +177,57 @@ def commit_plan_file(
     workspace_dir: Path,
     plan_path: Path,
     message: str,
+    already_locked: bool = False,
 ) -> bool:
     from sase.sdd.files import commit_sdd_store_files
 
-    commit_store = store
-    if store.is_in_tree:
-        commit_store = replace(store, repo_root=workspace_dir)
+    commit_store = _plan_commit_store(store, workspace_dir=workspace_dir)
     return commit_sdd_store_files(
         commit_store,
         message,
         paths=[plan_path],
         push_after_commit=False,
+        already_locked=already_locked,
     )
+
+
+def write_and_commit_plan_file(
+    store: SddStore,
+    *,
+    workspace_dir: Path,
+    plan_path: Path,
+    content: str,
+    message: str,
+) -> bool:
+    """Replace and commit one approved plan inside a single store lock span."""
+    from sase.sdd._git_contention import store_git_write_lock
+    from sase.sdd._repository_transaction import SddRepositoryHealthError
+
+    commit_store = _plan_commit_store(store, workspace_dir=workspace_dir)
+    with store_git_write_lock(
+        commit_store.repo_root,
+        op="bead.approved_plan_update",
+        mutates_worktree=True,
+    ) as acquired:
+        if not acquired:
+            raise SddRepositoryHealthError(
+                f"SDD repository {commit_store.repo_root.resolve()} could not "
+                "acquire its store write lock; the approved plan was not changed"
+            )
+        plan_path.write_text(content, encoding="utf-8")
+        return commit_plan_file(
+            store,
+            workspace_dir=workspace_dir,
+            plan_path=plan_path,
+            message=message,
+            already_locked=True,
+        )
+
+
+def _plan_commit_store(store: SddStore, *, workspace_dir: Path) -> SddStore:
+    if store.is_in_tree:
+        return replace(store, repo_root=workspace_dir)
+    return store
 
 
 def push_store_after_launch(store: SddStore, *, no_push: bool) -> None:

@@ -13,6 +13,7 @@ from sase.main.parser import create_parser
 from tests.test_bead.cli_work_from_plan_helpers import (
     EPIC_PLAN,
     epic_plan_with_phase_count,
+    write_plan_update,
 )
 
 
@@ -143,6 +144,10 @@ def test_plan_file_json_output_is_one_stable_object(
     monkeypatch.setattr(
         "sase.bead.cli_work_from_plan._commit_plan_file",
         lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
     )
     monkeypatch.setattr(
         "sase.bead.cli_work_handler.launch_epic_bead_work",

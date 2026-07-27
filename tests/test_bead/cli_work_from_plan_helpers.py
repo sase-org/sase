@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 
 EPIC_PLAN = """---
 tier: epic
@@ -56,3 +59,16 @@ def epic_plan_with_phase_count(
         "---\n"
         "# Plan\n"
     )
+
+
+def write_plan_update(
+    _store: Any,
+    *,
+    workspace_dir: Path,
+    plan_path: Path,
+    content: str,
+    message: str,
+) -> bool:
+    del workspace_dir, message
+    plan_path.write_text(content, encoding="utf-8")
+    return True

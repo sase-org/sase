@@ -11,7 +11,7 @@ from sase.bead.model import BeadTier, Dependency, Issue, IssueType
 from sase.bead.phase_description import generated_phase_description
 from sase.bead.project import BeadProject
 
-type PlanUpdateCommitter = Callable[[Path, str], bool]
+type PlanUpdateCommitter = Callable[[Path, str, str], bool]
 type EpicWorkLauncher = Callable[[BeadProject, str], bool]
 
 
@@ -96,7 +96,7 @@ def create_and_launch_epic_from_plan(
     require_epic_parent(proj, parent_id, plan_path=plan_path)
 
     epic: Issue | None = None
-    plan_link_written = False
+    plan_link_update_attempted = False
     plan_link_committed = False
     try:
         epic = proj.create(
@@ -111,12 +111,6 @@ def create_and_launch_epic_from_plan(
             model=plan.model or "",
         )
 
-        linked_content = set_frontmatter_fields(
-            original_content,
-            {"bead_id": epic.id},
-        )
-        plan_path.write_text(linked_content, encoding="utf-8")
-        plan_link_written = True
         phase_by_frontmatter_id: dict[str, Issue] = {}
         phases: list[Issue] = []
         for phase_spec in plan.phases:
@@ -148,8 +142,14 @@ def create_and_launch_epic_from_plan(
             phases=tuple(phases),
             dependencies=tuple(dependencies),
         )
+        linked_content = set_frontmatter_fields(
+            original_content,
+            {"bead_id": epic.id},
+        )
+        plan_link_update_attempted = True
         if not commit_plan_update(
             plan_path,
+            linked_content,
             f"Link approved epic plan to its bead: {plan_path.stem}",
         ):
             raise EpicFromPlanError(
@@ -182,7 +182,7 @@ def create_and_launch_epic_from_plan(
             epic=epic,
             plan_path=plan_path,
             original_content=original_content,
-            plan_link_written=plan_link_written,
+            plan_link_update_attempted=plan_link_update_attempted,
             plan_link_committed=plan_link_committed,
             commit_plan_update=commit_plan_update,
         )
@@ -258,7 +258,7 @@ def _rollback_epic_creation(
     epic: Issue | None,
     plan_path: Path,
     original_content: str,
-    plan_link_written: bool,
+    plan_link_update_attempted: bool,
     plan_link_committed: bool,
     commit_plan_update: PlanUpdateCommitter,
 ) -> list[str]:
@@ -280,13 +280,13 @@ def _rollback_epic_creation(
         except Exception as exc:  # noqa: BLE001 - rollback is best effort
             errors.append(f"could not remove epic {epic.id}: {exc}")
 
-    if plan_link_written:
+    if plan_link_update_attempted:
         try:
-            plan_path.write_text(original_content, encoding="utf-8")
             # A false result is benign when the failed forward commit never
             # reached git; an exception still reports an incomplete rollback.
             restored = commit_plan_update(
                 plan_path,
+                original_content,
                 f"Restore approved epic plan after failed launch: {plan_path.stem}",
             )
             if plan_link_committed and not restored:
