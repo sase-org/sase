@@ -72,7 +72,7 @@ def test_plan_file_mode_uses_sidecar_store(
     assert result.archived_plan_path.is_relative_to(sidecar)
     with BeadProject(sidecar, beads_dirname="beads") as project:
         assert project.show(result.epic_id or "").design == (
-            result.archived_plan_path.relative_to(project_dir).as_posix()
+            f"plans:{result.archived_plan_path.relative_to(sidecar).as_posix()}"
         )
 
 
@@ -557,6 +557,7 @@ def test_git_sidecar_fresh_clone_sees_complete_graph_before_launch(
             observed["epic_id"] = epic_id
             observed["phase_ids"] = tuple(phase.id for phase in phases)
             assert epic.is_ready_to_work is True
+            assert epic.design.startswith("plans:")
             assert epic.design.endswith("/rollout.md")
             assert [len(phase.dependencies) for phase in phases] == [0, 1, 2]
         return FakeLaunchResult()

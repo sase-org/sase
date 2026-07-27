@@ -84,7 +84,7 @@ def test_create_and_launch_maps_frontmatter_in_order(
         result = create_and_launch_epic_from_plan(
             proj,
             plan_path=plan_path,
-            plan_ref="sdd/plans/202607/rollout.md",
+            plan_ref="plans:202607/rollout.md",
             commit_plan_update=commit_plan_update,
             launch_work=launch_work,
         )
@@ -92,7 +92,7 @@ def test_create_and_launch_maps_frontmatter_in_order(
         assert result.epic.tier is BeadTier.EPIC
         assert result.epic.title == "Deterministic rollout"
         assert result.epic.description == "Ship the rollout through an ordered DAG"
-        assert result.epic.design == "sdd/plans/202607/rollout.md"
+        assert result.epic.design == "plans:202607/rollout.md"
         assert result.epic.model == "claude/opus"
         assert result.epic.changespec_name == "rollout"
         assert result.epic.changespec_bug_id == "12345"
@@ -103,7 +103,7 @@ def test_create_and_launch_maps_frontmatter_in_order(
         ]
         assert result.phases[0].description == "Implement the shared core."
         assert result.phases[1].description == (
-            "Phase `cli` in approved epic plan `sdd/plans/202607/rollout.md`."
+            "Phase `cli` in approved epic plan `plans:202607/rollout.md`."
         )
         assert [phase.model for phase in result.phases] == [
             "claude/sonnet",

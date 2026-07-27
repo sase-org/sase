@@ -87,7 +87,7 @@ def test_plan_file_mode_creates_links_and_launches_in_tree(
     with BeadProject(project_dir) as project:
         epic = project.show(result.epic_id)
         assert epic.tier is BeadTier.EPIC
-        assert epic.design.startswith("sdd/plans/")
+        assert epic.design.startswith("plans:")
         assert [phase.size for phase in project.get_epic_children(epic.id)] == [
             PhaseSize.SMALL,
             PhaseSize.MEDIUM,

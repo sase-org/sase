@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from sase.sdd import plan_refs
+from sase.sdd.store import SddStore
 
 
 def test_resolve_plan_roots_is_store_first_and_deduplicated(
@@ -25,7 +26,7 @@ def test_resolve_plan_roots_is_store_first_and_deduplicated(
             store,
         )[1],
     )
-    monkeypatch.setattr(plan_refs, "sase_subdir", lambda kind: local_root)
+    monkeypatch.setattr(plan_refs, "sase_subdir", lambda _kind: local_root)
 
     assert plan_refs.resolve_plan_roots(tmp_path / "workspace", 7) == (
         store_root,
@@ -142,6 +143,85 @@ def test_canonicalize_and_resolve_use_discovered_roots(
             ),
         ),
     ]
+
+
+def test_plan_ref_for_store_prefers_canonical_store_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = SddStore(
+        storage="in_tree",
+        sdd_dir=tmp_path / "workspace" / "sdd",
+        repo_root=tmp_path / "workspace" / "sdd",
+    )
+    local_root = tmp_path / "home" / "plans"
+    plan_path = store.kind_root("plans") / "202607" / "rollout.md"
+    calls: list[tuple[str, tuple[Any, ...]]] = []
+    monkeypatch.setattr(plan_refs, "sase_subdir", lambda _kind: local_root)
+
+    def require(name: str) -> Any:
+        def binding(*args: Any) -> Any:
+            calls.append((name, args))
+            path = Path(str(args[0]))
+            for raw_root in args[1]:
+                root = Path(str(raw_root))
+                try:
+                    return f"plans:{path.relative_to(root).as_posix()}"
+                except ValueError:
+                    continue
+            return None
+
+        return binding
+
+    monkeypatch.setattr(plan_refs, "require_rust_binding", require)
+
+    assert (
+        plan_refs.plan_ref_for_store(
+            plan_path,
+            store,
+            workspace_dir=tmp_path / "workspace",
+        )
+        == "plans:202607/rollout.md"
+    )
+    assert calls == [
+        (
+            "plan_reference_canonicalize",
+            (
+                str(plan_path.expanduser().resolve(strict=False)),
+                [
+                    str(store.kind_root("plans").expanduser().resolve(strict=False)),
+                    str(local_root.expanduser().resolve(strict=False)),
+                ],
+            ),
+        )
+    ]
+
+
+def test_plan_ref_for_store_keeps_legacy_fallback_for_external_plan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=tmp_path / "workspace" / "sase" / "repos" / "plans",
+        repo_root=tmp_path / "workspace" / "sase" / "repos" / "plans",
+    )
+    external = tmp_path / "workspace" / "drafts" / "rollout.md"
+    monkeypatch.setattr(plan_refs, "sase_subdir", lambda _kind: tmp_path / "local")
+    monkeypatch.setattr(
+        plan_refs,
+        "require_rust_binding",
+        lambda _name: lambda *_args: None,
+    )
+
+    assert (
+        plan_refs.plan_ref_for_store(
+            external,
+            store,
+            workspace_dir=tmp_path / "workspace",
+        )
+        == "drafts/rollout.md"
+    )
 
 
 def test_resolve_rejects_a_stale_wire(

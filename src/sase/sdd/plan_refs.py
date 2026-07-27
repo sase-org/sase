@@ -117,8 +117,20 @@ def canonicalize_plan_reference(
 
     path = Path(plan_path).expanduser().resolve(strict=False)
     roots = resolve_plan_roots(workspace_dir, workspace_num)
+    return canonicalize_plan_reference_from_roots(path, roots=roots)
+
+
+def canonicalize_plan_reference_from_roots(
+    plan_path: str | Path,
+    *,
+    roots: tuple[Path, ...],
+) -> str | None:
+    """Return a canonical reference when *plan_path* lies below *roots*."""
+
+    path = Path(plan_path).expanduser().resolve(strict=False)
+    normalized_roots = _normalized_unique_roots(roots)
     binding = require_rust_binding("plan_reference_canonicalize")
-    result = binding(str(path), [str(root) for root in roots])
+    result = binding(str(path), [str(root) for root in normalized_roots])
     return None if result is None else str(result)
 
 
@@ -141,9 +153,7 @@ def resolve_plan_reference_from_roots(
 ) -> PlanReferenceResolution:
     """Resolve *value* through the shared core against explicit plan roots."""
 
-    normalized_roots = tuple(
-        dict.fromkeys(root.expanduser().resolve(strict=False) for root in roots)
-    )
+    normalized_roots = _normalized_unique_roots(roots)
     version_binding = require_rust_binding(
         "plan_reference_resolution_wire_schema_version"
     )
@@ -190,12 +200,18 @@ def plan_ref_for_store(
 ) -> str:
     """Return the stable plan reference persisted on a bead.
 
-    In-tree and sidecar plans prefer workspace-relative paths. Local and
-    separate-repository stores use the conventional ``.sase/sdd`` reference
-    when the plan belongs to the resolved store.
+    Plans below the active store plans root or the machine-local plan archive
+    are stored as logical ``plans:`` references. Other paths keep the legacy
+    stable fallback forms so callers can still link external files.
     """
     plan_path = plan_path.expanduser().resolve(strict=False)
     workspace_dir = workspace_dir.expanduser().resolve(strict=False)
+    canonical = canonicalize_plan_reference_from_roots(
+        plan_path,
+        roots=(store.kind_root("plans"), sase_subdir("plans")),
+    )
+    if canonical is not None:
+        return canonical
 
     if store.is_sidecar_storage:
         return _relative_or_absolute(plan_path, workspace_dir)
@@ -219,12 +235,19 @@ def _relative_or_absolute(path: Path, root: Path) -> str:
         return path.as_posix()
 
 
+def _normalized_unique_roots(roots: tuple[Path, ...]) -> tuple[Path, ...]:
+    return tuple(
+        dict.fromkeys(root.expanduser().resolve(strict=False) for root in roots)
+    )
+
+
 __all__ = [
     "PLAN_REFERENCE_RESOLUTION_WIRE_SCHEMA_VERSION",
     "ParsedPlanReference",
     "PlanReferenceResolution",
     "PlanReferenceResolutionStatus",
     "canonicalize_plan_reference",
+    "canonicalize_plan_reference_from_roots",
     "parse_plan_reference",
     "plan_ref_for_store",
     "render_plan_reference",

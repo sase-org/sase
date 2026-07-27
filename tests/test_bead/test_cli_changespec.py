@@ -93,7 +93,7 @@ def test_create_plan_stores_sibling_workspace_plan_path_relative_to_primary(
 
     with BeadProject(primary) as proj:
         issue = proj.list_issues()[0]
-        assert issue.design == "sdd/plans/202605/roadmap.md"
+        assert issue.design == "plans:202605/roadmap.md"
     assert "Created plan" in capsys.readouterr().out
 
 

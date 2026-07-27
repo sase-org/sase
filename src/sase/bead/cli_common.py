@@ -525,9 +525,14 @@ def normalize_workspace_path(resolved: Path) -> Path:
 def storage_plan_path(resolved: Path) -> str:
     """Return the plan path representation to persist on a bead.
 
-    Workspace-local plan paths are stored relative to the effective project
-    root. External paths remain absolute after workspace-prefix normalization.
+    Plans below a known SDD or local-archive plans root use canonical
+    ``plans:`` references. External paths keep the legacy relative/absolute
+    fallback after workspace-prefix normalization.
     """
+    canonical = _canonical_storage_plan_path(resolved)
+    if canonical is not None:
+        return canonical
+
     normalized = normalize_workspace_path(resolved)
 
     for root in _storage_relative_roots():
@@ -537,6 +542,38 @@ def storage_plan_path(resolved: Path) -> str:
             continue
 
     return str(normalized)
+
+
+def _canonical_storage_plan_path(resolved: Path) -> str | None:
+    location = resolve_beads_location(require_existing=True)
+    if location is None:
+        return None
+
+    try:
+        from sase.core.paths import sase_subdir
+        from sase.sdd.plan_refs import canonicalize_plan_reference_from_roots
+    except (AttributeError, ImportError):
+        return None
+
+    roots: list[Path] = []
+    if location.store is not None:
+        try:
+            roots.append(location.store.kind_root("plans"))
+        except ValueError:
+            pass
+    elif location.beads_dirname == BEADS_DIRNAME:
+        roots.append(location.root / "sdd" / "plans")
+    else:
+        roots.append(location.root / "plans")
+    roots.append(sase_subdir("plans"))
+
+    try:
+        return canonicalize_plan_reference_from_roots(
+            resolved,
+            roots=tuple(roots),
+        )
+    except (AttributeError, ImportError, RuntimeError, ValueError):
+        return None
 
 
 def _storage_relative_roots() -> list[Path]:
