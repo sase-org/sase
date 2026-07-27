@@ -65,6 +65,7 @@ Quick Start:
   sase bead list --tier=epic                     List epic plan beads
   sase bead ready                                Show issues ready to work
   sase bead show <id>                            View issue details
+  sase bead show <id> --format=json              Machine-readable bead detail
   sase bead update <id> --status=in_progress     Claim an issue
   sase bead open <id>                            Reopen an issue
   sase bead close <id>                           Close an issue

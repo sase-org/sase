@@ -131,7 +131,8 @@ def test_show_displays_changespec_metadata(
             changespec_bug_id="12345",
         )
 
-    bead_cli.handle_bead_show(argparse.Namespace(id=epic.id))
+    args = create_parser().parse_args(["bead", "show", epic.id])
+    bead_cli.handle_bead_show(args)
 
     out = capsys.readouterr().out
     assert "CHANGESPEC" in out
@@ -155,7 +156,8 @@ def test_show_phase_omits_parent_plan_when_parent_has_no_design(
             parent_id=epic.id,
         )
 
-    bead_cli.handle_bead_show(argparse.Namespace(id=phase.id))
+    args = create_parser().parse_args(["bead", "show", phase.id])
+    bead_cli.handle_bead_show(args)
 
     out = capsys.readouterr().out
     assert "\nPARENT\n" in out
@@ -418,7 +420,8 @@ def test_show_displays_model(
             "Epic", issue_type=bead_cli.IssueType.PLAN, model="claude/opus"
         )
 
-    bead_cli.handle_bead_show(argparse.Namespace(id=epic.id))
+    args = create_parser().parse_args(["bead", "show", epic.id])
+    bead_cli.handle_bead_show(args)
 
     assert "Model: claude/opus" in capsys.readouterr().out
 
@@ -430,6 +433,7 @@ def test_show_omits_model_when_empty(
     with BeadProject(project_dir) as proj:
         epic = proj.create("Epic", issue_type=bead_cli.IssueType.PLAN)
 
-    bead_cli.handle_bead_show(argparse.Namespace(id=epic.id))
+    args = create_parser().parse_args(["bead", "show", epic.id])
+    bead_cli.handle_bead_show(args)
 
     assert "Model:" not in capsys.readouterr().out

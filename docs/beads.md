@@ -236,10 +236,11 @@ was given, the command falls back to listing closed beads. `--status`, `--type`,
 
 | Flag           | Values                                     | Description                                                                           |
 | -------------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
-| `-t, --type`   | `plan`, `phase`                            | Filter by type (repeatable)                                                           |
-| `--tier`       | `plan`, `epic`                             | Filter by plan-bead tier                                                              |
+| `-f, --format` | `compact`, `json`, `full`                  | Output format; defaults to `compact`                                                  |
 | `-n, --limit`  | integer                                    | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
+| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
+| `--tier`       | `plan`, `epic`                             | Filter by plan-bead tier                                                              |
+| `-t, --type`   | `plan`, `phase`                            | Filter by type (repeatable)                                                           |
 
 Active (open/claimed/in-progress) listings are unlimited by default. Whenever the final status scope includes `closed`
 and `--limit` is omitted, only the newest 20 beads print; pass `--limit 0` for the full closed history.
@@ -280,6 +281,14 @@ notes, ChangeSpec metadata, model, and linked plan path. Phase beads show their 
 without a stored size). Any bead's children are grouped as phases (with status and size) and child epics (with tier and
 status), including child epics owned by a phase bead. Nested beads show their complete lineage back to the root plan. A
 `claimed` bead also prints `Claimed by: <assignee> (agent has not started working yet)`.
+
+`full` is the unchanged default detail block. `compact` prints the same single row as `sase bead list`. `json` emits a
+single-bead envelope with `issue`, `ancestors`, `children`, `depends_on`, `blocks`, and `plan`; every relationship
+reference includes a `resolved` flag and fixed null-valued fields for unresolved IDs.
+
+| Flag           | Values                    | Description                       |
+| -------------- | ------------------------- | --------------------------------- |
+| `-f, --format` | `compact`, `json`, `full` | Output format; defaults to `full` |
 
 ### `sase bead ready`
 

@@ -1,0 +1,57 @@
+{
+  "issue": {
+    "id": "beads-1",
+    "title": "Alpha Epic",
+    "status": "open",
+    "issue_type": "plan",
+    "tier": "epic",
+    "parent_id": null,
+    "owner": "owner@example.com",
+    "assignee": "",
+    "created_at": "2026-01-01T00:00:00Z",
+    "created_by": "owner@example.com",
+    "updated_at": "2026-01-01T00:00:00Z",
+    "closed_at": null,
+    "close_reason": null,
+    "description": "Parent description",
+    "notes": "",
+    "design": "plans/alpha.md",
+    "model": "",
+    "is_ready_to_work": false,
+    "changespec_name": "alpha_changespec",
+    "changespec_bug_id": "BUG-1",
+    "dependencies": []
+  },
+  "ancestors": [],
+  "children": {
+    "phases": [
+      {
+        "id": "beads-1.1",
+        "resolved": true,
+        "title": "Build Alpha",
+        "status": "open",
+        "issue_type": "phase",
+        "tier": null,
+        "size": null
+      },
+      {
+        "id": "beads-1.2",
+        "resolved": true,
+        "title": "Review Alpha",
+        "status": "open",
+        "issue_type": "phase",
+        "tier": null,
+        "size": null
+      }
+    ],
+    "epics": []
+  },
+  "depends_on": [],
+  "blocks": [],
+  "plan": {
+    "section": "PLAN",
+    "source": "self",
+    "path": "plans/alpha.md",
+    "from": null
+  }
+}

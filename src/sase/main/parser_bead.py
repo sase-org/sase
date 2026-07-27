@@ -235,7 +235,32 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     # sase bead show
-    bead_show_parser = bead_subparsers.add_parser("show", help="Show issue details")
+    bead_show_parser = bead_subparsers.add_parser(
+        "show",
+        help="Show issue details",
+        description=(
+            "Show one bead's full detail block: status, type, tier, owner, "
+            "assignee, model, phase size, parent lineage, children, "
+            "dependencies, blockers, description, notes, ChangeSpec, and the "
+            "linked plan. --format compact prints the same single row as "
+            "'sase bead list'; --format json adds the resolved parent, child, "
+            "dependency, blocker, and plan graph as machine-readable data."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead show sase-64\n"
+            "  sase bead show sase-64 --format compact\n"
+            "  sase bead show sase-64 --format json"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    bead_show_parser.add_argument(
+        "-f",
+        "--format",
+        choices=["compact", "json", "full"],
+        default="full",
+        help="Output format: compact, json, or full (default: full)",
+    )
     bead_show_parser.add_argument("id", help="Issue ID")
 
     # sase bead stats

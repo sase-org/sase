@@ -94,7 +94,8 @@ def test_show_explains_claim_owner(
     claimed_view: _ReadView,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    cli_query.handle_bead_show(argparse.Namespace(id=claimed_view.issue.id))
+    args = create_parser().parse_args(["bead", "show", claimed_view.issue.id])
+    cli_query.handle_bead_show(args)
 
     output = capsys.readouterr().out
     assert "◎ sase-claimed · Reserved phase   [CLAIMED]" in output

@@ -2794,11 +2794,13 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead list`
 
-| Flag           | Values                                     | Default | Description                           |
-| -------------- | ------------------------------------------ | ------- | ------------------------------------- |
-| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | -       | Filter by status (repeatable)         |
-| `-t, --type`   | `plan`, `phase`                            | -       | Filter by type (repeatable)           |
-| `--tier`       | `plan`, `epic`                             | -       | Filter by plan-bead tier (repeatable) |
+| Flag           | Values                                     | Default     | Description                                                          |
+| -------------- | ------------------------------------------ | ----------- | -------------------------------------------------------------------- |
+| `-f, --format` | `compact`, `json`, `full`                  | `compact`   | Output format                                                        |
+| `-n, --limit`  | non-negative integer                       | (unlimited) | Maximum beads to print; closed listings default to 20, `0` means all |
+| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | -           | Filter by status (repeatable)                                        |
+| `--tier`       | `plan`, `epic`                             | -           | Filter by plan-bead tier (repeatable)                                |
+| `-t, --type`   | `plan`, `phase`                            | -           | Filter by type (repeatable)                                          |
 
 #### `sase bead search`
 
@@ -2814,9 +2816,10 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead show`
 
-| Flag | Values | Default    | Description |
-| ---- | ------ | ---------- | ----------- |
-| `id` | string | (required) | Issue ID    |
+| Flag           | Values                    | Default    | Description   |
+| -------------- | ------------------------- | ---------- | ------------- |
+| `id`           | string                    | (required) | Issue ID      |
+| `-f, --format` | `compact`, `json`, `full` | `full`     | Output format |
 
 #### `sase bead open`
 

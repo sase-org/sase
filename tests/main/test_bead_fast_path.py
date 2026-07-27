@@ -340,6 +340,7 @@ def test_fast_path_defers_show_to_argparse(monkeypatch) -> None:
     monkeypatch.setattr(bead_fast_path, "_resolve_fast_path_context", fail_context)
 
     assert try_handle_bead_fast_path(["show", "beads-1.1"]) is None
+    assert try_handle_bead_fast_path(["show", "beads-1", "--format", "json"]) is None
 
 
 def test_fast_path_defers_full_search_to_argparse(monkeypatch) -> None:

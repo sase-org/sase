@@ -289,6 +289,24 @@ def _run_cli(
             stdout=_read_expected("show.stdout"),
         ),
         CliCase(
+            "show_compact",
+            ["bead", "show", "beads-1", "--format", "compact"],
+            "current",
+            stdout=_read_expected("show_compact.stdout"),
+        ),
+        CliCase(
+            "show_json",
+            ["bead", "show", "beads-1", "--format", "json"],
+            "current",
+            stdout=_read_expected("show_json.stdout"),
+        ),
+        CliCase(
+            "show_phase_json",
+            ["bead", "show", "beads-1.1", "--format", "json"],
+            "current",
+            stdout=_read_expected("show_phase_json.stdout"),
+        ),
+        CliCase(
             "show_phase_parent_epic_plan",
             ["bead", "show", "beads-1.1"],
             "current",

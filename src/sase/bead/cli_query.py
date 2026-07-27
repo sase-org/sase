@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-from pathlib import Path
 import sys
 
 from sase.bead.cli_common import get_read_view, status_icon
+from sase.bead.cli_detail import (
+    design_paths_are_relative,
+    issue_to_wire_dict,
+    render_issue_detail,
+    render_issue_detail_json,
+    resolve_issue_detail,
+)
 from sase.bead.model import (
     BeadSearchMatch,
     BeadTier,
-    Dependency,
     Issue,
     IssueType,
     Status,
@@ -80,7 +84,7 @@ def handle_bead_list(args: argparse.Namespace) -> None:
                     _render_list_full(
                         view,
                         issues,
-                        relativize_design=_design_paths_are_relative(),
+                        relativize_design=design_paths_are_relative(),
                     ),
                     end="",
                 )
@@ -96,202 +100,24 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
 
-        print(
-            _render_issue_detail(
-                view,
-                issue,
-                relativize_design=_design_paths_are_relative(),
-            ),
-            end="",
-        )
-
-
-def _render_issue_detail(
-    view: BeadProject,
-    issue: Issue,
-    *,
-    relativize_design: bool,
-) -> str:
-    lines = [
-        (
-            f"{status_icon(issue.status)} {issue.id} · {issue.title}"
-            f"   [{issue.status.value.upper()}]"
-        )
-    ]
-    tier = f" · Tier: {issue.tier.value}" if issue.tier else ""
-    lines.append(
-        f"Type: {issue.issue_type.value}{tier} · Owner: {issue.owner or '(none)'}"
-    )
-    if issue.assignee:
-        lines.append(f"Assignee: {issue.assignee}")
-    if issue.status == Status.CLAIMED:
-        lines.append(
-            f"Claimed by: {issue.assignee} (agent has not started working yet)"
-        )
-    if issue.model:
-        lines.append(f"Model: {issue.model}")
-    if issue.issue_type == IssueType.PHASE:
-        lines.append(f"Size: {_phase_size_value(issue)}")
-
-    ancestors: list[Issue] = []
-    unresolved_parent_id: str | None = None
-    if issue.parent_id:
-        ancestors, unresolved_parent_id = _parent_lineage(view, issue)
-        lineage = [issue.id]
-        lineage.extend(f"{_lineage_kind(parent)} {parent.id}" for parent in ancestors)
-        if unresolved_parent_id is not None:
-            lineage.append(f"{unresolved_parent_id} (not found)")
-        lines.extend(["", "PARENT", f"  ↑ {' ← '.join(lineage)}"])
-
-    children = view.get_epic_children(issue.id)
-    if children:
-        lines.extend(["", "CHILDREN"])
-        phases = [child for child in children if child.issue_type == IssueType.PHASE]
-        child_epics = [
-            child for child in children if child.issue_type == IssueType.PLAN
-        ]
-        if phases:
-            lines.append("  PHASES")
-            for child in phases:
-                lines.append(
-                    f"    {status_icon(child.status)} {child.id}: {child.title}"
-                    f"   [{child.status.value.upper()}]"
-                    f" · Size: {_phase_size_value(child)}"
+        match args.format:
+            case "compact":
+                print(_render_list_compact([issue]), end="")
+            case "json":
+                print(
+                    render_issue_detail_json(resolve_issue_detail(view, issue)),
+                    end="",
                 )
-        if child_epics:
-            lines.append("  CHILD EPICS")
-            for child in child_epics:
-                child_tier = child.tier.value if child.tier else "(none)"
-                lines.append(
-                    f"    {status_icon(child.status)} {child.id}: {child.title}"
-                    f"   [{child.status.value.upper()}] · Tier: {child_tier}"
+            case "full":
+                print(
+                    render_issue_detail(
+                        resolve_issue_detail(view, issue),
+                        relativize_design=design_paths_are_relative(),
+                    ),
+                    end="",
                 )
-
-    deps_on = list(issue.dependencies)
-    if deps_on:
-        lines.extend(["", "DEPENDS ON"])
-        for dependency in deps_on:
-            try:
-                dep_issue = view.show(dependency.depends_on_id)
-                lines.append(
-                    f"  → {status_icon(dep_issue.status)} {dep_issue.id}:"
-                    f" {dep_issue.title}   [{dep_issue.status.value.upper()}]"
-                )
-            except KeyError:
-                lines.append(f"  → {dependency.depends_on_id} (not found)")
-
-    blocks: list[str] = []
-    for other in view.list_issues():
-        for dependency in other.dependencies:
-            if dependency.depends_on_id == issue.id:
-                blocks.append(other.id)
-    if blocks:
-        lines.extend(["", "BLOCKS"])
-        for blocked_id in blocks:
-            try:
-                blocked = view.show(blocked_id)
-                lines.append(
-                    f"  ← {status_icon(blocked.status)} {blocked.id}:"
-                    f" {blocked.title}   [{blocked.status.value.upper()}]"
-                )
-            except KeyError:
-                lines.append(f"  ← {blocked_id} (not found)")
-
-    if issue.description:
-        lines.extend(["", "DESCRIPTION", f"  {issue.description}"])
-    if issue.notes:
-        lines.extend(["", "NOTES", f"  {issue.notes}"])
-    if issue.issue_type == IssueType.PLAN and (
-        issue.changespec_name or issue.changespec_bug_id
-    ):
-        lines.extend(["", "CHANGESPEC"])
-        if issue.changespec_name:
-            lines.append(f"  Name: {issue.changespec_name}")
-        if issue.changespec_bug_id:
-            lines.append(f"  Bug ID: {issue.changespec_bug_id}")
-
-    if issue.design:
-        section = (
-            "EPIC PLAN" if issue.parent_id and issue.tier == BeadTier.EPIC else "PLAN"
-        )
-        lines.extend(
-            [
-                "",
-                section,
-                f"  {_display_design_path(issue.design, relativize=relativize_design)}",
-            ]
-        )
-    elif (
-        issue.issue_type == IssueType.PHASE
-        and ancestors
-        and ancestors[0].issue_type == IssueType.PLAN
-        and ancestors[0].design
-    ):
-        resolved_parent = ancestors[0]
-        is_epic_parent = resolved_parent.tier == BeadTier.EPIC
-        section = "EPIC PLAN" if is_epic_parent else "PARENT PLAN"
-        parent_kind = "epic" if is_epic_parent else "plan"
-        lines.extend(
-            [
-                "",
-                section,
-                (
-                    f"  From parent {parent_kind} bead "
-                    f"{resolved_parent.id} · {resolved_parent.title}"
-                ),
-                (
-                    "  "
-                    + _display_design_path(
-                        resolved_parent.design,
-                        relativize=relativize_design,
-                    )
-                ),
-            ]
-        )
-
-    return "\n".join(lines) + "\n"
-
-
-def _parent_lineage(
-    view: BeadProject,
-    issue: Issue,
-) -> tuple[list[Issue], str | None]:
-    ancestors: list[Issue] = []
-    parent_id = issue.parent_id
-    seen = {issue.id}
-    while parent_id is not None:
-        if parent_id in seen:
-            return ancestors, parent_id
-        seen.add(parent_id)
-        try:
-            parent = view.show(parent_id)
-        except KeyError:
-            return ancestors, parent_id
-        ancestors.append(parent)
-        parent_id = parent.parent_id
-    return ancestors, None
-
-
-def _lineage_kind(issue: Issue) -> str:
-    if issue.issue_type == IssueType.PHASE:
-        return "phase"
-    return "epic" if issue.tier == BeadTier.EPIC else "plan"
-
-
-def _phase_size_value(issue: Issue) -> str:
-    return issue.size.value if issue.size else "small"
-
-
-def _design_paths_are_relative() -> bool:
-    from sase.sdd.store import resolve_sdd_store
-
-    return resolve_sdd_store(Path.cwd(), 1).is_in_tree
-
-
-def _display_design_path(design: str, *, relativize: bool) -> str:
-    if relativize:
-        return os.path.relpath(design)
-    return design
+            case _:
+                raise AssertionError(f"unknown show format: {args.format}")
 
 
 def handle_bead_search(args: argparse.Namespace) -> None:
@@ -322,7 +148,7 @@ def handle_bead_search(args: argparse.Namespace) -> None:
                         view,
                         matches,
                         args.query,
-                        relativize_design=_design_paths_are_relative(),
+                        relativize_design=design_paths_are_relative(),
                     ),
                     end="",
                 )
@@ -383,9 +209,8 @@ def _render_list_full(
     relativize_design: bool,
 ) -> str:
     sections = [
-        _render_issue_detail(
-            view,
-            issue,
+        render_issue_detail(
+            resolve_issue_detail(view, issue),
             relativize_design=relativize_design,
         ).rstrip("\n")
         for issue in issues
@@ -405,7 +230,7 @@ def _render_list_json(
         "total": total,
         "statuses": [status.value for status in statuses],
         "implied_status_closed": implied_status_closed,
-        "results": [_issue_to_wire_dict(issue) for issue in issues],
+        "results": [issue_to_wire_dict(issue) for issue in issues],
     }
     return json.dumps(envelope, indent=2) + "\n"
 
@@ -493,7 +318,7 @@ def _render_search_json(matches: list[BeadSearchMatch], query: str) -> str:
         "count": len(matches),
         "results": [
             {
-                "issue": _issue_to_wire_dict(match.issue),
+                "issue": issue_to_wire_dict(match.issue),
                 "matched_fields": match.matched_fields,
             }
             for match in matches
@@ -513,49 +338,10 @@ def _render_search_full(
         return f'No beads match "{query}".\n'
 
     sections = [
-        _render_issue_detail(
-            view,
-            match.issue,
+        render_issue_detail(
+            resolve_issue_detail(view, match.issue),
             relativize_design=relativize_design,
         ).rstrip("\n")
         for match in matches
     ]
     return f"\n{'-' * 60}\n".join(sections) + "\n"
-
-
-def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
-    payload: dict[str, object] = {
-        "id": issue.id,
-        "title": issue.title,
-        "status": issue.status.value,
-        "issue_type": issue.issue_type.value,
-        "tier": issue.tier.value if issue.tier else None,
-        "parent_id": issue.parent_id,
-        "owner": issue.owner,
-        "assignee": issue.assignee,
-        "created_at": issue.created_at,
-        "created_by": issue.created_by,
-        "updated_at": issue.updated_at,
-        "closed_at": issue.closed_at,
-        "close_reason": issue.close_reason,
-        "description": issue.description,
-        "notes": issue.notes,
-        "design": issue.design,
-        "model": issue.model,
-        "is_ready_to_work": issue.is_ready_to_work,
-        "changespec_name": issue.changespec_name,
-        "changespec_bug_id": issue.changespec_bug_id,
-        "dependencies": [_dependency_to_wire_dict(dep) for dep in issue.dependencies],
-    }
-    if issue.size is not None:
-        payload["size"] = issue.size.value
-    return payload
-
-
-def _dependency_to_wire_dict(dep: Dependency) -> dict[str, str]:
-    return {
-        "issue_id": dep.issue_id,
-        "depends_on_id": dep.depends_on_id,
-        "created_at": dep.created_at,
-        "created_by": dep.created_by,
-    }
