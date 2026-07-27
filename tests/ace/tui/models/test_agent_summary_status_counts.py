@@ -9,6 +9,7 @@ from sase.ace.tui.models._agent_clan import (
     agent_lane_status_counts,
     agent_summary_status_counts,
     clan_member_counts,
+    clan_members,
 )
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -231,6 +232,53 @@ def test_clan_projection_recurses_into_sequential_family() -> None:
     assert counts.total == 2
     assert counts.running == 1
     assert counts.done == 1
+
+
+def test_clan_counts_settle_handed_off_family_planner_as_done() -> None:
+    family = _agent("alpha--plan", "TALE DONE", role="plan", clan="research")
+    planner = _agent(
+        "alpha--plan-step",
+        "TALE APPROVED",
+        role="plan-step",
+        parent_timestamp=family.raw_suffix,
+        clan="research",
+    )
+    planner.agent_family_role = "plan"
+    planner.parent_workflow = "ace-run"
+    planner.step_type = "agent"
+    coder = _agent(
+        "alpha--code",
+        "TALE DONE",
+        role="code",
+        parent_timestamp=family.raw_suffix,
+        clan="research",
+    )
+    family.runtime_children = [planner, coder]
+    family.followup_agents = [coder]
+    standalone = _agent(
+        "research.audit",
+        "RUNNING",
+        role="solo",
+        clan="research",
+    )
+    container = project_clan_tree([family, planner, coder, standalone])[0]
+
+    assert family.is_family_container_row
+    assert clan_members(container) == (family, standalone)
+
+    clan_counts = clan_member_counts(container)
+    lane_counts = agent_lane_status_counts((container,), ())
+
+    assert clan_counts == ClanStatusCounts(running=1, done=1)
+    assert (
+        clan_counts.running,
+        clan_counts.waiting,
+        clan_counts.done,
+    ) == (
+        lane_counts.running,
+        lane_counts.waiting,
+        lane_counts.done,
+    )
 
 
 def test_container_unread_is_attributed_once_to_projected_member() -> None:

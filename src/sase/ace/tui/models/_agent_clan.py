@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import (
     QUEUED_STATUS_BUCKET,
+    aggregate_agent_group_bucket,
     aggregate_agent_group_status,
     agent_is_asking,
     status_bucket_for_values,
@@ -140,10 +141,9 @@ def clan_member_counts(
             continue
         seen.add(member.identity)
         projected_statuses = agent_status_projections((member,))
-        aggregate_status = aggregate_clan_status(
-            status.agent.status for status in projected_statuses
-        )
-        bucket = status_bucket_for_values(aggregate_status or member.status)
+        bucket = aggregate_agent_group_bucket(
+            (status.agent.status, status.bucket) for status in projected_statuses
+        ) or status_bucket_for_values(member.status)
         is_unread = member.identity in unread_ids
         if is_unread:
             unread += 1

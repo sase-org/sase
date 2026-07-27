@@ -7,6 +7,8 @@ import pytest
 from sase.ace.tui.models._agent_clan import aggregate_clan_status
 from sase.agent.status_buckets import (
     PENDING_PLAN_REVIEW_STATUSES,
+    _BUCKET_REPRESENTATIVE_STATUS,
+    aggregate_agent_group_bucket,
     aggregate_agent_group_status,
     agent_is_asking,
     is_pending_plan_review_status,
@@ -64,3 +66,57 @@ def test_aggregate_agent_group_status_priority(
 ) -> None:
     assert aggregate_agent_group_status(statuses) == expected
     assert aggregate_clan_status(statuses) == expected
+
+
+def test_aggregate_agent_group_bucket_honors_effective_override() -> None:
+    assert (
+        aggregate_agent_group_bucket((("TALE APPROVED", "Done"), ("TALE DONE", "Done")))
+        == "Done"
+    )
+
+
+@pytest.mark.parametrize(
+    "statuses",
+    [
+        ("WAITING", "DONE"),
+        ("QUEUED", "WAITING", "DONE"),
+        ("STARTING", "DONE"),
+        ("PLAN", "WAITING"),
+        ("TALE", "EPIC"),
+        ("FAILED", "RUNNING"),
+        ("UNKNOWN",),
+    ],
+)
+def test_aggregate_agent_group_bucket_matches_status_aggregate_without_overrides(
+    statuses: tuple[str, ...],
+) -> None:
+    aggregate_status = aggregate_agent_group_status(statuses)
+    assert aggregate_status is not None
+    assert aggregate_agent_group_bucket(
+        (status, status_bucket_for_values(status)) for status in statuses
+    ) == status_bucket_for_values(aggregate_status)
+
+
+def test_aggregate_agent_group_bucket_empty_input_returns_none() -> None:
+    assert aggregate_agent_group_bucket(()) is None
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [("KILLED", "Failed"), ("WAITING INPUT", "Stopped")],
+)
+def test_aggregate_agent_group_bucket_preserves_special_status_paths(
+    status: str,
+    expected: str,
+) -> None:
+    assert (
+        aggregate_agent_group_bucket(((status, status_bucket_for_values(status)),))
+        == expected
+    )
+
+
+def test_bucket_representative_statuses_round_trip() -> None:
+    assert all(
+        status_bucket_for_values(status) == bucket
+        for bucket, status in _BUCKET_REPRESENTATIVE_STATUS.items()
+    )

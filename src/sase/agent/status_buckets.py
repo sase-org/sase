@@ -220,6 +220,19 @@ def status_bucket_for_values(
     return "Running"
 
 
+#: Canonical status per bucket, used when a caller supplies an effective
+#: bucket that intentionally overrides a row's raw status.
+_BUCKET_REPRESENTATIVE_STATUS: dict[str, str] = {
+    "Stopped": "QUESTION",
+    "Failed": "FAILED",
+    "Starting": "STARTING",
+    "Running": "RUNNING",
+    QUEUED_STATUS_BUCKET: QUEUED_STATUS,
+    "Waiting": "WAITING",
+    "Done": "DONE",
+}
+
+
 def aggregate_agent_group_status(statuses: Iterable[str]) -> str | None:
     """Return aggregate agent-group status in display-priority order."""
     values = tuple(statuses)
@@ -242,3 +255,25 @@ def aggregate_agent_group_status(statuses: Iterable[str]) -> str | None:
     if all(bucket == "Done" for bucket in buckets):
         return "DONE"
     return "RUNNING"
+
+
+def aggregate_agent_group_bucket(
+    entries: Iterable[tuple[str, str]],
+) -> str | None:
+    """Return the aggregate display bucket for ``(status, effective_bucket)`` rows.
+
+    A row whose effective bucket already matches its raw status keeps that raw
+    status, so the priority ladder in :func:`aggregate_agent_group_status` still
+    sees the ``QUESTION`` / pending-review / ``KILLED`` special cases verbatim.
+    A row whose projection deliberately overrode its bucket — a handed-off
+    approved planner settles to ``Done`` — is substituted with that bucket's
+    canonical status so the override survives aggregation.
+    """
+    resolved = tuple(
+        status
+        if status_bucket_for_values(status) == bucket
+        else _BUCKET_REPRESENTATIVE_STATUS.get(bucket, status)
+        for status, bucket in entries
+    )
+    aggregate = aggregate_agent_group_status(resolved)
+    return None if aggregate is None else status_bucket_for_values(aggregate)
