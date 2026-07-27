@@ -365,7 +365,7 @@ def _copy_parser_defaults(
             continue
         if isinstance(action, argparse._SubParsersAction):
             continue
-        if not action.option_strings:
+        if not action.option_strings and action.nargs not in {"?", "*"}:
             continue
         if action.default is argparse.SUPPRESS:
             continue

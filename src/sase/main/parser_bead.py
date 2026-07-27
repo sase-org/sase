@@ -89,11 +89,63 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     # sase bead dep
-    bead_dep_parser = bead_subparsers.add_parser("dep", help="Manage dependencies")
+    bead_dep_parser = bead_subparsers.add_parser(
+        "dep",
+        help="Inspect and manage dependencies",
+        description=(
+            "Inspect and manage dependency edges. Invoking 'sase bead dep' "
+            "without a subcommand delegates to 'sase bead dep list'."
+        ),
+    )
     bead_dep_subparsers = bead_dep_parser.add_subparsers(dest="dep_action")
     bead_dep_add_parser = bead_dep_subparsers.add_parser("add", help="Add a dependency")
     bead_dep_add_parser.add_argument("issue", help="Issue that depends on another")
     bead_dep_add_parser.add_argument("depends_on", help="Issue being depended on")
+    bead_dep_list_parser = bead_dep_subparsers.add_parser(
+        "list",
+        help="List dependency edges",
+        description=(
+            "List dependency edges with blocking state and recorded provenance. "
+            "A scoped read includes every status by default; a store-wide read "
+            "defaults to open, claimed, and in-progress beads."
+        ),
+    )
+    bead_dep_list_parser.add_argument("id", nargs="?", help="Issue ID")
+    bead_dep_list_parser.add_argument(
+        "-c",
+        "--color",
+        choices=["always", "auto", "never"],
+        default="auto",
+        help="Color output: always, auto, or never (default: auto)",
+    )
+    bead_dep_list_parser.add_argument(
+        "-d",
+        "--direction",
+        choices=["both", "in", "out"],
+        default="both",
+        help="Edges to show: both, in, or out (default: both)",
+    )
+    bead_dep_list_parser.add_argument(
+        "-f",
+        "--format",
+        choices=["compact", "full", "json"],
+        default="compact",
+        help="Output format: compact, full, or json (default: compact)",
+    )
+    bead_dep_list_parser.add_argument(
+        "-n",
+        "--limit",
+        type=nonnegative_int,
+        default=0,
+        help="Maximum beads to print; 0 means unlimited",
+    )
+    bead_dep_list_parser.add_argument(
+        "-s",
+        "--status",
+        choices=["claimed", "closed", "in_progress", "open"],
+        action="append",
+        help="Filter by status (repeatable)",
+    )
 
     # sase bead doctor
     bead_doctor_parser = bead_subparsers.add_parser(

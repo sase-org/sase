@@ -388,6 +388,39 @@ def test_fast_path_defers_show_to_argparse(monkeypatch) -> None:
     assert try_handle_bead_fast_path(["show", "beads-1", "--format", "json"]) is None
 
 
+def test_fast_path_dep_reads_skip_write_guard_but_add_remains_guarded(
+    tmp_path: Path, monkeypatch
+) -> None:
+    context = bead_fast_path._FastPathContext(
+        read_beads_dirs=[tmp_path / "beads"],
+        write_beads_dir=tmp_path / "beads",
+        relativize_design_paths=False,
+    )
+    guarded: list[str] = []
+    monkeypatch.setattr(
+        bead_fast_path,
+        "_resolve_fast_path_context",
+        lambda _argv: context,
+    )
+    monkeypatch.setattr(
+        "sase.core.state_write_guard.assert_bead_store_write_sandboxed",
+        lambda _path, *, operation, read_only: guarded.append(operation),
+    )
+    monkeypatch.setattr(
+        "sase.core.rust.require_rust_binding",
+        lambda _name: lambda *_args: {"handled": False},
+    )
+
+    assert try_handle_bead_fast_path(["dep", "list"]) is None
+    assert try_handle_bead_fast_path(["dep", "tree"]) is None
+    assert guarded == []
+
+    assert try_handle_bead_fast_path(["dep", "add", "a", "b"]) is None
+    assert try_handle_bead_fast_path(["dep"]) is None
+    assert try_handle_bead_fast_path(["dep", "future-write"]) is None
+    assert guarded == ["fast-path dep", "fast-path dep", "fast-path dep"]
+
+
 def test_fast_path_defers_full_search_to_argparse(monkeypatch) -> None:
     def fail_context(argv: list[str]):
         raise AssertionError(f"context should not resolve for full search: {argv}")

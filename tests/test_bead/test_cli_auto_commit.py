@@ -297,7 +297,7 @@ def test_handle_bead_dep_add_auto_commit_message(project_dir: Path) -> None:
     blocked = _create_issue(project_dir, "Blocked")
     dependency = _create_issue(project_dir, "Dependency")
 
-    with patch("sase.bead.cli_admin.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_dep.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_dep(
             argparse.Namespace(
                 dep_action="add",

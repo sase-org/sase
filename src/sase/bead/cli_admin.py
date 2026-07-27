@@ -18,17 +18,6 @@ from sase.bead.design_ref_repair import (
 )
 
 
-def handle_bead_dep(args: argparse.Namespace) -> None:
-    if args.dep_action == "add":
-        with bead_store_mutation(auto_commit_bead_store) as mutation:
-            dep = mutation.project.add_dependency(args.issue, args.depends_on)
-            mutation.commit(f"chore(beads): link {dep.issue_id} -> {dep.depends_on_id}")
-        print(f"✓ Added dependency: {dep.issue_id} depends on {dep.depends_on_id}")
-    else:
-        print(f"Unknown dep action: {args.dep_action}", file=sys.stderr)
-        sys.exit(1)
-
-
 def handle_bead_sync(args: argparse.Namespace) -> None:
     with get_project() as proj:
         if args.status:

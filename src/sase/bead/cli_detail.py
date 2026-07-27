@@ -219,13 +219,21 @@ def render_issue_detail_json(detail: _IssueDetail) -> str:
     """Render a stable single-bead JSON envelope."""
     envelope = {
         "issue": issue_to_wire_dict(detail.issue),
-        "ancestors": [_ref_to_wire_dict(ref) for ref in detail.ancestors],
+        "ancestors": [
+            ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.ancestors
+        ],
         "children": {
-            "phases": [_ref_to_wire_dict(ref) for ref in detail.phases],
-            "epics": [_ref_to_wire_dict(ref) for ref in detail.child_epics],
+            "phases": [
+                ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.phases
+            ],
+            "epics": [
+                ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.child_epics
+            ],
         },
-        "depends_on": [_ref_to_wire_dict(ref) for ref in detail.depends_on],
-        "blocks": [_ref_to_wire_dict(ref) for ref in detail.blocks],
+        "depends_on": [
+            ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.depends_on
+        ],
+        "blocks": [ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.blocks],
         "plan": _plan_to_wire_dict(detail.plan),
     }
     return json.dumps(envelope, indent=2) + "\n"
@@ -352,10 +360,10 @@ def _unresolved_ref(issue_id: str) -> _IssueRef:
     return _IssueRef(issue_id=issue_id, issue=None)
 
 
-def _ref_to_wire_dict(ref: _IssueRef) -> dict[str, object]:
-    issue = ref.issue
+def ref_to_wire_dict(issue_id: str, issue: Issue | None) -> dict[str, object]:
+    """Return the shared resolved-or-dangling bead reference schema."""
     return {
-        "id": ref.issue_id,
+        "id": issue_id,
         "resolved": issue is not None,
         "title": issue.title if issue else None,
         "status": issue.status.value if issue else None,
@@ -372,7 +380,11 @@ def _plan_to_wire_dict(plan: _PlanLink | None) -> dict[str, object] | None:
         "section": plan.section,
         "source": plan.source,
         "path": plan.path,
-        "from": _ref_to_wire_dict(plan.from_ref) if plan.from_ref else None,
+        "from": (
+            ref_to_wire_dict(plan.from_ref.issue_id, plan.from_ref.issue)
+            if plan.from_ref
+            else None
+        ),
     }
 
 

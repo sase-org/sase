@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from sase.bead.cli_admin import (
-    handle_bead_dep,
     handle_bead_doctor,
     handle_bead_onboard,
     handle_bead_resolve_conflicts,
@@ -19,6 +18,7 @@ from sase.bead.cli_crud import (
     handle_bead_update,
     parse_type_arg,
 )
+from sase.bead.cli_dep import handle_bead_dep, handle_bead_dep_list
 from sase.bead.cli_history import handle_bead_history
 from sase.bead.cli_query import (
     handle_bead_blocked,
@@ -37,6 +37,7 @@ __all__ = [
     "handle_bead_close",
     "handle_bead_create",
     "handle_bead_dep",
+    "handle_bead_dep_list",
     "handle_bead_doctor",
     "handle_bead_init",
     "handle_bead_history",

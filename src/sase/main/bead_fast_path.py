@@ -9,7 +9,8 @@ from typing import Any, Literal, overload
 
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
-_MUTATING_VERBS = frozenset({"create", "open", "update", "close", "dep", "rm"})
+_MUTATING_VERBS = frozenset({"create", "open", "update", "close", "rm"})
+_READ_ONLY_DEP_ACTIONS = frozenset({"list", "tree"})
 
 
 def try_handle_bead_fast_path(argv: list[str]) -> int | None:
@@ -27,7 +28,7 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     if context is None:
         return None
 
-    if argv[0] in _MUTATING_VERBS:
+    if _is_mutating_verb(argv):
         from sase.core.state_write_guard import assert_bead_store_write_sandboxed
 
         assert_bead_store_write_sandboxed(
@@ -74,6 +75,15 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
         pass
 
     return int(outcome.get("exit_code") or 0)
+
+
+def _is_mutating_verb(argv: list[str]) -> bool:
+    """Classify writes conservatively before invoking the Rust fast path."""
+    if not argv:
+        return False
+    if argv[0] != "dep":
+        return argv[0] in _MUTATING_VERBS
+    return len(argv) < 2 or argv[1] not in _READ_ONLY_DEP_ACTIONS
 
 
 class _FastPathContext:
