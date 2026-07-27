@@ -437,6 +437,7 @@ def test_work_rejects_non_plan_bead(
 
 
 def test_work_missing_bead_json_error_is_one_envelope(
+    project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with pytest.raises(SystemExit) as excinfo:

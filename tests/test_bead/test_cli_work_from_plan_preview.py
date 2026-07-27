@@ -163,6 +163,7 @@ def test_plan_file_json_output_is_one_stable_object(
 
 
 def test_bead_id_mode_rejects_parent_override(
+    project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     args = create_parser().parse_args(
@@ -188,6 +189,7 @@ def test_bead_id_mode_rejects_parent_override(
 def test_bead_id_mode_rejects_plan_file_only_linking_options_as_json(
     option: str,
     value: str,
+    project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     args = create_parser().parse_args(
