@@ -19,6 +19,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
@@ -67,7 +68,7 @@ async def test_config_center_statistics_runtime_png_snapshot(
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("runtime")
-        await page.pause()
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -93,7 +94,7 @@ async def test_config_center_statistics_runs_png_snapshot(
         pane.query_one("#statistics-body-scroll", VerticalScroll).scroll_end(
             animate=False
         )
-        await page.pause()
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -115,7 +116,7 @@ async def test_config_center_statistics_runners_png_snapshot(
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("runners")
-        await page.pause()
+        await wait_for_visual_idle(page)
 
         assert pane._last_result is not None
         assert pane._last_result.views.runners.available is True
@@ -144,7 +145,7 @@ async def test_config_center_statistics_runners_narrow_png_snapshot(
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("runners")
-        await page.pause()
+        await wait_for_visual_idle(page)
 
         assert pane._runners_stacked is True
         ace_png_visual.assert_page_png(
@@ -168,6 +169,7 @@ async def test_config_center_statistics_help_png_snapshot(
         await _open_statistics_modal(page)
         await page.press("question_mark")
         await page.expect_modal("StatisticsHelpModal")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -214,7 +216,7 @@ async def test_config_center_statistics_projects_png_snapshot(
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("projects")
-        await page.pause()
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -238,7 +240,7 @@ async def test_config_center_statistics_projects_drilldown_png_snapshot(
         pane._set_view("projects")
         pane.action_cycle_group()
         pane.action_cycle_group()
-        await page.pause()
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,

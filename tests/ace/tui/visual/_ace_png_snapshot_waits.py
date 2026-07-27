@@ -65,11 +65,37 @@ _VISUAL_DEBOUNCERS = (
     "_agent_detail_debouncer",
     "_axe_detail_debouncer",
 )
+_VISUAL_CONVERGENCE_TITLE = "ACE visual convergence probe"
+_VISUAL_CONVERGED_SVG_ATTR = "_sase_visual_converged_svg"
 _VISUAL_STABLE_FRAME_COUNT = 5
 # Short one-shot timers cover input diagnostics, validation, and pressed-state
 # cleanup. Longer one-shots (for example toast expiry) intentionally keep a
 # stable visible surface alive and must not be awaited until it disappears.
 _VISUAL_SETTLING_TIMER_MAX_SECONDS = 0.5
+
+
+def assert_visual_frame_converged(page: AcePage) -> None:
+    """Prove that *page* still renders the frame accepted by convergence.
+
+    The canonical re-export and the caller's titled PNG export are both
+    synchronous, so Textual cannot advance between this check and capture.
+    """
+    expected = getattr(page, _VISUAL_CONVERGED_SVG_ATTR, None)
+    if expected is None:
+        raise AssertionError(
+            "ACE PNG capture requires wait_for_visual_idle(page) before "
+            "assert_page_png()"
+        )
+
+    actual = page.export_svg(title=_VISUAL_CONVERGENCE_TITLE)
+    if actual != expected:
+        expected_digest = hashlib.sha256(expected.encode()).hexdigest()[:12]
+        actual_digest = hashlib.sha256(actual.encode()).hexdigest()[:12]
+        raise AssertionError(
+            "ACE PNG capture frame changed after visual convergence; make "
+            "wait_for_visual_idle(page) the final await before capture "
+            f"(converged_digest={expected_digest}, capture_digest={actual_digest})"
+        )
 
 
 def _clear_transient_button_state(page: AcePage) -> None:
@@ -83,9 +109,10 @@ def _clear_transient_button_state(page: AcePage) -> None:
             button.remove_class("-active")
 
 
-def _disable_cursor_blink(page: AcePage) -> None:
+def _disable_cursor_blink(page: AcePage) -> bool:
     from textual.widgets import Input, TextArea
 
+    focused_cursor_refreshed = False
     for screen in page.app.screen_stack:
         for widget in screen.walk_children():
             if isinstance(widget, (Input, TextArea)):
@@ -97,6 +124,22 @@ def _disable_cursor_blink(page: AcePage) -> None:
                 # _cursor_visible=False indefinitely. Normalize both the timer
                 # and visibility on every convergence cycle.
                 widget._pause_blink(visible=widget.has_focus)
+                if widget.has_focus:
+                    if isinstance(widget, TextArea):
+                        # TextArea's render-line cache key only includes
+                        # cursor visibility while blinking is enabled. If a
+                        # caret-free line was cached before this helper
+                        # disabled blinking, refresh() alone can keep reusing
+                        # it forever. Clear that stale line before repainting.
+                        widget._line_cache.clear()
+                    # The cursor visibility reactive can be correct before a
+                    # starved compositor has painted the focused row. Force a
+                    # repaint and tell the caller to drain it before sampling;
+                    # otherwise convergence can accept a caret-free cached
+                    # compositor frame while this refresh is merely queued.
+                    widget.refresh()
+                    focused_cursor_refreshed = True
+    return focused_cursor_refreshed
 
 
 def _pending_visual_work(page: AcePage) -> tuple[list[str], list[str], list[str]]:
@@ -138,8 +181,9 @@ def _pending_visual_work(page: AcePage) -> tuple[list[str], list[str], list[str]
     return debouncers, workers, timers
 
 
-async def wait_for_visual_idle(page: AcePage, *, timeout: float = 15.0) -> None:
+async def wait_for_visual_idle(page: AcePage, *, timeout: float = 30.0) -> None:
     """Wait for finite work to finish and the rendered SVG frame to converge."""
+    setattr(page, _VISUAL_CONVERGED_SVG_ATTR, None)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     previous_svg: str | None = None
@@ -157,7 +201,12 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 15.0) -> None:
         # while naturally taking longer when CPU-bound work is still active.
         await page.pause()
         _clear_transient_button_state(page)
-        _disable_cursor_blink(page)
+        if _disable_cursor_blink(page):
+            # The refresh requested above must reach the compositor before its
+            # frame is sampled. Under contention, exporting immediately can
+            # repeatedly observe the old caret-free compositor even though the
+            # cursor reactive itself is already visible.
+            await page.pause()
         pending = _pending_visual_work(page)
 
         if any(pending):
@@ -168,7 +217,7 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 15.0) -> None:
             # frame. Requiring the same result across separate idle/layout
             # cycles prevents a partially painted frame from reaching the PNG
             # comparator merely because a fixed number of pauses elapsed.
-            svg = page.export_svg(title="ACE visual convergence probe")
+            svg = page.export_svg(title=_VISUAL_CONVERGENCE_TITLE)
             digest = hashlib.sha256(svg.encode()).hexdigest()[:12]
             frame_digests.append(digest)
             frame_digests = frame_digests[-4:]
@@ -178,6 +227,7 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 15.0) -> None:
                 stable_frames = 1
             previous_svg = svg
             if stable_frames >= _VISUAL_STABLE_FRAME_COUNT:
+                setattr(page, _VISUAL_CONVERGED_SVG_ATTR, svg)
                 return
 
         if loop.time() >= deadline:

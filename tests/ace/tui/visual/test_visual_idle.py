@@ -9,6 +9,7 @@ import pytest
 
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     _pending_visual_work,
+    assert_visual_frame_converged,
     wait_for_state,
     wait_for_svg_contains,
     wait_for_visual_idle,
@@ -162,6 +163,31 @@ async def test_visual_idle_requires_scheduler_progress_under_starvation() -> Non
     assert page.frame == "complete"
     assert page.export_count >= 7
     assert set(page.pause_delays) == {None}
+
+
+@pytest.mark.asyncio
+async def test_visual_idle_records_the_exact_converged_capture_frame() -> None:
+    page = _ChangingPage()
+
+    await wait_for_visual_idle(cast(Any, page), timeout=0.5)
+
+    assert_visual_frame_converged(cast(Any, page))
+    page.export_count = 1
+    with pytest.raises(
+        AssertionError,
+        match=r"frame changed after visual convergence.*converged_digest=",
+    ):
+        assert_visual_frame_converged(cast(Any, page))
+
+
+def test_visual_capture_requires_a_convergence_barrier() -> None:
+    page = _ChangingPage()
+
+    with pytest.raises(
+        AssertionError,
+        match=r"requires wait_for_visual_idle",
+    ):
+        assert_visual_frame_converged(cast(Any, page))
 
 
 @pytest.mark.asyncio

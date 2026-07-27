@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from sase.ace.testing import AcePage
 from tests.ace.tui.visual._png_diff_artifacts import (
     repo_relative,
     snapshot_path,
@@ -90,6 +91,16 @@ class AcePngSnapshotFixture:
         material-difference limit still rejects small high-contrast changes.
         Both limits have explicit overrides for renderer investigations.
         """
+        if isinstance(page, AcePage):
+            # ``assert_page_png`` must stay synchronous across the verified
+            # canonical export and this titled export. That makes the
+            # rasterized frame exactly the one whose convergence was proved,
+            # even when an earlier await allowed Textual to repaint.
+            from tests.ace.tui.visual._ace_png_snapshot_waits import (
+                assert_visual_frame_converged,
+            )
+
+            assert_visual_frame_converged(page)
         svg = page.export_svg(title=title, simplify=simplify)
         png_bytes = render_svg_to_png(svg)
         self.assert_png(

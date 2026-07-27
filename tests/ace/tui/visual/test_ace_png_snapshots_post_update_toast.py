@@ -115,6 +115,10 @@ async def test_post_update_toast_png_snapshot(
         "_load_update_toast_config",
         lambda: update_toast._UpdateToastConfig(post_update_toast=True),
     )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.post_update_toast._TOAST_TIMEOUT_SECONDS",
+        300.0,
+    )
     maybe_show_toast = PostUpdateToastMixin._maybe_show_post_update_toast
     monkeypatch.setattr(
         PostUpdateToastMixin,
@@ -156,6 +160,10 @@ async def test_post_update_toast_diffstat_png_snapshot(
         update_toast,
         "_load_update_toast_config",
         lambda: update_toast._UpdateToastConfig(post_update_toast=True),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.post_update_toast._TOAST_TIMEOUT_SECONDS",
+        300.0,
     )
     maybe_show_toast = PostUpdateToastMixin._maybe_show_post_update_toast
     monkeypatch.setattr(

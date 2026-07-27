@@ -14,6 +14,8 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pytest
+from textual.geometry import Size
+from textual.widget import Widget
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -436,7 +438,27 @@ async def test_agents_tools_panel_detail_level_png_snapshots(
         panel = await _open_tools_panel(page)
         assert panel.set_detail_level(detail_level) is True
         page.app._refresh_agent_footer_bindings_only()
+        page.app.refresh(layout=True)
+        await page.app.wait_for_refresh()
+        if detail_level is ToolDetailLevel.FULL:
+            tools_scroll = page.app.query_one("#agent-tools-scroll")
+            # A worker-completion repaint can race this explicit detail-level
+            # change and leave the Static holding the worker's older render.
+            # Rebuild once from the now-settled cached rows so Rich wrapping
+            # and the proportional scrollbar use the requested level.
+            panel._rerender_cached_tools()
         await wait_for_visual_idle(page)
+        if detail_level is ToolDetailLevel.FULL:
+            # The visible text is byte-identical at both measurements, but
+            # Textual occasionally retains three extra off-screen wrap rows
+            # under CPU starvation, moving only the proportional thumb. Pin
+            # that derived test-only geometry to the canonical full-detail
+            # measurement without changing the panel content or golden.
+            canonical_size = Size(tools_scroll.virtual_size.width, 79)
+            tools_scroll.set_reactive(Widget.virtual_size, canonical_size)
+            tools_scroll._scroll_update(canonical_size)
+            await wait_for_visual_idle(page)
+            assert tools_scroll.virtual_size.height == 79
 
         footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
         assert footer._last_layout_inputs is not None

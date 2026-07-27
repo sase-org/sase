@@ -164,6 +164,7 @@ async def test_config_center_agent_clis_update_preview_png_snapshot(
         pane._switch_to_subtab("agent-clis")
         pane.action_update_agent_clis()
         await page.expect_modal("PluginActionConfirmModal")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,

@@ -410,9 +410,19 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
         page.app._dismissed_agent_objects = [dismissed]
         page.app._dismissed_agents = {dismissed.identity}
         page.app._dismiss_revive_epoch += 1
+        # Refresh the uncovered base screen before pushing the modal. Textual
+        # does not repaint background screens after they are covered, so an
+        # info-panel update performed after the push leaves the header badge
+        # at its pre-dismissal count.
+        page.app._update_agents_info_panel()
+        page.app._refresh_agent_footer_bindings_only()
+        info_panel = page.app.query_one("#agent-info-panel")
+        await page.wait_for(
+            lambda _state: getattr(info_panel, "_neighbor_count", 0) == 2
+        )
+        await wait_for_visual_idle(page)
         page.app.action_start_sibling_mode()
         await page.expect_modal("AgentNeighborModal")
-        page.app._refresh_agent_footer_bindings_only()
         # The direct private-state mutation above bypasses the normal action
         # path that refreshes the footer. Repaint it explicitly, then wait on
         # footer state specifically: the modal's "2 descendants" text can
@@ -427,11 +437,12 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
                 )
             )
         )
-        await wait_for_visual_idle(page)
         # ``_last_layout_inputs`` is updated before Textual necessarily paints
-        # the Static child. Prove the two-neighbor footer reached the exported
-        # frame so a stale one-neighbor compositor cannot reach the PNG capture.
+        # the footer or the separate header badge. Prove both two-neighbor
+        # surfaces reached the exported frame before the final convergence
+        # barrier.
         await wait_for_svg_contains(page, "neighbors (2)")
+        await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "Descendants")
         assert_page_svg_contains(page, "visual.root.dismissed")
         assert_page_svg_contains(page, "dismissed")
@@ -462,11 +473,22 @@ async def test_agents_lane_neighbors_section_fold_levels_png_snapshots(
             for agent in page.app._agents
             if agent.agent_name == "visual.lane.plan"
         )
+        lane_identity = lane.identity
         page.app.current_idx = page.app._agents.index(lane)
         await wait_for_svg_contains(page, "NEIGHBORS")
         await wait_for_visual_idle(page)
 
-        assert page.app._agents[page.app.current_idx] is lane
+        # A startup refresh may replace and reorder the Agent instances while
+        # preserving their stable identities. Re-resolve the row after the
+        # startup frame settles so the numeric selection cannot drift onto a
+        # different lane under contention.
+        lane = next(
+            agent for agent in page.app._agents if agent.identity == lane_identity
+        )
+        page.app.current_idx = page.app._agents.index(lane)
+        await wait_for_visual_idle(page)
+
+        assert page.app._agents[page.app.current_idx].identity == lane_identity
         jump_map = page.app._member_jump_maps[lane.identity]
         assert [target.number for target in jump_map.targets] == ["0", "1", "2"]
         assert {target.role for target in jump_map.targets} == {"neighbor"}

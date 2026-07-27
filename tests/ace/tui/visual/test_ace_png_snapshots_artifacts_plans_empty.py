@@ -15,6 +15,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     wait_for_startup,
     wait_for_svg_contains,
+    wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
@@ -58,6 +59,7 @@ async def test_artifacts_plans_empty_png_snapshot(
         await page.wait_for(lambda _state: page.app.screen is page.app.screen_stack[0])
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,

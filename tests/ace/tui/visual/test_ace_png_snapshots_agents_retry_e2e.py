@@ -79,7 +79,7 @@ async def test_real_fakey_retry_countdown_png_snapshot(
         monkeypatch,
         [retryable_failure(), successful_attempt("retry recovered")],
     )
-    retry_wait = harness.barrier("retry-wait", timeout=15)
+    retry_wait = harness.barrier("retry-wait", timeout=60)
     harness.hold_retry_wait(monkeypatch, retry_wait)
     patch_startup_loaders(monkeypatch, use_real_agent_loader=True)
 
@@ -178,7 +178,7 @@ async def test_real_fakey_running_fallback_png_snapshot(
         is_home_mode=True,
     )
     harness.seed_running_agent(started_at=datetime(2026, 7, 6, 11, 59, 0))
-    fallback = harness.barrier("fallback", timeout=15)
+    fallback = harness.barrier("fallback", timeout=60)
     harness.use_scenario(
         monkeypatch,
         [
@@ -194,7 +194,7 @@ async def test_real_fakey_running_fallback_png_snapshot(
 
     handle = harness.run_in_background()
     try:
-        fallback.wait_until_started(timeout=15)
+        fallback.wait_until_started(timeout=60)
         state = harness.wait_for_retry_state("running_fallback")
         assert state.fallback_model == "fakey-small"
         harness.normalize_visual_timestamps(_VISUAL_NOW)

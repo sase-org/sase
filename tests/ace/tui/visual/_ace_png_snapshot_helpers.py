@@ -22,6 +22,7 @@ from tests.ace.tui.visual._ace_png_snapshot_startup import (
 )
 from tests.ace.tui.visual._ace_png_snapshot_waits import (
     _pending_visual_work as _pending_visual_work,
+    assert_visual_frame_converged as assert_visual_frame_converged,
     wait_for_state as wait_for_state,
     wait_for_svg_contains as wait_for_svg_contains,
     wait_for_visual_idle as wait_for_visual_idle,
@@ -29,6 +30,7 @@ from tests.ace.tui.visual._ace_png_snapshot_waits import (
 
 __all__ = [
     "_pending_visual_work",
+    "assert_visual_frame_converged",
     "agents",
     "agents_with_stopped_status",
     "axe_collected_data",
