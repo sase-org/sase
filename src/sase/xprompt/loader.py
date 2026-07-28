@@ -29,6 +29,10 @@ from .loader_sources import (
     load_project_file_xprompts,
 )
 from .models import XPrompt
+from .project_identity import (
+    canonical_xprompt_project,
+    known_project_namespaces,
+)
 
 log = logging.getLogger(__name__)
 
@@ -100,18 +104,47 @@ def get_all_project_local_prompts() -> dict[str, "Workflow"]:
     return all_workflows
 
 
+def _load_registered_project_xprompts(
+    project: str,
+    *,
+    detected_project: str | None,
+) -> dict[str, XPrompt]:
+    """Load one enabled registered project's checkout-backed xprompts.
+
+    The current checkout's filesystem sources already represent the requested
+    project when its detected identity matches, so avoid reading the registry
+    copy in that case.
+    """
+    if canonical_xprompt_project(detected_project) == project:
+        return {}
+
+    workspace = known_project_namespaces().get(project)
+    if workspace is None:
+        return {}
+
+    return {
+        **load_project_local_xprompts(workspace, project),
+        **load_project_file_xprompts(workspace, project),
+    }
+
+
 def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     """Get all xprompts from all sources, respecting priority order.
 
     When *project* is given (or auto-detected via ``detect_project()``),
     xprompts from project-local sources (CWD xprompt directories and the
-    local ``sase.yml``) are namespaced with ``{project}/``.
+    local ``sase.yml``) are namespaced with ``{project}/``. When the requested
+    project is registered but is not the current checkout, its enabled primary
+    workspace is also consulted through the project registry.
 
     The first-wins order comes from the shared content-layout contract:
     canonical project and home sources precede their legacy fallbacks,
-    project-specific home sources precede config sources, and plugin/package
-    resources come last. See ``resolve_xprompt_file_sources`` for the
-    filesystem portion.
+    project-specific home sources precede config sources, the registry-backed
+    project copy fills in checkout-local content when CWD is elsewhere, and
+    plugin/package resources come last. CWD/project filesystem sources retain
+    the highest priority, so an edited alternate checkout overrides the
+    registry copy. See ``resolve_xprompt_file_sources`` for the filesystem
+    portion.
 
     Args:
         project: Optional project name.  When ``None``, the project is
@@ -120,7 +153,9 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     Returns:
         Dictionary mapping xprompt name to XPrompt object.
     """
-    effective_project = project if project is not None else detect_project()
+    detected_project = detect_project()
+    requested_project = project if project is not None else detected_project
+    effective_project = canonical_xprompt_project(requested_project)
 
     # Start with lowest priority and let higher priority override
     all_xprompts: dict[str, XPrompt] = {}
@@ -142,6 +177,12 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     if effective_project:
         project_xprompts = load_xprompts_from_project(effective_project)
         all_xprompts.update(project_xprompts)
+
+        registry_xprompts = _load_registered_project_xprompts(
+            effective_project,
+            detected_project=detected_project,
+        )
+        all_xprompts.update(registry_xprompts)
 
     # 1-4. File-based xprompts (highest priority) - already sorted
     file_xprompts = load_xprompts_from_files(project=effective_project)

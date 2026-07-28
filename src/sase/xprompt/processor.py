@@ -32,12 +32,17 @@ from ._parsing import (
     find_double_colon_text_end,
     find_shorthand_text_end,
     find_matching_paren_for_args,
+    iter_xprompt_references,
     parse_args,
     preprocess_shorthand_syntax,
 )
 from ._trace import ExpansionTrace, format_circular_ref_diagnostic
 from .loader import get_all_xprompts
 from .models import XPrompt
+from .project_identity import (
+    canonical_xprompt_project,
+    known_project_namespaces,
+)
 
 # Maximum number of expansion iterations to prevent infinite loops
 _MAX_EXPANSION_ITERATIONS = 100
@@ -140,6 +145,22 @@ def resolve_xprompt_aliases(prompt: str) -> str:
         prompt = re.sub(pattern, f"#{target}", prompt, flags=re.MULTILINE)
 
     return prompt
+
+
+def _registered_project_namespace_from_prompt(prompt: str) -> str | None:
+    """Return the first registered namespace referenced by *prompt*."""
+    known_projects = known_project_namespaces()
+    if not known_projects:
+        return None
+
+    for reference in iter_xprompt_references(prompt):
+        namespace, separator, _name = reference.name.partition("/")
+        if not separator:
+            continue
+        canonical = canonical_xprompt_project(namespace)
+        if canonical in known_projects:
+            return canonical
+    return None
 
 
 def expand_single_xprompt(
@@ -327,7 +348,10 @@ def process_xprompt_references(
     if not prompt_may_reference_xprompt(prompt, extra_xprompts):
         return prompt
 
-    xprompts = get_all_xprompts()
+    project = _registered_project_namespace_from_prompt(prompt)
+    xprompts = (
+        get_all_xprompts() if project is None else get_all_xprompts(project=project)
+    )
     if extra_xprompts:
         xprompts.update(extra_xprompts)
 

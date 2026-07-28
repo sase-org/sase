@@ -5,10 +5,14 @@ from unittest.mock import patch
 
 from sase.xprompt._parsing import extract_project_from_vcs_tag
 from sase.xprompt.loader import (
+    get_all_prompts,
     get_all_project_local_prompts,
+    get_all_xprompts,
     get_known_project_workspaces,
     load_project_local_xprompts,
 )
+from sase.xprompt.models import XPrompt
+from sase.xprompt.processor import process_xprompt_references
 
 
 # --- extract_project_from_vcs_tag ---
@@ -197,6 +201,107 @@ class TestGetAllProjectLocalPrompts:
         ):
             result = get_all_project_local_prompts()
             assert result == {}
+
+
+class TestRegistryBackedProjectResolution:
+    @staticmethod
+    def _isolate_loader(monkeypatch, workspace: Path | None) -> None:
+        from sase.xprompt import loader, processor
+
+        namespaces = {} if workspace is None else {"proj": workspace}
+        monkeypatch.setattr(loader, "canonical_xprompt_project", lambda ref: ref)
+        monkeypatch.setattr(loader, "known_project_namespaces", lambda: namespaces)
+        monkeypatch.setattr(loader, "detect_project", lambda: None)
+        monkeypatch.setattr(loader, "load_xprompts_from_internal", lambda: {})
+        monkeypatch.setattr(loader, "load_xprompts_from_default_files", lambda: {})
+        monkeypatch.setattr(loader, "load_xprompts_from_plugins", lambda: {})
+        monkeypatch.setattr(loader, "load_xprompts_from_config", lambda project: {})
+        monkeypatch.setattr(loader, "load_xprompts_from_project", lambda project: {})
+        monkeypatch.setattr(loader, "load_xprompts_from_files", lambda project: {})
+        monkeypatch.setattr(
+            "sase.xprompt.workflow_loader.get_all_workflows",
+            lambda project=None: {},
+        )
+        monkeypatch.setattr(
+            processor,
+            "canonical_xprompt_project",
+            lambda ref: ref,
+        )
+        monkeypatch.setattr(
+            processor,
+            "known_project_namespaces",
+            lambda: namespaces,
+        )
+        monkeypatch.setattr(processor, "resolve_xprompt_aliases", lambda prompt: prompt)
+
+    def test_loads_and_expands_project_xprompt_outside_workspace(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        workspace = tmp_path / "primary"
+        xprompts_dir = workspace / "sase" / "xprompts"
+        xprompts_dir.mkdir(parents=True)
+        (xprompts_dir / "thing.md").write_text(
+            "Registry-backed body.\n",
+            encoding="utf-8",
+        )
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        monkeypatch.chdir(outside)
+        self._isolate_loader(monkeypatch, workspace)
+
+        prompts = get_all_prompts(project="proj")
+
+        assert prompts["proj/thing"].get_prompt_part_content().strip() == (
+            "Registry-backed body."
+        )
+        assert process_xprompt_references("#proj/thing").strip() == (
+            "Registry-backed body."
+        )
+
+    def test_current_checkout_copy_wins_without_registry_read(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        primary = tmp_path / "primary"
+        primary.mkdir()
+        self._isolate_loader(monkeypatch, primary)
+
+        from sase.xprompt import loader
+
+        monkeypatch.setattr(loader, "detect_project", lambda: "proj")
+        monkeypatch.setattr(
+            loader,
+            "load_xprompts_from_files",
+            lambda project: {
+                "proj/thing": XPrompt(
+                    name="proj/thing",
+                    content="Alternate checkout body.",
+                )
+            },
+        )
+        registry_loader = patch(
+            "sase.xprompt.loader.load_project_file_xprompts",
+            side_effect=AssertionError("registry copy should not be read"),
+        )
+
+        with registry_loader:
+            xprompts = get_all_xprompts(project="proj")
+
+        assert xprompts["proj/thing"].content == "Alternate checkout body."
+
+    def test_disabled_project_stays_unresolved(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        self._isolate_loader(monkeypatch, None)
+        monkeypatch.chdir(tmp_path)
+
+        assert "proj/thing" not in get_all_xprompts(project="proj")
+        assert process_xprompt_references("#proj/thing") == "#proj/thing"
 
 
 # --- classify_source for project_local_config ---
