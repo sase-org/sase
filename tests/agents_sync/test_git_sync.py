@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import fcntl
 import json
 import os
@@ -16,104 +15,29 @@ from sase.agents_sync.incoming_detection import capture_fetched_agent_updates
 from sase.agents_sync.models import (
     IntegrationCounts,
     ProjectTarget,
-    SyncOutcome,
-    TargetSelection,
-)
-from sase.agents_sync.publication_outbox import (
-    AgentPublicationOutboxItem,
-    enqueue_agent_publication,
-    list_agent_publications,
-    update_agent_publications,
 )
 from sase.agents_sync.v2_io import apply_payload_atomic
 from sase.agents_sync.v2_models import V2PublicationCounts
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.git_lock_retry import STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS
 
+from tests.agents_sync.git_sync_fixtures import (
+    git,
+    patch_payload_pass,
+    setup_repo,
+    target,
+)
+
 
 def test_default_sync_lock_timeout_waits_briefly() -> None:
     assert git_sync.DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS == 10.0
-
-
-def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
-    )
-
-
-def _setup_repo(tmp_path: Path) -> tuple[Path, Path, Path]:
-    remote = tmp_path / "remote.git"
-    remote.mkdir()
-    _git(remote, "init", "--bare")
-    seed = tmp_path / "seed"
-    seed.mkdir()
-    _git(seed, "init")
-    _git(seed, "config", "user.name", "Tests")
-    _git(seed, "config", "user.email", "tests@example.test")
-    (seed / "manifest.json").write_text(
-        json.dumps({"schema_version": 1, "agents": {}}, indent=2) + "\n"
-    )
-    (seed / "agents").mkdir()
-    (seed / "agents" / ".gitkeep").write_text("")
-    (seed / "conflict.txt").write_text("base\n")
-    _git(seed, "add", ".")
-    _git(seed, "commit", "-m", "seed")
-    _git(seed, "remote", "add", "origin", str(remote))
-    _git(seed, "push", "-u", "origin", "HEAD")
-    sidecar = tmp_path / "sidecar"
-    _git(tmp_path, "clone", str(remote), str(sidecar))
-    return remote, seed, sidecar
-
-
-def _target(tmp_path: Path, remote: Path, sidecar: Path) -> ProjectTarget:
-    primary = tmp_path / "primary"
-    primary.mkdir(parents=True)
-    return ProjectTarget(
-        "proj",
-        "Project",
-        primary,
-        (primary.resolve(),),
-        sidecar,
-        str(remote),
-    )
-
-
-def _patch_payload_pass(monkeypatch: pytest.MonkeyPatch) -> list[int]:
-    calls: list[int] = []
-    monkeypatch.setattr(
-        git_sync,
-        "integrate_agent_imports_with_receipts",
-        lambda *_args, **_kwargs: IntegrationCounts(),
-    )
-
-    def reconcile(
-        _target: ProjectTarget,
-        repo: Path,
-        **_kwargs: object,
-    ) -> V2PublicationCounts:
-        calls.append(1)
-        (repo / "README.md").write_text("# Hoods\n")
-        (repo / "schema.json").write_text("{}\n")
-        manifest = repo / "users" / "local" / "machines" / "athena"
-        manifest.mkdir(parents=True, exist_ok=True)
-        (manifest / "manifest.json").write_text("{}\n")
-        bundle = repo / "agents" / "local.athena.worker"
-        bundle.mkdir(parents=True, exist_ok=True)
-        (bundle / "chat.md").write_text("chat\n")
-        families = repo / "families"
-        families.mkdir(exist_ok=True)
-        (families / ".gitkeep").write_text("")
-        return V2PublicationCounts(hoods_published=1, runs_published=1)
-
-    monkeypatch.setattr(git_sync, "reconcile_agent_hoods", reconcile)
-    return calls
 
 
 def test_full_sync_reuses_one_name_registry_load_session(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    target = _target(tmp_path, tmp_path / "remote.git", tmp_path / "sidecar")
+    sync_target = target(tmp_path, tmp_path / "remote.git", tmp_path / "sidecar")
     events: list[str] = []
 
     class _Session:
@@ -148,8 +72,8 @@ def test_full_sync_reuses_one_name_registry_load_session(
     )
 
     git_sync._integrate_export_pass(
-        target,
-        target.sidecar_path,
+        sync_target,
+        sync_target.sidecar_path,
         AgentOwnerIdentity("alice", "athena"),
         run_git,
     )
@@ -160,21 +84,21 @@ def test_full_sync_reuses_one_name_registry_load_session(
 def test_full_sync_transaction_commits_and_pushes_only_payload(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    remote, _seed, sidecar = _setup_repo(tmp_path)
-    target = _target(tmp_path, remote, sidecar)
-    _patch_payload_pass(monkeypatch)
+    remote, _seed, sidecar = setup_repo(tmp_path)
+    sync_target = target(tmp_path, remote, sidecar)
+    patch_payload_pass(monkeypatch)
 
-    outcome = git_sync._sync_project(target, "athena", git_runner=run_git)
+    outcome = git_sync._sync_project(sync_target, "athena", git_runner=run_git)
 
     assert outcome.error is None
     assert outcome.pulled and outcome.committed and outcome.pushed
     assert outcome.hoods_published == 1
     verify = tmp_path / "verify"
-    _git(tmp_path, "clone", str(remote), str(verify))
+    git(tmp_path, "clone", str(remote), str(verify))
     assert (
         verify / "agents" / "local.athena.worker" / "chat.md"
     ).read_text() == "chat\n"
-    assert _git(verify, "log", "-1", "--format=%s").stdout.strip() == (
+    assert git(verify, "log", "-1", "--format=%s").stdout.strip() == (
         "chore(agents): sync from local.athena"
     )
     assert json.loads((verify / "manifest.json").read_text()) == {
@@ -186,15 +110,15 @@ def test_full_sync_transaction_commits_and_pushes_only_payload(
 def test_full_sync_recovers_dirty_payload_before_pull(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    remote, _seed, sidecar = _setup_repo(tmp_path)
-    target = _target(tmp_path, remote, sidecar)
-    _patch_payload_pass(monkeypatch)
+    remote, _seed, sidecar = setup_repo(tmp_path)
+    sync_target = target(tmp_path, remote, sidecar)
+    patch_payload_pass(monkeypatch)
     (sidecar / "manifest.json").write_text("stranded payload\n")
     stranded = sidecar / "agents" / "stranded" / "README.md"
     stranded.parent.mkdir()
     stranded.write_text("uncommitted payload\n")
 
-    outcome = git_sync._sync_project(target, "athena", git_runner=run_git)
+    outcome = git_sync._sync_project(sync_target, "athena", git_runner=run_git)
 
     assert outcome.error is None
     assert outcome.pushed
@@ -203,33 +127,33 @@ def test_full_sync_recovers_dirty_payload_before_pull(
         "schema_version": 1,
         "agents": {},
     }
-    assert _git(sidecar, "status", "--short").stdout == ""
+    assert git(sidecar, "status", "--short").stdout == ""
 
 
 def test_full_sync_clears_stale_index_lock_before_recovery(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    remote, _seed, sidecar = _setup_repo(tmp_path)
-    target = _target(tmp_path, remote, sidecar)
-    _patch_payload_pass(monkeypatch)
+    remote, _seed, sidecar = setup_repo(tmp_path)
+    sync_target = target(tmp_path, remote, sidecar)
+    patch_payload_pass(monkeypatch)
     lock_path = sidecar / ".git" / "index.lock"
     lock_path.write_text("abandoned\n")
     old = lock_path.stat().st_mtime - STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS - 1
     os.utime(lock_path, (old, old))
 
-    outcome = git_sync._sync_project(target, "athena", git_runner=run_git)
+    outcome = git_sync._sync_project(sync_target, "athena", git_runner=run_git)
 
     assert outcome.error is None
     assert outcome.pushed
     assert not lock_path.exists()
-    assert _git(sidecar, "status", "--short").stdout == ""
+    assert git(sidecar, "status", "--short").stdout == ""
 
 
 def test_full_sync_failure_after_payload_write_restores_clean_tree(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    remote, _seed, sidecar = _setup_repo(tmp_path)
-    target = _target(tmp_path, remote, sidecar)
+    remote, _seed, sidecar = setup_repo(tmp_path)
+    sync_target = target(tmp_path, remote, sidecar)
     monkeypatch.setattr(
         git_sync,
         "integrate_agent_imports_with_receipts",
@@ -252,26 +176,26 @@ def test_full_sync_failure_after_payload_write_restores_clean_tree(
 
     monkeypatch.setattr(git_sync, "reconcile_agent_hoods", fail_after_write)
 
-    outcome = git_sync._sync_project(target, "athena", git_runner=run_git)
+    outcome = git_sync._sync_project(sync_target, "athena", git_runner=run_git)
 
     assert outcome.error == "publication failed after payload write"
     assert not (sidecar / "README.md").exists()
     assert not (sidecar / "agents" / "stranded").exists()
-    assert _git(sidecar, "status", "--short").stdout == ""
+    assert git(sidecar, "status", "--short").stdout == ""
 
 
 def test_payload_commit_force_stages_user_ignored_hood(
     tmp_path: Path,
 ) -> None:
-    _remote, _seed, sidecar = _setup_repo(tmp_path)
+    _remote, _seed, sidecar = setup_repo(tmp_path)
     (sidecar / "README.md").write_text("# Hoods\n")
     (sidecar / "schema.json").write_text("{}\n")
     for directory in ("users", "families"):
         root = sidecar / directory
         root.mkdir()
         (root / ".gitkeep").write_text("")
-    _git(sidecar, "add", "README.md", "schema.json", "users", "families")
-    _git(
+    git(sidecar, "add", "README.md", "schema.json", "users", "families")
+    git(
         sidecar,
         "-c",
         "user.name=Tests",
@@ -283,29 +207,29 @@ def test_payload_commit_force_stages_user_ignored_hood(
     )
     excludes = tmp_path / "global-excludes"
     excludes.write_text("*.gz\n")
-    _git(sidecar, "config", "core.excludesFile", str(excludes))
+    git(sidecar, "config", "core.excludesFile", str(excludes))
     readme = sidecar / "agents" / "alice.athena.gz" / "README.md"
     readme.parent.mkdir()
     readme.write_text("# Ignored hood\n")
-    assert _git(sidecar, "check-ignore", "-v", str(readme)).stdout
+    assert git(sidecar, "check-ignore", "-v", str(readme)).stdout
 
     owner = AgentOwnerIdentity("alice", "athena")
     assert git_sync.commit_agents_payload_if_dirty(sidecar, owner, run_git) is True
-    head = _git(sidecar, "rev-parse", "HEAD").stdout.strip()
+    head = git(sidecar, "rev-parse", "HEAD").stdout.strip()
     assert (
-        _git(sidecar, "show", "HEAD:agents/alice.athena.gz/README.md").stdout
+        git(sidecar, "show", "HEAD:agents/alice.athena.gz/README.md").stdout
         == "# Ignored hood\n"
     )
 
     assert git_sync.commit_agents_payload_if_dirty(sidecar, owner, run_git) is False
-    assert _git(sidecar, "rev-parse", "HEAD").stdout.strip() == head
+    assert git(sidecar, "rev-parse", "HEAD").stdout.strip() == head
 
 
 def test_owner_manifest_missing_file_diagnostic_names_ignore_rule(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    remote, seed, sidecar = _setup_repo(tmp_path)
+    remote, seed, sidecar = setup_repo(tmp_path)
     manifest = seed / "users" / "alice" / "machines" / "athena" / "manifest.json"
     manifest.parent.mkdir(parents=True)
     manifest.write_text(
@@ -326,20 +250,20 @@ def test_owner_manifest_missing_file_diagnostic_names_ignore_rule(
         )
         + "\n"
     )
-    _git(seed, "add", str(manifest.relative_to(seed)))
-    _git(seed, "commit", "-m", "publish manifest without ignored hood")
-    _git(seed, "push")
-    _git(sidecar, "pull")
+    git(seed, "add", str(manifest.relative_to(seed)))
+    git(seed, "commit", "-m", "publish manifest without ignored hood")
+    git(seed, "push")
+    git(sidecar, "pull")
     excludes = tmp_path / "global-excludes"
     excludes.write_text("*.gz\n")
-    _git(sidecar, "config", "core.excludesFile", str(excludes))
+    git(sidecar, "config", "core.excludesFile", str(excludes))
     ignored_readme = sidecar / "agents" / "alice.athena.gz" / "README.md"
     ignored_readme.parent.mkdir()
     ignored_readme.write_text("# Stranded hood\n")
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
 
     report = capture_fetched_agent_updates(
-        _target(tmp_path, remote, sidecar),
+        target(tmp_path, remote, sidecar),
         AgentOwnerIdentity("alice", "athena"),
         reader=LocalGitObjectReader(sidecar),
         now=1.0,
@@ -356,13 +280,13 @@ def test_owner_manifest_missing_file_diagnostic_names_ignore_rule(
 def test_non_fast_forward_recomputes_and_retries_push_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    remote, _seed, sidecar = _setup_repo(tmp_path)
-    target = _target(tmp_path, remote, sidecar)
-    export_calls = _patch_payload_pass(monkeypatch)
+    remote, _seed, sidecar = setup_repo(tmp_path)
+    sync_target = target(tmp_path, remote, sidecar)
+    export_calls = patch_payload_pass(monkeypatch)
     intruder = tmp_path / "intruder"
-    _git(tmp_path, "clone", str(remote), str(intruder))
-    _git(intruder, "config", "user.name", "Intruder")
-    _git(intruder, "config", "user.email", "intruder@example.test")
+    git(tmp_path, "clone", str(remote), str(intruder))
+    git(intruder, "config", "user.name", "Intruder")
+    git(intruder, "config", "user.email", "intruder@example.test")
     push_calls = 0
 
     def rejecting_runner(
@@ -373,12 +297,12 @@ def test_non_fast_forward_recomputes_and_retries_push_once(
             push_calls += 1
             if push_calls == 1:
                 (intruder / "remote.txt").write_text("remote\n")
-                _git(intruder, "add", "remote.txt")
-                _git(intruder, "commit", "-m", "remote race")
-                _git(intruder, "push")
+                git(intruder, "add", "remote.txt")
+                git(intruder, "commit", "-m", "remote race")
+                git(intruder, "push")
         return run_git(cwd, args, network=network, op=op)
 
-    outcome = git_sync._sync_project(target, "athena", git_runner=rejecting_runner)
+    outcome = git_sync._sync_project(sync_target, "athena", git_runner=rejecting_runner)
 
     assert outcome.error is None
     assert outcome.push_attempts == 2
@@ -392,15 +316,15 @@ def test_non_fast_forward_recomputes_and_retries_push_once(
 def test_bounded_lock_contention_is_a_benign_skip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    remote, _seed, sidecar = _setup_repo(tmp_path)
-    target = _target(tmp_path, remote, sidecar)
-    _patch_payload_pass(monkeypatch)
+    remote, _seed, sidecar = setup_repo(tmp_path)
+    sync_target = target(tmp_path, remote, sidecar)
+    patch_payload_pass(monkeypatch)
     lock_path = sidecar / ".git" / "sase-agents-sync.lock"
     descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
     fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
     try:
         outcome = git_sync._sync_project(
-            target,
+            sync_target,
             "athena",
             git_runner=run_git,
             lock_timeout_seconds=0,
@@ -415,9 +339,9 @@ def test_bounded_lock_contention_is_a_benign_skip(
 
 def test_missing_configured_remote_is_not_created(tmp_path: Path) -> None:
     missing = tmp_path / "missing.git"
-    target = _target(tmp_path, missing, tmp_path / "sidecar")
+    sync_target = target(tmp_path, missing, tmp_path / "sidecar")
 
-    outcome = git_sync._sync_project(target, "athena", git_runner=run_git)
+    outcome = git_sync._sync_project(sync_target, "athena", git_runner=run_git)
 
     assert outcome.error is not None
     assert "could not clone" in outcome.error
@@ -427,316 +351,36 @@ def test_missing_configured_remote_is_not_created(tmp_path: Path) -> None:
 def test_pull_rebase_conflict_is_aborted_cleanly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    remote, _seed, sidecar = _setup_repo(tmp_path)
-    target = _target(tmp_path, remote, sidecar)
-    _git(sidecar, "config", "user.name", "Local")
-    _git(sidecar, "config", "user.email", "local@example.test")
+    remote, _seed, sidecar = setup_repo(tmp_path)
+    sync_target = target(tmp_path, remote, sidecar)
+    git(sidecar, "config", "user.name", "Local")
+    git(sidecar, "config", "user.email", "local@example.test")
     (sidecar / "conflict.txt").write_text("local\n")
-    _git(sidecar, "add", "conflict.txt")
-    _git(sidecar, "commit", "-m", "local ahead")
+    git(sidecar, "add", "conflict.txt")
+    git(sidecar, "commit", "-m", "local ahead")
 
     intruder = tmp_path / "conflict-intruder"
-    _git(tmp_path, "clone", str(remote), str(intruder))
-    _git(intruder, "config", "user.name", "Remote")
-    _git(intruder, "config", "user.email", "remote@example.test")
+    git(tmp_path, "clone", str(remote), str(intruder))
+    git(intruder, "config", "user.name", "Remote")
+    git(intruder, "config", "user.email", "remote@example.test")
     (intruder / "conflict.txt").write_text("remote\n")
-    _git(intruder, "add", "conflict.txt")
-    _git(intruder, "commit", "-m", "remote ahead")
-    _git(intruder, "push")
+    git(intruder, "add", "conflict.txt")
+    git(intruder, "commit", "-m", "remote ahead")
+    git(intruder, "push")
     monkeypatch.setattr(
         git_sync,
         "integrate_agent_imports_with_receipts",
         lambda *_args, **_kwargs: pytest.fail("integration must not run"),
     )
 
-    outcome = git_sync._sync_project(target, "athena", git_runner=run_git)
+    outcome = git_sync._sync_project(sync_target, "athena", git_runner=run_git)
 
     assert outcome.error is not None
     assert "pull --rebase failed" in outcome.error
-    assert _git(sidecar, "log", "-1", "--format=%s").stdout.strip() == "local ahead"
+    assert git(sidecar, "log", "-1", "--format=%s").stdout.strip() == "local ahead"
     assert (sidecar / "conflict.txt").read_text() == "local\n"
     assert not (sidecar / ".git" / "rebase-merge").exists()
     assert not (sidecar / ".git" / "rebase-apply").exists()
-
-
-def test_all_project_sync_isolates_failures(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    first = _target(tmp_path / "one", tmp_path / "one.git", tmp_path / "one-sidecar")
-    second = _target(tmp_path / "two", tmp_path / "two.git", tmp_path / "two-sidecar")
-    first = ProjectTarget(
-        "one",
-        "One",
-        first.primary_checkout,
-        first.primary_roots,
-        first.sidecar_path,
-        first.remote_url,
-    )
-    second = ProjectTarget(
-        "two",
-        "Two",
-        second.primary_checkout,
-        second.primary_roots,
-        second.sidecar_path,
-        second.remote_url,
-    )
-    monkeypatch.setattr(
-        git_sync,
-        "resolve_sync_targets",
-        lambda _projects: TargetSelection((first, second), ()),
-    )
-    monkeypatch.setattr(
-        git_sync,
-        "require_agent_owner_identity",
-        lambda: AgentOwnerIdentity("alice", "athena"),
-    )
-    monkeypatch.setattr(
-        git_sync,
-        "_sync_project",
-        lambda target, *_args, **_kwargs: (
-            (_ for _ in ()).throw(RuntimeError("broken"))
-            if target.project_key == "one"
-            else SyncOutcome("two", "Two", pulled=True)
-        ),
-    )
-    monkeypatch.setattr(
-        "sase.agents_sync.status.rewrite_agents_sync_status_after_sync",
-        lambda _projects: None,
-    )
-
-    outcomes = git_sync.sync_agents()
-
-    assert [outcome.project_key for outcome in outcomes] == ["one", "two"]
-    assert outcomes[0].error == "agents sync failed: broken"
-    assert outcomes[1].pulled is True
-
-
-def test_full_sync_acknowledges_publication_outbox_after_success(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
-    target = _target(tmp_path, tmp_path / "remote.git", tmp_path / "sidecar")
-    published_page = target.sidecar_path / "agents" / "alice.athena.foo" / "README.md"
-    published_page.parent.mkdir(parents=True)
-    published_page.write_text("# foo\n")
-    enqueue_agent_publication(
-        AgentPublicationOutboxItem(
-            project_key=target.project_key,
-            project=target.project,
-            local_agent="foo",
-            global_agent="alice.athena.foo",
-            primary_revision="a" * 40,
-            local_hood="foo",
-        )
-    )
-    monkeypatch.setattr(
-        git_sync,
-        "resolve_sync_targets",
-        lambda _projects: TargetSelection((target,), ()),
-    )
-    monkeypatch.setattr(
-        git_sync,
-        "require_agent_owner_identity",
-        lambda: AgentOwnerIdentity("alice", "athena"),
-    )
-    monkeypatch.setattr(
-        git_sync,
-        "_sync_project",
-        lambda *_args, **_kwargs: SyncOutcome("proj", "Project", pulled=True),
-    )
-    monkeypatch.setattr(
-        "sase.agents_sync.status.rewrite_agents_sync_status_after_sync",
-        lambda _projects: None,
-    )
-
-    assert git_sync.sync_agents() == (SyncOutcome("proj", "Project", pulled=True),)
-    assert list_agent_publications("proj") == ()
-
-
-def test_full_sync_keeps_outbox_request_when_agent_page_did_not_materialize(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
-    target = _target(tmp_path, tmp_path / "remote.git", tmp_path / "sidecar")
-    item = enqueue_agent_publication(
-        AgentPublicationOutboxItem(
-            project_key=target.project_key,
-            project=target.project,
-            local_agent="missing",
-            global_agent="alice.athena.missing",
-            primary_revision="a" * 40,
-            local_hood="missing",
-        )
-    )
-    monkeypatch.setattr(
-        git_sync,
-        "resolve_sync_targets",
-        lambda _projects: TargetSelection((target,), ()),
-    )
-    monkeypatch.setattr(
-        git_sync,
-        "require_agent_owner_identity",
-        lambda: AgentOwnerIdentity("alice", "athena"),
-    )
-    monkeypatch.setattr(
-        git_sync,
-        "_sync_project",
-        lambda *_args, **_kwargs: SyncOutcome("proj", "Project", pulled=True),
-    )
-    monkeypatch.setattr(
-        "sase.agents_sync.status.rewrite_agents_sync_status_after_sync",
-        lambda _projects: None,
-    )
-
-    assert git_sync.sync_agents() == (SyncOutcome("proj", "Project", pulled=True),)
-    remaining = list_agent_publications("proj")
-    assert len(remaining) == 1
-    assert remaining[0].logical_key == item.logical_key
-    assert remaining[0].attempts == 1
-    assert remaining[0].last_error == (
-        "published agent page for 'alice.athena.missing' did not materialize "
-        "during full sync"
-    )
-
-    [second] = git_sync.sync_agents()
-    assert second == replace(
-        SyncOutcome("proj", "Project", pulled=True),
-        diagnostics=second.diagnostics,
-    )
-    assert "retired as unpublishable" in second.diagnostics[0]
-    [retired] = list_agent_publications("proj")
-    assert retired.attempts == 2
-    assert retired.terminal
-    assert retired.terminal_reason == retired.last_error
-    assert not retired.quarantined
-    assert list_agent_publications("proj", include_quarantined=False) == ()
-
-
-def test_drop_retired_removes_only_retired_requests_and_reports_them(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
-    target = _target(tmp_path, tmp_path / "remote.git", tmp_path / "sidecar")
-    published_page = target.sidecar_path / "agents" / "alice.athena.foo" / "README.md"
-    published_page.parent.mkdir(parents=True)
-    published_page.write_text("# foo\n")
-    active = enqueue_agent_publication(
-        AgentPublicationOutboxItem(
-            project_key=target.project_key,
-            project=target.project,
-            local_agent="foo",
-            global_agent="alice.athena.foo",
-            primary_revision="a" * 40,
-            local_hood="foo",
-        )
-    )
-    doomed = enqueue_agent_publication(
-        AgentPublicationOutboxItem(
-            project_key=target.project_key,
-            project=target.project,
-            local_agent="lt",
-            global_agent="alice.athena.lt",
-            primary_revision="b" * 40,
-            local_hood="lt",
-        )
-    )
-    terminal_error = "hood 'lt' has no publishable runs"
-    for _ in range(2):
-        update_agent_publications(
-            target.project_key,
-            (doomed.logical_key,),
-            error=terminal_error,
-            increment_attempts=True,
-            quarantine_threshold=3,
-            terminal_reason=terminal_error,
-        )
-    monkeypatch.setattr(
-        git_sync,
-        "resolve_sync_targets",
-        lambda _projects: TargetSelection((target,), ()),
-    )
-    monkeypatch.setattr(
-        git_sync,
-        "require_agent_owner_identity",
-        lambda: AgentOwnerIdentity("alice", "athena"),
-    )
-    monkeypatch.setattr(
-        git_sync,
-        "_sync_project",
-        lambda *_args, **_kwargs: SyncOutcome("proj", "Project", pulled=True),
-    )
-    monkeypatch.setattr(
-        "sase.agents_sync.status.rewrite_agents_sync_status_after_sync",
-        lambda _projects: None,
-    )
-
-    [outcome] = git_sync.sync_agents(drop_retired=True)
-
-    assert outcome.error is None
-    assert outcome.diagnostics[0] == "dropped 1 retired publication request"
-    assert terminal_error in outcome.diagnostics[1]
-    assert "alice.athena.lt" in outcome.diagnostics[1]
-    # The active request published during the same sync, so only the retired
-    # one had to be dropped explicitly.
-    assert list_agent_publications("proj") == ()
-    assert active.logical_key != doomed.logical_key
-
-
-def test_sync_without_drop_retired_keeps_and_reports_retired_requests(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
-    target = _target(tmp_path, tmp_path / "remote.git", tmp_path / "sidecar")
-    doomed = enqueue_agent_publication(
-        AgentPublicationOutboxItem(
-            project_key=target.project_key,
-            project=target.project,
-            local_agent="lt",
-            global_agent="alice.athena.lt",
-            primary_revision="b" * 40,
-            local_hood="lt",
-        )
-    )
-    terminal_error = "hood 'lt' has no publishable runs"
-    for _ in range(2):
-        update_agent_publications(
-            target.project_key,
-            (doomed.logical_key,),
-            error=terminal_error,
-            increment_attempts=True,
-            quarantine_threshold=3,
-            terminal_reason=terminal_error,
-        )
-    monkeypatch.setattr(
-        git_sync,
-        "resolve_sync_targets",
-        lambda _projects: TargetSelection((target,), ()),
-    )
-    monkeypatch.setattr(
-        git_sync,
-        "require_agent_owner_identity",
-        lambda: AgentOwnerIdentity("alice", "athena"),
-    )
-    monkeypatch.setattr(
-        git_sync,
-        "_sync_project",
-        lambda *_args, **_kwargs: SyncOutcome("proj", "Project", pulled=True),
-    )
-    monkeypatch.setattr(
-        "sase.agents_sync.status.rewrite_agents_sync_status_after_sync",
-        lambda _projects: None,
-    )
-
-    [outcome] = git_sync.sync_agents()
-
-    assert len(list_agent_publications("proj")) == 1
-    assert len(outcome.diagnostics) == 1
-    assert "retired as unpublishable" in outcome.diagnostics[0]
-    assert "sase agent sync --drop-retired" in outcome.diagnostics[0]
 
 
 def test_network_git_environment_is_noninteractive() -> None:
