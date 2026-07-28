@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.sdd._link_files import list_sdd_files, resolve_sdd_root
-from sase.sdd._link_models import Severity, SddIssue, SddValidation
+from sase.sdd._link_models import Severity, SddFile, SddIssue, SddValidation
 from sase.sdd._link_support import (
     PLAN_KINDS,
     expected_link_type,
@@ -16,6 +16,12 @@ from sase.sdd._link_support import (
     resolve_link_path,
 )
 from sase.sdd.artifact_links import SddArtifactLinkKind
+from sase.sdd.plan_header_block import (
+    PlanHeaderDisposition,
+    PlanHeaderSection,
+    PlanHeaderSectionKind,
+    parse_plan_header_block,
+)
 from sase.sdd.plan_tiers import normalize_plan_tier
 
 
@@ -64,6 +70,11 @@ def validate_sdd_tree(
                     message="'tier' must be either 'tale' or 'epic'",
                 )
             )
+
+        if file.kind in PLAN_KINDS:
+            header = parse_plan_header_block(file.path.read_text(encoding="utf-8"))
+            if header.disposition is not PlanHeaderDisposition.INVALID:
+                _validate_parent_section(root, file, header.sections, issues)
 
         link_type = expected_link_type(file)
         link_field = link_type.legacy_field
@@ -278,6 +289,42 @@ def collect_sdd_links(root: Path) -> list[dict[str, Any]]:
 
 def _strict_severity(strict: bool) -> Severity:
     return "error" if strict else "warning"
+
+
+def _validate_parent_section(
+    root: Path,
+    file: SddFile,
+    sections: tuple[PlanHeaderSection, ...],
+    issues: list[SddIssue],
+) -> None:
+    parent = next(
+        (
+            section
+            for section in sections
+            if section.kind is PlanHeaderSectionKind.PARENT
+        ),
+        None,
+    )
+    if parent is None or parent.label is None:
+        return
+    from sase.sdd._paths import has_month_dirs
+    from sase.sdd.plan_refs import resolve_plan_reference_from_roots
+
+    plans_root = root / "plans" if has_month_dirs(root / "plans") else root
+    resolution = resolve_plan_reference_from_roots(
+        parent.label,
+        roots=(plans_root,),
+    )
+    if resolution.resolved_path is not None and resolution.resolved_path.is_file():
+        return
+    issues.append(
+        SddIssue(
+            severity="error",
+            code="parent-missing-target",
+            path=file.relpath,
+            message=(f"PARENT target does not resolve to a plan file: {parent.label}"),
+        )
+    )
 
 
 def _apply_legacy_error_allowlist(

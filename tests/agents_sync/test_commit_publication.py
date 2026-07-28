@@ -78,7 +78,7 @@ def test_committed_plan_header_refresh_is_idempotent(
             PlanCommitAssociation(
                 label="abcdef0",
                 target="https://example.test/commit/abcdef012345",
-                trailing_text="— feat: child",
+                trailing_text="feat: child",
                 sort_key=(1, "abcdef012345"),
                 sha="abcdef012345",
             ),

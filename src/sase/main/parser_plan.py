@@ -87,16 +87,17 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     links_parser = plan_subparsers.add_parser(
         "links",
-        help="List, validate, or repair SDD prompt/plan links",
+        help="List, refresh, repair, or validate SDD plan links",
         description=(
             "Inspect bidirectional artifact links between SDD prompts and "
-            "plans. With no subcommand, `sase plan links` defaults to "
-            "`sase plan links list`."
+            "plans, or reconcile projected plan provenance headers. With no "
+            "subcommand, `sase plan links` defaults to `sase plan links list`."
         ),
         epilog=(
             "examples:\n"
             "  sase plan links\n"
             "  sase plan links list --json\n"
+            "  sase plan links refresh --write\n"
             "  sase plan links repair --write\n"
             "  sase plan links validate --show-warnings"
         ),
@@ -125,6 +126,45 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Emit machine-readable JSON",
     )
     _add_links_path_arg(links_list_parser)
+
+    links_refresh_parser = links_subparsers.add_parser(
+        "refresh",
+        help="Reconcile projected plan provenance headers",
+        description=(
+            "Rebuild PARENT, AGENTS, and COMMITS plan-header sections from "
+            "durable state. The default is a read-only dry run; --write "
+            "updates changed plans and commits them to the plans store in "
+            "one batch."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase plan links refresh\n"
+            "  sase plan links refresh --json\n"
+            "  sase plan links refresh --plan plans:202607/example.md\n"
+            "  sase plan links refresh --write"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    links_refresh_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable refresh report",
+    )
+    _add_links_path_arg(links_refresh_parser)
+    links_refresh_parser.add_argument(
+        "-P",
+        "--plan",
+        default=None,
+        metavar="REF",
+        help="Refresh only the plan named by REF",
+    )
+    links_refresh_parser.add_argument(
+        "-w",
+        "--write",
+        action="store_true",
+        help="Write and commit changed plan headers (default: dry run)",
+    )
 
     links_repair_parser = links_subparsers.add_parser(
         "repair",

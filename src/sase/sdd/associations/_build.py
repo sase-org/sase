@@ -106,7 +106,7 @@ def _rendering_records(
         PlanCommitAssociation(
             label=commit.sha[:7],
             target=resolver.commit_url(commit.sha),
-            trailing_text=f"— {commit.subject}",
+            trailing_text=commit.subject,
             sort_key=(commit.committed_at, commit.sha),
             sha=commit.sha,
         )

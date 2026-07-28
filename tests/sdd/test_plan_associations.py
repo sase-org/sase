@@ -160,7 +160,7 @@ def test_builds_sorted_rendering_records_from_one_history_walk(
         "alice.athena.worker.z",
     ]
     assert [row.label for row in associations.commits] == ["aaaaaaa", "bbbbbbb"]
-    assert associations.commits[0].trailing_text == "— early subject"
+    assert associations.commits[0].trailing_text == "early subject"
     assert associations.commits[0].target == (f"https://commits.example/{sha_early}")
     assert associations.agents[0].target == (
         "https://agents.example/alice.athena.reviewer"

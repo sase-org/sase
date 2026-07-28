@@ -1,6 +1,7 @@
 """Tests for the parameterized prose wrap width of format_with_prettier."""
 
 import subprocess
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -10,6 +11,7 @@ from sase.file_references import (
     AGENT_PROMPT_WRAP_WIDTH,
     DEFAULT_MARKDOWN_WRAP_WIDTH,
     format_agent_prompt_markdown,
+    format_markdown_files_with_prettier,
     format_with_prettier,
 )
 
@@ -108,6 +110,32 @@ def test_format_with_prettier_timeout_returns_text() -> None:
         ),
     ):
         assert format_with_prettier("untouched", print_width=80) == "untouched"
+
+
+def test_format_markdown_files_uses_one_prettier_process(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("first\\_value\n", encoding="utf-8")
+    second.write_text("second\n", encoding="utf-8")
+    captured: list[list[str]] = []
+
+    def run(cmd: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        captured.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    with (
+        patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
+        patch("sase.file_references.subprocess.run", side_effect=run),
+    ):
+        assert format_markdown_files_with_prettier((first, second))
+
+    assert len(captured) == 1
+    assert "--write" in captured[0]
+    assert str(first) in captured[0]
+    assert str(second) in captured[0]
+    assert first.read_text(encoding="utf-8") == "first_value\n"
 
 
 def test_preprocess_prompt_late_uses_named_agent_prompt_formatter() -> None:

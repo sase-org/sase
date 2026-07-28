@@ -55,6 +55,25 @@ def test_parser_registers_nested_links_commands() -> None:
     assert repair.plan_links_subcommand == "repair"
     assert repair.write is True
 
+    refresh = parser.parse_args(
+        [
+            "plan",
+            "links",
+            "refresh",
+            "-p",
+            "sdd",
+            "--plan",
+            "plans:202607/example.md",
+            "-j",
+            "-w",
+        ]
+    )
+    assert refresh.plan_links_subcommand == "refresh"
+    assert refresh.path == "sdd"
+    assert refresh.plan == "plans:202607/example.md"
+    assert refresh.json is True
+    assert refresh.write is True
+
 
 def test_plan_command_dispatches_links() -> None:
     args = create_parser().parse_args(["plan", "links", "list"])

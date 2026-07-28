@@ -167,6 +167,28 @@ def test_validate_reports_broken_canonical_href(
     assert "../missing.md" in issue.message
 
 
+def test_validate_reports_unresolvable_parent_section(tmp_path: Path) -> None:
+    root = tmp_path / "repo--plans"
+    prompt = root / "202607" / "prompts" / "child.md"
+    plan = root / "202607" / "child.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(
+        "- **PLAN:** [../202607/child.md](../child.md)\n\n# Prompt\n",
+        encoding="utf-8",
+    )
+    plan.write_text(
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [202607/prompts/child.md](prompts/child.md)\n"
+        "- **PARENT:** [202607/missing.md](missing.md)\n\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+
+    validation = validate_sdd_tree(str(root))
+
+    assert any(issue.code == "parent-missing-target" for issue in validation.errors)
+
+
 def test_validate_rejects_malformed_markdown_like_link(tmp_path: Path) -> None:
     root = tmp_path / "repo--plans"
     prompt = root / "202607" / "prompts" / "malformed.md"

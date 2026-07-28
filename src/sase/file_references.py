@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -509,6 +510,54 @@ def format_with_prettier(
         return text
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return text
+
+
+def format_markdown_files_with_prettier(
+    paths: Iterable[Path],
+    *,
+    print_width: int = DEFAULT_MARKDOWN_WRAP_WIDTH,
+) -> bool:
+    """Format many Markdown files in one prettier process.
+
+    Returns whether prettier ran successfully. Missing, disabled, failed, or
+    timed-out prettier leaves the supplied files as-is.
+    """
+
+    selected = tuple(dict.fromkeys(Path(path) for path in paths))
+    if not selected:
+        return True
+    if os.environ.get("SASE_DISABLE_PRETTIER") or shutil.which("prettier") is None:
+        return False
+    try:
+        subprocess.run(
+            [
+                "prettier",
+                "--prose-wrap=always",
+                f"--print-width={print_width}",
+                "--parser=markdown",
+                "--write",
+                *(str(path) for path in selected),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=max(10.0, min(300.0, 10.0 + len(selected) * 0.25)),
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return False
+
+    for path in selected:
+        text = path.read_text(encoding="utf-8")
+        unescaped = _unescape_prettier_underscores(text)
+        if unescaped != text:
+            path.write_text(unescaped, encoding="utf-8")
+    return True
+
+
+def _unescape_prettier_underscores(text: str) -> str:
+    while r"\_" in text:
+        text = text.replace(r"\_", "_")
+    return text
 
 
 def format_agent_prompt_markdown(text: str) -> str:

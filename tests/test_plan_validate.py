@@ -94,6 +94,26 @@ def test_facade_rehydrates_valid_tale_and_ordered_schema() -> None:
     ]
 
 
+def test_legacy_parent_is_accepted_with_migration_warning() -> None:
+    content = VALID_TALE.replace(
+        "goal: Ship strict plan validation\n",
+        "goal: Ship strict plan validation\nparent: plans:202607/parent.md\n",
+    )
+
+    result = validate_plan(content, "tale")
+
+    assert result.ok
+    assert result.plan is not None
+    assert result.plan.parent == "plans:202607/parent.md"
+    assert [diagnostic.code for diagnostic in result.diagnostics] == [
+        "parent-frontmatter-deprecated"
+    ]
+    parent_field = next(
+        field for field in plan_frontmatter_schema("tale") if field.name == "parent"
+    )
+    assert "PARENT header bullet" in parent_field.description
+
+
 def test_facade_rehydrates_normalized_epic_phases() -> None:
     descriptionless_epic = VALID_EPIC.replace(
         '    description: "cli: wire the validator into the command."\n',

@@ -97,33 +97,44 @@ def refresh_association_sections(
 ) -> str:
     """Replace the derived ``AGENTS`` and ``COMMITS`` sections."""
 
-    updated = upsert_plan_header_section(
+    updated = _refresh_list_section(
         document,
-        PlanHeaderSection(
-            kind=PlanHeaderSectionKind.AGENTS,
-            entries=tuple(
-                PlanHeaderEntry(
-                    label=agent.label,
-                    target=agent.target,
-                    trailing_text=agent.trailing_text,
-                )
-                for agent in associations.agents
-            ),
+        PlanHeaderSectionKind.AGENTS,
+        tuple(
+            PlanHeaderEntry(
+                label=agent.label,
+                target=agent.target,
+                trailing_text=agent.trailing_text,
+            )
+            for agent in associations.agents
         ),
     )
-    return upsert_plan_header_section(
+    return _refresh_list_section(
         updated,
-        PlanHeaderSection(
-            kind=PlanHeaderSectionKind.COMMITS,
-            entries=tuple(
-                PlanHeaderEntry(
-                    label=commit.label,
-                    target=commit.target,
-                    trailing_text=commit.trailing_text,
-                )
-                for commit in associations.commits
-            ),
+        PlanHeaderSectionKind.COMMITS,
+        tuple(
+            PlanHeaderEntry(
+                label=commit.label,
+                target=commit.target,
+                trailing_text=commit.trailing_text,
+            )
+            for commit in associations.commits
         ),
+    )
+
+
+def _refresh_list_section(
+    document: str,
+    kind: PlanHeaderSectionKind,
+    entries: tuple[PlanHeaderEntry, ...],
+) -> str:
+    parsed = parse_plan_header_block(document)
+    exists = any(section.kind is kind for section in parsed.sections)
+    if not entries and not exists:
+        return document
+    return upsert_plan_header_section(
+        document,
+        PlanHeaderSection(kind=kind, entries=entries),
     )
 
 
