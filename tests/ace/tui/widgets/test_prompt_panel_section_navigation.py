@@ -41,7 +41,11 @@ from sase.ace.tui.widgets.prompt_panel._workflow_render import (
     build_workflow_detail_renderable,
 )
 from sase.ace.tui.widgets.prompt_panel._workflow_types import WorkflowDetailSnapshot
-from tests.ace.tui.widgets._agent_display_helpers import make_artifact_agent
+from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_helpers import (
+    FakePromptPanel,
+    make_artifact_agent,
+)
 
 
 def _section(label: str, body: str, *, section_id: str | None = None) -> Text:
@@ -440,6 +444,33 @@ def test_regular_agent_and_workflow_render_paths_mark_real_sections(
         "workflow-steps",
         "agent-prompt",
     ]
+
+
+def test_family_conversation_headings_remain_navigation_targets(
+    tmp_path: Path,
+) -> None:
+    family, _child = make_family(tmp_path)
+    header, error = build_header_text(
+        family,
+        cheap=True,
+        lane_fold_level=FoldLevel.EXPANDED,
+    )
+    prompt_panel = FakePromptPanel()
+    prompt_panel._update_family_display(
+        family,
+        header,
+        error,
+        panel_level=FoldLevel.EXPANDED,
+        section_fold_overrides={},
+    )
+
+    identities = _rendered_section_ids(cast(RenderableType, prompt_panel.captured[-1]))
+    conversation_ids = [
+        identity
+        for identity in identities
+        if identity in {"agent-xprompt", "agent-prompt", "agent-reply"}
+    ]
+    assert conversation_ids == ["agent-xprompt", "agent-prompt", "agent-reply"]
 
 
 class _MetadataNavigationApp(BasicNavigationMixin, App[None]):

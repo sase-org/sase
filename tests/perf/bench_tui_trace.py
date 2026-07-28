@@ -184,11 +184,13 @@ async def test_view_hints_scenario(_trace_env: tuple[Path, Path, Path]) -> None:
     assert plain_counters["annotated_chars"] > HINT_REPLY_SIZE_KB * 1024
     assert plain_counters["hints"] > 0
     assert plain_counters["family_container"] == [False]
-    family_counters = steps["family_container_unfolded_press"]["hint_counters"]
-    assert family_counters["family_container"] == [True]
-    assert family_counters["annotated_chars"] > plain_counters["annotated_chars"], (
-        "an unfolded family container should annotate more than one member"
-    )
+    default_family_counters = steps["family_container_press"]["hint_counters"]
+    full_family_counters = steps["family_container_unfolded_press"]["hint_counters"]
+    for family_counters in (default_family_counters, full_family_counters):
+        assert family_counters["family_container"] == [True]
+        assert family_counters["annotated_chars"] > plain_counters["annotated_chars"]
+        assert family_counters["annotated_chars"] <= 200_000
+        assert family_counters["hints"] > 0
     print(json.dumps(result, indent=2), file=sys.stderr)
 
 

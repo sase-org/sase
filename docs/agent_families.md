@@ -261,15 +261,19 @@ parents in one multi-parent fork.
 Selecting a real multi-member family root in ACE adds a numbered `FAMILY MEMBERS` roster in stable chain order. The
 original member and each follow-up are direct jump targets; synthetic planner projections and legacy parallel-family
 scaffolding are not. The same `zz`, `zZ`, `za`, and `zA` chords used by clan summaries control the family roster and the
-root's output variables, workflow variables, SASE context, slow calls, errors, xprompt, prompt, and consolidated reply.
+root's foldable output variables, workflow variables, SASE context, slow calls, and errors.
 
-Family summaries have two effective levels. Level 1 shows bounded activity, wait/retry, context, and prompt/reply
-previews; level 2 adds full available content and member workspace, timestamp, and attempt annotations. Press `zZ` at
+Family summaries have two effective levels. Level 1 shows bounded activity, wait/retry, context, and compact member
+metadata; level 2 adds full foldable metadata plus member workspace, timestamp, and attempt annotations. Press `zZ` at
 level 1 to open every fold to level 2, or at level 2 to close every fold to level 1. Press `z1` or `z2` to select either
 level directly. `z3` and `z4` are invalid in a family context and leave both the panel level and section overrides
 untouched. A member-specific override inherits from the `FAMILY MEMBERS` section, which in turn inherits the panel
-level. The numbered roster and its digit jumps remain present at both effective levels. Absent xprompt and prompt
-sections are omitted, while reply rows for members that have not responded yet remain visible with their pending state.
+level. The numbered roster and its digit jumps remain present at both effective levels.
+
+`AGENT XPROMPT`, `AGENT PROMPT`, and the consolidated `AGENT REPLY` are always shown in full at both family levels,
+without fold glyphs or section overrides. They remain navigation anchors for `Ctrl+J`/`Ctrl+K`; `za` and `zA` skip them
+without changing the override registry. Absent xprompt and prompt sections are omitted, while reply rows for members
+that have not responded yet remain visible with their pending state.
 
 A family root is an agent lane, so its panel also carries a `NEIGHBORS` section listing the lane's ancestors,
 descendants, and hood neighbors; it sits below `FAMILY MEMBERS` and above `SASE CONTEXT`. The lane participates under

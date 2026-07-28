@@ -327,6 +327,28 @@ def test_family_section_cycle_and_toggle_use_family_scale() -> None:
     assert app._panel_fold_overrides.get_override("errors") is FoldLevel.EXPANDED
 
 
+@pytest.mark.parametrize(
+    "section_id",
+    ["agent-xprompt", "agent-prompt", "agent-reply"],
+)
+@pytest.mark.parametrize("key", ["a", "A"])
+def test_family_conversation_sections_ignore_section_fold_commands(
+    section_id: str,
+    key: str,
+) -> None:
+    app = _FoldApp(clan=False, family=True)
+    app.panel_fold_level = FoldLevel.EXPANDED
+    app.section_id = section_id
+    app._panel_fold_overrides.set("errors", FoldLevel.FULLY_EXPANDED)
+
+    _press(app, key)
+
+    assert app.panel_fold_level is FoldLevel.EXPANDED
+    assert app._panel_fold_overrides.snapshot() == {"errors": FoldLevel.FULLY_EXPANDED}
+    assert app.refresh_count == 1
+    assert app.notifications == []
+
+
 def test_agents_section_fold_noops_without_a_current_cached_section() -> None:
     app = _FoldApp()
     app.section_id = None

@@ -571,12 +571,12 @@ change as statuses change; a nested family remains one direct entry with its cha
 retain sequential chain order.
 
 Clan metadata has three session-only detail levels. Family metadata uses the last two effective states as its two-level
-scale: family level 1 is expanded and level 2 is fully expanded.
+scale for fold-aware metadata: family level 1 is expanded and level 2 is fully expanded.
 
 | Level | Content                                                                                                        |
 | ----- | -------------------------------------------------------------------------------------------------------------- |
 | 1     | Core member rows plus headings and counts; expensive disk-backed bodies remain deferred                        |
-| 2     | Bounded triage detail such as activity, wait/retry state, context summaries, and prompt/reply previews         |
+| 2     | Bounded triage detail such as activity, wait/retry state, context summaries, and compact member metadata       |
 | 3     | Full available sections and the richest member annotations, including workspace, timestamps, and attempt count |
 
 The compact clan roster and its fixed numeric member jumps remain available at all three levels. Clan sections appear
@@ -584,6 +584,8 @@ only when their content is known to exist: known-empty sections are omitted, whi
 produces one dim `⋯ scanning member data…` tail for the document instead of a placeholder for each section. Family
 rosters and their numeric jumps likewise remain available at both effective levels. Family xprompt and prompt sections
 are omitted when absent, while an unfinished reply remains visible as pending rather than disappearing as empty.
+`AGENT XPROMPT`, `AGENT PROMPT`, and the consolidated `AGENT REPLY` are plain navigation anchors whose available
+conversation bodies stay fully visible at both family levels.
 
 The default fold chords are:
 
@@ -591,19 +593,20 @@ The default fold chords are:
 | --------- | --------------------------------------------------------------------------------------- |
 | `zz`      | Cycle the whole metadata panel forward through its active scale                         |
 | `zZ`      | Open every fold to the active maximum; at that maximum, close every fold to the minimum |
-| `za`      | Cycle the section or numbered member at the top of the metadata viewport                |
-| `zA`      | Toggle that section or member between collapsed and fully expanded                      |
+| `za`      | Cycle the foldable section or numbered member at the top of the metadata viewport       |
+| `zA`      | Toggle that foldable section or member between collapsed and fully expanded             |
 | `z1`-`z2` | Set a family directly to level 1 or 2                                                   |
 | `z1`-`z3` | Set a clan or regular-agent session scope directly to level 1-3                         |
 | `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4                                  |
 
-The `Fold: N/M` header field reports the position within the active scale, while the heading glyphs show effective
-per-section levels. Only family panels print that header line; a single-agent lane relies on the `NEIGHBORS` heading
-glyph instead. A valid panel-level cycle, extreme toggle, or direct selection clears per-section overrides. Fold state
-is shared by the Agents metadata panel: an ordinary agent's own three-level scale now shapes its `NEIGHBORS` section, so
-`z*` chords have a visible effect on a regular-agent lane, and the same session scope carries over to the next selected
-clan or family container. Every other section on a regular-agent panel stays fold-inert. A selected whole tribe panel
-adds level 4 for exhaustive detail. These keys are configurable; see
+The `Fold: N/M` header field reports the position within the active scale, while glyphs on foldable headings show their
+effective per-section levels. Only family panels print that header line; a single-agent lane relies on the `NEIGHBORS`
+heading glyph instead. On a family conversation heading, `za` and `zA` refresh normally but do not create or change a
+section override. A valid panel-level cycle, extreme toggle, or direct selection clears real per-section overrides. Fold
+state is shared by the Agents metadata panel: an ordinary agent's own three-level scale now shapes its `NEIGHBORS`
+section, so `z*` chords have a visible effect on a regular-agent lane, and the same session scope carries over to the
+next selected clan or family container. Every other section on a regular-agent panel stays fold-inert. A selected whole
+tribe panel adds level 4 for exhaustive detail. These keys are configurable; see
 [Agent Clans, Families, and Tribes](agent_families.md) for the grouping model.
 
 When ACE knows a planner/author or epic lander's associated plan, the metadata panel adds `PLAN` as the leading lane in

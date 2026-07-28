@@ -149,8 +149,33 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
             title="ACE family panel fold level 1",
         )
 
+        panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
+        for _ in range(20):
+            await page.press("ctrl+j")
+            if panel.active_section_identity == "agent-xprompt":
+                break
+        assert panel.active_section_identity == "agent-xprompt"
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_family_conversation_level_1_120x40",
+            title="ACE family conversation at fold level 1",
+        )
+
         await page.press("z", "z")
         assert page.app.panel_fold_level is FoldLevel.FULLY_EXPANDED
+        await wait_for_visual_idle(page)
+        assert panel.active_section_identity == "agent-xprompt"
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_family_conversation_level_2_120x40",
+            title="ACE family conversation at fold level 2",
+        )
+        for _ in range(20):
+            if panel.active_section_identity is None:
+                break
+            await page.press("ctrl+j")
+        assert panel.active_section_identity is None
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
@@ -161,7 +186,7 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         await page.press("z", "z")
         assert page.app.panel_fold_level is FoldLevel.EXPANDED
         await wait_for_visual_idle(page)
-        panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
+        assert panel.active_section_identity is None
         await page.press("ctrl+j")
         assert panel.active_section_identity == "members"
         await page.press("ctrl+j")

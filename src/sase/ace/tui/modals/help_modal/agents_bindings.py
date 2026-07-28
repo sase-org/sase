@@ -207,11 +207,11 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     key_sequence_display(fm.prefix, ag_fold["cycle_section"]),
-                    "Cycle section/member forward",
+                    "Cycle foldable section/member",
                 ),
                 (
                     key_sequence_display(fm.prefix, ag_fold["toggle_section"]),
-                    "Toggle section/member full",
+                    "Toggle foldable section/member",
                 ),
                 ("Roster entry", "Inherit MEMBERS then panel"),
             ],

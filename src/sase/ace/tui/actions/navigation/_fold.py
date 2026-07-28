@@ -21,6 +21,14 @@ from ...models.fold_scale import (
 )
 from ._types import NavigationMixinBase
 
+_FOLD_INERT_AGENT_SECTION_IDS = frozenset(
+    {
+        "agent-xprompt",
+        "agent-prompt",
+        "agent-reply",
+    }
+)
+
 
 class FoldNavigationMixin(NavigationMixinBase):
     """Mixin providing fold mode actions."""
@@ -188,7 +196,10 @@ class FoldNavigationMixin(NavigationMixinBase):
             agent_keys["toggle_section"],
         }:
             section_id = self._current_agent_metadata_section_id()
-            if section_id is not None:
+            if (
+                section_id is not None
+                and section_id not in _FOLD_INERT_AGENT_SECTION_IDS
+            ):
                 if key == agent_keys["cycle_section"]:
                     self._panel_fold_overrides.cycle(
                         section_id,

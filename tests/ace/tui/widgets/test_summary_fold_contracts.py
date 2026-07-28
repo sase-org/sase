@@ -284,7 +284,7 @@ def _family_case(tmp_path: Path) -> _FoldContractCase:
         },
         unloaded=populated,
         roster_title="FAMILY MEMBERS",
-        content_section="AGENT PROMPT",
+        content_section="FAMILY MEMBERS",
         empty_sections=(
             "AGENT XPROMPT",
             "AGENT PROMPT",
@@ -469,6 +469,18 @@ def test_adjacent_levels_change_non_empty_section_bodies(
     ]
     for lower, higher in zip(bodies, bodies[1:], strict=False):
         assert lower != higher, (fold_contract_case.kind, lower)
+
+
+def test_family_conversation_bodies_do_not_change_across_scale(
+    tmp_path: Path,
+) -> None:
+    family = _family_case(tmp_path)
+    documents = []
+    for level in family.scale:
+        rendered = family.populated[level].plain
+        documents.append(rendered[rendered.index("AGENT XPROMPT") :])
+
+    assert documents == [documents[0]] * len(documents)
 
 
 _LANE_NEIGHBOR_TOTAL = 12

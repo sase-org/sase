@@ -8,7 +8,6 @@ from typing import Any
 
 from rich.text import Text
 
-from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import Agent
 from ...models.agent_family_members import (
     concrete_family_member_rows as family_member_rows,
@@ -32,13 +31,6 @@ from ._member_roster_digest import agent_roster_digest, agent_roster_duration
 
 FAMILY_IDENTITY_COLOR = "#00AFFF"
 _FAMILY_ROSTER_TITLE = "FAMILY MEMBERS"
-
-FAMILY_XPROMPT_SECTION_ID = "agent-xprompt"
-FAMILY_PROMPT_SECTION_ID = "agent-prompt"
-FAMILY_REPLY_SECTION_ID = "agent-reply"
-
-_FAMILY_PREVIEW_LINE_LIMIT = 12
-_FAMILY_REPLY_TAIL_LINE_LIMIT = 4
 
 
 def effective_family_fold_level(
@@ -130,48 +122,6 @@ def append_family_member_roster(
     )
 
 
-def bounded_content_preview(
-    content: str,
-    *,
-    line_limit: int = _FAMILY_PREVIEW_LINE_LIMIT,
-) -> Text:
-    """Return a bounded leading preview with an explicit remaining-line tail."""
-    lines = content.splitlines()
-    visible = lines[:line_limit]
-    preview = Text("\n".join(visible))
-    if visible:
-        preview.append("\n")
-    hidden = len(lines) - len(visible)
-    if hidden > 0:
-        preview.append(
-            f"… +{hidden} more line{'s' if hidden != 1 else ''}\n",
-            style="dim italic",
-        )
-    return preview
-
-
-def reply_tail_preview(
-    content: str,
-    *,
-    line_limit: int = _FAMILY_REPLY_TAIL_LINE_LIMIT,
-) -> Text:
-    """Return the last meaningful reply lines with an earlier-lines tail."""
-    meaningful = [line for line in content.splitlines() if line.strip()]
-    visible = meaningful[-line_limit:]
-    preview = Text()
-    hidden = len(meaningful) - len(visible)
-    if hidden > 0:
-        preview.append(
-            f"… +{hidden} earlier line{'s' if hidden != 1 else ''}\n",
-            style="dim italic",
-        )
-    if visible:
-        preview.append("\n".join(visible) + "\n")
-    else:
-        preview.append("No response content yet.\n", style="dim italic")
-    return preview
-
-
 def _family_member_label(member: Agent, family_name: str) -> str:
     name = member.presented_agent_name or member.step_name or member.display_name
     if family_name and name.startswith(family_name) and len(name) > len(family_name):
@@ -183,14 +133,9 @@ def _family_member_label(member: Agent, family_name: str) -> str:
 
 __all__ = [
     "FAMILY_IDENTITY_COLOR",
-    "FAMILY_PROMPT_SECTION_ID",
-    "FAMILY_REPLY_SECTION_ID",
-    "FAMILY_XPROMPT_SECTION_ID",
     "append_family_fold_heading",
     "append_family_member_roster",
-    "bounded_content_preview",
     "effective_family_fold_level",
     "family_member_rows",
     "family_roster_entries",
-    "reply_tail_preview",
 ]

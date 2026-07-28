@@ -20,24 +20,23 @@ from ._agent_display_content import (
     render_timestamp_divider,
 )
 from ._agent_display_family import (
-    FAMILY_PROMPT_SECTION_ID,
-    FAMILY_REPLY_SECTION_ID,
-    FAMILY_XPROMPT_SECTION_ID,
-    append_family_fold_heading,
-    bounded_content_preview,
     effective_family_fold_level,
     family_member_rows,
-    reply_tail_preview,
 )
 from ._agent_display_header import AgentHeader
 from ._agent_display_state import HeaderHintState
 from ._agent_xprompt_highlighting import known_xprompt_skill_names
+from ._fold_language import fold_count_style
 from ._file_path_hints import (
     FILE_PATH_RE,
     append_text_with_file_hints,
     resolve_agent_workspace_dir,
 )
 from ._hint_caps import HintContentBudget, bound_hint_content
+from ._helpers import (
+    PROMPT_PANEL_SECTION_HEADING_STYLE,
+    append_section_heading,
+)
 
 
 class AgentFamilyDisplayMixin:
@@ -68,10 +67,11 @@ class AgentFamilyDisplayMixin:
         section_fold_overrides: object,
         hint_state: HeaderHintState | None = None,
     ) -> None:
-        """Render every family section at its effective two-level fold.
+        """Render a family container and its always-open conversation.
 
-        ``hint_state`` only changes how already-visible content is annotated;
-        both normal and hint mode intentionally share this layout path.
+        Family metadata still follows the shared two-level fold, while xprompt,
+        prompt, and reply bodies remain fully visible at every level.
+        ``hint_state`` only changes how that content is annotated.
         """
         shared_level = (
             panel_level if isinstance(panel_level, FoldLevel) else FoldLevel.COLLAPSED
@@ -92,30 +92,17 @@ class AgentFamilyDisplayMixin:
         rendered_content_section = False
         raw_xprompt = agent.get_raw_xprompt_content()
         if raw_xprompt:
-            xprompt_level = effective_family_fold_level(
-                FAMILY_XPROMPT_SECTION_ID,
-                level,
-                overrides,
-            )
-            append_family_fold_heading(
-                header_text,
-                "AGENT XPROMPT",
-                section_id=FAMILY_XPROMPT_SECTION_ID,
-                level=xprompt_level,
-            )
+            append_section_heading(header_text, "AGENT XPROMPT")
             humanized_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
-            if xprompt_level == FoldLevel.EXPANDED:
-                xprompt = bounded_content_preview(humanized_xprompt)
-            else:
-                xprompt = (
-                    self._render_xprompt(
-                        agent,
-                        raw_xprompt,
-                        humanized_xprompt,
-                    )
-                    if hint_state is None
-                    else Text(humanized_xprompt)
+            xprompt = (
+                self._render_xprompt(
+                    agent,
+                    raw_xprompt,
+                    humanized_xprompt,
                 )
+                if hint_state is None
+                else Text(humanized_xprompt)
+            )
             if hint_state is None:
                 header_text.append_text(xprompt)
             else:
@@ -129,8 +116,7 @@ class AgentFamilyDisplayMixin:
                         raw_xprompt=raw_xprompt,
                     )
                 )
-            if xprompt_level != FoldLevel.EXPANDED:
-                header_text.append("\n")
+            header_text.append("\n")
             rendered_content_section = True
 
         prompt_content = get_prompt_content(agent)
@@ -139,44 +125,18 @@ class AgentFamilyDisplayMixin:
                 header_text.append("\n")
                 header_text.append("\u2500" * 50 + "\n", style="dim")
                 header_text.append("\n")
-            prompt_level = effective_family_fold_level(
-                FAMILY_PROMPT_SECTION_ID,
-                level,
-                overrides,
-            )
-            append_family_fold_heading(
-                header_text,
-                "AGENT PROMPT",
-                section_id=FAMILY_PROMPT_SECTION_ID,
-                level=prompt_level,
-            )
-            if prompt_level == FoldLevel.EXPANDED:
-                prompt = bounded_content_preview(
-                    self._humanize_display_text(prompt_content)
-                )
-                if hint_state is None:
-                    header_text.append_text(prompt)
-                else:
-                    header_text.append_text(
-                        self._family_text_with_hints(
-                            prompt,
-                            hint_state,
-                            workspace_dir=hint_state.workspace_dir,
-                            budget=hint_budget,
-                        )
-                    )
+            append_section_heading(header_text, "AGENT PROMPT")
+            if hint_state is None:
+                renderables.append(self._render_markdown(prompt_content))
             else:
-                if hint_state is None:
-                    renderables.append(self._render_markdown(prompt_content))
-                else:
-                    renderables.append(
-                        self._family_text_with_hints(
-                            self._humanize_display_text(prompt_content),
-                            hint_state,
-                            workspace_dir=hint_state.workspace_dir,
-                            budget=hint_budget,
-                        )
+                renderables.append(
+                    self._family_text_with_hints(
+                        self._humanize_display_text(prompt_content),
+                        hint_state,
+                        workspace_dir=hint_state.workspace_dir,
+                        budget=hint_budget,
                     )
+                )
             rendered_content_section = True
 
         reply_header = Text()
@@ -184,64 +144,44 @@ class AgentFamilyDisplayMixin:
             reply_header.append("\n")
             reply_header.append("\u2500" * 50 + "\n", style="dim")
             reply_header.append("\n")
-        reply_level = effective_family_fold_level(
-            FAMILY_REPLY_SECTION_ID,
-            level,
-            overrides,
-        )
         phases = family_member_rows(agent)
-        append_family_fold_heading(
-            reply_header,
+        reply_heading = Text(
             "AGENT REPLY",
-            section_id=FAMILY_REPLY_SECTION_ID,
-            level=reply_level,
-            count=len(phases),
+            style=PROMPT_PANEL_SECTION_HEADING_STYLE,
         )
-        if reply_level == FoldLevel.EXPANDED:
-            renderables.append(reply_header)
-            for phase in phases:
-                renderables.append(
-                    render_phase_divider(
-                        get_phase_label(phase),
-                        phase.run_start_time or phase.start_time,
-                    )
+        reply_heading.append(
+            f" · {len(phases)}",
+            style=fold_count_style("AGENT REPLY"),
+        )
+        append_section_heading(reply_header, reply_heading)
+        renderables.append(reply_header)
+        for phase in phases:
+            renderables.append(
+                render_phase_divider(
+                    get_phase_label(phase),
+                    phase.run_start_time or phase.start_time,
                 )
-                reply_preview = reply_tail_preview(self._family_reply_text(phase))
-                if hint_state is None:
-                    renderables.append(reply_preview)
-                else:
-                    renderables.append(
-                        self._family_text_with_hints(
-                            reply_preview,
-                            hint_state,
-                            workspace_dir=self._family_member_hint_workspace(
-                                phase,
-                                reply_preview.plain,
-                            ),
-                            budget=hint_budget,
-                        )
-                    )
-        else:
-            renderables.append(reply_header)
-            for phase in phases:
-                renderables.append(
-                    render_phase_divider(
-                        get_phase_label(phase),
-                        phase.run_start_time or phase.start_time,
-                    )
+            )
+            if hint_state is None:
+                reply_renderables = render_agent_reply_content(
+                    phase,
+                    self._render_markdown,
                 )
-                if hint_state is None:
-                    renderables.extend(
-                        render_agent_reply_content(phase, self._render_markdown)
+            else:
+                reply_renderables = self._family_reply_renderables_with_hints(
+                    phase,
+                    hint_state,
+                    budget=hint_budget,
+                )
+            renderables.extend(
+                reply_renderables
+                or [
+                    Text(
+                        "No response content yet.\n",
+                        style="dim italic",
                     )
-                else:
-                    renderables.extend(
-                        self._family_reply_renderables_with_hints(
-                            phase,
-                            hint_state,
-                            budget=hint_budget,
-                        )
-                    )
+                ]
+            )
 
         renderable: object = Group(*renderables)
         if hint_state is not None:
@@ -384,18 +324,3 @@ class AgentFamilyDisplayMixin:
                 )
             )
         return renderables
-
-    @staticmethod
-    def _family_reply_text(agent: Agent) -> str:
-        """Load one phase reply for an expanded tail preview."""
-        chunks = agent.get_timestamped_reply_chunks()
-        if chunks:
-            return "\n".join(chunk for _timestamp, chunk in chunks if chunk.strip())
-        live_reply = agent.get_live_reply_content()
-        if live_reply:
-            return live_reply
-        response = agent.get_response_content()
-        if response:
-            return response
-        chat_response = agent.get_chat_response_content()
-        return chat_response or ""

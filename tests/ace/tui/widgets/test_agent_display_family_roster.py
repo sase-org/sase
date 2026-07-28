@@ -12,9 +12,6 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._agent_display_family import (
-    FAMILY_PROMPT_SECTION_ID,
-    FAMILY_REPLY_SECTION_ID,
-    FAMILY_XPROMPT_SECTION_ID,
     family_roster_entries,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
@@ -218,9 +215,3 @@ def test_family_header_maps_shared_shallow_levels_to_preview(tmp_path: Path) -> 
     assert "▾ OUTPUT VARIABLES · 2\n" in expanded.plain
     assert "plan_path: /tmp/plan.md" in expanded.plain
     assert "code_path: /tmp/code.md" in expanded.plain
-
-
-def test_family_section_ids_remain_stable() -> None:
-    assert FAMILY_XPROMPT_SECTION_ID == "agent-xprompt"
-    assert FAMILY_PROMPT_SECTION_ID == "agent-prompt"
-    assert FAMILY_REPLY_SECTION_ID == "agent-reply"

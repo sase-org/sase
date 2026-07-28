@@ -90,7 +90,7 @@ def test_family_hint_render_returns_cached_plan_delta_artifact_and_commit_views(
     assert not result.header_enrichment_pending
 
 
-def test_family_content_hints_follow_visibility_and_phase_workspace(
+def test_family_content_hints_are_full_at_both_levels_and_use_phase_workspace(
     tmp_path: Path,
 ) -> None:
     root, child = make_family(tmp_path)
@@ -126,27 +126,7 @@ def test_family_content_hints_follow_visibility_and_phase_workspace(
         encoding="utf-8",
     )
 
-    compact_panel = FakePromptPanel()
-    cache_detail_header_summary(compact_panel, root, DetailHeaderSummary())
-    compact = compact_panel.update_display_with_hints(root)
-
-    assert set(compact.file_hints.values()) == {
-        str(root_workspace / "docs/visible-xprompt.md"),
-        str(root_workspace / "src/visible-prompt.py"),
-        str(root_workspace / "root/visible-reply.txt"),
-        str(child_workspace / "child/visible-reply.txt"),
-    }
-    assert all("hidden" not in path for path in compact.file_hints.values())
-
-    full_panel = FakePromptPanel()
-    full_panel.app = SimpleNamespace(
-        panel_fold_level=FoldLevel.FULLY_EXPANDED,
-        _panel_fold_overrides=SimpleNamespace(snapshot=lambda: {}),
-    )
-    cache_detail_header_summary(full_panel, root, DetailHeaderSummary())
-    full = full_panel.update_display_with_hints(root)
-
-    assert set(full.file_hints.values()) == {
+    expected_paths = {
         str(root_workspace / "docs/visible-xprompt.md"),
         str(root_workspace / "docs/hidden-xprompt.md"),
         str(root_workspace / "src/visible-prompt.py"),
@@ -156,9 +136,26 @@ def test_family_content_hints_follow_visibility_and_phase_workspace(
         str(child_workspace / "child/hidden-reply.txt"),
         str(child_workspace / "child/visible-reply.txt"),
     }
+    rendered_paths: list[set[str]] = []
+    for level in (FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED):
+        panel = FakePromptPanel()
+        panel.app = SimpleNamespace(
+            panel_fold_level=level,
+            _panel_fold_overrides=SimpleNamespace(snapshot=lambda: {}),
+        )
+        cache_detail_header_summary(panel, root, DetailHeaderSummary())
+
+        result = panel.update_display_with_hints(root)
+        rendered_paths.append(set(result.file_hints.values()))
+
+    assert rendered_paths == [expected_paths, expected_paths]
 
 
-def test_family_hint_render_caps_total_member_content(tmp_path: Path) -> None:
+@pytest.mark.parametrize("level", [FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED])
+def test_family_hint_render_caps_total_member_content(
+    tmp_path: Path,
+    level: FoldLevel,
+) -> None:
     root, child = make_family(tmp_path)
     root_workspace = tmp_path / "root-workspace"
     child_workspace = tmp_path / "child-workspace"
@@ -178,7 +175,7 @@ def test_family_hint_render_caps_total_member_content(tmp_path: Path) -> None:
     )
     panel = FakePromptPanel()
     panel.app = SimpleNamespace(
-        panel_fold_level=FoldLevel.FULLY_EXPANDED,
+        panel_fold_level=level,
         _panel_fold_overrides=SimpleNamespace(snapshot=lambda: {}),
     )
     cache_detail_header_summary(panel, root, DetailHeaderSummary())

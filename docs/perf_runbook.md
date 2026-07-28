@@ -261,9 +261,10 @@ render reads `raw_xprompt.md`, `*_prompt.md`, and `live_reply.md` from a real ar
 ```text
 large_reply_first_press           v on a plain agent with a 100 KB reply, cold header summary
 large_reply_repeat_press          v again on the same row after the bar is torn down
-family_container_press            v on a 5-member family container at the default panel fold
-family_container_unfolded_press   the same row at FoldLevel.FULLY_EXPANDED, where every
-                                  member's reply is annotated in full
+family_container_press            v on a 5-member family container at the default metadata level;
+                                  conversation content is full under the shared hint cap
+family_container_unfolded_press   the same row at FoldLevel.FULLY_EXPANDED; foldable metadata grows,
+                                  while conversation visibility and the shared hint cap stay unchanged
 hint_mode_auto_refresh            an Agents-tab refresh tick while hint mode is active
 ```
 
@@ -300,9 +301,10 @@ just view-hints-perf-check
 ```
 
 The floor compares traced spans against the committed baseline and ignores wall-clock Pilot settle time. It also checks
-that warm repeat presses and unchanged auto-refreshes do not rescan annotated text, and that unfolded family rows stay
-within the shared hint scan cap. If long output is capped, ACE shows a dim notice in the detail panel; hints are not
-generated past that notice.
+that warm repeat presses and unchanged auto-refreshes do not rescan annotated text, and that family rows stay within the
+shared hint scan cap at both metadata levels. If long output is capped, ACE shows a dim notice in the detail panel;
+hints are not generated past that notice. The committed baseline remains the synchronous pre-optimization reference and
+is not rewritten merely because conversation sections became fold-inert.
 
 ## Targets per phase gate
 
