@@ -11,6 +11,7 @@ import shutil
 import subprocess
 
 from sase.sdd._bead_ignore import bead_store_gitignore_patterns
+from sase.sdd._bead_state import has_bead_state
 from sase.sdd._commit import commit_sdd_files, run_sdd_git
 from sase.sdd._sidecar_git import push_sidecar
 from sase.sdd._store_types import SddMaterializationError
@@ -43,7 +44,7 @@ def adopt_bead_state(
     if not source.is_dir():
         return AdoptionOutcome(adopted=False, source_present=False)
 
-    if _has_bead_state(beads_root):
+    if has_bead_state(beads_root):
         # This is either an ordinary rerun or recovery after the import commit
         # succeeded locally but its push failed. Commit any interrupted copy,
         # then make the push a precondition of the record switch.
@@ -103,10 +104,6 @@ def cleanup_plans_bead_state(plans_root: Path) -> None:
             "cleanup failed and will be retried by `sase repo init`: %s",
             exc,
         )
-
-
-def _has_bead_state(root: Path) -> bool:
-    return (root / "config.json").is_file() or (root / "events").is_dir()
 
 
 def _copy_bead_state(source: Path, target: Path) -> tuple[Path, ...]:

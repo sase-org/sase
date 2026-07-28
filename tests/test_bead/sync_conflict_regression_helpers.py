@@ -8,7 +8,7 @@ import subprocess
 from typing import Any
 
 from sase.bead.model import IssueType
-from sase.bead.project import BeadProject
+from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.core import bead_conflict_facade, bead_mutation_facade
 
 from .sync_test_helpers import configure_git_identity, init_git_repo
@@ -267,6 +267,7 @@ def _seed_claim_soak_remote(
     tmp_path: Path,
     *,
     phase_count: int,
+    beads_dirname: str = "beads",
 ) -> tuple[Path, Path, Path, list[str]]:
     remote = tmp_path / "claim-soak.git"
     subprocess.run(
@@ -279,8 +280,12 @@ def _seed_claim_soak_remote(
     seed.mkdir()
     init_git_repo(seed)
     _git(seed, "branch", "-M", "main")
-    (seed / ".gitignore").write_text("beads/beads.db*\n", encoding="utf-8")
-    with BeadProject.init(seed, beads_dirname="beads") as project:
+    bead_prefix = "" if beads_dirname == BEADS_DIRNAME_ROOT else f"{beads_dirname}/"
+    (seed / ".gitignore").write_text(
+        f"{bead_prefix}beads.db*\n",
+        encoding="utf-8",
+    )
+    with BeadProject.init(seed, beads_dirname=beads_dirname) as project:
         epic = project.create("Concurrent claim soak", IssueType.PLAN)
         phase_ids = [
             project.create(

@@ -10,6 +10,7 @@ from sase.git_lock_retry import (
     STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS,
     git_index_lock_path,
 )
+from sase.sdd._bead_state import has_bead_state
 from sase.vcs_provider import get_vcs_provider
 
 logger = logging.getLogger(__name__)
@@ -188,9 +189,11 @@ def _protect_unpushed_sidecar_bead_commits(workspace_dir: str) -> bool:
 
 def _top_level_beads_dir(repo_root: Path) -> Path | None:
     beads_dir = repo_root / "beads"
-    if not beads_dir.is_dir():
-        return None
-    return beads_dir
+    if beads_dir.is_dir():
+        return beads_dir
+    if has_bead_state(repo_root):
+        return repo_root
+    return None
 
 
 def _beads_dir_belongs_to_repo(
