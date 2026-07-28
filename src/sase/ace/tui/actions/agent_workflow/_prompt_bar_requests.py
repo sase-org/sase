@@ -350,17 +350,23 @@ class PromptBarRequestsMixin:
                     extract_project_from_vcs_tag,
                     extract_vcs_workflow_tag,
                 )
-                from sase.xprompt.loader import (
-                    get_known_project_workspaces,
-                    load_project_local_xprompts,
+                from sase.xprompt.loader import load_project_local_xprompts
+                from sase.xprompt.project_identity import (
+                    canonical_xprompt_project,
+                    known_project_namespaces,
                 )
 
                 vcs_tag = extract_vcs_workflow_tag(prompt_text)
                 if vcs_tag:
-                    vcs_project = extract_project_from_vcs_tag(vcs_tag)
+                    # The tag names the project however the user spelled it, so
+                    # canonicalize before the namespace lookup: the namespace map
+                    # is keyed by the user-facing ``PROJECT_NAME``, which differs
+                    # from the ProjectSpec directory key for ``#gh:`` projects.
+                    vcs_project = canonical_xprompt_project(
+                        extract_project_from_vcs_tag(vcs_tag)
+                    )
                     if vcs_project:
-                        workspaces = get_known_project_workspaces()
-                        ws_dir = workspaces.get(vcs_project)
+                        ws_dir = known_project_namespaces().get(vcs_project)
                         if ws_dir:
                             xprompts = load_project_local_xprompts(ws_dir, vcs_project)
                             for name, xp in xprompts.items():

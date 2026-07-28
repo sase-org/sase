@@ -9,8 +9,13 @@ trigger range, and the handler routes insertion through
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+from sase import project_aliases, project_display_names
 from sase.ace.tui.actions.agent_workflow._prompt_bar_requests import (
     PromptBarRequestsMixin,
 )
@@ -22,8 +27,16 @@ from sase.ace.tui.widgets.xprompt_inline_expansion import (
     _InlineExpansionReason,
     _InlineExpansionResult,
 )
+from sase.xprompt import loader_sources, project_identity
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from tests.main.project_handler_helpers import (
+    _disk_project_records,
+    _write_project,
+    projects_root,
+)
+
+__all__ = ["projects_root"]
 
 
 def _ctx() -> PromptContext:
@@ -461,3 +474,76 @@ def test_invalid_frontmatter_locals_are_omitted_without_crashing() -> None:
     assert isinstance(modal, XPromptSelectModal)
     assert "rules" not in modal._extra_prompts
     assert harness.notifications == []
+
+
+# -- sase-ac.6.2: the VCS-tag workspace lookup is canonical-name keyed --------
+
+
+@pytest.fixture
+def _identity_registry_reset() -> Iterator[None]:
+    project_identity._identity_registry.cache_clear()
+    project_identity._canonical_xprompt_project.cache_clear()
+    yield
+    project_identity._identity_registry.cache_clear()
+    project_identity._canonical_xprompt_project.cache_clear()
+
+
+@pytest.fixture
+def _gh_project(
+    projects_root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    _identity_registry_reset: None,
+) -> Path:
+    """Register ``gh_org__proj`` / ``PROJECT_NAME: proj`` with a ``sase.yml``."""
+    workspace = tmp_path / "proj-ws"
+    workspace.mkdir(parents=True, exist_ok=True)
+    (workspace / "sase.yml").write_text(
+        "xprompts:\n  thing: 'Thing body'\n", encoding="utf-8"
+    )
+    _write_project(
+        projects_root,
+        "gh_org__proj",
+        f"WORKSPACE_DIR: {workspace}\nPROJECT_STATE: enabled\nPROJECT_NAME: proj\n",
+    )
+    monkeypatch.setattr(project_aliases, "list_project_records", _disk_project_records)
+    monkeypatch.setattr(
+        project_display_names, "list_project_records", _disk_project_records
+    )
+    monkeypatch.setattr(loader_sources, "list_project_records", _disk_project_records)
+    return workspace
+
+
+def test_vcs_tag_offers_project_local_xprompts_by_canonical_name(
+    _gh_project: Path,
+) -> None:
+    harness = _SelectorHarness()
+    origin_bar = _OriginBar()
+
+    # The tag names the project by its user-facing ``PROJECT_NAME``, while the
+    # ProjectSpec directory key is ``gh_org__proj``. Keying the workspace lookup
+    # by the directory key silently drops the project's ``sase.yml`` xprompts.
+    harness.on_prompt_input_bar_snippet_requested(
+        _event(origin_bar, _StubTextArea(text="#git:proj do the thing #"))
+    )
+
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, XPromptSelectModal)
+    assert "proj/thing" in modal._extra_prompts
+    assert "proj/thing" in modal._prompts
+
+
+def test_vcs_tag_directory_key_spelling_also_resolves(_gh_project: Path) -> None:
+    harness = _SelectorHarness()
+    origin_bar = _OriginBar()
+
+    harness.on_prompt_input_bar_snippet_requested(
+        _event(origin_bar, _StubTextArea(text="#git:gh_org__proj do the thing #"))
+    )
+
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, XPromptSelectModal)
+    # Canonicalization also normalizes the directory-key spelling, so the entry
+    # is namespaced under the canonical name either way.
+    assert "proj/thing" in modal._extra_prompts
+    assert "gh_org__proj/thing" not in modal._extra_prompts
