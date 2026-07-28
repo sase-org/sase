@@ -49,6 +49,7 @@ def sync_agents(
     git_runner: GitRunner = run_git,
     lock_timeout_seconds: float | None = None,
     retry_quarantined: bool = False,
+    drop_retired: bool = False,
 ) -> tuple[SyncOutcome, ...]:
     """Synchronize every selected project without cross-project fail-fast."""
 
@@ -79,6 +80,7 @@ def sync_agents(
                 acknowledge_agent_publications,
                 clear_quarantined_agent_publications,
                 configured_publication_max_attempts,
+                drop_terminal_agent_publications,
                 list_agent_publications,
                 publication_quarantine_diagnostics,
                 update_agent_publications,
@@ -86,6 +88,11 @@ def sync_agents(
 
             if retry_quarantined:
                 clear_quarantined_agent_publications(target.project_key)
+            drop_diagnostics: tuple[str, ...] = ()
+            if drop_retired:
+                drop_diagnostics = _dropped_publication_diagnostics(
+                    drop_terminal_agent_publications(target.project_key)
+                )
             pending_publications = list_agent_publications(
                 target.project_key,
                 include_quarantined=False,
@@ -122,15 +129,16 @@ def sync_agents(
                         quarantine_threshold=configured_publication_max_attempts(),
                         terminal_reason=error,
                     )
-            quarantine_diagnostics = publication_quarantine_diagnostics(
-                target.project_key
+            publication_diagnostics = (
+                *drop_diagnostics,
+                *publication_quarantine_diagnostics(target.project_key),
             )
-            if quarantine_diagnostics:
+            if publication_diagnostics:
                 outcome = replace(
                     outcome,
                     diagnostics=(
                         *outcome.diagnostics,
-                        *quarantine_diagnostics,
+                        *publication_diagnostics,
                     ),
                 )
             outcomes.append(outcome)
@@ -152,6 +160,25 @@ def sync_agents(
         # A cache write must never turn an already-complete sync into failure.
         pass
     return result
+
+
+def _dropped_publication_diagnostics(
+    dropped: Sequence[Any],
+) -> tuple[str, ...]:
+    """Render one line per dropped retired request, plus a count summary."""
+
+    if not dropped:
+        return ()
+    plural = "" if len(dropped) == 1 else "s"
+    return (
+        f"dropped {len(dropped)} retired publication request{plural}",
+        *(
+            f"dropped retired publication request {item.global_agent}@"
+            f"{item.primary_revision[:12]}: "
+            f"{item.terminal_reason or item.last_error or 'unknown reason'}"
+            for item in dropped
+        ),
+    )
 
 
 def _publication_request_materialized(

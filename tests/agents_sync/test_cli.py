@@ -58,6 +58,15 @@ def test_parser_accepts_retry_quarantined_only_for_full_sync() -> None:
     assert exc_info.value.code == 2
 
 
+def test_parser_accepts_drop_retired_only_for_full_sync() -> None:
+    args = create_parser().parse_args(["agent", "sync", "-d", "--project", "one"])
+    assert args.drop_retired
+
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(["agent", "sync", "--check", "--drop-retired"])
+    assert exc_info.value.code == 2
+
+
 def test_sync_help_distinguishes_full_cached_and_refresh_modes() -> None:
     parser = create_parser()
     root_action = next(
@@ -134,7 +143,39 @@ def test_mutating_sync_json_allows_benign_skips(
     assert payload["mode"] == "sync"
     assert payload["projects"][0]["skip_reason"] == "project is disabled"
     assert exit_code == 0
-    sync.assert_called_once_with((), retry_quarantined=False)
+    sync.assert_called_once_with((), retry_quarantined=False, drop_retired=False)
+
+
+def test_mutating_sync_forwards_drop_retired_and_renders_its_report(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    outcomes = (
+        SyncOutcome(
+            "proj",
+            "Project",
+            pulled=True,
+            diagnostics=(
+                "dropped 1 retired publication request",
+                "dropped retired publication request alice.athena.lt@bbbbbbbbbbbb: "
+                "hood 'lt' has no publishable runs",
+            ),
+        ),
+    )
+    args = argparse.Namespace(
+        project=[],
+        check=False,
+        refresh=False,
+        json=False,
+        drop_retired=True,
+    )
+    with patch("sase.agents.cli_sync.sync_agents", return_value=outcomes) as sync:
+        exit_code = handle_agents_sync(args)
+
+    output = " ".join(capsys.readouterr().out.split())
+    assert "dropped 1 retired publication request" in output
+    assert "hood 'lt' has no publishable runs" in output
+    assert exit_code == 0
+    sync.assert_called_once_with((), retry_quarantined=False, drop_retired=True)
 
 
 def test_mutating_sync_pretty_table_reports_counts_and_result(

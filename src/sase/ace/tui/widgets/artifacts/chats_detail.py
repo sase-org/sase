@@ -217,16 +217,31 @@ def _publication_section(text: Text, entry: ChatCatalogEntry) -> None:
             "Run `sase agent sync --retry-quarantined` to retry.\n",
             style="#FFAF5F",
         )
+    elif disposition == "retired":
+        message = (
+            "Committed sidecar chat exists; publication was retired as unpublishable"
+            if entry.provenance == "shared"
+            else "Publication retired as unpublishable"
+        )
+        text.append(message, style="bold #FF8787")
+        _publication_diagnostics(text, entry, color="#FF8787")
+        text.append(
+            "Retrying cannot help; run `sase agent sync --drop-retired` to "
+            "drop the request.\n",
+            style="#FF8787",
+        )
     elif disposition == "mixed":
         text.append(
-            "Publication state mixed: retryable and quarantined requests coexist",
+            "Publication state mixed: retryable, quarantined, and retired "
+            "requests coexist",
             style="bold #FFAF5F",
         )
         _publication_diagnostics(text, entry, color="#FFAF5F")
         text.append(
             "Active requests will retry automatically; run "
             "`sase agent sync --retry-quarantined` to release quarantined "
-            "requests.\n",
+            "requests and `sase agent sync --drop-retired` to drop retired "
+            "ones.\n",
             style="#FFAF5F",
         )
 

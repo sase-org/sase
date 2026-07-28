@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any, TypedDict
 
 from sase.agents_sync.publication_outbox import (
     AGENT_PUBLICATION_OUTBOX_FILENAME,
+    PUBLICATION_DROP_COMMAND,
+    PUBLICATION_RETRY_COMMAND,
     AgentPublicationOutboxItem,
     configured_publication_max_attempts,
     snapshot_agent_publications_from_path,
@@ -23,7 +25,8 @@ if TYPE_CHECKING:
 
 DEFAULT_PUBLICATION_STALLED_AGE_SECONDS = 24 * 60 * 60
 _MAX_DETAIL_ROWS = 10
-_REMEDIATION_COMMAND = "sase agent sync --retry-quarantined"
+_REMEDIATION_COMMAND = PUBLICATION_RETRY_COMMAND
+_RETIRED_REMEDIATION_COMMAND = PUBLICATION_DROP_COMMAND
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,8 +39,20 @@ class _OutboxProblem:
     age_seconds: float | None
 
     @property
+    def retired(self) -> bool:
+        return self.item.terminal
+
+    @property
     def quarantined(self) -> bool:
-        return self.item.quarantined
+        return self.item.quarantined and not self.item.terminal
+
+    @property
+    def stalled(self) -> bool:
+        return not self.retired and not self.quarantined
+
+    @property
+    def remediation_command(self) -> str:
+        return _RETIRED_REMEDIATION_COMMAND if self.retired else _REMEDIATION_COMMAND
 
     def detail(self) -> str:
         reason = ", ".join(self.reasons)
@@ -64,9 +79,12 @@ class _OutboxProblem:
             "local_hood": self.item.local_hood,
             "attempts": self.item.attempts,
             "quarantined": self.item.quarantined,
+            "retired": self.retired,
+            "terminal_reason": self.item.terminal_reason,
             "last_error": self.item.last_error,
             "age_seconds": self.age_seconds,
             "reasons": self.reasons,
+            "remediation_command": self.remediation_command,
         }
 
 
@@ -77,6 +95,7 @@ class _OutboxProjectData(TypedDict):
     request_count: int
     active_request_count: int
     quarantined_request_count: int
+    retired_request_count: int
     stalled_request_count: int
 
 
@@ -224,7 +243,26 @@ def _check_agent_publication_outbox(
     if problems:
         visible_problems = problems[:_MAX_DETAIL_ROWS]
         quarantined_count = sum(problem.quarantined for problem in problems)
-        stalled_count = len(problems) - quarantined_count
+        retired_count = sum(problem.retired for problem in problems)
+        stalled_count = sum(problem.stalled for problem in problems)
+        breakdown = ", ".join(
+            (
+                f"{quarantined_count} quarantined",
+                *((f"{retired_count} retired",) if retired_count else ()),
+                f"{stalled_count} stalled",
+            )
+        )
+        commands = tuple(
+            dict.fromkeys(problem.remediation_command for problem in problems)
+        )
+        next_steps = tuple(
+            (
+                f"Run `{_REMEDIATION_COMMAND}` to release quarantined requests and retry publication."
+                if command == _REMEDIATION_COMMAND
+                else f"Run `{_RETIRED_REMEDIATION_COMMAND}` to drop retired requests that can never be published."
+            )
+            for command in sorted(commands)
+        )
         return DiagnosticCheck(
             id="state.agent_publication_outbox",
             group="state",
@@ -232,13 +270,11 @@ def _check_agent_publication_outbox(
             title="Agent publication outbox",
             summary=(
                 f"{len(problems)} publication outbox request(s) need attention "
-                f"({quarantined_count} quarantined, {stalled_count} stalled); "
-                f"run `{_REMEDIATION_COMMAND}`"
+                f"({breakdown}); "
+                f"run {' and '.join(f'`{command}`' for command in sorted(commands))}"
             ),
             details=tuple(problem.detail() for problem in visible_problems),
-            next_steps=(
-                f"Run `{_REMEDIATION_COMMAND}` to release quarantined requests and retry publication.",
-            ),
+            next_steps=next_steps,
             data={
                 **data,
                 "details_truncated": len(problems) > len(visible_problems),
@@ -269,6 +305,15 @@ def _problem_for_item(
     stalled_age_seconds: float,
 ) -> _OutboxProblem | None:
     age_seconds = _item_age_seconds(item, now=now)
+    if item.terminal:
+        return _OutboxProblem(
+            record.project_name,
+            effective_project_name(record),
+            path,
+            item,
+            ("retired as unpublishable",),
+            age_seconds,
+        )
     if item.quarantined:
         return _OutboxProblem(
             record.project_name,
@@ -313,15 +358,19 @@ def _outbox_project_data(
     items: tuple[AgentPublicationOutboxItem, ...],
     problems: tuple[_OutboxProblem, ...],
 ) -> _OutboxProjectData:
-    quarantined_count = sum(item.quarantined for item in items)
     return {
         "project_key": record.project_name,
         "project": effective_project_name(record),
         "outbox_path": str(path),
         "request_count": len(items),
-        "active_request_count": sum(not item.quarantined for item in items),
-        "quarantined_request_count": quarantined_count,
-        "stalled_request_count": sum(not problem.quarantined for problem in problems),
+        "active_request_count": sum(
+            not item.quarantined and not item.terminal for item in items
+        ),
+        "quarantined_request_count": sum(
+            item.quarantined and not item.terminal for item in items
+        ),
+        "retired_request_count": sum(item.terminal for item in items),
+        "stalled_request_count": sum(problem.stalled for problem in problems),
     }
 
 
@@ -345,7 +394,8 @@ def _outbox_data(
             int(row["active_request_count"]) for row in outboxes
         ),
         "quarantined_request_count": sum(problem.quarantined for problem in problems),
-        "stalled_request_count": sum(not problem.quarantined for problem in problems),
+        "retired_request_count": sum(problem.retired for problem in problems),
+        "stalled_request_count": sum(problem.stalled for problem in problems),
         "problems": tuple(problem.to_data() for problem in problems),
         "error_count": len(errors),
         "errors": errors,
@@ -354,6 +404,7 @@ def _outbox_data(
             "stalled_age_seconds": stalled_age_seconds,
         },
         "remediation_command": _REMEDIATION_COMMAND,
+        "retired_remediation_command": _RETIRED_REMEDIATION_COMMAND,
     }
 
 

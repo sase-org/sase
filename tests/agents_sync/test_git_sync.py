@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import fcntl
 import json
 import os
@@ -22,6 +23,7 @@ from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
     enqueue_agent_publication,
     list_agent_publications,
+    update_agent_publications,
 )
 from sase.agents_sync.v2_io import apply_payload_atomic
 from sase.agents_sync.v2_models import V2PublicationCounts
@@ -598,13 +600,143 @@ def test_full_sync_keeps_outbox_request_when_agent_page_did_not_materialize(
         "during full sync"
     )
 
-    assert git_sync.sync_agents() == (SyncOutcome("proj", "Project", pulled=True),)
+    [second] = git_sync.sync_agents()
+    assert second == replace(
+        SyncOutcome("proj", "Project", pulled=True),
+        diagnostics=second.diagnostics,
+    )
+    assert "retired as unpublishable" in second.diagnostics[0]
     [retired] = list_agent_publications("proj")
     assert retired.attempts == 2
     assert retired.terminal
     assert retired.terminal_reason == retired.last_error
     assert not retired.quarantined
     assert list_agent_publications("proj", include_quarantined=False) == ()
+
+
+def test_drop_retired_removes_only_retired_requests_and_reports_them(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target = _target(tmp_path, tmp_path / "remote.git", tmp_path / "sidecar")
+    published_page = target.sidecar_path / "agents" / "alice.athena.foo" / "README.md"
+    published_page.parent.mkdir(parents=True)
+    published_page.write_text("# foo\n")
+    active = enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key=target.project_key,
+            project=target.project,
+            local_agent="foo",
+            global_agent="alice.athena.foo",
+            primary_revision="a" * 40,
+            local_hood="foo",
+        )
+    )
+    doomed = enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key=target.project_key,
+            project=target.project,
+            local_agent="lt",
+            global_agent="alice.athena.lt",
+            primary_revision="b" * 40,
+            local_hood="lt",
+        )
+    )
+    terminal_error = "hood 'lt' has no publishable runs"
+    for _ in range(2):
+        update_agent_publications(
+            target.project_key,
+            (doomed.logical_key,),
+            error=terminal_error,
+            increment_attempts=True,
+            quarantine_threshold=3,
+            terminal_reason=terminal_error,
+        )
+    monkeypatch.setattr(
+        git_sync,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        git_sync,
+        "require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
+    monkeypatch.setattr(
+        git_sync,
+        "_sync_project",
+        lambda *_args, **_kwargs: SyncOutcome("proj", "Project", pulled=True),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.status.rewrite_agents_sync_status_after_sync",
+        lambda _projects: None,
+    )
+
+    [outcome] = git_sync.sync_agents(drop_retired=True)
+
+    assert outcome.error is None
+    assert outcome.diagnostics[0] == "dropped 1 retired publication request"
+    assert terminal_error in outcome.diagnostics[1]
+    assert "alice.athena.lt" in outcome.diagnostics[1]
+    # The active request published during the same sync, so only the retired
+    # one had to be dropped explicitly.
+    assert list_agent_publications("proj") == ()
+    assert active.logical_key != doomed.logical_key
+
+
+def test_sync_without_drop_retired_keeps_and_reports_retired_requests(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target = _target(tmp_path, tmp_path / "remote.git", tmp_path / "sidecar")
+    doomed = enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key=target.project_key,
+            project=target.project,
+            local_agent="lt",
+            global_agent="alice.athena.lt",
+            primary_revision="b" * 40,
+            local_hood="lt",
+        )
+    )
+    terminal_error = "hood 'lt' has no publishable runs"
+    for _ in range(2):
+        update_agent_publications(
+            target.project_key,
+            (doomed.logical_key,),
+            error=terminal_error,
+            increment_attempts=True,
+            quarantine_threshold=3,
+            terminal_reason=terminal_error,
+        )
+    monkeypatch.setattr(
+        git_sync,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        git_sync,
+        "require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
+    monkeypatch.setattr(
+        git_sync,
+        "_sync_project",
+        lambda *_args, **_kwargs: SyncOutcome("proj", "Project", pulled=True),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.status.rewrite_agents_sync_status_after_sync",
+        lambda _projects: None,
+    )
+
+    [outcome] = git_sync.sync_agents()
+
+    assert len(list_agent_publications("proj")) == 1
+    assert len(outcome.diagnostics) == 1
+    assert "retired as unpublishable" in outcome.diagnostics[0]
+    assert "sase agent sync --drop-retired" in outcome.diagnostics[0]
 
 
 def test_network_git_environment_is_noninteractive() -> None:

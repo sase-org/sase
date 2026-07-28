@@ -49,6 +49,8 @@ def _item(
     attempts: int = 0,
     last_error: str | None = None,
     quarantined: bool = False,
+    terminal: bool = False,
+    terminal_reason: str | None = None,
     created_at: float = 100.0,
     updated_at: float = 100.0,
 ) -> dict[str, object]:
@@ -64,6 +66,8 @@ def _item(
         last_error=last_error,
         quarantined=quarantined,
         quarantined_at=updated_at if quarantined else None,
+        terminal=terminal,
+        terminal_reason=terminal_reason,
         created_at=created_at,
         updated_at=updated_at,
     ).to_json_dict()
@@ -157,3 +161,54 @@ def test_agent_publication_outbox_doctor_reports_quarantined_and_stalled_request
     assert check.data["request_count"] == 2
     assert check.data["quarantined_request_count"] == 1
     assert check.data["stalled_request_count"] == 1
+
+
+def test_agent_publication_outbox_doctor_points_retired_requests_at_the_drop_command(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _record(tmp_path)
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+    now = 10_000.0
+    reason = "hood 'lt' has no publishable runs"
+    _write_outbox(
+        tmp_path / ".sase",
+        "alpha",
+        [
+            _item(
+                local_agent="lt--code",
+                revision="d" * 40,
+                attempts=2,
+                last_error=reason,
+                terminal=True,
+                terminal_reason=reason,
+                created_at=now - 120,
+                updated_at=now - 60,
+            )
+        ],
+    )
+
+    check = _check_agent_publication_outbox(
+        _context(tmp_path),
+        now=now,
+        stalled_attempts=3,
+        stalled_age_seconds=24 * 60 * 60,
+    )
+
+    assert check.status == "WARN"
+    assert "1 retired" in check.summary
+    assert "sase agent sync --drop-retired" in check.summary
+    assert "sase agent sync --retry-quarantined" not in check.summary
+    assert "retired as unpublishable" in check.details[0]
+    assert check.next_steps == (
+        "Run `sase agent sync --drop-retired` to drop retired requests that can never be published.",
+    )
+    assert check.data["retired_request_count"] == 1
+    assert check.data["quarantined_request_count"] == 0
+    assert check.data["stalled_request_count"] == 0
+    assert check.data["problems"][0]["remediation_command"] == (
+        "sase agent sync --drop-retired"
+    )

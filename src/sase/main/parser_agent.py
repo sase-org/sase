@@ -120,6 +120,15 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     sync_parser.add_argument(
+        "-d",
+        "--drop-retired",
+        action="store_true",
+        help=(
+            "Drop publication requests that were retired as unpublishable, "
+            "reporting how many were dropped and why"
+        ),
+    )
+    sync_parser.add_argument(
         "-j",
         "--json",
         action="store_true",

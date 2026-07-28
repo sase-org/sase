@@ -58,6 +58,7 @@ class _CommitPublicationOutcome:
     queued: bool = False
     drained: int = 0
     quarantined: int = 0
+    retired: int = 0
     skip_reason: str | None = None
     error: str | None = None
 
@@ -128,7 +129,7 @@ def publish_committed_agent_hood(
         )
     if not active_requests:
         requests = list_agent_publications(target.project_key)
-        quarantined = next(
+        stopped = next(
             (
                 request
                 for request in requests
@@ -138,10 +139,11 @@ def publish_committed_agent_hood(
         )
         return _CommitPublicationOutcome(
             queued=True,
-            quarantined=sum(item.quarantined for item in requests),
+            quarantined=_quarantined_count(requests),
+            retired=_retired_count(requests),
             error=(
-                quarantined.last_error
-                if quarantined is not None
+                (stopped.terminal_reason or stopped.last_error)
+                if stopped is not None
                 else "agent publication request is quarantined"
             ),
         )
@@ -184,9 +186,18 @@ def publish_committed_agent_hood(
         published=result.drained > 0,
         queued=bool(remaining),
         drained=result.drained,
-        quarantined=sum(item.quarantined for item in remaining),
+        quarantined=_quarantined_count(remaining),
+        retired=_retired_count(remaining),
         error="; ".join(result.item_errors) if result.item_errors else None,
     )
+
+
+def _quarantined_count(items: tuple[AgentPublicationOutboxItem, ...]) -> int:
+    return sum(item.quarantined and not item.terminal for item in items)
+
+
+def _retired_count(items: tuple[AgentPublicationOutboxItem, ...]) -> int:
+    return sum(item.terminal for item in items)
 
 
 def _resolve_publication_project_key(
@@ -551,7 +562,8 @@ def _record_failure(
     )
     return _CommitPublicationOutcome(
         queued=True,
-        quarantined=sum(item.quarantined for item in updated),
+        quarantined=_quarantined_count(updated),
+        retired=_retired_count(updated),
         error=error,
     )
 

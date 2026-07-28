@@ -85,6 +85,41 @@ def test_schema_v2_quarantined_publication_is_not_pending(
     assert not outbox.with_suffix(".json.lock").exists()
 
 
+def test_retired_publication_is_neither_pending_nor_quarantined(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = _setup_home(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        sidecars,
+        "resolve_sync_targets",
+        lambda: TargetSelection(),
+    )
+    chat = _chat(home, "retired-260724_160300")
+    _artifact(home, "20260724160300", chat)
+    reason = "hood 'alpha' has no publishable runs"
+    _write_outbox(
+        home,
+        [
+            _publication_row(
+                attempts=2,
+                last_error=reason,
+                terminal=True,
+                terminal_reason=reason,
+            )
+        ],
+        schema_version=3,
+    )
+
+    entry = load_chat_catalog(force=True).entries[0]
+
+    assert entry.publication_disposition == "retired"
+    assert entry.publication_pending is False
+    assert entry.publication_quarantined is False
+    assert entry.publication_attempts == 2
+    assert entry.publication_last_error == reason
+
+
 def test_malformed_publication_state_becomes_catalog_diagnostic(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

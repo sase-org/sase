@@ -93,6 +93,26 @@ def test_quarantined_publication_is_never_described_as_queued() -> None:
     assert "Queued to publish" not in rendered
 
 
+def test_retired_publication_names_the_drop_command_instead_of_retry() -> None:
+    entry = replace(
+        chat_entry("retired"),
+        publication_pending=False,
+        publication_quarantined=False,
+        publication_disposition="retired",
+        publication_attempts=2,
+        publication_last_error="hood 'lt' has no publishable runs",
+    )
+
+    rendered = build_chat_detail(entry, _detail(entry.absolute_path)).plain
+
+    assert "Publication retired as unpublishable" in rendered
+    assert "2 attempts" in rendered
+    assert "last error: hood 'lt' has no publishable runs" in rendered
+    assert "sase agent sync --drop-retired" in rendered
+    assert "sase agent sync --retry-quarantined" not in rendered
+    assert "Queued to publish" not in rendered
+
+
 def test_shared_publication_states_keep_committed_provenance_visible() -> None:
     cases = (
         (
@@ -120,7 +140,7 @@ def test_shared_publication_states_keep_committed_provenance_visible() -> None:
                 publication_disposition="mixed",
                 publication_attempts=5,
             ),
-            "retryable and quarantined requests coexist",
+            "retryable, quarantined, and retired requests coexist",
         ),
     )
 
@@ -153,7 +173,7 @@ def test_local_mixed_publication_explains_both_retry_modes() -> None:
     rendered = build_chat_detail(entry, _detail(entry.absolute_path)).plain
 
     assert "Only on this machine" in rendered
-    assert "retryable and quarantined requests coexist" in rendered
+    assert "retryable, quarantined, and retired requests coexist" in rendered
     assert "Active requests will retry automatically" in rendered
     assert "sase agent sync --retry-quarantined" in rendered
     assert "8 attempts" in rendered

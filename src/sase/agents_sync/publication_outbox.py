@@ -20,6 +20,8 @@ PUBLICATION_OUTBOX_SCHEMA_VERSION = 3
 DEFAULT_PUBLICATION_MAX_ATTEMPTS = 3
 _PUBLICATION_MAX_ATTEMPTS_ENV = "SASE_AGENTS_PUBLICATION_MAX_ATTEMPTS"
 AGENT_PUBLICATION_OUTBOX_FILENAME = "agents-publication-outbox.json"
+PUBLICATION_RETRY_COMMAND = "sase agent sync --retry-quarantined"
+PUBLICATION_DROP_COMMAND = "sase agent sync --drop-retired"
 
 
 @dataclass(frozen=True, slots=True)
@@ -278,6 +280,23 @@ def clear_quarantined_agent_publications(
     return _mutate_outbox(project_key, update)
 
 
+def drop_terminal_agent_publications(
+    project_key: str,
+) -> tuple[AgentPublicationOutboxItem, ...]:
+    """Remove retired requests from *project_key* and return the dropped ones."""
+
+    dropped: list[AgentPublicationOutboxItem] = []
+
+    def update(
+        items: tuple[AgentPublicationOutboxItem, ...],
+    ) -> tuple[AgentPublicationOutboxItem, ...]:
+        dropped.extend(item for item in items if item.terminal)
+        return tuple(item for item in items if not item.terminal)
+
+    _mutate_outbox(project_key, update)
+    return tuple(dropped)
+
+
 def configured_publication_max_attempts() -> int:
     """Return the bounded per-item preparation retry threshold."""
 
@@ -292,17 +311,33 @@ def configured_publication_max_attempts() -> int:
 
 
 def publication_quarantine_diagnostics(project_key: str) -> tuple[str, ...]:
-    """Render stable diagnostics for quarantined requests in *project_key*."""
+    """Render stable diagnostics for stopped requests in *project_key*.
+
+    A quarantined request is retryable and names the retry command; a retired
+    request can never be published and names the drop command instead.
+    """
 
     return tuple(
-        (
-            f"publication request {item.global_agent}@"
-            f"{item.primary_revision[:12]} quarantined after {item.attempts} "
-            f"attempts: {item.last_error or 'unknown error'}; run "
-            "`sase agent sync --retry-quarantined` to retry"
-        )
+        _publication_stopped_diagnostic(item)
         for item in list_agent_publications(project_key)
-        if item.quarantined
+        if item.terminal or item.quarantined
+    )
+
+
+def _publication_stopped_diagnostic(item: AgentPublicationOutboxItem) -> str:
+    """Render one quarantined or retired request with accurate remediation."""
+
+    subject = f"publication request {item.global_agent}@{item.primary_revision[:12]}"
+    if item.terminal:
+        reason = item.terminal_reason or item.last_error or "unknown reason"
+        return (
+            f"{subject} retired as unpublishable: {reason}; run "
+            f"`{PUBLICATION_DROP_COMMAND}` to drop it"
+        )
+    return (
+        f"{subject} quarantined after {item.attempts} attempts: "
+        f"{item.last_error or 'unknown error'}; run "
+        f"`{PUBLICATION_RETRY_COMMAND}` to retry"
     )
 
 
@@ -524,11 +559,14 @@ def _json_optional_number(
 __all__ = [
     "AGENT_PUBLICATION_OUTBOX_FILENAME",
     "DEFAULT_PUBLICATION_MAX_ATTEMPTS",
+    "PUBLICATION_DROP_COMMAND",
     "PUBLICATION_OUTBOX_SCHEMA_VERSION",
+    "PUBLICATION_RETRY_COMMAND",
     "AgentPublicationOutboxItem",
     "acknowledge_agent_publications",
     "clear_quarantined_agent_publications",
     "configured_publication_max_attempts",
+    "drop_terminal_agent_publications",
     "enqueue_agent_publication",
     "list_agent_publications",
     "publication_quarantine_diagnostics",

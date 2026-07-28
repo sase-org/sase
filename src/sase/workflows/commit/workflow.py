@@ -572,17 +572,39 @@ def _get_head_subject(provider: object, cwd: str) -> str | None:
 
 
 def _agent_publication_deferred_message(outcome: object) -> str:
+    from sase.agents_sync.publication_outbox import (
+        PUBLICATION_DROP_COMMAND,
+        PUBLICATION_RETRY_COMMAND,
+    )
+
     error = getattr(outcome, "error", None)
     quarantined = int(getattr(outcome, "quarantined", 0) or 0)
+    retired = int(getattr(outcome, "retired", 0) or 0)
     error_detail = f" Last error: {error}" if error else ""
-    if quarantined:
-        plural = "" if quarantined == 1 else "s"
+    if quarantined or retired:
+        counts = ", ".join(
+            (
+                *((f"{quarantined} quarantined",) if quarantined else ()),
+                *((f"{retired} retired",) if retired else ()),
+            )
+        )
+        plural = "" if quarantined + retired == 1 else "s"
+        remediation = (
+            f"Run `{PUBLICATION_RETRY_COMMAND}` to retry."
+            if quarantined and not retired
+            else f"Run `{PUBLICATION_DROP_COMMAND}` to drop the retired request{plural}."
+            if retired and not quarantined
+            else (
+                f"Run `{PUBLICATION_RETRY_COMMAND}` to retry the quarantined "
+                f"request(s) and `{PUBLICATION_DROP_COMMAND}` to drop the "
+                "retired one(s)."
+            )
+        )
         return (
             "Primary commit succeeded, but this project already has "
-            f"{quarantined} quarantined agent-hood publication request{plural}. "
+            f"{counts} agent-hood publication request{plural}. "
             "The link written to this commit may remain unavailable until the "
-            "outbox is retried. Run `sase agent sync --retry-quarantined` "
-            f"to retry.{error_detail}"
+            f"outbox is cleared. {remediation}{error_detail}"
         )
     return (
         "Primary commit succeeded; agent-hood publication is queued and will "

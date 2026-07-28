@@ -100,12 +100,14 @@ class _SaseArgumentParser(argparse.ArgumentParser):
         if (
             getattr(parsed, "command", None) == "agent"
             and getattr(parsed, "agent_subcommand", None) == "sync"
-            and getattr(parsed, "retry_quarantined", False)
             and getattr(parsed, "check", False)
         ):
-            self.error(
-                "sase agent sync --retry-quarantined cannot be used with --check"
-            )
+            for flag, attribute in (
+                ("--drop-retired", "drop_retired"),
+                ("--retry-quarantined", "retry_quarantined"),
+            ):
+                if getattr(parsed, attribute, False):
+                    self.error(f"sase agent sync {flag} cannot be used with --check")
         return parsed
 
 

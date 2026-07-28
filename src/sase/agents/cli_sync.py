@@ -52,6 +52,7 @@ def handle_agents_sync(args: argparse.Namespace) -> int:
     outcomes = sync_agents(
         projects,
         retry_quarantined=bool(getattr(args, "retry_quarantined", False)),
+        drop_retired=bool(getattr(args, "drop_retired", False)),
     )
     if as_json:
         json.dump(
@@ -94,7 +95,11 @@ def _render_outcomes(outcomes: tuple[SyncOutcome, ...]) -> None:
             str(outcome.runs_published),
             result,
         )
-    Console().print(table)
+    console = Console()
+    console.print(table)
+    for outcome in outcomes:
+        for diagnostic in outcome.diagnostics:
+            console.print(Text(f"{outcome.project}: {diagnostic}", style="yellow"))
 
 
 def _render_status(statuses: Sequence[ProjectSyncStatus]) -> None:

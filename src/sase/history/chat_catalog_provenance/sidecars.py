@@ -110,12 +110,16 @@ def load_publication_backlog() -> tuple[
 def _aggregate_publications(
     items: tuple[AgentPublicationOutboxItem, ...],
 ) -> PublicationBacklogItem:
-    active = sum(not item.quarantined for item in items)
+    retired = sum(item.terminal for item in items)
+    quarantined = sum(item.quarantined and not item.terminal for item in items)
+    active = len(items) - retired - quarantined
     disposition: PublicationDisposition
     if active == len(items):
         disposition = "queued"
-    elif active == 0:
+    elif quarantined == len(items):
         disposition = "quarantined"
+    elif retired == len(items):
+        disposition = "retired"
     else:
         disposition = "mixed"
     most_recent = max(
@@ -129,7 +133,11 @@ def _aggregate_publications(
     )
     return PublicationBacklogItem(
         attempts=max(item.attempts for item in items),
-        last_error=most_recent.last_error,
+        last_error=(
+            most_recent.terminal_reason or most_recent.last_error
+            if most_recent.terminal
+            else most_recent.last_error
+        ),
         disposition=disposition,
     )
 

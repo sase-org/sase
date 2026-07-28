@@ -9,6 +9,7 @@ from sase.agents_sync.publication_outbox import (
     clear_quarantined_agent_publications,
     enqueue_agent_publication,
     list_agent_publications,
+    publication_quarantine_diagnostics,
     snapshot_agent_publications_from_path,
     update_agent_publications,
 )
@@ -182,6 +183,49 @@ def test_retry_quarantined_keeps_terminal_retired(
     assert active.last_error is None
 
     assert list_agent_publications("proj") == retried
+
+
+def test_diagnostics_separate_retryable_quarantine_from_retired_requests(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    retired_item = enqueue_agent_publication(_item())
+    quarantined_item = enqueue_agent_publication(
+        _item(
+            local_agent="bar--code",
+            global_agent="alice.athena.bar--code",
+            revision="b" * 40,
+        )
+    )
+    terminal_error = "hood 'foo' has no publishable runs"
+    for _ in range(2):
+        update_agent_publications(
+            "proj",
+            (retired_item.logical_key,),
+            error=terminal_error,
+            increment_attempts=True,
+            quarantine_threshold=3,
+            terminal_reason=terminal_error,
+        )
+    update_agent_publications(
+        "proj",
+        (quarantined_item.logical_key,),
+        error="malformed history",
+        increment_attempts=True,
+        quarantine_threshold=1,
+    )
+
+    retired_line, quarantined_line = publication_quarantine_diagnostics("proj")
+
+    assert "retired as unpublishable" in retired_line
+    assert terminal_error in retired_line
+    assert "`sase agent sync --drop-retired` to drop it" in retired_line
+    assert "--retry-quarantined" not in retired_line
+
+    assert "quarantined after 1 attempts" in quarantined_line
+    assert "`sase agent sync --retry-quarantined` to retry" in quarantined_line
+    assert "--drop-retired" not in quarantined_line
 
 
 def test_schema_v1_backlog_is_read_and_upgraded_without_data_loss(

@@ -130,6 +130,8 @@ def _publication_row(
     attempts: int = 0,
     last_error: str | None = None,
     quarantined: bool = False,
+    terminal: bool = False,
+    terminal_reason: str | None = None,
     created_at: float = 1.0,
     updated_at: float = 1.0,
 ) -> dict[str, object]:
@@ -144,6 +146,8 @@ def _publication_row(
         last_error=last_error,
         quarantined=quarantined,
         quarantined_at=updated_at if quarantined else None,
+        terminal=terminal,
+        terminal_reason=terminal_reason,
         created_at=created_at,
         updated_at=updated_at,
     ).to_json_dict()

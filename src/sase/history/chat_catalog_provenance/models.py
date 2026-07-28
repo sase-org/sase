@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 ChatProvenance = Literal["local", "shared", "remote", "unknown"]
-PublicationDisposition = Literal["queued", "quarantined", "mixed"]
+PublicationDisposition = Literal["queued", "quarantined", "retired", "mixed"]
 CHAT_PROVENANCE_VALUES: tuple[ChatProvenance, ...] = (
     "local",
     "shared",
@@ -116,6 +116,12 @@ class PublicationBacklogItem:
         """Whether every matching request has stopped retrying."""
 
         return self.disposition == "quarantined"
+
+    @property
+    def retired(self) -> bool:
+        """Whether every matching request was retired as unpublishable."""
+
+        return self.disposition == "retired"
 
 
 __all__ = [
