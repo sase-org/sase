@@ -16,6 +16,7 @@ from sase.core.agent_identity_facade import (
     normalize_owned_agent_name,
 )
 from sase.core.commit_footer_facade import LinkedCommitTagValue
+from sase.sdd.hosted_links import resolve_hosted_branch
 
 
 def resolve_agent_commit_tag(
@@ -62,7 +63,7 @@ def resolve_agent_commit_tag(
         return global_name
     if not (target.sidecar_path / ".git").exists():
         return global_name
-    branch = _sidecar_branch(target.sidecar_path, git_runner)
+    branch = resolve_hosted_branch(target.sidecar_path, git_runner=git_runner)
     if branch is None:
         return global_name
 
@@ -97,27 +98,6 @@ def hosted_provider(remote_url: str) -> str | None:
     except Exception:
         pass
     return None
-
-
-def _sidecar_branch(repo: Path, git_runner: GitRunner) -> str | None:
-    current = git_runner(
-        repo,
-        ["symbolic-ref", "--quiet", "--short", "HEAD"],
-        op="agents_sync.link_branch",
-    )
-    if current.returncode == 0 and current.stdout.strip():
-        return current.stdout.strip().removeprefix("refs/heads/")
-    origin = git_runner(
-        repo,
-        ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
-        op="agents_sync.link_origin_branch",
-    )
-    if origin.returncode != 0:
-        return None
-    value = origin.stdout.strip()
-    if value.startswith("refs/remotes/"):
-        value = value[len("refs/remotes/") :]
-    return value.removeprefix("origin/") or None
 
 
 __all__ = ["hosted_provider", "resolve_agent_commit_tag"]

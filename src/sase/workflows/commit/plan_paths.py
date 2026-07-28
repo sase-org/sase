@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -139,29 +138,6 @@ def _local_sdd_reference(path: Path) -> str | None:
 
 
 def _store_commit_branch(repo_root: Path) -> str | None:
-    current = _git_symbolic_ref(repo_root, "HEAD")
-    if current:
-        return current.removeprefix("refs/heads/")
-    origin_head = _git_symbolic_ref(repo_root, "refs/remotes/origin/HEAD")
-    if not origin_head:
-        return None
-    if origin_head.startswith("refs/remotes/"):
-        origin_head = origin_head[len("refs/remotes/") :]
-    if origin_head.startswith("origin/"):
-        origin_head = origin_head[len("origin/") :]
-    return origin_head or None
+    from sase.sdd.hosted_links import resolve_hosted_branch
 
-
-def _git_symbolic_ref(repo_root: Path, ref: str) -> str | None:
-    try:
-        result = subprocess.run(
-            ["git", "symbolic-ref", "--quiet", "--short", ref],
-            cwd=repo_root,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except OSError:
-        return None
-    value = result.stdout.strip()
-    return value if result.returncode == 0 and value else None
+    return resolve_hosted_branch(repo_root)
