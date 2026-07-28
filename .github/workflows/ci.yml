@@ -525,3 +525,5 @@ jobs:
         run: /tmp/published-core-smoke/bin/python tools/check_sase_core_rs_bindings
       - name: Smoke typed bead resolution round trip
         run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_bead_resolution
+      - name: Smoke plan-header binding round trip
+        run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_plan_header

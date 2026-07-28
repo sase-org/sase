@@ -17,9 +17,9 @@ from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 from sase._git_remote import github_blob_url, github_commit_url
-from sase.agents_sync.git import GitRunner, run_git
 
 if TYPE_CHECKING:
+    from sase.agents_sync.git import GitRunner
     from sase.core.agent_identity_facade import AgentIdentitySnapshot
     from sase.sdd.store import SddStore
 
@@ -31,7 +31,7 @@ _REMOTE_OP = "sdd.hosted_links.remote"
 def resolve_hosted_branch(
     repo: Path,
     *,
-    git_runner: GitRunner = run_git,
+    git_runner: GitRunner | None = None,
 ) -> str | None:
     """Return the branch that hosted links into *repo* should point at.
 
@@ -40,13 +40,14 @@ def resolve_hosted_branch(
     with neither resolves to ``None`` rather than an invented ``main``.
     """
 
-    current = _symbolic_ref(repo, "HEAD", git_runner, op=_BRANCH_OP)
+    runner = git_runner or _default_git_runner()
+    current = _symbolic_ref(repo, "HEAD", runner, op=_BRANCH_OP)
     if current:
         return current.removeprefix("refs/heads/")
     origin = _symbolic_ref(
         repo,
         "refs/remotes/origin/HEAD",
-        git_runner,
+        runner,
         op=_ORIGIN_BRANCH_OP,
     )
     if not origin:
@@ -79,14 +80,14 @@ class HostedLinkResolver:
         *,
         project: str | None = None,
         primary_root: Path | str | None = None,
-        git_runner: GitRunner = run_git,
+        git_runner: GitRunner | None = None,
     ) -> None:
         self._store = store
         self._project = project
         self._primary_root = Path(
             primary_root if primary_root is not None else os.getcwd()
         ).resolve(strict=False)
-        self._git_runner = git_runner
+        self._git_runner = git_runner or _default_git_runner()
         self._remotes: dict[str, _RemoteCoordinates | None] = {}
         self._identity: AgentIdentitySnapshot | None = None
         self._identity_resolved = False
@@ -293,6 +294,14 @@ def _current_project() -> str | None:
         return get_project_from_workspace()
     except Exception:
         return None
+
+
+def _default_git_runner() -> GitRunner:
+    """Load the agents-sync git boundary after this module is initialized."""
+
+    from sase.agents_sync.git import run_git
+
+    return run_git
 
 
 def _origin_remote_url(repo: Path, git_runner: GitRunner) -> str | None:

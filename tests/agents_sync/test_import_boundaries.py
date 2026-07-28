@@ -47,6 +47,27 @@ def test_agents_sync_imports_in_fresh_interpreter(
     assert result.returncode == 0, result.stderr
 
 
+def test_hosted_links_imports_before_agents_sync_in_fresh_interpreter(
+    tmp_path: Path,
+) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from sase.sdd.hosted_links import resolve_hosted_branch",
+        ],
+        cwd=_REPO_ROOT,
+        env=_subprocess_env(tmp_path),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    combined_output = f"{result.stdout}\n{result.stderr}"
+    assert result.returncode == 0, combined_output
+    assert "partially initialized" not in combined_output
+
+
 def test_agents_sync_does_not_import_ace_layer() -> None:
     violations: list[str] = []
     for source_path in sorted((_SRC_DIR / "sase" / "agents_sync").rglob("*.py")):

@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Smoke the plan-header API from the exact published Rust-core minimum."""
+
+from __future__ import annotations
+
+import importlib
+import importlib.metadata
+import sys
+from types import ModuleType
+from typing import Any
+
+
+WIRE_SCHEMA_VERSION = 1
+REQUIRED_BINDINGS = (
+    "sdd_plan_header_block_wire_schema_version",
+    "sdd_plan_header_block_parse",
+    "sdd_plan_header_block_render",
+    "sdd_plan_header_block_upsert_section",
+    "sdd_plan_header_block_replace",
+    "sdd_plan_header_block_remove_section",
+)
+
+
+def _require_bindings(module: ModuleType) -> None:
+    missing = [
+        name for name in REQUIRED_BINDINGS if not callable(getattr(module, name, None))
+    ]
+    if missing:
+        raise RuntimeError("missing plan-header binding(s): " + ", ".join(missing))
+
+
+def validate_round_trip(module: ModuleType) -> dict[str, Any]:
+    """Exercise the complete plan-header binding family and its wire contract."""
+
+    _require_bindings(module)
+    schema_version = int(module.sdd_plan_header_block_wire_schema_version())
+    if schema_version != WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "plan-header wire schema version mismatch: "
+            f"expected {WIRE_SCHEMA_VERSION}, got {schema_version}"
+        )
+
+    sections = [
+        {
+            "kind": "PROMPT",
+            "label": "202607/prompts/example.md",
+            "target": "prompts/example.md",
+        },
+        {
+            "kind": "COMMITS",
+            "entries": [
+                {
+                    "label": "699456a",
+                    "target": "https://github.com/sase-org/sase/commit/699456a",
+                    "trailing_text": "fix(parser): wrap safely",
+                }
+            ],
+        },
+    ]
+    rendered = module.sdd_plan_header_block_render(sections)
+    document = f"{rendered}\n\n# Plan\n"
+    parsed = module.sdd_plan_header_block_parse(document)
+    if parsed.get("schema_version") != WIRE_SCHEMA_VERSION:
+        raise RuntimeError(f"unexpected parse result: {parsed!r}")
+    if parsed.get("kind") != "canonical" or parsed.get("body") != "# Plan\n":
+        raise RuntimeError(f"unexpected parse result: {parsed!r}")
+    parsed_sections = parsed.get("sections")
+    if not isinstance(parsed_sections, list):
+        raise RuntimeError(f"unexpected parse result: {parsed!r}")
+    section_kinds = [section.get("kind") for section in parsed_sections]
+    if section_kinds != ["PROMPT", "COMMITS"]:
+        raise RuntimeError(f"unexpected section order: {section_kinds!r}")
+
+    parent = {
+        "kind": "PARENT",
+        "label": "202607/epic.md",
+        "target": "https://github.com/sase-org/sase--plans/blob/main/202607/epic.md",
+    }
+    updated = module.sdd_plan_header_block_upsert_section(
+        document,
+        parent,
+        False,
+        False,
+    )
+    removed = module.sdd_plan_header_block_remove_section(
+        updated,
+        "PARENT",
+        False,
+        False,
+    )
+    if removed != document:
+        raise RuntimeError("plan-header upsert/remove round trip changed the document")
+
+    replaced = module.sdd_plan_header_block_replace(
+        document,
+        parsed_sections,
+        False,
+        False,
+    )
+    if replaced != document:
+        raise RuntimeError("plan-header parse/replace round trip changed the document")
+
+    return {
+        "schema_version": schema_version,
+        "disposition": parsed["kind"],
+        "section_kinds": section_kinds,
+        "mutation_round_trip": True,
+    }
+
+
+def main() -> int:
+    try:
+        module = importlib.import_module("sase_core_rs")
+        version = importlib.metadata.version("sase-core-rs")
+        result = validate_round_trip(module)
+    except Exception as error:
+        print(f"[plan-header-smoke] {error}", file=sys.stderr)
+        return 1
+    print(f"[plan-header-smoke] sase-core-rs {version}: {result}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
