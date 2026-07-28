@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import subprocess
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
-from sase.main import init_skills_handler
+from sase.main import _init_skills_manifest as manifest_module, init_skills_handler
 from sase.xprompt.models import XPrompt
+
+_OLD_SHA = "1" * 40
+_NEW_SHA = "2" * 40
+_OTHER_SHA = "3" * 40
 
 
 def make_args(**overrides: Any) -> argparse.Namespace:
@@ -110,6 +115,42 @@ def git_cmd_handler(
         return MagicMock(returncode=0, stdout="", stderr="")
 
     return handler
+
+
+def stub_manifest_git(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    incoming: str,
+    ancestors: set[tuple[str, str]],
+) -> None:
+    """Stub git provenance checks used by the skill deploy manifest."""
+    source_root = tmp_path / "source"
+    xprompts_dir = source_root / "src" / "sase" / "xprompts"
+    xprompts_dir.mkdir(parents=True)
+
+    def fake_run_git(root: Path, *args: str) -> str:
+        if args == ("rev-parse", "--show-toplevel"):
+            return str(source_root)
+        if args == ("rev-parse", "HEAD"):
+            return incoming
+        if args[:2] == ("merge-base", "--is-ancestor"):
+            if (args[2], args[3]) in ancestors:
+                return ""
+            raise subprocess.CalledProcessError(1, ["git", *args])
+        if args[:3] == ("show", "-s", "--format=%s"):
+            return {
+                _OLD_SHA: "old source",
+                _NEW_SHA: "new source",
+                _OTHER_SHA: "other source",
+            }[args[3]]
+        raise AssertionError(args)
+
+    monkeypatch.setattr(
+        manifest_module, "get_sase_package_xprompts_dir", lambda: xprompts_dir
+    )
+    monkeypatch.setattr(manifest_module, "run_git", fake_run_git)
+    monkeypatch.setattr(manifest_module, "_utc_now", lambda: "2026-07-28T13:00:00Z")
 
 
 def stub_skill_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
