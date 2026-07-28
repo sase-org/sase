@@ -144,6 +144,7 @@ def sdd_commit_targets(
         research_dir=None,
         research_remote_url=None,
         beads_dir=None,
+        beads_remote_url=None,
         sidecar_role="plans",
     )
     target_specs: list[tuple[Path, SddStore]] = [(plans_root, plans_store)]
@@ -160,6 +161,7 @@ def sdd_commit_targets(
                     research_dir=None,
                     research_remote_url=None,
                     beads_dir=None,
+                    beads_remote_url=None,
                     sidecar_role="research",
                 ),
             )
@@ -173,10 +175,11 @@ def sdd_commit_targets(
                     store,
                     sdd_dir=beads_root,
                     repo_root=store.repo_root_for_kind("beads"),
-                    remote_url=None,
+                    remote_url=store.beads_remote_url,
                     research_dir=None,
                     research_remote_url=None,
                     beads_dir=None,
+                    beads_remote_url=None,
                     sidecar_role="beads",
                 ),
             )

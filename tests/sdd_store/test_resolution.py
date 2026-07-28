@@ -130,6 +130,7 @@ def test_sidecar_record_round_trips_and_routes_kind_roots(
     assert store.repo_root_for_kind("plans") == plans
     assert store.repo_root_for_kind("beads") == plans
     assert store.repo_root_for_kind("research") == research
+    assert store.beads_remote_url is None
 
 
 def test_schema_three_sidecar_record_round_trips_and_routes_beads(
@@ -185,6 +186,8 @@ def test_schema_three_sidecar_record_round_trips_and_routes_beads(
     assert store.repo_root_for_kind("plans") == plans
     assert store.repo_root_for_kind("research") == research
     assert store.repo_root_for_kind("beads") == beads
+    assert written.beads is not None
+    assert store.beads_remote_url == written.beads.remote_url
 
 
 def test_schema_two_record_rejects_beads_sidecar(tmp_path: Path) -> None:

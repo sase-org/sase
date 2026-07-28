@@ -1,4 +1,4 @@
-"""Best-effort hosted GitHub URLs for plans, agents, and commits.
+"""Best-effort hosted GitHub URLs for plans, agents, commits, and beads.
 
 Resolution composes the existing remote sanitizers, sidecar target
 resolution, and agent link targets rather than re-deriving any of them. It is
@@ -67,11 +67,11 @@ class _RemoteCoordinates:
 
 
 class HostedLinkResolver:
-    """Resolve plan, agent, and commit identities to absolute GitHub URLs.
+    """Resolve plan, agent, commit, and bead identities to GitHub URLs.
 
     One resolver serves an entire tree-wide refresh: every remote, provider,
-    and branch lookup is memoized, so resolving thousands of plans shells out
-    to git a constant number of times.
+    and branch lookup is memoized, so resolving thousands of plans or beads
+    shells out to git a constant number of times.
     """
 
     def __init__(
@@ -138,6 +138,25 @@ class HostedLinkResolver:
             return destination
         return f"{destination}#{quote(link_target.anchor, safe='-._~')}"
 
+    def bead_url(self, bead_id: str) -> str | None:
+        """Return the beads sidecar page URL for *bead_id*."""
+
+        from sase.bead_pages.paths import bead_page_path
+
+        try:
+            path = bead_page_path(bead_id)
+        except ValueError:
+            return None
+        coordinates = self._beads_remote()
+        if coordinates is None or coordinates.branch is None:
+            return None
+        return github_blob_url(
+            coordinates.remote_url,
+            provider=coordinates.provider,
+            branch=coordinates.branch,
+            path=path,
+        )
+
     def commit_url(self, sha: str) -> str | None:
         """Return the primary repository's commit URL for *sha*."""
 
@@ -152,6 +171,9 @@ class HostedLinkResolver:
 
     def _plans_remote(self) -> _RemoteCoordinates | None:
         return self._memoized("plans", self._resolve_plans_remote)
+
+    def _beads_remote(self) -> _RemoteCoordinates | None:
+        return self._memoized("beads", self._resolve_beads_remote)
 
     def _agents_remote(self) -> _RemoteCoordinates | None:
         return self._memoized("agents", self._resolve_agents_remote)
@@ -180,6 +202,16 @@ class HostedLinkResolver:
         if branch is None:
             return None
         return _RemoteCoordinates(store.remote_url, store.provider, branch)
+
+    def _resolve_beads_remote(self) -> _RemoteCoordinates | None:
+        store = self._store
+        if store.beads_dir is None or not store.beads_remote_url:
+            return None
+        repo_root = store.repo_root_for_kind("beads")
+        branch = resolve_hosted_branch(repo_root, git_runner=self._git_runner)
+        if branch is None:
+            return None
+        return _RemoteCoordinates(store.beads_remote_url, store.provider, branch)
 
     def _resolve_agents_remote(self) -> _RemoteCoordinates | None:
         from sase.agents_sync.links import hosted_provider

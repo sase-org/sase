@@ -16,6 +16,7 @@ from sase.sdd.hosted_links import (
 )
 from sase.sdd.store import SddStore
 
+_GITHUB_BEADS_REMOTE = "git@github.com:sase-org/sase--beads.git"
 _GITHUB_PLANS_REMOTE = "git@github.com:sase-org/sase--plans.git"
 _GITHUB_AGENTS_REMOTE = "git@github.com:sase-org/sase--agents.git"
 _GITHUB_PRIMARY_REMOTE = "git@github.com:sase-org/sase.git"
@@ -68,6 +69,26 @@ def _plans_store(
         root,
         provider="github" if remote_url else None,
         remote_url=remote_url,
+    )
+
+
+def _beads_store(
+    root: Path, *, remote_url: str | None = _GITHUB_BEADS_REMOTE
+) -> SddStore:
+    """Return a sidecar store whose beads clone lives beside the plans one."""
+
+    plans = root / "plans"
+    beads = root / "beads"
+    plans.mkdir(parents=True, exist_ok=True)
+    beads.mkdir(parents=True, exist_ok=True)
+    return SddStore(
+        "sidecar_repos",
+        plans,
+        plans,
+        provider="github",
+        remote_url=_GITHUB_PLANS_REMOTE,
+        beads_dir=beads if remote_url else None,
+        beads_remote_url=remote_url,
     )
 
 
@@ -251,6 +272,76 @@ def test_commit_url_degrades_for_a_malformed_sha_and_missing_origin(
         git_runner=_FakeGit(),
     )
     assert unhosted.commit_url("699456a") is None
+
+
+def test_bead_url_resolves_a_page_in_the_beads_sidecar(tmp_path: Path) -> None:
+    store = _beads_store(tmp_path)
+    git = _FakeGit(branches={tmp_path / "beads": "main"})
+
+    resolver = HostedLinkResolver(store, primary_root=tmp_path, git_runner=git)
+
+    assert resolver.bead_url("sase-ai") == (
+        "https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/README.md"
+    )
+    assert resolver.bead_url("sase-ai.1") == (
+        "https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/sase-ai.1.md"
+    )
+
+
+@pytest.mark.parametrize(
+    "store_factory",
+    [
+        lambda root: _beads_store(root, remote_url=None),
+        lambda root: SddStore("in_tree", root / "sdd", root),
+    ],
+)
+def test_bead_url_degrades_without_a_hosted_beads_sidecar(
+    tmp_path: Path, store_factory
+) -> None:
+    resolver = HostedLinkResolver(
+        store_factory(tmp_path),
+        primary_root=tmp_path,
+        git_runner=_FakeGit(branches={tmp_path / "beads": "main"}),
+    )
+
+    assert resolver.bead_url("sase-ai.1") is None
+
+
+def test_bead_url_degrades_when_no_branch_resolves(tmp_path: Path) -> None:
+    resolver = HostedLinkResolver(
+        _beads_store(tmp_path),
+        primary_root=tmp_path,
+        git_runner=_FakeGit(),
+    )
+
+    assert resolver.bead_url("sase-ai.1") is None
+
+
+def test_bead_url_degrades_for_an_id_that_cannot_address_a_page(
+    tmp_path: Path,
+) -> None:
+    resolver = HostedLinkResolver(
+        _beads_store(tmp_path),
+        primary_root=tmp_path,
+        git_runner=_FakeGit(branches={tmp_path / "beads": "main"}),
+    )
+
+    assert resolver.bead_url("  ") is None
+    assert resolver.bead_url("sase-ai/../escape") is None
+
+
+def test_bead_resolution_is_cached_across_many_beads(tmp_path: Path) -> None:
+    git = _FakeGit(branches={tmp_path / "beads": "main"})
+    resolver = HostedLinkResolver(
+        _beads_store(tmp_path),
+        primary_root=tmp_path,
+        git_runner=git,
+    )
+
+    for index in range(50):
+        assert resolver.bead_url(f"sase-ai.{index}") is not None
+
+    assert len(git.calls) == 1
 
 
 def test_resolution_is_cached_across_many_plans(tmp_path: Path) -> None:

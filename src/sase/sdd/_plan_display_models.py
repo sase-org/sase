@@ -30,7 +30,7 @@ class PlanDisplayPhase:
 
 
 @dataclass(frozen=True, slots=True)
-class _PlanProvenanceSection:
+class PlanProvenanceSection:
     """One plan-header block section reduced to display labels."""
 
     kind: PlanHeaderSectionKind
@@ -52,7 +52,7 @@ class PlanFileMetadata:
     phases: tuple[PlanDisplayPhase, ...]
     validation_ok: bool = False
     validation_diagnostics: tuple[str, ...] = ()
-    provenance: tuple[_PlanProvenanceSection, ...] = ()
+    provenance: tuple[PlanProvenanceSection, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,7 +73,7 @@ class PlanDisplay:
     phases: tuple[PlanDisplayPhase, ...]
     validation_ok: bool = False
     validation_diagnostics: tuple[str, ...] = ()
-    provenance: tuple[_PlanProvenanceSection, ...] = ()
+    provenance: tuple[PlanProvenanceSection, ...] = ()
 
 
 __all__ = [

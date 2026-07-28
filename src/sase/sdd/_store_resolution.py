@@ -89,6 +89,9 @@ def resolve_sdd_store(
             research_dir=research_dir,
             research_remote_url=record.research.remote_url,
             beads_dir=beads_dir,
+            beads_remote_url=(
+                record.beads.remote_url if record.beads is not None else None
+            ),
         )
 
     sdd_dir = _sdd_dir_for_storage(

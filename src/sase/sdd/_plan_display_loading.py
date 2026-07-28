@@ -26,7 +26,7 @@ from ._plan_display_models import (
     PlanDisplayTier,
     PlanFileMetadata,
     PlanPhaseAvailability,
-    _PlanProvenanceSection,
+    PlanProvenanceSection,
 )
 
 _PROVENANCE_ROW_ORDER: tuple[PlanHeaderSectionKind, ...] = (
@@ -206,7 +206,7 @@ def plan_file_metadata_from_content(
     )
 
 
-def _plan_provenance_sections(content: str) -> tuple[_PlanProvenanceSection, ...]:
+def _plan_provenance_sections(content: str) -> tuple[PlanProvenanceSection, ...]:
     """Reduce one document's plan-header block to display-ready sections.
 
     A malformed or unparseable header block yields no sections rather than
@@ -217,7 +217,7 @@ def _plan_provenance_sections(content: str) -> tuple[_PlanProvenanceSection, ...
         document = parse_plan_header_block(content)
     except Exception:
         return ()
-    sections: list[_PlanProvenanceSection] = []
+    sections: list[PlanProvenanceSection] = []
     for section in document.sections:
         if section.entries:
             entries = tuple(entry.label for entry in section.entries)
@@ -226,7 +226,7 @@ def _plan_provenance_sections(content: str) -> tuple[_PlanProvenanceSection, ...
         else:
             continue
         sections.append(
-            _PlanProvenanceSection(
+            PlanProvenanceSection(
                 kind=section.kind,
                 entries=entries,
                 omitted=max(section.omitted, 0),

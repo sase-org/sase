@@ -271,6 +271,11 @@ def test_sidecar_commit_targets_are_labeled_by_role_in_numbered_workspace(
         "research",
         "beads",
     ]
+    assert [target.remote_url for target in targets] == [
+        topology.store.remote_url,
+        topology.store.research_remote_url,
+        topology.store.beads_remote_url,
+    ]
 
 
 def test_separate_repo_label_reads_record_from_primary_workspace(

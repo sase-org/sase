@@ -18,7 +18,7 @@ from sase.sdd.plan_header_block import PlanHeaderSectionKind
 from ._plan_display_models import (
     PlanDisplay,
     PlanDisplayPhase,
-    _PlanProvenanceSection,
+    PlanProvenanceSection,
 )
 
 PLAN_SECTION_LABEL = "PLAN"
@@ -122,7 +122,7 @@ def plan_provenance_rows(summary: PlanDisplay) -> tuple[tuple[str, Text], ...]:
     )
 
 
-def _provenance_value(section: _PlanProvenanceSection) -> Text:
+def _provenance_value(section: PlanProvenanceSection) -> Text:
     style = _PROVENANCE_ENTRY_STYLES[section.kind]
     shown = section.entries[:PLAN_PROVENANCE_ENTRY_LIMIT]
     hidden = len(section.entries) - len(shown) + section.omitted

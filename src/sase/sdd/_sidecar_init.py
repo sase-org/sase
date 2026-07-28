@@ -381,6 +381,7 @@ def _write_compatibility_store(
             research_dir=research_root,
             research_remote_url=research.remote_url,
             beads_dir=beads_root,
+            beads_remote_url=beads.remote_url if beads is not None else None,
         ),
     )
 

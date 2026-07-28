@@ -81,6 +81,7 @@ class SddStore:
     research_dir: Path | None = None
     research_remote_url: str | None = None
     beads_dir: Path | None = None
+    beads_remote_url: str | None = None
     sidecar_role: str | None = None
 
     @property
