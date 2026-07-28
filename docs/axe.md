@@ -279,6 +279,7 @@ axe:
         lumberjacks.
       interval: 60 # Seconds between cycles
       chop_timeout: "60s" # Default timeout for all chops in this lumberjack
+      wait_runners: 0 # Start lane agents only when no other agent holds a runner slot
       env: # Inherited by every chop; individual chop env wins
         API_TOKEN: { env: MY_API_TOKEN }
       chops:
@@ -310,6 +311,21 @@ axe:
 Every lumberjack requires a `description` explaining the lane's cadence and the class of work it owns, and every chop
 requires one explaining what that chop does. Both follow the summary/body grammar in
 [Description Grammar](#description-grammar).
+
+#### Lumberjack Fields
+
+| Field          | Type                   | Required | Description                                                                                                                    |
+| -------------- | ---------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `description`  | `str`                  | yes      | Summary line, then a blank line, then an optional body (see [Description Grammar](#description-grammar))                       |
+| `interval`     | `int`                  | no       | Seconds between chop polling cycles; defaults to `1`                                                                           |
+| `chop_timeout` | `str \| null`          | no       | Default positive compound duration for chops in this lumberjack                                                                |
+| `wait_runners` | `int \| null`          | no       | Start a lane agent once at most this many other agents hold runner slots; omitting it uses the global `max_running_agents` cap |
+| `env`          | `dict[str, env-value]` | no       | Values inherited by every chop; individual chop env wins                                                                       |
+| `chops`        | list or map            | no       | Composable chop definitions                                                                                                    |
+
+`wait_runners` applies only to agents emitted through a script chop's `proposed_launches`; it does not gate mentor,
+hook, or CRS workflow launchers. When a chop proposes a clan, every member carries the threshold and waits
+independently, so a low threshold can serialize the clan.
 
 #### Chop Fields
 

@@ -86,6 +86,7 @@ def process_script_chop_result(
     dry_run: bool,
     chop_verbose: bool,
     preflight: ChopPreflight,
+    wait_runners_default: int | None,
     launch_agent_from_cwd_fn: Callable[..., Any] | None,
     launch_agents_from_cwd_fn: Callable[..., Any] | None,
 ) -> ChopRunOutcome:
@@ -103,6 +104,7 @@ def process_script_chop_result(
                 structured_result,
                 target_key=chop.target_key or None,
                 run_id=run_id,
+                lumberjack_wait_runners=wait_runners_default,
             )
             # Clan allocation must be based on proposals that survive once-per
             # filtering. Use structural fallbacks until that set is known.

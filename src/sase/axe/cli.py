@@ -108,6 +108,7 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
         lumberjack_name = match.lumberjack_name
         chop_cfg = match.chop
         chop_timeout_default = match.lumberjack.chop_timeout
+        wait_runners_default = match.lumberjack.wait_runners
     except AmbiguousChopError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(2)
@@ -131,12 +132,14 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
             description=f"Manual one-shot run of {chop_name}",
         )
         chop_timeout_default = None
+        wait_runners_default = None
 
     outcome = run_configured_chop_once(
         lumberjack_name=lumberjack_name,
         chop=chop_cfg,
         axe_config=config,
         chop_timeout_default=chop_timeout_default,
+        wait_runners_default=wait_runners_default,
         source="oneshot",
         started_by="cli",
         dry_run=bool(getattr(args, "dry_run", False)),
@@ -235,6 +238,8 @@ def handle_axe_lumberjack_list(args: argparse.Namespace) -> None:
         console.print(Text(name, style="bold cyan"))
         _print_lumberjack_description(console, lumberjack, verbose=verbose)
         console.print(f"  [dim]interval:[/dim] {lumberjack.interval}s")
+        if lumberjack.wait_runners is not None:
+            console.print(f"  [dim]wait_runners:[/dim] {lumberjack.wait_runners}")
         enabled_chops = [chop for chop in lumberjack.chops if chop.enabled]
         if enabled_chops:
             console.print("  [dim]chops:[/dim]")

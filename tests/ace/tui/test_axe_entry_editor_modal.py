@@ -90,6 +90,7 @@ def test_bundled_lumberjack_and_chop_friendly_field_order() -> None:
         "description",
         "interval",
         "chop_timeout",
+        "wait_runners",
         "env",
     ]
     assert lumberjack._form.field("description").editor_kind == "text"

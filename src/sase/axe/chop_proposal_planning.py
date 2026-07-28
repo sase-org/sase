@@ -26,6 +26,7 @@ def prepare_chop_proposals(
     *,
     target_key: str | None = None,
     run_id: str | None = None,
+    lumberjack_wait_runners: int | None = None,
 ) -> list[PreparedChopProposal]:
     """Normalize and validate all proposals in result order."""
     prepared: list[PreparedChopProposal] = []
@@ -80,6 +81,7 @@ def prepare_chop_proposals(
                     else None
                 ),
                 wait_on=normalized.get("wait_on"),
+                wait_runners=lumberjack_wait_runners,
             )
         )
     summaries_by_clan: dict[str, str] = {}

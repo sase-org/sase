@@ -154,6 +154,7 @@ class AxeChopRunMixin:
 
         chop_cfg = match.chop
         chop_timeout_default = match.lumberjack.chop_timeout
+        wait_runners_default = match.lumberjack.wait_runners
 
         def _run() -> ChopRunOutcome:
             return run_configured_chop_once(
@@ -161,6 +162,7 @@ class AxeChopRunMixin:
                 chop=chop_cfg,
                 axe_config=config,
                 chop_timeout_default=chop_timeout_default,
+                wait_runners_default=wait_runners_default,
                 source="manual",
                 started_by="ace",
             )

@@ -91,6 +91,7 @@ class LumberjackConfig:
     description: str
     interval: int
     chop_timeout: int | None = None
+    wait_runners: int | None = None
     env: dict[str, ChopEnvValue] = field(default_factory=dict)
     chops: list[ChopConfig] = field(default_factory=list)
     description_summary: str = ""

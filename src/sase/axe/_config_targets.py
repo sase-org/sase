@@ -475,6 +475,8 @@ def parse_lumberjacks(
                     )
                 )
         chop_timeout = parse_duration(cfg.get("chop_timeout"))
+        raw_wait_runners = cfg.get("wait_runners")
+        wait_runners = int(raw_wait_runners) if raw_wait_runners is not None else None
         description = str(cfg["description"])
         description_summary, description_body = split_axe_description(description)
         result[name] = LumberjackConfig(
@@ -484,6 +486,7 @@ def parse_lumberjacks(
             description_body=description_body,
             interval=int(cfg.get("interval", 1)),
             chop_timeout=chop_timeout,
+            wait_runners=wait_runners,
             env=lumberjack_env,
             chops=chops,
         )

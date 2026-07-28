@@ -11,6 +11,7 @@ from sase.xprompt.directives import (
     has_alt_directive,
     has_deferred_start_directive,
     has_model_directive,
+    has_wait_runners_directive,
 )
 
 
@@ -155,6 +156,29 @@ def test_has_deferred_start_directive_ignores_disabled_regions(
     """Deferred-start syntax inside disabled regions does not defer launch."""
     prompt = f"%xprompts_enabled:false\n{directive}\n%xprompts_enabled:true\nDo work"
     assert has_deferred_start_directive(prompt) is False
+
+
+@pytest.mark.parametrize(
+    "directive",
+    ["%wait(runners=0)", "%w(agent, runners = 2)"],
+)
+def test_has_wait_runners_directive_detects_live_directive(directive: str) -> None:
+    assert has_wait_runners_directive(f"{directive}\nDo work") is True
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "Do work",
+        "%wait:agent\nDo work",
+        "```text\n%wait(runners=0)\n```\nDo work",
+        ("%xprompts_enabled:false\n%wait(runners=0)\n%xprompts_enabled:true\nDo work"),
+    ],
+)
+def test_has_wait_runners_directive_ignores_inactive_or_absent_syntax(
+    prompt: str,
+) -> None:
+    assert has_wait_runners_directive(prompt) is False
 
 
 @pytest.mark.parametrize("reference", ["#fork:old_agent", "#fork(old_agent)"])

@@ -923,6 +923,11 @@
                 "minLength": 2,
                 "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
               },
+              "wait_runners": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Start a lane agent only once at most this many other agents hold a runner slot; omit to use the global max_running_agents cap"
+              },
               "env": {
                 "$ref": "#/definitions/axeEnv",
                 "description": "Environment values inherited by every chop in this lumberjack"

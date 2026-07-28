@@ -59,6 +59,15 @@ def has_deferred_start_directive(prompt: str) -> bool:
     return has_fork_reference(prompt)
 
 
+def has_wait_runners_directive(prompt: str) -> bool:
+    """Quick check for a parenthesized ``%wait`` with a runner threshold."""
+    return _has_protected_pattern_match(
+        prompt,
+        r"(?:^|\s)%(?:wait|w)\([^)]*\brunners\s*=",
+        required_substring="%",
+    )
+
+
 def has_model_directive(prompt: str) -> bool:
     """Quick check whether a prompt contains ``%model`` or ``%m`` directives."""
     return _has_protected_directive_match(

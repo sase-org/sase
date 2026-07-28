@@ -1435,13 +1435,14 @@ axe:
 
 **Lumberjack fields** (per entry under `lumberjacks`):
 
-| Field          | Type                    | Required | Default | Description                                                                     |
-| -------------- | ----------------------- | -------- | ------- | ------------------------------------------------------------------------------- |
-| `description`  | string                  | yes      | -       | Summary line, blank line, optional body describing the lane's cadence and work. |
-| `interval`     | int                     | no       | `1`     | Seconds between chop polling cycles.                                            |
-| `chop_timeout` | string                  | no       | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"`         |
-| `env`          | dict[string, env-value] | no       | `{}`    | Environment inherited by every chop in this lumberjack.                         |
-| `chops`        | list[object] or map     | no       | `[]`    | Composable chop definitions (see below).                                        |
+| Field          | Type                    | Required | Default | Description                                                                                                                     |
+| -------------- | ----------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `description`  | string                  | yes      | -       | Summary line, blank line, optional body describing the lane's cadence and work.                                                 |
+| `interval`     | int                     | no       | `1`     | Seconds between chop polling cycles.                                                                                            |
+| `chop_timeout` | string                  | no       | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"`.                                                        |
+| `wait_runners` | int                     | no       | -       | Start a lane agent once at most this many other agents hold runner slots; omitting it uses the global `max_running_agents` cap. |
+| `env`          | dict[string, env-value] | no       | `{}`    | Environment inherited by every chop in this lumberjack.                                                                         |
+| `chops`        | list[object] or map     | no       | `[]`    | Composable chop definitions (see below).                                                                                        |
 
 **Chop fields** (per entry under `chops`):
 

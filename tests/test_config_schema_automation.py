@@ -24,6 +24,7 @@ def test_config_schema_accepts_script_chops_and_compound_durations() -> None:
                         "description": "Run automated schema checks",
                         "interval": 1,
                         "chop_timeout": "1d2h30m",
+                        "wait_runners": 0,
                         "chops": [
                             {
                                 "name": "custom_check",
@@ -38,6 +39,22 @@ def test_config_schema_accepts_script_chops_and_compound_durations() -> None:
             }
         }
     )
+
+
+def test_config_schema_rejects_negative_lumberjack_wait_runners() -> None:
+    with pytest.raises(ValidationError):
+        _validate(
+            {
+                "axe": {
+                    "lumberjacks": {
+                        "checks": {
+                            "description": "Run automated schema checks",
+                            "wait_runners": -1,
+                        }
+                    }
+                }
+            }
+        )
 
 
 def test_config_schema_accepts_declarative_chop_policies() -> None:

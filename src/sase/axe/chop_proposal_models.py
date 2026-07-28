@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from sase.xprompt.directives import has_wait_runners_directive
+
 
 @dataclass(frozen=True)
 class PreparedChopProposal:
@@ -22,6 +24,7 @@ class PreparedChopProposal:
     env: dict[str, str]
     dedupe_key: str | None
     wait_on: int | str | None
+    wait_runners: int | None = None
 
 
 @dataclass(frozen=True)
@@ -81,6 +84,10 @@ def scaffolded_prompt(
         lines.append(f"%effort:{proposal.effort}")
     if wait_name:
         lines.append(f"%wait:{wait_name}")
+    if proposal.wait_runners is not None and not has_wait_runners_directive(
+        proposal.prompt
+    ):
+        lines.append(f"%wait(runners={proposal.wait_runners})")
     lines.append(proposal.prompt.strip())
     return "\n".join(lines) + "\n"
 

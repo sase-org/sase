@@ -57,6 +57,7 @@ def run_script_chop_once(
     chop: ChopConfig,
     axe_config: AxeConfig,
     chop_timeout_default: int | None,
+    wait_runners_default: int | None,
     context_file: str | None,
     source: ChopRunSource,
     started_by: str | None,
@@ -399,6 +400,7 @@ def run_script_chop_once(
         dry_run=dry_run,
         chop_verbose=chop_verbose,
         preflight=preflight,
+        wait_runners_default=wait_runners_default,
         launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
         launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
     )

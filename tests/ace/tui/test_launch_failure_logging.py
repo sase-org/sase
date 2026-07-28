@@ -300,7 +300,7 @@ def test_chop_failure_persists_record() -> None:
 
     match = SimpleNamespace(
         chop=SimpleNamespace(name="my-chop"),
-        lumberjack=SimpleNamespace(chop_timeout=30),
+        lumberjack=SimpleNamespace(chop_timeout=30, wait_runners=None),
     )
     app = _ChopApp()
     with (
@@ -387,7 +387,7 @@ def test_chop_missing_script_outcome_persists_record() -> None:
 
     match = SimpleNamespace(
         chop=SimpleNamespace(name="my-chop"),
-        lumberjack=SimpleNamespace(chop_timeout=30),
+        lumberjack=SimpleNamespace(chop_timeout=30, wait_runners=None),
     )
     outcome = ChopRunOutcome(
         lumberjack_name="lumber",

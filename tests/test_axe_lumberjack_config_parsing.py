@@ -364,6 +364,35 @@ def test_parse_lumberjacks_chop_timeout_defaults_to_none() -> None:
     assert result["hooks"].chop_timeout is None
 
 
+def test_parse_lumberjacks_wait_runners() -> None:
+    raw = {
+        "checks": {
+            "description": "Run checks when the machine is quiet",
+            "interval": 60,
+            "wait_runners": 0,
+            "chops": [],
+        },
+    }
+
+    result = _parse_lumberjacks(raw)
+
+    assert result["checks"].wait_runners == 0
+
+
+def test_parse_lumberjacks_wait_runners_defaults_to_none() -> None:
+    raw = {
+        "checks": {
+            "description": "Run checks at the global runner limit",
+            "interval": 60,
+            "chops": [],
+        },
+    }
+
+    result = _parse_lumberjacks(raw)
+
+    assert result["checks"].wait_runners is None
+
+
 def test_parse_lumberjacks_per_chop_timeout() -> None:
     """Test that per-chop timeout is parsed from dict chop entries."""
     raw = {

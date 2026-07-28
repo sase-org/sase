@@ -445,6 +445,36 @@ def test_handle_axe_lumberjack_list_prints_descriptions(
 
 
 @patch("sase.axe.cli.load_axe_config")
+def test_handle_axe_lumberjack_list_prints_only_configured_wait_runners(
+    mock_load: MagicMock,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    mock_load.return_value = AxeConfig(
+        lumberjacks={
+            "audits": LumberjackConfig(
+                name="audits",
+                description="Run audits",
+                interval=60,
+                wait_runners=0,
+            ),
+            "hooks": LumberjackConfig(
+                name="hooks",
+                description="Run hooks",
+                interval=1,
+            ),
+        }
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        handle_axe_lumberjack_list(argparse.Namespace())
+
+    assert exc_info.value.code == 0
+    output = capsys.readouterr().out
+    assert output.count("wait_runners:") == 1
+    assert "wait_runners: 0" in output
+
+
+@patch("sase.axe.cli.load_axe_config")
 @pytest.mark.parametrize("verbose", [False, True])
 def test_handle_axe_lumberjack_list_verbose_controls_description_body(
     mock_load: MagicMock,

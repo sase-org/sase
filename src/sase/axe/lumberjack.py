@@ -267,6 +267,7 @@ class Lumberjack:
             chop=chop,
             axe_config=self.axe_config,
             chop_timeout_default=self.config.chop_timeout,
+            wait_runners_default=self.config.wait_runners,
             context_file=context_file,
             source="scheduled",
         )
