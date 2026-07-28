@@ -100,11 +100,69 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
     if replaced != document:
         raise RuntimeError("plan-header parse/replace round trip changed the document")
 
+    fenced_body = """# Plan
+
+```markdown
+- **PROMPT:** [example](example.md)
+- **AGENTS:**
+  - example.agent
+```
+"""
+    fenced_document = f"{rendered}\n\n{fenced_body}"
+    fenced_parsed = module.sdd_plan_header_block_parse(fenced_document)
+    if (
+        fenced_parsed.get("kind") != "canonical"
+        or fenced_parsed.get("body") != fenced_body
+    ):
+        raise RuntimeError(
+            "fenced plan-header example was treated as a live header: "
+            f"{fenced_parsed!r}"
+        )
+
+    legacy_parent_document = """---
+tier: tale
+parent: old/epic.md
+metadata:
+  parent: keep-nested
+---
+
+- **PARENT:** [202607/epic.md](epic.md)
+
+# Plan
+"""
+    expected_migrated_document = """---
+tier: tale
+metadata:
+  parent: keep-nested
+---
+
+- **PARENT:** [202607/epic.md](epic.md)
+
+# Plan
+"""
+    migrated_document = module.sdd_plan_header_block_upsert_section(
+        legacy_parent_document,
+        {
+            "kind": "PARENT",
+            "label": "202607/epic.md",
+            "target": "epic.md",
+        },
+        True,
+        False,
+    )
+    if migrated_document != expected_migrated_document:
+        raise RuntimeError(
+            "parent upsert did not remove only the legacy top-level key: "
+            f"{migrated_document!r}"
+        )
+
     return {
         "schema_version": schema_version,
         "disposition": parsed["kind"],
         "section_kinds": section_kinds,
         "mutation_round_trip": True,
+        "fenced_examples_ignored": True,
+        "legacy_parent_removed": True,
     }
 
 

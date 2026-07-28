@@ -6,14 +6,12 @@ from sase.sdd.plan_header_block import (
     PlanHeaderSection,
     PlanHeaderSectionKind,
     parse_plan_header_block,
-    remove_plan_header_section,
     render_plan_header_block,
-    replace_plan_header_block,
     upsert_plan_header_section,
 )
 
 
-def test_round_trip_and_wrapped_logical_idempotence() -> None:
+def test_parse_preserves_wrapped_logical_content() -> None:
     document = """- **PROMPT:** [202607/prompts/example.md](prompts/example.md)
 - **COMMITS:**
   - [699456a](https://github.com/sase-org/sase/commit/699456a521e25e0aaa38f4e289db38e71a6488a6) — fix(parser):
@@ -32,14 +30,6 @@ def test_round_trip_and_wrapped_logical_idempotence() -> None:
             ),
             trailing_text="fix(parser): preserve logical content",
         ),
-    )
-    assert (
-        replace_plan_header_block(
-            document,
-            parsed.sections,
-            remove_legacy=False,
-        )
-        == document
     )
 
 
@@ -70,14 +60,6 @@ def test_typed_mutations_preserve_other_sections() -> None:
         PlanHeaderSectionKind.PROMPT,
         PlanHeaderSectionKind.PARENT,
         PlanHeaderSectionKind.AGENTS,
-    )
-    assert (
-        remove_plan_header_section(
-            updated,
-            PlanHeaderSectionKind.PARENT,
-            remove_legacy=False,
-        )
-        == document
     )
 
 

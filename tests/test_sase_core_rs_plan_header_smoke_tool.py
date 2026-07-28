@@ -36,6 +36,8 @@ def test_installed_core_plan_header_round_trip() -> None:
         "disposition": "canonical",
         "section_kinds": ["PROMPT", "COMMITS"],
         "mutation_round_trip": True,
+        "fenced_examples_ignored": True,
+        "legacy_parent_removed": True,
     }
 
 

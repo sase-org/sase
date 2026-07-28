@@ -53,7 +53,7 @@ class PlanHeaderSection:
 
 
 @dataclass(frozen=True)
-class PlanHeaderLegacyLink:
+class _PlanHeaderLegacyLink:
     """One historical YAML-property artifact link."""
 
     kind: PlanHeaderSectionKind
@@ -63,19 +63,19 @@ class PlanHeaderLegacyLink:
 
 
 @dataclass(frozen=True)
-class PlanHeaderDocument:
+class _PlanHeaderDocument:
     """Parsed header sections plus the clean user-authored body."""
 
     disposition: PlanHeaderDisposition
     sections: tuple[PlanHeaderSection, ...]
     body: str
-    legacy: PlanHeaderLegacyLink | None = None
+    legacy: _PlanHeaderLegacyLink | None = None
     has_frontmatter: bool = False
     canonical_layout: bool = False
     reason: str | None = None
 
 
-def parse_plan_header_block(document: str) -> PlanHeaderDocument:
+def parse_plan_header_block(document: str) -> _PlanHeaderDocument:
     """Parse a complete SDD Markdown document."""
     _require_schema_version()
     binding = require_rust_binding("sdd_plan_header_block_parse")
@@ -84,13 +84,13 @@ def parse_plan_header_block(document: str) -> PlanHeaderDocument:
     legacy_payload = payload.get("legacy")
     legacy = None
     if isinstance(legacy_payload, dict):
-        legacy = PlanHeaderLegacyLink(
+        legacy = _PlanHeaderLegacyLink(
             kind=PlanHeaderSectionKind(str(legacy_payload["link_type"])),
             format=str(legacy_payload["format"]),
             reference=str(legacy_payload["reference"]),
             target=str(legacy_payload["target"]),
         )
-    return PlanHeaderDocument(
+    return _PlanHeaderDocument(
         disposition=PlanHeaderDisposition(str(payload["kind"])),
         sections=tuple(
             _section_from_payload(item)
@@ -126,46 +126,6 @@ def upsert_plan_header_section(
         binding(
             document,
             _section_payload(section),
-            remove_legacy,
-            allow_resolved_mixed,
-        )
-    )
-
-
-def replace_plan_header_block(
-    document: str,
-    sections: tuple[PlanHeaderSection, ...],
-    *,
-    remove_legacy: bool = True,
-    allow_resolved_mixed: bool = False,
-) -> str:
-    """Replace the complete header block."""
-    _require_schema_version()
-    binding = require_rust_binding("sdd_plan_header_block_replace")
-    return str(
-        binding(
-            document,
-            [_section_payload(section) for section in sections],
-            remove_legacy,
-            allow_resolved_mixed,
-        )
-    )
-
-
-def remove_plan_header_section(
-    document: str,
-    kind: PlanHeaderSectionKind,
-    *,
-    remove_legacy: bool = True,
-    allow_resolved_mixed: bool = False,
-) -> str:
-    """Remove one section while retaining the rest of the block."""
-    _require_schema_version()
-    binding = require_rust_binding("sdd_plan_header_block_remove_section")
-    return str(
-        binding(
-            document,
-            kind.value,
             remove_legacy,
             allow_resolved_mixed,
         )
@@ -237,14 +197,10 @@ __all__ = [
     "MAX_RENDERED_PLAN_HEADER_ENTRIES",
     "PLAN_HEADER_BLOCK_WIRE_SCHEMA_VERSION",
     "PlanHeaderDisposition",
-    "PlanHeaderDocument",
     "PlanHeaderEntry",
-    "PlanHeaderLegacyLink",
     "PlanHeaderSection",
     "PlanHeaderSectionKind",
     "parse_plan_header_block",
-    "remove_plan_header_section",
     "render_plan_header_block",
-    "replace_plan_header_block",
     "upsert_plan_header_section",
 ]

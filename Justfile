@@ -236,10 +236,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-ag(PlanHeaderDocument)' \
-        --epic-symbol 'sase-ag(PlanHeaderLegacyLink)' \
-        --epic-symbol 'sase-ag(remove_plan_header_section)' \
-        --epic-symbol 'sase-ag(replace_plan_header_block)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
