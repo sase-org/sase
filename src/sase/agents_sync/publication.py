@@ -84,11 +84,11 @@ def publish_agent_hood(
     project_inventory = inventory or build_project_hood_inventory(
         target, snapshot, git_runner=git_runner
     )
-    if not any(run.local_name == local_name for run in project_inventory.runs):
-        raise AgentsSyncFormatError(
-            f"committing agent {committing_agent!r} is absent from project inventory"
-        )
     hood = agent_local_hood(local_name)
+    if not any(run.local_name == local_name for run in project_inventory.runs):
+        hood_runs = project_inventory.hood_runs(hood)
+        if not hood_runs:
+            raise AgentsSyncFormatError(f"hood {hood!r} has no publishable runs")
     return _publish_hoods(
         target,
         repo_root,

@@ -11,6 +11,7 @@ from sase.agents_sync.inventory import (
     ProjectHoodInventory,
     _InventoryRelationship,
 )
+from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import CommitRecord, ProjectTarget
 from sase.agents_sync.publication import publish_agent_hood, reconcile_agent_hoods
 from sase.agents_sync.v2_io import read_hood_snapshot
@@ -306,6 +307,54 @@ def test_refresh_adds_optional_chat_and_preserves_temporarily_absent_run(
     assert (
         repo / "agents" / "alice.athena.foo.bar.baz--code" / "chat.md"
     ).read_bytes() == b"late chat\n"
+
+
+def test_targeted_publication_accepts_family_container_request(
+    tmp_path: Path,
+) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+
+    counts = publish_agent_hood(
+        target,
+        repo,
+        "foo.rootless",
+        identity=_identity(),
+        inventory=_inventory(AgentOwnerIdentity("alice", "athena")),
+    )
+
+    snapshot = read_hood_snapshot(_snapshot_path(repo))
+    assert counts.hoods_published == 1
+    assert {"foo.rootless--left", "foo.rootless--right"} <= {
+        run.local_name for run in snapshot.runs
+    }
+    assert (repo / "families" / "alice.athena.foo.rootless.md").is_file()
+    assert (repo / "agents" / "alice.athena.foo.rootless--left" / "README.md").is_file()
+    assert (
+        repo / "agents" / "alice.athena.foo.rootless--right" / "README.md"
+    ).is_file()
+
+
+def test_targeted_publication_rejects_request_for_empty_hood(
+    tmp_path: Path,
+) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+
+    with pytest.raises(AgentsSyncFormatError, match="hood 'missing'"):
+        publish_agent_hood(
+            target,
+            repo,
+            "missing",
+            identity=_identity(),
+            inventory=ProjectHoodInventory(
+                AgentOwnerIdentity("alice", "athena"),
+                "proj",
+                (),
+            ),
+        )
 
 
 def test_full_reconciliation_discovers_only_commit_eligible_hoods(
