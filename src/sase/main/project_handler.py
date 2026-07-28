@@ -169,6 +169,12 @@ def _canonical_project_ref(
         raise _ProjectLifecycleError(str(exc)) from exc
 
 
+def _invalidate_project_identity(projects_root: Path | None = None) -> None:
+    from sase.project_display_names import invalidate_project_display_snapshot
+
+    invalidate_project_display_snapshot(projects_root)
+
+
 def _get_project_record(
     project: str,
     *,
@@ -295,6 +301,7 @@ def set_project_state_locked(
             f"Set PROJECT_STATE to {state}",
         )
 
+    _invalidate_project_identity()
     return _get_project_record(project, projects_only=False)
 
 
@@ -326,6 +333,7 @@ def delete_project_locked(
 
         shutil.rmtree(project_dir)
 
+    _invalidate_project_identity(root)
     return project_dir
 
 

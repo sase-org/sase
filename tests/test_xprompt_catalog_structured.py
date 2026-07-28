@@ -129,8 +129,7 @@ def test_project_catalog_uses_one_canonical_namespace_for_all_project_refs(
         "list_project_records",
         _disk_project_records,
     )
-    project_identity._identity_registry.cache_clear()
-    project_identity._canonical_xprompt_project.cache_clear()
+    project_identity.invalidate_xprompt_project_identity()
 
     cwd_copy = make_xprompt("proj/thing", source_path=str(source))
     unrelated = make_xprompt("bd/next", source_path="config")
@@ -160,8 +159,7 @@ def test_project_catalog_uses_one_canonical_namespace_for_all_project_refs(
                 for ref in ("proj", "gh_org__proj", "short")
             }
     finally:
-        project_identity._identity_registry.cache_clear()
-        project_identity._canonical_xprompt_project.cache_clear()
+        project_identity.invalidate_xprompt_project_identity()
 
     gathered_project_entries = [
         entry for entry in gathered if entry.bucket == "project"

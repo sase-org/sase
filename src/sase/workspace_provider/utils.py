@@ -141,6 +141,15 @@ def parse_bare_repo_dir(project_file: str) -> str | None:
     return None
 
 
+def _invalidate_project_identity() -> None:
+    try:
+        from sase.project_display_names import invalidate_project_display_snapshot
+
+        invalidate_project_display_snapshot()
+    except Exception:
+        pass
+
+
 def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
     """Set or update the WORKSPACE_DIR field in a .gp project file.
 
@@ -157,6 +166,7 @@ def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
         if not os.path.exists(project_file):
             with open(project_file, "w", encoding="utf-8") as f:
                 f.write(f"WORKSPACE_DIR: {workspace_dir}\n")
+            _invalidate_project_identity()
             return True
 
         with changespec_lock(project_file):
@@ -175,6 +185,7 @@ def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
                         "".join(lines),
                         f"Update WORKSPACE_DIR to {workspace_dir}",
                     )
+                    _invalidate_project_identity()
                     return True
 
             # Insert before first RUNNING: or NAME: line
@@ -190,6 +201,7 @@ def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
                 "".join(lines),
                 f"Set WORKSPACE_DIR to {workspace_dir}",
             )
+            _invalidate_project_identity()
             return True
     except Exception:
         return False

@@ -274,6 +274,10 @@ def invalidate_project_display_snapshot(
         if _PROJECT_DISPLAY_NAME_CACHE is not None:
             _PROJECT_DISPLAY_NAME_CACHE.pop(cache_key, None)
 
+    from sase.xprompt.project_identity import invalidate_xprompt_project_identity
+
+    invalidate_xprompt_project_identity()
+
 
 def _project_display_name_map_cached(
     projects_root: Path | str | None = None,

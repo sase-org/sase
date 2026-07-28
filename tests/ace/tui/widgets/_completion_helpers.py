@@ -122,8 +122,7 @@ def registered_project_xprompts(
         "list_project_records",
         _disk_project_records,
     )
-    project_identity._identity_registry.cache_clear()
-    project_identity._canonical_xprompt_project.cache_clear()
+    project_identity.invalidate_xprompt_project_identity()
 
     try:
         with ExitStack() as stack:
@@ -139,8 +138,7 @@ def registered_project_xprompts(
                 )
             yield workspace
     finally:
-        project_identity._identity_registry.cache_clear()
-        project_identity._canonical_xprompt_project.cache_clear()
+        project_identity.invalidate_xprompt_project_identity()
 
 
 def create_entries(root: Path) -> None:

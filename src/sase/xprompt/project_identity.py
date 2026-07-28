@@ -4,19 +4,20 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from sase.project_aliases import load_project_alias_map
-from sase.project_display_names import (
-    ProjectDisplaySnapshot,
-    load_project_display_snapshot,
-    project_display_name_for_ref,
-)
 from sase.xprompt.loader_sources import get_known_project_workspaces
+
+if TYPE_CHECKING:
+    from sase.project_display_names import ProjectDisplaySnapshot
 
 
 @lru_cache(maxsize=1)
 def _identity_registry() -> tuple[dict[str, str], ProjectDisplaySnapshot] | None:
     """Return cached project alias and display-name projections."""
+    from sase.project_aliases import load_project_alias_map
+    from sase.project_display_names import load_project_display_snapshot
+
     try:
         return load_project_alias_map(), load_project_display_snapshot()
     except Exception:
@@ -25,6 +26,8 @@ def _identity_registry() -> tuple[dict[str, str], ProjectDisplaySnapshot] | None
 
 @lru_cache(maxsize=512)
 def _canonical_xprompt_project(ref: str) -> str:
+    from sase.project_display_names import project_display_name_for_ref
+
     registry = _identity_registry()
     if registry is None:
         return ref
@@ -48,6 +51,12 @@ def canonical_xprompt_project(ref: str | None) -> str | None:
     return _canonical_xprompt_project(value)
 
 
+def invalidate_xprompt_project_identity() -> None:
+    """Clear process-lifetime xprompt project identity projections."""
+    _identity_registry.cache_clear()
+    _canonical_xprompt_project.cache_clear()
+
+
 def known_project_namespaces() -> dict[str, Path]:
     """Return enabled project workspaces keyed by canonical xprompt namespace."""
     try:
@@ -68,5 +77,6 @@ def known_project_namespaces() -> dict[str, Path]:
 
 __all__ = [
     "canonical_xprompt_project",
+    "invalidate_xprompt_project_identity",
     "known_project_namespaces",
 ]

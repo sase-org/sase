@@ -20,6 +20,15 @@ def _log_project_creation(project: str, project_file: str) -> None:
         log.warning("Failed to invoke project-creation logger", exc_info=True)
 
 
+def _invalidate_project_identity() -> None:
+    try:
+        from sase.project_display_names import invalidate_project_display_snapshot
+
+        invalidate_project_display_snapshot()
+    except Exception:  # pragma: no cover - creation must not depend on cache cleanup
+        log.warning("Failed to invalidate project identity caches", exc_info=True)
+
+
 def _project_ref_owner(project: str) -> str | None:
     """Best-effort lookup of a project claiming *project* as a ref."""
     try:
@@ -102,6 +111,7 @@ def create_project_file(project: str) -> bool:
                 f"Create project file for {project}",
             )
             _log_project_creation(project, project_file)
+            _invalidate_project_identity()
             print_status(f"Created project file: {project_file}", "info")
         except Exception as e:
             print_status(f"Failed to create project file: {e}", "warning")

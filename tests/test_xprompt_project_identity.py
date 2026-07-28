@@ -1,31 +1,32 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
 
 from sase import project_aliases, project_display_names
+from sase.main import project_handler
 from sase.xprompt import loader_sources
 from sase.xprompt import project_identity
 from sase.xprompt.project_identity import canonical_xprompt_project
+from sase.xprompt.project_identity import invalidate_xprompt_project_identity
 from sase.xprompt.project_identity import known_project_namespaces
 from tests.main.project_handler_helpers import (
     _disk_project_records,
     _write_project,
+    lifecycle_stubs,
     projects_root,
 )
 
-__all__ = ["projects_root"]
+__all__ = ["lifecycle_stubs", "projects_root"]
 
 
 @pytest.fixture(autouse=True)
 def _clear_identity_cache() -> Iterator[None]:
-    project_identity._identity_registry.cache_clear()
-    project_identity._canonical_xprompt_project.cache_clear()
+    invalidate_xprompt_project_identity()
     yield
-    project_identity._identity_registry.cache_clear()
-    project_identity._canonical_xprompt_project.cache_clear()
+    invalidate_xprompt_project_identity()
 
 
 @pytest.fixture
@@ -104,7 +105,7 @@ def test_canonical_xprompt_project_degrades_to_input_on_registry_failure(
     def fail_alias_map() -> dict[str, str]:
         raise RuntimeError("registry unavailable")
 
-    monkeypatch.setattr(project_identity, "load_project_alias_map", fail_alias_map)
+    monkeypatch.setattr(project_aliases, "load_project_alias_map", fail_alias_map)
 
     assert canonical_xprompt_project("widgets") == "widgets"
 
@@ -151,11 +152,106 @@ def test_known_project_namespaces_degrades_to_directory_keys_on_registry_failure
         "get_known_project_workspaces",
         lambda: {"gh_acme__widgets": workspace},
     )
-    monkeypatch.setattr(project_identity, "load_project_alias_map", lambda: {})
+    monkeypatch.setattr(project_aliases, "load_project_alias_map", lambda: {})
     monkeypatch.setattr(
-        project_identity,
+        project_display_names,
         "load_project_display_snapshot",
         lambda: (_ for _ in ()).throw(RuntimeError("registry unavailable")),
     )
 
     assert known_project_namespaces() == {"gh_acme__widgets": workspace}
+
+
+def test_invalidate_xprompt_project_identity_refreshes_registered_project(
+    projects_root: Path,
+    _lifecycle_reader: None,
+    tmp_path: Path,
+) -> None:
+    assert canonical_xprompt_project("gh_acme__widgets") == "gh_acme__widgets"
+
+    _write_identity_project(
+        projects_root,
+        "gh_acme__widgets",
+        tmp_path / "widgets-ws",
+        display_name="widgets",
+    )
+
+    assert canonical_xprompt_project("gh_acme__widgets") == "gh_acme__widgets"
+
+    invalidate_xprompt_project_identity()
+
+    assert canonical_xprompt_project("gh_acme__widgets") == "widgets"
+
+
+def test_project_name_mutation_invalidates_xprompt_identity(
+    projects_root: Path,
+    _lifecycle_reader: None,
+    lifecycle_stubs: Callable[[], None],
+    tmp_path: Path,
+) -> None:
+    lifecycle_stubs()
+    _write_identity_project(
+        projects_root,
+        "gh_acme__widgets",
+        tmp_path / "widgets-ws",
+        display_name="widgets",
+    )
+
+    assert canonical_xprompt_project("gh_acme__widgets") == "widgets"
+
+    project_aliases._set_project_name_locked(
+        "gh_acme__widgets",
+        "gadgets",
+        projects_root=projects_root,
+    )
+
+    assert canonical_xprompt_project("gh_acme__widgets") == "gadgets"
+
+
+def test_project_alias_mutation_invalidates_xprompt_identity(
+    projects_root: Path,
+    _lifecycle_reader: None,
+    lifecycle_stubs: Callable[[], None],
+    tmp_path: Path,
+) -> None:
+    lifecycle_stubs()
+    _write_identity_project(
+        projects_root,
+        "gh_acme__widgets",
+        tmp_path / "widgets-ws",
+        display_name="widgets",
+    )
+
+    assert canonical_xprompt_project("docs") == "docs"
+
+    project_aliases.set_project_aliases_locked(
+        "gh_acme__widgets",
+        ["docs"],
+        projects_root=projects_root,
+    )
+
+    assert canonical_xprompt_project("docs") == "widgets"
+
+
+def test_project_lifecycle_mutation_invalidates_xprompt_identity(
+    projects_root: Path,
+    _lifecycle_reader: None,
+    lifecycle_stubs: Callable[[], None],
+    tmp_path: Path,
+) -> None:
+    lifecycle_stubs()
+    workspace = tmp_path / "widgets-ws"
+
+    assert canonical_xprompt_project("gh_acme__widgets") == "gh_acme__widgets"
+
+    _write_identity_project(
+        projects_root,
+        "gh_acme__widgets",
+        workspace,
+        display_name="widgets",
+        state="disabled",
+    )
+
+    project_handler.set_project_state_locked("gh_acme__widgets", "enabled")
+
+    assert known_project_namespaces() == {"widgets": workspace}

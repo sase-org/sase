@@ -26,6 +26,15 @@ from sase.workspace_provider.utils import (
 )
 
 
+def _invalidate_project_identity() -> None:
+    try:
+        from sase.project_display_names import invalidate_project_display_snapshot
+
+        invalidate_project_display_snapshot()
+    except Exception:
+        pass
+
+
 def set_bare_repo_dir(project_file: str, bare_repo_dir: str) -> bool:
     """Set or update the BARE_REPO_DIR field in a .gp project file.
 
@@ -42,6 +51,7 @@ def set_bare_repo_dir(project_file: str, bare_repo_dir: str) -> bool:
         if not os.path.exists(project_file):
             with open(project_file, "w", encoding="utf-8") as f:
                 f.write(f"BARE_REPO_DIR: {bare_repo_dir}\n")
+            _invalidate_project_identity()
             return True
 
         with changespec_lock(project_file):
@@ -60,6 +70,7 @@ def set_bare_repo_dir(project_file: str, bare_repo_dir: str) -> bool:
                         "".join(lines),
                         f"Update BARE_REPO_DIR to {bare_repo_dir}",
                     )
+                    _invalidate_project_identity()
                     return True
 
             # Insert before first RUNNING: or NAME: line
@@ -75,6 +86,7 @@ def set_bare_repo_dir(project_file: str, bare_repo_dir: str) -> bool:
                 "".join(lines),
                 f"Set BARE_REPO_DIR to {bare_repo_dir}",
             )
+            _invalidate_project_identity()
             return True
     except Exception:
         return False

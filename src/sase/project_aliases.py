@@ -75,6 +75,12 @@ def _projects_root(projects_root: Path | None) -> Path:
     )
 
 
+def _invalidate_xprompt_project_identity() -> None:
+    from sase.xprompt.project_identity import invalidate_xprompt_project_identity
+
+    invalidate_xprompt_project_identity()
+
+
 def _filtered_project_records(
     projects_root: Path | str | None,
 ) -> list[ProjectRecordWire]:
@@ -89,7 +95,7 @@ def set_project_aliases_locked(
     projects_root: Path | None = None,
 ) -> ProjectRecordWire:
     """Replace aliases for *project* while holding the ProjectSpec lock."""
-    return _set_project_aliases_locked(
+    record = _set_project_aliases_locked(
         project,
         aliases,
         projects_root=_projects_root(projects_root),
@@ -97,6 +103,8 @@ def set_project_aliases_locked(
         list_project_records=list_project_records,
         apply_project_aliases_update=apply_project_aliases_update,
     )
+    _invalidate_xprompt_project_identity()
+    return record
 
 
 def add_project_alias_locked(
@@ -106,7 +114,7 @@ def add_project_alias_locked(
     projects_root: Path | None = None,
 ) -> ProjectRecordWire:
     """Add *alias* to *project* while holding the ProjectSpec lock."""
-    return _add_project_alias_locked(
+    record = _add_project_alias_locked(
         project,
         alias,
         projects_root=_projects_root(projects_root),
@@ -114,6 +122,8 @@ def add_project_alias_locked(
         list_project_records=list_project_records,
         apply_project_aliases_update=apply_project_aliases_update,
     )
+    _invalidate_xprompt_project_identity()
+    return record
 
 
 def remove_project_alias_locked(
@@ -123,7 +133,7 @@ def remove_project_alias_locked(
     projects_root: Path | None = None,
 ) -> ProjectRecordWire:
     """Remove *alias* from *project* while holding the ProjectSpec lock."""
-    return _remove_project_alias_locked(
+    record = _remove_project_alias_locked(
         project,
         alias,
         projects_root=_projects_root(projects_root),
@@ -131,6 +141,8 @@ def remove_project_alias_locked(
         list_project_records=list_project_records,
         apply_project_aliases_update=apply_project_aliases_update,
     )
+    _invalidate_xprompt_project_identity()
+    return record
 
 
 def clear_project_aliases_locked(
