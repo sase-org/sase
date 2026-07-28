@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
     from sase.ace.tui.widgets.xprompt_arg_assist import (
         ActiveXPromptArgHint,
-        PendingOptionalSpacer,
+        PendingXPromptCompletionSpacer,
     )
 else:
     _MixinBase = object
@@ -55,7 +55,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _active_xprompt_arg_hint: ActiveXPromptArgHint | None
-        _pending_optional_spacer: PendingOptionalSpacer | None
+        _pending_xprompt_completion_spacer: PendingXPromptCompletionSpacer | None
         _completion_kind: str
         _dot_insert_capture_offset: int | None
         _file_completion_active: bool
@@ -88,9 +88,10 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             cancel_timer: bool = False,
         ) -> None: ...
         def _clear_xprompt_arg_hint(self) -> None: ...
-        def _consume_optional_spacer_colon(
+        def _consume_xprompt_completion_spacer(
             self,
-            pending: PendingOptionalSpacer,
+            pending: PendingXPromptCompletionSpacer,
+            character: str | None,
         ) -> bool: ...
         def _delete_selected_file_completion(self) -> bool: ...
         def _enter_normal_mode(self) -> None: ...
@@ -152,17 +153,19 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
 
     async def _on_key(self, event: Key) -> None:
         """Intercept keys before TextArea's default handler inserts characters."""
-        # A just-accepted optional-only xprompt left a trailing spacer
-        # (``#name ``); the next typed ``:`` replaces it in place so the common
-        # ``#name:`` colon-argument flow needs no manual backspace. The spacer is
-        # a one-shot convenience: any other key (or a cursor that has moved off
-        # it) drops the pending state and lets the colon insert normally.
-        pending_spacer = self._pending_optional_spacer
+        # A just-accepted no-required-input xprompt left a trailing spacer
+        # (``#name ``). An immediate comma replaces it for both no-input and
+        # optional-only entries; an immediate colon does so only for
+        # optional-only entries. The spacer is a one-shot convenience: any
+        # other key or invalidated text/cursor drops the pending state.
+        pending_spacer = self._pending_xprompt_completion_spacer
         if pending_spacer is not None:
-            self._pending_optional_spacer = None
-            if event.character == ":" and self._consume_optional_spacer_colon(
-                pending_spacer
+            self._pending_xprompt_completion_spacer = None
+            if self._consume_xprompt_completion_spacer(
+                pending_spacer,
+                event.character,
             ):
+                self._refresh_file_completion_from_cursor()
                 self._open_auto_reference_completion_after_change(event.character)
                 event.stop()
                 event.prevent_default()

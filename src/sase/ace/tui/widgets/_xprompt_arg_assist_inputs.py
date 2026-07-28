@@ -24,6 +24,11 @@ def required_inputs(entry: XPromptAssistEntry) -> tuple[XPromptInputHint, ...]:
     return tuple(inp for inp in entry.inputs if inp.required)
 
 
+def has_no_required_inputs(entry: XPromptAssistEntry) -> bool:
+    """Return True when an entry has no required user-facing inputs."""
+    return not any(inp.required for inp in entry.inputs)
+
+
 def has_only_optional_inputs(entry: XPromptAssistEntry) -> bool:
     """Return True when an entry has inputs and all of them are optional.
 
@@ -32,7 +37,7 @@ def has_only_optional_inputs(entry: XPromptAssistEntry) -> bool:
     ``:`` replace that spacer -- a no-input xprompt has no arguments to
     introduce, so its trailing space must be left untouched.
     """
-    return bool(entry.inputs) and not any(inp.required for inp in entry.inputs)
+    return bool(entry.inputs) and has_no_required_inputs(entry)
 
 
 def input_label(input_hint: XPromptInputHint) -> str:
@@ -123,6 +128,7 @@ def _default_display_from_input_arg(inp: InputArg) -> str | None:
 __all__ = [
     "append_input_args",
     "append_input_hints",
+    "has_no_required_inputs",
     "has_only_optional_inputs",
     "input_hint_from_input_arg",
     "input_label",

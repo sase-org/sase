@@ -150,7 +150,7 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             (row, end),
         )
         if expanded:
-            self._note_optional_xprompt_spacer(selected.metadata)
+            self._note_xprompt_completion_spacer(selected.metadata)
         return expanded
 
     def _refresh_xprompt_completion_skeleton_hint(

@@ -83,7 +83,7 @@ class PromptFormatMixin(_MixinBase):
         _prompt_format_request_id: int
         _dot_insert_capture_offset: int | None
         _mutation_key_buffer: list[str]
-        _pending_optional_spacer: object | None
+        _pending_xprompt_completion_spacer: object | None
         _snippet_end_from_doc_end: int
         _snippet_tabstops: list[int]
         _vcs_mru_index: int | None
@@ -135,7 +135,7 @@ class PromptFormatMixin(_MixinBase):
         self._clear_prompt_search(clear_highlights=True)
         self._snippet_tabstops = []
         self._snippet_end_from_doc_end = 0
-        self._pending_optional_spacer = None
+        self._pending_xprompt_completion_spacer = None
         self._vcs_mru_index = None
         # ``gf`` is an explicit editor command, not a repeatable Vim mutation.
         self._mutation_key_buffer.clear()

@@ -569,7 +569,7 @@ class PromptInputBarActionsMixin(_MixinBase):
         if not text_area._expand_snippet_template_at_range(skeleton, start, end):
             return False
 
-        text_area._note_optional_xprompt_spacer(entry)
+        text_area._note_xprompt_completion_spacer(entry)
         cursor_offset = text_area._absolute_offset(text_area.cursor_location)
         hint = detect_xprompt_arg_hint_at_cursor(
             text_area.text,

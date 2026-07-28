@@ -1,9 +1,8 @@
-"""Tests for the optional-only xprompt trailing-spacer ``:`` rewrite.
+"""Tests for one-shot punctuation rewrites of xprompt completion spacers.
 
-When an optional-only xprompt completes to ``#name `` (a deliberate trailing
-spacer), typing ``:`` immediately afterward should replace the spacer so the
-prompt becomes ``#name:`` without a manual ``<backspace>``.  No-input xprompts
-and any intervening keystroke must leave the spacer untouched.
+When an xprompt without required inputs completes to ``#name `` (a deliberate
+trailing spacer), typing ``,`` immediately afterward replaces the spacer.
+Optional-only xprompts additionally support the existing ``:`` rewrite.
 """
 
 from __future__ import annotations
@@ -20,6 +19,7 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     XPromptInputHint,
+    has_no_required_inputs,
     has_only_optional_inputs,
 )
 
@@ -109,17 +109,18 @@ def _compute_soft_now(ta: PromptTextArea) -> None:
     )
 
 
-def test_has_only_optional_inputs_predicate() -> None:
+def test_no_required_and_optional_only_input_predicates() -> None:
+    assert has_no_required_inputs(_entry("plain")) is True
+    assert has_no_required_inputs(_optional_entry()) is True
     assert has_only_optional_inputs(_optional_entry()) is True
-    # No inputs -> not optional-only (no argument to introduce).
+    # No inputs are eligible for comma tightening, but not colon arguments.
     assert has_only_optional_inputs(_entry("plain")) is False
-    # A required input present -> not optional-only.
-    assert (
-        has_only_optional_inputs(
-            _entry("mixed", inputs=(_input("path", "path", required=True),))
-        )
-        is False
+    required = _entry(
+        "mixed",
+        inputs=(_input("path", "path", required=True),),
     )
+    assert has_no_required_inputs(required) is False
+    assert has_only_optional_inputs(required) is False
 
 
 async def test_optional_only_ctrl_t_single_candidate_then_colon() -> None:
@@ -132,15 +133,57 @@ async def test_optional_only_ctrl_t_single_candidate_then_colon() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == "#optional "
-        assert ta._pending_optional_spacer is not None
+        assert ta._pending_xprompt_completion_spacer is not None
 
         await pilot.press(":")
 
     assert ta.text == "#optional:"
-    assert ta._pending_optional_spacer is None
+    assert ta._pending_xprompt_completion_spacer is None
 
 
-async def test_optional_only_ctrl_t_before_punctuation_records_no_spacer() -> None:
+async def test_no_input_ctrl_t_single_candidate_then_comma() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#p")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, [_entry("plain")])
+        await pilot.press("ctrl+t")
+
+        pending = ta._pending_xprompt_completion_spacer
+        assert ta.text == "#plain "
+        assert pending is not None
+        assert pending.has_optional_inputs is False
+
+        await pilot.press(",")
+
+    assert ta.text == "#plain,"
+    assert ta.cursor_location == (0, len("#plain,"))
+    assert ta._pending_xprompt_completion_spacer is None
+
+
+async def test_optional_only_ctrl_t_single_candidate_then_comma() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#o")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, [_optional_entry()])
+        await pilot.press("ctrl+t")
+
+        pending = ta._pending_xprompt_completion_spacer
+        assert ta.text == "#optional "
+        assert pending is not None
+        assert pending.has_optional_inputs is True
+
+        await pilot.press(",")
+
+    assert ta.text == "#optional,"
+    assert ta.cursor_location == (0, len("#optional,"))
+    assert ta._pending_xprompt_completion_spacer is None
+
+
+async def test_completion_before_punctuation_records_no_spacer() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -151,15 +194,15 @@ async def test_optional_only_ctrl_t_before_punctuation_records_no_spacer() -> No
 
         assert ta.text == "(#optional)"
         assert ta.cursor_location == (0, len("(#optional"))
-        assert ta._pending_optional_spacer is None
+        assert ta._pending_xprompt_completion_spacer is None
 
-        await pilot.press(":")
+        await pilot.press(",")
 
-    assert ta.text == "(#optional:)"
-    assert ta._pending_optional_spacer is None
+    assert ta.text == "(#optional,)"
+    assert ta._pending_xprompt_completion_spacer is None
 
 
-async def test_optional_only_panel_accept_then_colon() -> None:
+async def test_completion_panel_accept_then_comma() -> None:
     entries = [_optional_entry(), _entry("ship")]
     app = CompletionTestApp()
     async with app.run_test() as pilot:
@@ -172,11 +215,12 @@ async def test_optional_only_panel_accept_then_colon() -> None:
         await pilot.press("enter")
 
         assert ta.text == "#optional "
-        assert ta._pending_optional_spacer is not None
+        assert ta._pending_xprompt_completion_spacer is not None
 
-        await pilot.press(":")
+        await pilot.press(",")
 
-    assert ta.text == "#optional:"
+    assert ta.text == "#optional,"
+    assert ta._pending_xprompt_completion_spacer is None
 
 
 async def test_optional_agent_spacer_colon_opens_agent_menu() -> None:
@@ -194,12 +238,12 @@ async def test_optional_agent_spacer_colon_opens_agent_menu() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == "#fork "
-        assert ta._pending_optional_spacer is not None
+        assert ta._pending_xprompt_completion_spacer is not None
 
         await pilot.press(":")
 
     assert ta.text == "#fork:"
-    assert ta._pending_optional_spacer is None
+    assert ta._pending_xprompt_completion_spacer is None
     assert ta._file_completion_active is True
     assert ta._completion_kind == "xprompt_arg_agent"
     assert [c.insertion for c in ta._file_completion_candidates] == [
@@ -222,7 +266,7 @@ async def test_optional_agent_spacer_colon_respects_disabled_auto_menu() -> None
         await pilot.press("ctrl+t")
 
         assert ta.text == "#fork "
-        assert ta._pending_optional_spacer is not None
+        assert ta._pending_xprompt_completion_spacer is not None
 
         with patch.object(
             type(ta),
@@ -232,29 +276,30 @@ async def test_optional_agent_spacer_colon_respects_disabled_auto_menu() -> None
             await pilot.press(":")
 
     assert ta.text == "#fork:"
-    assert ta._pending_optional_spacer is None
+    assert ta._pending_xprompt_completion_spacer is None
     assert ta._file_completion_active is False
 
 
-async def test_optional_only_soft_completion_then_colon() -> None:
+async def test_no_input_soft_completion_then_comma() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
-        _seed_entries(ta, [_optional_entry()])
-        ta.load_text("#o")
+        _seed_entries(ta, [_entry("plain")])
+        ta.load_text("#p")
         ta.cursor_location = (0, 2)
         _compute_soft_now(ta)
 
         await pilot.press("ctrl+l")
-        assert ta.text == "#optional "
-        assert ta._pending_optional_spacer is not None
+        assert ta.text == "#plain "
+        assert ta._pending_xprompt_completion_spacer is not None
 
-        await pilot.press(":")
+        await pilot.press(",")
 
-    assert ta.text == "#optional:"
+    assert ta.text == "#plain,"
+    assert ta._pending_xprompt_completion_spacer is None
 
 
-async def test_optional_only_selector_smart_insertion_then_colon() -> None:
+async def test_optional_only_selector_smart_insertion_then_comma() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
@@ -271,11 +316,12 @@ async def test_optional_only_selector_smart_insertion_then_colon() -> None:
 
         assert inserted is True
         assert ta.text == "#optional "
-        assert ta._pending_optional_spacer is not None
+        assert ta._pending_xprompt_completion_spacer is not None
 
-        await pilot.press(":")
+        await pilot.press(",")
 
-    assert ta.text == "#optional:"
+    assert ta.text == "#optional,"
+    assert ta._pending_xprompt_completion_spacer is None
 
 
 async def test_no_input_xprompt_colon_is_not_rewritten() -> None:
@@ -288,12 +334,13 @@ async def test_no_input_xprompt_colon_is_not_rewritten() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == "#plain "
-        assert ta._pending_optional_spacer is None
+        assert ta._pending_xprompt_completion_spacer is not None
 
         await pilot.press(":")
 
     # The trailing space survives; the colon simply inserts after it.
     assert ta.text == "#plain :"
+    assert ta._pending_xprompt_completion_spacer is None
 
 
 async def test_intervening_keystroke_clears_pending_spacer() -> None:
@@ -306,12 +353,85 @@ async def test_intervening_keystroke_clears_pending_spacer() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == "#optional "
-        assert ta._pending_optional_spacer is not None
+        assert ta._pending_xprompt_completion_spacer is not None
 
         # Any other character cancels the one-shot spacer rewrite.
         await pilot.press("x")
-        assert ta._pending_optional_spacer is None
+        assert ta._pending_xprompt_completion_spacer is None
 
-        await pilot.press(":")
+        await pilot.press(",")
 
-    assert ta.text == "#optional x:"
+    assert ta.text == "#optional x,"
+
+
+async def test_cursor_movement_invalidates_later_comma_rewrite() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#o")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, [_optional_entry()])
+        await pilot.press("ctrl+t")
+
+        assert ta._pending_xprompt_completion_spacer is not None
+        ta.cursor_location = (0, len("#optional"))
+        await pilot.press(",")
+
+    assert ta.text == "#optional, "
+    assert ta._pending_xprompt_completion_spacer is None
+
+
+async def test_changed_reference_invalidates_later_comma_rewrite() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#o")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, [_optional_entry()])
+        await pilot.press("ctrl+t")
+
+        assert ta._pending_xprompt_completion_spacer is not None
+        ta.load_text("#changedx ")
+        ta.cursor_location = (0, len("#changedx "))
+        await pilot.press(",")
+
+    assert ta.text == "#changedx ,"
+    assert ta._pending_xprompt_completion_spacer is None
+
+
+async def test_absent_spacer_invalidates_later_comma_rewrite() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#o")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, [_optional_entry()])
+        await pilot.press("ctrl+t")
+
+        assert ta._pending_xprompt_completion_spacer is not None
+        spacer_offset = len("#optional")
+        ta._replace_absolute_range(spacer_offset, spacer_offset + 1, "x")
+        await pilot.press(",")
+
+    assert ta.text == "#optionalx,"
+    assert ta._pending_xprompt_completion_spacer is None
+
+
+async def test_required_text_completion_does_not_record_pending_spacer() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        entry = _entry(
+            "body",
+            inputs=(_input("body", "text", required=True),),
+        )
+        ta.load_text("#b")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, [entry])
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "#body:: "
+        assert ta._pending_xprompt_completion_spacer is None
+        await pilot.press(",")
+
+    assert ta.text == "#body:: ,"

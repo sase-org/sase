@@ -50,7 +50,10 @@ class PromptSoftCompletionMixin(_MixinBase):
         def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
         def _schedule_xprompt_assist_warm(self, project: str | None) -> None: ...
         def _clear_xprompt_arg_hint(self) -> None: ...
-        def _note_optional_xprompt_spacer(self, entry: XPromptAssistEntry) -> None: ...
+        def _note_xprompt_completion_spacer(
+            self,
+            entry: XPromptAssistEntry,
+        ) -> None: ...
         def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
         def _refresh_xprompt_completion_skeleton_hint(
             self,
@@ -294,7 +297,7 @@ class PromptSoftCompletionMixin(_MixinBase):
                 end,
             )
             if used_xprompt_skeleton:
-                self._note_optional_xprompt_spacer(selected.metadata)
+                self._note_xprompt_completion_spacer(selected.metadata)
 
         if not used_xprompt_skeleton:
             self._replace_absolute_range(

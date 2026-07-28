@@ -16,6 +16,7 @@ from ._xprompt_arg_assist_detection import (
 from ._xprompt_arg_assist_inputs import (
     append_input_args,
     append_input_hints,
+    has_no_required_inputs,
     has_only_optional_inputs,
     input_hint_from_input_arg,
     input_label,
@@ -24,7 +25,7 @@ from ._xprompt_arg_assist_inputs import (
 )
 from ._xprompt_arg_assist_models import (
     ActiveXPromptArgHint,
-    PendingOptionalSpacer,
+    PendingXPromptCompletionSpacer,
     XPromptArgCompletionContext,
     XPromptAssistEntry,
     XPromptInputHint,
@@ -38,7 +39,7 @@ from ._xprompt_arg_assist_skeletons import (
 
 __all__ = [
     "ActiveXPromptArgHint",
-    "PendingOptionalSpacer",
+    "PendingXPromptCompletionSpacer",
     "XPromptArgCompletionContext",
     "XPromptAssistEntry",
     "XPromptInputHint",
@@ -49,6 +50,7 @@ __all__ = [
     "colon_args_skeleton",
     "detect_xprompt_arg_completion_at_cursor",
     "detect_xprompt_arg_hint_at_cursor",
+    "has_no_required_inputs",
     "has_only_optional_inputs",
     "input_hint_from_input_arg",
     "input_label",

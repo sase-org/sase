@@ -6,11 +6,11 @@ from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
-    PendingOptionalSpacer,
+    PendingXPromptCompletionSpacer,
     XPromptAssistEntry,
     accepted_xprompt_arg_hint,
     detect_xprompt_arg_hint_at_cursor,
-    has_only_optional_inputs,
+    has_no_required_inputs,
     merge_local_xprompt_entries,
     named_args_skeleton,
 )
@@ -37,7 +37,7 @@ class XPromptArgHintMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _active_xprompt_arg_hint: ActiveXPromptArgHint | None
-        _pending_optional_spacer: PendingOptionalSpacer | None
+        _pending_xprompt_completion_spacer: PendingXPromptCompletionSpacer | None
         _file_completion_active: bool
         _snippet_tabstops: list[int]
         _xprompt_arg_assist_entries_by_project: dict[
@@ -311,18 +311,17 @@ class XPromptArgHintMixin(_MixinBase):
             end,
         )
 
-    def _note_optional_xprompt_spacer(self, entry: XPromptAssistEntry) -> None:
-        """Record the trailing spacer left by an optional-only xprompt accept.
+    def _note_xprompt_completion_spacer(self, entry: XPromptAssistEntry) -> None:
+        """Record a trailing spacer left by an eligible xprompt completion.
 
-        Optional-only xprompts complete to ``#name `` with a deliberate trailing
-        space; remembering it lets the next typed ``:`` replace the spacer so the
-        common ``#name:`` colon-argument flow needs no manual backspace.
-        No-input and required-input xprompts never record a spacer, so their
-        spacing is left untouched.  Must be called immediately after the skeleton
-        expansion, while the cursor still sits right after the inserted space.
+        Xprompts without required inputs complete to ``#name ``. Remembering
+        that exact spacer lets the next comma replace it for both no-input and
+        optional-only entries, while a colon may replace it only when optional
+        inputs exist. Must be called immediately after skeleton expansion while
+        the cursor still sits right after the inserted space.
         """
-        self._pending_optional_spacer = None
-        if not has_only_optional_inputs(entry):
+        self._pending_xprompt_completion_spacer = None
+        if not has_no_required_inputs(entry):
             return
         cursor_offset = self._absolute_offset(self.cursor_location)
         spacer_offset = cursor_offset - 1
@@ -333,20 +332,27 @@ class XPromptArgHintMixin(_MixinBase):
             return
         if self.text[reference_start:spacer_offset] != entry.insertion:
             return
-        self._pending_optional_spacer = PendingOptionalSpacer(
+        self._pending_xprompt_completion_spacer = PendingXPromptCompletionSpacer(
             spacer_offset=spacer_offset,
             reference_start=reference_start,
             reference_text=entry.insertion,
+            has_optional_inputs=bool(entry.inputs),
         )
 
-    def _consume_optional_spacer_colon(self, pending: PendingOptionalSpacer) -> bool:
-        """Replace a pending optional spacer with ``:`` when still valid.
+    def _consume_xprompt_completion_spacer(
+        self,
+        pending: PendingXPromptCompletionSpacer,
+        character: str | None,
+    ) -> bool:
+        """Replace a pending completion spacer with eligible punctuation.
 
-        Returns True when the spacer was rewritten so the caller can swallow the
-        typed ``:``.  Returns False -- leaving the colon to insert normally --
-        when the cursor moved off the spacer or the reference text changed since
-        the completion was accepted.
+        A comma is eligible for no-input and optional-only entries; a colon is
+        eligible only when the completed entry has optional inputs. Returns
+        False when the character is ineligible or the cursor, spacer, or
+        reference text changed since completion acceptance.
         """
+        if character != "," and not (character == ":" and pending.has_optional_inputs):
+            return False
         text = self.text
         spacer_end = pending.spacer_offset + 1
         if spacer_end > len(text):
@@ -360,5 +366,5 @@ class XPromptArgHintMixin(_MixinBase):
             != pending.reference_text
         ):
             return False
-        self._replace_absolute_range(pending.spacer_offset, spacer_end, ":")
+        self._replace_absolute_range(pending.spacer_offset, spacer_end, character)
         return True

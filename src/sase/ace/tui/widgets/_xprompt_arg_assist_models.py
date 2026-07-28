@@ -47,19 +47,20 @@ class ActiveXPromptArgHint:
 
 
 @dataclass(frozen=True, slots=True)
-class PendingOptionalSpacer:
-    """A trailing spacer left by an optional-only xprompt completion.
+class PendingXPromptCompletionSpacer:
+    """A trailing spacer left by an xprompt completion.
 
-    Optional-only xprompts complete to ``#name `` with a deliberate trailing
-    space. This records the inserted spacer so the next typed ``:`` can replace
-    it in place (``#name `` -> ``#name:``). The recorded identity lets the edit
+    Xprompts without required inputs complete to ``#name `` with a deliberate
+    trailing space. This records the inserted spacer so the next typed
+    punctuation can replace it in place. The recorded identity lets the edit
     layer confirm the cursor still sits immediately after the spacer and the
-    reference text is unchanged before consuming the colon.
+    reference text is unchanged before consuming the punctuation.
     """
 
     spacer_offset: int
     reference_start: int
     reference_text: str
+    has_optional_inputs: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,7 +85,7 @@ class XPromptArgCompletionContext:
 
 __all__ = [
     "ActiveXPromptArgHint",
-    "PendingOptionalSpacer",
+    "PendingXPromptCompletionSpacer",
     "XPromptArgCompletionContext",
     "XPromptAssistEntry",
     "XPromptInputHint",
