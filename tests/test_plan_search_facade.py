@@ -192,6 +192,63 @@ def test_search_indexes_flat_sidecar_plans_root(tmp_path: Path) -> None:
     assert _names(matches) == ["flat_sidecar"]
 
 
+def test_search_indexes_flat_sidecar_root_with_readme_only_plans_subdir(
+    tmp_path: Path,
+) -> None:
+    plans = tmp_path / "repo--plans"
+    local = tmp_path / "local"
+    (plans / "plans").mkdir(parents=True)
+    (plans / "plans" / "README.md").write_text("generated directory guide\n")
+    _write_plan(
+        plans / "202607" / "flat_sidecar.md",
+        title="Flat sidecar plan",
+        status="wip",
+        create_time="2026-07-11 19:00:00",
+        body="README-only child directories must not shadow flat sidecar plans.",
+    )
+
+    assert facade._is_flat_plans_root(plans)
+
+    matches = facade.search(
+        "shadow",
+        source=facade.SOURCE_REPO,
+        repo_root=plans,
+        local_dir=local,
+    )
+
+    assert _names(matches) == ["flat_sidecar"]
+
+
+def test_search_treats_monthly_plans_subdir_as_nested_root(tmp_path: Path) -> None:
+    root = tmp_path / "sdd"
+    local = tmp_path / "local"
+    _write_plan(
+        root / "202607" / "flat_shadowed.md",
+        title="Flat shadowed plan",
+        status="wip",
+        create_time="2026-07-11 19:00:00",
+        body="This flat plan should be ignored once a nested plans root exists.",
+    )
+    _write_plan(
+        root / "plans" / "202608" / "nested_wins.md",
+        title="Nested wins plan",
+        status="wip",
+        create_time="2026-08-01 09:00:00",
+        body="The nested plans root remains authoritative.",
+    )
+
+    assert not facade._is_flat_plans_root(root)
+
+    matches = facade.search(
+        "nested",
+        source=facade.SOURCE_REPO,
+        repo_root=root,
+        local_dir=local,
+    )
+
+    assert _names(matches) == ["nested_wins"]
+
+
 @pytest.mark.parametrize("flat", [False, True])
 def test_search_indexes_prompt_inventory(tmp_path: Path, flat: bool) -> None:
     repo = tmp_path / ("repo--plans" if flat else "sdd")

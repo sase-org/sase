@@ -10,6 +10,7 @@ import yaml  # type: ignore[import-untyped]
 
 from sase.sdd._link_models import SddFile
 from sase.sdd._link_support import LIST_KINDS, PROMPT_KINDS, relpath
+from sase.sdd._paths import has_month_dirs, is_month_dir_name
 from sase.sdd.artifact_links import parse_sdd_artifact_link
 from sase.sdd.plan_tiers import classify_plan_file
 
@@ -32,7 +33,7 @@ def list_sdd_files(root: Path, *, kind: str = "all") -> list[SddFile]:
     """Return known SDD markdown files under ``root``."""
     files: list[SddFile] = []
     plans_root = root / "plans"
-    if not plans_root.is_dir():
+    if not has_month_dirs(plans_root):
         plans_root = root
     if kind in {"all", "prompts"}:
         if plans_root.is_dir():
@@ -75,6 +76,8 @@ def _read_sdd_file(root: Path, path: Path, kind: str) -> SddFile | None:
     if len(parts) != 3 and not nested_prompt and not flat_prompt and not flat_plan:
         return None
     yyyymm = parts[0] if flat_prompt or flat_plan else parts[1]
+    if not is_month_dir_name(yyyymm):
+        return None
     content = path.read_text(encoding="utf-8")
     artifact_link = parse_sdd_artifact_link(content)
     frontmatter, _, had_frontmatter, parse_error = _parse_frontmatter_strict(content)
@@ -123,11 +126,7 @@ def _looks_like_project_root(path: Path) -> bool:
         return False
     if (path / "beads").is_dir():
         return False
-    has_flat_months = any(
-        child.is_dir() and len(child.name) == 6 and child.name.isdigit()
-        for child in path.iterdir()
-    )
-    if has_flat_months:
+    if has_month_dirs(path):
         return False
     has_project_marker = (
         (path / "sase" / "sase.yml").is_file()

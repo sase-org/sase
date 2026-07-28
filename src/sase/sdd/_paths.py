@@ -83,7 +83,7 @@ def sdd_kind_roots(base_dir: Path, kind: str) -> list[Path]:
             if root not in seen:
                 roots.append(root)
                 seen.add(root)
-    if kind in {"plans", "research"} and _has_month_dirs(base_dir):
+    if kind in {"plans", "research"} and has_month_dirs(base_dir):
         if base_dir not in seen:
             roots.append(base_dir)
     return roots
@@ -98,7 +98,7 @@ def sdd_prompt_roots(base_dir: Path) -> list[Path]:
     roots: list[Path] = []
     seen: set[Path] = set()
     plans_roots = [base_dir / "sdd" / "plans", base_dir / "plans"]
-    if _has_month_dirs(base_dir):
+    if has_month_dirs(base_dir):
         plans_roots.append(base_dir)
     for plans_root in plans_roots:
         for root in sorted(plans_root.glob("*/prompts")):
@@ -173,17 +173,20 @@ def looks_like_sdd_root(path: Path) -> bool:
         return False
     return any(
         (path / dirname).is_dir() for dirname in _SDD_ROOT_DIRS
-    ) or _has_month_dirs(path)
+    ) or has_month_dirs(path)
 
 
-def _has_month_dirs(path: Path) -> bool:
+def has_month_dirs(path: Path) -> bool:
     try:
         return any(
-            child.is_dir() and _MONTH_DIR_RE.fullmatch(child.name)
-            for child in path.iterdir()
+            child.is_dir() and is_month_dir_name(child.name) for child in path.iterdir()
         )
     except OSError:
         return False
+
+
+def is_month_dir_name(name: str) -> bool:
+    return _MONTH_DIR_RE.fullmatch(name) is not None
 
 
 def get_primary_workspace_dir(

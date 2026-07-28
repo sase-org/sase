@@ -28,6 +28,7 @@ from sase.core.rust import require_rust_binding
 from sase.plan_search.model import PlanSearchMatch
 from sase.plan_search.wire import plan_search_matches_from_list
 from sase.sdd.links import resolve_sdd_root
+from sase.sdd._paths import has_month_dirs
 from sase.sdd.store import resolve_sdd_dir
 
 SOURCE_ALL = "all"
@@ -148,15 +149,9 @@ def search(
 
 
 def _is_flat_plans_root(path: Path) -> bool:
-    if (path / "plans").is_dir():
+    if has_month_dirs(path / "plans"):
         return False
-    try:
-        return any(
-            child.is_dir() and len(child.name) == 6 and child.name.isdigit()
-            for child in path.iterdir()
-        )
-    except OSError:
-        return False
+    return has_month_dirs(path)
 
 
 def _search_flat_plans_root(
