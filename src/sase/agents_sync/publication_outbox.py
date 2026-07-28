@@ -319,24 +319,6 @@ def acknowledge_agent_publications(
     )
 
 
-def drop_terminal_agent_publications(
-    project_key: str,
-) -> tuple[AgentPublicationOutboxItem, ...]:
-    """Drop terminal requests and return the requests that were removed."""
-
-    dropped: tuple[AgentPublicationOutboxItem, ...] = ()
-
-    def update(
-        items: tuple[AgentPublicationOutboxItem, ...],
-    ) -> tuple[AgentPublicationOutboxItem, ...]:
-        nonlocal dropped
-        dropped = tuple(item for item in items if item.terminal)
-        return tuple(item for item in items if not item.terminal)
-
-    _mutate_outbox(project_key, update)
-    return dropped
-
-
 def _mutate_outbox(
     project_key: str,
     update: Callable[
@@ -547,7 +529,6 @@ __all__ = [
     "acknowledge_agent_publications",
     "clear_quarantined_agent_publications",
     "configured_publication_max_attempts",
-    "drop_terminal_agent_publications",
     "enqueue_agent_publication",
     "list_agent_publications",
     "publication_quarantine_diagnostics",

@@ -7,7 +7,6 @@ from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
     acknowledge_agent_publications,
     clear_quarantined_agent_publications,
-    drop_terminal_agent_publications,
     enqueue_agent_publication,
     list_agent_publications,
     snapshot_agent_publications_from_path,
@@ -139,7 +138,7 @@ def test_repeated_terminal_failure_retires_without_quarantining(
     assert list_agent_publications("proj", include_quarantined=False) == ()
 
 
-def test_retry_quarantined_skips_terminal_and_drop_returns_only_terminal(
+def test_retry_quarantined_keeps_terminal_retired(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -182,8 +181,7 @@ def test_retry_quarantined_skips_terminal_and_drop_returns_only_terminal(
     assert not active.quarantined and active.attempts == 0
     assert active.last_error is None
 
-    assert drop_terminal_agent_publications("proj") == (retired,)
-    assert list_agent_publications("proj") == (active,)
+    assert list_agent_publications("proj") == retried
 
 
 def test_schema_v1_backlog_is_read_and_upgraded_without_data_loss(
