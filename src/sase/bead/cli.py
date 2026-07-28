@@ -27,6 +27,7 @@ from sase.bead.cli_basic import (
     handle_bead_update,
 )
 from sase.bead.cli_work import handle_bead_work
+from sase.bead.cli_pages import handle_bead_pages
 from sase.bead.model import IssueType, Status
 
 _confirm_cleanup = cli_work.confirm_cleanup
@@ -76,6 +77,7 @@ __all__ = [
     "handle_bead_note",
     "handle_bead_onboard",
     "handle_bead_open",
+    "handle_bead_pages",
     "handle_bead_ready",
     "handle_bead_resolve_conflicts",
     "handle_bead_rm",

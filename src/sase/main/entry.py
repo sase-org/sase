@@ -81,6 +81,7 @@ def main() -> NoReturn:
             handle_bead_note,
             handle_bead_onboard,
             handle_bead_open,
+            handle_bead_pages,
             handle_bead_ready,
             handle_bead_resolve_conflicts,
             handle_bead_rm,
@@ -94,32 +95,33 @@ def main() -> NoReturn:
 
         bead_sub = getattr(args, "bead_subcommand", None)
         _BEAD_HANDLERS = {
-            "init": handle_bead_init,
-            "create": handle_bead_create,
-            "list": handle_bead_list,
-            "show": handle_bead_show,
-            "ready": handle_bead_ready,
-            "resolve-conflicts": handle_bead_resolve_conflicts,
-            "open": handle_bead_open,
-            "update": handle_bead_update,
-            "close": handle_bead_close,
-            "rm": handle_bead_rm,
-            "search": handle_bead_search,
-            "dep": handle_bead_dep,
             "blocked": handle_bead_blocked,
-            "sync": handle_bead_sync,
-            "stats": handle_bead_stats,
+            "close": handle_bead_close,
+            "create": handle_bead_create,
+            "dep": handle_bead_dep,
             "doctor": handle_bead_doctor,
             "history": handle_bead_history,
+            "init": handle_bead_init,
+            "list": handle_bead_list,
             "note": handle_bead_note,
             "onboard": handle_bead_onboard,
+            "open": handle_bead_open,
+            "pages": handle_bead_pages,
+            "ready": handle_bead_ready,
+            "resolve-conflicts": handle_bead_resolve_conflicts,
+            "rm": handle_bead_rm,
+            "search": handle_bead_search,
+            "show": handle_bead_show,
+            "stats": handle_bead_stats,
+            "sync": handle_bead_sync,
+            "update": handle_bead_update,
             "work": handle_bead_work,
         }
         handler = _BEAD_HANDLERS.get(bead_sub)  # type: ignore[arg-type]
         if handler is None:
             print(
                 "Usage: sase bead"
-                " {blocked,close,create,dep,doctor,history,init,list,onboard,open,ready,resolve-conflicts,rm,search,show,stats,sync,update,work}"
+                " {blocked,close,create,dep,doctor,history,init,list,onboard,open,pages,ready,resolve-conflicts,rm,search,show,stats,sync,update,work}"
             )
             sys.exit(1)
         try:

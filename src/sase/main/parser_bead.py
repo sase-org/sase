@@ -349,6 +349,77 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_open_parser = bead_subparsers.add_parser("open", help="Reopen an issue")
     bead_open_parser.add_argument("id", help="Issue ID to reopen")
 
+    # sase bead pages
+    bead_pages_parser = bead_subparsers.add_parser(
+        "pages",
+        help="Refresh generated bead pages or print a page URL",
+        description=(
+            "Reconcile generated Markdown pages in the project's beads "
+            "sidecar or resolve one bead's hosted page URL. A bare "
+            "'sase bead pages' invocation prints this help."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead pages refresh\n"
+            "  sase bead pages refresh --bead sase-ai.7\n"
+            "  sase bead pages refresh --json\n"
+            "  sase bead pages refresh --write\n"
+            "  sase bead pages url sase-ai.7"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    bead_pages_parser.set_defaults(_bead_pages_parser=bead_pages_parser)
+    bead_pages_subparsers = bead_pages_parser.add_subparsers(
+        dest="pages_action",
+        help="Page subcommands",
+        metavar="<subcommand>",
+        title="subcommands",
+    )
+    bead_pages_refresh_parser = bead_pages_subparsers.add_parser(
+        "refresh",
+        help="Reconcile generated pages from durable bead state",
+        description=(
+            "Rebuild bead lineage pages from durable state and repository "
+            "history. The default is a read-only dry run; --write applies "
+            "changes, removes orphaned pages, and commits one beads-store batch."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead pages refresh\n"
+            "  sase bead pages refresh --bead sase-ai.7\n"
+            "  sase bead pages refresh --json\n"
+            "  sase bead pages refresh --write"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    bead_pages_refresh_parser.add_argument(
+        "-b",
+        "--bead",
+        metavar="ID",
+        help="Refresh only the lineage containing bead ID",
+    )
+    bead_pages_refresh_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable refresh report",
+    )
+    bead_pages_refresh_parser.add_argument(
+        "-w",
+        "--write",
+        action="store_true",
+        help="Write and commit changed pages (default: dry run)",
+    )
+    bead_pages_url_parser = bead_pages_subparsers.add_parser(
+        "url",
+        help="Print one bead's hosted page URL",
+        description=(
+            "Resolve one bead's deterministic page address against the local "
+            "beads-sidecar remote and branch. This command never uses the network."
+        ),
+    )
+    bead_pages_url_parser.add_argument("bead_id", help="Bead ID")
+
     # sase bead ready
     bead_subparsers.add_parser("ready", help="Show issues ready to work")
 
