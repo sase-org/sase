@@ -42,6 +42,10 @@ from ._agent_display_state import DetailHeaderSummary, HeaderHintState
 from ._agent_output_variables import append_agent_output_variables_section
 from ._agent_plan_section import ResponsivePlanSection
 from ._agent_slow_tools_detail import ResponsiveSlowToolCallsSection
+from ._agent_wait_section import (
+    WAIT_SECTION_ID,
+    ResponsiveWaitSection,
+)
 from ._fold_language import append_fold_header_line
 from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
@@ -137,7 +141,8 @@ def build_header_text(
 
     queue_selection = runner_queue_selection(agent, runner_capacity)
 
-    meta_fields = append_agent_metadata_fields(
+    responsive_ranges: dict[str, tuple[int, int]] = {}
+    meta_fields, wait_section = append_agent_metadata_fields(
         header_text,
         agent,
         cheap=cheap,
@@ -151,6 +156,7 @@ def build_header_text(
         runner_queue_ahead_count=(
             queue_selection.ahead_count if queue_selection is not None else None
         ),
+        responsive_ranges=responsive_ranges,
     )
 
     append_runner_queue_section(header_text, agent, queue_selection)
@@ -236,7 +242,6 @@ def build_header_text(
     bead_section: ResponsiveBeadSection | None = None
     plan_section: ResponsivePlanSection | None = None
     slow_tool_section: ResponsiveSlowToolCallsSection | None = None
-    responsive_ranges: dict[str, tuple[int, int]] = {}
     if not cheap and summary is not None:
         from ._agent_context import append_agent_context_section
 
@@ -326,9 +331,13 @@ def build_header_text(
             int,
             ResponsiveBeadSection
             | ResponsivePlanSection
-            | ResponsiveSlowToolCallsSection,
+            | ResponsiveSlowToolCallsSection
+            | ResponsiveWaitSection,
         ]
     ] = []
+    if wait_section is not None and WAIT_SECTION_ID in responsive_ranges:
+        start, end = responsive_ranges[WAIT_SECTION_ID]
+        responsive_sections.append((start, end, wait_section))
     if bead_section is not None and "BEAD" in responsive_ranges:
         start, end = responsive_ranges["BEAD"]
         responsive_sections.append((start, end, bead_section))

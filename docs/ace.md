@@ -2351,14 +2351,17 @@ a pinned attempt view resets the cursor.
   its three levels, while a family uses compact/full across its two. `za` and `zA` can change only this section. For a
   root agent the list aggregates calls across its children while attributing each call to the child that made it.
 - **Wait state**: For a `WAITING` agent gated by `%wait`, a duration wait, or an absolute-time wait, the detail view
-  shows a `Wait:` line. It lists the dependency names recorded on the waiting agent, adds per-name status badges for
-  currently known agents, clan containers, or family containers, and marks unknown names with `?` so typos and stale
-  references are obvious. A WAITING list row also shows one amber `?` when any named dependency is absent from the
-  current agent status snapshot; bead-only, timed-only, and runner-only waits do not receive that marker. Timed waits
-  add compact duration, target time, and countdown text when available. An explicit runner threshold shows the live
-  running count, threshold, and its `queue #N of M` admission rank; `runners=0` is labeled as a drain barrier. A
-  `QUEUED` detail uses a separate `Queue:` line led by its rank and elapsed time since `slot_requested_at`, followed by
-  cap context. It deliberately suppresses the marker's stale dependency, bead, and time-wait fields.
+  shows a tagged `Wait:` block with one lane per active dimension: `[agents]`, `[beads]`, `[time]`, then `[runners]`.
+  Present tags occupy a padded gutter, so every value begins in one aligned column and long dependency lists wrap with a
+  hanging indent beneath that value column. The agent lane lists the dependency names recorded on the waiting agent,
+  adds per-name status badges for currently known agents, clan containers, or family containers, and marks unknown names
+  with `?` so typos and stale references are obvious. A WAITING list row also shows one amber `?` when any named
+  dependency is absent from the current agent status snapshot; bead-only, timed-only, and runner-only waits do not
+  receive that marker. Timed waits add compact duration, target time, and countdown text when available. An explicit
+  runner threshold shows the live running count, threshold, and its `queue #N of M` admission rank; `runners=0` is
+  labeled as a drain barrier. A `QUEUED` detail uses a separate `Queue:` line led by its rank and elapsed time since
+  `slot_requested_at`, followed by cap context. It deliberately suppresses the marker's stale dependency, bead, and
+  time-wait fields.
 - **OUTPUT VARIABLES**: Small string values written by the selected agent family with `sase var set KEY=VALUE`. A single
   contributing agent renders as a flat sorted key/value list; multiple family members render with compact role labels so
   root, planner, coder, tester, and follow-up values stay attributable. Multi-line values are indented, and the section

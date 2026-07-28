@@ -204,7 +204,7 @@ class TestAwareWaitUntilRendering:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert "Wait: until " in header.plain
+        assert "Wait: [time] until " in header.plain
         assert " left)" in header.plain
 
 
@@ -340,7 +340,8 @@ class TestRelativeWaitDurationRendering:
         wait_line = next(
             line for line in header.plain.splitlines() if line.startswith("Wait: ")
         )
-        assert wait_line == "Wait: dep + 5m"
+        assert wait_line == "Wait: [agents] dep"
+        assert "      [time]   5m" in header.plain
 
     def test_agent_row_omits_duration_countdown_while_agent_deps_pending(
         self,
@@ -443,7 +444,9 @@ class TestRelativeWaitDurationRendering:
             for line in child_header.plain.splitlines()
             if line.startswith("Wait: ")
         )
-        assert root_wait == child_wait == "Wait: dep + 5m"
+        assert root_wait == child_wait == "Wait: [agents] dep"
+        assert "      [time]   5m" in root_header.plain
+        assert "      [time]   5m" in child_header.plain
 
     def test_pure_duration_wait_still_renders_countdown(self) -> None:
         now = datetime(2026, 4, 11, 14, 13, 31)
@@ -463,7 +466,7 @@ class TestRelativeWaitDurationRendering:
 
         assert "test_cl (WAITING 1m29s)" in left.plain
         assert "WAITING (" not in left.plain
-        assert "Wait: 5m (" in header.plain
+        assert "Wait: [time] 5m (" in header.plain
         assert " left)" in header.plain
 
     def test_family_child_header_renders_waiting_for_like_root_waiting_row(
@@ -481,7 +484,7 @@ class TestRelativeWaitDurationRendering:
         assert agent.is_family_member_child
         assert "ChangeSpec: test_cl" in header.plain
         assert "Step: " not in header.plain
-        assert "Wait: parent + 2m" in header.plain
+        assert "Wait: [agents] parent\n      [time]   2m" in header.plain
 
 
 class TestRunnerSlotWaitRendering:
@@ -558,7 +561,7 @@ class TestRunnerSlotWaitRendering:
 
         assert "test_cl (WAITING ▶3→0)" in left.plain
         assert (
-            "Wait: runners ≤ 0 (drain barrier) · 3 runners still running"
+            "Wait: [runners] ≤ 0 (drain barrier) · 3 runners still running"
             " · queue #2 of 2"
         ) in header.plain
 
@@ -593,7 +596,7 @@ class TestRunnerSlotWaitRendering:
         header, _ = build_header_text(agent, cheap=True)
 
         assert (
-            "Wait: runners: 10/10 in use · queue #2 of 3 · priority 20" in header.plain
+            "Wait: [runners] 10/10 in use · queue #2 of 3 · priority 20" in header.plain
         )
         assert "dim #AF87FF" in _styles_covering(header, "priority 20")
 

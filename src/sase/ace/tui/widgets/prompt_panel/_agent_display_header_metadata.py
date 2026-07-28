@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 
 from rich.text import Text
@@ -15,13 +15,10 @@ from sase.agent.status_buckets import (
 )
 from sase.project_display_names import humanize_cl_name
 
-from ...agent_completion import missing_wait_dependency_names
 from ...models.agent import Agent
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
     _FAMILY_NAME_STYLE,
-    _MISSING_WAIT_TARGET_GLYPH,
-    _MISSING_WAIT_TARGET_GLYPH_STYLE,
 )
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
 from ._file_path_hints import append_text_with_file_hints
@@ -33,30 +30,14 @@ from ._helpers import (
     project_display_label,
     should_render_agent_detail_model,
 )
+from ._agent_wait_section import (
+    WAIT_SECTION_ID,
+    ResponsiveWaitSection,
+    build_wait_lanes,
+)
 
 
 _UNASSIGNED_AGENT_NAME_DISPLAY = "unassigned"
-_WAITING_VALUE_STYLE = "#FF87D7"
-# Glyphs mirror ``AGENT_STATUS_BUCKET_GLYPHS``; colors mirror agent-row status
-# accents in ``_agent_list_render_agent.py`` / ``models.agent_status``.
-_WAIT_STATUS_BADGES: dict[str, tuple[str, str]] = {
-    "Running": (AGENT_STATUS_BUCKET_GLYPHS["Running"], "bold #FFD700"),
-    "Queued": (
-        AGENT_STATUS_BUCKET_GLYPHS["Queued"],
-        f"bold {QUEUED_STATUS_COLOR}",
-    ),
-    "Waiting": (AGENT_STATUS_BUCKET_GLYPHS["Waiting"], "bold #AF87FF"),
-    "Starting": (AGENT_STATUS_BUCKET_GLYPHS["Starting"], "bold #87D7FF"),
-    "Done": (AGENT_STATUS_BUCKET_GLYPHS["Done"], "bold #5FD75F"),
-    "Failed": (AGENT_STATUS_BUCKET_GLYPHS["Failed"], "bold #FF5F5F"),
-    "Stopped": (AGENT_STATUS_BUCKET_GLYPHS["Stopped"], "bold #8787AF"),
-}
-_WAIT_BEAD_STATUS_BADGES: dict[str, tuple[str, str]] = {
-    "closed": (AGENT_STATUS_BUCKET_GLYPHS["Done"], "bold #5FD75F"),
-    "in_progress": (AGENT_STATUS_BUCKET_GLYPHS["Running"], "bold #FFD700"),
-    "claimed": (AGENT_STATUS_BUCKET_GLYPHS["Starting"], "bold #87D7FF"),
-    "open": (AGENT_STATUS_BUCKET_GLYPHS["Waiting"], "bold #AF87FF"),
-}
 _AUTO_APPROVE_KIND_STYLES: dict[str, tuple[str, str]] = {
     "plan": ("\u26a1 PLAN", "bold #5FD7FF"),
     "tale": ("\u26a1 TALE", "bold #FFD75F"),
@@ -93,34 +74,6 @@ def _queued_for_label(requested_at: str | None) -> str | None:
         now = now.replace(tzinfo=UTC)
     elapsed = max(0.0, (now - requested.astimezone(now.tzinfo)).total_seconds())
     return format_compact_duration(elapsed)
-
-
-def _append_wait_status_badge(text: Text, bucket: str | None) -> None:
-    """Append the standard badge for a known or unknown wait target."""
-    badge = _WAIT_STATUS_BADGES.get(bucket) if bucket is not None else None
-    if badge is None:
-        glyph, style = (
-            _MISSING_WAIT_TARGET_GLYPH,
-            _MISSING_WAIT_TARGET_GLYPH_STYLE,
-        )
-    else:
-        glyph, style = badge
-    text.append(" ")
-    text.append(glyph, style=style)
-
-
-def _append_wait_bead_status_badge(text: Text, status: str | None) -> None:
-    """Append the standard badge for a known or unknown bead status."""
-    badge = _WAIT_BEAD_STATUS_BADGES.get(status) if status is not None else None
-    if badge is None:
-        glyph, style = (
-            _MISSING_WAIT_TARGET_GLYPH,
-            _MISSING_WAIT_TARGET_GLYPH_STYLE,
-        )
-    else:
-        glyph, style = badge
-    text.append(" ")
-    text.append(glyph, style=style)
 
 
 def _append_auto_approve_field(text: Text, agent: Agent) -> None:
@@ -233,14 +186,10 @@ def _append_wait_field(
     clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None,
     runner_queue_ahead_count: int | None,
     wait_bead_statuses: Sequence[tuple[str, str | None]] | None,
-) -> None:
+    responsive_ranges: MutableMapping[str, tuple[int, int]] | None,
+) -> ResponsiveWaitSection | None:
     """Append dependency, time-floor, and runner-slot wait details."""
-    from sase.ace.tui.models.agent import (
-        format_compact_duration,
-        format_wait_until,
-        wait_display_agent,
-        wait_remaining_seconds,
-    )
+    from sase.ace.tui.models.agent import wait_display_agent
 
     wait_agent = wait_display_agent(agent)
     if agent.status == QUEUED_STATUS:
@@ -267,133 +216,24 @@ def _append_wait_field(
             text.append(" · ", style="dim")
             text.append(f"{queued_for} in queue", style=QUEUED_STATUS_COLOR)
         text.append("\n")
-        return
+        return None
 
-    has_slot_wait = bool(
-        wait_agent.slot_requested_at and wait_agent.wait_runners is not None
+    lanes = build_wait_lanes(
+        agent,
+        agent_status_buckets=agent_status_buckets,
+        clan_wait_member_statuses=clan_wait_member_statuses,
+        wait_bead_statuses=wait_bead_statuses,
+        runner_queue_ahead_count=runner_queue_ahead_count,
     )
-    if not (
-        wait_agent.waiting_for
-        or wait_agent.waiting_for_beads
-        or wait_agent.wait_duration
-        or wait_agent.wait_until
-        or has_slot_wait
-    ):
-        return
+    if not lanes:
+        return None
 
-    text.append("Wait: ", style="bold #87D7FF")
-    appended_dependency_names = False
-    missing_names = missing_wait_dependency_names(agent, agent_status_buckets)
-    missing_name_set = set(missing_names or ())
-    if wait_agent.waiting_for:
-        for index, name in enumerate(wait_agent.waiting_for):
-            if index:
-                text.append(", ", style=_WAITING_VALUE_STYLE)
-            text.append(name, style=_WAITING_VALUE_STYLE)
-            clan_members = (
-                clan_wait_member_statuses.get(name)
-                if clan_wait_member_statuses is not None
-                else None
-            )
-            if clan_members is not None:
-                done_count = sum(bucket == "Done" for _label, bucket in clan_members)
-                text.append(" (", style="dim #AF87FF")
-                text.append("all clan members", style="bold #AF87FF")
-                text.append(
-                    f" · {done_count}/{len(clan_members)} done: ",
-                    style="dim #AF87FF",
-                )
-                for member_index, (label, bucket) in enumerate(clan_members):
-                    if member_index:
-                        text.append(" · ", style="dim #AF87FF")
-                    text.append(label, style=_WAITING_VALUE_STYLE)
-                    _append_wait_status_badge(text, bucket)
-                text.append(")", style="dim #AF87FF")
-            elif missing_names is not None:
-                assert agent_status_buckets is not None
-                target_bucket = (
-                    None if name in missing_name_set else agent_status_buckets[name]
-                )
-                _append_wait_status_badge(text, target_bucket)
-        appended_dependency_names = True
-
-    if wait_agent.waiting_for_beads:
-        if appended_dependency_names:
-            text.append(" + ", style=_WAITING_VALUE_STYLE)
-        text.append("beads: ", style="dim #AF87FF")
-        if wait_bead_statuses is None:
-            text.append(
-                ", ".join(wait_agent.waiting_for_beads),
-                style=_WAITING_VALUE_STYLE,
-            )
-        else:
-            statuses_by_id = dict(wait_bead_statuses)
-            for index, bead_id in enumerate(wait_agent.waiting_for_beads):
-                if index:
-                    text.append(", ", style=_WAITING_VALUE_STYLE)
-                text.append(bead_id, style=_WAITING_VALUE_STYLE)
-                _append_wait_bead_status_badge(
-                    text,
-                    statuses_by_id.get(bead_id),
-                )
-        appended_dependency_names = True
-
-    time_part: str | None = None
-    if wait_agent.wait_until:
-        time_part = f"until {format_wait_until(wait_agent.wait_until)}"
-    elif wait_agent.wait_duration:
-        time_part = format_compact_duration(wait_agent.wait_duration)
-    if time_part:
-        if appended_dependency_names:
-            text.append(" + ", style=_WAITING_VALUE_STYLE)
-        text.append(time_part, style=_WAITING_VALUE_STYLE)
-        appended_dependency_names = True
-
-    remaining = wait_remaining_seconds(agent)
-    if remaining is not None and remaining > 0:
-        text.append(
-            f" ({format_compact_duration(remaining)} left)",
-            style="dim #AF87FF",
-        )
-    if has_slot_wait:
-        if appended_dependency_names:
-            text.append(" + ", style=_WAITING_VALUE_STYLE)
-        in_use = wait_agent.runner_slots_in_use
-        threshold = wait_agent.wait_runners
-        assert threshold is not None
-        if wait_agent.wait_runners_explicit:
-            text.append(f"runners ≤ {threshold}", style=_WAITING_VALUE_STYLE)
-            if threshold == 0:
-                text.append(" (drain barrier)", style="bold #AF87FF")
-            if in_use is not None:
-                noun = "runner" if in_use == 1 else "runners"
-                text.append(
-                    f" · {in_use} {noun} still running",
-                    style="dim #AF87FF",
-                )
-        elif in_use is not None:
-            text.append(
-                f"runners: {in_use}/{threshold + 1} in use",
-                style=_WAITING_VALUE_STYLE,
-            )
-        else:
-            text.append(
-                f"runners: cap {threshold + 1}",
-                style=_WAITING_VALUE_STYLE,
-            )
-        position = wait_agent.runner_slot_queue_position
-        queue_size = wait_agent.runner_slot_queue_size
-        if position is not None and queue_size is not None:
-            text.append(
-                f" · queue #{position} of {queue_size}",
-                style="dim #AF87FF",
-            )
-        if wait_agent.wait_priority_explicit and wait_agent.wait_priority is not None:
-            text.append(
-                f" · priority {wait_agent.wait_priority}",
-                style="dim #AF87FF",
-            )
-    text.append("\n")
+    section = ResponsiveWaitSection(lanes)
+    start = len(text)
+    text.append_text(section.logical_text)
+    if responsive_ranges is not None:
+        responsive_ranges[WAIT_SECTION_ID] = (start, len(text))
+    return section
 
 
 def _append_retry_fields(text: Text, agent: Agent) -> None:
@@ -455,8 +295,9 @@ def append_agent_metadata_fields(
     cached_bead_display: Callable[[Agent], object],
     clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None = None,
     runner_queue_ahead_count: int | None = None,
-) -> list[tuple[str, str]]:
-    """Append the core agent metadata rows and return workflow meta fields."""
+    responsive_ranges: MutableMapping[str, tuple[int, int]] | None = None,
+) -> tuple[list[tuple[str, str]], ResponsiveWaitSection | None]:
+    """Append core metadata and return workflow fields plus the wait section."""
     _append_identity_fields(text, agent, summary, cached_bead_display)
 
     step_output = agent.step_output if isinstance(agent.step_output, dict) else None
@@ -501,17 +342,18 @@ def append_agent_metadata_fields(
         text.append("BUG: ", style="bold #87D7FF")
         text.append(f"{agent.bug}\n", style="bold underline #569CD6")
 
-    _append_wait_field(
+    wait_section = _append_wait_field(
         text,
         agent,
         agent_status_buckets,
         clan_wait_member_statuses,
         runner_queue_ahead_count,
         summary.wait_bead_statuses if summary is not None else None,
+        responsive_ranges,
     )
     _append_retry_fields(text, agent)
     _append_timestamp_fields(text, agent, hint_state)
-    return meta_fields
+    return meta_fields, wait_section
 
 
 def append_legacy_parallel_members_section(text: Text, agent: Agent) -> None:

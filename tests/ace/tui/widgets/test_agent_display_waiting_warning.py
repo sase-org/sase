@@ -6,7 +6,6 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
-from rich.text import Text
 
 from sase.ace.tui.agent_completion import (
     _collect_agent_status_buckets,
@@ -18,14 +17,24 @@ from sase.ace.tui.agent_completion import (
 )
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
+from sase.ace.tui.widgets.prompt_panel._agent_display_header_renderable import (
+    AgentHeader,
+)
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
-def _waiting_line(text: Text) -> str:
-    return next(line for line in text.plain.splitlines() if line.startswith("Wait: "))
+def _wait_block(text: AgentHeader) -> str:
+    lines = text.plain.splitlines()
+    start = next(index for index, line in enumerate(lines) if line.startswith("Wait: "))
+    block = [lines[start]]
+    for line in lines[start + 1 :]:
+        if not line.startswith("      "):
+            break
+        block.append(line)
+    return "\n".join(block)
 
 
-def _styles_covering(text: Text, substring: str) -> set[str]:
+def _styles_covering(text: AgentHeader, substring: str) -> set[str]:
     start = text.plain.index(substring)
     end = start + len(substring)
     return {
@@ -87,7 +96,7 @@ def test_known_waited_for_agent_gets_status_badge(
         agent_status_buckets={"dep": bucket},
     )
 
-    assert _waiting_line(header) == f"Wait: dep {glyph}"
+    assert _wait_block(header) == f"Wait: [agents] dep {glyph}"
     assert style in _styles_covering(header, glyph)
 
 
@@ -100,7 +109,7 @@ def test_unknown_waited_for_agent_gets_unknown_badge() -> None:
         agent_status_buckets={"coder": "Running"},
     )
 
-    assert _waiting_line(header) == "Wait: ghost_deploy ?"
+    assert _wait_block(header) == "Wait: [agents] ghost_deploy ?"
     assert "bold #FFAF5F" in _styles_covering(header, "?")
 
 
@@ -116,7 +125,7 @@ def test_mixed_waited_for_agents_badge_each_name_independently() -> None:
         agent_status_buckets={"coder": "Done", "reviewer": "Failed"},
     )
 
-    assert _waiting_line(header) == "Wait: coder ✓, ghost_deploy ?, reviewer ✗"
+    assert _wait_block(header) == ("Wait: [agents] coder ✓, ghost_deploy ?, reviewer ✗")
     assert header.plain.index("coder ✓") < header.plain.index(", ghost_deploy ?")
     assert header.plain.index("ghost_deploy ?") < header.plain.index(", reviewer ✗")
 
@@ -126,8 +135,8 @@ def test_missing_agent_status_bucket_map_renders_no_badges() -> None:
 
     header, _ = build_header_text(agent, cheap=True, agent_status_buckets=None)
 
-    assert "?" not in _waiting_line(header)
-    assert _waiting_line(header) == "Wait: ghost_deploy"
+    assert "?" not in _wait_block(header)
+    assert _wait_block(header) == "Wait: [agents] ghost_deploy"
 
 
 def test_bead_waits_render_as_named_read_only_conditions() -> None:
@@ -143,7 +152,9 @@ def test_bead_waits_render_as_named_read_only_conditions() -> None:
         agent_status_buckets={"coder": "Done"},
     )
 
-    assert _waiting_line(header) == ("Wait: coder ✓ + beads: sase-87.2, sase-87.3")
+    assert _wait_block(header) == (
+        "Wait: [agents] coder ✓\n      [beads]  sase-87.2, sase-87.3"
+    )
 
 
 def test_waited_for_status_badges_keep_duration_format() -> None:
@@ -159,7 +170,9 @@ def test_waited_for_status_badges_keep_duration_format() -> None:
         agent_status_buckets={"coder": "Done", "deploy": "Running"},
     )
 
-    assert _waiting_line(header) == "Wait: coder ✓, deploy ▶ + 5m"
+    assert _wait_block(header) == (
+        "Wait: [agents] coder ✓, deploy ▶\n      [time]   5m"
+    )
 
 
 def test_waited_for_status_badges_keep_until_countdown_format() -> None:
@@ -176,9 +189,11 @@ def test_waited_for_status_badges_keep_until_countdown_format() -> None:
         agent_status_buckets={"coder": "Done"},
     )
 
-    line = _waiting_line(header)
-    assert line.startswith("Wait: coder ✓ + until ")
-    assert line.endswith(" left)")
+    block = _wait_block(header)
+    lines = block.splitlines()
+    assert lines[0] == "Wait: [agents] coder ✓"
+    assert lines[1].startswith("      [time]   until ")
+    assert lines[1].endswith(" left)")
 
 
 def test_clan_wait_expands_ordered_member_statuses() -> None:
@@ -198,8 +213,9 @@ def test_clan_wait_expands_ordered_member_statuses() -> None:
         },
     )
 
-    assert _waiting_line(header) == (
-        "Wait: sase-7g (all clan members · 2/4 done: .f0 ✓ · .f1 ✓ · .w0 ▶ · .w1 ⏳)"
+    assert _wait_block(header) == (
+        "Wait: [agents] sase-7g "
+        "(all clan members · 2/4 done: .f0 ✓ · .f1 ✓ · .w0 ▶ · .w1 ⏳)"
     )
     assert header.plain.index(".f0 ✓") < header.plain.index(".f1 ✓")
     assert header.plain.index(".f1 ✓") < header.plain.index(".w0 ▶")
@@ -222,9 +238,10 @@ def test_clan_wait_expansion_keeps_plain_dependency_and_duration() -> None:
         },
     )
 
-    assert _waiting_line(header) == (
-        "Wait: sase-7g (all clan members · 1/2 done: "
-        ".code ▶ · .test ✓), reviewer ✓ + 5m"
+    assert _wait_block(header) == (
+        "Wait: [agents] sase-7g (all clan members · 1/2 done: "
+        ".code ▶ · .test ✓), reviewer ✓\n"
+        "      [time]   5m"
     )
 
 
@@ -238,7 +255,7 @@ def test_unknown_clan_wait_keeps_unknown_badge() -> None:
         clan_wait_member_statuses={"visible-clan": ((".member", "Done"),)},
     )
 
-    assert _waiting_line(header) == "Wait: archived-clan ?"
+    assert _wait_block(header) == "Wait: [agents] archived-clan ?"
 
 
 def test_collect_agent_status_buckets_includes_family_and_raw_names() -> None:

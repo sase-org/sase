@@ -238,6 +238,7 @@ async def test_agents_waiting_missing_target_row_png_snapshot(
 
         assert_page_svg_styled_text_contains(page, "WAITING ?")
         assert_page_svg_contains(page, "Wait:")
+        assert_page_svg_contains(page, "[agents]")
         assert_page_svg_contains(page, "coder")
         assert_page_svg_contains(page, "builder")
         assert_page_svg_contains(page, "reviewer")

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from rich.text import Text
-
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_runner_slots import (
     RunnerCapacitySnapshot,
@@ -13,6 +11,9 @@ from sase.ace.tui.models.agent_runner_slots import (
     refresh_runner_slot_context,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
+from sase.ace.tui.widgets.prompt_panel._agent_display_header_renderable import (
+    AgentHeader,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_queue_section import (
     _queue_window,
     runner_queue_selection,
@@ -70,7 +71,7 @@ def _entry(
 def _header(
     agent: Agent,
     queue: tuple[RunnerQueueEntry, ...],
-) -> Text:
+) -> AgentHeader:
     header, _ = build_header_text(
         agent,
         cheap=True,
@@ -83,11 +84,10 @@ def _header(
             queue=queue,
         ),
     )
-    assert isinstance(header, Text)
     return header
 
 
-def _style_at(text: Text, needle: str) -> str | None:
+def _style_at(text: AgentHeader, needle: str) -> str | None:
     position = text.plain.rindex(needle)
     for span in reversed(text.spans):
         if span.start <= position < span.end:
@@ -158,7 +158,7 @@ def test_explicit_threshold_waiter_gets_the_same_queue_ladder() -> None:
         (_entry("barrier", threshold=0, explicit=True),),
     )
 
-    assert "Wait: runners ≤ 0 (drain barrier)" in header.plain
+    assert "Wait: [runners] ≤ 0 (drain barrier)" in header.plain
     assert "❖ QUEUE · 1 waiting · 10/1 runners" in header.plain
     assert "≤0" in header.plain
 

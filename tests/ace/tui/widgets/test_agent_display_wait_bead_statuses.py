@@ -33,7 +33,7 @@ def test_waited_for_bead_gets_status_badge(status: str, glyph: str) -> None:
         wait_bead_statuses=(("sase-9r.2", status),),
     )
 
-    assert _waiting_line(agent, summary) == f"Wait: beads: sase-9r.2 {glyph}"
+    assert _waiting_line(agent, summary) == f"Wait: [beads] sase-9r.2 {glyph}"
 
 
 def test_unknown_waited_for_bead_gets_unknown_badge() -> None:
@@ -45,7 +45,7 @@ def test_unknown_waited_for_bead_gets_unknown_badge() -> None:
         wait_bead_statuses=(("sase-9r.2", None),),
     )
 
-    assert _waiting_line(agent, summary) == "Wait: beads: sase-9r.2 ?"
+    assert _waiting_line(agent, summary) == "Wait: [beads] sase-9r.2 ?"
 
 
 def test_no_summary_preserves_plain_first_paint() -> None:
@@ -54,7 +54,7 @@ def test_no_summary_preserves_plain_first_paint() -> None:
         waiting_for_beads=["sase-9r.2"],
     )
 
-    assert _waiting_line(agent) == "Wait: beads: sase-9r.2"
+    assert _waiting_line(agent) == "Wait: [beads] sase-9r.2"
 
 
 def test_multiple_waited_for_beads_keep_statuses_attached() -> None:
@@ -66,7 +66,7 @@ def test_multiple_waited_for_beads_keep_statuses_attached() -> None:
         wait_bead_statuses=(("a", "closed"), ("b", "open")),
     )
 
-    assert _waiting_line(agent, summary) == "Wait: beads: a ✓, b ⏳"
+    assert _waiting_line(agent, summary) == "Wait: [beads] a ✓, b ⏳"
 
 
 def test_mismatched_summary_degrades_to_unknown_badge() -> None:
@@ -78,13 +78,13 @@ def test_mismatched_summary_degrades_to_unknown_badge() -> None:
         wait_bead_statuses=(("stale", "closed"),),
     )
 
-    assert _waiting_line(agent, summary) == "Wait: beads: current ?"
+    assert _waiting_line(agent, summary) == "Wait: [beads] current ?"
 
 
-def test_agent_only_wait_rendering_is_unchanged() -> None:
+def test_agent_only_wait_rendering_is_tagged() -> None:
     agent = make_agent(
         status="WAITING",
         waiting_for=["coder"],
     )
 
-    assert _waiting_line(agent) == "Wait: coder"
+    assert _waiting_line(agent) == "Wait: [agents] coder"
