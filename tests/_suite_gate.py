@@ -126,6 +126,14 @@ class WorkerTokenLease:
                 pool_file.close()
 
             now = time.monotonic()
+            if now >= next_status:
+                print(
+                    _waiting_message(floor, ceiling, last_available, last_holders),
+                    file=sys.stderr,
+                    flush=True,
+                )
+                next_status = now + self._status_interval
+
             if now >= deadline:
                 raise pytest.UsageError(
                     _timeout_message(
@@ -136,14 +144,6 @@ class WorkerTokenLease:
                         last_holders,
                     )
                 )
-
-            if now >= next_status:
-                print(
-                    _waiting_message(floor, ceiling, last_available, last_holders),
-                    file=sys.stderr,
-                    flush=True,
-                )
-                next_status = now + self._status_interval
 
             time.sleep(min(self._poll_interval, max(0.0, deadline - now)))
 
