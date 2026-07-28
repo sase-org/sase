@@ -1,0 +1,47 @@
+# Bead: sase-ai — Published bead pages
+
+[Bead Pages](../README.md) / sase-ai
+
+**Status:** ✓ closed · **Resolution:** done · **Type:** plan · **Tier:** epic
+**Owner:** `owner@example.com` · **Assignee:** `alice.athena.sase-ai.land`
+**Created:** 2026-07-28 14:20:20 UTC · **Closed:** 2026-07-28 18:02:11 UTC
+**Plan:** [202607/bead\_pages.md](https://github.com/sase-org/sase--plans/blob/main/202607/bead_pages.md)
+
+## Description
+
+Publish a stable page for every bead.
+
+## Notes
+
+Verified with focused tests.
+
+## Phases
+
+| Bead | Title | Status | Size | Agents | Commits |
+|---|---|---|---|---:|---:|
+| [sase-ai.1](sase-ai.1.md) | Pathing \| links | ✓ closed | small | 1 | 1 |
+| [sase-ai.2](sase-ai.2.md) | Association index | ◐ in_progress | medium | 0 | 0 |
+
+## Lineage
+
+```mermaid
+flowchart TD
+    n0["sase-ai: Published bead pages [closed]"]
+    n1["sase-ai.1: Pathing | links [closed]"]
+    n2["sase-ai.2: Association index [in_progress]"]
+    n0 --> n1
+    n0 --> n2
+    n2 -.-> n1
+```
+
+## Agents
+
+| Agent | Bead | Commits |
+|---|---|---:|
+| [alice.athena.sase-ai.1](https://github.com/sase-org/sase--agents/blob/main/agents/alice/README.md) | [sase-ai.1](sase-ai.1.md) | 1 |
+
+## Commits
+
+| Commit | Subject | Bead | Committed (UTC) |
+|---|---|---|---|
+| [`9701511`](https://github.com/sase-org/sase/commit/9701511abcdef) | feat(bead): render \| pages | [sase-ai.1](sase-ai.1.md) | 2024-07-28 14:22:07 |

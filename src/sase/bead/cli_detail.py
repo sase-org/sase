@@ -13,7 +13,7 @@ from sase.bead.project import BeadProject
 
 
 @dataclass(frozen=True)
-class _IssueRef:
+class IssueRef:
     issue_id: str
     issue: Issue | None
 
@@ -23,23 +23,23 @@ class _PlanLink:
     section: str
     source: Literal["self", "parent"]
     path: str
-    from_ref: _IssueRef | None
+    from_ref: IssueRef | None
 
 
 @dataclass(frozen=True)
-class _IssueDetail:
+class IssueDetail:
     """One bead plus its resolved relationship and plan graph."""
 
     issue: Issue
-    ancestors: tuple[_IssueRef, ...]
-    phases: tuple[_IssueRef, ...]
-    child_epics: tuple[_IssueRef, ...]
-    depends_on: tuple[_IssueRef, ...]
-    blocks: tuple[_IssueRef, ...]
+    ancestors: tuple[IssueRef, ...]
+    phases: tuple[IssueRef, ...]
+    child_epics: tuple[IssueRef, ...]
+    depends_on: tuple[IssueRef, ...]
+    blocks: tuple[IssueRef, ...]
     plan: _PlanLink | None
 
 
-def resolve_issue_detail(view: BeadProject, issue: Issue) -> _IssueDetail:
+def resolve_issue_detail(view: BeadProject, issue: Issue) -> IssueDetail:
     """Resolve every relationship needed by the text and JSON detail views."""
     ancestors = _parent_lineage(view, issue)
     children = view.get_epic_children(issue.id)
@@ -50,7 +50,7 @@ def resolve_issue_detail(view: BeadProject, issue: Issue) -> _IssueDetail:
         _issue_ref(child) for child in children if child.issue_type == IssueType.PLAN
     )
 
-    dependencies: list[_IssueRef] = []
+    dependencies: list[IssueRef] = []
     for dependency in issue.dependencies:
         try:
             dependencies.append(_issue_ref(view.show(dependency.depends_on_id)))
@@ -63,14 +63,14 @@ def resolve_issue_detail(view: BeadProject, issue: Issue) -> _IssueDetail:
         for dependency in other.dependencies
         if dependency.depends_on_id == issue.id
     ]
-    blocks: list[_IssueRef] = []
+    blocks: list[IssueRef] = []
     for blocked_id in block_ids:
         try:
             blocks.append(_issue_ref(view.show(blocked_id)))
         except KeyError:
             blocks.append(_unresolved_ref(blocked_id))
 
-    return _IssueDetail(
+    return IssueDetail(
         issue=issue,
         ancestors=ancestors,
         phases=phases,
@@ -82,7 +82,7 @@ def resolve_issue_detail(view: BeadProject, issue: Issue) -> _IssueDetail:
 
 
 def render_issue_detail(
-    detail: _IssueDetail,
+    detail: IssueDetail,
     *,
     relativize_design: bool,
     plan_roots: tuple[Path, ...] = (),
@@ -215,7 +215,7 @@ def render_issue_detail(
     return "\n".join(lines) + "\n"
 
 
-def render_issue_detail_json(detail: _IssueDetail) -> str:
+def render_issue_detail_json(detail: IssueDetail) -> str:
     """Render a stable single-bead JSON envelope."""
     envelope = {
         "issue": issue_to_wire_dict(detail.issue),
@@ -300,8 +300,8 @@ def plan_reference_roots() -> tuple[Path, ...]:
         return ()
 
 
-def _parent_lineage(view: BeadProject, issue: Issue) -> tuple[_IssueRef, ...]:
-    ancestors: list[_IssueRef] = []
+def _parent_lineage(view: BeadProject, issue: Issue) -> tuple[IssueRef, ...]:
+    ancestors: list[IssueRef] = []
     parent_id = issue.parent_id
     seen = {issue.id}
     while parent_id is not None:
@@ -321,7 +321,7 @@ def _parent_lineage(view: BeadProject, issue: Issue) -> tuple[_IssueRef, ...]:
 
 def _resolve_plan_link(
     issue: Issue,
-    ancestors: tuple[_IssueRef, ...],
+    ancestors: tuple[IssueRef, ...],
 ) -> _PlanLink | None:
     if issue.design:
         section = (
@@ -352,12 +352,12 @@ def _resolve_plan_link(
     )
 
 
-def _issue_ref(issue: Issue) -> _IssueRef:
-    return _IssueRef(issue_id=issue.id, issue=issue)
+def _issue_ref(issue: Issue) -> IssueRef:
+    return IssueRef(issue_id=issue.id, issue=issue)
 
 
-def _unresolved_ref(issue_id: str) -> _IssueRef:
-    return _IssueRef(issue_id=issue_id, issue=None)
+def _unresolved_ref(issue_id: str) -> IssueRef:
+    return IssueRef(issue_id=issue_id, issue=None)
 
 
 def ref_to_wire_dict(issue_id: str, issue: Issue | None) -> dict[str, object]:

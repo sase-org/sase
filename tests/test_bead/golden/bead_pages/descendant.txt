@@ -1,0 +1,29 @@
+# Bead: sase-ai.1 — Pathing \| links
+
+[Bead Pages](../README.md) / [sase-ai](README.md) / sase-ai.1
+
+**Status:** ✓ closed · **Resolution:** done · **Type:** phase
+**Owner:** `owner@example.com` · **Assignee:** `alice.athena.sase-ai.1` · **Size:** small
+**Created:** 2026-07-28 14:30:00 UTC · **Closed:** 2026-07-28 15:00:00 UTC
+**Plan:** [202607/bead\_pages.md](https://github.com/sase-org/sase--plans/blob/main/202607/bead_pages.md)
+
+## Description
+
+Define deterministic paths.
+
+## Dependencies
+
+- **Depends on:** [sase-ai.2](sase-ai.2.md) ◐
+- **Blocks:** [sase-next](../sase-next/README.md) ○
+
+## Agents
+
+| Agent | Bead | Commits |
+|---|---|---:|
+| [alice.athena.sase-ai.1](https://github.com/sase-org/sase--agents/blob/main/agents/alice/README.md) | [sase-ai.1](sase-ai.1.md) | 1 |
+
+## Commits
+
+| Commit | Subject | Bead | Committed (UTC) |
+|---|---|---|---|
+| [`9701511`](https://github.com/sase-org/sase/commit/9701511abcdef) | feat(bead): render \| pages | [sase-ai.1](sase-ai.1.md) | 2024-07-28 14:22:07 |
