@@ -14,6 +14,7 @@ from sase.xprompt.workflow_loader import (
     get_all_workflows,
 )
 from sase.xprompt.models import InputArg
+from sase.xprompt.project_identity import invalidate_xprompt_project_identity
 from sase.xprompt.workflow_models import Workflow
 from tests.main.project_handler_helpers import _disk_project_records, _write_project
 
@@ -24,7 +25,7 @@ def workflow_project_registry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[Path]:
     from sase import project_aliases, project_display_names
-    from sase.xprompt import loader_sources, project_identity
+    from sase.xprompt import loader_sources
 
     projects_root = tmp_path / "sase-home" / "projects"
     projects_root.mkdir(parents=True)
@@ -36,11 +37,9 @@ def workflow_project_registry(
         _disk_project_records,
     )
     monkeypatch.setattr(loader_sources, "list_project_records", _disk_project_records)
-    project_identity._identity_registry.cache_clear()
-    project_identity._canonical_xprompt_project.cache_clear()
+    invalidate_xprompt_project_identity()
     yield projects_root
-    project_identity._identity_registry.cache_clear()
-    project_identity._canonical_xprompt_project.cache_clear()
+    invalidate_xprompt_project_identity()
 
 
 def _write_registered_workflow_project(

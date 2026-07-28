@@ -17,6 +17,7 @@ from sase.xprompt.loader import (
 )
 from sase.xprompt.models import XPrompt
 from sase.xprompt.processor import process_xprompt_references
+from sase.xprompt.project_identity import invalidate_xprompt_project_identity
 from tests.main.project_handler_helpers import _disk_project_records
 
 
@@ -207,20 +208,20 @@ class TestGetAllProjectLocalPrompts:
             result = get_all_project_local_prompts()
             assert result == {}
 
-    def test_aggregates_with_user_facing_namespace_for_display_name_project(
-        self,
+    @staticmethod
+    def _register_display_name_project(
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
         project_display_case,
     ) -> None:
+        """Register a ``key != PROJECT_NAME`` project holding a ``sase.yml``."""
         from sase import project_aliases, project_display_names
-        from sase.xprompt import loader_sources, project_identity
+        from sase.xprompt import loader_sources
 
         sase_home = tmp_path / "sase-home"
-        projects_root = sase_home / "projects"
         workspace = tmp_path / "workspace"
         project_display_case.write_project_layout(
-            projects_root,
+            sase_home / "projects",
             workspace_dir=workspace,
         )
         config = workspace / "sase" / "sase.yml"
@@ -242,14 +243,20 @@ class TestGetAllProjectLocalPrompts:
             "list_project_records",
             _disk_project_records,
         )
-        project_identity._identity_registry.cache_clear()
-        project_identity._canonical_xprompt_project.cache_clear()
+        invalidate_xprompt_project_identity()
+
+    def test_aggregates_with_user_facing_namespace_for_display_name_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        project_display_case,
+    ) -> None:
+        self._register_display_name_project(tmp_path, monkeypatch, project_display_case)
 
         try:
             result = get_all_project_local_prompts()
         finally:
-            project_identity._identity_registry.cache_clear()
-            project_identity._canonical_xprompt_project.cache_clear()
+            invalidate_xprompt_project_identity()
 
         assert list(result) == [f"{project_display_case.project_label}/docs"]
         workflow = result[f"{project_display_case.project_label}/docs"]
@@ -257,6 +264,41 @@ class TestGetAllProjectLocalPrompts:
             f"project_local_config:{project_display_case.project_label}"
         )
         assert all(project_display_case.project_key not in name for name in result)
+
+    def test_browser_items_collapse_to_one_canonical_project_local_row(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        project_display_case,
+    ) -> None:
+        """The browser merge must not list a file once per project spelling."""
+        from sase.ace.tui.modals.xprompt_browser_catalog import load_browser_items
+        from sase.xprompt.models import xprompt_to_workflow
+
+        self._register_display_name_project(tmp_path, monkeypatch, project_display_case)
+        namespace = project_display_case.project_label
+        source = f"project_local_config:{namespace}"
+        catalog = {
+            f"{namespace}/docs": xprompt_to_workflow(
+                XPrompt(
+                    name=f"{namespace}/docs",
+                    content="Project-local docs",
+                    source_path=source,
+                )
+            )
+        }
+
+        try:
+            items = load_browser_items(
+                namespace,
+                prompt_loader=lambda *, project=None: dict(catalog),
+                source_classifier=lambda src: ("Project Config", src or "", True),
+            )
+        finally:
+            invalidate_xprompt_project_identity()
+
+        assert [item.name for item in items] == [f"{namespace}/docs"]
+        assert [item.source_path for item in items] == [source]
 
     def test_project_local_config_definition_paths_use_canonical_namespace(
         self,
