@@ -99,6 +99,46 @@ def test_cached_format_agent_option_invalidates_on_missing_wait_target_change() 
     assert missing[0].plain.endswith("(WAITING ?)")
 
 
+def test_format_agent_option_marks_unresolvable_wait_target_distinctly() -> None:
+    agent = _agent(status="WAITING")
+    agent.waiting_for = ["@default"]
+
+    rendered, _, _ = format_agent_option(
+        agent,
+        0,
+        is_selected=False,
+        has_unresolvable_wait_target=True,
+    )
+
+    assert rendered.plain.endswith("(WAITING !)")
+    assert "(WAITING ?)" not in rendered.plain
+
+
+def test_cached_format_agent_option_invalidates_on_unresolvable_wait_flag() -> None:
+    cache = AgentRenderCache()
+    agent = _agent(status="WAITING")
+    agent.waiting_for = ["@default"]
+
+    pending = cached_format_agent_option(
+        cache,
+        agent,
+        0,
+        is_selected=False,
+        has_unresolvable_wait_target=False,
+    )
+    unresolvable = cached_format_agent_option(
+        cache,
+        agent,
+        0,
+        is_selected=False,
+        has_unresolvable_wait_target=True,
+    )
+
+    assert pending[0] is not unresolvable[0]
+    assert pending[0].plain.endswith("(WAITING)")
+    assert unresolvable[0].plain.endswith("(WAITING !)")
+
+
 def test_cached_family_root_invalidates_when_first_real_member_is_added() -> None:
     cache = AgentRenderCache()
     root = _agent(agent_name="demo")

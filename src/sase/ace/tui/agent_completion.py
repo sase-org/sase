@@ -26,6 +26,7 @@ from sase.ace.tui._agent_completion_wait import (
     agent_wait_status_maps_for_app,
     collect_agent_status_buckets,
     collect_agent_wait_status_maps,
+    has_unresolvable_wait_target,
     missing_wait_dependency_names,
     wait_dependencies_satisfied,
 )
@@ -46,6 +47,7 @@ __all__ = [
     "build_agent_completion_candidates",
     "collect_agent_status_buckets",
     "filter_agent_completion_candidates",
+    "has_unresolvable_wait_target",
     "missing_wait_dependency_names",
     "neutral_vcs_workflow",
     "status_style",

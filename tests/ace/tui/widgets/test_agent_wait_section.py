@@ -141,6 +141,39 @@ def test_pending_tribe_wait_uses_tribe_lane_without_unknown_glyph(
     assert "bold #123456" in _styles_covering(text, "@epic")
 
 
+def test_reserved_tribe_wait_uses_unresolvable_marker_not_pending_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_wait_section."
+        "named_tribe_identity_colors",
+        lambda _names: {"default": "#654321"},
+    )
+    agent = make_agent(
+        status="WAITING",
+        raw_suffix="20260728120000",
+        waiting_for=["@default"],
+    )
+
+    text = ResponsiveWaitSection(
+        _lanes(
+            agent,
+            tribe_wait_bindings={
+                (agent.identity, "@default"): TribeWaitBinding(
+                    tribe="default",
+                    state="reserved",
+                )
+            },
+        )
+    ).logical_text
+
+    assert text.plain == ("Wait: [tribes] @default ! (reserved - never resolves)\n")
+    assert "?" not in text.plain
+    assert "(next launch)" not in text.plain
+    assert "bold #654321" in _styles_covering(text, "@default")
+    assert "bold #FF5F5F" in _styles_covering(text, "!")
+
+
 def test_bound_tribe_wait_names_entity_and_status() -> None:
     agent = make_agent(
         status="WAITING",

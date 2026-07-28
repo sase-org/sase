@@ -341,6 +341,25 @@ def runner_slot_wait_agents() -> list[Agent]:
     ]
 
 
+def reserved_tribe_wait_agents() -> list[Agent]:
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-reswait",
+            project_file="/workspace/sase/visual_project.sase",
+            status="WAITING",
+            start_time=datetime(2026, 7, 28, 12, 0, 0),
+            raw_suffix="20260728120000",
+            artifacts_dir="/workspace/sase/artifacts/ace-run/20260728120000",
+            agent_name="reswait",
+            pid=4301,
+            waiting_for=["@default"],
+            llm_provider="codex",
+            model="gpt-5",
+        ),
+    ]
+
+
 def runner_slot_queue_window_agents() -> list[Agent]:
     """Return a long queue with both ladder gaps and visible ordering clues."""
     rows: list[Agent] = []

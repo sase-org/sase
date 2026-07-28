@@ -18,6 +18,7 @@ from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
     output_variable_family_agents,
     plan_handoff_status_agents,
+    reserved_tribe_wait_agents,
     runner_slot_queue_window_agents,
     runner_slot_wait_agents,
 )
@@ -178,6 +179,32 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
             page,
             "agents_runner_slot_waits_by_status_120x40",
             title="ACE agents runner slot waits by status",
+        )
+
+
+async def test_reserved_tribe_wait_row_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=reserved_tribe_wait_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "WAITING")
+        assert_page_svg_contains(page, "!")
+        prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        prompt_text = renderable_to_text(prompt.content) or ""
+        assert "Wait: [tribes] @default ! (reserved - never resolves)" in prompt_text
+        assert "(next launch)" not in prompt_text
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_reserved_tribe_wait_120x40",
+            title="ACE agents reserved tribe wait",
         )
 
 

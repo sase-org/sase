@@ -18,6 +18,7 @@ from ..agent_completion import (
     AgentWaitStatusMaps,
     agent_wait_status_maps_for_app,
     collect_agent_wait_status_maps,
+    has_unresolvable_wait_target,
     missing_wait_dependency_names,
     wait_dependencies_satisfied,
 )
@@ -305,6 +306,10 @@ def build_list(
         has_missing_wait_target = bool(
             missing_wait_dependency_names(agent, status_buckets)
         )
+        has_unresolvable_wait = has_unresolvable_wait_target(
+            agent,
+            wait_status_maps.tribe_bindings,
+        )
         left, suffix, option_id = cached_format_agent_option(
             widget._agent_render_cache,
             agent,
@@ -322,6 +327,7 @@ def build_list(
             tier_styles=tier_styles,
             wait_deps_satisfied=wait_deps_done,
             has_missing_wait_target=has_missing_wait_target,
+            has_unresolvable_wait_target=has_unresolvable_wait,
             unread_agent_ids=unread,
         )
         agent_parts[i] = (left, suffix, option_id)
@@ -337,6 +343,7 @@ def build_list(
             "is_selected": is_selected_agent,
             "wait_deps_satisfied": wait_deps_done,
             "has_missing_wait_target": has_missing_wait_target,
+            "has_unresolvable_wait_target": has_unresolvable_wait,
         }
         widget._row_tier_styles[i] = tier_styles
         max_left = max(max_left, left.cell_len)
@@ -625,6 +632,7 @@ def patch_row(
         tier_styles=widget._row_tier_styles.get(agent_idx, ()),
         wait_deps_satisfied=ctx.get("wait_deps_satisfied"),
         has_missing_wait_target=ctx.get("has_missing_wait_target", False),
+        has_unresolvable_wait_target=ctx.get("has_unresolvable_wait_target", False),
         unread_agent_ids=effective_unread,
     )
 

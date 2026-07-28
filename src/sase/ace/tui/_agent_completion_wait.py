@@ -264,6 +264,25 @@ def wait_dependencies_satisfied(
     return True
 
 
+def has_unresolvable_wait_target(
+    agent: Agent,
+    tribe_bindings: Mapping[tuple[object, str], TribeWaitBinding] | None,
+) -> bool:
+    """Return whether any tribe wait target is known to be unresolvable."""
+    from sase.ace.tui.models.agent_time import wait_display_agent
+
+    if tribe_bindings is None:
+        return False
+    wait_agent = wait_display_agent(agent)
+    for name in wait_agent.waiting_for:
+        if _parse_tribe_target(name) is None:
+            continue
+        binding = tribe_bindings.get((wait_agent.identity, name))
+        if binding is not None and binding.state == "reserved":
+            return True
+    return False
+
+
 def missing_wait_dependency_names(
     agent: Agent,
     status_buckets: Mapping[str, str] | None,
@@ -292,6 +311,7 @@ __all__ = [
     "agent_wait_status_maps_for_app",
     "collect_agent_status_buckets",
     "collect_agent_wait_status_maps",
+    "has_unresolvable_wait_target",
     "missing_wait_dependency_names",
     "wait_dependencies_satisfied",
 ]

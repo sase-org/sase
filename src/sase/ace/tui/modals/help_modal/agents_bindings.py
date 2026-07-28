@@ -384,8 +384,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             [
                 ("▶ ◐ ⏳ ✓ ✗ ▲", "Dependency status (see Grouping)"),
                 ("?", "Waited-for name not found"),
+                ("!", "Reserved tribe never resolves"),
                 ("[tribes] @t → name ✓", "Bound tribe entity/status"),
                 ("[tribes] @t (next launch)", "Pending tribe wait"),
+                ("[tribes] @default !", "Reserved tribe wait"),
                 ("beads: id ✓", "Bead wait target status"),
             ],
         ),

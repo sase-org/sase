@@ -150,6 +150,7 @@ def agent_render_key(
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
     has_missing_wait_target: bool = False,
+    has_unresolvable_wait_target: bool = False,
     parallel_family_counts: ParallelFamilyStatusCounts | None = None,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
 ) -> tuple[Any, ...]:
@@ -217,6 +218,7 @@ def agent_render_key(
         tuple(wait_agent.waiting_for_beads),
         wait_deps_satisfied,
         has_missing_wait_target,
+        has_unresolvable_wait_target,
         wait_agent.wait_runners,
         wait_agent.wait_runners_explicit,
         wait_agent.wait_priority,

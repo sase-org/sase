@@ -108,6 +108,11 @@ _FILE_CHANGE_GLYPH_STYLE = "bold #FFD75F"
 _MISSING_WAIT_TARGET_GLYPH = "?"
 _MISSING_WAIT_TARGET_GLYPH_STYLE = "bold #FFAF5F"
 
+# Reserved tribe wait target. This means the wait cannot ever resolve, unlike a
+# missing agent name that may be a typo or stale reference.
+_UNRESOLVABLE_WAIT_TARGET_GLYPH = "!"
+_UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE = "bold #FF5F5F"
+
 # Reverted badge for agents whose commits were intentionally undone via `,r`.
 _REVERTED_GLYPH = "↺"
 _REVERTED_GLYPH_STYLE = "bold #D7875F"

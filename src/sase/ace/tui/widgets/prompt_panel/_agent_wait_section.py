@@ -26,6 +26,8 @@ from ...models.tribe_display import (
 from .._agent_list_styling import (
     _MISSING_WAIT_TARGET_GLYPH,
     _MISSING_WAIT_TARGET_GLYPH_STYLE,
+    _UNRESOLVABLE_WAIT_TARGET_GLYPH,
+    _UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE,
 )
 
 WAIT_SECTION_ID = "wait"
@@ -89,6 +91,15 @@ def _append_wait_bead_status_badge(text: Text, status: str | None) -> None:
         glyph, style = badge
     text.append(" ")
     text.append(glyph, style=style)
+
+
+def _append_unresolvable_wait_marker(text: Text) -> None:
+    text.append(" ")
+    text.append(
+        _UNRESOLVABLE_WAIT_TARGET_GLYPH,
+        style=_UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE,
+    )
+    text.append(" (reserved - never resolves)", style="dim #FF5F5F")
 
 
 def _append_clan_wait_members(
@@ -187,6 +198,9 @@ def build_wait_lanes(
                 if tribe_wait_bindings is not None
                 else None
             )
+            if binding is not None and binding.state == "reserved":
+                _append_unresolvable_wait_marker(value)
+                continue
             if binding is None or binding.name is None:
                 value.append(" (next launch)", style="dim #AF87FF")
                 continue

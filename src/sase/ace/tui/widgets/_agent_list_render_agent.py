@@ -82,6 +82,8 @@ from ._agent_list_styling import (
     _STEP_TYPE_GLYPHS,
     _TYPE_GLYPHS,
     _TREE_GUIDE,
+    _UNRESOLVABLE_WAIT_TARGET_GLYPH,
+    _UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE,
 )
 
 
@@ -137,6 +139,7 @@ def format_agent_option(
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
     has_missing_wait_target: bool = False,
+    has_unresolvable_wait_target: bool = False,
     parallel_family_counts: ParallelFamilyStatusCounts | None = None,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
 ) -> tuple[Text, Text, str]:
@@ -324,6 +327,12 @@ def format_agent_option(
                 _MISSING_WAIT_TARGET_GLYPH,
                 style=_MISSING_WAIT_TARGET_GLYPH_STYLE,
             )
+        if has_unresolvable_wait_target and wait_agent.waiting_for:
+            text.append(" ")
+            text.append(
+                _UNRESOLVABLE_WAIT_TARGET_GLYPH,
+                style=_UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE,
+            )
         deps_satisfied = (
             not wait_agent.waiting_for and not wait_agent.waiting_for_beads
             if wait_deps_satisfied is None
@@ -503,6 +512,7 @@ def cached_format_agent_option(
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
     has_missing_wait_target: bool = False,
+    has_unresolvable_wait_target: bool = False,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
 ) -> tuple[Text, Text, str]:
     """Memoized wrapper for :func:`format_agent_option`.
@@ -533,6 +543,7 @@ def cached_format_agent_option(
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,
         has_missing_wait_target=has_missing_wait_target,
+        has_unresolvable_wait_target=has_unresolvable_wait_target,
         parallel_family_counts=family_counts,
         unread_agent_ids=unread_agent_ids,
     )
@@ -555,6 +566,7 @@ def cached_format_agent_option(
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,
         has_missing_wait_target=has_missing_wait_target,
+        has_unresolvable_wait_target=has_unresolvable_wait_target,
         parallel_family_counts=family_counts,
         unread_agent_ids=unread_agent_ids,
     )

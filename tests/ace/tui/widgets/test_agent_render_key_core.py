@@ -445,6 +445,36 @@ def test_render_key_changes_when_missing_wait_target_flag_flips() -> None:
     assert known_key != missing_key
 
 
+def test_render_key_changes_when_unresolvable_wait_target_flag_flips() -> None:
+    agent = _agent(status="WAITING")
+    agent.waiting_for = ["@default"]
+
+    pending_key = agent_render_key(
+        agent,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+        has_unresolvable_wait_target=False,
+    )
+    unresolvable_key = agent_render_key(
+        agent,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+        has_unresolvable_wait_target=True,
+    )
+
+    assert pending_key != unresolvable_key
+
+
 def test_render_key_changes_when_runner_slot_count_changes() -> None:
     agent = _agent(status="WAITING")
     agent.wait_runners = 9

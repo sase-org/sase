@@ -12,6 +12,7 @@ from sase.ace.tui.agent_completion import (
     _collect_agent_wait_status_maps,
     agent_status_buckets_for_app,
     agent_wait_status_maps_for_app,
+    has_unresolvable_wait_target,
     missing_wait_dependency_names,
     wait_dependencies_satisfied,
 )
@@ -464,6 +465,29 @@ def test_collect_agent_wait_status_maps_resolves_tribe_bindings_once() -> None:
         name="epic.builder",
         timestamp=target.raw_suffix,
         is_terminal=True,
+    )
+
+
+def test_collect_agent_wait_status_maps_marks_reserved_tribe_wait_unresolvable() -> (
+    None
+):
+    waiter = make_agent(
+        status="WAITING",
+        raw_suffix="20260728120000",
+        agent_name="waiter",
+        waiting_for=["@default"],
+    )
+
+    status_maps = _collect_agent_wait_status_maps([waiter])
+
+    key = (waiter.identity, "@default")
+    assert status_maps.tribe_bindings[key] == TribeWaitBinding(
+        tribe="default",
+        state="reserved",
+    )
+    assert has_unresolvable_wait_target(
+        waiter,
+        status_maps.tribe_bindings,
     )
 
 
