@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from pathlib import Path
+
+import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -76,15 +79,33 @@ def test_ci_lint_job_retains_sase_validation_stage() -> None:
 
 
 def test_ci_lint_job_validates_split_sdd_sidecars() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+    workflow_path = ROOT / ".github" / "workflows" / "ci.yml"
+    workflow = yaml.safe_load(workflow_path.read_text())
+    steps = workflow["jobs"]["lint"]["steps"]
 
-    assert "repository: sase-org/sase--plans" in workflow
-    assert "path: sase/repos/plans" in workflow
-    assert "repository: sase-org/sase--research" in workflow
-    assert "path: sase/repos/research" in workflow
-    assert '"storage": "sidecar_repos"' in workflow
-    assert "          mkdir -p .sase\n" in workflow
-    assert "sase-org/sase--sdd" not in workflow
+    checkouts = {
+        step["with"]["repository"]: step["with"]["path"]
+        for step in steps
+        if step.get("uses") == "actions/checkout@v4" and "with" in step
+    }
+    assert checkouts == {
+        "sase-org/sase--plans": "sase/repos/plans",
+        "sase-org/sase--beads": "sase/repos/beads",
+        "sase-org/sase--research": "sase/repos/research",
+    }
+
+    record_script = next(
+        step["run"]
+        for step in steps
+        if step.get("name") == "Record split SDD sidecar store"
+    )
+    record_text = record_script.split("<<'JSON'\n", maxsplit=1)[1].split(
+        "\nJSON", maxsplit=1
+    )[0]
+    record = json.loads(record_text)
+    assert record["schema_version"] == 3
+    assert record["storage"] == "sidecar_repos"
+    assert set(record["sidecars"]) == {"plans", "beads", "research"}
 
 
 def test_public_toobig_target_uses_private_lint_stage() -> None:

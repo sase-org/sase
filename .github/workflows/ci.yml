@@ -98,7 +98,7 @@ jobs:
           mkdir -p .sase
           cat > .sase/sdd-store.json <<'JSON'
           {
-            "schema_version": 2,
+            "schema_version": 3,
             "storage": "sidecar_repos",
             "host": "github.com",
             "provider": "github",
