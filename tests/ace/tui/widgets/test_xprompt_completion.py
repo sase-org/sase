@@ -12,7 +12,9 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     build_xprompt_assist_entries,
 )
 from sase.ace.tui.widgets.xprompt_completion import (
+    XPromptTokenSpan,
     build_xprompt_completion_candidates,
+    extract_xprompt_token_around_cursor,
     is_xprompt_like_token,
 )
 
@@ -80,6 +82,46 @@ def test_xprompt_like_token_accepts_bare_slash_skill_tokens() -> None:
     assert is_xprompt_like_token("/tmp/foo") is False
     assert is_xprompt_like_token("/sase-plan") is False
     assert is_xprompt_like_token("foo") is False
+
+
+def test_extract_xprompt_token_around_cursor_clamps_to_reference_name() -> None:
+    assert extract_xprompt_token_around_cursor("(see #ss.", 8) == XPromptTokenSpan(
+        5, 8, "#ss", clamped=True
+    )
+    assert extract_xprompt_token_around_cursor("(see #ss.", 9) is None
+    assert extract_xprompt_token_around_cursor("(see #ss", 8) == XPromptTokenSpan(
+        5, 8, "#ss", clamped=False
+    )
+    assert extract_xprompt_token_around_cursor("(#n)", 3) == XPromptTokenSpan(
+        1, 3, "#n", clamped=False
+    )
+    assert extract_xprompt_token_around_cursor("#bd/wo.", 6) == XPromptTokenSpan(
+        0, 6, "#bd/wo", clamped=True
+    )
+    assert extract_xprompt_token_around_cursor("#!sy.", 4) == XPromptTokenSpan(
+        0, 4, "#!sy", clamped=True
+    )
+    assert extract_xprompt_token_around_cursor("#", 1) == XPromptTokenSpan(
+        0, 1, "#", clamped=False
+    )
+    assert extract_xprompt_token_around_cursor("~/foo.py", 5) is None
+    assert extract_xprompt_token_around_cursor(".#ss", 4) is None
+
+
+def test_clamped_xprompt_completion_excludes_dotted_names() -> None:
+    entry = _entry("foo.bar")
+    span = extract_xprompt_token_around_cursor("#foo.b", 4)
+    assert span == XPromptTokenSpan(0, 4, "#foo", clamped=True)
+
+    clamped, _ = build_xprompt_completion_candidates(
+        span.token,
+        entries=[entry],
+        inline_reference_only=span.clamped,
+    )
+    unclamped, _ = build_xprompt_completion_candidates("#foo", entries=[entry])
+
+    assert clamped == []
+    assert [candidate.insertion for candidate in unclamped] == ["#foo.bar"]
 
 
 def test_xprompt_completion_uses_kind_aware_insertions() -> None:
@@ -306,6 +348,36 @@ async def test_single_candidate_xprompt_without_inputs_skips_space_before_punctu
     assert ta.text == "(#none)"
     assert ta.cursor_location == (0, len("(#none"))
     assert ta._active_xprompt_arg_hint is None
+
+
+async def test_single_candidate_xprompt_before_period_preserves_period() -> None:
+    entries = [_entry("none")]
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("(see #n.")
+        ta.cursor_location = (0, len("(see #n"))
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "(see #none."
+    assert ta.cursor_location == (0, len("(see #none"))
+    assert ta._active_xprompt_arg_hint is None
+
+
+async def test_single_candidate_xprompt_skeleton_lands_before_period() -> None:
+    entries = [_entry("review", inputs=(_input("path", "path"),))]
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("(see #r.")
+        ta.cursor_location = (0, len("(see #r"))
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "(see #review:."
+    assert ta.cursor_location == (0, len("(see #review:"))
+    assert ta._active_xprompt_arg_hint is not None
 
 
 async def test_single_candidate_xprompt_required_path_inserts_colon() -> None:

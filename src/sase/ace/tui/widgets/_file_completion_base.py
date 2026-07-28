@@ -100,6 +100,8 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         def _build_warm_xprompt_completion_candidates(
             self,
             token: str,
+            *,
+            inline_reference_only: bool = False,
         ) -> tuple[list[CompletionCandidate], str] | None: ...
         def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
         def _refresh_history_word_completion(

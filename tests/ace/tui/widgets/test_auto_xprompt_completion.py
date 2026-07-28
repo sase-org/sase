@@ -105,6 +105,24 @@ async def test_single_match_auto_opens_without_accepting() -> None:
         assert [c.insertion for c in ta._file_completion_candidates] == ["#fix"]
 
 
+async def test_xprompt_before_period_auto_opens_but_after_period_stays_quiet() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        _seed_entries(ta, [_entry("screenshot")])
+
+        ta.load_text("(see #s.")
+        ta.cursor_location = (0, len("(see #s"))
+        assert ta._try_auto_xprompt_completion() is True
+        assert ta._completion_kind == "xprompt"
+        assert [c.insertion for c in ta._file_completion_candidates] == ["#screenshot"]
+
+        ta._clear_file_completion()
+        ta.cursor_location = (0, len("(see #s."))
+        assert ta._try_auto_xprompt_completion() is False
+        assert ta._file_completion_active is False
+
+
 async def test_standalone_marker_auto_opens_standalone_xprompts() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:

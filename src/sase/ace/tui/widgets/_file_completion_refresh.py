@@ -257,6 +257,17 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                 ),
                 selected_values=selected_values,
             )
+        elif self._completion_kind == "xprompt":
+            xprompt_ctx = self._get_xprompt_token_context()
+            if xprompt_ctx is None:
+                self._clear_file_completion()
+                return
+            _row, span = xprompt_ctx
+            token = span.token
+            candidates, _shared = self._build_xprompt_completion_candidates(
+                token,
+                inline_reference_only=span.clamped,
+            )
         else:
             ctx = self._get_token_context()
             if ctx is None:
@@ -264,9 +275,7 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                 return
 
             _row, _start, _end, token = ctx
-            if self._completion_kind == "xprompt":
-                candidates, _shared = self._build_xprompt_completion_candidates(token)
-            elif self._completion_kind == "directive":
+            if self._completion_kind == "directive":
                 candidates, _shared = build_directive_completion_candidates(token)
             elif self._completion_kind.startswith("xprompt_arg_"):
                 arg_ctx = self._get_xprompt_arg_completion_context()

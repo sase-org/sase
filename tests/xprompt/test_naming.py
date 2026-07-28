@@ -9,6 +9,8 @@ import pytest
 from sase.xprompt.loader_sources import load_xprompt_from_file
 from sase.xprompt.naming import (
     ResolutionSource,
+    is_inline_reference_name,
+    is_inline_reference_name_char,
     markdown_save_plan,
     resolution_after_save,
     validate_snippet_trigger,
@@ -41,6 +43,46 @@ def test_validate_xprompt_name_rejects_specific_invalid_forms(
 @pytest.mark.parametrize("name", ["review", "review-fast", "review.v2", "ns/foo"])
 def test_validate_xprompt_name_accepts_supported_names(name: str) -> None:
     assert validate_xprompt_name(name) is None
+
+
+@pytest.mark.parametrize(
+    ("name", "valid"),
+    [
+        ("review", True),
+        ("review_2", True),
+        ("namespace/review", True),
+        ("2review", False),
+        ("review-fast", False),
+        ("review.v2", False),
+        ("namespace//review", False),
+    ],
+)
+def test_is_inline_reference_name_uses_runtime_grammar(
+    name: str,
+    valid: bool,
+) -> None:
+    assert is_inline_reference_name(name) is valid
+
+
+@pytest.mark.parametrize(
+    ("character", "valid"),
+    [
+        ("a", True),
+        ("Z", True),
+        ("2", True),
+        ("_", True),
+        ("/", True),
+        (".", False),
+        ("-", False),
+        ("é", False),
+        ("ab", False),
+    ],
+)
+def test_is_inline_reference_name_char_is_ascii_only(
+    character: str,
+    valid: bool,
+) -> None:
+    assert is_inline_reference_name_char(character) is valid
 
 
 def test_markdown_save_plan_stamps_namespaced_name_and_round_trips(

@@ -7,11 +7,27 @@ from pathlib import Path
 import re
 from collections.abc import Sequence
 
+from ._parsing_references import XPROMPT_REFERENCE_NAME_FRAGMENT
 from .prompt_frontmatter import PromptFrontmatter
 from .snippet_bridge import is_valid_snippet_trigger
 
 _VALID_NAME_RE = re.compile(r"^[A-Za-z0-9_.\-/]+$")
 _SEPARATORS = "._-/"
+
+
+def is_inline_reference_name_char(character: str) -> bool:
+    """Return whether *character* can continue an inline reference name."""
+    return len(character) == 1 and (
+        "a" <= character <= "z"
+        or "A" <= character <= "Z"
+        or "0" <= character <= "9"
+        or character in "_/"
+    )
+
+
+def is_inline_reference_name(name: str) -> bool:
+    """Return whether *name* matches the inline xprompt reference grammar."""
+    return re.fullmatch(XPROMPT_REFERENCE_NAME_FRAGMENT, name) is not None
 
 
 def validate_xprompt_name(name: str) -> str | None:
@@ -111,6 +127,8 @@ def resolution_after_save(
 __all__ = [
     "ResolutionSource",
     "SaveResolution",
+    "is_inline_reference_name",
+    "is_inline_reference_name_char",
     "markdown_save_plan",
     "resolution_after_save",
     "validate_snippet_trigger",

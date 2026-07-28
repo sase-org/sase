@@ -34,8 +34,9 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
 )
 from sase.ace.tui.widgets.xprompt_arg_assist import merge_local_xprompt_entries
 from sase.ace.tui.widgets.xprompt_completion import (
+    XPromptTokenSpan,
     build_xprompt_completion_candidates,
-    is_xprompt_like_token,
+    extract_xprompt_token_around_cursor,
 )
 from sase.xprompt.vcs_project_completion import (
     VcsProjectTrigger,
@@ -107,17 +108,16 @@ class FileCompletionContextMixin(_MixinBase):
         row, _ = self.cursor_location
         return row, start, end, token
 
-    def _get_xprompt_token_context(self) -> tuple[int, int, int, str] | None:
-        """Return (row, start, end, token) for the current xprompt token."""
-        token_info = self._extract_token_around_cursor()
-        if token_info is None:
+    def _get_xprompt_token_context(
+        self,
+    ) -> tuple[int, XPromptTokenSpan] | None:
+        """Return the row and grammar-aware span for the current xprompt token."""
+        row, col = self.cursor_location
+        line = self.document.get_line(row)
+        span = extract_xprompt_token_around_cursor(line, col)
+        if span is None:
             return None
-
-        start, end, token = token_info
-        if not is_xprompt_like_token(token):
-            return None
-        row, _ = self.cursor_location
-        return row, start, end, token
+        return row, span
 
     def _get_directive_token_context(self) -> tuple[int, int, int, str] | None:
         """Return (row, start, end, token) for the current directive token."""
@@ -239,7 +239,11 @@ class FileCompletionContextMixin(_MixinBase):
         if self._completion_kind == "directive":
             return self._get_directive_token_context()
         if self._completion_kind == "xprompt":
-            return self._get_xprompt_token_context()
+            xprompt_ctx = self._get_xprompt_token_context()
+            if xprompt_ctx is None:
+                return None
+            row, span = xprompt_ctx
+            return row, span.start, span.end, span.token
         if self._completion_kind.startswith("xprompt_arg_"):
             return self._get_xprompt_arg_token_context()
         return self._get_path_token_context()
@@ -323,6 +327,8 @@ class FileCompletionContextMixin(_MixinBase):
     def _build_xprompt_completion_candidates(
         self,
         token: str,
+        *,
+        inline_reference_only: bool = False,
     ) -> tuple[list[CompletionCandidate], str]:
         """Build xprompt candidates, merging live local xprompts when present.
 
@@ -335,13 +341,23 @@ class FileCompletionContextMixin(_MixinBase):
         warm = self._get_warm_xprompt_arg_assist_entries()
         if warm is not None:
             entries = merge_local_xprompt_entries(warm, local)
-            return build_xprompt_completion_candidates(token, entries=entries)
+            return build_xprompt_completion_candidates(
+                token,
+                entries=entries,
+                inline_reference_only=inline_reference_only,
+            )
         self._warm_current_xprompt_assist_entries()
-        return build_xprompt_completion_candidates(token, entries=local)
+        return build_xprompt_completion_candidates(
+            token,
+            entries=local,
+            inline_reference_only=inline_reference_only,
+        )
 
     def _build_warm_xprompt_completion_candidates(
         self,
         token: str,
+        *,
+        inline_reference_only: bool = False,
     ) -> tuple[list[CompletionCandidate], str] | None:
         """Build xprompt candidates from warm/local entries only.
 
@@ -354,6 +370,14 @@ class FileCompletionContextMixin(_MixinBase):
             self._warm_current_xprompt_assist_entries()
             if not local:
                 return None
-            return build_xprompt_completion_candidates(token, entries=local)
+            return build_xprompt_completion_candidates(
+                token,
+                entries=local,
+                inline_reference_only=inline_reference_only,
+            )
         entries = merge_local_xprompt_entries(warm, local)
-        return build_xprompt_completion_candidates(token, entries=entries)
+        return build_xprompt_completion_candidates(
+            token,
+            entries=entries,
+            inline_reference_only=inline_reference_only,
+        )

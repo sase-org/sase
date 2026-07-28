@@ -26,7 +26,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
 )
 from sase.ace.tui.widgets.xprompt_completion import (
     build_xprompt_completion_candidates,
-    is_xprompt_like_token,
+    extract_xprompt_token_around_cursor,
 )
 
 PromptCompletionAutoMode = Literal["off", "soft"]
@@ -194,28 +194,28 @@ def build_prompt_soft_completion(
                 token,
             )
 
-    token_ctx = extract_token_around_cursor(line, col)
-    if token_ctx is None:
-        return None
-    start, end, token = token_ctx
-
-    if is_xprompt_like_token(token):
-        if xprompt_entries is None:
-            return None
+    xprompt_span = extract_xprompt_token_around_cursor(line, col)
+    if xprompt_span is not None and xprompt_entries is not None:
         candidates, _shared = build_xprompt_completion_candidates(
-            token,
+            xprompt_span.token,
             entries=xprompt_entries,
+            inline_reference_only=xprompt_span.clamped,
         )
-        candidate = _first_xprompt_soft_candidate(candidates, token)
+        candidate = _first_xprompt_soft_candidate(candidates, xprompt_span.token)
         if candidate is not None:
             return _line_suggestion(
                 candidate,
                 "xprompt",
                 line_start,
-                start,
-                end,
-                token,
+                xprompt_span.start,
+                xprompt_span.end,
+                xprompt_span.token,
             )
+
+    token_ctx = extract_token_around_cursor(line, col)
+    if token_ctx is None:
+        return None
+    start, end, token = token_ctx
 
     if settings.auto_file_paths and is_path_like_token(token):
         candidates, _shared = build_completion_candidates(token, base_dir=base_dir)

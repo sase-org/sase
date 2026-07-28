@@ -28,7 +28,6 @@ from sase.ace.tui.widgets.prompt_word_completion import (
     PROMPT_WORD_COMPLETION_KIND,
     word_range_at_cursor,
 )
-from sase.ace.tui.widgets.xprompt_completion import is_xprompt_like_token
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.jinja_completion import JinjaCompletionResult
@@ -115,36 +114,36 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                     token
                 )
             else:
-                token_info = self._extract_token_around_cursor()
-                if token_info is None:
-                    return self._try_file_history_completion()
-
-                _start, _end, raw_token = token_info
-
-                # Determine completion kind from the raw token.
-                if is_xprompt_like_token(raw_token):
+                xprompt_ctx = self._get_xprompt_token_context()
+                if xprompt_ctx is not None:
                     self._completion_kind = "xprompt"
-                    ctx = self._get_xprompt_token_context()
-                    if ctx is None:
-                        self._clear_file_completion()
-                        return False
-                    row, start, end, token = ctx
+                    row, span = xprompt_ctx
+                    start, end, token = span.start, span.end, span.token
                     candidates, shared_extension = (
-                        self._build_xprompt_completion_candidates(token)
-                    )
-                elif is_path_like_token(raw_token):
-                    self._completion_kind = "file"
-                    ctx = self._get_path_token_context()
-                    if ctx is None:
-                        self._clear_file_completion()
-                        return False
-                    row, start, end, token = ctx
-                    candidates, shared_extension = build_completion_candidates(
-                        token,
-                        base_dir=self._prompt_completion_base_dir(),
+                        self._build_xprompt_completion_candidates(
+                            token,
+                            inline_reference_only=span.clamped,
+                        )
                     )
                 else:
-                    return self._try_prompt_word_completion_tab(cursor_offset)
+                    token_info = self._extract_token_around_cursor()
+                    if token_info is None:
+                        return self._try_file_history_completion()
+
+                    _start, _end, raw_token = token_info
+                    if is_path_like_token(raw_token):
+                        self._completion_kind = "file"
+                        ctx = self._get_path_token_context()
+                        if ctx is None:
+                            self._clear_file_completion()
+                            return False
+                        row, start, end, token = ctx
+                        candidates, shared_extension = build_completion_candidates(
+                            token,
+                            base_dir=self._prompt_completion_base_dir(),
+                        )
+                    else:
+                        return self._try_prompt_word_completion_tab(cursor_offset)
 
         if not candidates:
             self._clear_file_completion()
@@ -172,57 +171,68 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         if shared_extension:
             next_token = f"{token}{shared_extension}"
             self._replace_token_text(row, start, end, next_token)
-            ctx = self._get_token_context()
-            if ctx is None:
-                self._clear_file_completion()
-                return True
-            row, start, end, token = ctx
             if self._completion_kind == "xprompt":
-                candidates, _ = self._build_xprompt_completion_candidates(token)
-            elif self._completion_kind == "directive":
-                candidates, _ = build_directive_completion_candidates(token)
-            elif self._completion_kind == "directive_arg":
-                directive_arg_ctx = self._get_directive_arg_token_context()
-                if directive_arg_ctx is None:
+                xprompt_ctx = self._get_xprompt_token_context()
+                if xprompt_ctx is None:
                     self._clear_file_completion()
                     return True
-                (
-                    row,
-                    start,
-                    end,
-                    directive_name,
+                row, span = xprompt_ctx
+                start, end, token = span.start, span.end, span.token
+                candidates, _ = self._build_xprompt_completion_candidates(
                     token,
-                    selected_values,
-                ) = directive_arg_ctx
-                candidates, _ = build_directive_arg_completion_candidates(
-                    directive_name,
-                    token,
-                    agent_candidates=(
-                        self._snapshot_agent_completion_candidates()
-                        if directive_name == "wait"
-                        else None
-                    ),
-                    selected_values=selected_values,
-                )
-            elif self._completion_kind.startswith("xprompt_arg_"):
-                arg_ctx = self._get_xprompt_arg_completion_context()
-                if arg_ctx is None:
-                    self._clear_file_completion()
-                    return True
-                candidates, _ = build_xprompt_arg_completion_candidates(
-                    arg_ctx,
-                    base_dir=self._prompt_completion_base_dir(),
-                    agent_candidates=(
-                        self._snapshot_agent_completion_candidates()
-                        if arg_ctx.completion_kind == "xprompt_arg_agent"
-                        else None
-                    ),
+                    inline_reference_only=span.clamped,
                 )
             else:
-                candidates, _ = build_completion_candidates(
-                    token,
-                    base_dir=self._prompt_completion_base_dir(),
-                )
+                ctx = self._get_token_context()
+                if ctx is None:
+                    self._clear_file_completion()
+                    return True
+                row, start, end, token = ctx
+            if self._completion_kind != "xprompt":
+                if self._completion_kind == "directive":
+                    candidates, _ = build_directive_completion_candidates(token)
+                elif self._completion_kind == "directive_arg":
+                    directive_arg_ctx = self._get_directive_arg_token_context()
+                    if directive_arg_ctx is None:
+                        self._clear_file_completion()
+                        return True
+                    (
+                        row,
+                        start,
+                        end,
+                        directive_name,
+                        token,
+                        selected_values,
+                    ) = directive_arg_ctx
+                    candidates, _ = build_directive_arg_completion_candidates(
+                        directive_name,
+                        token,
+                        agent_candidates=(
+                            self._snapshot_agent_completion_candidates()
+                            if directive_name == "wait"
+                            else None
+                        ),
+                        selected_values=selected_values,
+                    )
+                elif self._completion_kind.startswith("xprompt_arg_"):
+                    arg_ctx = self._get_xprompt_arg_completion_context()
+                    if arg_ctx is None:
+                        self._clear_file_completion()
+                        return True
+                    candidates, _ = build_xprompt_arg_completion_candidates(
+                        arg_ctx,
+                        base_dir=self._prompt_completion_base_dir(),
+                        agent_candidates=(
+                            self._snapshot_agent_completion_candidates()
+                            if arg_ctx.completion_kind == "xprompt_arg_agent"
+                            else None
+                        ),
+                    )
+                else:
+                    candidates, _ = build_completion_candidates(
+                        token,
+                        base_dir=self._prompt_completion_base_dir(),
+                    )
             if not candidates:
                 self._clear_file_completion()
                 return True

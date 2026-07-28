@@ -35,7 +35,6 @@ from sase.ace.tui.widgets.vcs_repo_completion import (
     build_loading_placeholder,
     vcs_repo_completion_candidates,
 )
-from sase.ace.tui.widgets.xprompt_completion import is_xprompt_like_token
 from sase.xprompt.vcs_repo_completion import peek_cached_repo_candidates
 
 if TYPE_CHECKING:
@@ -309,14 +308,16 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         ctx = self._get_xprompt_token_context()
         if ctx is None:
             return False
-        _row, _start, _end, token = ctx
+        _row, span = ctx
+        token = span.token
         # Bare ``#`` / ``/`` stay quiet; open only once an identifier follows.
         if len(token) < 2:
             return False
-        if not is_xprompt_like_token(token):
-            return False
 
-        result = self._build_warm_xprompt_completion_candidates(token)
+        result = self._build_warm_xprompt_completion_candidates(
+            token,
+            inline_reference_only=span.clamped,
+        )
         if result is None:
             return False
         candidates, _shared_extension = result

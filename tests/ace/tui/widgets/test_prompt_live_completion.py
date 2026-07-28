@@ -220,6 +220,22 @@ async def test_soft_xprompt_without_inputs_skips_space_before_punctuation() -> N
     assert ta._active_xprompt_arg_hint is None
 
 
+async def test_soft_xprompt_before_period_preserves_period() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        _seed_entries(ta, [_entry("review")])
+
+        ta.load_text("(see #r.")
+        ta.cursor_location = (0, len("(see #r"))
+        _compute_soft_now(ta)
+        await pilot.press("ctrl+l")
+
+    assert ta.text == "(see #review."
+    assert ta.cursor_location == (0, len("(see #review"))
+    assert ta._active_xprompt_arg_hint is None
+
+
 async def test_ctrl_l_accepts_warm_xprompt_suggestion_before_debounce() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
