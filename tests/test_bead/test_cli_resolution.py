@@ -384,7 +384,7 @@ def test_plain_checkout_sidecar_record_resolves_read_only_bead_store(
     nested.mkdir(parents=True)
     monkeypatch.chdir(nested)
     monkeypatch.setattr(
-        "sase.bead.cli_common._resolve_workspace_context",
+        "sase.bead.cli_location._resolve_workspace_context",
         lambda _cwd: None,
     )
 
@@ -414,7 +414,7 @@ def test_plain_checkout_split_sidecar_record_resolves_root_store(
         issue = project.create("Root checkout epic", IssueType.PLAN)
     _write_sidecar_record(checkout, split_beads=True)
     monkeypatch.setattr(
-        "sase.bead.cli_common._resolve_workspace_context",
+        "sase.bead.cli_location._resolve_workspace_context",
         lambda _cwd: None,
     )
 
@@ -443,7 +443,7 @@ def test_plain_checkout_non_sidecar_record_falls_back_to_legacy_resolution(
         },
     )
     monkeypatch.setattr(
-        "sase.bead.cli_common._resolve_workspace_context",
+        "sase.bead.cli_location._resolve_workspace_context",
         lambda _cwd: None,
     )
 
@@ -460,7 +460,7 @@ def test_plain_checkout_sidecar_record_never_auto_commits(
     _write_sidecar_record(checkout)
     monkeypatch.chdir(checkout)
     monkeypatch.setattr(
-        "sase.bead.cli_common._resolve_workspace_context",
+        "sase.bead.cli_location._resolve_workspace_context",
         lambda _cwd: None,
     )
 

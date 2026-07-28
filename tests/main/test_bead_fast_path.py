@@ -385,7 +385,7 @@ def test_fast_path_refuses_mutation_from_plain_checkout_sidecar_record(
     )
     monkeypatch.chdir(checkout)
     monkeypatch.setattr(
-        "sase.bead.cli_common._resolve_workspace_context",
+        "sase.bead.cli_location._resolve_workspace_context",
         lambda _cwd: None,
     )
     monkeypatch.setattr("sase.bead.sync.bead_refresh_mode", lambda: "background")
