@@ -204,11 +204,20 @@ def handle_bead_open(args: argparse.Namespace) -> None:
 def handle_bead_close(args: argparse.Namespace) -> None:
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         try:
+            note = getattr(args, "note", None)
+            author = None
+            if note is not None:
+                identity = discover_agent_identity()
+                author = (
+                    identity.name if identity is not None else mutation.project.owner
+                )
             closed = mutation.project.close(
                 args.ids,
                 reason=args.reason,
                 resolution=getattr(args, "resolution", "done"),
                 force=getattr(args, "force", False),
+                note=note,
+                author=author,
             )
         except KeyError as e:
             print(f"Error: {e}", file=sys.stderr)

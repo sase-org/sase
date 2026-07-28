@@ -115,8 +115,9 @@ def build_commit_instruction_message(
     ]
     if resolved_bead_id:
         parts.append(
-            f"If you DID make these changes, run `sase bead close {resolved_bead_id}` "
-            f"and verify bead `{resolved_bead_id}` is closed before invoking the commit skill."
+            f"If you DID make these changes, run `sase bead close {resolved_bead_id} "
+            f'--note "<what you verified>"` and verify bead `{resolved_bead_id}` is '
+            "closed before invoking the commit skill."
         )
         parts.append(
             f"Then commit the changes using your {skill} skill before continuing."

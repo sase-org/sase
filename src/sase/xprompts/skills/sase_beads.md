@@ -118,7 +118,7 @@ guard `close` does.
 
 ```bash
 # Close finished work (the standard completion path; used by runtime prompts)
-sase bead close <id>
+sase bead close <id> --note "<what you verified>"
 sase bead close <id1> <id2> --reason "why"
 
 # Cancel or supersede an unfinished tree (explicit, never the normal path)
@@ -133,6 +133,10 @@ sase bead open <id>
 Every close records a typed resolution with `-R`/`--resolution`: `done` (the default), `canceled`, or `superseded`.
 `--reason` stays free text for the human explanation. Historical closures made before resolutions existed are not
 backfilled and render as `(unrecorded)`.
+
+`-n`/`--note` appends the same attributed entry to every explicitly listed bead before closing them. The note and close
+events are written in one mutation, one commit, and one push. Use it for completion evidence; keep `sase bead note` for
+mid-work progress and handoff notes.
 
 **Closing does not cascade.** A bead with any descendant that is not already closed is rejected, and the error names the
 unfinished beads. Nothing is written — a multi-ID close either applies completely or leaves the store untouched. The
@@ -285,6 +289,6 @@ or still blocked.
    automatically because plan approval runs `sase bead work`. Hand-create beads with `create` and `dep add` only for
    standalone tracker or backlog work.
 2. **Working loop.** `sase bead ready` → `sase bead update <id> --status in_progress` → do the work →
-   `sase bead note <id> "<what you verified>"` → `sase bead close <id>`. A bead you were launched to work is already
-   `in_progress` (see Statuses). Never close the parent epic bead; the epic's land agent does that, and the descendant
-   guard now rejects that close outright while sibling phases are unfinished.
+   `sase bead close <id> --note "<what you verified>"`. A bead you were launched to work is already `in_progress` (see
+   Statuses). Never close the parent epic bead; the epic's land agent does that, and the descendant guard now rejects
+   that close outright while sibling phases are unfinished.

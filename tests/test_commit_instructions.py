@@ -66,6 +66,7 @@ def test_commit_instruction_includes_bead_close_when_bead_id_is_set() -> None:
     )
     assert "using your /sase_git_commit skill" in message
     assert "sase bead close sase-2d.4" in message
+    assert '--note "<what you verified>"' in message
     assert "verify bead `sase-2d.4` is closed" in message
     assert "before invoking the commit skill" in message
 

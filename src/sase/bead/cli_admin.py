@@ -152,7 +152,7 @@ Quick Start:
   sase bead show <id> --format=json              Machine-readable bead detail
   sase bead update <id> --status=in_progress     Claim an issue
   sase bead open <id>                            Reopen an issue
-  sase bead close <id>                           Close an issue
+  sase bead close <id> --note "verified"         Close with completion evidence
   sase bead rm <id> [<id2> ...]                 Remove issues (and children)
   sase bead dep add <issue> <depends-on>         Add dependency
   sase bead dep list [<id>]                      Inspect dependency provenance

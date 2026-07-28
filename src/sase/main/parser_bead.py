@@ -37,6 +37,11 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
             "non-done --resolution"
         ),
     )
+    bead_close_parser.add_argument(
+        "-n",
+        "--note",
+        help="Append this attributed note to each issue before closing it",
+    )
     bead_close_parser.add_argument("-r", "--reason", help="Close reason")
     bead_close_parser.add_argument(
         "-R",

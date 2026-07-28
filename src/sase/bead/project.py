@@ -326,11 +326,14 @@ class BeadProject:
         reason: str | None = None,
         resolution: Resolution | str | None = None,
         force: bool = False,
+        note: str | None = None,
+        author: str | None = None,
     ) -> list[Issue]:
         """Close one or more issues.
 
         Descendants must already be closed unless ``force`` explicitly sweeps
-        them with a non-done resolution and reason.
+        them with a non-done resolution and reason. When ``note`` is provided,
+        append it to every explicitly listed issue in the same mutation.
         """
         from sase.core import bead_mutation_facade as rust_beads
 
@@ -340,6 +343,8 @@ class BeadProject:
             reason=reason,
             resolution=resolution,
             force=force,
+            note=note,
+            author=author,
             now=_now(),
         )
         self._record_mutation_outcome(outcome)

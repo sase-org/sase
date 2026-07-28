@@ -169,6 +169,8 @@ def close(
     reason: str | None = None,
     resolution: Resolution | str | None = None,
     force: bool = False,
+    note: str | None = None,
+    author: str | None = None,
     now: str | None = None,
 ) -> tuple[list[Issue], dict[str, Any]]:
     _guard_bead_store_write(beads_dir, "close")
@@ -184,6 +186,8 @@ def close(
         resolution_value,
         force,
         now,
+        note,
+        author,
     )
     return issues_from_list(payload.get("issues", [])), payload
 
