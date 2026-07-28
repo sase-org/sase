@@ -219,6 +219,18 @@ def test_jk_navigation_guard_keeps_current_agent_and_warns() -> None:
     )
 
 
+def test_panel_less_stub_keeps_single_stop_refocus_fallthrough() -> None:
+    """A harness without the dead-end escape keeps the legacy one-stop path."""
+    app = _StubApp([_agent(name="only")])
+    app._current_group_key = ("stale",)
+
+    app._navigate_agents_panel(1)
+
+    assert app.current_idx == 0
+    assert app._current_group_key is None
+    assert app.refresh_calls == 1
+
+
 def test_walks_grouping_order_not_input_order() -> None:
     """Agents in scrambled project order render in alphabetical project order."""
     agents = [

@@ -77,7 +77,9 @@ class BasicNavigationMixin(NavigationMixinBase):
         through every selectable stop (collapsed banners + visible
         agents) in tree order so the user can step in and out of
         collapsed groups with ``j`` / ``k`` regardless of how many
-        groups are folded.
+        groups are folded. When the focused panel has at most one
+        selectable stop, the same keys select the adjacent whole panel
+        instead.
 
         Args:
             direction: +1 for next, -1 for previous.
@@ -86,10 +88,14 @@ class BasicNavigationMixin(NavigationMixinBase):
         if callable(whole_panel_nav) and whole_panel_nav(forward=direction > 0):
             return
         stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
-        if not stops:
-            return
         guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
         if callable(guard) and guard():
+            return
+        if len(stops) <= 1:
+            escape = getattr(self, "_escape_dead_end_panel_focus", None)
+            if callable(escape) and escape(forward=direction > 0):
+                return
+        if not stops:
             return
         old_key = self._current_group_key
         old_idx = self.current_idx

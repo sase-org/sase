@@ -137,6 +137,26 @@ class AgentPanelNavigationMixin:
         target = self._resolve_last_expanded_panel_target()
         return target is not None and self._focus_whole_panel_target(target)
 
+    def _step_whole_panel_focus(self, *, forward: bool) -> bool:
+        """Select the adjacent whole panel, wrapping over every panel key."""
+        panel_keys = self._panel_group.panel_keys
+        current_idx = self._panel_group.focused_idx
+        target_idx = (
+            (current_idx + 1) % len(panel_keys)
+            if forward
+            else (current_idx - 1) % len(panel_keys)
+        )
+        if not self._focus_whole_panel_target((target_idx, panel_keys[target_idx])):
+            return False
+        # Whole-panel focus is reactive state outside ``current_idx``. Its
+        # remembered row may be the same across a hop, so the ordinary index
+        # watcher is not a reliable paint-sample terminator for lower-case
+        # j/k instrumentation.
+        jk_perf = getattr(self, "_jk_perf", None)
+        if jk_perf is not None:
+            self.call_after_refresh(jk_perf.mark_painted)  # type: ignore[attr-defined]
+        return True
+
     def _change_whole_panel_focus(self, *, forward: bool) -> bool:
         """Move selected-panel focus without descending into either panel."""
         resolve_panel = getattr(self, "_resolve_focused_panel", None)
@@ -146,23 +166,33 @@ class AgentPanelNavigationMixin:
         if len(self._panel_group.panel_keys) <= 1:
             return True
 
-        panel_keys = self._panel_group.panel_keys
-        current_idx = self._panel_group.focused_idx
-        target_idx = (
-            (current_idx + 1) % len(panel_keys)
-            if forward
-            else (current_idx - 1) % len(panel_keys)
+        self._step_whole_panel_focus(forward=forward)
+        return True
+
+    def _escape_dead_end_panel_focus(self, *, forward: bool) -> bool:
+        """Select the adjacent whole panel from a panel with nowhere left to move."""
+        panel_group = getattr(self, "_panel_group", None)
+        if (
+            self.current_tab != "agents"
+            or getattr(self, "_agent_panels_grouped", False)
+            or panel_group is None
+            or len(panel_group.panel_keys) <= 1
+        ):
+            return False
+
+        self._remember_focused_panel_selection()  # type: ignore[attr-defined]
+        departing_agent = (
+            self._agents[self.current_idx]
+            if self._current_group_key is None
+            and 0 <= self.current_idx < len(self._agents)
+            else None
         )
-        changed = self._focus_whole_panel_target((target_idx, panel_keys[target_idx]))
-        if not changed:
-            return True
-        # Whole-panel focus is reactive state outside ``current_idx``. Its
-        # remembered row may be the same across a hop, so the ordinary index
-        # watcher is not a reliable paint-sample terminator for lower-case
-        # j/k instrumentation.
-        jk_perf = getattr(self, "_jk_perf", None)
-        if jk_perf is not None:
-            self.call_after_refresh(jk_perf.mark_painted)  # type: ignore[attr-defined]
+        if not self._step_whole_panel_focus(forward=forward):
+            return False
+
+        arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
+        if callable(arm_manual):
+            arm_manual(departing_agent)
         return True
 
     def _change_focused_agent_panel(self, *, forward: bool) -> None:

@@ -457,21 +457,21 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 
 ### Navigation
 
-| Key                       | Action                                                                                               |
-| ------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, cycle whole panels instead |
-| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                    |
-| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                      |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint         |
-| `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                  |
-| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                |
-| `0`–`9`                   | Jump from a selected clan, lane, or whole-panel roster to its numbered member or neighbor            |
-| `o` / `O`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                         |
-| `~`                       | Jump among lane-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)             |
-| `g`                       | Scroll to top (file, tools, or metadata panel)                                                       |
-| `G`                       | Scroll to bottom (file, tools, or metadata panel)                                                    |
-| `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                          |
-| `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                        |
+| Key                       | Action                                                                                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead |
+| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                           |
+| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                             |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint                                                                |
+| `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                         |
+| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                       |
+| `0`–`9`                   | Jump from a selected clan, lane, or whole-panel roster to its numbered member or neighbor                                                                   |
+| `o` / `O`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                                                                                |
+| `~`                       | Jump among lane-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)                                                                    |
+| `g`                       | Scroll to top (file, tools, or metadata panel)                                                                                                              |
+| `G`                       | Scroll to bottom (file, tools, or metadata panel)                                                                                                           |
+| `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                 |
+| `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                                                                               |
 
 > **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the Agents tab and the PRs sub-tab (each
 > surface keeps its own in-session selection independently); on the AXE tab it is a silent no-op. `g`/`G` keep their
@@ -834,17 +834,20 @@ height; when the panels overflow, space is weighted by each panel's rendered row
 
 Use `J` / `K` to move across expanded panels (forward / reverse) and enter the first or last selectable row in the
 destination; collapsed panels are skipped entirely, and the keymaps do nothing when no other panel is expanded.
-Collapsed grouping banners count as rows. Whole-panel focus is available only in the split layout. Lowercase `h` walks
-from any agent or workflow-step row to its validated immediate workflow, family, clan, and finally tribe parent without
-changing structural or grouping folds. It also selects a lone split panel after the structural chain is exhausted. A
-selected panel has a `❖` title and shows a fold-aware `TRIBE` summary in the metadata pane. While it is selected, `j` /
-`k` cycle whole panels without descending; `l` or `Esc` returns to the remembered row. A second `h` collapses the
-selected panel when another panel remains visible. On a collapsed panel, the first `l` expands it while keeping
-whole-panel focus and the second returns to the remembered row; uppercase `L` expands it and enters its first selectable
-row. Lowercase `h` on a collapsed panel selects the visually bottom-most expanded panel without changing any panel
-folds, and `Ctrl+O` returns to the collapsed origin. When every live panel is collapsed, `h` remains a no-op and shows
-the existing `Panel is already collapsed` warning. Apostrophe jump hints include every split-panel title, even a lone
-expanded panel, as well as collapsed titles, and support the normal `Ctrl+O` jump back.
+Collapsed grouping banners count as rows. When the focused panel's only selectable row is already selected — or it
+renders none — lowercase `j` / `k` select the adjacent whole panel, wrapping across every panel including collapsed
+ones; `l` or `Esc` then descends into the newly selected panel's remembered row. This differs from `J` / `K`, which skip
+collapsed panels and land directly on a row. Whole-panel focus is available only in the split layout. Lowercase `h`
+walks from any agent or workflow-step row to its validated immediate workflow, family, clan, and finally tribe parent
+without changing structural or grouping folds. It also selects a lone split panel after the structural chain is
+exhausted. A selected panel has a `❖` title and shows a fold-aware `TRIBE` summary in the metadata pane. While it is
+selected, `j` / `k` cycle whole panels without descending; `l` or `Esc` returns to the remembered row. A second `h`
+collapses the selected panel when another panel remains visible. On a collapsed panel, the first `l` expands it while
+keeping whole-panel focus and the second returns to the remembered row; uppercase `L` expands it and enters its first
+selectable row. Lowercase `h` on a collapsed panel selects the visually bottom-most expanded panel without changing any
+panel folds, and `Ctrl+O` returns to the collapsed origin. When every live panel is collapsed, `h` remains a no-op and
+shows the existing `Panel is already collapsed` warning. Apostrophe jump hints include every split-panel title, even a
+lone expanded panel, as well as collapsed titles, and support the normal `Ctrl+O` jump back.
 
 Lowercase `l` only advances a real fold owned by the selected row or its immediate workflow/family owner, so a visible
 hidden leaf under an already fully expanded workflow is a no-op. Uppercase `H` is the structural mutation key. In the

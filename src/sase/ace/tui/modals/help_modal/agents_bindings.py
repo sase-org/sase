@@ -35,6 +35,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Move row / selected panel",
                 ),
                 (
+                    f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
+                    "Lone row: cycle whole panels",
+                ),
+                (
                     f"{d(a.focus_next_agent_panel)} / {d(a.focus_prev_agent_panel)}",
                     "Jump into next / prev open panel",
                 ),
