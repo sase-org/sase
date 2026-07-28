@@ -2968,17 +2968,27 @@ The variables appear in ACE's Agents-tab `OUTPUT VARIABLES` metadata panel and i
 Later agents that wait on this agent with `%wait` load the stored strings when they start and can render them through
 the `agents` Jinja dictionary in prompts and xprompt workflows.
 
-| Form                           | Flags / arguments      | Description                                               |
-| ------------------------------ | ---------------------- | --------------------------------------------------------- |
-| `sase var set KEY=VALUE [...]` | positional assignments | Store one or more output variables for the current agent. |
+| Form                                 | Flags / arguments       | Description                                                   |
+| ------------------------------------ | ----------------------- | ------------------------------------------------------------- |
+| `sase var set KEY=VALUE [...]`       | positional assignments  | Store one or more values, splitting each assignment at `=`.   |
+| `sase var set KEY --value TEXT`      | `-v, --value TEXT`      | Store one value verbatim, including spaces or newlines.       |
+| `sase var set KEY --value-file PATH` | `-f, --value-file PATH` | Read one value as UTF-8 text; use `-` to read standard input. |
 
-Keys must be valid Jinja attribute identifiers (`[A-Za-z_][A-Za-z0-9_]*`). Values are strings split on the first `=`, so
-values may contain additional equals signs. Multiple calls merge into the same variable map; later writes for the same
-key replace earlier values. The command does not update prompts that have already started rendering, so write variables
-before the producing agent completes and before dependent agents unblock. Downstream prompts read each producer's
-variables from the single `agents` dictionary keyed by the producer's stable agent name, e.g.
-`{{ agents["build"].report_path }}` (or `{{ agents.build.report_path }}` for identifier-safe names). Do not store
-secrets; output variables are persisted in `agent_meta.json` and shown in ACE and Telegram completion messages.
+Keys must be valid Jinja attribute identifiers (`[A-Za-z_][A-Za-z0-9_]*`). Values may contain spaces, blank lines,
+newlines, and additional equals signs. The `KEY=VALUE` form splits only on the first `=` and preserves everything after
+it; quote the whole assignment when the shell would otherwise split it. `--value` likewise preserves exactly the text
+supplied by the shell, including any trailing newlines. `--value-file` reads a file or stdin and removes at most one
+trailing newline after normalizing line endings, which makes files, pipes, and heredocs convenient without discarding an
+intentional trailing blank line. Every form converts CRLF and lone CR line endings to LF, rejects NUL characters, and
+enforces an 8,192-byte UTF-8 limit per value at write time. Oversized values fail visibly instead of disappearing during
+agents-sidecar publication.
+
+Multiple calls merge into the same variable map; later writes for the same key replace earlier values. The command does
+not update prompts that have already started rendering, so write variables before the producing agent completes and
+before dependent agents unblock. Downstream prompts read each producer's variables from the single `agents` dictionary
+keyed by the producer's stable agent name, e.g. `{{ agents["build"].report_path }}` (or `{{ agents.build.report_path }}`
+for identifier-safe names). Do not store secrets; output variables are persisted in `agent_meta.json` and shown in ACE
+and Telegram completion messages.
 
 `STOP` is a reserved output variable. `sase var set` stays generic and stores it like any other key, but repeat
 orchestration interprets it: setting `STOP` (e.g. `sase var set STOP=1`) inside a `%repeat` / `%r` iteration stops the

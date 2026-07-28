@@ -1966,8 +1966,8 @@ xprompt.
 
 ### Cross-Agent Output Variables
 
-Agents can publish small string values for later waited agents or segments with `sase var set KEY=VALUE`. Give the
-producer a stable name and make the consumer wait before referencing the producer's variables. Every producer's
+Agents can publish small, possibly multi-line string values for later waited agents or segments with `sase var set`.
+Give the producer a stable name and make the consumer wait before referencing the producer's variables. Every producer's
 variables live under a single reserved `agents` dictionary keyed by agent name:
 
 ```
@@ -1978,6 +1978,16 @@ sase var set report_path=dist/report.md status=ok
 %id:review
 %wait:build-@
 Review {{ agents["build"].report_path }} after the build status is {{ agents["build"].status }}.
+```
+
+Use a heredoc through `--value-file -` for a multi-line value:
+
+```bash
+sase var set summary --value-file - <<'EOF'
+Tests passed.
+
+The release artifact is ready for review.
+EOF
 ```
 
 The review prompt is rendered after the `build-@` dependency completes, so `{{ agents["build"].report_path }}` and

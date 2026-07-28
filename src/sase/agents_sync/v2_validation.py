@@ -10,6 +10,10 @@ from typing import Any
 
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.v2_models import V2ProjectIdentity, V2_SCHEMA_VERSION
+from sase.core.agent_output_variables import (
+    MAX_OUTPUT_VARIABLES,
+    MAX_OUTPUT_VARIABLE_VALUE_BYTES,
+)
 from sase.core.agent_identity_facade import AgentOwnerIdentity, validate_agent_owner
 
 MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -19,8 +23,6 @@ MAX_CONTAINERS = 2_048
 MAX_RELATIONSHIPS = 16_384
 MAX_FILES = 32_768
 MAX_PAYLOAD_BYTES = 128 * 1024 * 1024
-MAX_OUTPUT_VARIABLES = 256
-MAX_OUTPUT_VARIABLE_VALUE_BYTES = 8_192
 
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")

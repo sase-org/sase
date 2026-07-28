@@ -25,6 +25,7 @@ from sase.agents_sync.v2_run_io import (
     run_metadata_from_json,
     run_state_from_json,
 )
+from sase.core import agent_output_variables
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 
@@ -62,6 +63,24 @@ def test_canonical_json_digest_and_strict_snapshot_round_trip() -> None:
     malformed["generated_at"] = "volatile"
     with pytest.raises(AgentsSyncFormatError, match="invalid shape"):
         _hood_snapshot_from_json(malformed)
+
+
+def test_output_variable_limits_are_shared_with_storage() -> None:
+    from sase.agents_sync import v2_io, v2_validation
+
+    assert (
+        v2_validation.MAX_OUTPUT_VARIABLES
+        is agent_output_variables.MAX_OUTPUT_VARIABLES
+    )
+    assert (
+        v2_validation.MAX_OUTPUT_VARIABLE_VALUE_BYTES
+        is agent_output_variables.MAX_OUTPUT_VARIABLE_VALUE_BYTES
+    )
+    assert v2_io.MAX_OUTPUT_VARIABLES is agent_output_variables.MAX_OUTPUT_VARIABLES
+    assert (
+        v2_io.MAX_OUTPUT_VARIABLE_VALUE_BYTES
+        is agent_output_variables.MAX_OUTPUT_VARIABLE_VALUE_BYTES
+    )
 
 
 def test_owner_manifest_and_path_validation_are_strict() -> None:

@@ -44,7 +44,7 @@ def _handle_var_set(args: argparse.Namespace) -> NoReturn:
         sys.exit(1)
 
     try:
-        variables = parse_output_variable_assignments(args.assignments)
+        variables = _output_variables_from_args(args)
         stored = set_agent_output_variables(agent_artifacts_dir, variables)
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -59,6 +59,61 @@ def _handle_var_set(args: argparse.Namespace) -> NoReturn:
     print(f"keys: {', '.join(sorted(stored))}")
     print(f"artifacts_dir: {Path(agent_artifacts_dir).expanduser()}")
     sys.exit(0)
+
+
+def _output_variables_from_args(args: argparse.Namespace) -> dict[str, str]:
+    value = getattr(args, "value", None)
+    value_file = getattr(args, "value_file", None)
+    if value is None and value_file is None:
+        return parse_output_variable_assignments(args.assignments)
+
+    if len(args.assignments) != 1 or "=" in args.assignments[0]:
+        raise ValueError(
+            "the value-source form requires exactly one bare KEY (without '='): "
+            "`sase var set KEY --value TEXT` sets exactly one variable"
+        )
+
+    key = args.assignments[0]
+    if value_file is None:
+        if not isinstance(value, str):
+            raise ValueError("output variable --value must be a string")
+        return {key: value}
+    if not isinstance(value_file, str):
+        raise ValueError("output variable --value-file must be a path")
+
+    raw_value = _read_output_variable_value(value_file)
+    normalized = parse_output_variable_assignments([f"{key}={raw_value}"])[key]
+    if normalized.endswith("\n"):
+        normalized = normalized[:-1]
+    return {key: normalized}
+
+
+def _read_output_variable_value(source: str) -> str:
+    if source == "-":
+        try:
+            return sys.stdin.read()
+        except UnicodeDecodeError as exc:
+            raise ValueError(
+                "output variable value from stdin is not valid UTF-8"
+            ) from exc
+        except OSError as exc:
+            raise ValueError(
+                f"could not read output variable value from stdin: {exc}"
+            ) from exc
+
+    value_path = Path(source).expanduser()
+    try:
+        return value_path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise ValueError(f"output variable value file not found: {value_path}") from exc
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            f"output variable value file is not valid UTF-8: {value_path}"
+        ) from exc
+    except OSError as exc:
+        raise ValueError(
+            f"could not read output variable value file {value_path}: {exc}"
+        ) from exc
 
 
 def _current_agent_name(artifacts_dir: str) -> str | None:

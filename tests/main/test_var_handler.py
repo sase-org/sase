@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -10,6 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.core.agent_output_variables import (
+    MAX_OUTPUT_VARIABLE_VALUE_BYTES,
     parse_output_variable_assignments,
     read_agent_output_variables,
     set_agent_output_variables,
@@ -22,6 +24,8 @@ def _args(**overrides: object) -> argparse.Namespace:
     defaults: dict[str, object] = {
         "var_subcommand": "set",
         "assignments": ["status=ok"],
+        "value": None,
+        "value_file": None,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -37,6 +41,58 @@ def test_parser_registers_var_set_assignments() -> None:
     assert args.assignments == ["plan_file=sdd/plan.md", "status=ok"]
 
 
+@pytest.mark.parametrize(
+    ("option", "destination"),
+    (
+        ("-v", "value"),
+        ("--value", "value"),
+        ("-f", "value_file"),
+        ("--value-file", "value_file"),
+    ),
+)
+def test_parser_registers_var_set_value_sources(
+    option: str,
+    destination: str,
+) -> None:
+    parser = create_parser()
+
+    args = parser.parse_args(["var", "set", "summary", option, "source"])
+
+    assert args.assignments == ["summary"]
+    assert getattr(args, destination) == "source"
+
+
+def test_parser_rejects_both_var_set_value_sources() -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(
+            [
+                "var",
+                "set",
+                "summary",
+                "--value",
+                "text",
+                "--value-file",
+                "value.txt",
+            ]
+        )
+
+    assert exc.value.code == 2
+
+
+def test_parser_value_source_requires_a_positional_key(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["var", "set", "--value", "text"])
+
+    assert exc.value.code == 2
+    assert "requires exactly one bare KEY" in capsys.readouterr().err
+
+
 def test_parse_assignments_splits_on_first_equals() -> None:
     variables = parse_output_variable_assignments(["token=a=b=c", "_status=ok"])
 
@@ -49,6 +105,49 @@ def test_parse_assignments_splits_on_first_equals() -> None:
 def test_parse_assignments_rejects_invalid_input(assignment: str) -> None:
     with pytest.raises(ValueError):
         parse_output_variable_assignments([assignment])
+
+
+def test_parse_assignment_error_explains_spaces_and_newlines() -> None:
+    with pytest.raises(ValueError) as exc:
+        parse_output_variable_assignments(["summary=tests", "passed"])
+
+    message = str(exc.value)
+    assert "passed" in message
+    assert "Quote the whole assignment" in message
+    assert "sase var set KEY --value TEXT" in message
+
+
+def test_parse_assignments_normalizes_line_endings() -> None:
+    variables = parse_output_variable_assignments(["body=a\r\nb\rc"])
+
+    assert variables == {"body": "a\nb\nc"}
+
+
+def test_output_variable_value_rejects_nul_and_enforces_utf8_byte_limit(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="body.*NUL"):
+        set_agent_output_variables(artifacts_dir, {"body": "a\x00b"})
+
+    accepted = "é" * (MAX_OUTPUT_VARIABLE_VALUE_BYTES // 2)
+    with patch(
+        "sase.core.agent_output_variables."
+        "update_agent_artifact_index_for_marker_mutation"
+    ):
+        stored = set_agent_output_variables(artifacts_dir, {"body": accepted})
+    assert stored["body"] == accepted
+
+    rejected = accepted + "x"
+    with pytest.raises(ValueError) as exc:
+        set_agent_output_variables(artifacts_dir, {"body": rejected})
+    message = str(exc.value)
+    assert "body" in message
+    assert str(MAX_OUTPUT_VARIABLE_VALUE_BYTES + 1) in message
+    assert str(MAX_OUTPUT_VARIABLE_VALUE_BYTES) in message
 
 
 def test_set_agent_output_variables_merges_metadata_and_refreshes_index(
@@ -159,3 +258,114 @@ def test_var_set_persists_values_and_prints_context(
         "plan_file": "sdd/plan.md",
         "status": "ok",
     }
+
+
+def test_var_set_value_preserves_spaces_and_newlines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = _prepare_agent_artifacts(tmp_path, monkeypatch)
+    value = "tests passed\nnext step"
+
+    with (
+        patch(
+            "sase.core.agent_output_variables."
+            "update_agent_artifact_index_for_marker_mutation"
+        ),
+        pytest.raises(SystemExit) as exc,
+    ):
+        handle_var_command(_args(assignments=["summary"], value=value))
+
+    assert exc.value.code == 0
+    assert read_agent_output_variables(artifacts_dir) == {"summary": value}
+
+
+def test_var_set_value_file_strips_exactly_one_trailing_newline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = _prepare_agent_artifacts(tmp_path, monkeypatch)
+    value_file = tmp_path / "value.txt"
+    value_file.write_text("a\n\n", encoding="utf-8")
+
+    with (
+        patch(
+            "sase.core.agent_output_variables."
+            "update_agent_artifact_index_for_marker_mutation"
+        ),
+        pytest.raises(SystemExit) as exc,
+    ):
+        handle_var_command(_args(assignments=["body"], value_file=str(value_file)))
+
+    assert exc.value.code == 0
+    assert read_agent_output_variables(artifacts_dir) == {"body": "a\n"}
+
+
+def test_var_set_value_file_reads_stdin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = _prepare_agent_artifacts(tmp_path, monkeypatch)
+    monkeypatch.setattr("sys.stdin", io.StringIO("first\nsecond\n"))
+
+    with (
+        patch(
+            "sase.core.agent_output_variables."
+            "update_agent_artifact_index_for_marker_mutation"
+        ),
+        pytest.raises(SystemExit) as exc,
+    ):
+        handle_var_command(_args(assignments=["body"], value_file="-"))
+
+    assert exc.value.code == 0
+    assert read_agent_output_variables(artifacts_dir) == {"body": "first\nsecond"}
+
+
+@pytest.mark.parametrize(
+    "assignments",
+    (
+        [],
+        ["first", "second"],
+        ["summary=old"],
+    ),
+)
+def test_var_set_value_source_requires_one_bare_key(
+    assignments: list[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _prepare_agent_artifacts(tmp_path, monkeypatch)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_var_command(_args(assignments=assignments, value="new"))
+
+    assert exc.value.code == 1
+    assert "requires exactly one bare KEY" in capsys.readouterr().err
+
+
+def test_var_set_missing_value_file_fails_cleanly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _prepare_agent_artifacts(tmp_path, monkeypatch)
+    missing = tmp_path / "missing.txt"
+
+    with pytest.raises(SystemExit) as exc:
+        handle_var_command(_args(assignments=["body"], value_file=str(missing)))
+
+    assert exc.value.code == 1
+    assert f"value file not found: {missing}" in capsys.readouterr().err
+
+
+def _prepare_agent_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    return artifacts_dir

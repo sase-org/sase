@@ -104,9 +104,10 @@ primary remote is missing, not GitHub, or cannot be read, pages still render the
 The sidecar wire does not store commit URL bases.
 
 Published variables are the sanitized `sase var set KEY=VALUE` values stored in `agent_meta.json["output_variables"]`.
-Only string keys matching SASE's output-variable identifier rule and string values are published. They are visible to
-anyone who can read the agents sidecar, so do not use output variables for secrets, credentials, private tokens, or
-other sensitive values.
+Only string keys matching SASE's output-variable identifier rule and string values are published. Values over the
+8,192-byte UTF-8 limit are rejected by `sase var set` at write time rather than being silently dropped during
+publication. They are visible to anyone who can read the agents sidecar, so do not use output variables for secrets,
+credentials, private tokens, or other sensitive values.
 
 Neighbor rosters are lane-scoped and owner-scoped. A sequential family is one lane, and each family member page renders
 that family lane's roster. Rows mirror the Agents tab's NEIGHBORS grouping: ancestors, descendants, then nearest hood

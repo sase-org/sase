@@ -16,6 +16,9 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 
+MAX_OUTPUT_VARIABLES = 256
+MAX_OUTPUT_VARIABLE_VALUE_BYTES = 8_192
+
 _KEY_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _OUTPUT_VARIABLES_FIELD = "output_variables"
 
@@ -26,11 +29,13 @@ def parse_output_variable_assignments(assignments: list[str]) -> dict[str, str]:
     for assignment in assignments:
         if "=" not in assignment:
             raise ValueError(
-                f"output variable assignment must be KEY=VALUE: {assignment}"
+                "output variable assignment must be KEY=VALUE: "
+                f"{assignment}. Quote the whole assignment, or use "
+                "`sase var set KEY --value TEXT` for a value with spaces or newlines"
             )
         key, value = assignment.split("=", 1)
         _validate_output_variable_key(key)
-        variables[key] = value
+        variables[key] = _normalize_output_variable_value(key, value)
     return variables
 
 
@@ -49,16 +54,18 @@ def set_agent_output_variables(
     artifacts_path = Path(artifacts_dir).expanduser()
     if not artifacts_path.is_dir():
         raise ValueError(f"agent artifacts directory not found: {artifacts_path}")
+    normalized: dict[str, str] = {}
     for key, value in variables.items():
         _validate_output_variable_key(key)
         if not isinstance(value, str):
             raise ValueError(f"output variable value must be a string: {key}")
+        normalized[key] = _normalize_output_variable_value(key, value)
 
     meta_path = artifacts_path / "agent_meta.json"
     with _locked_agent_meta(meta_path):
         meta = read_json_object(meta_path)
         merged = {**_string_output_variables(meta.get(_OUTPUT_VARIABLES_FIELD))}
-        merged.update(variables)
+        merged.update(normalized)
         meta[_OUTPUT_VARIABLES_FIELD] = merged
         _write_json_object_atomic(meta_path, meta)
 
@@ -74,6 +81,22 @@ def _validate_output_variable_key(key: str) -> None:
             "output variable key must be a valid Jinja attribute identifier "
             f"([A-Za-z_][A-Za-z0-9_]*): {key}"
         )
+
+
+def _normalize_output_variable_value(key: str, value: str) -> str:
+    if "\x00" in value:
+        raise ValueError(f"output variable value for {key} must not contain NUL bytes")
+    normalized = value.replace("\r\n", "\n").replace("\r", "\n")
+    try:
+        size = len(normalized.encode("utf-8"))
+    except UnicodeEncodeError as exc:
+        raise ValueError(f"output variable value for {key} is not valid UTF-8") from exc
+    if size > MAX_OUTPUT_VARIABLE_VALUE_BYTES:
+        raise ValueError(
+            f"output variable value for {key} is {size} UTF-8 bytes; "
+            f"limit is {MAX_OUTPUT_VARIABLE_VALUE_BYTES}"
+        )
+    return normalized
 
 
 def _string_output_variables(value: Any) -> dict[str, str]:
@@ -107,6 +130,8 @@ def _write_json_object_atomic(path: Path, payload: dict[str, Any]) -> None:
 
 
 __all__ = [
+    "MAX_OUTPUT_VARIABLES",
+    "MAX_OUTPUT_VARIABLE_VALUE_BYTES",
     "parse_output_variable_assignments",
     "read_agent_output_variables",
     "set_agent_output_variables",
