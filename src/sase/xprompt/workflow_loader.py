@@ -11,7 +11,6 @@ from sase.content_layout import discover_project_root, resolve_xprompt_file_sour
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
     detect_project,
-    get_known_project_workspaces,
     get_sase_package_xprompts_dir,
     get_xprompt_search_paths,
 )
@@ -22,6 +21,10 @@ from sase.xprompt.models import (
     InputArg,
     InputType,
     XPromptValidationError,
+)
+from sase.xprompt.project_identity import (
+    canonical_xprompt_project,
+    known_project_namespaces,
 )
 from sase.xprompt.tags import parse_tags
 from sase.xprompt.workflow_loader_parse import (
@@ -551,13 +554,20 @@ def _load_workflows_from_project(project: str) -> dict[str, Workflow]:
     return workflows
 
 
-def _load_workflows_from_project_workspace(project: str) -> dict[str, Workflow]:
+def _load_workflows_from_project_workspace(
+    project: str,
+    *,
+    detected_project: str | None,
+) -> dict[str, Workflow]:
     """Load workflows from the known primary workspace for *project*.
 
     This mirrors CWD-local workflow discovery for callers that are currently
     running from another directory but already know the target project name.
     """
-    workspace_dir = get_known_project_workspaces().get(project)
+    if canonical_xprompt_project(detected_project) == project:
+        return {}
+
+    workspace_dir = known_project_namespaces().get(project)
     if workspace_dir is None:
         return {}
 
@@ -592,12 +602,15 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
 
     When *project* is given (or auto-detected via ``detect_project()``),
     workflows from project-local sources (CWD xprompt directories) are
-    namespaced with ``{project}/``.
+    namespaced with ``{project}/``. When the requested project is registered
+    but is not the current checkout, its enabled primary workspace is also
+    consulted through the project registry.
 
     The priority order follows the shared content-layout contract: canonical
     project and home directories precede their legacy fallbacks,
-    project-specific home sources precede plugin/package resources, and known
-    project workspaces provide the cross-project fallback.
+    project-specific home sources precede plugin/package resources, the
+    registry-backed project copy fills in checkout-local content when CWD is
+    elsewhere, and CWD/project filesystem sources retain the highest priority.
 
     Args:
         project: Optional project name.  When ``None``, the project is
@@ -606,7 +619,9 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     Returns:
         Dictionary mapping workflow name to Workflow object.
     """
-    effective_project = project if project is not None else detect_project()
+    detected_project = detect_project()
+    requested_project = project if project is not None else detected_project
+    effective_project = canonical_xprompt_project(requested_project)
 
     all_workflows: dict[str, Workflow] = {}
 
@@ -622,7 +637,8 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
         all_workflows.update(project_workflows)
 
         project_workspace_workflows = _load_workflows_from_project_workspace(
-            effective_project
+            effective_project,
+            detected_project=detected_project,
         )
         all_workflows.update(project_workspace_workflows)
 

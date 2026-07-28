@@ -1,8 +1,11 @@
 """Tests for project-based workflow loading in workflow_loader."""
 
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from sase.xprompt.workflow_loader import (
     _discover_workflow_files,
@@ -12,6 +15,61 @@ from sase.xprompt.workflow_loader import (
 )
 from sase.xprompt.models import InputArg
 from sase.xprompt.workflow_models import Workflow
+from tests.main.project_handler_helpers import _disk_project_records, _write_project
+
+
+@pytest.fixture
+def workflow_project_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[Path]:
+    from sase import project_aliases, project_display_names
+    from sase.xprompt import loader_sources, project_identity
+
+    projects_root = tmp_path / "sase-home" / "projects"
+    projects_root.mkdir(parents=True)
+    monkeypatch.setenv("SASE_HOME", str(projects_root.parent))
+    monkeypatch.setattr(project_aliases, "list_project_records", _disk_project_records)
+    monkeypatch.setattr(
+        project_display_names,
+        "list_project_records",
+        _disk_project_records,
+    )
+    monkeypatch.setattr(loader_sources, "list_project_records", _disk_project_records)
+    project_identity._identity_registry.cache_clear()
+    project_identity._canonical_xprompt_project.cache_clear()
+    yield projects_root
+    project_identity._identity_registry.cache_clear()
+    project_identity._canonical_xprompt_project.cache_clear()
+
+
+def _write_registered_workflow_project(
+    projects_root: Path,
+    workspace: Path,
+    *,
+    state: str = "enabled",
+) -> Path:
+    xprompts = workspace / "sase" / "xprompts"
+    xprompts.mkdir(parents=True)
+    flow = xprompts / "flow.yml"
+    flow.write_text(
+        "steps:\n  - name: run\n    bash: echo registry\n",
+        encoding="utf-8",
+    )
+    _write_project(
+        projects_root,
+        "gh_org__proj",
+        "\n".join(
+            (
+                f"WORKSPACE_DIR: {workspace}",
+                f"PROJECT_STATE: {state}",
+                "PROJECT_NAME: proj",
+                "PROJECT_ALIASES: short",
+            )
+        )
+        + "\n",
+    )
+    return flow
 
 
 def _load_workflows_from_project_with_base(
@@ -321,7 +379,7 @@ def test_get_all_workflows_loads_known_project_workspace_from_other_cwd(
 
     with (
         patch(
-            "sase.xprompt.workflow_loader.get_known_project_workspaces",
+            "sase.xprompt.workflow_loader.known_project_namespaces",
             return_value={"sase": workspace},
         ),
         patch(
@@ -336,6 +394,7 @@ def test_get_all_workflows_loads_known_project_workspace_from_other_cwd(
             "sase.xprompt.workflow_loader._load_workflows_from_project",
             return_value={},
         ),
+        patch("sase.xprompt.workflow_loader.detect_project", return_value=None),
     ):
         workflows = get_all_workflows(project="sase")
 
@@ -370,7 +429,7 @@ def test_get_all_workflows_loads_athena_workflows_for_normalized_gh_ref(
 
     with (
         patch(
-            "sase.xprompt.workflow_loader.get_known_project_workspaces",
+            "sase.xprompt.workflow_loader.known_project_namespaces",
             return_value={"sase": workspace},
         ),
         patch(
@@ -385,9 +444,90 @@ def test_get_all_workflows_loads_athena_workflows_for_normalized_gh_ref(
             "sase.xprompt.workflow_loader._load_workflows_from_project",
             return_value={},
         ),
+        patch("sase.xprompt.workflow_loader.detect_project", return_value=None),
     ):
         workflows = get_all_workflows(project="sase")
 
     assert "sase/daily_checks" in workflows
     assert "sase/weekly_cleanup" in workflows
     assert "sase/release_notes" in workflows
+
+
+@pytest.mark.parametrize("project_ref", ("proj", "gh_org__proj", "short"))
+def test_get_all_workflows_uses_canonical_registered_project_identity(
+    project_ref: str,
+    workflow_project_registry: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "primary"
+    flow = _write_registered_workflow_project(
+        workflow_project_registry,
+        workspace,
+    )
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+
+    with patch("sase.xprompt.workflow_loader.detect_project", return_value=None):
+        workflows = get_all_workflows(project=project_ref)
+
+    assert set(workflows).issuperset({"proj/flow"})
+    assert workflows["proj/flow"].source_path == str(flow)
+    assert "gh_org__proj/flow" not in workflows
+    assert "short/flow" not in workflows
+
+
+def test_get_all_workflows_current_checkout_wins_without_registry_read(
+    workflow_project_registry: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_registered_workflow_project(
+        workflow_project_registry,
+        tmp_path / "primary",
+    )
+    alternate = tmp_path / "alternate"
+    flow = alternate / "sase" / "xprompts" / "flow.yml"
+    flow.parent.mkdir(parents=True)
+    flow.write_text(
+        "steps:\n  - name: run\n    bash: echo alternate\n",
+        encoding="utf-8",
+    )
+    (alternate / ".git").mkdir()
+    monkeypatch.chdir(alternate)
+
+    with (
+        patch(
+            "sase.xprompt.workflow_loader.detect_project",
+            return_value="gh_org__proj",
+        ),
+        patch(
+            "sase.xprompt.workflow_loader.known_project_namespaces",
+            side_effect=AssertionError("registry copy should not be read"),
+        ),
+    ):
+        workflows = get_all_workflows(project="short")
+
+    assert workflows["proj/flow"].source_path == str(flow)
+    assert workflows["proj/flow"].steps[0].bash == "echo alternate"
+
+
+def test_get_all_workflows_does_not_resolve_disabled_registered_project(
+    workflow_project_registry: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_registered_workflow_project(
+        workflow_project_registry,
+        tmp_path / "disabled",
+        state="disabled",
+    )
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+
+    with patch("sase.xprompt.workflow_loader.detect_project", return_value=None):
+        workflows = get_all_workflows(project="short")
+
+    assert "proj/flow" not in workflows
