@@ -210,7 +210,11 @@ def test_resume_publishes_agent_hood_without_redispatching_primary_commit(
 
     provider.finalize_commit.assert_not_called()
     provider.revision_id.assert_called_once_with("HEAD", str(tmp_path))
-    publish.assert_called_once_with("foo--code", "a" * 40)
+    publish.assert_called_once_with(
+        "foo--code",
+        "a" * 40,
+        commit_cwd=str(tmp_path),
+    )
     assert not (artifacts_dir / "commit_state.json").exists()
 
 

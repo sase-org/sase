@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.agent.names._registry import name_registry_load_session
+from sase.agents_sync.bundles import repository_root
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.incoming_integration import (
     integrate_agent_imports_with_receipts,
@@ -36,10 +37,18 @@ from sase.core.agent_identity_facade import (
     normalize_agent_archive_name,
     normalize_owned_agent_name,
 )
+from sase.repo_inventory import collect_repo_inventory
 from sase.sdd.plan_header_refresh import (
     PlanHeaderRefreshOutcome,
     refresh_committed_plan_header,
 )
+
+_REPO_KIND_ORDER = {
+    "primary": 0,
+    "sidecar": 1,
+    "linked": 2,
+    "external": 3,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,22 +74,32 @@ def publish_committed_agent_hood(
     primary_revision: str,
     *,
     project: str | None = None,
+    commit_cwd: Path | str | None = None,
     git_runner: GitRunner = run_git,
     lock_timeout_seconds: float | None = None,
 ) -> _CommitPublicationOutcome:
     """Publish this commit's exact hood and drain older project requests."""
 
-    selector = project or _current_project()
+    selector = project
+    if selector is None and commit_cwd is not None:
+        selector = resolve_publication_project_key(
+            commit_cwd,
+            git_runner=git_runner,
+        )
+    selector = selector or _current_project()
     if not selector:
-        return _CommitPublicationOutcome(skip_reason="current project is unavailable")
+        repository = _display_repository(commit_cwd)
+        return _CommitPublicationOutcome(
+            skip_reason=f"repository {repository!r} does not map to a SASE project"
+        )
     selection = resolve_sync_targets((selector,))
     if len(selection.targets) != 1:
         outcome = selection.outcomes[0] if selection.outcomes else None
+        detail = (
+            (outcome.skip_reason or outcome.error) if outcome is not None else None
+        ) or "agents target is unavailable"
         return _CommitPublicationOutcome(
-            skip_reason=outcome.skip_reason if outcome is not None else None,
-            error=outcome.error
-            if outcome is not None
-            else "agents target is unavailable",
+            skip_reason=f"project {selector!r} has no usable agents target: {detail}",
         )
     target = selection.targets[0]
     owner = require_agent_owner_identity()
@@ -167,6 +186,53 @@ def publish_committed_agent_hood(
         quarantined=sum(item.quarantined for item in remaining),
         error="; ".join(result.item_errors) if result.item_errors else None,
     )
+
+
+def resolve_publication_project_key(
+    commit_cwd: Path | str,
+    *,
+    git_runner: GitRunner = run_git,
+) -> str | None:
+    """Resolve the host project for the repository containing *commit_cwd*."""
+
+    cwd = Path(commit_cwd).expanduser()
+    try:
+        root = repository_root(cwd, git_runner, {})
+    except Exception:
+        return None
+    if root is None:
+        return None
+    try:
+        inventory = collect_repo_inventory()
+    except Exception:
+        return None
+
+    normalized_root = root.resolve(strict=False)
+    matches = []
+    for record in inventory.records:
+        paths = (record.path, *(clone.path for clone in record.clones))
+        if any(
+            path and Path(path).expanduser().resolve(strict=False) == normalized_root
+            for path in paths
+        ):
+            matches.append(record)
+    if not matches:
+        return None
+    selected = min(
+        matches,
+        key=lambda record: (
+            _REPO_KIND_ORDER[record.kind],
+            record.project_key,
+            record.name.casefold(),
+        ),
+    )
+    return selected.project_key
+
+
+def _display_repository(commit_cwd: Path | str | None) -> str:
+    if commit_cwd is None:
+        return "the current checkout"
+    return str(Path(commit_cwd).expanduser().resolve(strict=False))
 
 
 def _publish_queued_locked(
@@ -495,4 +561,5 @@ __all__ = [
     "PlanHeaderRefreshOutcome",
     "publish_committed_agent_hood",
     "refresh_committed_plan_header",
+    "resolve_publication_project_key",
 ]

@@ -282,7 +282,57 @@ def test_publication_failure_with_durable_outbox_keeps_primary_successful(
             RunResult.OK
         )
 
-    publish.assert_called_once_with("foo--code", "a" * 40)
+    publish.assert_called_once_with(
+        "foo--code",
+        "a" * 40,
+        commit_cwd=os.getcwd(),
+    )
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_publication_without_target_warns_but_keeps_primary_successful(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.agents_sync.commit_publication import _CommitPublicationOutcome
+    from sase.core.agent_identity_facade import AgentOwnerIdentity
+
+    monkeypatch.setenv("SASE_AGENT_NAME", "foo--code")
+    monkeypatch.setattr(
+        "sase.config.require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("test-user", "test_host"),
+    )
+    provider = _make_provider(dispatch_result=(True, "not-a-sha"))
+    provider.revision_id.return_value = "a" * 40
+    mock_get.return_value = provider
+
+    with (
+        patch(
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+            return_value=_CommitPublicationOutcome(
+                skip_reason="repository does not map to a publishable project",
+            ),
+        ) as publish,
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value=None,
+        ),
+    ):
+        assert CommitWorkflow({"message": "fix: bug"}, "create_commit").run() == (
+            RunResult.OK
+        )
+
+    publish.assert_called_once_with(
+        "foo--code",
+        "a" * 40,
+        commit_cwd=os.getcwd(),
+    )
+    output = " ".join(capsys.readouterr().out.split())
+    assert f"skipped for repository {os.getcwd()!r}" in output
+    assert "does not map to a publishable project" in output
     assert not (artifacts_dir / "commit_state.json").exists()
 
 
@@ -384,7 +434,11 @@ def test_family_member_commit_uses_metadata_for_footer_and_publication(
     )
     resolve_tag.assert_called_once()
     assert resolve_tag.call_args.args[0] == "ms--code"
-    publish.assert_called_once_with("ms--code", "a" * 40)
+    publish.assert_called_once_with(
+        "ms--code",
+        "a" * 40,
+        commit_cwd=os.getcwd(),
+    )
     assert not (artifacts_dir / "commit_state.json").exists()
 
 

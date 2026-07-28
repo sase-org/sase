@@ -418,6 +418,7 @@ class CommitWorkflow(BaseWorkflow):
             outcome = publish_committed_agent_hood(
                 cp.publication_agent,
                 cp.primary_revision,
+                commit_cwd=cp.cwd,
             )
         except Exception as exc:  # noqa: BLE001 - auxiliary publication boundary
             print_status(
@@ -439,6 +440,13 @@ class CommitWorkflow(BaseWorkflow):
         if outcome.queued:
             print_status(
                 _agent_publication_deferred_message(outcome),
+                "warning",
+            )
+        elif outcome.skip_reason:
+            reason = outcome.skip_reason.rstrip(".")
+            print_status(
+                "The primary commit succeeded, but agent publication was "
+                f"skipped for repository {cp.cwd!r}: {reason}.",
                 "warning",
             )
         cp.completed_steps.append("publish_agent_hood")
