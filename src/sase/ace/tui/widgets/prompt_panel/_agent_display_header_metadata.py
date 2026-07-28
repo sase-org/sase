@@ -194,6 +194,7 @@ def _append_wait_field(
     from sase.ace.tui.models.agent import wait_display_agent
 
     wait_agent = wait_display_agent(agent)
+    runners_only = False
     if agent.status == QUEUED_STATUS:
         text.append("Queue: ", style="bold #87D7FF")
         position = wait_agent.runner_slot_queue_position
@@ -220,26 +221,7 @@ def _append_wait_field(
         text.append("\n")
         if not (wait_agent.wait_runners_explicit or wait_agent.wait_priority_explicit):
             return None
-        lanes = tuple(
-            lane
-            for lane in build_wait_lanes(
-                agent,
-                agent_status_buckets=agent_status_buckets,
-                clan_wait_member_statuses=clan_wait_member_statuses,
-                tribe_wait_bindings=tribe_wait_bindings,
-                wait_bead_statuses=wait_bead_statuses,
-                runner_queue_ahead_count=runner_queue_ahead_count,
-            )
-            if lane[0] == "runners"
-        )
-        if not lanes:
-            return None
-        section = ResponsiveWaitSection(lanes)
-        start = len(text)
-        text.append_text(section.logical_text)
-        if responsive_ranges is not None:
-            responsive_ranges[WAIT_SECTION_ID] = (start, len(text))
-        return section
+        runners_only = True
 
     lanes = build_wait_lanes(
         agent,
@@ -249,6 +231,8 @@ def _append_wait_field(
         wait_bead_statuses=wait_bead_statuses,
         runner_queue_ahead_count=runner_queue_ahead_count,
     )
+    if runners_only:
+        lanes = tuple(lane for lane in lanes if lane[0] == "runners")
     if not lanes:
         return None
 

@@ -266,6 +266,33 @@ def test_queued_state_keeps_single_line_queue_field() -> None:
     assert "Wait:" not in header.plain
 
 
+@pytest.mark.parametrize(
+    "explicit_wait",
+    [
+        {"wait_runners_explicit": True},
+        {"wait_priority": 5, "wait_priority_explicit": True},
+    ],
+)
+def test_queued_explicit_wait_renders_runner_lane_only(
+    explicit_wait: dict[str, object],
+) -> None:
+    agent = make_agent(
+        status="QUEUED",
+        waiting_for=["suppressed"],
+        wait_runners=2,
+        slot_requested_at="2026-07-28T12:00:00Z",
+        runner_slot_queue_position=1,
+        runner_slot_queue_size=2,
+        **explicit_wait,
+    )
+
+    header, _ = build_header_text(agent, cheap=True)
+
+    assert "Queue: #1 of 2" in header.plain
+    assert "Wait: [runners]" in header.plain
+    assert "[agents]" not in header.plain
+
+
 def test_responsive_range_covers_exact_logical_wait_block() -> None:
     text = Text("prefix\n")
     ranges: dict[str, tuple[int, int]] = {}
