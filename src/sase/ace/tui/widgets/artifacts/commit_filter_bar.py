@@ -37,7 +37,7 @@ class CommitFilterBar(FilterBar):
     COMPLETION_ID = "commit-filter-completion"
     CANDIDATE_ID_PREFIX = "commit-filter-candidate"
     KEY_COMPLETIONS = (
-        ("project", "single project key; omitted means all projects"),
+        ("project", "single project name; omitted means all projects"),
         ("repo", "repository name or alias"),
         ("author", "name or email substring"),
         ("since", "from an instant or the start of a named day"),
@@ -52,7 +52,7 @@ class CommitFilterBar(FilterBar):
         "limit": ("40", "100", "200", "all"),
     }
     VALUE_HINTS = {
-        "project": "project key",
+        "project": "project name",
         "repo": "repository",
         "author": "author",
         "since": "date bound",
@@ -99,7 +99,7 @@ class CommitFilterBar(FilterBar):
         self._refresh_completion_sources()
 
     def set_project_completion_sources(self, projects: Iterable[str]) -> None:
-        """Replace the warm project-key completion source."""
+        """Replace the warm configured-project-name completion source."""
         self._projects = tuple(projects)
         self._refresh_completion_sources()
 

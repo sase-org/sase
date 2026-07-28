@@ -325,7 +325,7 @@ async def test_commits_filter_completion_png_snapshot(
         await page.wait_for(
             lambda _state: completion.display and completion.option_count == 2
         )
-        await wait_for_svg_contains(page, "project key")
+        await wait_for_svg_contains(page, "project name")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

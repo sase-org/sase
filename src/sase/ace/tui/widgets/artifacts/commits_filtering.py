@@ -30,6 +30,7 @@ from .commits_rendering import commit_filter_chips
 from .commits_timeline import CommitsTimeline
 
 if TYPE_CHECKING:
+    from sase.project_display_names import ProjectRefDisplaySnapshot
     from textual.containers import Vertical as _MixinBase
 else:
     _MixinBase = object
@@ -57,6 +58,7 @@ class CommitsFilteringMixin(_MixinBase):
     _live_filter_values: CommitLogFilterValues | None
     _pending_filter_values: CommitLogFilterValues | None
     _filter_query_error: CommitFilterQueryError | None
+    _project_ref_display: ProjectRefDisplaySnapshot
 
     if TYPE_CHECKING:
 
@@ -353,6 +355,9 @@ class CommitsFilteringMixin(_MixinBase):
         close_session: bool,
     ) -> None:
         """Commit validated values and reconcile their authoritative result."""
+        project = self._project_ref_display.label_for_ref(values.project)
+        if project != values.project:
+            values = replace(values, project=project)
         if values != self._live_filter_values:
             self._generation += 1
         self._live_filter_values = values

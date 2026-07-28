@@ -9,6 +9,7 @@ from sase.project_aliases import load_project_alias_map
 from sase.project_display_names import (
     ProjectDisplaySnapshot,
     load_project_display_snapshot,
+    project_display_name_for_ref,
 )
 from sase.xprompt.loader_sources import get_known_project_workspaces
 
@@ -29,10 +30,7 @@ def _canonical_xprompt_project(ref: str) -> str:
         return ref
 
     alias_map, display_snapshot = registry
-    project_key = alias_map.get(ref, ref)
-    if project_key != ref and project_key not in display_snapshot:
-        return ref
-    return display_snapshot.label_for(project_key)
+    return project_display_name_for_ref(ref, display_snapshot, alias_map) or ref
 
 
 def canonical_xprompt_project(ref: str | None) -> str | None:

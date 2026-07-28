@@ -2,13 +2,33 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import logging
 import os
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from ..models.fold_state import FoldStateManager
 
+if TYPE_CHECKING:
+    from sase.vcs_log.filter_query import CommitLogFilterValues
+
 log = logging.getLogger(__name__)
+
+
+def _project_commits_startup_display_name(
+    values: CommitLogFilterValues,
+) -> CommitLogFilterValues:
+    """Project a merged startup scope through one pre-mount inventory read."""
+    if values.project is None:
+        return values
+
+    from sase.project_display_names import load_project_ref_display_snapshot
+
+    project_ref_display = load_project_ref_display_snapshot()
+    project = project_ref_display.label_for_ref(values.project)
+    if project is None or project == values.project:
+        return values
+    return replace(values, project=project)
 
 
 def init_late_startup_state(
@@ -122,10 +142,13 @@ def init_late_startup_state(
     except Exception:
         current_project = None
         log.debug("Commits current-project inference failed", exc_info=True)
-    self._commits_default_filter = merge_commits_startup_project(
+    commits_startup_filter = merge_commits_startup_project(
         commits_default.values,
         explicit_project=self.artifacts_project_scope,
         current_project=current_project,
+    )
+    self._commits_default_filter = _project_commits_startup_display_name(
+        commits_startup_filter
     )
     self._commits_default_query_diagnostic = commits_default.diagnostic
     if commits_default.diagnostic is not None:

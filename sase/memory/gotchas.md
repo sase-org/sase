@@ -21,3 +21,8 @@ mandatory and requires no additional permission; do not ask again.
 All supported agent runtimes (Claude, Gemini, Codex, etc.) have the same capabilities: they all support hooks, skills,
 and the same commit workflow. Do NOT introduce runtime-specific special cases or branching logic that assumes one
 runtime lacks a capability that others have. Treat all runtimes uniformly.
+
+**Show Project Names, Never ProjectSpec Keys**  
+User-facing text must render the configured `PROJECT_NAME:` (`sase`, not `gh_sase-org__sase`). Project through
+`sase.project_display_names` or an already resolved `display_name`, falling back to the key only when no name is known.
+This includes query tokens, completions, picker rows, task labels, and notifications; keys remain identity and storage.

@@ -12,6 +12,7 @@ from sase.ace.tui.widgets.artifacts.commit_config import (
 )
 from sase.config.inventory import config_field_model, load_config_schema
 from sase.vcs_log.filter_query import parse_commit_filter_query, to_query_string
+from tests._project_display_case import ProjectDisplayCase
 
 
 def test_commits_default_query_schema_accepts_nested_string() -> None:
@@ -104,3 +105,80 @@ def test_startup_project_remains_absent_without_any_known_project() -> None:
         )
         is values
     )
+
+
+@pytest.mark.parametrize("source", ("inferred", "configured", "ace-query"))
+async def test_known_startup_project_is_displayed_before_first_collection(
+    source: str,
+    monkeypatch: pytest.MonkeyPatch,
+    project_display_case: ProjectDisplayCase,
+) -> None:
+    from typing import Any
+
+    from sase.ace.testing import AcePage
+    from sase.ace.tui.widgets.artifacts import CommitsPane
+    from sase.ace.tui.widgets.single_line_vim_text_area import (
+        SingleLineVimTextArea,
+    )
+    from sase.project_display_names import ProjectRefDisplaySnapshot
+    import sase.ace.tui.widgets.artifacts.commits as commits_module
+    from tests.ace.tui._commits_pane_helpers import _result
+
+    startup_load_calls = 0
+    collection_calls: list[dict[str, Any]] = []
+
+    def load_startup_projection() -> ProjectRefDisplaySnapshot:
+        nonlocal startup_load_calls
+        startup_load_calls += 1
+        return ProjectRefDisplaySnapshot(project_display_case.snapshot)
+
+    monkeypatch.setattr(
+        "sase.project_display_names.load_project_ref_display_snapshot",
+        load_startup_projection,
+    )
+    configured_query = (
+        f"project:{project_display_case.project_key} sidecar:false"
+        if source == "configured"
+        else (
+            "project:configured sidecar:false"
+            if source == "ace-query"
+            else "sidecar:false"
+        )
+    )
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {
+            "ace": {"artifacts": {"commits": {"default_query": configured_query}}}
+        },
+    )
+    current_project = (
+        project_display_case.project_key if source == "inferred" else "cwd-project"
+    )
+    monkeypatch.setattr(
+        "sase.main.utils.ensure_project_file_and_get_workspace_num",
+        lambda **_kwargs: ("/tmp/current.sase", 1, current_project),
+    )
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **kwargs: collection_calls.append(kwargs) or _result(),
+    )
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+    query = (
+        f"project:{project_display_case.project_key}"
+        if source == "ace-query"
+        else '"feature"'
+    )
+
+    async with AcePage(query=query, initial_tab="changespecs") as page:
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        editor = pane.query_one("#commit-filter-input", SingleLineVimTextArea)
+        assert (
+            editor.text == f"project:{project_display_case.project_label} sidecar:false"
+        )
+        await page.wait_for(lambda _state: bool(collection_calls))
+
+        assert (
+            collection_calls[0]["project_scope"] == project_display_case.project_label
+        )
+        assert startup_load_calls == 1

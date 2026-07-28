@@ -183,7 +183,7 @@ async def test_sidecar_key_and_boolean_values_complete_without_io() -> None:
         assert all("true or false" in label for label in labels)
 
 
-async def test_project_key_and_warm_inventory_values_complete() -> None:
+async def test_project_name_and_warm_inventory_values_complete() -> None:
     app = _FilterBarApp()
     async with app.run_test() as pilot:
         bar = app.query_one(CommitFilterBar)
@@ -195,6 +195,7 @@ async def test_project_key_and_warm_inventory_values_complete() -> None:
         labels = _option_labels(completion)
         assert len(labels) == 1
         assert labels[0].startswith("project:")
+        assert "single project name" in labels[0]
         assert "omitted means all projects" in labels[0]
 
         editor = app.query_one("#commit-filter-input", SingleLineVimTextArea)
@@ -203,6 +204,7 @@ async def test_project_key_and_warm_inventory_values_complete() -> None:
         await pilot.pause()
         assert len(_option_labels(completion)) == 1
         assert _option_labels(completion)[0].startswith("sase-github")
+        assert "project name" in _option_labels(completion)[0]
 
 
 async def test_typing_emits_changed_before_submitted() -> None:

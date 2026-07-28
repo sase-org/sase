@@ -13,6 +13,7 @@ from textual.worker import Worker
 
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.project_display_names import ProjectRefDisplaySnapshot
 from sase.vcs_log.models import VcsLogResult
 from sase.vcs_log.filter_query import CommitLogFilterValues, to_query_string
 
@@ -62,6 +63,7 @@ class CommitsPane(
         self._registry = load_keymap_registry({})
         self._last_project_scope = self.filters.project
         self._project_files: dict[str, str] = {}
+        self._project_ref_display = ProjectRefDisplaySnapshot()
 
     def compose(self) -> ComposeResult:
         yield CommitFilterBar(id="commit-filter-bar")
@@ -126,14 +128,14 @@ class CommitsPane(
         project_file: str | None = None,
     ) -> None:
         """Replace the query-owned project facet from a scope selection."""
-        del display_name
-        if project is not None:
-            self._last_project_scope = project
+        visible_ref = (display_name or project) if project is not None else None
+        if visible_ref is not None:
+            self._last_project_scope = visible_ref
             if project_file:
-                self._project_files[project] = project_file
-        if project == self.filters.project:
+                self._project_files[visible_ref] = project_file
+        if visible_ref == self.filters.project:
             return
-        values = replace(self.filters, project=project)
+        values = replace(self.filters, project=visible_ref)
         if self.is_mounted:
             self._commit_filter_values(values, close_session=False)
         else:
@@ -144,10 +146,13 @@ class CommitsPane(
         projects: tuple[str, ...],
         *,
         project_files: dict[str, str] | None = None,
+        project_ref_display: ProjectRefDisplaySnapshot | None = None,
     ) -> None:
         """Warm project completions and fetch metadata from loaded inventory."""
         if project_files:
             self._project_files.update(project_files)
+        if project_ref_display is not None:
+            self._project_ref_display = project_ref_display
         if self.is_mounted:
             self.query_one(CommitFilterBar).set_project_completion_sources(projects)
 

@@ -105,10 +105,11 @@ highlighted key or value completion.
 
 Commits accepts singular `project:` plus `repo:`, `author:`, `since:`, `until:`, `sidecar:`, and `limit:` and free text
 matched against the commit subject. `project:` is not repeatable, comma-listable, or negatable because it selects the
-repository constellation before commits are collected. With no `project:` token, collection truly spans all projects.
-The project picker replaces that token while preserving every other committed token; its **All projects** choice removes
-it. The compatibility `a` action removes an active project token and restores the last automatic or picked project on
-the next press.
+repository constellation before commits are collected. With no `project:` token, collection truly spans all projects. It
+accepts a configured project name, ProjectSpec directory key, or alias; committed known values are rewritten to the
+configured project name. The project picker replaces that token while preserving every other committed token; its **All
+projects** choice removes it. The compatibility `a` action removes an active project token and restores the last
+automatic or picked project on the next press.
 
 The bundled initial query is `sidecar:false since:24h`; it is configurable with `ace.artifacts.commits.default_query`,
 and changes take effect the next time ACE starts. Before the pane is mounted, an explicit project in the ACE query

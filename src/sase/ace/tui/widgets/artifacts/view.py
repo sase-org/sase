@@ -32,6 +32,8 @@ from .types import (
 )
 
 if TYPE_CHECKING:
+    from sase.project_display_names import ProjectRefDisplaySnapshot
+
     from ...app import AceApp
 
 _ARTIFACT_LABELS: dict[ArtifactsSubTab, str] = {
@@ -185,11 +187,13 @@ class ArtifactsView(Vertical):
         projects: tuple[str, ...],
         *,
         project_files: dict[str, str],
+        project_ref_display: ProjectRefDisplaySnapshot,
     ) -> None:
         """Forward the already loaded inventory to the Commits filter bar."""
         self.query_one(CommitsPane).set_project_completion_sources(
             projects,
             project_files=project_files,
+            project_ref_display=project_ref_display,
         )
 
     @on(PanelTabStrip.TabClicked)

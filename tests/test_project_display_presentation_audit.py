@@ -319,6 +319,7 @@ def test_changespec_completion_catalog_projects_display_fields() -> None:
 
 
 _PROJECT_METADATA_FLOW_FILES = (
+    "src/sase/ace/tui/actions/_state_init_late.py",
     "src/sase/ace/tui/modals/statistics_pane_data.py",
     "src/sase/ace/tui/modals/statistics_pane_rendering.py",
     "src/sase/ace/tui/modals/statistics_pane_projects.py",
@@ -331,6 +332,11 @@ _PROJECT_METADATA_FLOW_FILES = (
     "src/sase/ace/tui/actions/agents/_notification_launch_approval.py",
 )
 _ALLOWED_METADATA_LOADERS = {
+    (
+        "src/sase/ace/tui/actions/_state_init_late.py",
+        "_project_commits_startup_display_name",
+        "load_project_ref_display_snapshot",
+    ): "Commits projects one merged scope before mount so first paint and collection agree.",
     (
         "src/sase/ace/tui/modals/statistics_pane_data.py",
         "load_statistics_view",
@@ -367,7 +373,11 @@ def test_project_metadata_loaders_stay_at_reviewed_tui_worker_boundaries() -> No
         parents = _parent_map(tree)
         for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
             name = _call_name(call)
-            if name not in {"list_project_records", "load_project_display_snapshot"}:
+            if name not in {
+                "list_project_records",
+                "load_project_display_snapshot",
+                "load_project_ref_display_snapshot",
+            }:
                 continue
             actual.add((path, _enclosing_function(call, parents), name))
 

@@ -176,14 +176,18 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         assert len(calls) == calls_before_unknown_toggle
         assert pane.filters.project is None
 
-        pane.set_project_scope("alpha")
+        pane.set_project_scope(
+            "gh_acme__widgets",
+            display_name="widgets",
+            project_file="/tmp/widgets.sase",
+        )
         await page.wait_for(
             lambda _state: (
-                calls[-1]["project_scope"] == "alpha"
+                calls[-1]["project_scope"] == "widgets"
                 and calls[-1]["all_projects"] is False
             )
         )
-        assert editor.text == "project:alpha sidecar:false fix"
+        assert editor.text == "project:widgets sidecar:false fix"
 
         await page.press("a")
         await page.wait_for(lambda _state: pane.filters.project is None)
@@ -191,8 +195,8 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         assert editor.text == "sidecar:false fix"
 
         await page.press("a")
-        await page.wait_for(lambda _state: pane.filters.project == "alpha")
-        assert editor.text == "project:alpha sidecar:false fix"
+        await page.wait_for(lambda _state: pane.filters.project == "widgets")
+        assert editor.text == "project:widgets sidecar:false fix"
 
         refresh_baseline = len(calls)
         await page.press("R")
@@ -254,8 +258,45 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
         help_text = modal._build_left_column().plain
         assert "F / f2" in help_text
         assert "sidecar:true" in help_text
-        assert "project:KEY" in help_text
+        assert "project:NAME" in help_text
         assert "Single; omitted = all projects" in help_text
         assert "Sidecars / project: off/on" in help_text
         assert "until:DAY includes the full day" in help_text
         assert "[P/N] / [P/N+]" in help_text
+
+
+async def test_commit_fetch_task_uses_visible_project_name_and_matching_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _result()
+    submissions: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(initial_tab="changespecs") as page:
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.wait_for(lambda _state: pane.result is result)
+        pane.set_project_scope(
+            "gh_acme__widgets",
+            display_name="widgets",
+            project_file="/tmp/widgets.sase",
+        )
+        await page.wait_for(lambda _state: pane.filters.project == "widgets")
+        monkeypatch.setattr(
+            page.app,
+            "_submit_tracked_task",
+            lambda *args, **kwargs: submissions.append((args, kwargs)),
+        )
+
+        pane.fetch_commits()
+
+        assert len(submissions) == 1
+        args, kwargs = submissions[0]
+        assert args[:3] == (
+            "commit-fetch",
+            "commits:widgets",
+            "/tmp/widgets.sase",
+        )
+        assert kwargs["display_name"] == "Fetch commits (widgets)"
+        assert kwargs["dedup_key"] == "commit-fetch:widgets"
+        assert "gh_acme__widgets" not in kwargs["duplicate_message"]

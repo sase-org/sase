@@ -7,6 +7,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
 from sase.ace.query import get_sole_project_filter
+from sase.project_display_names import (
+    ProjectDisplaySnapshot,
+    ProjectRefDisplaySnapshot,
+)
 
 from ..tab_order import ARTIFACTS_TAB
 from ..widgets.artifacts import (
@@ -76,6 +80,38 @@ class _ArtifactsProjectChoices:
     enabled_projects: tuple[str, ...]
     display_names: dict[str, str]
     project_files: dict[str, str] = field(default_factory=dict)
+    project_ref_display: ProjectRefDisplaySnapshot = field(
+        default_factory=ProjectRefDisplaySnapshot
+    )
+
+    def __post_init__(self) -> None:
+        if not self.project_ref_display.display_snapshot and self.display_names:
+            object.__setattr__(
+                self,
+                "project_ref_display",
+                ProjectRefDisplaySnapshot(
+                    ProjectDisplaySnapshot(self.display_names),
+                ),
+            )
+
+    @property
+    def completion_display_names(self) -> tuple[str, ...]:
+        """Return stable, deduplicated configured names for Commits."""
+        labels = (
+            (choice.display_name for choice in self.choices)
+            if self.choices
+            else iter(self.display_names.values())
+        )
+        return tuple(dict.fromkeys(labels))
+
+    @property
+    def commits_project_files(self) -> dict[str, str]:
+        """Return fetch metadata keyed by the visible Commits project ref."""
+        files: dict[str, str] = {}
+        for project_key, project_file in self.project_files.items():
+            label = self.display_names.get(project_key, project_key)
+            files.setdefault(label, project_file)
+        return files
 
 
 def _collect_artifacts_project_choices() -> _ArtifactsProjectChoices:
@@ -126,6 +162,7 @@ def _collect_artifacts_project_choices() -> _ArtifactsProjectChoices:
         enabled_projects=tuple(enabled),
         display_names=display_names,
         project_files=project_files,
+        project_ref_display=ProjectRefDisplaySnapshot.from_records(project_records),
     )
 
 
@@ -465,8 +502,9 @@ class ArtifactsMixin(
             view = self._artifacts_view()
             if view is not None:
                 view.set_commits_project_sources(
-                    tuple(result.display_names),
-                    project_files=result.project_files,
+                    result.completion_display_names,
+                    project_files=result.commits_project_files,
+                    project_ref_display=result.project_ref_display,
                 )
             if (
                 self.artifacts_project_scope is None
@@ -519,7 +557,9 @@ class ArtifactsMixin(
         if self.current_artifacts_subtab == "commits":
             pane = self._commits_pane()
             if pane is not None:
-                current_project = pane.filters.project
+                current_project = choices.project_ref_display.project_key_for_ref(
+                    pane.filters.project
+                )
         self.push_screen(  # type: ignore[attr-defined]
             InventoryProjectPicker(
                 list(choices.choices),

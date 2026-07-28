@@ -10,6 +10,8 @@ import pytest
 from textual.widgets import Static
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.artifacts import _ArtifactsProjectChoices
+from sase.ace.tui.modals.inventory_project_picker import InventoryProjectChoice
 from sase.ace.tui.widgets.artifacts import CommitsPane, CommitsTimeline
 from sase.ace.tui.widgets.artifacts.commit_filter_bar import CommitFilterBar
 from sase.ace.tui.widgets.artifacts.commits_collection import (
@@ -18,10 +20,15 @@ from sase.ace.tui.widgets.artifacts.commits_collection import (
 )
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.core.time import get_timezone
+from sase.project_display_names import (
+    ProjectDisplaySnapshot,
+    ProjectRefDisplaySnapshot,
+)
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.vcs_log.filter_query import (
     CommitLogFilterValues,
     parse_commit_filter_query,
+    to_query_string,
 )
 from sase.vcs_log.models import VcsLogResult
 from tests.ace.tui._commits_pane_helpers import _result, _result_with_sidecar
@@ -178,6 +185,17 @@ async def test_absent_project_token_collects_all_projects(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[dict[str, Any]] = []
+    startup_load_calls = 0
+
+    def load_startup_projection() -> ProjectRefDisplaySnapshot:
+        nonlocal startup_load_calls
+        startup_load_calls += 1
+        return ProjectRefDisplaySnapshot()
+
+    monkeypatch.setattr(
+        "sase.project_display_names.load_project_ref_display_snapshot",
+        load_startup_projection,
+    )
     monkeypatch.setattr(
         "sase.config.load_merged_config",
         lambda: {"ace": {"artifacts": {"commits": {"default_query": "sidecar:false"}}}},
@@ -200,6 +218,7 @@ async def test_absent_project_token_collects_all_projects(
 
         assert calls[0]["project_scope"] is None
         assert calls[0]["all_projects"] is True
+        assert startup_load_calls == 0
 
 
 async def test_commits_filter_bar_rejects_invalid_submit(
@@ -228,6 +247,73 @@ async def test_commits_filter_bar_rejects_invalid_submit(
         assert bar.display is True
         assert bar.query_one("#commit-filter-status", Static).has_class("error")
         assert pane.filters.text == ()
+
+
+async def test_committed_project_key_alias_and_unknown_ref_canonicalization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_key = "gh_acme__widgets"
+    project_label = "widgets"
+    project_file = "/tmp/widgets.sase"
+    project_ref_display = ProjectRefDisplaySnapshot(
+        ProjectDisplaySnapshot({project_key: project_label}),
+        {"docs": project_key},
+    )
+    choices = _ArtifactsProjectChoices(
+        choices=(
+            InventoryProjectChoice(
+                project_key=project_key,
+                display_name=project_label,
+                state="enabled",
+            ),
+        ),
+        enabled_projects=(project_key,),
+        display_names={project_key: project_label},
+        project_files={project_key: project_file},
+        project_ref_display=project_ref_display,
+    )
+    result = _result()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: choices,
+    )
+    monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(initial_tab="changespecs") as page:
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        bar = pane.query_one(CommitFilterBar)
+        editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
+        await page.wait_for(
+            lambda _state: page.app._artifacts_project_choices is choices
+        )
+
+        for project_ref, expected_project in (
+            (project_key, project_label),
+            ("docs", project_label),
+            ("unknown", "unknown"),
+        ):
+            query = (
+                f"project:{project_ref} repo:plans author:Ada sidecar:false limit:5 fix"
+            )
+            await page.press("slash")
+            editor.load_text(query)
+            editor.cursor_position = len(query)
+            await page.press("enter")
+            await page.wait_for(
+                lambda _state, expected_project=expected_project: (
+                    pane.filters.project == expected_project
+                    and page.app.focused
+                    is pane.query_one("#commits-timeline", CommitsTimeline)
+                )
+            )
+
+            expected_values = replace(
+                parse_commit_filter_query(query),
+                project=expected_project,
+            )
+            assert editor.text == to_query_string(expected_values)
+            assert pane.filters == expected_values
 
 
 async def test_commits_negative_repo_reconciles_before_collection_and_persists(

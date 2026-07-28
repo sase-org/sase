@@ -80,7 +80,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(a.edit_query)} / {d(a.commits_filters)}",
                     "Focus persistent commit filter",
                 ),
-                ("project:KEY", "Single; omitted = all projects"),
+                ("project:NAME", "Single; omitted = all projects"),
                 ("repo: / author:", "Filter repository / author substring"),
                 ("since: / until:", "until:DAY includes the full day"),
                 ("sidecar:true / false", "Include / exclude sidecars"),

@@ -320,8 +320,8 @@ async def test_scope_inventory_is_lazy_and_picker_updates_all_placeholders(
         for pane in page.app.query(ArtifactPlaceholderPane):
             assert pane.project_scope == "alpha"
         commits = page.app.query_one(CommitsPane)
-        assert commits.project_scope == "alpha"
-        assert commits.filters.project == "alpha"
+        assert commits.project_scope == "Alpha"
+        assert commits.filters.project == "Alpha"
         assert page.app.query_one(ArtifactsChatsPane).project_scope == "alpha"
 
         retained_filters = replace(
@@ -332,9 +332,9 @@ async def test_scope_inventory_is_lazy_and_picker_updates_all_placeholders(
             text=("fix",),
         )
         commits._commit_filter_values(retained_filters, close_session=False)
-        commits.set_project_scope("beta")
-        await page.wait_for(lambda _state: commits.filters.project == "beta")
-        assert commits.filters == replace(retained_filters, project="beta")
+        commits.set_project_scope("beta", display_name="Beta")
+        await page.wait_for(lambda _state: commits.filters.project == "Beta")
+        assert commits.filters == replace(retained_filters, project="Beta")
         assert page.app.artifacts_project_scope == "alpha"
 
         await page.press("p")

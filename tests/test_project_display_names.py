@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -87,6 +88,52 @@ def test_snapshot_keeps_identity_immutable_and_sorts_by_label_then_key() -> None
         snapshot.labels_by_key["gh_acme__widgets"] = "mutated"  # type: ignore[index]
 
 
+def test_project_ref_snapshot_resolves_known_refs_and_preserves_unknowns() -> None:
+    project_key = "gh_acme__widgets"
+    snapshot = pdn.ProjectDisplaySnapshot({project_key: "widgets"})
+    refs = pdn.ProjectRefDisplaySnapshot(snapshot, {"docs": project_key})
+
+    assert refs.label_for_ref(project_key) == "widgets"
+    assert refs.label_for_ref("docs") == "widgets"
+    assert refs.label_for_ref("WiDgEtS") == "widgets"
+    assert refs.label_for_ref("unknown") == "unknown"
+    assert refs.label_for_ref("") is None
+    assert refs.label_for_ref(None) is None
+    assert refs.project_key_for_ref("GH_ACME__WIDGETS") == project_key
+    assert refs.project_key_for_ref("DOCS") == project_key
+    assert refs.project_key_for_ref("WiDgEtS") == project_key
+    assert refs.project_key_for_ref("unknown") is None
+
+    with pytest.raises(TypeError):
+        refs.aliases["other"] = project_key  # type: ignore[index]
+
+
+def test_project_ref_display_loader_uses_one_inventory_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    project_key = "gh_acme__widgets"
+    record = replace(
+        _record(project_key, "widgets"),
+        archive_file="/tmp/projects/gh_acme__widgets-archive.sase",
+        aliases=["docs"],
+    )
+
+    def load_records(*_args: object, **_kwargs: object) -> list[ProjectRecordWire]:
+        nonlocal calls
+        calls += 1
+        return [record]
+
+    monkeypatch.setattr(pdn, "list_project_records", load_records)
+
+    refs = pdn.load_project_ref_display_snapshot(tmp_path / "projects")
+
+    assert calls == 1
+    assert refs.label_for_ref(project_key) == "widgets"
+    assert refs.label_for_ref("docs") == "widgets"
+
+
 def test_supplied_snapshot_helpers_do_not_reload_lifecycle_inventory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -148,12 +195,15 @@ def test_snapshot_load_failure_falls_back_to_canonical_key(
     monkeypatch.setattr(pdn, "list_project_records", fail_inventory)
 
     snapshot = pdn.load_project_display_snapshot(tmp_path / "projects")
+    refs = pdn.load_project_ref_display_snapshot(tmp_path / "projects")
 
     assert snapshot.label_for("gh_acme__widgets") == "gh_acme__widgets"
     assert (
         pdn.project_display_name_for("gh_acme__widgets", snapshot=snapshot)
         == "gh_acme__widgets"
     )
+    assert refs.label_for_ref("gh_acme__widgets") == "gh_acme__widgets"
+    assert refs.project_key_for_ref("gh_acme__widgets") is None
 
 
 def test_humanize_cl_name_rewrites_exact_key_and_prefix(
