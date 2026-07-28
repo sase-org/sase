@@ -235,6 +235,32 @@ def test_handle_bead_update_auto_commit_message(project_dir: Path) -> None:
     )
 
 
+def test_redundant_update_and_close_skip_auto_commit(project_dir: Path) -> None:
+    issue = _create_issue(project_dir, "Unchanged")
+    update_args = argparse.Namespace(
+        id=issue.id,
+        status=None,
+        title=issue.title,
+        description=None,
+        notes=None,
+        design=None,
+        assignee=None,
+        tier=None,
+        model=None,
+        size=None,
+    )
+
+    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+        bead_cli.handle_bead_update(update_args)
+    auto_commit.assert_not_called()
+
+    with BeadProject(project_dir) as project:
+        project.close([issue.id], reason="done")
+    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+        bead_cli.handle_bead_close(argparse.Namespace(ids=[issue.id], reason="done"))
+    auto_commit.assert_not_called()
+
+
 def test_handle_bead_open_auto_commit_message(project_dir: Path) -> None:
     issue = _create_issue(project_dir, "Reopened")
     with BeadProject(project_dir) as proj:

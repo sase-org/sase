@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any, Literal, overload
 
+from sase.bead.mutation_commit import mutation_commit_message
 
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
@@ -171,29 +172,16 @@ def _apply_mutation_side_effects(
     del write_beads_dir
     operation = str(mutation_summary.get("operation") or "")
     issue_ids = [str(value) for value in mutation_summary.get("issue_ids") or []]
+    if mutation_summary.get("changed") is False:
+        return
     try:
         from sase.bead.cli_common import auto_commit_bead_store
 
-        message = _mutation_commit_message(operation, issue_ids)
+        message = mutation_commit_message(operation, issue_ids)
         if message:
             auto_commit_bead_store(message)
     except Exception:
         pass
 
 
-def _mutation_commit_message(operation: str, issue_ids: list[str]) -> str | None:
-    if operation == "create" and issue_ids:
-        return f"chore(beads): create {issue_ids[0]}"
-    if operation == "update" and issue_ids:
-        return f"chore(beads): update {issue_ids[0]}"
-    if operation == "open" and issue_ids:
-        return f"chore(beads): reopen {issue_ids[0]}"
-    if operation == "close" and issue_ids:
-        return f"chore(beads): close {' '.join(issue_ids)}"
-    if operation == "rm" and issue_ids:
-        return f"chore(beads): remove {' '.join(issue_ids)}"
-    if operation == "dep_add" and len(issue_ids) >= 2:
-        return f"chore(beads): link {issue_ids[0]} -> {issue_ids[1]}"
-    if operation == "dep_rm" and len(issue_ids) >= 2:
-        return f"chore(beads): unlink {issue_ids[0]} -> {' '.join(issue_ids[1:])}"
-    return None
+_mutation_commit_message = mutation_commit_message

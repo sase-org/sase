@@ -145,7 +145,6 @@ def claim_bead_for_waiting_agent(
             open_bead_project_for_beads_dir,
         )
         from sase.bead.sync import (
-            bead_state_is_clean,
             bead_store_write_lock,
             commit_bead_claim,
             publish_bead_claim,
@@ -167,12 +166,10 @@ def claim_bead_for_waiting_agent(
                         )
 
                     held_by_us = (
-                        issue.status == Status.CLAIMED and issue.assignee == agent_name
+                        issue.status in {Status.CLAIMED, Status.IN_PROGRESS}
+                        and issue.assignee == agent_name
                     )
-                    should_commit = changed or (
-                        held_by_us and not bead_state_is_clean(beads_dir)
-                    )
-                    if should_commit:
+                    if changed:
                         committed = commit_bead_claim(
                             beads_dir,
                             bead_id,

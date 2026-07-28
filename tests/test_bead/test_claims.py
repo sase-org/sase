@@ -186,41 +186,54 @@ def test_same_owner_wait_claim_does_not_commit_or_publish(
     assert publish_calls == []
 
 
-def test_retained_wait_claim_commits_dirty_state_after_failed_commit_retry(
+def test_same_owner_in_progress_wait_claim_is_held_without_commit_or_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _claim_calls, _refresh_calls, commit_calls, publish_calls = install_claim_attempts(
+        monkeypatch,
+        [(issue(Status.IN_PROGRESS, "worker"), False)],
+    )
+
+    assert claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id="sase-1",
+        agent_name="worker",
+    )
+
+    assert commit_calls == []
+    assert publish_calls == []
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out == ("Retained claim on bead sase-1 for waiting agent worker\n")
+
+
+def test_retained_wait_claim_does_not_commit_preexisting_dirty_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     beads_dir, bead_id = project_with_committed_phase(tmp_path)
+    with BeadProject(tmp_path) as project:
+        project.update(
+            bead_id,
+            status=Status.CLAIMED.value,
+            assignee="worker",
+        )
     monkeypatch.setattr(
         "sase.bead.store_locator.canonical_beads_dir_for_project",
         lambda _project: beads_dir,
     )
     monkeypatch.setattr("sase.bead.claims.time.sleep", lambda _delay: None)
 
-    from sase.bead.sync import commit_bead_claim as real_commit
-
     commit_calls = 0
 
-    def fail_then_commit(
-        path: Path,
-        claimed_bead_id: str,
-        agent_name: str,
-        *,
-        already_locked: bool,
-    ) -> bool:
+    def record_commit(*_args: object, **_kwargs: object) -> bool:
         nonlocal commit_calls
         commit_calls += 1
-        if commit_calls == 1:
-            raise ValueError("lock_timeout: injected commit failure")
-        return real_commit(
-            path,
-            claimed_bead_id,
-            agent_name,
-            already_locked=already_locked,
-        )
+        return True
 
     publish_calls: list[tuple[Path, str, str]] = []
-    monkeypatch.setattr("sase.bead.sync.commit_bead_claim", fail_then_commit)
+    monkeypatch.setattr("sase.bead.sync.commit_bead_claim", record_commit)
     monkeypatch.setattr(
         "sase.bead.sync.publish_bead_claim",
         lambda path, claimed_bead_id, agent_name: publish_calls.append(
@@ -234,18 +247,15 @@ def test_retained_wait_claim_commits_dirty_state_after_failed_commit_retry(
         agent_name="worker",
     )
 
-    assert commit_calls == 2
-    assert publish_calls == [(beads_dir, bead_id, "worker")]
-    assert (
-        subprocess.run(
-            ["git", "status", "--porcelain=v1", "--", "sdd/beads"],
-            cwd=tmp_path,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-        == ""
-    )
+    assert commit_calls == 0
+    assert publish_calls == []
+    assert subprocess.run(
+        ["git", "status", "--porcelain=v1", "--", "sdd/beads"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
 
 
 def test_home_wait_claim_is_silently_skipped(

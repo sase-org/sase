@@ -15,6 +15,7 @@ from sase.bead.cli_dep_render import ACTIVE_STATUSES
 from sase.bead.cli_dep_tree import print_bead_dep_tree
 from sase.bead.dep_graph import DepGraph
 from sase.bead.model import Status
+from sase.bead.mutation_commit import require_mutation_commit_message
 
 
 def handle_bead_dep(args: argparse.Namespace) -> None:
@@ -22,7 +23,11 @@ def handle_bead_dep(args: argparse.Namespace) -> None:
     if args.dep_action == "add":
         with bead_store_mutation(auto_commit_bead_store) as mutation:
             dep = mutation.project.add_dependency(args.issue, args.depends_on)
-            mutation.commit(f"chore(beads): link {dep.issue_id} -> {dep.depends_on_id}")
+            mutation.commit(
+                require_mutation_commit_message(
+                    "dep_add", [dep.issue_id, dep.depends_on_id]
+                )
+            )
         print(f"✓ Added dependency: {dep.issue_id} depends on {dep.depends_on_id}")
     elif args.dep_action == "rm":
         with bead_store_mutation(auto_commit_bead_store) as mutation:
@@ -38,9 +43,10 @@ def handle_bead_dep(args: argparse.Namespace) -> None:
                 print(f"Error: {message}", file=sys.stderr)
                 sys.exit(1)
             mutation.commit(
-                "chore(beads): unlink "
-                f"{args.issue} -> "
-                f"{' '.join(dep.depends_on_id for dep in removed)}"
+                require_mutation_commit_message(
+                    "dep_rm",
+                    [args.issue, *(dep.depends_on_id for dep in removed)],
+                )
             )
             issues = mutation.project.list_issues()
             status_by_id = {issue.id: issue.status for issue in issues}

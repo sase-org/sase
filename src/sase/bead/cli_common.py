@@ -177,7 +177,10 @@ def bead_store_mutation(
         with bead_store_write_lock(project.beads_dir) as already_locked:
             mutation = _BeadStoreMutation(project)
             yield mutation
-            if mutation.commit_message is not None:
+            if (
+                mutation.commit_message is not None
+                and mutation.project.mutation_changed
+            ):
                 committed = auto_commit(
                     mutation.commit_message,
                     push_after_commit=False,

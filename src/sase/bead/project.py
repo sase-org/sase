@@ -67,6 +67,7 @@ class BeadProject:
             )
         self._config: dict[str, object] = load_config(self.beads_dir)
         self._conn_cache: sqlite3.Connection | None = None
+        self._mutation_changed = False
         prefix = str(self._config.get("issue_prefix", "beads"))
         raw_counter = self._config.get("next_counter", 1)
         counter = raw_counter if isinstance(raw_counter, int) else int(str(raw_counter))
@@ -91,6 +92,11 @@ class BeadProject:
         """Return the configured bead-store owner."""
         owner = self._config.get("owner", "")
         return owner if isinstance(owner, str) else str(owner)
+
+    @property
+    def mutation_changed(self) -> bool:
+        """Whether any Rust-backed mutation changed this project instance."""
+        return self._mutation_changed
 
     def _close_connection(self) -> None:
         if self._conn_cache is not None:
@@ -138,7 +144,7 @@ class BeadProject:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
-        issue, _outcome = rust_beads.create(
+        issue, outcome = rust_beads.create(
             self.beads_dir,
             title=title,
             issue_type=issue_type,
@@ -154,6 +160,7 @@ class BeadProject:
             size=size,
             now=_now(),
         )
+        self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return issue
 
@@ -236,9 +243,10 @@ class BeadProject:
         if old_issue is not None:
             fields = _normalize_changespec_fields(fields)
             _validate_issue_update(old_issue, fields)
-        issue, _outcome = rust_beads.update(
+        issue, outcome = rust_beads.update(
             self.beads_dir, issue_id, **fields, now=_now()
         )
+        self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return issue
 
@@ -252,28 +260,37 @@ class BeadProject:
         """Append one attributed entry to an issue's notes."""
         from sase.core import bead_mutation_facade as rust_beads
 
-        issue, _outcome = rust_beads.append_note(
+        issue, outcome = rust_beads.append_note(
             self.beads_dir,
             issue_id,
             entry,
             author=author,
             now=_now(),
         )
+        self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return issue
 
     def claim_for_agent_launch(self, bead_id: str, agent_name: str) -> Issue:
         """Atomically claim one non-closed bead for an agent launch."""
+        issue, _changed = self.claim_for_agent_launch_outcome(bead_id, agent_name)
+        return issue
+
+    def claim_for_agent_launch_outcome(
+        self, bead_id: str, agent_name: str
+    ) -> tuple[Issue, bool]:
+        """Claim for launch and return whether core persisted a transition."""
         from sase.core import bead_mutation_facade as rust_beads
 
-        issue, _outcome = rust_beads.claim_for_agent_launch(
+        issue, outcome = rust_beads.claim_for_agent_launch(
             self.beads_dir,
             bead_id,
             agent_name,
             now=_now(),
         )
+        self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
-        return issue
+        return issue, bool(outcome.get("changed", True))
 
     def claim_for_agent_wait(self, bead_id: str, agent_name: str) -> tuple[Issue, bool]:
         """Reserve an open bead while its owning agent waits to launch."""
@@ -285,6 +302,7 @@ class BeadProject:
             agent_name,
             now=_now(),
         )
+        self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return issue, bool(outcome["changed"])
 
@@ -298,6 +316,7 @@ class BeadProject:
             agent_name,
             now=_now(),
         )
+        self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return issue, bool(outcome["changed"])
 
@@ -315,7 +334,7 @@ class BeadProject:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
-        closed, _outcome = rust_beads.close(
+        closed, outcome = rust_beads.close(
             self.beads_dir,
             issue_ids,
             reason=reason,
@@ -323,6 +342,7 @@ class BeadProject:
             force=force,
             now=_now(),
         )
+        self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return closed
 
@@ -336,6 +356,7 @@ class BeadProject:
             issue_id,
             now=_now(),
         )
+        self._record_mutation_outcome(outcome)
         reopened_ancestors = issues_from_list(outcome.get("issues", []))
         self._refresh_db_from_jsonl()
         return issue, reopened_ancestors
@@ -349,7 +370,8 @@ class BeadProject:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
-        removed, _outcome = rust_beads.remove(self.beads_dir, issue_id)
+        removed, outcome = rust_beads.remove(self.beads_dir, issue_id)
+        self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return removed
 
@@ -361,7 +383,8 @@ class BeadProject:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
-        removed, _outcome = rust_beads.remove_many(self.beads_dir, issue_ids)
+        removed, outcome = rust_beads.remove_many(self.beads_dir, issue_ids)
+        self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return removed
 
@@ -373,9 +396,10 @@ class BeadProject:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
-        updated, _outcome = rust_beads.mark_ready_to_work(
+        updated, outcome = rust_beads.mark_ready_to_work(
             self.beads_dir, epic_id, now=_now()
         )
+        self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return updated
 
@@ -391,9 +415,10 @@ class BeadProject:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
-        updated, _outcome = rust_beads.unmark_ready_to_work(
+        updated, outcome = rust_beads.unmark_ready_to_work(
             self.beads_dir, epic_id, now=_now()
         )
+        self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return updated
 
@@ -401,9 +426,10 @@ class BeadProject:
         """Add a dependency: issue_id depends on depends_on_id."""
         from sase.core import bead_mutation_facade as rust_beads
 
-        dep, _outcome = rust_beads.add_dependency(
+        dep, outcome = rust_beads.add_dependency(
             self.beads_dir, issue_id, depends_on_id, now=_now()
         )
+        self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return dep
 
@@ -413,9 +439,10 @@ class BeadProject:
         """Remove dependency edges from issue_id to depends_on_ids."""
         from sase.core import bead_mutation_facade as rust_beads
 
-        dependencies, _outcome = rust_beads.remove_dependencies(
+        dependencies, outcome = rust_beads.remove_dependencies(
             self.beads_dir, issue_id, depends_on_ids, now=_now()
         )
+        self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return dependencies
 
@@ -515,6 +542,10 @@ class BeadProject:
         """Persist the ID counter to config."""
         self._config["next_counter"] = self._id_gen.counter
         save_config(self.beads_dir, self._config)
+
+    def _record_mutation_outcome(self, outcome: dict[str, object]) -> None:
+        """Accumulate honest core mutation results for commit gating."""
+        self._mutation_changed |= bool(outcome.get("changed", True))
 
     def _refresh_db_from_jsonl(self) -> None:
         """Refresh lightweight config state after a Rust-owned mutation.

@@ -6,6 +6,7 @@ import json
 import subprocess
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -576,6 +577,27 @@ def test_mutation_commit_messages_match_slow_path_contract() -> None:
         _mutation_commit_message("dep_rm", ["beads-1", "beads-2", "beads-3"])
         == "chore(beads): unlink beads-1 -> beads-2 beads-3"
     )
+
+
+def test_unchanged_fast_path_mutation_skips_auto_commit(
+    tmp_path: Path, monkeypatch
+) -> None:
+    auto_commit = MagicMock()
+    monkeypatch.setattr(
+        "sase.bead.cli_common.auto_commit_bead_store",
+        auto_commit,
+    )
+
+    bead_fast_path._apply_mutation_side_effects(
+        tmp_path,
+        {
+            "operation": "update",
+            "changed": False,
+            "issue_ids": ["beads-1"],
+        },
+    )
+
+    auto_commit.assert_not_called()
 
 
 def test_warm_sidecar_fast_mutation_commits_without_network_git(

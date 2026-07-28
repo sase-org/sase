@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock, call
 
 import pytest
 
 import sase.scripts.sase_chop_bead_claim_checks as claim_checks
 from sase.axe.chop_script_context import ChopScriptContext
-from sase.bead.claims import BeadClaimReleaseOutcome
 from sase.bead.model import Issue, Status
 from sase.chops.builtin import BuiltinChopRuntime
 from sase.chops.sdk import ChopLogger
@@ -72,6 +73,93 @@ def _claimed_issue(
         status=Status.CLAIMED,
         parent_id="sase-1",
         assignee=assignee,
+    )
+
+
+def _reconciliation(
+    *,
+    released: tuple[tuple[str, str], ...] = (),
+    release_errors: tuple[tuple[str, str], ...] = (),
+    held: tuple[tuple[str, str], ...] = (),
+) -> claim_checks._ProjectClaimReconciliation:
+    return claim_checks._ProjectClaimReconciliation(
+        released=frozenset(released),
+        release_errors=frozenset(release_errors),
+        held=frozenset(held),
+    )
+
+
+def test_project_reconciliation_batches_mutations_into_one_commit_and_push(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    project = MagicMock()
+    project.release_agent_claim.side_effect = [
+        (_claimed_issue(bead_id="sase-1.1", assignee="worker.1"), True),
+        (_claimed_issue(bead_id="sase-1.2", assignee="worker.2"), True),
+    ]
+    project.claim_for_agent_wait.side_effect = [
+        (_claimed_issue(bead_id="sase-1.3", assignee="worker.3"), True),
+        (
+            Issue(
+                id="sase-1.4",
+                title="Pre-marked phase",
+                status=Status.IN_PROGRESS,
+                assignee="worker.4",
+            ),
+            False,
+        ),
+    ]
+    project_context = MagicMock()
+    project_context.__enter__.return_value = project
+    lock_entries: list[Path] = []
+
+    @contextmanager
+    def lock(path: Path):
+        lock_entries.append(path)
+        yield True
+
+    commit = MagicMock(return_value=True)
+    publish = MagicMock()
+    monkeypatch.setattr(
+        claim_checks,
+        "canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+    monkeypatch.setattr(
+        claim_checks,
+        "open_bead_project_for_beads_dir",
+        lambda _path: project_context,
+    )
+    monkeypatch.setattr(claim_checks, "bead_store_write_lock", lock)
+    monkeypatch.setattr(claim_checks, "commit_bead_claim_reconciliation", commit)
+    monkeypatch.setattr(claim_checks, "publish_bead_claim", publish)
+
+    result = claim_checks._reconcile_project_claims(
+        "sase",
+        releases=[("sase-1.1", "worker.1"), ("sase-1.2", "worker.2")],
+        acquisitions=[("sase-1.3", "worker.3"), ("sase-1.4", "worker.4")],
+        log=_runtime(tmp_path).log,
+    )
+
+    assert lock_entries == [beads_dir]
+    assert project.release_agent_claim.call_args_list == [
+        call("sase-1.1", "worker.1"),
+        call("sase-1.2", "worker.2"),
+    ]
+    assert project.claim_for_agent_wait.call_args_list == [
+        call("sase-1.3", "worker.3"),
+        call("sase-1.4", "worker.4"),
+    ]
+    commit.assert_called_once_with(beads_dir, already_locked=True)
+    publish.assert_called_once_with(beads_dir, "reconciliation", "sase")
+    assert result.released == frozenset(
+        {("sase-1.1", "worker.1"), ("sase-1.2", "worker.2")}
+    )
+    assert result.held == frozenset(
+        {("sase-1.3", "worker.3"), ("sase-1.4", "worker.4")}
     )
 
 
@@ -137,20 +225,19 @@ def test_dead_unpromoted_owner_is_released_after_bead_snapshot(
         lambda _project: events.append("beads") or [_claimed_issue()],
     )
 
-    released: list[tuple[str, str, str]] = []
+    reconciled: list[tuple[str, list[tuple[str, str]], list[tuple[str, str]]]] = []
 
-    def release(
-        *, project_name: str, bead_id: str, agent_name: str
-    ) -> BeadClaimReleaseOutcome:
-        released.append((project_name, bead_id, agent_name))
-        return BeadClaimReleaseOutcome.RELEASED
+    def reconcile(project_name: str, *, releases, acquisitions, log):
+        del log
+        reconciled.append((project_name, releases, acquisitions))
+        return _reconciliation(released=(("sase-1.1", "sase-1.1"),))
 
-    monkeypatch.setattr(claim_checks, "release_bead_claim_for_agent", release)
+    monkeypatch.setattr(claim_checks, "_reconcile_project_claims", reconcile)
 
     result = claim_checks._run(_runtime(tmp_path))
 
     assert events == ["scan", "beads", "scan"]
-    assert released == [("sase", "sase-1.1", "sase-1.1")]
+    assert reconciled == [("sase", [("sase-1.1", "sase-1.1")], [])]
     assert result.counters == {
         "projects_scanned": 1,
         "claims_examined": 1,
@@ -186,8 +273,10 @@ def test_live_promoted_or_unreadable_owner_is_untouched_in_prepass(
     monkeypatch.setattr(claim_checks, "_read_claimed_issues", unexpected_read)
     monkeypatch.setattr(
         claim_checks,
-        "claim_bead_for_waiting_agent",
-        lambda **_kwargs: pytest.fail("ineligible agent entered acquire pass"),
+        "_reconcile_project_claims",
+        lambda *_args, **_kwargs: pytest.fail(
+            "ineligible agent entered reconcile pass"
+        ),
     )
 
     result = claim_checks._run(_runtime(tmp_path))
@@ -215,8 +304,8 @@ def test_unresolvable_assignee_is_not_released(
     )
     monkeypatch.setattr(
         claim_checks,
-        "release_bead_claim_for_agent",
-        lambda **_kwargs: pytest.fail("unowned claim must not be released"),
+        "_reconcile_project_claims",
+        lambda *_args, **_kwargs: pytest.fail("unowned claim must not be released"),
     )
 
     result = claim_checks._run(_runtime(tmp_path))
@@ -258,12 +347,13 @@ def test_live_unpromoted_unmarked_agent_is_claimed_and_marked(
         lambda _project: pytest.fail("acquire-only tick used the release read path"),
     )
 
-    acquired: list[tuple[str, str, str]] = []
+    acquired: list[tuple[str, list[tuple[str, str]]]] = []
     marked: list[tuple[Path, str, str, str]] = []
 
-    def claim(*, project_name: str, bead_id: str, agent_name: str) -> bool:
-        acquired.append((project_name, bead_id, agent_name))
-        return True
+    def reconcile(project_name: str, *, releases, acquisitions, log):
+        del log, releases
+        acquired.append((project_name, acquisitions))
+        return _reconciliation(held=(("sase-1.1", "sase-1.1"),))
 
     def mark(
         artifacts_dir: Path,
@@ -275,12 +365,12 @@ def test_live_unpromoted_unmarked_agent_is_claimed_and_marked(
         marked.append((artifacts_dir, project_name, bead_id, agent_name))
         return True
 
-    monkeypatch.setattr(claim_checks, "claim_bead_for_waiting_agent", claim)
+    monkeypatch.setattr(claim_checks, "_reconcile_project_claims", reconcile)
     monkeypatch.setattr(claim_checks, "write_bead_claim_marker", mark)
 
     result = claim_checks._run(_runtime(tmp_path))
 
-    assert acquired == [("sase", "sase-1.1", "sase-1.1")]
+    assert acquired == [("sase", [("sase-1.1", "sase-1.1")])]
     assert marked == [(record.artifact_dir, "sase", "sase-1.1", "sase-1.1")]
     assert result.reason is None
     assert result.counters == {
@@ -306,8 +396,8 @@ def test_live_candidate_declined_by_terminal_bead_state_is_not_marked(
     monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: True)
     monkeypatch.setattr(
         claim_checks,
-        "claim_bead_for_waiting_agent",
-        lambda **_kwargs: False,
+        "_reconcile_project_claims",
+        lambda *_args, **_kwargs: _reconciliation(),
     )
     monkeypatch.setattr(
         claim_checks,
@@ -338,8 +428,8 @@ def test_dead_agent_is_never_acquired(
     monkeypatch.setattr(claim_checks, "_read_claimed_issues", lambda _project: [])
     monkeypatch.setattr(
         claim_checks,
-        "claim_bead_for_waiting_agent",
-        lambda **_kwargs: pytest.fail("dead agent must not acquire a claim"),
+        "_reconcile_project_claims",
+        lambda *_args, **_kwargs: pytest.fail("dead agent must not acquire a claim"),
     )
 
     result = claim_checks._run(_runtime(tmp_path))
@@ -370,8 +460,8 @@ def test_reconciled_dead_owner_stops_opening_bead_stores(
     )
     monkeypatch.setattr(
         claim_checks,
-        "release_bead_claim_for_agent",
-        lambda **_kwargs: BeadClaimReleaseOutcome.RELEASED,
+        "_reconcile_project_claims",
+        lambda *_args, **_kwargs: _reconciliation(released=(("sase-1.1", "sase-1.1"),)),
     )
 
     first = claim_checks._run(_runtime(tmp_path))
@@ -415,8 +505,10 @@ def test_failed_release_and_unreadable_store_leave_no_tombstone(
     )
     monkeypatch.setattr(
         claim_checks,
-        "release_bead_claim_for_agent",
-        lambda **_kwargs: BeadClaimReleaseOutcome.ERROR,
+        "_reconcile_project_claims",
+        lambda *_args, **_kwargs: _reconciliation(
+            release_errors=(("sase-1.1", "sase-1.1"),)
+        ),
     )
 
     claim_checks._run(_runtime(tmp_path))
@@ -452,10 +544,16 @@ def test_acquire_then_die_is_released_on_following_tick(
         "_claim_owner_is_alive",
         lambda _record: alive,
     )
+    outcomes = iter(
+        (
+            _reconciliation(held=(("sase-1.1", "sase-1.1"),)),
+            _reconciliation(released=(("sase-1.1", "sase-1.1"),)),
+        )
+    )
     monkeypatch.setattr(
         claim_checks,
-        "claim_bead_for_waiting_agent",
-        lambda **_kwargs: True,
+        "_reconcile_project_claims",
+        lambda *_args, **_kwargs: next(outcomes),
     )
     monkeypatch.setattr(
         claim_checks,
@@ -473,16 +571,6 @@ def test_acquire_then_die_is_released_on_following_tick(
         "_read_claimed_issues",
         lambda _project: [_claimed_issue()],
     )
-    released: list[str] = []
-    monkeypatch.setattr(
-        claim_checks,
-        "release_bead_claim_for_agent",
-        lambda **kwargs: (
-            released.append(kwargs["bead_id"]) or BeadClaimReleaseOutcome.RELEASED
-        ),
-    )
-
     second = claim_checks._run(_runtime(tmp_path))
 
-    assert released == ["sase-1.1"]
     assert second.counters["claims_released"] == 1

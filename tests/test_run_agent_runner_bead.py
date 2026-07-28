@@ -118,9 +118,17 @@ def test_claim_helper_commits_managed_store_and_allows_reassignment(
             workspace_num=2,
             artifacts_dir=str(tmp_path / "artifacts"),
         )
+        repeated = claim_bead_for_agent_launch(
+            agent_name="worker.2",
+            bead_id=bead_id,
+            workspace_dir=str(tmp_path),
+            workspace_num=2,
+            artifacts_dir=str(tmp_path / "artifacts"),
+        )
 
     assert first.assignee == "worker.1"
     assert second.assignee == "worker.2"
+    assert repeated.assignee == "worker.2"
     assert commit.call_count == 2
     assert commit.call_args.kwargs["auto_commit_type"] == "beads"
     assert commit.call_args.kwargs["paths"] == [sdd_dir / "beads"]
@@ -227,6 +235,7 @@ def test_claim_helper_materializes_before_taking_store_lock(
     expected_issue = MagicMock()
     project = MagicMock()
     project.claim_for_agent_launch.return_value = expected_issue
+    project.mutation_changed = True
     project_context = MagicMock()
     project_context.__enter__.return_value = project
 

@@ -160,6 +160,21 @@ def commit_bead_claim_release(
     )
 
 
+def commit_bead_claim_reconciliation(
+    beads_dir: Path,
+    *,
+    already_locked: bool = False,
+) -> bool:
+    """Commit every claim transition from one reconciliation pass."""
+    return _commit_bead_state(
+        beads_dir,
+        message="chore(beads): reconcile bead claims",
+        auto_commit_type="beads",
+        op_prefix="bead.claim_reconcile",
+        already_locked=already_locked,
+    )
+
+
 def commit_epic_graph_checkpoint(
     beads_dir: Path,
     epic_id: str,

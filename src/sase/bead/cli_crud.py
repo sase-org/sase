@@ -16,6 +16,7 @@ from sase.bead.cli_common import (
     storage_plan_path,
 )
 from sase.bead.model import BeadTier, IssueType
+from sase.bead.mutation_commit import require_mutation_commit_message
 
 
 def handle_bead_init(args: argparse.Namespace) -> None:
@@ -123,7 +124,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        mutation.commit(f"chore(beads): create {issue.id}")
+        mutation.commit(require_mutation_commit_message("create", [issue.id]))
     print(f"Created {issue.issue_type.value}: {issue.id} — {issue.title}")
 
 
@@ -160,7 +161,7 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        mutation.commit(f"chore(beads): update {issue.id}")
+        mutation.commit(require_mutation_commit_message("update", [issue.id]))
     print(f"✓ Updated issue: {issue.id} — {issue.title}")
 
 
@@ -183,7 +184,7 @@ def handle_bead_note(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        mutation.commit(f"chore(beads): note {issue.id}")
+        mutation.commit(require_mutation_commit_message("note", [issue.id]))
     print(f"Noted: {issue.id} — {issue.title}")
 
 
@@ -194,7 +195,7 @@ def handle_bead_open(args: argparse.Namespace) -> None:
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
-        mutation.commit(f"chore(beads): reopen {issue.id}")
+        mutation.commit(require_mutation_commit_message("open", [issue.id]))
     print(f"○ Opened: {issue.id} — {issue.title}")
     for ancestor in reopened_ancestors:
         print(f"○ Reopened ancestor: {ancestor.id} — {ancestor.title}")
@@ -215,7 +216,7 @@ def handle_bead_close(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        mutation.commit(f"chore(beads): close {' '.join(args.ids)}")
+        mutation.commit(require_mutation_commit_message("close", args.ids))
     for issue in closed:
         print(f"✓ Closed: {issue.id} — {issue.title}")
 
@@ -229,7 +230,7 @@ def handle_bead_rm(args: argparse.Namespace) -> None:
             missing_id = message.rsplit("Issue not found:", 1)[-1].strip()
             print(f"Error: issue not found: {missing_id}", file=sys.stderr)
             sys.exit(1)
-        mutation.commit(f"chore(beads): remove {' '.join(args.ids)}")
+        mutation.commit(require_mutation_commit_message("rm", args.ids))
     for issue in removed:
         print(f"✗ Removed: {issue.id} — {issue.title}")
 
