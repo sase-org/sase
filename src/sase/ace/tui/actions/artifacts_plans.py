@@ -364,8 +364,12 @@ def _update_scoped_bead(
 
 
 def _commit_scoped_bead_store(beads_dir: Path, message: str) -> None:
-    root = beads_dir.parent
-    if not (root / ".git").exists():
+    from sase.bead.sync import bead_store_git_root
+
+    # The bead store may itself be a repository root (the dedicated beads
+    # sidecar), so resolve the owning worktree instead of assuming the parent.
+    root = bead_store_git_root(beads_dir)
+    if root is None:
         # In-tree stores are committed with their owning code change, matching
         # the existing bead CLI behavior.
         return
