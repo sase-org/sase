@@ -2858,10 +2858,13 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead close`
 
-| Flag           | Values | Default    | Description                |
-| -------------- | ------ | ---------- | -------------------------- |
-| `ids`          | string | (required) | One or more issue IDs      |
-| `-r, --reason` | string | -          | Optional close reason text |
+| Flag               | Values                           | Default    | Description                                    |
+| ------------------ | -------------------------------- | ---------- | ---------------------------------------------- |
+| `ids`              | string                           | (required) | One or more issue IDs                          |
+| `-f, --force`      | flag                             | -          | Sweep unfinished descendants; needs both below |
+| `-n, --note`       | string                           | -          | Attributed note appended to each listed issue  |
+| `-r, --reason`     | string                           | -          | Optional close reason text                     |
+| `-R, --resolution` | `canceled`, `done`, `superseded` | `done`     | How this bead was resolved                     |
 
 #### `sase bead rm`
 

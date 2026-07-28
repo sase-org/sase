@@ -284,6 +284,11 @@ an explicit `canceled` or `superseded` resolution; `--force --resolution done` i
 closes the unfinished descendants with the same non-done resolution, gives each one a close reason naming the forcing
 parent, and records the swept descendant IDs in that parent's close event.
 
+`--note` appends one attributed note to every explicitly listed bead before the close events, in the same mutation, so
+completion evidence and the close land in one commit and one push instead of two. The note text and attribution match
+`sase bead note`; forced closes apply it only to the listed beads, never to the swept descendants. Keep `sase bead note`
+for mid-work progress notes.
+
 Closing a delegated child plan/epic also closes its parent phase automatically once every child of that phase is closed.
 This upward cascade continues only through phase parents and never auto-closes a parent plan/epic; the parent land agent
 retains that responsibility. Removing a child epic does not trigger the cascade, so its phase stays open and can be
@@ -292,6 +297,7 @@ scheduled again on retry.
 | Flag               | Description                                                                         |
 | ------------------ | ----------------------------------------------------------------------------------- |
 | `-f, --force`      | Sweep unfinished descendants; requires a reason and `canceled` or `superseded`      |
+| `-n, --note`       | Append this attributed note to each listed issue before closing it                  |
 | `-r, --reason`     | Optional close reason text; required with `--force`                                 |
 | `-R, --resolution` | `canceled`, `done`, or `superseded`; defaults to `done`, which force does not allow |
 

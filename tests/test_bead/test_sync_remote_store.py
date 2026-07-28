@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from sase.bead.sync import (
-    commit_bead_work_launch,
+    commit_epic_graph_checkpoint,
     git_sync,
     publish_bead_claim,
     refresh_bead_store,
@@ -261,7 +261,7 @@ def test_git_sync_retries_transient_index_lock(tmp_path, monkeypatch):
     assert staged == ["sdd/beads/issues.jsonl"]
 
 
-def test_commit_bead_work_launch_retries_transient_index_lock(
+def test_commit_epic_graph_checkpoint_retries_transient_index_lock(
     tmp_path,
     monkeypatch,
 ):
@@ -279,11 +279,7 @@ def test_commit_bead_work_launch_retries_transient_index_lock(
     release.start()
 
     try:
-        committed = commit_bead_work_launch(
-            beads_dir,
-            "sase-1",
-            kind="epic",
-        )
+        committed = commit_epic_graph_checkpoint(beads_dir, "sase-1")
     finally:
         release.cancel()
         lock_path.unlink(missing_ok=True)

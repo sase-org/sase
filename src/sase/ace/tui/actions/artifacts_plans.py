@@ -359,7 +359,11 @@ def _update_scoped_bead(
     beads_dir = _project_beads_dir(project)
     with BeadProject(beads_dir.parent, beads_dirname=beads_dir.name) as bead_project:
         updated = bead_project.update(issue_id, **fields)
-    _commit_scoped_bead_store(beads_dir, f"chore(beads): update {issue_id}")
+        changed = bead_project.mutation_changed
+    # A no-op update writes nothing, so committing would only sweep unrelated
+    # worktree dirt into the store under this update's message.
+    if changed:
+        _commit_scoped_bead_store(beads_dir, f"chore(beads): update {issue_id}")
     return updated
 
 

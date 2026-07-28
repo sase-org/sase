@@ -858,9 +858,9 @@ xprompts:
       bead_id: word
     content: |
       Can you complete the work for bead {{ bead_id }}? The bead is already reserved for you and assigned to your agent
-      name: it was set to status=claimed while your agent was waiting, and the runtime promoted it to
-      status=in_progress before you started reading this. Do not set either status by hand. Read its description and
-      design file, do the work, and close the bead with
+      name: it was set to status=in_progress before you started reading this, either by the `sase bead work` launch
+      checkpoint or by the runtime promoting an ad-hoc wait-time claim. Do not set the status by hand. Read its
+      description and design file, do the work, and close the bead with
       `sase bead close {{ bead_id }} --note "<what you verified>"`. Closing an assigned phase bead is unaffected by the
       parent-close descendant guard. Do NOT close the parent epic. Do NOT create new beads.
   epic: |

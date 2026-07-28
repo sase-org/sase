@@ -105,27 +105,6 @@ def git_sync(beads_dir: Path, *, already_locked: bool = False) -> None:
         )
 
 
-def commit_bead_work_launch(
-    beads_dir: Path,
-    bead_id: str,
-    *,
-    kind: str,
-    already_locked: bool = False,
-) -> bool:
-    """Commit the bead-state mutation produced by ``sase bead work``.
-
-    Returns False for benign no-op cases: no git repo, no bead state, or no
-    staged bead-state change after adding the store.
-    """
-    return _commit_bead_state(
-        beads_dir,
-        message=f"chore: mark bead work launched for {bead_id}",
-        auto_commit_type="bead_work",
-        op_prefix="bead.work_launch",
-        already_locked=already_locked,
-    )
-
-
 def commit_bead_claim(
     beads_dir: Path,
     bead_id: str,
@@ -183,9 +162,10 @@ def commit_epic_graph_checkpoint(
 ) -> bool:
     """Commit the complete epic graph before any worker can be spawned.
 
-    Returns False for the same benign no-op cases as
-    :func:`commit_bead_work_launch`.  Callers that require detached workers to
-    observe the checkpoint must separately publish the resulting revision.
+    Returns False for benign no-op cases: no git repo, no bead state, or no
+    staged bead-state change after adding the store.  Callers that require
+    detached workers to observe the checkpoint must separately publish the
+    resulting revision.
     """
     return _commit_bead_state(
         beads_dir,

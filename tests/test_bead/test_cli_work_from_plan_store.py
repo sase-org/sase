@@ -702,4 +702,5 @@ def test_git_sidecar_fresh_clone_sees_complete_graph_before_launch(
     assert (
         sum("checkpoint approved epic graph" in line for line in commit_subjects) == 1
     )
-    assert all("mark bead work launched" not in line for line in commit_subjects)
+    # The checkpoint is the launch's only bead commit, so nothing may follow it.
+    assert "checkpoint approved epic graph" in commit_subjects[0]

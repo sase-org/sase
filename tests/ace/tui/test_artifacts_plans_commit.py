@@ -8,7 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.actions.artifacts_plans import _commit_scoped_bead_store
+from sase.ace.tui.actions.artifacts_plans import (
+    _commit_scoped_bead_store,
+    _update_scoped_bead,
+)
 from sase.bead.project import (
     BEADS_DIRNAME,
     BEADS_DIRNAME_NON_VC,
@@ -94,3 +97,35 @@ def test_commit_scoped_bead_store_skips_store_without_git_root(tmp_path: Path) -
     _commit_scoped_bead_store(beads_dir, "chore(beads): update sase-1")
 
     assert not (tmp_path / ".git").exists()
+
+
+@pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not available")
+def test_update_scoped_bead_skips_the_commit_for_a_no_op_update(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A redundant edit writes nothing, so it must not sweep unrelated dirt."""
+    clone = tmp_path / "sase" / "repos" / "beads"
+    _init_repo(clone)
+    beads_dir = _make_store(clone, BEADS_DIRNAME_ROOT)
+    with BeadProject(beads_dir.parent, beads_dirname=beads_dir.name) as project:
+        issue = project.create("Plan", "plan")
+    monkeypatch.setattr(
+        "sase.bead.workspace.get_project_beads_dirs_for_project",
+        lambda _project: [beads_dir],
+    )
+
+    _update_scoped_bead("proj", issue.id, {"title": "Renamed"})
+    commits_after_real_edit = _git(clone, "log", "--format=%s").stdout.splitlines()
+    # Dirt a concurrent writer left behind must not ride out under this
+    # update's message, which is exactly what an ungated commit would do.
+    (beads_dir / "pages" / "stray.md").parent.mkdir(parents=True, exist_ok=True)
+    (beads_dir / "pages" / "stray.md").write_text("stray\n", encoding="utf-8")
+
+    _update_scoped_bead("proj", issue.id, {"title": "Renamed"})
+
+    assert commits_after_real_edit[0] == f"chore(beads): update {issue.id}"
+    assert _git(clone, "log", "--format=%s").stdout.splitlines() == (
+        commits_after_real_edit
+    )
+    assert (beads_dir / "pages" / "stray.md").is_file()

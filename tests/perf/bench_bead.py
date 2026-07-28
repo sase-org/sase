@@ -461,7 +461,7 @@ def _patched_bead_work_launch() -> Iterator[None]:
             )
         )
         stack.enter_context(
-            patch("sase.bead.sync.commit_bead_work_launch", lambda *a, **k: False)
+            patch("sase.bead.sync.commit_epic_graph_checkpoint", lambda *a, **k: False)
         )
         stack.enter_context(
             patch("sase.bead.sync.push_bead_work_launch", lambda beads_dir: None)

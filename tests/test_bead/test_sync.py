@@ -13,7 +13,7 @@ from sase.bead.sync import (
     _is_in_tree_beads_dir,
     bead_sync_diagnostics,
     bead_state_is_clean,
-    commit_bead_work_launch,
+    commit_epic_graph_checkpoint,
     git_sync,
     rebuild_from_jsonl,
 )
@@ -202,7 +202,7 @@ def test_git_sync_noop_when_clean(tmp_path):
     assert result.stdout.strip() == ""
 
 
-def test_commit_bead_work_launch_commits_bead_state(tmp_path):
+def test_commit_epic_graph_checkpoint_commits_bead_state(tmp_path):
     _init_git_repo(tmp_path)
     beads_dir = tmp_path / "sdd/beads"
     beads_dir.mkdir(parents=True)
@@ -212,11 +212,7 @@ def test_commit_bead_work_launch_commits_bead_state(tmp_path):
     stream.parent.mkdir(parents=True)
     stream.write_text('{"event_id":"sase-1:000001"}\n')
 
-    committed = commit_bead_work_launch(
-        beads_dir,
-        "sase-1",
-        kind="epic",
-    )
+    committed = commit_epic_graph_checkpoint(beads_dir, "sase-1")
 
     assert committed is True
     message = subprocess.run(
@@ -227,7 +223,7 @@ def test_commit_bead_work_launch_commits_bead_state(tmp_path):
         check=True,
     )
     assert message.stdout.strip() == (
-        "chore: mark bead work launched for sase-1\n\nSASE_TYPE=bead_work"
+        "chore(beads): checkpoint approved epic graph sase-1\n\nSASE_TYPE=beads"
     )
     files = subprocess.run(
         ["git", "show", "--name-only", "--format=", "HEAD"],
@@ -242,15 +238,15 @@ def test_commit_bead_work_launch_commits_bead_state(tmp_path):
     ]
 
 
-def test_commit_bead_work_launch_noops_outside_git(tmp_path):
+def test_commit_epic_graph_checkpoint_noops_outside_git(tmp_path):
     beads_dir = tmp_path / "sdd/beads"
     beads_dir.mkdir(parents=True)
     (beads_dir / "issues.jsonl").write_text('{"id":"test"}\n')
 
-    assert commit_bead_work_launch(beads_dir, "sase-1", kind="epic") is False
+    assert commit_epic_graph_checkpoint(beads_dir, "sase-1") is False
 
 
-def test_commit_bead_work_launch_noops_when_bead_state_has_no_change(tmp_path):
+def test_commit_epic_graph_checkpoint_noops_when_bead_state_has_no_change(tmp_path):
     _init_git_repo(tmp_path)
     beads_dir = tmp_path / "sdd/beads"
     beads_dir.mkdir(parents=True)
@@ -259,7 +255,7 @@ def test_commit_bead_work_launch_noops_when_bead_state_has_no_change(tmp_path):
     subprocess.run(["git", "add", "sdd/beads/issues.jsonl"], cwd=tmp_path, check=True)
     subprocess.run(["git", "commit", "-m", "add jsonl"], cwd=tmp_path, check=True)
 
-    assert commit_bead_work_launch(beads_dir, "sase-1", kind="epic") is False
+    assert commit_epic_graph_checkpoint(beads_dir, "sase-1") is False
     subject = subprocess.run(
         ["git", "log", "-1", "--format=%s"],
         cwd=tmp_path,
@@ -380,11 +376,7 @@ def test_bead_git_writers_refuse_operations_before_staging(
     with pytest.raises(SddRepositoryHealthError):
         git_sync(beads_dir)
     with pytest.raises(SddRepositoryHealthError):
-        commit_bead_work_launch(
-            beads_dir,
-            "sase-1",
-            kind="epic",
-        )
+        commit_epic_graph_checkpoint(beads_dir, "sase-1")
 
     assert state.read_text(encoding="utf-8") == '{"id":"test"}\n'
     assert (
@@ -399,7 +391,7 @@ def test_bead_git_writers_refuse_operations_before_staging(
     )
 
 
-def test_commit_bead_work_launch_leaves_unrelated_staged_files_staged(tmp_path):
+def test_commit_epic_graph_checkpoint_leaves_unrelated_staged_files_staged(tmp_path):
     _init_git_repo(tmp_path)
     beads_dir = tmp_path / "sdd/beads"
     beads_dir.mkdir(parents=True)
@@ -418,11 +410,7 @@ def test_commit_bead_work_launch_leaves_unrelated_staged_files_staged(tmp_path):
     other.write_text("changed\n")
     subprocess.run(["git", "add", "notes.txt"], cwd=tmp_path, check=True)
 
-    committed = commit_bead_work_launch(
-        beads_dir,
-        "sase-1",
-        kind="epic",
-    )
+    committed = commit_epic_graph_checkpoint(beads_dir, "sase-1")
 
     assert committed is True
     files = subprocess.run(
@@ -481,7 +469,9 @@ def test_git_sync_succeeds_when_gitignored_beads_db_present(tmp_path):
     assert "sdd/beads/beads.db" not in staged
 
 
-def test_commit_bead_work_launch_succeeds_when_gitignored_beads_db_present(tmp_path):
+def test_commit_epic_graph_checkpoint_succeeds_when_gitignored_beads_db_present(
+    tmp_path,
+):
     _init_repo_with_beads_db_ignored(tmp_path)
 
     beads_dir = tmp_path / "sdd/beads"
@@ -494,7 +484,7 @@ def test_commit_bead_work_launch_succeeds_when_gitignored_beads_db_present(tmp_p
     stream.parent.mkdir(parents=True)
     stream.write_text('{"event_id":"sase-1:000001"}\n')
 
-    committed = commit_bead_work_launch(beads_dir, "sase-1", kind="epic")
+    committed = commit_epic_graph_checkpoint(beads_dir, "sase-1")
 
     assert committed is True
     files = subprocess.run(
@@ -511,7 +501,7 @@ def test_commit_bead_work_launch_succeeds_when_gitignored_beads_db_present(tmp_p
     assert "sdd/beads/events/streams/sase-1.jsonl" in files
 
 
-def test_commit_bead_work_launch_records_event_stream_deletion(tmp_path):
+def test_commit_epic_graph_checkpoint_records_event_stream_deletion(tmp_path):
     _init_git_repo(tmp_path)
     beads_dir = tmp_path / "sdd/beads"
     beads_dir.mkdir(parents=True)
@@ -531,7 +521,7 @@ def test_commit_bead_work_launch_records_event_stream_deletion(tmp_path):
     stream.unlink()
     jsonl.write_text('{"id":"sase-1","updated":true}\n')
 
-    committed = commit_bead_work_launch(beads_dir, "sase-1", kind="epic")
+    committed = commit_epic_graph_checkpoint(beads_dir, "sase-1")
 
     assert committed is True
     name_status = subprocess.run(
@@ -545,13 +535,13 @@ def test_commit_bead_work_launch_records_event_stream_deletion(tmp_path):
     assert "M\tsdd/beads/issues.jsonl" in name_status
 
 
-def test_commit_bead_work_launch_noops_when_only_ignored_db_changed(tmp_path):
+def test_commit_epic_graph_checkpoint_noops_when_only_ignored_db_changed(tmp_path):
     _init_repo_with_beads_db_ignored(tmp_path)
     beads_dir = tmp_path / "sdd/beads"
     beads_dir.mkdir(parents=True)
     (beads_dir / "beads.db").write_bytes(b"SQLite")
 
-    committed = commit_bead_work_launch(beads_dir, "sase-1", kind="epic")
+    committed = commit_epic_graph_checkpoint(beads_dir, "sase-1")
 
     assert committed is False
     log_count = subprocess.run(
@@ -564,7 +554,7 @@ def test_commit_bead_work_launch_noops_when_only_ignored_db_changed(tmp_path):
     assert log_count == "2"  # init + .gitignore commit only
 
 
-def test_commit_bead_work_launch_picks_up_new_nested_subdirectory_files(tmp_path):
+def test_commit_epic_graph_checkpoint_picks_up_new_nested_subdirectory_files(tmp_path):
     _init_git_repo(tmp_path)
     beads_dir = tmp_path / "sdd/beads"
     beads_dir.mkdir(parents=True)
@@ -573,7 +563,7 @@ def test_commit_bead_work_launch_picks_up_new_nested_subdirectory_files(tmp_path
     nested.parent.mkdir(parents=True)
     nested.write_text('{"event_id":"sase-2:000001"}\n')
 
-    committed = commit_bead_work_launch(beads_dir, "sase-2", kind="epic")
+    committed = commit_epic_graph_checkpoint(beads_dir, "sase-2")
 
     assert committed is True
     files = subprocess.run(
