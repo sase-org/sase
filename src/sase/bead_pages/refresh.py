@@ -140,7 +140,6 @@ def _refresh_locked(
             )
             payloads = _render_payloads(
                 pages_root,
-                view,
                 bead_issues,
                 selected,
                 index,
@@ -238,7 +237,6 @@ def _select_issues(
 
 def _render_payloads(
     pages_root: Path,
-    view: object,
     all_issues: tuple[Issue, ...],
     selected: tuple[Issue, ...],
     association_index: BeadAssociationIndex,
@@ -246,19 +244,17 @@ def _render_payloads(
     *,
     include_roster: bool,
 ) -> tuple[tuple[Path, bytes, str | None], ...]:
-    from typing import cast
-
-    from sase.bead.project import BeadProject
-    from sase.bead_pages.rendering import render_bead_page_bytes
+    from sase.bead.cli_detail import IssueDetailIndex
+    from sase.bead_pages.rendering import render_bead_page_detail_bytes
     from sase.bead_pages.roster import render_bead_pages_roster_bytes
 
-    bead_view = cast(BeadProject, view)
+    detail_index = IssueDetailIndex.from_issues(all_issues)
     payloads: list[tuple[Path, bytes, str | None]] = [
         (
             pages_root.parent / bead_page_path(issue.id),
-            render_bead_page_bytes(
-                bead_view,
-                issue,
+            render_bead_page_detail_bytes(
+                detail_index.resolve(issue),
+                all_issues,
                 association_index,
                 link_resolver=link_resolver,
             ),

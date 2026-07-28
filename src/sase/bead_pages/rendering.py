@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from sase.agents_sync.rendering_markdown import page_bytes
-from sase.bead.cli_detail import resolve_issue_detail
+from sase.bead.cli_detail import IssueDetail, resolve_issue_detail
 from sase.bead.model import Issue
 from sase.bead.project import BeadProject
 from sase.bead_pages.associations import BeadAssociationIndex
@@ -32,12 +32,30 @@ def render_bead_page(
     """Render one timestamp-free, byte-stable bead page."""
 
     detail = resolve_issue_detail(view, issue)
+    return _render_bead_page_from_detail(
+        detail,
+        view.list_issues(),
+        association_index,
+        link_resolver=link_resolver,
+    )
+
+
+def _render_bead_page_from_detail(
+    detail: IssueDetail,
+    all_issues: tuple[Issue, ...] | list[Issue],
+    association_index: BeadAssociationIndex,
+    *,
+    link_resolver: PlanLinkResolver | None = None,
+) -> str:
+    """Render one page from a pre-resolved bead detail snapshot."""
+
+    issue = detail.issue
     associations = association_index.for_bead(issue.id)
     lines = render_identity(detail, plan_links=link_resolver)
     lines.extend(render_prose_sections(issue))
     if issue.id == bead_lineage_root(issue.id):
         lines.extend(render_phases(detail, association_index))
-        lines.extend(render_lineage_graph(issue, view.list_issues()))
+        lines.extend(render_lineage_graph(issue, all_issues))
     lines.extend(render_dependencies(detail))
     lines.extend(render_agents(issue, associations.agents))
     lines.extend(render_commits(issue, associations.commits))
@@ -63,4 +81,27 @@ def render_bead_page_bytes(
     )
 
 
-__all__ = ["render_bead_page", "render_bead_page_bytes"]
+def render_bead_page_detail_bytes(
+    detail: IssueDetail,
+    all_issues: tuple[Issue, ...],
+    association_index: BeadAssociationIndex,
+    *,
+    link_resolver: PlanLinkResolver | None = None,
+) -> bytes:
+    """Render one pre-resolved bead page as its final publication payload."""
+
+    return page_bytes(
+        _render_bead_page_from_detail(
+            detail,
+            all_issues,
+            association_index,
+            link_resolver=link_resolver,
+        )
+    )
+
+
+__all__ = [
+    "render_bead_page",
+    "render_bead_page_bytes",
+    "render_bead_page_detail_bytes",
+]

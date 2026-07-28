@@ -117,8 +117,8 @@ def _patch_dependencies(
         lambda _root: _View(issues),
     )
     monkeypatch.setattr(
-        "sase.bead_pages.rendering.render_bead_page_bytes",
-        lambda _view, issue, _index, **_kwargs: f"# {issue.id}\n".encode(),
+        "sase.bead_pages.rendering.render_bead_page_detail_bytes",
+        lambda detail, _issues, _index, **_kwargs: f"# {detail.issue.id}\n".encode(),
     )
     monkeypatch.setattr(
         "sase.sdd._git_contention.store_git_write_lock",
