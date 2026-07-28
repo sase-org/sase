@@ -199,12 +199,13 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "TC004", # flake8-type-checking: TYPE_CHECKING import used at runtime
+    "UP",    # pyupgrade
 ]
 ignore = [
     "E501",  # line too long

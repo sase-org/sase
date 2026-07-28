@@ -1,5 +1,7 @@
 """SDD prompt, plan, and Q&A file writes."""
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import TYPE_CHECKING
 
