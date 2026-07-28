@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from enum import IntEnum
 
 from sase.output import print_status
 from sase.ace.deltas import refresh_deltas_after_commits_change
@@ -40,23 +39,26 @@ from sase.workflows.commit.pr_operations import (
 )
 from sase.workflows.commit.runtime_tags import apply_runtime_commit_tags
 from sase.workflows.commit.runtime_tags import resolve_local_agent_name
-
-
-class RunResult(IntEnum):
-    OK = 0
-    FAILED = 1
-    CONFLICT = 2
-
-
-EXIT_CODE_CONFLICT = 2
-
-VALID_METHODS = ("create_commit", "create_proposal", "create_pull_request")
-
-METHOD_ALIASES: dict[str, str] = {
-    "commit": "create_commit",
-    "propose": "create_proposal",
-    "pr": "create_pull_request",
-}
+from sase.workflows.commit.workflow_publication import run_agent_publication_step
+from sase.workflows.commit.workflow_resume import resume_commit_workflow
+from sase.workflows.commit.workflow_support import (
+    classify_dispatch_failure as _classify_dispatch_failure,
+)
+from sase.workflows.commit.workflow_support import (
+    explicit_parent_resolves as _explicit_parent_resolves,
+)
+from sase.workflows.commit.workflow_support import (
+    is_conflict_state as _is_conflict_state,
+)
+from sase.workflows.commit.workflow_support import (
+    log_commit_failed as _log_commit_failed,
+)
+from sase.workflows.commit.workflow_types import (
+    EXIT_CODE_CONFLICT,
+    METHOD_ALIASES,
+    VALID_METHODS,
+    RunResult,
+)
 
 
 class CommitWorkflow(BaseWorkflow):
@@ -369,356 +371,22 @@ class CommitWorkflow(BaseWorkflow):
 
     def _run_agent_publication_step(self, cp: CommitCheckpoint) -> RunResult:
         """Publish the committing hood after the first durable result marker."""
-
-        if self._method not in ("create_commit", "create_pull_request"):
-            return RunResult.OK
-        if "publish_bead_pages" not in cp.completed_steps:
-            from sase.bead_pages.publication import publish_committed_bead_pages
-
-            try:
-                publish_committed_bead_pages(
-                    str(cp.payload.get("message") or ""),
-                    primary_root=cp.cwd,
-                )
-            except Exception as exc:  # noqa: BLE001 - best-effort projection.
-                print_status(
-                    f"Could not publish committed bead pages: {exc}",
-                    "warning",
-                )
-            cp.completed_steps.append("publish_bead_pages")
-            checkpoint_save(cp)
-        if "publish_agent_hood" in cp.completed_steps:
-            return RunResult.OK
-        from sase.agents_sync.commit_publication import (
-            refresh_committed_plan_header,
+        published = run_agent_publication_step(
+            cp,
+            self._method,
+            checkpoint_save=checkpoint_save,
+            get_vcs_provider=get_vcs_provider,
         )
-
-        refresh_committed_plan_header(
-            str(cp.payload.get("message") or ""),
-            primary_root=cp.cwd,
-        )
-        if not cp.publication_agent:
-            return RunResult.OK
-
-        if not cp.primary_revision:
-            provider = get_vcs_provider(cp.cwd)
-            try:
-                revision = provider.revision_id("HEAD", cp.cwd)
-            except Exception as exc:  # noqa: BLE001 - provider boundary
-                print_status(
-                    "The primary commit succeeded, but its immutable revision "
-                    f"could not be resolved for agent publication: {exc}. "
-                    "Run `sase commit --resume` to retry without creating "
-                    "another primary commit.",
-                    "error",
-                )
-                return RunResult.FAILED
-            if not isinstance(revision, str) or not revision.strip():
-                print_status(
-                    "The primary commit succeeded, but the VCS provider did "
-                    "not return an immutable revision. Run "
-                    "`sase commit --resume` to retry without creating another "
-                    "primary commit.",
-                    "error",
-                )
-                return RunResult.FAILED
-            cp.primary_revision = revision.strip()
-            checkpoint_save(cp)
-
-        from sase.agents_sync.commit_publication import (
-            publish_committed_agent_hood,
-        )
-
-        try:
-            outcome = publish_committed_agent_hood(
-                cp.publication_agent,
-                cp.primary_revision,
-                commit_cwd=cp.cwd,
-            )
-        except Exception as exc:  # noqa: BLE001 - auxiliary publication boundary
-            print_status(
-                "The primary commit succeeded, but agent publication failed "
-                f"before a retry could be confirmed: {exc}. Run "
-                "`sase commit --resume` to retry without creating another "
-                "primary commit.",
-                "error",
-            )
-            return RunResult.FAILED
-        if outcome.error and not outcome.queued and not outcome.skip_reason:
-            print_status(
-                "The primary commit succeeded, but agent publication could "
-                f"not be queued: {outcome.error}. Run `sase commit --resume` "
-                "to retry without creating another primary commit.",
-                "error",
-            )
-            return RunResult.FAILED
-        if outcome.queued:
-            print_status(
-                _agent_publication_deferred_message(outcome),
-                "warning",
-            )
-        elif outcome.skip_reason:
-            reason = outcome.skip_reason.rstrip(".")
-            print_status(
-                "The primary commit succeeded, but agent publication was "
-                f"skipped for repository {cp.cwd!r}: {reason}.",
-                "warning",
-            )
-        cp.completed_steps.append("publish_agent_hood")
-        checkpoint_save(cp)
-        return RunResult.OK
+        return RunResult.OK if published else RunResult.FAILED
 
     @classmethod
     def resume(cls) -> RunResult:
         """Resume a checkpointed commit workflow after manual conflict resolution."""
-        cp = checkpoint_load()
-        if cp is None:
-            print_status("No commit checkpoint found — nothing to resume", "error")
-            return RunResult.FAILED
-
-        wf = cls(payload=cp.payload, method=cp.method)
-        wf._base_cl_name = cp.base_cl_name
-        wf._reserved_name = cp.reserved_name
-        wf._parent_cl_name = cp.parent_cl_name
-        wf._diff_path = cp.diff_path
-        wf._cl_name = cp.cl_name
-        wf._project_file = cp.project_file
-
-        provider = get_vcs_provider(cp.cwd)
-        provider_name = getattr(provider, "_provider_name", "unknown")
-
-        if _is_conflict_state(provider, cp.cwd):
-            print_status(
-                "Conflicts are still in progress — complete the rebase/merge "
-                "first, then re-run sase commit --resume",
-                "error",
-            )
-            VCS_OPERATIONS.labels(
-                provider=provider_name,
-                operation="commit_resume",
-                status="conflict",
-            ).inc()
-            return RunResult.CONFLICT
-
-        expected_subject = (cp.payload.get("message", "").splitlines() or [""])[
-            0
-        ].strip()
-        actual_subject = _get_head_subject(provider, cp.cwd)
-        if expected_subject and (
-            actual_subject is None or actual_subject.strip() != expected_subject
-        ):
-            print_status(
-                "Could not find the expected commit at HEAD (subject mismatch). "
-                "Re-run sase commit from scratch.",
-                "error",
-            )
-            VCS_OPERATIONS.labels(
-                provider=provider_name,
-                operation="commit_resume",
-                status="failed",
-            ).inc()
-            return RunResult.FAILED
-
-        if (
-            cp.method in ("create_commit", "create_pull_request")
-            and "dispatch" not in cp.completed_steps
-        ):
-            try:
-                ok, err = provider.finalize_commit(cp.payload, cp.cwd)
-            except NotImplementedError:
-                print_status(
-                    "finalize_commit not supported by this VCS provider; "
-                    "skipping push/amend and replaying tracking only.",
-                    "warning",
-                )
-            else:
-                if not ok:
-                    print_status(f"finalize_commit failed: {err}", "error")
-                    VCS_OPERATIONS.labels(
-                        provider=provider_name,
-                        operation="commit_resume",
-                        status="failed",
-                    ).inc()
-                    return RunResult.FAILED
-            cp.completed_steps.append("dispatch")
-            checkpoint_save(cp)
-
-        if not wf._run_after_hook(cp):
-            VCS_OPERATIONS.labels(
-                provider=provider_name,
-                operation="commit_resume",
-                status="failed",
-            ).inc()
-            return RunResult.FAILED
-
-        _reconcile_changespec_from_project_file(wf, cp)
-
-        tracking_result = wf._run_tracking_steps(cp, cp.dispatch_result)
-        if tracking_result != RunResult.OK:
-            VCS_OPERATIONS.labels(
-                provider=provider_name,
-                operation="commit_resume",
-                status="failed",
-            ).inc()
-            return tracking_result
-
-        checkpoint_delete()
-        VCS_OPERATIONS.labels(
-            provider=provider_name,
-            operation="commit_resume",
-            status="ok",
-        ).inc()
-        return RunResult.OK
-
-
-def _get_head_subject(provider: object, cwd: str) -> str | None:
-    """Return the subject line of the HEAD commit, or None if unavailable."""
-    try:
-        ok, desc = provider.get_description(  # type: ignore[attr-defined]
-            "HEAD", cwd, short=True
+        return resume_commit_workflow(
+            cls,
+            checkpoint_load=checkpoint_load,
+            checkpoint_save=checkpoint_save,
+            checkpoint_delete=checkpoint_delete,
+            get_vcs_provider=get_vcs_provider,
+            is_conflict_state=_is_conflict_state,
         )
-    except NotImplementedError:
-        return None
-    except Exception:
-        return None
-    if not ok or not desc:
-        return None
-    return desc.strip().splitlines()[0] if desc.strip() else ""
-
-
-def _agent_publication_deferred_message(outcome: object) -> str:
-    from sase.agents_sync.publication_outbox import (
-        PUBLICATION_DROP_COMMAND,
-        PUBLICATION_RETRY_COMMAND,
-    )
-
-    error = getattr(outcome, "error", None)
-    quarantined = int(getattr(outcome, "quarantined", 0) or 0)
-    retired = int(getattr(outcome, "retired", 0) or 0)
-    error_detail = f" Last error: {error}" if error else ""
-    if quarantined or retired:
-        counts = ", ".join(
-            (
-                *((f"{quarantined} quarantined",) if quarantined else ()),
-                *((f"{retired} retired",) if retired else ()),
-            )
-        )
-        plural = "" if quarantined + retired == 1 else "s"
-        remediation = (
-            f"Run `{PUBLICATION_RETRY_COMMAND}` to retry."
-            if quarantined and not retired
-            else f"Run `{PUBLICATION_DROP_COMMAND}` to drop the retired request{plural}."
-            if retired and not quarantined
-            else (
-                f"Run `{PUBLICATION_RETRY_COMMAND}` to retry the quarantined "
-                f"request(s) and `{PUBLICATION_DROP_COMMAND}` to drop the "
-                "retired one(s)."
-            )
-        )
-        return (
-            "Primary commit succeeded, but this project already has "
-            f"{counts} agent-hood publication request{plural}. "
-            "The link written to this commit may remain unavailable until the "
-            f"outbox is cleared. {remediation}{error_detail}"
-        )
-    return (
-        "Primary commit succeeded; agent-hood publication is queued and will "
-        f"retry automatically.{error_detail}"
-    )
-
-
-def _reconcile_changespec_from_project_file(
-    wf: CommitWorkflow, cp: CommitCheckpoint
-) -> None:
-    """Mark `create_changespec` complete if the project file already records it.
-
-    Handles the edge case where a prior attempt created the ChangeSpec but died
-    before the checkpoint was saved; treat it as already-done to avoid a
-    duplicate-name error on retry.
-    """
-    if wf._method != "create_pull_request":
-        return
-    if "create_changespec" in cp.completed_steps:
-        return
-    candidate = cp.cs_name or wf._reserved_name
-    if not candidate or not wf._project_file:
-        return
-    if _changespec_name_in_project_file(wf._project_file, candidate):
-        cp.cs_name = candidate
-        cp.completed_steps.append("create_changespec")
-        checkpoint_save(cp)
-
-
-def _changespec_name_in_project_file(project_file: str, cl_name: str) -> bool:
-    if not os.path.isfile(project_file):
-        return False
-    try:
-        with open(project_file, encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("NAME: ") and line[6:].strip() == cl_name:
-                    return True
-    except OSError:
-        return False
-    return False
-
-
-def _explicit_parent_resolves(parent_name: str) -> bool:
-    """Return True if ``parent_name`` is a known ChangeSpec in this project.
-
-    Looks in both the active project file and the archive. On any
-    resolution failure (e.g., project can't be determined), returns True
-    so a transient error does not cause us to silently drop a legitimate
-    parent reference.
-    """
-    try:
-        from sase.workflows.commit.changespec_queries import (
-            changespec_exists_anywhere,
-        )
-        from sase.workflows.utils import get_project_from_workspace
-
-        project_name = get_project_from_workspace()
-        if not project_name:
-            return True
-        return changespec_exists_anywhere(project_name, parent_name)
-    except Exception:
-        return True
-
-
-def _is_conflict_state(provider: object, cwd: str) -> bool:
-    """Return True when the working tree appears to be in a merge-conflict state."""
-    try:
-        if provider.is_sync_in_progress(cwd):  # type: ignore[attr-defined]
-            return True
-    except NotImplementedError:
-        pass
-    except Exception:
-        pass
-    try:
-        conflicted = provider.get_conflicted_files(cwd)  # type: ignore[attr-defined]
-        if conflicted:
-            return True
-    except NotImplementedError:
-        pass
-    except Exception:
-        pass
-    return False
-
-
-def _classify_dispatch_failure(result: str | None) -> str:
-    text = (result or "").lower()
-    if "no staged changes" in text or "nothing to commit" in text:
-        return "no_staged_changes"
-    if "push" in text:
-        return "push_failed"
-    if "conflict" in text or "rebase" in text or "merge" in text:
-        return "sync_conflict"
-    return "other"
-
-
-def _log_commit_failed(method: str, reason: str) -> None:
-    try:
-        from sase.logs.run_log import log_event
-
-        log_event(event="commit_failed", method=method, reason=reason)
-    except Exception:
-        pass
