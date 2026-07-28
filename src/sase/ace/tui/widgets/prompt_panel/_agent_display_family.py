@@ -19,8 +19,7 @@ from ...models.fold_scale import (
     effective_fold_level,
 )
 from ._agent_display_content import get_phase_label
-from ._fold_language import append_fold_glyph, fold_count_style
-from ._helpers import append_section_heading
+from ._fold_language import append_fold_section_heading
 from ._member_roster import (
     MemberJumpMap,
     MemberJumpNumbering,
@@ -53,13 +52,15 @@ def append_family_fold_heading(
     style: str = "bold #D7AF5F underline",
 ) -> None:
     """Append one family-section heading carrying its effective fold glyph."""
-    level = effective_fold_level(level, FAMILY_FOLD_SCALE)
-    heading = Text()
-    append_fold_glyph(heading, level)
-    heading.append(title, style=style)
-    if count is not None:
-        heading.append(f" · {count}", style=fold_count_style(title))
-    append_section_heading(text, heading, section_id=section_id)
+    append_fold_section_heading(
+        text,
+        title,
+        section_id=section_id,
+        level=level,
+        scale=FAMILY_FOLD_SCALE,
+        count=count,
+        style=style,
+    )
 
 
 def family_roster_entries(

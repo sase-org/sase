@@ -242,10 +242,8 @@ class AgentDisplayRenderMixin(
             unread_agent_ids=getattr(app, "_unread_completed_agent_ids", set()),
             marked_agent_ids=getattr(app, "_marked_agents", set()),
             slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(self),
-            lane_fold_level=lane_fold_level if lane_summary_enabled else None,
-            lane_section_fold_overrides=(
-                lane_fold_overrides if lane_summary_enabled else None
-            ),
+            lane_fold_level=lane_fold_level,
+            lane_section_fold_overrides=lane_fold_overrides,
             lane_neighbors=lane_neighbors,
             runner_capacity=runner_capacity_for_app(app),
             member_jump_map_publisher=(

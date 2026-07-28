@@ -601,12 +601,12 @@ The default fold chords are:
 
 The `Fold: N/M` header field reports the position within the active scale, while glyphs on foldable headings show their
 effective per-section levels. Only family panels print that header line; a single-agent lane relies on the `NEIGHBORS`
-heading glyph instead. On a family conversation heading, `za` and `zA` refresh normally but do not create or change a
-section override. A valid panel-level cycle, extreme toggle, or direct selection clears real per-section overrides. Fold
-state is shared by the Agents metadata panel: an ordinary agent's own three-level scale now shapes its `NEIGHBORS`
-section, so `z*` chords have a visible effect on a regular-agent lane, and the same session scope carries over to the
-next selected clan or family container. Every other section on a regular-agent panel stays fold-inert. A selected whole
-tribe panel adds level 4 for exhaustive detail. These keys are configurable; see
+and `SLOW TOOL CALLS` heading glyphs instead. On a family conversation heading, `za` and `zA` refresh normally but do
+not create or change a section override. A valid panel-level cycle, extreme toggle, or direct selection clears real
+per-section overrides. Fold state is shared by the Agents metadata panel: an ordinary agent's own three-level scale
+shapes its `NEIGHBORS` and `SLOW TOOL CALLS` sections, so `z*` chords have a visible effect on a regular-agent lane, and
+the same session scope carries over to the next selected clan or family container. Other sections on a regular-agent
+panel stay fold-inert. A selected whole tribe panel adds level 4 for exhaustive detail. These keys are configurable; see
 [Agent Clans, Families, and Tribes](agent_families.md) for the grouping model.
 
 When ACE knows a planner/author or epic lander's associated plan, the metadata panel adds `PLAN` as the leading lane in
@@ -2341,7 +2341,13 @@ a pinned attempt view resets the cursor.
   header enrichment, so it is omitted from the immediate cheap navigation frame rather than appearing first with partial
   content.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or longer, ordered by start time and
-  capped at 8 rows (an overflow line points to the full [Tools panel](#agents-tab-tools-panel) timeline via `]`). For a
+  capped at 8 rows (an overflow line points to the full [Tools panel](#agents-tab-tools-panel) timeline via `]`). Level
+  1 is a compact triage table: every row keeps its timestamp, state, tool, duration, and a short path-, query-, or
+  command-aware digest, while a dim tail reports that full commands are hidden. From position 2 upward, each row adds
+  the complete command or target in an indented block that wraps with a hanging indent, plus start/end and outcome facts
+  and any error. The lane's last position also adds output previews, subagent tool/token statistics, and each call's
+  rank and share of selected slow time. These tiers are positional: an ordinary agent uses compact/detail/full across
+  its three levels, while a family uses compact/full across its two. `za` and `zA` can change only this section. For a
   root agent the list aggregates calls across its children while attributing each call to the child that made it.
 - **Wait state**: For a `WAITING` agent gated by `%wait`, a duration wait, or an absolute-time wait, the detail view
   shows a `Wait:` line. It lists the dependency names recorded on the waiting agent, adds per-name status badges for

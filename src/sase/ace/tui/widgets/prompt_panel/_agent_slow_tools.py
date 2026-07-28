@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -24,6 +25,11 @@ from sase.ace.tui.tools.report import (
     tool_call_report_path,
 )
 
+from ...models.fold_scale import (
+    AGENT_FOLD_SCALE,
+    FoldScale,
+    effective_fold_level,
+)
 from ...models.fold_state import FoldLevel
 from ._agent_context_common import (
     COLOR_SUMMARY,
@@ -34,6 +40,15 @@ from ._agent_context_common import (
     truncate_display,
 )
 from ._agent_display_state import HeaderHintState
+from ._agent_slow_tools_detail import (
+    ResponsiveSlowToolCallsSection,
+    SlowToolDetail,
+    SlowToolSectionRow,
+    digest_target,
+    prepare_slow_tool_call_details,
+    slow_tool_detail_level,
+)
+from ._fold_language import append_fold_section_heading
 from ._helpers import append_major_section_divider, append_section_heading
 
 _COLOR_HEADER = "bold #D7AF5F underline"
@@ -56,6 +71,7 @@ _TARGET_WIDTH = 44
 _LABELED_TARGET_WIDTH = 35
 _SOURCE_CHIP_WIDTH = 7
 _DURATION_WIDTH = 7
+SLOW_TOOL_CALLS_SECTION_ID = "slow-tool-calls"
 
 
 @dataclass(frozen=True)
@@ -73,18 +89,78 @@ def append_slow_tool_calls_section(
     now: datetime,
     hint_state: HeaderHintState | None = None,
     threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
-    fold_level: FoldLevel | None = None,
-) -> None:
+    panel_level: FoldLevel = FoldLevel.COLLAPSED,
+    scale: FoldScale = AGENT_FOLD_SCALE,
+    section_fold_overrides: Mapping[str, FoldLevel] | None = None,
+    responsive_ranges: MutableMapping[str, tuple[int, int]] | None = None,
+) -> ResponsiveSlowToolCallsSection | None:
     """Append the SLOW TOOL CALLS section when any calls qualify."""
+    overrides = section_fold_overrides or {}
+    level = effective_fold_level(
+        overrides.get(SLOW_TOOL_CALLS_SECTION_ID, panel_level),
+        scale,
+    )
+    detail_level = slow_tool_detail_level(level, scale)
+    return _append_slow_tool_calls_section(
+        text,
+        sources=sources,
+        agent=agent,
+        now=now,
+        hint_state=hint_state,
+        threshold_ms=threshold_ms,
+        detail_level=detail_level,
+        heading_level=level,
+        heading_scale=scale,
+        responsive_ranges=responsive_ranges,
+    )
+
+
+def append_slow_tool_calls_section_no_fold_owner(
+    text: Text,
+    *,
+    sources: tuple[SlowToolSource, ...] | None,
+    agent: object,
+    now: datetime,
+    hint_state: HeaderHintState | None = None,
+    threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
+) -> None:
+    """Append the always-visible detail tier for a fold-inert aggregate."""
+    _append_slow_tool_calls_section(
+        text,
+        sources=sources,
+        agent=agent,
+        now=now,
+        hint_state=hint_state,
+        threshold_ms=threshold_ms,
+        detail_level=SlowToolDetail.DETAIL,
+        heading_level=None,
+        heading_scale=None,
+        responsive_ranges=None,
+    )
+
+
+def _append_slow_tool_calls_section(
+    text: Text,
+    *,
+    sources: tuple[SlowToolSource, ...] | None,
+    agent: object,
+    now: datetime,
+    hint_state: HeaderHintState | None,
+    threshold_ms: int,
+    detail_level: SlowToolDetail,
+    heading_level: FoldLevel | None,
+    heading_scale: FoldScale | None,
+    responsive_ranges: MutableMapping[str, tuple[int, int]] | None,
+) -> ResponsiveSlowToolCallsSection | None:
     if not sources:
-        return
+        return None
 
     threshold_ms = normalize_slow_tool_call_threshold_ms(threshold_ms)
     slow_calls = _select_sourced_slow_tool_calls(
         sources, now=now, threshold_ms=threshold_ms
     )
     if not slow_calls:
-        return
+        return None
 
     labeled = any(item.source.label for item in slow_calls)
     running_count = sum(1 for item in slow_calls if item.slow_call.is_running)
@@ -99,47 +175,95 @@ def append_slow_tool_calls_section(
         summary_parts.append(count_phrase(source_count, "agent"))
 
     append_major_section_divider(text)
-    if fold_level is None:
-        heading = Text("SLOW TOOL CALLS", style=_COLOR_HEADER)
-        heading.append(f" \u00b7 {' · '.join(summary_parts)}", style=COLOR_SUMMARY)
-        append_section_heading(text, heading, section_id="slow-tool-calls")
-    else:
-        from ._agent_display_family import append_family_fold_heading
-
-        append_family_fold_heading(
-            text,
-            "SLOW TOOL CALLS",
-            section_id="slow-tool-calls",
-            level=fold_level,
-            count=len(slow_calls),
-            style=_COLOR_HEADER,
+    section_start = len(text.plain)
+    heading = Text(end="")
+    if heading_level is None or heading_scale is None:
+        heading_text = Text("SLOW TOOL CALLS", style=_COLOR_HEADER)
+        heading_text.append(
+            f" \u00b7 {' · '.join(summary_parts)}",
+            style=COLOR_SUMMARY,
         )
-        if fold_level == FoldLevel.COLLAPSED:
-            return
+        append_section_heading(
+            heading,
+            heading_text,
+            section_id=SLOW_TOOL_CALLS_SECTION_ID,
+        )
+    else:
+        append_fold_section_heading(
+            heading,
+            "SLOW TOOL CALLS",
+            section_id=SLOW_TOOL_CALLS_SECTION_ID,
+            level=heading_level,
+            scale=heading_scale,
+            summary=" · ".join(summary_parts),
+            style=_COLOR_HEADER,
+            summary_style=COLOR_SUMMARY,
+        )
 
     visible = _select_visible_slow_tool_calls(slow_calls)
+    all_details = prepare_slow_tool_call_details(
+        tuple(item.slow_call for item in slow_calls)
+    )
+    detail_by_item_id = {
+        id(item): detail for item, detail in zip(slow_calls, all_details, strict=True)
+    }
     hint_marker_width = _hint_marker_width(visible, hint_state)
     agent_name = _agent_name(agent)
+    rows: list[SlowToolSectionRow] = []
     for item in visible:
         hint_marker = _register_tool_call_report_hint(
             item,
             hint_state=hint_state,
             agent_name=agent_name,
         )
+        row_text = Text(end="", overflow="crop", no_wrap=True)
         _append_slow_tool_call_row(
-            text,
+            row_text,
             item,
             labeled=labeled,
             hint_marker=hint_marker,
             hint_marker_width=hint_marker_width,
         )
+        rows.append(
+            SlowToolSectionRow(
+                compact_line=row_text,
+                detail=detail_by_item_id[id(item)],
+            )
+        )
+
+    hidden_tail = None
+    if detail_level == SlowToolDetail.COMPACT and any(
+        row.detail.has_hidden_primary for row in rows
+    ):
+        hidden_tail = Text(
+            "  … full commands hidden · zz / za to show\n",
+            style="dim italic",
+            end="",
+        )
 
     overflow = len(slow_calls) - len(visible)
+    overflow_tail = None
     if overflow > 0:
-        text.append(
+        overflow_tail = Text(
             f"  + {overflow} more \u00b7 press ] for the full tools timeline\n",
             style=COLOR_TRUNCATION,
+            end="",
         )
+
+    section = ResponsiveSlowToolCallsSection(
+        heading=heading,
+        rows=tuple(rows),
+        detail_level=detail_level,
+        hidden_tail=hidden_tail,
+        overflow_tail=overflow_tail,
+    )
+    text.append_text(section.logical_text)
+    if responsive_ranges is not None and detail_level > SlowToolDetail.COMPACT:
+        responsive_ranges[SLOW_TOOL_CALLS_SECTION_ID] = (
+            section_start,
+            len(text.plain),
+        )
+    return section
 
 
 def _select_sourced_slow_tool_calls(
@@ -216,9 +340,7 @@ def _append_slow_tool_call_row(
         truncate_display(entry.display_tool_name, _TOOL_NAME_WIDTH),
         _TOOL_NAME_WIDTH,
     )
-    target = _pad_cells(
-        truncate_display(entry.compact_target, target_width), target_width
-    )
+    target = _pad_cells(digest_target(entry, target_width), target_width)
     duration = _left_pad_cells(
         format_long_duration(slow_call.effective_duration_ms),
         _DURATION_WIDTH,
@@ -333,4 +455,8 @@ def _left_pad_cells(value: str, width: int) -> str:
     return (" " * max(0, width - cell_len(value))) + value
 
 
-__all__ = ["append_slow_tool_calls_section"]
+__all__ = [
+    "SLOW_TOOL_CALLS_SECTION_ID",
+    "append_slow_tool_calls_section",
+    "append_slow_tool_calls_section_no_fold_owner",
+]

@@ -184,8 +184,8 @@ and known-empty sections remain omitted. The compact roster and its numeric jump
 The fold prefix is available only while the Agents tab is active. Press uppercase `Z` to zoom the largest detail panel
 from an agent row, or to isolate/restore a tribe panel from whole-panel focus; lowercase `z` starts fold mode. Fold
 state is panel-wide and applies when a clan or an agent lane is selected. Using a fold chord on a regular agent lane
-folds its `NEIGHBORS` section across that agent's own three-level scale, leaves its other sections unchanged, and
-updates the session state for the next container selection.
+folds its `NEIGHBORS` and `SLOW TOOL CALLS` sections across that agent's own three-level scale, leaves its other
+sections unchanged, and updates the session state for the next container selection.
 
 ### Epic bead-work example
 
@@ -269,6 +269,11 @@ level 1 to open every fold to level 2, or at level 2 to close every fold to leve
 level directly. `z3` and `z4` are invalid in a family context and leave both the panel level and section overrides
 untouched. A member-specific override inherits from the `FAMILY MEMBERS` section, which in turn inherits the panel
 level. The numbered roster and its digit jumps remain present at both effective levels.
+
+The family root's `SLOW TOOL CALLS` section also follows that two-position scale. Level 1 keeps one aligned row per call
+with a short target digest and a tail explaining that full commands are hidden. Level 2 retains those rows and adds the
+wrapped full command or target, timing and outcome facts, errors, output previews, subagent statistics, and relative
+slow-time rank beneath each call.
 
 `AGENT XPROMPT`, `AGENT PROMPT`, and the consolidated `AGENT REPLY` are always shown in full at both family levels,
 without fold glyphs or section overrides. They remain navigation anchors for `Ctrl+J`/`Ctrl+K`; `za` and `zA` skip them

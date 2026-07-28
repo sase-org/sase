@@ -10,6 +10,11 @@ from rich.text import Span, Text
 
 from ._agent_bead_section import ResponsiveBeadSection
 from ._agent_plan_section import ResponsivePlanSection
+from ._agent_slow_tools_detail import ResponsiveSlowToolCallsSection
+
+type ResponsiveHeaderSection = (
+    ResponsiveBeadSection | ResponsivePlanSection | ResponsiveSlowToolCallsSection
+)
 
 
 class AgentHeaderRenderable:
@@ -20,9 +25,7 @@ class AgentHeaderRenderable:
     def __init__(
         self,
         text: Text,
-        sections: tuple[
-            tuple[int, int, ResponsiveBeadSection | ResponsivePlanSection], ...
-        ],
+        sections: tuple[tuple[int, int, ResponsiveHeaderSection], ...],
     ) -> None:
         self._text = text
         self._sections = sections

@@ -11,11 +11,14 @@ from rich.text import Text
 from sase.ace.tui.tools import ToolCallEntry
 from sase.ace.tui.tools._entry import is_subagent_tool_call
 
+from ._tool_detail_language import (
+    TOOL_DETAIL_GUTTER,
+    append_tool_detail_line,
+    append_tool_multiline_detail,
+)
 from ._tools_panel_time import format_timestamp
 from ._tools_panel_types import ToolDetailLevel
 
-_EXPANDED_GUTTER = "    │ "
-_EXPANDED_WRAP_INDENT = "      "
 _PREVIEW_KEYS = (
     "stdout_preview",
     "stderr_preview",
@@ -107,47 +110,16 @@ def _input_field_items(
     return items
 
 
-def _append_detail_line(text: Text, label: str, value: str, *, style: str = "") -> None:
-    text.append(_EXPANDED_GUTTER, style="dim")
-    text.append(f"{label} ", style="dim italic")
-    text.append(value, style=style)
-    text.append("\n")
-
-
-def _append_multiline_detail(
-    text: Text,
-    label: str,
-    value: str,
-    *,
-    style: str = "",
-    max_lines: int = 6,
-) -> None:
-    lines = value.replace("\r\n", "\n").replace("\r", "\n").splitlines() or [value]
-    shown = lines[:max_lines]
-    text.append(_EXPANDED_GUTTER, style="dim")
-    text.append(f"{label}", style="dim italic")
-    text.append("\n")
-    for line in shown:
-        text.append(_EXPANDED_WRAP_INDENT, style="dim")
-        text.append(line, style=style)
-        text.append("\n")
-    remaining = len(lines) - len(shown)
-    if remaining > 0:
-        text.append(_EXPANDED_WRAP_INDENT, style="dim")
-        text.append(f"... (+{remaining} more lines)", style="dim italic")
-        text.append("\n")
-
-
 def _append_input_fields(text: Text, items: list[tuple[str, str]]) -> None:
     if not items:
         return
-    line = Text(_EXPANDED_GUTTER, style="dim")
+    line = Text(TOOL_DETAIL_GUTTER, style="dim")
     for idx, (key, value) in enumerate(items):
         rendered = f"{key} {value}"
         if idx and cell_len(line.plain) + cell_len(rendered) + 3 > 118:
             text.append(line)
             text.append("\n")
-            line = Text(_EXPANDED_GUTTER, style="dim")
+            line = Text(TOOL_DETAIL_GUTTER, style="dim")
         elif idx:
             line.append(" · ", style="dim")
         line.append(f"{key} ", style="dim italic")
@@ -261,7 +233,7 @@ def append_expanded_block(
     if primary is not None:
         primary_key, full_target = primary
         if _compact_target_is_truncated(entry, full_target):
-            _append_multiline_detail(
+            append_tool_multiline_detail(
                 output,
                 primary_key.replace("_", " "),
                 full_target,
@@ -272,15 +244,20 @@ def append_expanded_block(
 
     subagent_metadata = _subagent_metadata_line(entry)
     if subagent_metadata:
-        _append_detail_line(output, "subagent", subagent_metadata, style="dim")
+        append_tool_detail_line(output, "subagent", subagent_metadata, style="dim")
 
     response_parts = _response_scalar_parts(entry)
     if response_parts:
-        _append_detail_line(output, "response", " · ".join(response_parts), style="dim")
+        append_tool_detail_line(
+            output,
+            "response",
+            " · ".join(response_parts),
+            style="dim",
+        )
     for key in _PREVIEW_KEYS:
         value = entry.tool_response_summary.get(key)
         if isinstance(value, str) and value:
-            _append_multiline_detail(
+            append_tool_multiline_detail(
                 output,
                 _preview_label(key, entry),
                 value,
@@ -292,12 +269,12 @@ def append_expanded_block(
     if not error and isinstance(response_error, str):
         error = response_error
     if error:
-        _append_multiline_detail(output, "error", error, style="bold red")
+        append_tool_multiline_detail(output, "error", error, style="bold red")
 
     if detail_level >= ToolDetailLevel.FULL:
         metadata = _metadata_line(entry)
         if metadata:
-            _append_detail_line(output, "meta", metadata, style="dim")
+            append_tool_detail_line(output, "meta", metadata, style="dim")
 
 
 def expanded_markdown_lines(

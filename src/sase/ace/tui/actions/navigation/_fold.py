@@ -285,8 +285,54 @@ class FoldNavigationMixin(NavigationMixinBase):
         neighbor_count = getattr(self, "_selected_agent_neighbor_count", None)
         if callable(neighbor_count) and neighbor_count(agent) > 0:
             return
+        if self._selected_lane_has_slow_tool_calls(agent):
+            return
         self.notify(  # type: ignore[attr-defined]
-            "Fold levels shape clan, family, and neighbor summaries"
+            "Fold levels shape clan, family, neighbor, and slow-call summaries"
+        )
+
+    def _selected_lane_has_slow_tool_calls(self, agent: object) -> bool:
+        """Return whether cached lane data has any qualifying slow calls."""
+        count_resolver = getattr(
+            self,
+            "_selected_agent_slow_tool_call_count",
+            None,
+        )
+        if callable(count_resolver):
+            return count_resolver(agent) > 0
+
+        from datetime import datetime
+
+        from ...tools.slow import (
+            normalize_slow_tool_call_threshold_ms,
+            select_slow_tool_calls,
+        )
+        from ...widgets.prompt_panel import AgentPromptPanel
+        from ...widgets.prompt_panel._agent_display_header_summary import (
+            get_cached_detail_header_summary,
+        )
+
+        try:
+            panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)  # type: ignore[attr-defined]
+            summary = get_cached_detail_header_summary(panel, agent)  # type: ignore[arg-type]
+        except Exception:
+            return False
+        if summary is None or not summary.slow_tool_sources:
+            return False
+
+        threshold_ms = normalize_slow_tool_call_threshold_ms(
+            getattr(self, "_slow_tool_call_threshold_ms", None)
+        )
+        now = datetime.now()
+        return any(
+            select_slow_tool_calls(
+                source.entries,
+                now=now,
+                agent_is_active=source.agent_is_active,
+                agent_end_reference=source.end_reference,
+                threshold_ms=threshold_ms,
+            )
+            for source in summary.slow_tool_sources
         )
 
     def _all_fold_states_aligned(self) -> bool:

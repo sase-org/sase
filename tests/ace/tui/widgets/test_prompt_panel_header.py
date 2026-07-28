@@ -354,7 +354,7 @@ def test_full_header_renders_slow_tool_calls_before_error(tmp_path: Path) -> Non
     assert "✔ Bash" in plain
     assert "just test" in plain
     assert plain.index("SLOW TOOL CALLS") < plain.index("ERROR")
-    _assert_dim_divider_before(header, "SLOW TOOL CALLS")
+    _assert_dim_divider_before(header, "▸ SLOW TOOL CALLS")
 
 
 def test_full_header_uses_custom_slow_tool_threshold(tmp_path: Path) -> None:

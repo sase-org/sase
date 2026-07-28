@@ -1,6 +1,6 @@
 """Agents-tab metadata fold dispatch and footer tests."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -22,11 +22,14 @@ from sase.ace.tui.models.fold_scale import (
     FAMILY_FOLD_SCALE,
     TRIBE_FOLD_SCALE,
 )
+from sase.ace.tui.tools import SlowToolSource, ToolCallEntry
 from sase.ace.tui.widgets import KeybindingFooter
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation import (
     get_cached_clan_section_snapshot,
 )
+from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailHeaderSummary
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -45,6 +48,7 @@ class _FoldApp(FoldNavigationMixin):
         panel_focused: bool = False,
         has_agent: bool = True,
         neighbor_count: int = 0,
+        slow_tool_call_count: int = 0,
     ) -> None:
         self.current_tab = tab
         self.current_artifacts_subtab = "prs"
@@ -76,6 +80,7 @@ class _FoldApp(FoldNavigationMixin):
         self.notifications: list[str] = []
         self.panel_focused = panel_focused
         self.neighbor_count = neighbor_count
+        self.slow_tool_call_count = slow_tool_call_count
 
     def _refresh_current_tab(self) -> None:
         self.refresh_count += 1
@@ -88,6 +93,9 @@ class _FoldApp(FoldNavigationMixin):
 
     def _selected_agent_neighbor_count(self, _agent: object) -> int:
         return self.neighbor_count
+
+    def _selected_agent_slow_tool_call_count(self, _agent: object) -> int:
+        return self.slow_tool_call_count
 
     def _resolve_focused_collapsed_panel(self) -> object | None:
         return object() if self.panel_focused else None
@@ -248,7 +256,7 @@ def test_valid_direct_panel_level_clears_overrides_and_notifies_regular_scope() 
     assert app.panel_fold_level is FoldLevel.EXPANDED
     assert app._panel_fold_overrides.snapshot() == {}
     assert app.notifications == [
-        "Fold levels shape clan, family, and neighbor summaries"
+        "Fold levels shape clan, family, neighbor, and slow-call summaries"
     ]
 
 
@@ -462,7 +470,7 @@ def test_regular_agent_fold_change_shows_scope_toast_but_containers_do_not() -> 
     _press(family, "Z")
 
     assert regular.notifications == [
-        "Fold levels shape clan, family, and neighbor summaries"
+        "Fold levels shape clan, family, neighbor, and slow-call summaries"
     ]
     assert clan.notifications == []
     assert family.notifications == []
@@ -474,6 +482,92 @@ def test_regular_agent_fold_change_stays_silent_when_neighbors_are_foldable() ->
     _press(app, "Z")
 
     assert app.notifications == []
+
+
+def test_regular_agent_fold_change_stays_silent_when_slow_calls_are_foldable() -> None:
+    app = _FoldApp(clan=False, slow_tool_call_count=1)
+
+    _press(app, "Z")
+
+    assert app.notifications == []
+
+
+def _ordinary_slow_tool_fold_document(
+    app: _FoldApp,
+    agent: Agent,
+) -> str:
+    entry = ToolCallEntry(
+        recorded_at="2026-07-28T12:00:00+00:00",
+        runtime="codex",
+        event="ToolUse",
+        status="success",
+        tool_name="Bash",
+        duration_ms=30_000,
+        completed_at="2026-07-28T12:00:30+00:00",
+        tool_input_summary={
+            "description": "run checks",
+            "command": "just check\nprintf ordinary-slow-detail",
+        },
+        tool_response_summary={
+            "exit_code": 0,
+            "stdout_preview": "all checks passed",
+        },
+    )
+    summary = DetailHeaderSummary(
+        slow_tool_sources=(
+            SlowToolSource(
+                label=None,
+                entries=(entry,),
+                agent_is_active=False,
+                end_reference=None,
+                palette_index=0,
+            ),
+        )
+    )
+    header, _ = build_header_text(
+        agent,
+        summary=summary,
+        lane_fold_level=app.panel_fold_level,
+        lane_section_fold_overrides=app._panel_fold_overrides.snapshot(),
+    )
+    return header.plain
+
+
+def test_slow_tool_section_commands_change_an_ordinary_lane_and_panel_cycle_resets() -> (
+    None
+):
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="ordinary-slow-fold",
+        project_file="/tmp/fold.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 28, 12, 0, tzinfo=UTC),
+        stop_time=datetime(2026, 7, 28, 12, 1, tzinfo=UTC),
+        raw_suffix="ordinary-slow-fold",
+        agent_name="ordinary-slow-fold",
+        model="gpt-5",
+    )
+    app = _FoldApp(clan=False, slow_tool_call_count=1)
+    app.selected_agent = agent
+    app.section_id = "slow-tool-calls"
+
+    assert "ordinary-slow-detail" not in _ordinary_slow_tool_fold_document(app, agent)
+
+    _press(app, "a")
+    assert app._panel_fold_overrides.get_override("slow-tool-calls") is (
+        FoldLevel.EXPANDED
+    )
+    assert "ordinary-slow-detail" in _ordinary_slow_tool_fold_document(app, agent)
+
+    _press(app, "A")
+    assert "ordinary-slow-detail" not in _ordinary_slow_tool_fold_document(app, agent)
+    _press(app, "A")
+    full = _ordinary_slow_tool_fold_document(app, agent)
+    assert "│ output all checks passed" in full
+
+    _press(app, "1")
+    assert app._panel_fold_overrides.snapshot() == {}
+    assert "ordinary-slow-detail" not in _ordinary_slow_tool_fold_document(app, agent)
 
 
 def test_non_lane_agent_fold_change_stays_silent() -> None:

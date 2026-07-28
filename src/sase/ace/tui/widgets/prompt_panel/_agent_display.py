@@ -249,10 +249,8 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 clan_snapshot=get_cached_clan_section_snapshot(self, agent),
                 clan_fold_level=clan_fold_level,
                 clan_section_fold_overrides=clan_fold_overrides,
-                lane_fold_level=clan_fold_level if lane_summary_enabled else None,
-                lane_section_fold_overrides=(
-                    clan_fold_overrides if lane_summary_enabled else None
-                ),
+                lane_fold_level=clan_fold_level,
+                lane_section_fold_overrides=clan_fold_overrides,
                 lane_neighbors=lane_neighbors,
                 runner_capacity=runner_capacity_for_app(app),
                 member_jump_map_publisher=(

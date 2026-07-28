@@ -176,9 +176,11 @@ def build_workflow_detail_renderable(
                 header_text.append(f"{value}\n", style="#5FD75F")
 
     if slow_tool_sources is not None:
-        from ._agent_slow_tools import append_slow_tool_calls_section
+        from ._agent_slow_tools import (
+            append_slow_tool_calls_section_no_fold_owner,
+        )
 
-        append_slow_tool_calls_section(
+        append_slow_tool_calls_section_no_fold_owner(
             header_text,
             sources=slow_tool_sources,
             agent=agent,

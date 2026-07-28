@@ -41,6 +41,7 @@ from ._agent_display_header_renderable import AgentHeader, AgentHeaderRenderable
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
 from ._agent_output_variables import append_agent_output_variables_section
 from ._agent_plan_section import ResponsivePlanSection
+from ._agent_slow_tools_detail import ResponsiveSlowToolCallsSection
 from ._fold_language import append_fold_header_line
 from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
@@ -234,6 +235,7 @@ def build_header_text(
 
     bead_section: ResponsiveBeadSection | None = None
     plan_section: ResponsivePlanSection | None = None
+    slow_tool_section: ResponsiveSlowToolCallsSection | None = None
     responsive_ranges: dict[str, tuple[int, int]] = {}
     if not cheap and summary is not None:
         from ._agent_context import append_agent_context_section
@@ -261,22 +263,17 @@ def build_header_text(
 
         from ._agent_slow_tools import append_slow_tool_calls_section
 
-        append_slow_tool_calls_section(
+        slow_tool_section = append_slow_tool_calls_section(
             header_text,
             sources=summary.slow_tool_sources,
             agent=agent,
             now=DateTime.now(),
             hint_state=hint_state,
             threshold_ms=slow_tool_call_threshold_ms,
-            fold_level=(
-                effective_family_fold_level(
-                    "slow-tool-calls",
-                    resolved_lane_fold_level,
-                    lane_overrides,
-                )
-                if family_fold_enabled
-                else None
-            ),
+            panel_level=resolved_lane_fold_level,
+            scale=lane_scale,
+            section_fold_overrides=lane_overrides,
+            responsive_ranges=responsive_ranges,
         )
 
     is_failed = agent.display_status == "FAILED"
@@ -324,7 +321,13 @@ def build_header_text(
     header_text.append("\n")
 
     responsive_sections: list[
-        tuple[int, int, ResponsiveBeadSection | ResponsivePlanSection]
+        tuple[
+            int,
+            int,
+            ResponsiveBeadSection
+            | ResponsivePlanSection
+            | ResponsiveSlowToolCallsSection,
+        ]
     ] = []
     if bead_section is not None and "BEAD" in responsive_ranges:
         start, end = responsive_ranges["BEAD"]
@@ -332,6 +335,9 @@ def build_header_text(
     if plan_section is not None and "PLAN" in responsive_ranges:
         start, end = responsive_ranges["PLAN"]
         responsive_sections.append((start, end, plan_section))
+    if slow_tool_section is not None and "slow-tool-calls" in responsive_ranges:
+        start, end = responsive_ranges["slow-tool-calls"]
+        responsive_sections.append((start, end, slow_tool_section))
     if responsive_sections:
         responsive_sections.sort(key=lambda section: section[0])
         return (
