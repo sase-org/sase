@@ -187,8 +187,9 @@ an empty `files` list.
 Bead association is not a user-supplied CLI flag. For new commit attempts, `sase commit` reads `SASE_BEAD_ID`; when it
 is set, the CLI adds that bead to the workflow payload, and `CommitWorkflow` leaves the subject unchanged while adding
 `SASE_BEAD=<id>` as the first structured footer tag. When the project's beads sidecar is hosted on GitHub, the tag is a
-Markdown reference link to the bead's generated page; otherwise it remains the bare ID. Resolution is local-only and
-best-effort. Conflict resumes reuse the already-tagged message captured in the original checkpoint.
+Markdown reference link to the bead's generated page in the `--beads` repository; otherwise it remains the bare ID.
+Resolution is local-only and best-effort. Conflict resumes reuse the already-tagged message captured in the original
+checkpoint.
 
 Runtime provenance tags are also not user-supplied CLI flags. For `create_commit` and `create_pull_request`,
 `CommitWorkflow` appends or updates a trailing `SASE_AGENT=<username>.<machine>.<agent>` line. When the configured
@@ -198,12 +199,13 @@ for manual non-agent commits. New commits never produce `SASE_MACHINE`, while cl
 and historical `MACHINE` values. `create_proposal` does not get runtime commit tags because it saves a diff instead of
 creating a VCS commit.
 
-After an agent-backed primary operation and its first durable result marker, the workflow resolves the immutable primary
-revision through the VCS provider and then resolves the project's agents target. When that target is available, SASE
-records a project-scoped outbox request for only that agent's top-level hood before attempting publication. The attempt
-also drains older requests for the project. A failure after enqueueing does not invalidate the primary commit; the
-request remains for a later agent commit or full `sase agent sync`. Target-resolution and outbox-persistence failures
-occur before that durability guarantee, so they can instead skip publication or require `sase commit --resume`.
+After an agent-backed primary operation and its first durable result marker, the workflow first refreshes the committed
+bead's generated page lineage when the message carries `SASE_BEAD=`. It then resolves the immutable primary revision
+through the VCS provider and resolves the project's agents target. When that target is available, SASE records a
+project-scoped outbox request for only that agent's top-level hood before attempting publication. The attempt also
+drains older requests for the project. A failure after enqueueing does not invalidate the primary commit; the request
+remains for a later agent commit or full `sase agent sync`. Target-resolution and outbox-persistence failures occur
+before that durability guarantee, so they can instead skip publication or require `sase commit --resume`.
 
 **Footer tag prefix:** All SASE-authored commit footer tags (`TYPE`, `BEAD`, `AGENT`, `PLAN`, `BUG`, and any configured
 or inherited PR tag keys) are written with a `SASE_` prefix — for example `SASE_TYPE=sdd` and `SASE_AGENT=<name>`.

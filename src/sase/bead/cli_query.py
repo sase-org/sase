@@ -14,6 +14,7 @@ from sase.bead.cli_detail import (
     issue_to_wire_dict,
     render_issue_detail,
     render_issue_detail_json,
+    resolve_bead_page_url,
     resolve_issue_detail,
 )
 from sase.bead.model import (
@@ -107,16 +108,22 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             case "compact":
                 print(_render_list_compact([issue]), end="")
             case "json":
+                detail = resolve_issue_detail(view, issue)
                 print(
-                    render_issue_detail_json(resolve_issue_detail(view, issue)),
+                    render_issue_detail_json(
+                        detail,
+                        page_url=resolve_bead_page_url(issue.id),
+                    ),
                     end="",
                 )
             case "full":
+                detail = resolve_issue_detail(view, issue)
                 print(
                     render_issue_detail(
-                        resolve_issue_detail(view, issue),
+                        detail,
                         relativize_design=design_paths_are_relative(),
                         plan_roots=plan_reference_roots(),
+                        page_url=resolve_bead_page_url(issue.id),
                     ),
                     end="",
                 )

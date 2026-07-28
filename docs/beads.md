@@ -20,6 +20,7 @@ metadata.
   - [Directory Structure](#directory-structure)
   - [Event Log + Compatibility Projections](#event-log-compatibility-projections)
   - [Sync Mechanism](#sync-mechanism)
+- [Bead Pages](#bead-pages)
 - [CLI Commands](#cli-commands)
 - [Rust Backend](#rust-backend)
 - [Current Checkout Source Of Truth](#current-checkout-source-of-truth)
@@ -49,6 +50,9 @@ sase bead dep tree beads-001.2                          # Follow the blocking ch
 sase bead dep rm beads-001.2 beads-001.1                # Remove a wrong dependency
 sase bead blocked                                       # Show blocked issues
 sase bead sync                                          # Export and stage JSONL in git
+sase bead pages refresh                                # Preview regenerated bead pages
+sase bead pages refresh --write                        # Regenerate, commit, and push bead pages
+sase bead pages url beads-001.1                        # Print the hosted page URL when available
 sase bead stats                                         # Project statistics
 sase bead doctor                                        # Health check
 sase bead work "$PLANS_ROOT/202605/epic.md" --dry-run   # Preview bead creation and launch waves
@@ -188,10 +192,10 @@ metadata in the primary workspace's `.sase/sdd-store.json`.
 Split sidecar storage puts bead state in its own auto-cloned `<owner>/<repo>--beads` repository, checked out at
 `<workspace>/sase/repos/beads`. That repository keeps the store **at its root** rather than under a `beads/`
 subdirectory, so `config.json`, `metadata.json`, `issues.jsonl`, and `events/` sit beside the generated `README.md`,
-`assets/`, and `.gitignore`. A split project that has not been migrated yet still keeps bead state at `beads/` in the
-root of its auto-cloned `--plans` repository; the `.sase/sdd-store.json` record decides which, and only a record that
-names a `beads` sidecar (schema version 3) resolves to the dedicated repository. See [SDD Storage](sdd_storage.md) for
-the record format and the adoption transaction that performs the move.
+`assets/`, `.gitignore`, and generated `pages/`. A split project that has not been migrated yet still keeps bead state
+at `beads/` in the root of its auto-cloned `--plans` repository; the `.sase/sdd-store.json` record decides which, and
+only a record that names a `beads` sidecar (schema version 3) resolves to the dedicated repository. See
+[SDD Storage](sdd_storage.md) for the record format and the adoption transaction that performs the move.
 
 Isolating bead state this way gives it its own git history, its own cooperative write lock, and its own
 repository-health preflight, so hot bead writes no longer serialize behind plan writes and a wedged bead rebase cannot
@@ -234,6 +238,31 @@ per line, sorted by issue ID for clean diffs.
 
 When both stores exist, the event store wins. Manual edits to `issues.jsonl` do not change command output unless the
 event store is absent.
+
+## Bead Pages
+
+Projects with a hosted beads sidecar can publish one Markdown page per bead. Pages live in the `--beads` repository
+under `pages/<root>/`, where `<root>` is the bead ID segment before the first dot. The root bead renders as
+`pages/<root>/README.md`; descendants render as `pages/<root>/<bead-id>.md`.
+
+Pages are generated projections, not hand-maintained state. They are rebuilt from the canonical bead event store plus
+the primary repository's commit history, and they link to the bead's plan, parent and child beads, dependencies,
+associated agents, and commits. Current commits use a structured `SASE_BEAD=<id>` footer tag instead of a subject-line
+parenthetical; historical commits with trailing `(<bead-id>)` subjects are still recognized when the ID exists in the
+store.
+
+```bash
+sase bead pages refresh                 # dry run; writes nothing
+sase bead pages refresh --write         # write changed pages and commit one beads-sidecar batch
+sase bead pages refresh --bead beads-1  # refresh one lineage
+sase bead pages refresh --json          # machine-readable report
+sase bead pages url beads-1.2           # print the hosted URL for one bead
+```
+
+Per-commit publication refreshes the committed bead's lineage after a `create_commit` or `create_pull_request` workflow
+that carries `SASE_BEAD=`. The shared `pages/README.md` roster is owned by `sase bead pages refresh`, so regular commits
+avoid rewriting a file every active agent could touch. `sase bead show <id>` prints a `PAGE` section when the local
+sidecar remote and branch resolve to a hosted URL; `--format json` includes `page_url` in the same case.
 
 ## CLI Commands
 
@@ -456,15 +485,16 @@ sase bead search auth --type plan --tier epic
 ### `sase bead show <id>`
 
 Display complete details for an issue including status, type, tier, parent lineage, dependencies, blockers, description,
-notes, ChangeSpec metadata, model, and linked plan path. Closed beads include their resolution, close reason, and close
-timestamp; legacy closures without a resolution show `(unrecorded)`. Phase beads show their effective size (`small` for
-legacy beads without a stored size). Any bead's children are grouped as phases (with status and size) and child epics
-(with tier and status), including child epics owned by a phase bead. Nested beads show their complete lineage back to
-the root plan. A `claimed` bead also prints `Claimed by: <assignee> (agent has not started working yet)`.
+notes, ChangeSpec metadata, model, linked plan path, and the hosted page URL when one resolves locally. Closed beads
+include their resolution, close reason, and close timestamp; legacy closures without a resolution show `(unrecorded)`.
+Phase beads show their effective size (`small` for legacy beads without a stored size). Any bead's children are grouped
+as phases (with status and size) and child epics (with tier and status), including child epics owned by a phase bead.
+Nested beads show their complete lineage back to the root plan. A `claimed` bead also prints
+`Claimed by: <assignee> (agent has not started working yet)`.
 
-`full` is the unchanged default detail block. `compact` prints the same single row as `sase bead list`. `json` emits a
-single-bead envelope with `issue`, `ancestors`, `children`, `depends_on`, `blocks`, and `plan`; every relationship
-reference includes a `resolved` flag and fixed null-valued fields for unresolved IDs.
+`full` is the default detail block. `compact` prints the same single row as `sase bead list`. `json` emits a single-bead
+envelope with `issue`, `ancestors`, `children`, `depends_on`, `blocks`, and `plan`, plus `page_url` when a hosted page
+URL resolves; every relationship reference includes a `resolved` flag and fixed null-valued fields for unresolved IDs.
 
 | Flag           | Values                    | Description                       |
 | -------------- | ------------------------- | --------------------------------- |

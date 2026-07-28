@@ -286,6 +286,38 @@ def test_show_explicit_full_matches_default(
     assert full_out == default_out
 
 
+def test_show_full_prints_page_url_when_resolved(
+    nested_store: dict[str, Issue],
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = nested_store["root"]
+    monkeypatch.setattr(
+        "sase.bead.cli_query.resolve_bead_page_url",
+        lambda bead_id: f"https://example.test/pages/{bead_id}",
+    )
+
+    out = _show(root, capsys)
+
+    assert f"\nPAGE\n  https://example.test/pages/{root.id}\n" in out
+
+
+def test_show_json_includes_page_url_when_resolved(
+    nested_store: dict[str, Issue],
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = nested_store["root"]
+    monkeypatch.setattr(
+        "sase.bead.cli_query.resolve_bead_page_url",
+        lambda bead_id: f"https://example.test/pages/{bead_id}",
+    )
+
+    payload = json.loads(_show_with_format(root, "json", capsys))
+
+    assert payload["page_url"] == f"https://example.test/pages/{root.id}"
+
+
 def test_show_json_root_includes_children_and_self_plan(
     nested_store: dict[str, Issue],
     capsys: pytest.CaptureFixture[str],

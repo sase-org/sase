@@ -52,8 +52,8 @@ error—so the new build must be installed on every machine that touches a proje
 
 The plans sidecar keeps monthly directories at its root (`<YYYYMM>/*.md` and `<YYYYMM>/prompts/*.md`). The research
 sidecar likewise keeps `<YYYYMM>/` directories at its root. The beads sidecar keeps bead state at its **repository
-root**—`config.json`, `metadata.json`, `issues.jsonl`, and `events/`—so its clone root is itself the bead directory.
-Kind resolution is therefore:
+root**—`config.json`, `metadata.json`, `issues.jsonl`, and `events/`—plus generated bead pages under `pages/`, so its
+clone root is itself the bead directory. Kind resolution is therefore:
 
 | Kind       | Resolved path                                                      |
 | ---------- | ------------------------------------------------------------------ |

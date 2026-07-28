@@ -86,6 +86,7 @@ def render_issue_detail(
     *,
     relativize_design: bool,
     plan_roots: tuple[Path, ...] = (),
+    page_url: str | None = None,
 ) -> str:
     """Render the established human-readable bead detail block."""
     issue = detail.issue
@@ -109,6 +110,10 @@ def render_issue_detail(
         lines.append(f"Model: {issue.model}")
     if issue.issue_type == IssueType.PHASE:
         lines.append(f"Size: {_phase_size_value(issue)}")
+
+    if page_url:
+        lines.extend(["", "PAGE", f"  {page_url}"])
+
     if issue.status == Status.CLOSED:
         lines.extend(
             [
@@ -215,9 +220,13 @@ def render_issue_detail(
     return "\n".join(lines) + "\n"
 
 
-def render_issue_detail_json(detail: IssueDetail) -> str:
+def render_issue_detail_json(
+    detail: IssueDetail,
+    *,
+    page_url: str | None = None,
+) -> str:
     """Render a stable single-bead JSON envelope."""
-    envelope = {
+    envelope: dict[str, object] = {
         "issue": issue_to_wire_dict(detail.issue),
         "ancestors": [
             ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.ancestors
@@ -236,6 +245,8 @@ def render_issue_detail_json(detail: IssueDetail) -> str:
         "blocks": [ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.blocks],
         "plan": _plan_to_wire_dict(detail.plan),
     }
+    if page_url:
+        envelope["page_url"] = page_url
     return json.dumps(envelope, indent=2) + "\n"
 
 
@@ -298,6 +309,20 @@ def plan_reference_roots() -> tuple[Path, ...]:
         return resolve_plan_roots(workspace_dir, workspace_num)
     except Exception:
         return ()
+
+
+def resolve_bead_page_url(bead_id: str) -> str | None:
+    """Resolve a hosted bead page URL for ``sase bead show`` when available."""
+    from sase.sdd.hosted_links import hosted_link_resolver
+    from sase.sdd.plan_refs import workspace_context_for_plan_resolution
+    from sase.sdd.store import resolve_sdd_store
+
+    try:
+        workspace_dir, workspace_num = workspace_context_for_plan_resolution(Path.cwd())
+        store = resolve_sdd_store(workspace_dir, workspace_num)
+        return hosted_link_resolver(store, primary_root=workspace_dir).bead_url(bead_id)
+    except Exception:
+        return None
 
 
 def _parent_lineage(view: BeadProject, issue: Issue) -> tuple[IssueRef, ...]:
