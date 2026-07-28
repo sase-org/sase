@@ -5,17 +5,18 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-import subprocess
 from typing import TYPE_CHECKING, cast
 
-from sase.sdd._bead_ignore import ensure_bead_store_gitignore
-from sase.sdd._commit import (
-    commit_sdd_files,
-    network_git_timeout,
-    run_sdd_git,
+from sase.sdd._bead_adoption import (
+    AdoptionOutcome,
+    adopt_bead_state,
+    cleanup_plans_bead_state,
 )
+from sase.sdd._bead_ignore import ensure_bead_store_gitignore
+from sase.sdd._commit import commit_sdd_files
 from sase.sdd._init_files import ensure_sdd_sidecar_initialized
 from sase.sdd._paths import get_primary_workspace_dir
+from sase.sdd._sidecar_git import push_sidecar
 from sase.sdd._store_adoption import materialization_lock
 from sase.sdd._store_link import ensure_sidecar_sdd_clone
 from sase.sdd._store_records import (
@@ -203,7 +204,32 @@ def initialize_sidecars(
             sidecar_specs,
             roots,
             repo_names={role: sidecar.repo for role, sidecar in sidecars.items()},
+            split_beads=bool(existing and existing.has_split_beads),
         )
+
+        existing_plans = _existing_compatibility_sidecar(existing, "plans")
+        existing_research = _existing_compatibility_sidecar(existing, "research")
+        plans = sidecars.get("plans") or existing_plans
+        research = sidecars.get("research") or existing_research
+        beads = sidecars.get("beads") or _existing_compatibility_sidecar(
+            existing, "beads"
+        )
+        plans_root = roots.get("plans") or primary / "sase" / "repos" / "plans"
+        beads_root = roots.get("beads") or primary / "sase" / "repos" / "beads"
+        should_adopt = (
+            "beads" in sidecars
+            and plans is not None
+            and research is not None
+            and beads is not None
+        )
+        adoption: AdoptionOutcome | None = None
+        if should_adopt:
+            assert plans is not None
+            adoption = adopt_bead_state(
+                plans_root,
+                beads_root,
+                plans_repo=plans.repo,
+            )
 
         record, store = _write_compatibility_store(
             primary,
@@ -213,6 +239,8 @@ def initialize_sidecars(
             provider=provider,
             host=host,
         )
+        if adoption is not None and record is not None and record.has_split_beads:
+            cleanup_plans_bead_state(plans_root)
         return _SidecarInitOutcome(
             store=store,
             record=record,
@@ -246,6 +274,9 @@ def initialize_materialized_sidecars(
         sidecar_specs,
         roots,
         repo_names={spec.role: spec.repo or spec.role for spec in sidecar_specs},
+        split_beads=bool(
+            (existing := read_sdd_store_record(workspace)) and existing.has_split_beads
+        ),
     )
     return roots
 
@@ -255,6 +286,7 @@ def _seed_sidecars(
     roots: dict[str, Path],
     *,
     repo_names: dict[str, str],
+    split_beads: bool = False,
 ) -> None:
     for spec in sidecar_specs:
         root = roots[spec.role]
@@ -265,8 +297,12 @@ def _seed_sidecars(
                 description=spec.description,
             )
         )
-        if spec.role == "plans":
-            gitignore = ensure_bead_store_gitignore(root)
+        if spec.role == "plans" and not split_beads:
+            gitignore = ensure_bead_store_gitignore(root, prefix="beads")
+            if gitignore is not None:
+                generated.append(gitignore)
+        elif spec.role == "beads":
+            gitignore = ensure_bead_store_gitignore(root, prefix="")
             if gitignore is not None:
                 generated.append(gitignore)
         committed = bool(generated) and commit_sdd_files(
@@ -278,7 +314,7 @@ def _seed_sidecars(
             record_commit_marker=False,
         )
         if committed:
-            _push_sidecar(root)
+            push_sidecar(root)
 
 
 def _existing_compatibility_sidecar(
@@ -307,25 +343,33 @@ def _write_compatibility_store(
 ) -> tuple[SddStoreRecord | None, SddStore | None]:
     existing_plans = _existing_compatibility_sidecar(existing, "plans")
     existing_research = _existing_compatibility_sidecar(existing, "research")
+    existing_beads = _existing_compatibility_sidecar(existing, "beads")
     plans = sidecars.get("plans") or existing_plans
     research = sidecars.get("research") or existing_research
+    beads = sidecars.get("beads") or existing_beads
     if plans is None or research is None:
         return None, None
 
     record = write_sdd_store_record(
         primary,
         SddStoreRecord(
-            schema_version=2,
+            schema_version=3 if beads is not None else 2,
             storage=SDD_STORAGE_SIDECAR_REPOS,
             provider=provider or (existing.provider if existing is not None else None),
             host=host or (existing.host if existing is not None else None),
             discovery="found",
             plans=plans,
             research=research,
+            beads=beads,
         ),
     )
     plans_root = roots.get("plans") or primary / "sase" / "repos" / "plans"
     research_root = roots.get("research") or primary / "sase" / "repos" / "research"
+    beads_root = (
+        roots.get("beads") or primary / "sase" / "repos" / "beads"
+        if beads is not None
+        else None
+    )
     return (
         record,
         SddStore(
@@ -336,6 +380,7 @@ def _write_compatibility_store(
             remote_url=plans.remote_url,
             research_dir=research_root,
             research_remote_url=research.remote_url,
+            beads_dir=beads_root,
         ),
     )
 
@@ -425,24 +470,6 @@ def _sidecar_provider_options(
     if sidecar.description:
         options["sdd_description"] = sidecar.description
     return options
-
-
-def _push_sidecar(root: Path) -> None:
-    try:
-        # Push does not update the local index, so index.lock recovery is irrelevant.
-        run_sdd_git(
-            ["push", "origin", "HEAD"],
-            cwd=root,
-            op="sdd.sidecar_init.push",
-            timeout=network_git_timeout(),
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except (subprocess.CalledProcessError, OSError) as exc:
-        raise SddMaterializationError(
-            f"failed to push initialized sidecar {root}: {exc}"
-        ) from exc
 
 
 __all__ = [

@@ -268,6 +268,7 @@ def plan_sidecar_actions(
 
     actions: list[InitAction] = []
     warnings: list[str] = []
+    roots: dict[str, Path] = {}
     for spec in specs:
         root = resolve_sidecar_clone_root(project_root, spec.role)
         if root is None:
@@ -276,6 +277,7 @@ def plan_sidecar_actions(
                 f"{unresolved_project_key_message(project_root)}"
             )
             continue
+        roots[spec.role] = root
         clone_exists = (root / ".git").is_dir()
         needs_connection = not clone_exists and spec.role not in recorded_roles
         if needs_connection:
@@ -306,6 +308,21 @@ def plan_sidecar_actions(
                     description=spec.description,
                 )
             )
+    plans_root = roots.get("plans")
+    beads_root = roots.get("beads")
+    if (
+        plans_root is not None
+        and beads_root is not None
+        and "beads" not in recorded_roles
+        and (plans_root / "beads").is_dir()
+    ):
+        actions.append(
+            InitAction(
+                path=beads_root,
+                operation="update",
+                detail="adopt bead state from the plans sidecar",
+            )
+        )
     return actions, warnings
 
 

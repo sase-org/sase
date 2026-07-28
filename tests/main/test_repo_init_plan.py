@@ -184,6 +184,39 @@ def test_plan_does_not_materialize_recorded_lazy_sidecar_for_check(
     )
 
 
+def test_plan_reports_pending_bead_state_adoption(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mark_project(tmp_path)
+    specs = (
+        SidecarInitSpec(role="plans"),
+        SidecarInitSpec(role="research"),
+        SidecarInitSpec(role="beads"),
+    )
+    plans_root = tmp_path / "sase" / "repos" / "plans"
+    (plans_root / ".git").mkdir(parents=True)
+    (plans_root / "beads").mkdir()
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: specs,
+    )
+
+    plan = plan_repo_init(_args(tmp_path))
+
+    adoption = [
+        action
+        for action in plan.actions
+        if action.detail == "adopt bead state from the plans sidecar"
+    ]
+    assert len(adoption) == 1
+    assert adoption[0].path == tmp_path / "sase" / "repos" / "beads"
+
+
 def test_configured_sidecar_specs_preserve_pin_and_private_visibility(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

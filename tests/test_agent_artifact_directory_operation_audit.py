@@ -211,6 +211,18 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "directories."
         ),
     ),
+    "src/sase/sdd/_bead_adoption.py:_copy_bead_state": DirOpReview(
+        exemption=(
+            "Replaces only matching entries while importing the plans-owned bead "
+            "store into its dedicated sidecar, not agent artifact directories."
+        ),
+    ),
+    "src/sase/sdd/_bead_adoption.py:cleanup_plans_bead_state": DirOpReview(
+        exemption=(
+            "Removes only the legacy plans-sidecar bead-store directory after the "
+            "dedicated beads sidecar becomes authoritative, not agent artifacts."
+        ),
+    ),
     "src/sase/sdd/_store_link.py:_handle_failed_sdd_clone": DirOpReview(
         exemption=(
             "Removes only partial output from a failed sidecar git clone at its "
