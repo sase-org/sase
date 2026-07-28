@@ -21,6 +21,10 @@ from sase.xprompt.loader import (
     get_sase_package_default_xprompts_dir,
     get_sase_package_xprompts_dir,
 )
+from sase.xprompt.project_identity import (
+    canonical_xprompt_project,
+    known_project_namespaces,
+)
 from sase.xprompt.workflow_models import Workflow
 
 
@@ -242,14 +246,12 @@ def resolve_source_to_file_path(source_path: str | None) -> str | None:
     # project_local_config:{project} → project's workspace sase.yml
     if source_path.startswith("project_local_config:"):
         project_name = source_path.removeprefix("project_local_config:")
-        from sase.xprompt.loader import get_known_project_workspaces
-
-        workspaces = get_known_project_workspaces()
-        ws_dir = workspaces.get(project_name)
+        namespace = canonical_xprompt_project(project_name) or project_name
+        ws_dir = known_project_namespaces().get(namespace)
         if ws_dir:
             path = resolve_project_config_read_path(
                 ws_dir,
-                label=f"project config for {project_name}",
+                label=f"project config for {namespace}",
             )
             return str(path or resolve_project_layout(ws_dir).config.write_path)
         return None

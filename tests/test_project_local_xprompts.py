@@ -3,7 +3,11 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.xprompt._parsing import extract_project_from_vcs_tag
+from sase.xprompt._catalog_models import CatalogEntry
+from sase.xprompt._catalog_sources import definition_path
 from sase.xprompt.loader import (
     get_all_prompts,
     get_all_project_local_prompts,
@@ -13,6 +17,7 @@ from sase.xprompt.loader import (
 )
 from sase.xprompt.models import XPrompt
 from sase.xprompt.processor import process_xprompt_references
+from tests.main.project_handler_helpers import _disk_project_records
 
 
 # --- extract_project_from_vcs_tag ---
@@ -183,7 +188,7 @@ class TestGetAllProjectLocalPrompts:
         (ws2 / "sase.yml").write_text("xprompts:\n  bar: 'Bar content'\n")
 
         with patch(
-            "sase.xprompt.loader.get_known_project_workspaces",
+            "sase.xprompt.loader.known_project_namespaces",
             return_value={"proj1": ws1, "proj2": ws2},
         ):
             result = get_all_project_local_prompts()
@@ -196,11 +201,119 @@ class TestGetAllProjectLocalPrompts:
 
     def test_empty_when_no_projects(self) -> None:
         with patch(
-            "sase.xprompt.loader.get_known_project_workspaces",
+            "sase.xprompt.loader.known_project_namespaces",
             return_value={},
         ):
             result = get_all_project_local_prompts()
             assert result == {}
+
+    def test_aggregates_with_user_facing_namespace_for_display_name_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        project_display_case,
+    ) -> None:
+        from sase import project_aliases, project_display_names
+        from sase.xprompt import loader_sources, project_identity
+
+        sase_home = tmp_path / "sase-home"
+        projects_root = sase_home / "projects"
+        workspace = tmp_path / "workspace"
+        project_display_case.write_project_layout(
+            projects_root,
+            workspace_dir=workspace,
+        )
+        config = workspace / "sase" / "sase.yml"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text("xprompts:\n  docs: 'Project-local docs'\n")
+        monkeypatch.setenv("SASE_HOME", str(sase_home))
+        monkeypatch.setattr(
+            project_aliases,
+            "list_project_records",
+            _disk_project_records,
+        )
+        monkeypatch.setattr(
+            project_display_names,
+            "list_project_records",
+            _disk_project_records,
+        )
+        monkeypatch.setattr(
+            loader_sources,
+            "list_project_records",
+            _disk_project_records,
+        )
+        project_identity._identity_registry.cache_clear()
+        project_identity._canonical_xprompt_project.cache_clear()
+
+        try:
+            result = get_all_project_local_prompts()
+        finally:
+            project_identity._identity_registry.cache_clear()
+            project_identity._canonical_xprompt_project.cache_clear()
+
+        assert list(result) == [f"{project_display_case.project_label}/docs"]
+        workflow = result[f"{project_display_case.project_label}/docs"]
+        assert workflow.source_path == (
+            f"project_local_config:{project_display_case.project_label}"
+        )
+        assert all(project_display_case.project_key not in name for name in result)
+
+    def test_project_local_config_definition_paths_use_canonical_namespace(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        project_display_case,
+    ) -> None:
+        from sase.ace.tui.modals.xprompt_browser_helpers import (
+            resolve_source_to_file_path,
+        )
+
+        workspace = tmp_path / "workspace"
+        config = workspace / "sase" / "sase.yml"
+        config.parent.mkdir(parents=True)
+        config.write_text("xprompts:\n  docs: 'Project-local docs'\n")
+        namespaces = {project_display_case.project_label: workspace}
+        monkeypatch.setattr(
+            "sase.xprompt._catalog_sources.known_project_namespaces",
+            lambda: namespaces,
+        )
+        monkeypatch.setattr(
+            "sase.xprompt._catalog_sources.canonical_xprompt_project",
+            lambda ref: (
+                project_display_case.project_label
+                if ref == project_display_case.project_key
+                else ref
+            ),
+        )
+        monkeypatch.setattr(
+            "sase.ace.tui.modals.xprompt_browser_helpers.known_project_namespaces",
+            lambda: namespaces,
+        )
+        monkeypatch.setattr(
+            "sase.ace.tui.modals.xprompt_browser_helpers.canonical_xprompt_project",
+            lambda ref: (
+                project_display_case.project_label
+                if ref == project_display_case.project_key
+                else ref
+            ),
+        )
+        entry = CatalogEntry(
+            XPrompt(
+                name=f"{project_display_case.project_label}/docs",
+                content="Project-local docs",
+                source_path=f"project_local_config:{project_display_case.project_label}",
+            ),
+            bucket="project",
+            project=project_display_case.project_label,
+        )
+
+        assert definition_path(entry) == str(config.resolve())
+        assert resolve_source_to_file_path(
+            f"project_local_config:{project_display_case.project_label}"
+        ) == str(config)
+        assert resolve_source_to_file_path(
+            f"project_local_config:{project_display_case.project_key}"
+        ) == str(config)
 
 
 class TestRegistryBackedProjectResolution:
@@ -346,7 +459,7 @@ class TestClassifySourceProjectLocal:
         )
 
         with patch(
-            "sase.xprompt.loader.get_known_project_workspaces",
+            "sase.ace.tui.modals.xprompt_browser_helpers.known_project_namespaces",
             return_value={"myproj": tmp_path},
         ):
             result = resolve_source_to_file_path("project_local_config:myproj")

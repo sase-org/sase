@@ -86,7 +86,7 @@ def detect_project() -> str | None:
 def get_all_project_local_prompts() -> dict[str, "Workflow"]:
     """Load xprompts from ALL known projects' ``sase.yml`` files.
 
-    Calls :func:`get_known_project_workspaces` then
+    Calls :func:`known_project_namespaces` then
     :func:`load_project_local_xprompts` for each.  Returns a unified
     dict of Workflow objects (xprompts converted via
     :func:`xprompt_to_workflow`).
@@ -94,7 +94,7 @@ def get_all_project_local_prompts() -> dict[str, "Workflow"]:
     from sase.xprompt.models import xprompt_to_workflow
 
     all_workflows: dict[str, Workflow] = {}
-    for project_name, ws_dir in get_known_project_workspaces().items():
+    for project_name, ws_dir in known_project_namespaces().items():
         xprompts = {
             **load_project_local_xprompts(ws_dir, project_name),
             **load_project_file_xprompts(ws_dir, project_name),

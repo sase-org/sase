@@ -20,7 +20,10 @@ from sase.xprompt.loader import (
     load_project_local_xprompts,
 )
 from sase.xprompt.models import XPrompt, xprompt_to_workflow
-from sase.xprompt.project_identity import known_project_namespaces
+from sase.xprompt.project_identity import (
+    canonical_xprompt_project,
+    known_project_namespaces,
+)
 from sase.xprompt.workflow_models import Workflow
 
 from ._catalog_models import CatalogEntry, StructuredCatalogSource
@@ -265,12 +268,13 @@ def _source_definition_path(source: str, project: str | None) -> Path | None:
 
     if source.startswith("project_local_config:"):
         project_name = source.removeprefix("project_local_config:")
-        workspace = known_project_namespaces().get(project_name)
+        namespace = canonical_xprompt_project(project_name) or project_name
+        workspace = known_project_namespaces().get(namespace)
         if workspace is None:
             return None
         return resolve_project_config_read_path(
             workspace,
-            label=f"project config for {project_name}",
+            label=f"project config for {namespace}",
         )
 
     config_dir = Path.home() / ".config" / "sase"

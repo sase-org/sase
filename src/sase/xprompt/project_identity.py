@@ -6,18 +6,51 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sase.xprompt.loader_sources import get_known_project_workspaces
-
 if TYPE_CHECKING:
     from sase.project_display_names import ProjectDisplaySnapshot
+
+
+def load_project_alias_map() -> dict[str, str]:
+    """Load project aliases without importing alias prompts during package init."""
+    from sase.project_aliases import load_project_alias_map as _load_project_alias_map
+
+    return _load_project_alias_map()
+
+
+def load_project_display_snapshot() -> ProjectDisplaySnapshot:
+    """Load display names lazily to avoid project-alias import cycles."""
+    from sase.project_display_names import (
+        load_project_display_snapshot as _load_project_display_snapshot,
+    )
+
+    return _load_project_display_snapshot()
+
+
+def project_display_name_for_ref(
+    ref: str,
+    display_snapshot: ProjectDisplaySnapshot,
+    alias_map: dict[str, str],
+) -> str | None:
+    """Resolve one project ref lazily through the display-name helper."""
+    from sase.project_display_names import (
+        project_display_name_for_ref as _project_display_name_for_ref,
+    )
+
+    return _project_display_name_for_ref(ref, display_snapshot, alias_map)
+
+
+def get_known_project_workspaces() -> dict[str, Path]:
+    """Load known project workspaces lazily to keep xprompt imports acyclic."""
+    from sase.xprompt.loader_sources import (
+        get_known_project_workspaces as _get_known_project_workspaces,
+    )
+
+    return _get_known_project_workspaces()
 
 
 @lru_cache(maxsize=1)
 def _identity_registry() -> tuple[dict[str, str], ProjectDisplaySnapshot] | None:
     """Return cached project alias and display-name projections."""
-    from sase.project_aliases import load_project_alias_map
-    from sase.project_display_names import load_project_display_snapshot
-
     try:
         return load_project_alias_map(), load_project_display_snapshot()
     except Exception:
@@ -26,8 +59,6 @@ def _identity_registry() -> tuple[dict[str, str], ProjectDisplaySnapshot] | None
 
 @lru_cache(maxsize=512)
 def _canonical_xprompt_project(ref: str) -> str:
-    from sase.project_display_names import project_display_name_for_ref
-
     registry = _identity_registry()
     if registry is None:
         return ref
