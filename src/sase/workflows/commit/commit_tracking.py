@@ -401,25 +401,26 @@ def _sdd_repo_name_for_commit_cwd(
         return None
     try:
         from sase.linked_repos import sidecar_repo_clone_dir
-        from sase.sdd.store import read_sdd_store_record
+        from sase.sdd._paths import SDD_CANONICAL_DIRS
+        from sase.sdd.store import get_primary_workspace_dir, read_sdd_store_record
 
         cwd = Path(commit_cwd).expanduser().resolve(strict=False)
         workspace = Path(workspace_dir).expanduser().resolve(strict=False)
-        record = read_sdd_store_record(workspace)
-        for kind in ("plans", "research", "beads"):
+        for kind in SDD_CANONICAL_DIRS:
             root = Path(sidecar_repo_clone_dir(workspace, kind))
             try:
                 cwd.relative_to(root)
             except ValueError:
                 continue
-            sidecar = record.sidecar_for_kind(kind) if record is not None else None
-            return sidecar.repo if sidecar is not None and sidecar.repo else kind
+            return kind
 
         legacy_root = workspace / ".sase" / "sdd"
         try:
             cwd.relative_to(legacy_root)
         except ValueError:
             return None
+        primary_workspace = get_primary_workspace_dir(str(workspace), 1)
+        record = read_sdd_store_record(primary_workspace)
         if record is not None and record.repo:
             return record.repo
         return "sdd"
@@ -480,14 +481,15 @@ def record_sdd_commit_result_marker(
     if not run_id:
         run_id = os.path.basename(os.path.normpath(artifacts_dir_str))
 
+    cwd_str = os.fspath(cwd)
     marker: dict[str, Any] = {
         "method": "sdd_commit",
         "run_id": run_id,
-        "cwd": os.fspath(cwd),
+        "cwd": cwd_str,
         "result": result,
         "commit_result": result,
         "message": message,
-        "repo_name": repo_name or "sdd",
+        "repo_name": repo_name or Path(cwd_str).name,
         "diff_path": diff_path,
         "commit_diff_path": diff_path,
     }

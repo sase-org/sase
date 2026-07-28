@@ -144,6 +144,7 @@ def sdd_commit_targets(
         research_dir=None,
         research_remote_url=None,
         beads_dir=None,
+        sidecar_role="plans",
     )
     target_specs: list[tuple[Path, SddStore]] = [(plans_root, plans_store)]
     if store.research_dir is not None:
@@ -159,6 +160,7 @@ def sdd_commit_targets(
                     research_dir=None,
                     research_remote_url=None,
                     beads_dir=None,
+                    sidecar_role="research",
                 ),
             )
         )
@@ -175,6 +177,7 @@ def sdd_commit_targets(
                     research_dir=None,
                     research_remote_url=None,
                     beads_dir=None,
+                    sidecar_role="beads",
                 ),
             )
         )
@@ -291,10 +294,9 @@ def _git_head_sha(repo_dir: Path) -> str | None:
 
 
 def sdd_store_label(store: "SddStore") -> str | None:
-    if store.storage not in {
-        SDD_STORAGE_SEPARATE_REPO,
-        SDD_STORAGE_SIDECAR_REPOS,
-    }:
+    if store.storage == SDD_STORAGE_SIDECAR_REPOS:
+        return store.sidecar_role
+    if store.storage != SDD_STORAGE_SEPARATE_REPO:
         return None
 
     if store.remote_url:
@@ -309,12 +311,13 @@ def sdd_store_label(store: "SddStore") -> str | None:
 
 def _sdd_store_record_label(store: "SddStore") -> str | None:
     try:
-        from sase.sdd.store import read_sdd_store_record
+        from sase.sdd.store import get_primary_workspace_dir, read_sdd_store_record
 
         workspace_dir = _sdd_store_record_workspace_dir(store)
         if workspace_dir is None:
             return None
-        record = read_sdd_store_record(workspace_dir)
+        primary_workspace_dir = get_primary_workspace_dir(str(workspace_dir), 1)
+        record = read_sdd_store_record(primary_workspace_dir)
     except Exception:
         return None
     if record is not None and record.is_sidecar_storage:

@@ -8,6 +8,9 @@ import pytest
 
 from sase.ace.tui.models.agent import LinkedRepoMetadata
 from sase.ace.tui.widgets.prompt_panel._agent_commits import agent_commit_diffs
+from sase.ace.tui.widgets.prompt_panel._agent_deltas import (
+    agent_commit_linked_delta_groups,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     DetailHeaderSummary,
     build_header_text,
@@ -349,6 +352,49 @@ class TestCommitMetadataHeader:
         assert [(diff.repo_name, diff.is_primary) for diff in commit_diffs] == [
             ("sase-org/sase--sdd", False)
         ]
+
+    def test_meta_commits_legacy_sdd_name_uses_sidecar_cwd_role(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "sase_18"
+        sidecar = workspace / "sase" / "repos" / "beads"
+        diff_path = tmp_path / "beads.diff"
+        diff_path.write_text(
+            """diff --git a/issues.jsonl b/issues.jsonl
+new file mode 100644
+--- /dev/null
++++ b/issues.jsonl
+@@ -0,0 +1 @@
++{"id":"sase-1"}
+""",
+            encoding="utf-8",
+        )
+        agent = make_agent(
+            workspace_dir=str(workspace),
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "chore(beads): update state",
+                        "sha": "abcdef123456",
+                        "cwd": str(sidecar),
+                        "repo_name": "sdd",
+                        "diff_path": str(diff_path),
+                    }
+                ],
+            },
+        )
+
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
+        commit_diffs = agent_commit_diffs(agent)
+        delta_groups = agent_commit_linked_delta_groups(agent)
+
+        assert "    ▣ beads\n" in header.plain
+        assert "    ▣ sdd\n" not in header.plain
+        assert [(diff.repo_name, diff.is_primary) for diff in commit_diffs] == [
+            ("beads", False)
+        ]
+        assert [group.repo_name for group in delta_groups] == ["beads"]
 
     def test_meta_commits_sdd_cwd_without_repo_name_falls_back_to_sdd(
         self,

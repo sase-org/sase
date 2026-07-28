@@ -147,23 +147,20 @@ def _dirty_sdd_store_repos(project_dir: str) -> list[DirtyRepo]:
 
         dirty: list[DirtyRepo] = []
         targets = sdd_commit_targets(store, None)
-        for index, (target_store, _paths) in enumerate(targets):
+        for target_store, _paths in targets:
             repo_root = target_store.repo_root.expanduser()
             if not (repo_root / ".git").exists():
                 continue
             changed_files = git_changed_files(str(repo_root))
             if not changed_files:
                 continue
-            fallback = (
-                "research"
-                if store.is_sidecar_storage and index == 1
-                else "plans"
-                if store.is_sidecar_storage
-                else "sdd"
-            )
             dirty.append(
                 DirtyRepo(
-                    name=sdd_store_label(target_store) or fallback,
+                    name=(
+                        sdd_store_label(target_store)
+                        or target_store.sidecar_role
+                        or "sdd"
+                    ),
                     path=finalizer_git.normalize_path(str(repo_root)),
                     changed_files=tuple(changed_files),
                     kind="sdd",

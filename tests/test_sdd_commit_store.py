@@ -8,11 +8,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sase.sdd._commit_store import sdd_commit_targets, sdd_store_label
 from sase.sdd.files import commit_sdd_store_files
 from sase.sdd._git_contention import store_git_write_lock
 from sase.sdd._repository_transaction import require_sdd_repository_health
-from sase.sdd.store import SddStore
-from tests._sdd_commit_helpers import init_test_git_repo
+from sase.sdd.store import SddStore, write_sdd_store_record
+from tests._sdd_commit_helpers import (
+    init_test_git_repo,
+    make_sidecar_workspace_topology,
+)
 
 
 @pytest.mark.parametrize(
@@ -224,58 +228,21 @@ def test_split_beads_auto_commit_marker_uses_beads_repo_name(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.sdd.store import write_sdd_store_record
-
-    workspace = tmp_path / "workspace"
-    plans = workspace / "sase" / "repos" / "plans"
-    research = workspace / "sase" / "repos" / "research"
-    beads = workspace / "sase" / "repos" / "beads"
+    topology = make_sidecar_workspace_topology(tmp_path)
     artifacts = tmp_path / "artifacts"
-    workspace.mkdir()
-    plans.mkdir(parents=True)
-    research.mkdir()
+    topology.plans.mkdir(parents=True)
+    topology.research.mkdir()
     artifacts.mkdir()
-    init_test_git_repo(beads)
-    issue = beads / "issues.jsonl"
+    init_test_git_repo(topology.beads)
+    issue = topology.beads / "issues.jsonl"
     issue.write_text('{"id":"project-1"}\n', encoding="utf-8")
-    write_sdd_store_record(
-        workspace,
-        {
-            "schema_version": 3,
-            "storage": "sidecar_repos",
-            "provider": "github",
-            "sidecars": {
-                "plans": {
-                    "repo": "acme/project--plans",
-                    "remote_url": "git@example.com:acme/project--plans.git",
-                },
-                "research": {
-                    "repo": "acme/project--research",
-                    "remote_url": "git@example.com:acme/project--research.git",
-                },
-                "beads": {
-                    "repo": "acme/project--beads",
-                    "remote_url": "git@example.com:acme/project--beads.git",
-                },
-            },
-        },
-    )
-    store = SddStore(
-        storage="sidecar_repos",
-        sdd_dir=plans,
-        repo_root=plans,
-        remote_url="git@example.com:acme/project--plans.git",
-        research_dir=research,
-        research_remote_url="git@example.com:acme/project--research.git",
-        beads_dir=beads,
-    )
     monkeypatch.setattr(
         "sase.config.load_merged_config",
         lambda: {"sdd": {"push_after_commit": False}},
     )
 
     assert commit_sdd_store_files(
-        store,
+        topology.store,
         "Commit bead state",
         paths=[issue],
         artifacts_dir=artifacts,
@@ -284,4 +251,48 @@ def test_split_beads_auto_commit_marker_uses_beads_repo_name(
     markers = json.loads(
         (artifacts / "commit_results.json").read_text(encoding="utf-8")
     )
-    assert markers[0]["repo_name"] == "acme/project--beads"
+    assert markers[0]["repo_name"] == "beads"
+
+
+def test_sidecar_commit_targets_are_labeled_by_role_in_numbered_workspace(
+    tmp_path: Path,
+) -> None:
+    topology = make_sidecar_workspace_topology(tmp_path)
+
+    targets = [target for target, _paths in sdd_commit_targets(topology.store, None)]
+
+    assert [target.sidecar_role for target in targets] == [
+        "plans",
+        "research",
+        "beads",
+    ]
+    assert [sdd_store_label(target) for target in targets] == [
+        "plans",
+        "research",
+        "beads",
+    ]
+
+
+def test_separate_repo_label_reads_record_from_primary_workspace(
+    tmp_path: Path,
+) -> None:
+    topology = make_sidecar_workspace_topology(tmp_path)
+    legacy_store = topology.workspace / ".sase" / "sdd"
+    legacy_store.mkdir()
+    write_sdd_store_record(
+        topology.primary,
+        {
+            "schema_version": 1,
+            "storage": "separate_repo",
+            "provider": "github",
+            "repo": "acme/project--sdd",
+            "remote_url": "git@example.com:acme/project--sdd.git",
+        },
+    )
+    store = SddStore(
+        storage="separate_repo",
+        sdd_dir=legacy_store,
+        repo_root=legacy_store,
+    )
+
+    assert sdd_store_label(store) == "acme/project--sdd"

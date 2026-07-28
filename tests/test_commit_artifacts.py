@@ -15,6 +15,7 @@ from sase.workflows.commit.commit_tracking import (
     write_result_marker,
 )
 from sase.workflows.commit.pr_operations import build_pr_body
+from tests._sdd_commit_helpers import make_sidecar_workspace_topology
 
 
 class TestWriteResultMarker:
@@ -275,38 +276,22 @@ class TestWriteResultMarker:
         assert persisted["commit_diff_path"] == "/tmp/primary.diff"
         assert persisted["commit_changespec_name"] == "primary_spec"
 
-    def test_sidecar_commit_records_store_repo_name(
+    def test_sidecar_commit_records_role_name(
         self,
         tmp_path: Path,
     ) -> None:
-        from sase.sdd.store import write_sdd_store_record
-
+        topology = make_sidecar_workspace_topology(
+            tmp_path,
+            owner="sase-org",
+            project="sase",
+        )
         artifacts_dir = tmp_path / "artifacts"
-        primary = tmp_path / "sase_7"
-        sidecar = primary / "sase" / "repos" / "plans"
+        sidecar = topology.plans
         artifacts_dir.mkdir()
         sidecar.mkdir(parents=True)
         (artifacts_dir / "agent_meta.json").write_text(
-            json.dumps({"workspace_dir": str(primary)}),
+            json.dumps({"workspace_dir": str(topology.workspace)}),
             encoding="utf-8",
-        )
-        write_sdd_store_record(
-            primary,
-            {
-                "schema_version": 2,
-                "storage": "sidecar_repos",
-                "provider": "github",
-                "sidecars": {
-                    "plans": {
-                        "repo": "sase-org/sase--plans",
-                        "remote_url": "git@example.com:sase-org/sase--plans.git",
-                    },
-                    "research": {
-                        "repo": "sase-org/sase--research",
-                        "remote_url": "git@example.com:sase-org/sase--research.git",
-                    },
-                },
-            },
         )
 
         with (
@@ -324,44 +309,24 @@ class TestWriteResultMarker:
         marker = json.loads(
             (artifacts_dir / "commit_result.json").read_text(encoding="utf-8")
         )
-        assert marker["repo_name"] == "sase-org/sase--plans"
+        assert marker["repo_name"] == "plans"
 
-    def test_beads_sidecar_commit_records_store_repo_name(
+    def test_beads_sidecar_commit_records_role_name(
         self,
         tmp_path: Path,
     ) -> None:
-        from sase.sdd.store import write_sdd_store_record
-
+        topology = make_sidecar_workspace_topology(
+            tmp_path,
+            owner="sase-org",
+            project="sase",
+        )
         artifacts_dir = tmp_path / "artifacts"
-        primary = tmp_path / "sase_7"
-        beads = primary / "sase" / "repos" / "beads"
+        beads = topology.beads
         artifacts_dir.mkdir()
         beads.mkdir(parents=True)
         (artifacts_dir / "agent_meta.json").write_text(
-            json.dumps({"workspace_dir": str(primary)}),
+            json.dumps({"workspace_dir": str(topology.workspace)}),
             encoding="utf-8",
-        )
-        write_sdd_store_record(
-            primary,
-            {
-                "schema_version": 3,
-                "storage": "sidecar_repos",
-                "provider": "github",
-                "sidecars": {
-                    "plans": {
-                        "repo": "sase-org/sase--plans",
-                        "remote_url": "git@example.com:sase-org/sase--plans.git",
-                    },
-                    "research": {
-                        "repo": "sase-org/sase--research",
-                        "remote_url": "git@example.com:sase-org/sase--research.git",
-                    },
-                    "beads": {
-                        "repo": "sase-org/sase--beads",
-                        "remote_url": "git@example.com:sase-org/sase--beads.git",
-                    },
-                },
-            },
         )
 
         with (
@@ -379,7 +344,7 @@ class TestWriteResultMarker:
         marker = json.loads(
             (artifacts_dir / "commit_result.json").read_text(encoding="utf-8")
         )
-        assert marker["repo_name"] == "sase-org/sase--beads"
+        assert marker["repo_name"] == "beads"
 
     @pytest.mark.parametrize(
         ("clone_parts", "repo_name"),
@@ -567,6 +532,18 @@ class TestWriteResultMarker:
             ]
             assert update_index.call_count == 2
             update_index.assert_called_with(tmpdir)
+
+    def test_sdd_commit_without_repo_name_uses_store_directory_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            record_sdd_commit_result_marker(
+                artifacts_dir=tmpdir,
+                cwd="/workspace/sase/sase/repos/beads",
+                result="abc123",
+                message="chore(beads): update state",
+            )
+
+            results = json.loads((Path(tmpdir) / "commit_results.json").read_text())
+            assert results[0]["repo_name"] == "beads"
 
 
 class TestBuildPrBody:
