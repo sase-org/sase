@@ -372,6 +372,21 @@ class CommitWorkflow(BaseWorkflow):
 
         if self._method not in ("create_commit", "create_pull_request"):
             return RunResult.OK
+        if "publish_bead_pages" not in cp.completed_steps:
+            from sase.bead_pages.publication import publish_committed_bead_pages
+
+            try:
+                publish_committed_bead_pages(
+                    str(cp.payload.get("message") or ""),
+                    primary_root=cp.cwd,
+                )
+            except Exception as exc:  # noqa: BLE001 - best-effort projection.
+                print_status(
+                    f"Could not publish committed bead pages: {exc}",
+                    "warning",
+                )
+            cp.completed_steps.append("publish_bead_pages")
+            checkpoint_save(cp)
         if "publish_agent_hood" in cp.completed_steps:
             return RunResult.OK
         from sase.agents_sync.commit_publication import (

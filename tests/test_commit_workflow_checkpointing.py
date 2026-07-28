@@ -242,6 +242,7 @@ def test_run_records_completed_steps_in_order_for_create_commit(
         "dispatch",
         "after_hook",
         "write_result_marker",
+        "publish_bead_pages",
         "append_commits_entry",
         "final_result_marker",
     ]
@@ -526,6 +527,7 @@ def test_run_records_completed_steps_for_pull_request(
         "after_hook",
         "create_changespec",
         "write_result_marker",
+        "publish_bead_pages",
     ]
 
 
