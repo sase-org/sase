@@ -160,6 +160,16 @@ def snapshot_agent_publications(
     return _read_outbox(_outbox_path(project_key), project_key)
 
 
+def snapshot_agent_publications_from_path(
+    path: Path | str,
+    project_key: str,
+) -> tuple[AgentPublicationOutboxItem, ...]:
+    """Read one immutable typed outbox snapshot from an explicit path."""
+
+    validate_sase_project_name(project_key)
+    return _read_outbox(Path(path), project_key)
+
+
 def update_agent_publications(
     project_key: str,
     logical_keys: Iterable[tuple[str, str]],
@@ -485,5 +495,6 @@ __all__ = [
     "list_agent_publications",
     "publication_quarantine_diagnostics",
     "snapshot_agent_publications",
+    "snapshot_agent_publications_from_path",
     "update_agent_publications",
 ]

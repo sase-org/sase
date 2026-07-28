@@ -287,6 +287,51 @@ def test_publication_failure_with_durable_outbox_keeps_primary_successful(
 
 
 @patch(_PROVIDER_TARGET)
+def test_publication_warning_names_quarantined_backlog(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.agents_sync.commit_publication import _CommitPublicationOutcome
+    from sase.core.agent_identity_facade import AgentOwnerIdentity
+
+    monkeypatch.setenv("SASE_AGENT_NAME", "foo--code")
+    monkeypatch.setattr(
+        "sase.config.require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("test-user", "test_host"),
+    )
+    provider = _make_provider(dispatch_result=(True, "not-a-sha"))
+    provider.revision_id.return_value = "a" * 40
+    mock_get.return_value = provider
+
+    with (
+        patch(
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+            return_value=_CommitPublicationOutcome(
+                queued=True,
+                quarantined=2,
+                error="committing agent absent from project inventory",
+            ),
+        ),
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value=None,
+        ),
+    ):
+        assert CommitWorkflow({"message": "fix: bug"}, "create_commit").run() == (
+            RunResult.OK
+        )
+
+    output = " ".join(capsys.readouterr().out.split())
+    assert "already has 2 quarantined agent-hood publication requests" in output
+    assert "link written to this commit may remain unavailable" in output
+    assert "sase agent sync --retry-quarantined" in output
+    assert "will retry automatically" not in output
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
 def test_family_member_commit_uses_metadata_for_footer_and_publication(
     mock_get: MagicMock,
     artifacts_dir: Path,

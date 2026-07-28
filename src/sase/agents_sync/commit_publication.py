@@ -43,6 +43,7 @@ class _CommitPublicationOutcome:
     published: bool = False
     queued: bool = False
     drained: int = 0
+    quarantined: int = 0
     skip_reason: str | None = None
     error: str | None = None
 
@@ -102,16 +103,18 @@ def publish_committed_agent_hood(
             error=f"could not persist agents publication retry: {exc}"
         )
     if not active_requests:
+        requests = list_agent_publications(target.project_key)
         quarantined = next(
             (
                 request
-                for request in list_agent_publications(target.project_key)
+                for request in requests
                 if request.logical_key == item.logical_key
             ),
             None,
         )
         return _CommitPublicationOutcome(
             queued=True,
+            quarantined=sum(item.quarantined for item in requests),
             error=(
                 quarantined.last_error
                 if quarantined is not None
@@ -157,6 +160,7 @@ def publish_committed_agent_hood(
         published=result.drained > 0,
         queued=bool(remaining),
         drained=result.drained,
+        quarantined=sum(item.quarantined for item in remaining),
         error="; ".join(result.item_errors) if result.item_errors else None,
     )
 
@@ -461,13 +465,17 @@ def _record_failure(
         if logical_keys is None
         else logical_keys
     )
-    update_agent_publications(
+    updated = update_agent_publications(
         target.project_key,
         selected,
         error=error,
         increment_attempts=True,
     )
-    return _CommitPublicationOutcome(queued=True, error=error)
+    return _CommitPublicationOutcome(
+        queued=True,
+        quarantined=sum(item.quarantined for item in updated),
+        error=error,
+    )
 
 
 def _current_project() -> str | None:

@@ -210,6 +210,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "project.current",
         "workspace.registry",
         "state.agent_index",
+        "state.agent_publication_outbox",
         "project.beads",
         "ops.telemetry_status",
         "integrations.mobile_push_config",

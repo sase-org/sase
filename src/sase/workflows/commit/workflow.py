@@ -430,8 +430,7 @@ class CommitWorkflow(BaseWorkflow):
             return RunResult.FAILED
         if outcome.queued:
             print_status(
-                "Primary commit succeeded; agent-hood publication will retry "
-                f"automatically: {outcome.error}",
+                _agent_publication_deferred_message(outcome),
                 "warning",
             )
         cp.completed_steps.append("publish_agent_hood")
@@ -554,6 +553,25 @@ def _get_head_subject(provider: object, cwd: str) -> str | None:
     if not ok or not desc:
         return None
     return desc.strip().splitlines()[0] if desc.strip() else ""
+
+
+def _agent_publication_deferred_message(outcome: object) -> str:
+    error = getattr(outcome, "error", None)
+    quarantined = int(getattr(outcome, "quarantined", 0) or 0)
+    error_detail = f" Last error: {error}" if error else ""
+    if quarantined:
+        plural = "" if quarantined == 1 else "s"
+        return (
+            "Primary commit succeeded, but this project already has "
+            f"{quarantined} quarantined agent-hood publication request{plural}. "
+            "The link written to this commit may remain unavailable until the "
+            "outbox is retried. Run `sase agent sync --retry-quarantined` "
+            f"to retry.{error_detail}"
+        )
+    return (
+        "Primary commit succeeded; agent-hood publication is queued and will "
+        f"retry automatically.{error_detail}"
+    )
 
 
 def _reconcile_changespec_from_project_file(
