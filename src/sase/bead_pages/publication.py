@@ -75,66 +75,76 @@ def _publish_committed_bead_pages(
         from sase.sdd.hosted_links import hosted_link_resolver
 
         root_id = bead_lineage_root(bead_id)
-        with open_bead_project_for_beads_dir(store.kind_root("beads")) as view:
-            issues = tuple(view.list_issues())
-            known_ids = frozenset(issue.id for issue in issues)
-            if bead_id not in known_ids:
-                return _BeadPagePublicationOutcome(
-                    skip_reason=f"bead does not exist in store: {bead_id}"
+        changed_paths: list[Path] = []
+        page_error: str | None = None
+        try:
+            with open_bead_project_for_beads_dir(store.kind_root("beads")) as view:
+                issues = tuple(view.list_issues())
+                known_ids = frozenset(issue.id for issue in issues)
+                if bead_id not in known_ids:
+                    return _BeadPagePublicationOutcome(
+                        skip_reason=f"bead does not exist in store: {bead_id}"
+                    )
+                lineage = tuple(
+                    sorted(
+                        (
+                            issue
+                            for issue in issues
+                            if bead_lineage_root(issue.id) == root_id
+                        ),
+                        key=lambda issue: issue.id,
+                    )
                 )
-            lineage = tuple(
-                sorted(
+                resolver = hosted_link_resolver(
+                    store,
+                    project=project,
+                    primary_root=primary_root,
+                )
+                association_index = build_bead_association_index(
+                    store,
+                    primary_root=primary_root,
+                    project=project,
+                    link_resolver=resolver,
+                    bead_issues=issues,
+                )
+                payloads = tuple(
                     (
-                        issue
-                        for issue in issues
-                        if bead_lineage_root(issue.id) == root_id
-                    ),
-                    key=lambda issue: issue.id,
+                        beads_repo / bead_page_path(issue.id),
+                        render_bead_page_bytes(
+                            view,
+                            issue,
+                            association_index,
+                            link_resolver=resolver,
+                        ),
+                    )
+                    for issue in lineage
                 )
-            )
-            resolver = hosted_link_resolver(
-                store,
-                project=project,
-                primary_root=primary_root,
-            )
-            association_index = build_bead_association_index(
-                store,
-                primary_root=primary_root,
-                project=project,
-                link_resolver=resolver,
-                bead_issues=issues,
-            )
-            payloads = tuple(
-                (
-                    beads_repo / bead_page_path(issue.id),
-                    render_bead_page_bytes(
-                        view,
-                        issue,
-                        association_index,
-                        link_resolver=resolver,
-                    ),
-                )
-                for issue in lineage
-            )
+            changed_paths = _write_changed_pages(payloads)
+        except Exception as exc:  # noqa: BLE001 - pages remain best-effort.
+            page_error = str(exc) or type(exc).__name__
+            _logger.warning("Could not publish committed bead pages: %s", page_error)
 
-        changed_paths = _write_changed_pages(payloads)
-        if not changed_paths:
-            return _BeadPagePublicationOutcome()
-
+        # The store may already contain a bead mutation from this agent turn.
+        # Commit the whole beads root after rendering so state and pages land in
+        # one atomic sidecar commit under the lock held above.
         from sase.sdd.files import commit_sdd_store_files
 
         try:
             committed = commit_sdd_store_files(
                 store,
-                f"Publish bead pages for {root_id}",
-                paths=changed_paths,
+                f"chore(beads): sync bead state and pages for {root_id}",
+                paths=[store.kind_root("beads")],
                 auto_commit_type="beads",
                 push_after_commit="async",
                 already_locked=True,
             )
         except Exception as exc:  # noqa: BLE001 - preserve changed projection.
-            return _error_outcome(exc, changed=True)
-        return _BeadPagePublicationOutcome(changed=True, committed=committed)
+            return _error_outcome(exc, changed=bool(changed_paths))
+        return _BeadPagePublicationOutcome(
+            changed=bool(changed_paths),
+            committed=committed,
+            error=page_error,
+        )
 
 
 def _committed_bead_id(commit_message: str) -> str | None:

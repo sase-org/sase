@@ -410,11 +410,16 @@ def _auto_commit_separate_sdd_store_if_possible(
             repo_roots.append(store.beads_dir)
         if not any((root / ".git").exists() for root in repo_roots):
             return False
+        beads_root = store.kind_root("beads")
+        from sase.bead.sync import bead_state_is_clean
+
+        if bead_state_is_clean(beads_root):
+            return False
         return commit_sdd_store_files(
             store,
             "chore(beads): sync bead state",
             auto_commit_type="beads",
-            paths=[store.kind_root("beads")],
+            paths=[beads_root],
             artifacts_dir=artifacts_dir,
         )
     except Exception:

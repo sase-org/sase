@@ -333,8 +333,67 @@ def test_split_sdd_store_auto_commit_targets_only_bead_state(
     commit = MagicMock(return_value=True)
     monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_args: store)
     monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", commit)
+    monkeypatch.setattr("sase.bead.sync.bead_state_is_clean", lambda _root: False)
 
     assert _auto_commit_separate_sdd_store_if_possible(str(tmp_path))
+    commit.assert_called_once_with(
+        store,
+        "chore(beads): sync bead state",
+        auto_commit_type="beads",
+        paths=[beads],
+        artifacts_dir=None,
+    )
+
+
+def test_clean_bead_state_skips_finalizer_retry_commits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.sdd.store import SddStore, write_sdd_store_record
+
+    plans = tmp_path / "sase" / "repos" / "plans"
+    research = tmp_path / "sase" / "repos" / "research"
+    beads = tmp_path / "sase" / "repos" / "beads"
+    (beads / ".git").mkdir(parents=True)
+    write_sdd_store_record(
+        tmp_path,
+        {
+            "schema_version": 3,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/project--plans",
+                    "remote_url": "git@example.com:acme/project--plans.git",
+                },
+                "research": {
+                    "repo": "acme/project--research",
+                    "remote_url": "git@example.com:acme/project--research.git",
+                },
+                "beads": {
+                    "repo": "acme/project--beads",
+                    "remote_url": "git@example.com:acme/project--beads.git",
+                },
+            },
+        },
+    )
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        research_dir=research,
+        beads_dir=beads,
+    )
+    commit = MagicMock(return_value=True)
+    clean = MagicMock(side_effect=[False, True])
+    monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_args: store)
+    monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", commit)
+    monkeypatch.setattr("sase.bead.sync.bead_state_is_clean", clean)
+
+    assert _auto_commit_separate_sdd_store_if_possible(str(tmp_path))
+    assert not _auto_commit_separate_sdd_store_if_possible(str(tmp_path))
+
+    assert clean.call_count == 2
     commit.assert_called_once_with(
         store,
         "chore(beads): sync bead state",

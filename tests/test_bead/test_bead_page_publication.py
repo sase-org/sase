@@ -102,7 +102,7 @@ def _patch_publication_dependencies(
         commits.append((message, paths, str(kwargs["push_after_commit"])))
         assert kwargs["auto_commit_type"] == "beads"
         assert kwargs["already_locked"] is True
-        return True
+        return len(commits) == 1
 
     monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", commit_store)
     return commits
@@ -133,14 +133,11 @@ def test_tagged_commit_publishes_whole_lineage_once(
 
     assert first.changed and first.committed
     assert not second.changed and not second.committed
-    assert [path.relative_to(store.beads_dir) for path in commits[0][1]] == [
-        Path("pages/sase-ai/README.md"),
-        Path("pages/sase-ai/sase-ai.5.md"),
-    ]
-    assert commits == [
+    assert commits[0][1] == (store.beads_dir,)
+    assert commits == 2 * [
         (
-            "Publish bead pages for sase-ai",
-            commits[0][1],
+            "chore(beads): sync bead state and pages for sase-ai",
+            (store.beads_dir,),
             "async",
         )
     ]
@@ -178,7 +175,7 @@ def test_rendering_failure_is_captured(
 ) -> None:
     store = _store(tmp_path)
     issue = Issue("sase-ai", "Published pages", issue_type=IssueType.PLAN)
-    _patch_publication_dependencies(monkeypatch, store, _View((issue,)))
+    commits = _patch_publication_dependencies(monkeypatch, store, _View((issue,)))
     monkeypatch.setattr(
         "sase.bead_pages.rendering.render_bead_page_bytes",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("render failed")),
@@ -190,7 +187,14 @@ def test_rendering_failure_is_captured(
     )
 
     assert outcome.error == "render failed"
-    assert not outcome.changed and not outcome.committed
+    assert not outcome.changed and outcome.committed
+    assert commits == [
+        (
+            "chore(beads): sync bead state and pages for sase-ai",
+            (store.beads_dir,),
+            "async",
+        )
+    ]
     assert "Could not publish committed bead pages" in caplog.text
 
 
