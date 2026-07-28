@@ -8,7 +8,7 @@ initialize sase memory in that case.
 
 ## Tier 1 (short-term) Memory
 
-The following memories contains core (always loaded) context:
+The following memories contain core (always loaded) context:
 
 {{ tier1_sections }}
 

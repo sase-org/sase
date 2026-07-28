@@ -123,7 +123,7 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Managed Instructions\n")
     assert "## Tier 1 (short-term) Memory" in agents
-    assert "The following memories contains core (always loaded) context:" in agents
+    assert "The following memories contain core (always loaded) context:" in agents
     # Short memory is inlined (no ``@sase/memory/...`` imports) under H3 headers.
     assert "### 1. Extra (extra)" in agents
     assert "### 2. SASE = Structured Agentic Software Engineering (sase)" in agents

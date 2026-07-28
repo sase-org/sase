@@ -37,7 +37,7 @@ def _assert_derived_managed_agents(agents: str) -> None:
         "README. Do NOT ask for separate permission to\n"
         "initialize sase memory in that case.\n\n"
         "## Tier 1 (short-term) Memory\n\n"
-        "The following memories contains core (always loaded) context:\n\n"
+        "The following memories contain core (always loaded) context:\n\n"
         "### 1. SASE = Structured Agentic Software Engineering (sase)\n"
     )
     assert "@sase/memory/sase.md" not in agents
