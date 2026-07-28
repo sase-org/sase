@@ -848,14 +848,16 @@ expanded panel, as well as collapsed titles, and support the normal `Ctrl+O` jum
 Lowercase `l` only advances a real fold owned by the selected row or its immediate workflow/family owner, so a visible
 hidden leaf under an already fully expanded workflow is a no-op. Uppercase `H` is the structural mutation key. In the
 next grouping scope it fully collapses every open workflow/family house in one press, regardless of which house row is
-selected. Once houses are closed, one press fully collapses every open canonical clan in that same group; only a later
-press collapses the grouping banner. Tools detail still takes priority. On a selected expanded whole panel, `H` uses a
-separate panel-wide ladder: the first press fully collapses every open canonical house in that panel, including houses
-hidden by grouping banners; the next press collapses every open canonical clan in the panel, also including clans hidden
-by grouping banners; later presses collapse the last expanded top-level grouping banner in rendered order, one banner
-per press; and the final press collapses the panel through the same path as lowercase `h`. An already collapsed panel is
-a terminal no-op with the usual already-collapsed notification. The merged layout has no whole-panel focus and keeps the
-row-focused group scope across the merged roster.
+selected. Once houses are closed, the next press collapses only the open canonical clan enclosing the selected row. With
+that now-collapsed clan container still selected, another press collapses every remaining open canonical clan in the
+group; only a later press collapses the grouping banner. A banner, standalone lane, or already-collapsed clan selection
+proceeds directly to that group-wide clan sweep. Tools detail still takes priority. On a selected expanded whole panel,
+`H` uses a separate panel-wide ladder: the first press fully collapses every open canonical house in that panel,
+including houses hidden by grouping banners; the next press collapses every open canonical clan in the panel, also
+including clans hidden by grouping banners; later presses collapse the last expanded top-level grouping banner in
+rendered order, one banner per press; and the final press collapses the panel through the same path as lowercase `h`. An
+already collapsed panel is a terminal no-op with the usual already-collapsed notification. The merged layout has no
+whole-panel focus and keeps the row-focused group scope across the merged roster.
 
 With a whole panel selected, uppercase `Z` keeps that panel expanded and collapses every sibling panel. If that changes
 the layout, ACE remembers the prior collapsed-panel set for one session-local restore. Panels whose state would change
@@ -958,15 +960,17 @@ result. Consequently, a clan with queued work and ordinary waiters displays `QUE
 state is present. Its count chip remains concrete and independent, so `QUEUED [Q3 W6]` reports three global-cap waiters
 and six explicit, dependency, bead, or time waiters without merging the two categories.
 
-The uppercase `H` ladder is scope-wide rather than selection-wide. If the grouping banner that `H` would collapse next
-contains any open standalone workflow, agent, or sequential-family house, the first press drives every such house
-directly to fully collapsed while leaving the banner open. A selected child row re-anchors to its visible house owner.
-Once houses are saturated, the next press drives every open canonical clan in that same group directly to collapsed,
-including an expanded sibling of the selected row. A selected direct clan member re-anchors to its visible clan
-container; a surviving row keeps its identity and focus state. The footer advertises `H collapse houses`, then
-`H collapse clans`, and only then `H collapse group`. Equal group names in other tribe panels are never affected; merged
-layout intentionally treats the merged panel as one scope. Ambiguous or malformed clan owners are skipped without
-blocking valid siblings.
+The uppercase `H` ladder is group-scoped, with the selected clan receiving precedence inside that scope. If the grouping
+banner that `H` would collapse next contains any open standalone workflow, agent, or sequential-family house, the first
+press drives every such house directly to fully collapsed while leaving the banner open. A selected child row re-anchors
+to its visible house owner. Once houses are saturated, a selection inside an open canonical clan makes the next press
+collapse only that clan. A selected descendant re-anchors to its visible clan container; selecting the container itself
+preserves selection without writing new selection memory. With the collapsed container still selected, the following
+press drives every remaining open canonical clan in the group directly to collapsed. A grouping banner, standalone lane,
+already-collapsed clan, or invalid clan owner falls through to that group-wide sweep immediately. The footer advertises
+`H collapse houses`, then `H collapse clan`, then `H collapse clans`, and only then `H collapse group`. Equal group
+names in other tribe panels are never affected; merged layout intentionally treats the merged panel as one scope.
+Ambiguous or malformed clan owners are skipped without blocking valid siblings.
 
 Whole-panel focus has its own `H` ordering because it has no selected row or grouping scope. It first fully collapses
 all open canonical houses anywhere in the selected panel in one press. It next collapses every open canonical clan in

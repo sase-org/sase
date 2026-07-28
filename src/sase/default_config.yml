@@ -255,10 +255,10 @@ ace:
       # collapses an explicitly selected expanded panel, and jumps from a
       # collapsed panel to the last expanded panel when one exists. H compacts
       # Tools; on row focus it fully collapses houses in the next group, then
-      # every open clan in that group, then the selected structural fallback
-      # and group. On whole-panel focus it collapses every open house, then
-      # every open clan in that panel, then the last expanded top-level group
-      # per press, and finally the panel.
+      # the selected open clan, then every remaining open clan in that group,
+      # then the selected structural fallback and group. On whole-panel focus
+      # it collapses every open house, then every open clan in that panel, then
+      # the last expanded top-level group per press, and finally the panel.
       # l expands or enters a selected panel; L hints the selected tribe's
       # folds, and one key toggles one fold. Z zooms agent detail or
       # isolates/restores a selected panel. Other tabs retain their fold

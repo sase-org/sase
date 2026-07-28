@@ -147,13 +147,14 @@ collapsed clan to reveal its direct members. The clan's outer fold is binary, so
 press `l` there to reveal that row's descendants. Lowercase `h` moves from any agent, Bash, Python, parallel, embedded,
 or compatibility workflow step to its validated immediate workflow, family, clan, or tribe parent without changing fold
 state. Uppercase `H` first fully collapses every open workflow/family house in the next grouping scope, then collapses
-every open canonical clan in that same group in one batch, and only then falls back to selected-row structural handling
-and grouping collapse on a later press. Thus an open sibling clan collapses even when the focused clan is already
-closed. Selecting the clan row shows an aggregate `CLAN` header and a navigable summary of every section represented
-across its members. In the Agents list, direct members sort by status priority — Failed, Stopped, Running/Starting,
-Queued, Waiting, Done — and then by launch recency within a bucket. The metadata roster uses chronological launch order
-instead, keeping its number-to-member mapping stable while statuses change. The runtime is the union of member run
-intervals, with human-wait windows excluded, so concurrent members are not double-counted.
+only the open canonical clan enclosing the selection. The next press from that collapsed clan container collapses every
+remaining open canonical clan in the group, and only then does a later press fall back to selected-row structural
+handling and grouping collapse. A selection without an open enclosing clan proceeds directly to the group-wide sweep.
+Selecting the clan row shows an aggregate `CLAN` header and a navigable summary of every section represented across its
+members. In the Agents list, direct members sort by status priority — Failed, Stopped, Running/Starting, Queued,
+Waiting, Done — and then by launch recency within a bucket. The metadata roster uses chronological launch order instead,
+keeping its number-to-member mapping stable while statuses change. The runtime is the union of member run intervals,
+with human-wait windows excluded, so concurrent members are not double-counted.
 
 ### Clan summary folding
 
@@ -378,9 +379,9 @@ banners; next it collapses the last expanded top-level grouping banner in render
 collapses the panel through the same path as lowercase `h`. Nested grouping folds and structural folds in sibling panels
 are left alone. Ambiguous or malformed clan owners are skipped. An already collapsed panel is the saturated terminal
 state. Whole-panel `H` is unavailable in merged layout, where the existing row/group-scoped ladder remains in effect.
-That row ladder is group-wide: houses close first, every open canonical clan in the next group closes in one batch, and
-the grouping banner closes only after both structural rungs are saturated. Custom keys bound to `hooks_or_collapse_all`
-receive the same contextual behavior and footer labels.
+That row ladder closes group-wide houses first, then the selected open clan, then every remaining open canonical clan in
+the next group; the grouping banner closes only after those structural rungs are saturated. Custom keys bound to
+`hooks_or_collapse_all` receive the same contextual behavior and footer labels.
 
 Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four `zz` metadata detail levels are:
 

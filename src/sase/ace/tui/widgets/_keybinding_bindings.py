@@ -113,6 +113,7 @@ class KeybindingBindingsMixin:
         left_navigation_kind: str | None = None,
         house_collapse_available: bool = False,
         clan_collapse_available: bool = False,
+        selected_clan_collapse_available: bool = False,
         structural_collapse_kind: str | None = None,
         group_collapse_available: bool = False,
         focused_panel_key: str | None = None,
@@ -227,7 +228,11 @@ class KeybindingBindingsMixin:
         elif house_collapse_available:
             collapse_all_label = "collapse houses"
         elif clan_collapse_available:
-            collapse_all_label = "collapse clans"
+            collapse_all_label = (
+                "collapse clan"
+                if selected_clan_collapse_available
+                else "collapse clans"
+            )
         elif structural_collapse_kind in {"workflow", "family", "clan"}:
             collapse_all_label = f"collapse {structural_collapse_kind}"
         elif group_collapse_available:

@@ -36,6 +36,7 @@ class StubFoldApp(EntryJumpAgentHistoryMixin, AgentFoldingMixin):
         self._panel_selection_memory: dict[
             str | None, tuple[str, int | tuple[str, ...]]
         ] = {}
+        self.panel_selection_memory_calls: list[tuple[str, int | tuple[str, ...]]] = []
         self._entry_jump_agents_anchor_stack = []
         self._entry_jump_agents_forward_anchor_stack = []
         self.current_attempt_number: int | None = None
@@ -107,6 +108,7 @@ class StubFoldApp(EntryJumpAgentHistoryMixin, AgentFoldingMixin):
                 if self._current_group_key is not None
                 else ("agent", self.current_idx)
             )
+        self.panel_selection_memory_calls.append(stop)
         self._panel_selection_memory[self._panel_group.focused_key] = stop
 
     def _resolve_focused_panel(self) -> AgentPanelFocus | None:

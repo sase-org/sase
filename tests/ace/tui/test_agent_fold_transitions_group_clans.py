@@ -76,7 +76,98 @@ def _sync_fold_projection(
     )
 
 
-def test_row_h_collapses_sibling_clan_before_status_group() -> None:
+def test_row_h_collapses_selected_clan_then_siblings_then_status_group() -> None:
+    selected_rows = _projected_clan("sase-ac.6", tribe="epic")
+    sibling_rows = _projected_clan("sase-af", tribe="epic")
+    closed_rows = _projected_clan("sase-ae", tribe="epic")
+    agents = [*selected_rows, *sibling_rows, *closed_rows]
+    selected_clan = _clan_container(agents, "sase-ac.6")
+    selected_member = next(row for row in selected_rows if not row.is_clan_container)
+    sibling_clan = _clan_container(agents, "sase-af")
+    selected_key = agent_fold_key(selected_clan)
+    sibling_key = agent_fold_key(sibling_clan)
+    assert selected_key is not None and sibling_key is not None
+
+    app = StubFoldApp(agents)
+    app._grouping_mode = GroupingMode.BY_STATUS
+    app._fold_manager.expand(selected_key)
+    app._fold_manager.expand(sibling_key)
+    _sync_fold_projection(
+        app,
+        agents,
+        selected_member,
+        focused_key="epic",
+    )
+    selected_memory = ("agent", app.current_idx)
+    app._panel_selection_memory["epic"] = selected_memory
+    history = [("agent", selected_member.identity)]
+    app._entry_jump_agents_anchor_stack = list(history)
+
+    target = app._resolve_agent_clan_collapse_target()
+    assert target is not None
+    assert target.panel_key == "epic"
+    assert target.group_key == ("Running",)
+    assert target.fold_keys == (selected_key, sibling_key)
+    narrowed = app._narrow_agent_clan_collapse_target_to_selection(target)
+    assert narrowed is not None
+    assert narrowed.panel_key == target.panel_key
+    assert narrowed.group_key == target.group_key
+    assert narrowed.fold_keys == (selected_key,)
+    assert narrowed.reanchor_index == app._agents.index(selected_clan)
+
+    resolver_calls = 0
+    original_resolver = app._resolve_agent_clan_collapse_target
+
+    def resolve_once() -> object:
+        nonlocal resolver_calls
+        resolver_calls += 1
+        return original_resolver()
+
+    app._resolve_agent_clan_collapse_target = resolve_once  # type: ignore[method-assign]
+    app.action_hooks_or_collapse_all()
+
+    registry = app._group_fold_registry.for_panel("epic")
+    selected_clan_index = app._agents.index(selected_clan)
+    assert app._fold_manager.get(selected_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(sibling_key) is FoldLevel.EXPANDED
+    assert not registry.is_collapsed(("Running",))
+    assert app.current_idx == selected_clan_index
+    assert app._agents[app.current_idx] is selected_clan
+    assert app._panel_selection_memory["epic"] == (
+        "agent",
+        selected_clan_index,
+    )
+    assert app.panel_selection_memory_calls == [
+        ("agent", selected_clan_index),
+    ]
+    assert app._entry_jump_agents_anchor_stack == history
+    assert app.group_fold_changes == []
+    assert app.refilter_kwargs == [{"prior_pos": None, "refresh_content_index": False}]
+    assert resolver_calls == 1
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._fold_manager.get(sibling_key) is FoldLevel.COLLAPSED
+    assert not registry.is_collapsed(("Running",))
+    assert app.current_idx == selected_clan_index
+    assert app.panel_selection_memory_calls == [
+        ("agent", selected_clan_index),
+    ]
+    assert app.refilter_kwargs == [
+        {"prior_pos": None, "refresh_content_index": False},
+        {"prior_pos": None, "refresh_content_index": False},
+    ]
+    assert app.group_fold_changes == []
+    assert resolver_calls == 2
+
+    app.action_hooks_or_collapse_all()
+
+    assert registry.is_collapsed(("Running",))
+    assert app.group_fold_changes == [(None, ("Running",), True)]
+    assert resolver_calls == 3
+
+
+def test_row_h_collapses_sibling_clan_when_selected_clan_is_already_closed() -> None:
     open_rows = _projected_clan("sase-8k", tribe="epic")
     selected_rows = _projected_clan("sase-8l", tribe="epic")
     agents = [*open_rows, *selected_rows]
@@ -100,6 +191,7 @@ def test_row_h_collapses_sibling_clan_before_status_group() -> None:
     assert target.panel_key == "epic"
     assert target.group_key == ("Running",)
     assert target.fold_keys == (open_key,)
+    assert app._narrow_agent_clan_collapse_target_to_selection(target) is None
 
     app.action_hooks_or_collapse_all()
 
@@ -117,6 +209,101 @@ def test_row_h_collapses_sibling_clan_before_status_group() -> None:
 
     assert registry.is_collapsed(("Running",))
     assert app.group_fold_changes == [(None, ("Running",), True)]
+
+
+def test_row_h_collapses_selected_open_clan_container_without_reanchor() -> None:
+    selected_rows = _projected_clan("selected")
+    sibling_rows = _projected_clan("sibling")
+    agents = [*selected_rows, *sibling_rows]
+    selected = _clan_container(agents, "selected")
+    selected_key = agent_fold_key(selected)
+    sibling_key = agent_fold_key(_clan_container(agents, "sibling"))
+    assert selected_key is not None and sibling_key is not None
+
+    app = StubFoldApp(agents)
+    app._grouping_mode = GroupingMode.BY_STATUS
+    app._fold_manager.expand(selected_key)
+    app._fold_manager.expand(sibling_key)
+    _sync_fold_projection(app, agents, selected)
+    selected_index = app.current_idx
+
+    target = app._resolve_agent_clan_collapse_target()
+    assert target is not None
+    narrowed = app._narrow_agent_clan_collapse_target_to_selection(target)
+    assert narrowed is not None
+    assert narrowed.fold_keys == (selected_key,)
+    assert narrowed.reanchor_index is None
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._fold_manager.get(selected_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(sibling_key) is FoldLevel.EXPANDED
+    assert app.current_idx == selected_index
+    assert app._agents[app.current_idx] is selected
+    assert app.panel_selection_memory_calls == []
+    assert app.refilter_kwargs == [{"prior_pos": None, "refresh_content_index": False}]
+
+
+def test_row_h_single_open_selected_clan_preserves_group_wide_end_state() -> None:
+    rows = _projected_clan("only")
+    clan = _clan_container(rows, "only")
+    member = next(row for row in rows if not row.is_clan_container)
+    clan_key = agent_fold_key(clan)
+    assert clan_key is not None
+
+    app = StubFoldApp(rows)
+    app._grouping_mode = GroupingMode.BY_STATUS
+    app._fold_manager.expand(clan_key)
+    _sync_fold_projection(app, rows, member)
+
+    target = app._resolve_agent_clan_collapse_target()
+    assert target is not None
+    assert target.fold_keys == (clan_key,)
+    narrowed = app._narrow_agent_clan_collapse_target_to_selection(target)
+    assert narrowed is not None
+    assert narrowed.fold_keys == target.fold_keys
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
+    assert not app._group_fold_registry.for_panel(None).is_collapsed(("Running",))
+    assert app.current_idx == app._agents.index(clan)
+
+
+def test_row_h_narrows_deep_descendant_to_enclosing_clan() -> None:
+    member = _clan_member("deep")
+    child = make_agent(
+        cl_name="deep-step",
+        agent_name="deep.worker.step",
+        raw_suffix="deep-step",
+    )
+    child.parent_timestamp = member.raw_suffix
+    rows = project_clan_tree([member, child])
+    clan = _clan_container(rows, "deep")
+    clan_key = agent_fold_key(clan)
+    member_key = agent_fold_key(member)
+    assert clan_key is not None and member_key is not None
+
+    app = StubFoldApp(rows)
+    app._grouping_mode = GroupingMode.BY_STATUS
+    app._fold_manager.expand(clan_key)
+    app._fold_manager.expand(member_key)
+    _sync_fold_projection(app, rows, child)
+    app._fold_manager.collapse_fully_all([member_key])
+    assert app._resolve_agent_house_collapse_target() is None
+
+    target = app._resolve_agent_clan_collapse_target()
+    assert target is not None
+    narrowed = app._narrow_agent_clan_collapse_target_to_selection(target)
+    assert narrowed is not None
+    assert narrowed.fold_keys == (clan_key,)
+    assert narrowed.reanchor_index == app._agents.index(clan)
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
+    assert app.current_idx == app._agents.index(clan)
+    assert app.panel_selection_memory_calls == [("agent", app._agents.index(clan))]
 
 
 def test_row_h_closes_houses_then_all_group_clans_then_group() -> None:
@@ -202,6 +389,48 @@ def test_group_clan_scope_isolates_status_panel_and_merged_layout() -> None:
 
     assert merged._fold_manager.get(open_key) is FoldLevel.COLLAPSED
     assert merged._fold_manager.get(other_panel_key) is FoldLevel.COLLAPSED
+    assert merged._fold_manager.get(done_key) is FoldLevel.EXPANDED
+
+
+def test_selected_clan_narrowing_isolates_sibling_groups_and_panels() -> None:
+    selected_rows = _projected_clan("selected", tribe="epic")
+    sibling_rows = _projected_clan("sibling", tribe="epic")
+    done_rows = _projected_clan("done", status="DONE", tribe="epic")
+    other_panel_rows = _projected_clan("other-panel", tribe="research")
+    agents = [*selected_rows, *sibling_rows, *done_rows, *other_panel_rows]
+    selected = next(row for row in selected_rows if not row.is_clan_container)
+    selected_key = agent_fold_key(_clan_container(agents, "selected"))
+    sibling_key = agent_fold_key(_clan_container(agents, "sibling"))
+    done_key = agent_fold_key(_clan_container(agents, "done"))
+    other_panel_key = agent_fold_key(_clan_container(agents, "other-panel"))
+    assert selected_key is not None and sibling_key is not None
+    assert done_key is not None and other_panel_key is not None
+    keys = (selected_key, sibling_key, done_key, other_panel_key)
+
+    split = StubFoldApp(agents)
+    split._grouping_mode = GroupingMode.BY_STATUS
+    for key in keys:
+        split._fold_manager.expand(key)
+    _sync_fold_projection(split, agents, selected, focused_key="epic")
+
+    split.action_hooks_or_collapse_all()
+
+    assert split._fold_manager.get(selected_key) is FoldLevel.COLLAPSED
+    assert split._fold_manager.get(sibling_key) is FoldLevel.EXPANDED
+    assert split._fold_manager.get(done_key) is FoldLevel.EXPANDED
+    assert split._fold_manager.get(other_panel_key) is FoldLevel.EXPANDED
+
+    merged = StubFoldApp(agents)
+    merged._grouping_mode = GroupingMode.BY_STATUS
+    for key in keys:
+        merged._fold_manager.expand(key)
+    _sync_fold_projection(merged, agents, selected, merged=True)
+
+    merged.action_hooks_or_collapse_all()
+
+    assert merged._fold_manager.get(selected_key) is FoldLevel.COLLAPSED
+    assert merged._fold_manager.get(sibling_key) is FoldLevel.EXPANDED
+    assert merged._fold_manager.get(other_panel_key) is FoldLevel.EXPANDED
     assert merged._fold_manager.get(done_key) is FoldLevel.EXPANDED
 
 
@@ -321,6 +550,7 @@ def test_collapsed_child_banner_scopes_clan_step_to_open_parent() -> None:
     assert target is not None
     assert target.group_key == parent_group
     assert target.fold_keys == (first_key, second_key)
+    assert app._narrow_agent_clan_collapse_target_to_selection(target) is None
     app.action_hooks_or_collapse_all()
 
     assert app._fold_manager.get(first_key) is FoldLevel.COLLAPSED
@@ -331,6 +561,33 @@ def test_collapsed_child_banner_scopes_clan_step_to_open_parent() -> None:
 
     app.action_hooks_or_collapse_all()
     assert registry.is_collapsed(parent_group)
+
+
+def test_standalone_lane_falls_through_to_group_wide_clan_sweep() -> None:
+    clan_rows = _projected_clan("open")
+    clan_key = agent_fold_key(_clan_container(clan_rows, "open"))
+    standalone = make_agent(
+        cl_name="standalone",
+        raw_suffix="standalone",
+    )
+    agents = [*clan_rows, standalone]
+    assert clan_key is not None
+
+    app = StubFoldApp(agents)
+    app._grouping_mode = GroupingMode.BY_STATUS
+    app._fold_manager.expand(clan_key)
+    _sync_fold_projection(app, agents, standalone)
+
+    target = app._resolve_agent_clan_collapse_target()
+    assert target is not None
+    assert target.fold_keys == (clan_key,)
+    assert app._narrow_agent_clan_collapse_target_to_selection(target) is None
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
+    assert app._agents[app.current_idx] is standalone
+    assert app.panel_selection_memory_calls == []
 
 
 def test_malformed_and_duplicate_clans_fail_closed_per_candidate() -> None:
@@ -365,6 +622,7 @@ def test_malformed_and_duplicate_clans_fail_closed_per_candidate() -> None:
     target = app._resolve_agent_clan_collapse_target()
     assert target is not None
     assert target.fold_keys == (valid_key,)
+    assert app._narrow_agent_clan_collapse_target_to_selection(target) is None
     app.action_hooks_or_collapse_all()
 
     assert app._fold_manager.get(valid_key) is FoldLevel.COLLAPSED

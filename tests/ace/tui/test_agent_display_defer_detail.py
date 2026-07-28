@@ -225,14 +225,24 @@ def test_leader_footer_refresh_keeps_unread_and_stopped_flags() -> None:
 
 def test_footer_refresh_uses_navigation_and_collapse_resolver_capabilities() -> None:
     app = _FakeApp()
+    clan_resolver_calls = 0
+    group_clan_target = SimpleNamespace(fold_keys=("group-clan",))
+
     app._resolve_agent_left_navigation_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
         kind="family"
     )
     app._resolve_agent_house_collapse_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
         fold_keys=("house",)
     )
-    app._resolve_agent_clan_collapse_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
-        fold_keys=("group-clan",)
+
+    def resolve_clan() -> object:
+        nonlocal clan_resolver_calls
+        clan_resolver_calls += 1
+        return group_clan_target
+
+    app._resolve_agent_clan_collapse_target = resolve_clan  # type: ignore[attr-defined]
+    app._narrow_agent_clan_collapse_target_to_selection = (  # type: ignore[attr-defined]
+        lambda target: target
     )
     app._resolve_agent_structural_collapse_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
         kind="clan"
@@ -247,8 +257,10 @@ def test_footer_refresh_uses_navigation_and_collapse_resolver_capabilities() -> 
     assert call["left_navigation_kind"] == "family"
     assert call["house_collapse_available"] is True
     assert call["clan_collapse_available"] is False
+    assert call["selected_clan_collapse_available"] is False
     assert call["structural_collapse_kind"] is None
     assert call["group_collapse_available"] is False
+    assert clan_resolver_calls == 0
 
     app._resolve_agent_house_collapse_target = lambda: None  # type: ignore[attr-defined]
     app._apply_agent_footer_update(
@@ -258,8 +270,10 @@ def test_footer_refresh_uses_navigation_and_collapse_resolver_capabilities() -> 
     call = app.footer_widget.agent_binding_calls[-1]
     assert call["house_collapse_available"] is False
     assert call["clan_collapse_available"] is True
+    assert call["selected_clan_collapse_available"] is True
     assert call["structural_collapse_kind"] is None
     assert call["group_collapse_available"] is False
+    assert clan_resolver_calls == 1
 
     app._resolve_agent_clan_collapse_target = lambda: None  # type: ignore[attr-defined]
     app._apply_agent_footer_update(
@@ -269,6 +283,7 @@ def test_footer_refresh_uses_navigation_and_collapse_resolver_capabilities() -> 
     call = app.footer_widget.agent_binding_calls[-1]
     assert call["house_collapse_available"] is False
     assert call["clan_collapse_available"] is False
+    assert call["selected_clan_collapse_available"] is False
     assert call["structural_collapse_kind"] == "clan"
     assert call["group_collapse_available"] is False
 
@@ -300,6 +315,7 @@ def test_footer_refresh_uses_selected_panel_ladder_resolvers() -> None:
     call = app.footer_widget.agent_binding_calls[-1]
     assert call["house_collapse_available"] is True
     assert call["clan_collapse_available"] is False
+    assert call["selected_clan_collapse_available"] is False
     assert call["structural_collapse_kind"] is None
     assert call["group_collapse_available"] is False
 
@@ -309,6 +325,7 @@ def test_footer_refresh_uses_selected_panel_ladder_resolvers() -> None:
     call = app.footer_widget.agent_binding_calls[-1]
     assert call["house_collapse_available"] is False
     assert call["clan_collapse_available"] is True
+    assert call["selected_clan_collapse_available"] is False
     assert call["group_collapse_available"] is False
 
     app._resolve_focused_panel_clan_collapse_target = lambda: None  # type: ignore[attr-defined]
@@ -317,4 +334,5 @@ def test_footer_refresh_uses_selected_panel_ladder_resolvers() -> None:
     call = app.footer_widget.agent_binding_calls[-1]
     assert call["house_collapse_available"] is False
     assert call["clan_collapse_available"] is False
+    assert call["selected_clan_collapse_available"] is False
     assert call["group_collapse_available"] is True

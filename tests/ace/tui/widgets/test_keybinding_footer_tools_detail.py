@@ -205,6 +205,24 @@ def test_footer_selected_panel_clan_rung_uses_custom_collapse_action_key() -> No
     assert ("<f3>", "collapse clans") in bindings
 
 
+def test_footer_selected_clan_rung_uses_singular_custom_collapse_action_key() -> None:
+    footer = KeybindingFooter()
+    footer.set_keymap_registry(
+        load_keymap_registry({"keymaps": {"app": {"hooks_or_collapse_all": "f3"}}})
+    )
+
+    bindings = _labels(
+        footer._compute_agent_bindings(
+            None,
+            clan_collapse_available=True,
+            selected_clan_collapse_available=True,
+        )
+    )
+
+    assert ("<f3>", "collapse clan") in bindings
+    assert ("<f3>", "collapse clans") not in bindings
+
+
 def test_footer_left_navigation_and_collapse_target_labels() -> None:
     footer = KeybindingFooter()
 
@@ -250,6 +268,19 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     clan_collapse = _labels(
         footer._compute_agent_bindings(None, structural_collapse_kind="clan")
     )
+    selected_clan_collapse = _labels(
+        footer._compute_agent_bindings(
+            None,
+            clan_collapse_available=True,
+            selected_clan_collapse_available=True,
+        )
+    )
+    group_clan_collapse = _labels(
+        footer._compute_agent_bindings(
+            None,
+            clan_collapse_available=True,
+        )
+    )
     house_collapse = _labels(
         footer._compute_agent_bindings(
             None,
@@ -284,6 +315,10 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     assert ("H", "collapse workflow") in workflow_collapse
     assert ("H", "collapse family") in family_collapse
     assert ("H", "collapse clan") in clan_collapse
+    assert ("H", "collapse clan") in selected_clan_collapse
+    assert ("H", "collapse clans") not in selected_clan_collapse
+    assert ("H", "collapse clans") in group_clan_collapse
+    assert ("H", "collapse clan") not in group_clan_collapse
     assert ("H", "collapse houses") in house_collapse
     assert ("H", "collapse clan") not in house_collapse
     assert ("H", "collapse group") not in house_collapse

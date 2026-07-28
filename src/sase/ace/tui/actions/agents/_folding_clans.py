@@ -180,6 +180,33 @@ def _resolve_group_clan_collapse_target(
     )
 
 
+def _selected_enclosing_clan_fold_key(
+    agents: list[Agent],
+    selected_index: int,
+) -> str | None:
+    """Return the canonical clan fold structurally enclosing one selection."""
+    if not (0 <= selected_index < len(agents)):
+        return None
+
+    from ...models._agent_tree import (
+        agent_fold_key,
+        presentation_anchor,
+        presentation_anchor_lookup,
+        tree_parent_lookup,
+    )
+
+    selected = agents[selected_index]
+    if selected.is_clan_container:
+        return agent_fold_key(selected)
+
+    parent_lookup = tree_parent_lookup(agents)
+    anchors = presentation_anchor_lookup(agents, parent_lookup)
+    anchor = presentation_anchor(selected, parent_lookup, anchors)
+    if not anchor.is_clan_container:
+        return None
+    return agent_fold_key(anchor)
+
+
 class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
     """Add scoped clan folding to the Agents structural ladder."""
 
@@ -208,6 +235,44 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
         if group_key is None:
             return None
         return _resolve_group_clan_collapse_target(self, group_key)
+
+    def _narrow_agent_clan_collapse_target_to_selection(
+        self,
+        target: _AgentGroupClanCollapseTarget,
+    ) -> _AgentGroupClanCollapseTarget | None:
+        """Narrow one validated group-wide target to the selected open clan."""
+        if getattr(self, "_current_group_key", None) is not None:
+            return None
+
+        from ...models._agent_tree import agent_fold_key
+
+        agents = getattr(self, "_agents", [])
+        selected_index = getattr(self, "current_idx", -1)
+        selected_key = _selected_enclosing_clan_fold_key(agents, selected_index)
+        if selected_key is None or selected_key not in target.fold_keys:
+            return None
+
+        selected = agents[selected_index]
+        reanchor_index: int | None = None
+        if not (
+            selected.is_clan_container and agent_fold_key(selected) == selected_key
+        ):
+            owner_indices = [
+                index
+                for index, candidate in enumerate(agents)
+                if not candidate.is_child_row
+                and agent_fold_key(candidate) == selected_key
+            ]
+            if len(owner_indices) != 1:
+                return None
+            reanchor_index = owner_indices[0]
+
+        return _AgentGroupClanCollapseTarget(
+            panel_key=target.panel_key,
+            group_key=target.group_key,
+            fold_keys=(selected_key,),
+            reanchor_index=reanchor_index,
+        )
 
     def _collapse_agent_clan_folds(
         self,

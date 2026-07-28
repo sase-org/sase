@@ -20,7 +20,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("hooks_or_collapse", "Parent / Collapse or Jump Panel/Fold", False),
     (
         "hooks_or_collapse_all",
-        "Collapse Scoped Houses/Clans/Groups/Panel / Compact Tools / All",
+        "Collapse Scoped Houses/Selected Clan/Clans/Groups/Panel / Compact Tools / All",
         False,
     ),
     ("edit_hooks", "Edit Hooks", False),

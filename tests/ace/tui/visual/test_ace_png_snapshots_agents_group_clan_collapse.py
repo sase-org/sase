@@ -81,6 +81,73 @@ def _group_clan_agents() -> list[Agent]:
     ]
 
 
+async def test_selected_clan_collapses_before_open_sibling_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 22, 9, 0, 0))
+    patch_startup_loaders(monkeypatch, agents=_group_clan_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.press("o", "o")
+        assert page.app._grouping_mode is GroupingMode.BY_STATUS
+
+        clans = {
+            agent.agent_clan: agent
+            for agent in page.app._agents_with_children
+            if agent.is_clan_container and agent.agent_clan in {"sase-8k", "sase-8l"}
+        }
+        selected_clan = clans["sase-8k"]
+        sibling_clan = clans["sase-8l"]
+        selected_key = agent_fold_key(selected_clan)
+        sibling_key = agent_fold_key(sibling_clan)
+        assert selected_key is not None and sibling_key is not None
+        page.app._fold_manager.expand(selected_key)
+        page.app._fold_manager.expand(sibling_key)
+        page.app._refilter_agents(refresh_content_index=False)
+
+        selected_member = next(
+            agent for agent in page.app._agents if agent.cl_name == "sase-8k.plan"
+        )
+        page.app._panel_group.focused_idx = page.app._panel_group.panel_keys.index(
+            "epic"
+        )
+        page.app._collapsed_panel_keys.discard("epic")
+        page.app._expanded_panel_keys.add("epic")
+        page.app._expanded_panel_focus = False
+        page.app.current_idx = page.app._agents.index(selected_member)
+        page.app._current_group_key = None
+        page.app._refresh_agents_display(list_changed=True)
+        await wait_for_visual_idle(page)
+
+        footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
+        assert footer._last_layout_inputs is not None
+        assert ("H", "collapse clan") in footer._last_layout_inputs[0]
+        registry = page.app._group_fold_registry.for_panel("epic")
+        assert page.app._fold_manager.get(selected_key) is FoldLevel.EXPANDED
+        assert page.app._fold_manager.get(sibling_key) is FoldLevel.EXPANDED
+        assert not registry.is_collapsed(("Running",))
+
+        await page.press("H")
+        await wait_for_visual_idle(page)
+
+        selected = page.app._agents[page.app.current_idx]
+        assert selected.identity == selected_clan.identity
+        assert page.app._fold_manager.get(selected_key) is FoldLevel.COLLAPSED
+        assert page.app._fold_manager.get(sibling_key) is FoldLevel.EXPANDED
+        assert not registry.is_collapsed(("Running",))
+        assert footer._last_layout_inputs is not None
+        assert ("H", "collapse clans") in footer._last_layout_inputs[0]
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_selected_clan_collapse_precedence_120x40",
+            title="ACE selected clan collapse before sibling clans",
+        )
+
+
 async def test_group_clan_collapse_precedes_status_banner_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
