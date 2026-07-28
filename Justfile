@@ -700,6 +700,11 @@ launch-perf-check *args: _setup
     @printf "\n---------- Agent launch regression floor (sase-1r.9) ----------\n"
     {{ venv_bin }}/python tests/perf/check_agent_launch_regression.py {{ args }}
 
+# Run the Agents-tab view-hints regression floor against the committed baseline.
+view-hints-perf-check *args: _setup
+    @printf "\n---------- Agents view-hints regression floor (sase-a5.6) ----------\n"
+    {{ venv_bin }}/python tests/perf/check_view_hints_regression.py {{ args }}
+
 # Run a tiny bead benchmark as a CI smoke. This records the Rust-backed
 # shell/facade/work-plan path without enforcing workstation-sensitive latency
 # thresholds.

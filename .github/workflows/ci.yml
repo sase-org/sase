@@ -430,6 +430,45 @@ jobs:
           name: launch-perf-floor-report
           path: sdd/plans/202605/perf_artifacts/agent_launch_regression_check.json
 
+  # Agents-tab view-hints regression floor (sase-a5.6). Keeps the `v`
+  # keypress-to-hint-bar path and the cached repeat/refresh paths below the
+  # committed synchronous-render baseline.
+  view-hints-perf-floor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out Rust core
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase-core
+          path: sase-core
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
+          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/just.tar.gz -C /tmp just
+          sudo install -m 0755 /tmp/just /usr/local/bin/just
+          just --version
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install dependencies
+        run: just install
+      - name: Run view-hints regression floor
+        run: just view-hints-perf-check
+      - name: Upload view-hints floor-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: view-hints-perf-floor-report
+          path: sdd/plans/202607/perf_artifacts/view_hints_regression_check.json
+
   # Install smoke verifies that a fresh `sase` install resolves the
   # required `sase-core-rs` runtime dependency and that representative parser
   # and launch bindings work. Calls `sase core health` so the smoke matches

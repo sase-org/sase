@@ -293,6 +293,17 @@ reading it:
 - An `agents.view_hints_refresh` span can appear inside a press step: a detail repaint often lands inside that step's
   settle window. That is real behavior, not bookkeeping noise.
 
+Run the regression floor after changing this path:
+
+```bash
+just view-hints-perf-check
+```
+
+The floor compares traced spans against the committed baseline and ignores wall-clock Pilot settle time. It also checks
+that warm repeat presses and unchanged auto-refreshes do not rescan annotated text, and that unfolded family rows stay
+within the shared hint scan cap. If long output is capped, ACE shows a dim notice in the detail panel; hints are not
+generated past that notice.
+
 ## Targets per phase gate
 
 The targets below come from `sdd/research/202604/sase_perf_research.md` and are restated here so each phase agent has a

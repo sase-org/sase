@@ -30,6 +30,8 @@
 
 ### Bug Fixes
 
+- **ace:** keep Agents-tab view hints responsive on long transcripts by capping annotated scans and guarding the cached
+  hint-render path.
 - **ace:** keep prompt `Ctrl+J` from clearing a lone empty `- ` marker; it now adds a sibling bullet and exits on the next press.
 - **ace:** remove clan and family identity icons while retaining their grouping colors.
 - **xprompt:** preserve unknown frontmatter keys during parse/edit/serialize round trips and warn before comment loss.
