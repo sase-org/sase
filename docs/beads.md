@@ -181,17 +181,33 @@ sdd/beads/
   beads.db              # SQLite compatibility cache (gitignored)
 ```
 
-Providerless local storage and legacy single-sidecar storage use `.sase/sdd/beads/` with the same structure. Split
-sidecar storage uses `beads/` at the root of the active workspace's auto-cloned `--plans` repository. Local storage uses
-the primary workspace; both sidecar layouts use the active workspace clone and record provider/remote metadata in the
-primary workspace's `.sase/sdd-store.json`.
+Providerless local storage and legacy single-sidecar storage use `.sase/sdd/beads/` with the same structure. Local
+storage uses the primary workspace; every sidecar layout uses the active workspace clone and records provider/remote
+metadata in the primary workspace's `.sase/sdd-store.json`.
+
+Split sidecar storage puts bead state in its own auto-cloned `<owner>/<repo>--beads` repository, checked out at
+`<workspace>/sase/repos/beads`. That repository keeps the store **at its root** rather than under a `beads/`
+subdirectory, so `config.json`, `metadata.json`, `issues.jsonl`, and `events/` sit beside the generated `README.md`,
+`assets/`, and `.gitignore`. A split project that has not been migrated yet still keeps bead state at `beads/` in the
+root of its auto-cloned `--plans` repository; the `.sase/sdd-store.json` record decides which, and only a record that
+names a `beads` sidecar (schema version 3) resolves to the dedicated repository. See [SDD Storage](sdd_storage.md) for
+the record format and the adoption transaction that performs the move.
+
+Isolating bead state this way gives it its own git history, its own cooperative write lock, and its own
+repository-health preflight, so hot bead writes no longer serialize behind plan writes and a wedged bead rebase cannot
+block plan commits or epic approval.
 
 Normal bead commands read and write one store for the active checkout. In in-tree mode, canonical bead state lives in
 the current checkout's `sdd/beads/events/**` event store plus `sdd/beads/config.json`. Providerless local commands route
 to the primary workspace's `.sase/sdd/beads/` store. Sidecar-policy commands first materialize the provider store, then
-route to the active workspace clone so an agent in workspace `#N` writes either its matching `.sase/sdd/` checkout or
-its `sase/repos/plans/beads/` directory. If the event store is absent, reads fall back to legacy `issues.jsonl`.
-Numbered sibling workspaces and legacy stores are not merged into normal `sase bead` reads.
+route to the active workspace clone so an agent in workspace `#N` writes its matching `.sase/sdd/` checkout, its
+`sase/repos/beads/` clone, or its `sase/repos/plans/beads/` directory. If the event store is absent, reads fall back to
+legacy `issues.jsonl`. Numbered sibling workspaces and legacy stores are not merged into normal `sase bead` reads.
+
+`sase bead` clones the beads sidecar on demand. When the store record names one and `sase/repos/beads` is missing or its
+origin does not match the recorded remote, the command materializes the clone before serving the request—reads included,
+since a read cannot be served from a clone that does not exist. If the clone cannot be made usable, the command fails
+with an error naming the repository and its remote. Projects whose record has no beads sidecar clone nothing extra.
 
 ### Event Log + Compatibility Projections
 
@@ -357,7 +373,8 @@ usage error.
 ### `sase bead init`
 
 Initialize the bead store for the current project. In effective in-tree SDD mode this is `sdd/beads/`; local and legacy
-separate-repo modes use `.sase/sdd/beads/`; split sidecar mode uses `beads/` in the `--plans` repository.
+separate-repo modes use `.sase/sdd/beads/`. Split sidecar mode uses the root of the `--beads` repository once the store
+record names that sidecar, and `beads/` in the `--plans` repository until then.
 
 ### `sase bead list`
 

@@ -264,22 +264,24 @@ sase memory log --id <read-id>
 ## Repository Initialization
 
 `sase repo init` initializes every enabled `repos.sidecar` entry for the current managed project. It also adds the
-explicit project-local plans and research declarations when absent:
+explicit project-local plans, beads, and research declarations when absent:
 
 ```yaml
 repos:
   sidecar:
     - name: plans
       auto_clone: true
+    - name: beads
+      auto_clone: true
     - name: research
       description: Durable SASE research reports and generated media.
 ```
 
-An existing entry for either role is preserved verbatim, including `disabled: true`; disabling research is the
+An existing entry for any of those roles is preserved verbatim, including `disabled: true`; disabling research is the
 project-local opt-out. The unpinned research entry derives `<owner>/<project>--research` from the primary GitHub
-repository. The write uses SASE's comment-preserving configuration editor. The same initializer adds `/sase/repos/` to
-the tracked root `.gitignore`; those two project-file changes use the normal commit/pull/push path unless `--no-commit`
-is supplied.
+repository, and the beads entry likewise derives `<owner>/<project>--beads`. The write uses SASE's comment-preserving
+configuration editor. The same initializer adds `/sase/repos/` to the tracked root `.gitignore`; those two project-file
+changes use the normal commit/pull/push path unless `--no-commit` is supplied.
 
 For each enabled sidecar, provider discovery runs before materialization. A missing remote gets its own default-no
 prompt naming the visibility, provider, full repository name, and host. Only `y` or `yes` authorizes creation; `--yes`,
@@ -302,10 +304,18 @@ README explains the full project-scoped hood privacy implications, owner-sharded
 transcript behavior, and synchronization/recovery commands. Existing v1 payload remains read-only during migration. See
 [Agent Hood Synchronization](agents_sidecar.md).
 
-Plans and research sidecars retain their illustrated README and directory-map templates. Custom sidecar roles receive a
-deterministic generic README using their configured description. Initialized guide files are committed and pushed in
-their respective sidecar repositories. When plans and research are available, the legacy split SDD store record is
+Plans, research, and beads sidecars retain their illustrated README and directory-map templates. Custom sidecar roles
+receive a deterministic generic README using their configured description. Initialized guide files are committed and
+pushed in their respective sidecar repositories. When plans and research are available, the split SDD store record is
 maintained for compatibility.
+
+The beads sidecar holds the project's durable bead state at its repository root. When it is created for a project whose
+bead state still lives in the plans clone, `sase repo init` adopts that state as part of the same run: it copies the
+store into the beads clone, commits it as `Import bead state from <plans-repo>@<sha>` and pushes, writes the schema-3
+store record that makes bead commands resolve to the new repository, and only then removes `beads/` from the plans
+clone. `sase repo init --check` lists that data move as a distinct planned action. Adoption is idempotent, so rerunning
+initialization after a partial failure retries cleanly; see [SDD Storage](sdd_storage.md) for the full transaction and
+its failure semantics.
 
 ```bash
 sase repo init                    # initialize sidecars and project wiring

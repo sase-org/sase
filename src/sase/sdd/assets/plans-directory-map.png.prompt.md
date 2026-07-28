@@ -1,5 +1,10 @@
 # Plans sidecar directory map
 
+> **Stale labels.** The rendered asset still shows `BEAD STATE` / `beads/events/**` inside the plans repository. Bead
+> state now lives in the dedicated `--beads` sidecar (see `beads-directory-map.png`), so those labels describe the
+> pre-split layout. The image is deliberately left as-is; drop the bead-state group from the composition and the
+> deterministic labels below whenever it is next regenerated.
+
 ## Target
 
 - Final asset: `src/sase/sdd/assets/plans-directory-map.png`

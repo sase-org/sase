@@ -1,8 +1,8 @@
 # SASE Plans
 
 This public sidecar repository stores the durable planning state for its SASE-managed source repository. SASE
-automatically clones it into each workspace and keeps plan files, their original prompt snapshots, and bead state
-available to humans and agents.
+automatically clones it into each workspace and keeps plan files and their original prompt snapshots available to humans
+and agents. Bead state lives in the separate `--beads` sidecar repository.
 
 ![Plans directory map](assets/plans-directory-map.png)
 
@@ -11,7 +11,6 @@ available to humans and agents.
 - `<YYYYMM>/*.md` stores plan files. Every plan declares a non-empty `title` and either `tier: tale` or `tier: epic` in
   YAML frontmatter.
 - `<YYYYMM>/prompts/*.md` stores the original prompts or expanded snapshots that produced that month's plans.
-- `beads/` stores SASE bead events and compatibility projections. SQLite `beads.db*` files are local-only.
 - `assets/` stores generated explanatory media used by this README.
 
 Plans and prompts use clickable top-of-body Markdown bullets with stable labels and file-relative hrefs. For example,
@@ -26,7 +25,7 @@ the first Markdown body element and has exactly one blank line after it.
 - `sase repo path plans` prints this clone's root.
 - `sase plan links validate` checks prompt and plan artifact links.
 - `sase plan links repair` previews legacy or stale links; add `--write` for a one-time canonical-bullet migration.
-- `sase bead` manages bead work stored under `beads/`.
+- `sase repo path beads` prints the sibling beads sidecar clone that stores bead state.
 
 Historical plain-path and inline-Markdown frontmatter values remain readable and valid. Search, validation,
 initialization, and upgrades do not rewrite them automatically; conflicting representations are reported instead of
