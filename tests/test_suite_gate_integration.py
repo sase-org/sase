@@ -102,7 +102,11 @@ def test_scaled_suite_runs_share_capacity_and_release_after_sigkill(
     pool_dir = tmp_path / "tokens"
     suite_path = tmp_path / "test_scaled_suite.py"
     suite_path.write_text(_CHILD_SUITE, encoding="utf-8")
-    socket_path = tmp_path / "coordinator.sock"
+    # Keep the AF_UNIX address out of the long per-test directory: Linux caps
+    # sockaddr_un paths at 108 bytes, and pytest's run counter can push the
+    # otherwise valid scratch path over that limit.
+    socket_path = tmp_path.parent / f"sg-{os.getpid()}.sock"
+    socket_path.unlink(missing_ok=True)
     coordinator = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     coordinator.bind(str(socket_path))
     coordinator.listen(_POOL_SIZE + 1)
@@ -162,3 +166,4 @@ def test_scaled_suite_runs_share_capacity_and_release_after_sigkill(
         for process in processes.values():
             _kill_process_group(process)
         coordinator.close()
+        socket_path.unlink(missing_ok=True)
