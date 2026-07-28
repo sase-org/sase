@@ -15,7 +15,13 @@ from typing import Literal, TextIO
 from rich.console import Console
 from rich.text import Text
 
-from ._init_chezmoi_deploy import defer_chezmoi_deploy, deploy_deferred_chezmoi
+from sase.memory.locks import LockTimeoutError
+
+from ._init_chezmoi_deploy import (
+    defer_chezmoi_deploy,
+    deploy_deferred_chezmoi,
+    print_chezmoi_deploy_lock_timeout,
+)
 from .init_plan import InitAction, InitPlan
 from .init_preview import preview_console, render_plan_diff, render_plan_inventory
 from .init_project_scope import (
@@ -379,21 +385,25 @@ def _run_init_onboarding_result(
             console=out_console,
         )
 
-    with defer_chezmoi_deploy() as deferred_chezmoi:
-        result = _run_changed_plans(
-            args,
-            plans=plans,
-            specs=active_specs,
-            input_func=input_func,
-            stdin=effective_stdin,
-            console=out_console,
-        )
-        if result.exit_code != 0:
-            return result
+    try:
+        with defer_chezmoi_deploy() as deferred_chezmoi:
+            result = _run_changed_plans(
+                args,
+                plans=plans,
+                specs=active_specs,
+                input_func=input_func,
+                stdin=effective_stdin,
+                console=out_console,
+            )
+            if result.exit_code != 0:
+                return result
 
-        deploy_exit_code = deploy_deferred_chezmoi(deferred_chezmoi)
-        if deploy_exit_code != 0:
-            return _InitRunResult(deploy_exit_code, "failed")
+            deploy_exit_code = deploy_deferred_chezmoi(deferred_chezmoi)
+            if deploy_exit_code != 0:
+                return _InitRunResult(deploy_exit_code, "failed")
+    except LockTimeoutError as exc:
+        print_chezmoi_deploy_lock_timeout("init", exc)
+        return _InitRunResult(1, "failed")
 
     return result
 
@@ -501,54 +511,63 @@ def run_init_onboarding_all(
     checked = current = initialized = needs_attention = unavailable = failed = 0
     cancelled = deploy_failed = False
 
-    with defer_chezmoi_deploy() as deferred_chezmoi:
-        for target in inventory.targets:
-            _render_project_heading(out_console, target)
-            if target.unavailable_reason is not None or target.workspace_dir is None:
-                unavailable += 1
-                reason = target.unavailable_reason or "primary workspace is unavailable"
-                out_console.print(f"init --all: {reason}", style="red")
-                continue
-
-            checked += 1
-            try:
-                with _working_directory(target.workspace_dir):
-                    result = _run_init_onboarding_result(
-                        _project_args(args),
-                        specs=specs,
-                        input_func=input_func,
-                        stdin=stdin,
-                        console=out_console,
-                        manage_chezmoi_deploy=False,
+    try:
+        with defer_chezmoi_deploy() as deferred_chezmoi:
+            for target in inventory.targets:
+                _render_project_heading(out_console, target)
+                if (
+                    target.unavailable_reason is not None
+                    or target.workspace_dir is None
+                ):
+                    unavailable += 1
+                    reason = (
+                        target.unavailable_reason or "primary workspace is unavailable"
                     )
-            except KeyboardInterrupt:
-                out_console.print()
-                out_console.print("init --all: cancelled; aborting.")
-                cancelled = True
-                break
-            except Exception as exc:
-                out_console.print(
-                    f"init --all: project failed: {exc}",
-                    style="red",
-                )
-                failed += 1
-                continue
+                    out_console.print(f"init --all: {reason}", style="red")
+                    continue
 
-            if result.status == "current":
-                current += 1
-            elif result.status == "initialized":
-                initialized += 1
-            elif result.status == "needs_attention":
-                needs_attention += 1
-            elif result.status == "cancelled":
-                cancelled = True
-                break
-            else:
-                failed += 1
+                checked += 1
+                try:
+                    with _working_directory(target.workspace_dir):
+                        result = _run_init_onboarding_result(
+                            _project_args(args),
+                            specs=specs,
+                            input_func=input_func,
+                            stdin=stdin,
+                            console=out_console,
+                            manage_chezmoi_deploy=False,
+                        )
+                except KeyboardInterrupt:
+                    out_console.print()
+                    out_console.print("init --all: cancelled; aborting.")
+                    cancelled = True
+                    break
+                except Exception as exc:
+                    out_console.print(
+                        f"init --all: project failed: {exc}",
+                        style="red",
+                    )
+                    failed += 1
+                    continue
 
-        if not cancelled:
-            deploy_exit_code = deploy_deferred_chezmoi(deferred_chezmoi)
-            deploy_failed = deploy_exit_code != 0
+                if result.status == "current":
+                    current += 1
+                elif result.status == "initialized":
+                    initialized += 1
+                elif result.status == "needs_attention":
+                    needs_attention += 1
+                elif result.status == "cancelled":
+                    cancelled = True
+                    break
+                else:
+                    failed += 1
+
+            if not cancelled:
+                deploy_exit_code = deploy_deferred_chezmoi(deferred_chezmoi)
+                deploy_failed = deploy_exit_code != 0
+    except LockTimeoutError as exc:
+        print_chezmoi_deploy_lock_timeout("init --all", exc)
+        deploy_failed = True
 
     parts = _summary_parts(
         checked=checked,

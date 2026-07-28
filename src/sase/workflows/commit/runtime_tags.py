@@ -18,6 +18,16 @@ PRODUCED_RUNTIME_COMMIT_TAG_KEYS = frozenset({"AGENT"})
 STALE_RUNTIME_COMMIT_TAG_KEYS = frozenset({"AGENT", "MACHINE"})
 # Compatibility name for callers that use this set specifically for cleanup.
 RUNTIME_COMMIT_TAG_KEYS = STALE_RUNTIME_COMMIT_TAG_KEYS
+WORKSPACE_ENV_NUM_KEYS = (
+    "SASE_AGENT_WORKSPACE_NUM",
+    "SASE_GIT_WORKSPACE_NUM",
+    "SASE_GH_WORKSPACE_NUM",
+)
+WORKSPACE_ENV_DIR_KEYS = (
+    "SASE_GIT_WORKSPACE_DIR",
+    "SASE_GH_WORKSPACE_DIR",
+    "SASE_ACTIVE_PROJECT_DIR",
+)
 
 #: Prefix rendered onto every SASE-authored commit footer tag key. New commit
 #: messages write ``SASE_<KEY>=<value>`` while readers still accept the legacy
@@ -83,11 +93,44 @@ def apply_runtime_commit_tags(payload: dict) -> None:
 
 def apply_auto_commit_type_tag(message: str, auto_commit_type: str) -> str:
     """Append or update the auto-commit ``TYPE`` tag in *message*."""
-    return update_trailing_commit_tags(
-        message,
-        {"TYPE": auto_commit_type},
-        remove_keys={"TYPE"},
-    )
+    return apply_auto_commit_tags(message, auto_commit_type)
+
+
+def apply_commit_tags(
+    message: str,
+    *,
+    extra_tags: Mapping[str, object] | None = None,
+    include_runtime: bool = False,
+) -> str:
+    """Append or update non-type SASE commit tags in *message*."""
+    updates: dict[str, object] = {}
+    remove_keys: set[str] = set()
+    if extra_tags:
+        updates.update(extra_tags)
+        remove_keys.update(extra_tags)
+    if include_runtime:
+        remove_keys.update(STALE_RUNTIME_COMMIT_TAG_KEYS)
+        updates.update(_resolve_runtime_commit_tags())
+    return update_trailing_commit_tags(message, updates, remove_keys=remove_keys)
+
+
+def apply_auto_commit_tags(
+    message: str,
+    auto_commit_type: str,
+    *,
+    extra_tags: Mapping[str, object] | None = None,
+    include_runtime: bool = False,
+) -> str:
+    """Append or update auto-commit type plus optional provenance tags."""
+    updates: dict[str, object] = {"TYPE": auto_commit_type}
+    remove_keys: set[str] = {"TYPE"}
+    if extra_tags:
+        updates.update(extra_tags)
+        remove_keys.update(extra_tags)
+    if include_runtime:
+        remove_keys.update(STALE_RUNTIME_COMMIT_TAG_KEYS)
+        updates.update(_resolve_runtime_commit_tags())
+    return update_trailing_commit_tags(message, updates, remove_keys=remove_keys)
 
 
 def apply_auto_commit_tags_with_runtime(message: str, auto_commit_type: str) -> str:
@@ -100,14 +143,21 @@ def apply_auto_commit_tags_with_runtime(message: str, auto_commit_type: str) -> 
     produced. Without an agent identity the result carries only
     ``TYPE=<kind>`` after stale runtime provenance is removed.
     """
-    updates: dict[str, object] = {"TYPE": auto_commit_type}
-    remove_keys: set[str] = {"TYPE", *STALE_RUNTIME_COMMIT_TAG_KEYS}
+    return apply_auto_commit_tags(message, auto_commit_type, include_runtime=True)
 
-    runtime_tags = _resolve_runtime_commit_tags()
-    if runtime_tags:
-        updates.update(runtime_tags)
 
-    return update_trailing_commit_tags(message, updates, remove_keys=remove_keys)
+def resolve_runtime_workspace_tag(
+    env: Mapping[str, str] | None = None,
+) -> str | None:
+    """Return a stable label for the active SASE workspace, if available."""
+    source = os.environ if env is None else env
+    workspace_num = _first_nonempty_env(source, WORKSPACE_ENV_NUM_KEYS)
+    workspace_dir = _first_nonempty_env(source, WORKSPACE_ENV_DIR_KEYS)
+    if workspace_dir:
+        workspace_dir = str(Path(workspace_dir).expanduser().resolve(strict=False))
+    if workspace_num and workspace_dir:
+        return f"{workspace_num}:{workspace_dir}"
+    return workspace_dir or workspace_num
 
 
 def parse_trailing_commit_tags(message: str) -> dict[str, str]:
@@ -163,3 +213,14 @@ def _sanitize_tag_value(value: object) -> str | None:
         return None
     text = str(value).replace("\r", " ").replace("\n", " ").strip()
     return text or None
+
+
+def _first_nonempty_env(
+    env: Mapping[str, str],
+    keys: tuple[str, ...],
+) -> str | None:
+    for key in keys:
+        value = _sanitize_tag_value(env.get(key))
+        if value:
+            return value
+    return None

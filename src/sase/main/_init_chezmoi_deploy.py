@@ -6,12 +6,20 @@ from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+import fcntl
+import hashlib
+import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 from sase.config.core import CHEZMOI_HOME
 from sase.git_lock_retry import run_with_git_lock_retry
+from sase.memory.locks import LockTimeoutError, locked_file
+
+_CHEZMOI_DEPLOY_LOCK_TIMEOUT_SECONDS = 120.0
+_CHEZMOI_DEPLOY_LOCK_POLL_INTERVAL_SECONDS = 0.2
 
 
 @dataclass(frozen=True)
@@ -29,6 +37,8 @@ class ChezmoiDeployBehavior:
     apply_when_nothing_staged: bool = False
     git_failure_is_error: bool = True
     chezmoi_missing_is_error: bool = True
+    commit_tags: dict[str, object] = field(default_factory=dict)
+    include_runtime_commit_tags: bool = False
     git_missing_suffix: str = ""
     not_repo_suffix: str = ""
     commit_failed_label: str = "commit failed"
@@ -44,22 +54,35 @@ class _DeferredChezmoiDeploy:
 
     paths: list[Path] = field(default_factory=list)
     chezmoi_home: Path = CHEZMOI_HOME
+    commit_tags: dict[str, object] = field(default_factory=dict)
+    include_runtime_commit_tags: bool = False
 
     def add(
         self,
         paths: Iterable[Path],
         *,
         chezmoi_home: Path = CHEZMOI_HOME,
+        commit_tags: dict[str, object] | None = None,
+        include_runtime_commit_tags: bool = False,
     ) -> None:
         new_paths = list(paths)
         if not self.paths and new_paths:
             self.chezmoi_home = chezmoi_home
         self.paths.extend(new_paths)
+        if commit_tags:
+            self.commit_tags.update(commit_tags)
+        self.include_runtime_commit_tags = (
+            self.include_runtime_commit_tags or include_runtime_commit_tags
+        )
 
 
 _DEFERRED_DEPLOY: ContextVar[_DeferredChezmoiDeploy | None] = ContextVar(
     "_DEFERRED_DEPLOY",
     default=None,
+)
+_HELD_DEPLOY_LOCK_ROOTS: ContextVar[tuple[Path, ...]] = ContextVar(
+    "_HELD_DEPLOY_LOCK_ROOTS",
+    default=(),
 )
 
 
@@ -157,6 +180,19 @@ def deploy_to_chezmoi(
         )
         return 1 if behavior.git_failure_is_error else 0
 
+    try:
+        with _chezmoi_deploy_lock(git_root, behavior.command_label):
+            return _deploy_to_chezmoi_locked(paths, behavior, git_root)
+    except LockTimeoutError as exc:
+        print_chezmoi_deploy_lock_timeout(behavior.command_label, exc)
+        return 1
+
+
+def _deploy_to_chezmoi_locked(
+    paths: tuple[Path, ...],
+    behavior: ChezmoiDeployBehavior,
+    git_root: Path,
+) -> int:
     for path in paths:
         if _missing_untracked_path(git_root, path):
             continue
@@ -188,11 +224,21 @@ def deploy_to_chezmoi(
             print(f"\nCommitting in {git_root}...")
         commit_message = behavior.commit_message
         if behavior.auto_commit_type is not None:
-            from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+            from sase.workflows.commit.runtime_tags import apply_auto_commit_tags
 
-            commit_message = apply_auto_commit_type_tag(
+            commit_message = apply_auto_commit_tags(
                 commit_message,
                 behavior.auto_commit_type,
+                extra_tags=behavior.commit_tags,
+                include_runtime=behavior.include_runtime_commit_tags,
+            )
+        elif behavior.commit_tags or behavior.include_runtime_commit_tags:
+            from sase.workflows.commit.runtime_tags import apply_commit_tags
+
+            commit_message = apply_commit_tags(
+                commit_message,
+                extra_tags=behavior.commit_tags,
+                include_runtime=behavior.include_runtime_commit_tags,
             )
         commit = _run_git(git_root, "commit", "-m", commit_message)
         if commit.returncode != 0:
@@ -267,20 +313,81 @@ def deploy_to_chezmoi(
 
 
 @contextmanager
-def defer_chezmoi_deploy() -> Iterator[_DeferredChezmoiDeploy]:
+def _chezmoi_deploy_lock(git_root: Path, command_label: str) -> Iterator[None]:
+    resolved_root = git_root.resolve(strict=False)
+    held_roots = _HELD_DEPLOY_LOCK_ROOTS.get()
+    if resolved_root in held_roots:
+        yield
+        return
+
+    lock_path = _chezmoi_deploy_lock_path(git_root)
+
+    def announce_wait(path: Path) -> None:
+        print(f"{command_label}: waiting for exclusive chezmoi deploy lock ({path})...")
+
+    with locked_file(
+        lock_path,
+        fcntl.LOCK_EX,
+        timeout=_CHEZMOI_DEPLOY_LOCK_TIMEOUT_SECONDS,
+        poll_interval=_CHEZMOI_DEPLOY_LOCK_POLL_INTERVAL_SECONDS,
+        on_wait=announce_wait,
+    ):
+        token = _HELD_DEPLOY_LOCK_ROOTS.set((*held_roots, resolved_root))
+        try:
+            yield
+        finally:
+            _HELD_DEPLOY_LOCK_ROOTS.reset(token)
+
+
+@contextmanager
+def chezmoi_deploy_lock(git_root: Path, command_label: str) -> Iterator[None]:
+    """Hold the shared chezmoi deployment lock for a larger mutation span."""
+    with _chezmoi_deploy_lock(git_root, command_label):
+        yield
+
+
+def print_chezmoi_deploy_lock_timeout(
+    command_label: str,
+    exc: LockTimeoutError,
+) -> None:
+    """Print the standard bounded-lock timeout message."""
+    print(
+        f"{command_label}: timed out waiting for exclusive chezmoi deploy lock "
+        f"after {exc.timeout:g}s ({exc.lock_path})",
+        file=sys.stderr,
+    )
+
+
+def _chezmoi_deploy_lock_path(git_root: Path) -> Path:
+    lock_root = Path(os.environ.get("SASE_TMPDIR") or tempfile.gettempdir())
+    digest = hashlib.sha256(
+        str(git_root.resolve(strict=False)).encode("utf-8")
+    ).hexdigest()[:16]
+    return lock_root / "chezmoi-deploy-locks" / f"{digest}.lock"
+
+
+@contextmanager
+def defer_chezmoi_deploy(
+    *,
+    chezmoi_home: Path = CHEZMOI_HOME,
+    command_label: str = "init",
+) -> Iterator[_DeferredChezmoiDeploy]:
     """Collect handler chezmoi deploy requests for one later deploy."""
-    deferred = _DeferredChezmoiDeploy()
-    token = _DEFERRED_DEPLOY.set(deferred)
-    try:
-        yield deferred
-    finally:
-        _DEFERRED_DEPLOY.reset(token)
+    with _chezmoi_deploy_lock(chezmoi_home.parent, command_label):
+        deferred = _DeferredChezmoiDeploy(chezmoi_home=chezmoi_home)
+        token = _DEFERRED_DEPLOY.set(deferred)
+        try:
+            yield deferred
+        finally:
+            _DEFERRED_DEPLOY.reset(token)
 
 
 def defer_chezmoi_paths(
     written_paths: Iterable[Path],
     *,
     chezmoi_home: Path = CHEZMOI_HOME,
+    commit_tags: dict[str, object] | None = None,
+    include_runtime_commit_tags: bool = False,
 ) -> bool:
     """Record paths in the active deferral context.
 
@@ -292,6 +399,8 @@ def defer_chezmoi_paths(
     deferred.add(
         written_paths,
         chezmoi_home=chezmoi_home,
+        commit_tags=commit_tags,
+        include_runtime_commit_tags=include_runtime_commit_tags,
     )
     return True
 
@@ -305,6 +414,8 @@ def deploy_deferred_chezmoi(deferred: _DeferredChezmoiDeploy) -> int:
             commit_message="chore: run sase init",
             auto_commit_type="init",
             chezmoi_home=deferred.chezmoi_home,
+            commit_tags=deferred.commit_tags,
+            include_runtime_commit_tags=deferred.include_runtime_commit_tags,
             apply_when_nothing_staged=True,
             print_nothing_to_commit=False,
         ),
@@ -313,9 +424,11 @@ def deploy_deferred_chezmoi(deferred: _DeferredChezmoiDeploy) -> int:
 
 __all__ = [
     "ChezmoiDeployBehavior",
+    "chezmoi_deploy_lock",
     "defer_chezmoi_deploy",
     "defer_chezmoi_paths",
     "deploy_deferred_chezmoi",
     "deploy_to_chezmoi",
+    "print_chezmoi_deploy_lock_timeout",
     "skip_pull_push_without_upstream",
 ]

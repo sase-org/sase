@@ -2,6 +2,7 @@
 
 import argparse
 from collections.abc import Sequence
+from contextlib import ExitStack
 import shutil
 import sys
 from pathlib import Path
@@ -9,8 +10,10 @@ from pathlib import Path
 from sase.config.core import CHEZMOI_HOME, get_use_chezmoi
 from sase.main._init_chezmoi_deploy import (
     ChezmoiDeployBehavior,
+    chezmoi_deploy_lock,
     defer_chezmoi_paths,
     deploy_to_chezmoi,
+    print_chezmoi_deploy_lock_timeout,
 )
 from sase.main._init_skills_manifest import prepare_skill_manifest
 from sase.main._init_skills_rendering import (
@@ -32,6 +35,8 @@ from sase.main._init_skills_sources import (
 )
 from sase.main._init_skills_source_integrity import skill_source_integrity_error
 from sase.main.init_plan import InitAction, InitOperation, InitPlan
+from sase.memory.locks import LockTimeoutError
+from sase.workflows.commit.runtime_tags import resolve_runtime_workspace_tag
 from sase.xprompt.loader import get_all_xprompts, load_xprompts_from_internal
 from sase.xprompt.models import XPrompt
 
@@ -271,7 +276,22 @@ def _prompt_overwrite(target: Path, new_content: str) -> bool:
             )
 
 
-def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> int:
+def _skill_deploy_commit_tags(source_commit: str | None) -> dict[str, object]:
+    tags: dict[str, object] = {}
+    if source_commit:
+        tags["SOURCE_REVISION"] = source_commit
+    workspace = resolve_runtime_workspace_tag()
+    if workspace:
+        tags["WORKSPACE"] = workspace
+    return tags
+
+
+def _deploy_to_chezmoi(
+    written_paths: list[Path],
+    args: argparse.Namespace,
+    *,
+    source_commit: str | None = None,
+) -> int:
     """Stage, commit, push, and ``chezmoi apply`` after writing skill files.
 
     Returns the desired process exit code (0 on success, 1 on pull/push/apply
@@ -296,6 +316,8 @@ def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> i
             no_commit=no_commit,
             no_push=no_push,
             no_apply=no_apply,
+            commit_tags=_skill_deploy_commit_tags(source_commit),
+            include_runtime_commit_tags=True,
             git_failure_is_error=False,
             chezmoi_missing_is_error=False,
             git_missing_suffix=", skipping deploy",
@@ -438,6 +460,18 @@ def run_init_skills(args: argparse.Namespace) -> int:
         )
         return 0
 
+    deploy_lock_stack: ExitStack | None = None
+    if use_chezmoi and not dry_run:
+        deploy_lock_stack = ExitStack()
+        try:
+            deploy_lock_stack.enter_context(
+                chezmoi_deploy_lock(CHEZMOI_HOME.parent, _COMMAND_LABEL)
+            )
+        except LockTimeoutError as exc:
+            deploy_lock_stack.close()
+            print_chezmoi_deploy_lock_timeout(_COMMAND_LABEL, exc)
+            return 1
+
     has_changes = any(
         _planned_skill_operation(target) is not None for target in targets
     )
@@ -450,6 +484,8 @@ def run_init_skills(args: argparse.Namespace) -> int:
         )
         if manifest_error is not None:
             print(f"{_COMMAND_LABEL}: {manifest_error}", file=sys.stderr)
+            if deploy_lock_stack is not None:
+                deploy_lock_stack.close()
             return 1
 
     manifest_changed = manifest_write is not None and manifest_write.content is not None
@@ -463,6 +499,8 @@ def run_init_skills(args: argparse.Namespace) -> int:
         source_error = skill_source_integrity_error()
         if source_error is not None:
             print(f"{_COMMAND_LABEL}: {source_error}", file=sys.stderr)
+            if deploy_lock_stack is not None:
+                deploy_lock_stack.close()
             return 1
 
     written = 0
@@ -514,11 +552,24 @@ def run_init_skills(args: argparse.Namespace) -> int:
 
     exit_code = 0
     if use_chezmoi and not dry_run and written_paths:
-        if defer_chezmoi_paths(written_paths, chezmoi_home=CHEZMOI_HOME):
+        source_commit = manifest_write.source_commit if manifest_write else None
+        commit_tags = _skill_deploy_commit_tags(source_commit)
+        if defer_chezmoi_paths(
+            written_paths,
+            chezmoi_home=CHEZMOI_HOME,
+            commit_tags=commit_tags,
+            include_runtime_commit_tags=True,
+        ):
             exit_code = 0
         else:
-            exit_code = _deploy_to_chezmoi(written_paths, args)
+            exit_code = _deploy_to_chezmoi(
+                written_paths,
+                args,
+                source_commit=source_commit,
+            )
 
+    if deploy_lock_stack is not None:
+        deploy_lock_stack.close()
     return exit_code
 
 

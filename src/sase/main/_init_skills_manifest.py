@@ -58,6 +58,7 @@ class _SkillManifestWrite:
 
     path: Path
     content: str | None
+    source_commit: str
 
 
 def _skill_xprompt_set_sha256(skill_xprompts: Sequence[XPrompt]) -> str:
@@ -132,14 +133,28 @@ def prepare_skill_manifest(
         and recorded.source_commit == incoming_commit
         and recorded.xprompt_set_sha256 == incoming_hash
     ):
-        return _SkillManifestWrite(path=manifest_path, content=None), None
+        return (
+            _SkillManifestWrite(
+                path=manifest_path,
+                content=None,
+                source_commit=incoming_commit,
+            ),
+            None,
+        )
 
     manifest = _SkillDeployManifest(
         source_commit=incoming_commit,
         xprompt_set_sha256=incoming_hash,
         deployed_at=_utc_now(),
     )
-    return _SkillManifestWrite(path=manifest_path, content=manifest.to_json()), None
+    return (
+        _SkillManifestWrite(
+            path=manifest_path,
+            content=manifest.to_json(),
+            source_commit=incoming_commit,
+        ),
+        None,
+    )
 
 
 def _read_manifest(path: Path) -> _SkillDeployManifest | None:
