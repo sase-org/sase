@@ -10,6 +10,7 @@ from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 from sase.plan_chain import planner_row_name
 
 from ._artifact_state import same_artifact_dir
+from ._tribe_binding import TribeMemberRow, resolve_tribe_wait_binding
 from ._types import (
     ArtifactCandidate,
     FamilyCandidate,
@@ -47,89 +48,87 @@ class WaitDependencyIndexQueries:
         if newer_than is None:
             return None
 
-        entity_keys: set[tuple[str, str, str | None]] = set()
-        for tribe_artifact in self.tribes.get(tribe, []):
-            if tribe_artifact.clan_name and tribe_artifact.clan_generation:
-                entity_keys.add(
-                    (
-                        "clan",
-                        tribe_artifact.clan_name,
-                        tribe_artifact.clan_generation,
-                    )
+        direct_tribes_by_artifact: dict[str, set[str]] = {}
+        for direct_tribe, artifacts in self.tribes.items():
+            for artifact in artifacts:
+                direct_tribes_by_artifact.setdefault(artifact.artifact_dir, set()).add(
+                    direct_tribe
                 )
-            else:
-                entity_keys.add(("agent", tribe_artifact.artifact_dir, None))
-        entity_keys.update(
-            ("clan", clan_name, generation)
-            for (clan_name, generation), resolved_tribe in (
-                self.effective_clan_tribes.items()
-            )
-            if resolved_tribe == tribe
-        )
 
-        complete: list[TribeCandidate] = []
-        for kind, identity, generation in entity_keys:
-            if kind == "agent":
-                standalone = self.artifacts_by_dir.get(identity)
-                if standalone is None or same_artifact_dir(
-                    standalone.artifact_dir, exclude_artifact_dir
-                ):
-                    continue
-                if standalone.timestamp <= newer_than:
-                    continue
-                if standalone.is_resolved and standalone.is_done:
-                    complete.append(
-                        TribeCandidate(
-                            tribe=tribe,
-                            kind="agent",
-                            name=standalone.name,
-                            timestamp=standalone.timestamp,
-                            members=(standalone,),
+        rows: list[TribeMemberRow] = []
+        for artifact in self.artifacts_by_dir.values():
+            direct_tribes = direct_tribes_by_artifact.get(artifact.artifact_dir)
+            for member_tribe in direct_tribes or (None,):
+                rows.append(
+                    TribeMemberRow(
+                        tribe=member_tribe,
+                        launch_timestamp=artifact.timestamp,
+                        identity=artifact.artifact_dir,
+                        name=artifact.name,
+                        clan_name=artifact.clan_name,
+                        clan_generation=artifact.clan_generation,
+                        effective_clan_tribe=self.effective_clan_tribes.get(
+                            (artifact.clan_name, artifact.clan_generation)
                         )
-                    )
-                continue
-
-            assert generation is not None
-            generation_members = self.clans.get(identity, {}).get(generation, [])
-            if not generation_members or any(
-                same_artifact_dir(member.artifact_dir, exclude_artifact_dir)
-                for member in generation_members
-            ):
-                continue
-            launch_timestamp = min(member.timestamp for member in generation_members)
-            if launch_timestamp <= newer_than:
-                continue
-            members = self._aggregate_candidates(
-                generation_members,
-                exclude_artifact_dir=None,
-                exclude_queued=False,
-            )
-            if members and all(
-                member.is_resolved and member.is_done for member in members
-            ):
-                complete.append(
-                    TribeCandidate(
-                        tribe=tribe,
-                        kind="clan",
-                        name=identity,
-                        generation=generation,
-                        timestamp=launch_timestamp,
-                        members=tuple(
-                            sorted(members, key=lambda member: member.timestamp)
+                        if artifact.clan_name is not None
+                        and artifact.clan_generation is not None
+                        else None,
+                        is_complete=artifact.is_resolved and artifact.is_done,
+                        is_terminal=(
+                            artifact.is_done
+                            or artifact.is_failed
+                            or artifact.is_identity_success
                         ),
                     )
                 )
 
-        if not complete:
-            return None
-        return min(
-            complete,
-            key=lambda candidate: (
-                candidate.timestamp,
-                candidate.kind,
-                candidate.name,
-                candidate.generation or "",
+        exclude_identity = next(
+            (
+                artifact.artifact_dir
+                for artifact in self.artifacts_by_dir.values()
+                if same_artifact_dir(artifact.artifact_dir, exclude_artifact_dir)
             ),
+            None,
+        )
+        binding = resolve_tribe_wait_binding(
+            tribe,
+            rows,
+            newer_than=newer_than,
+            exclude_identity=exclude_identity,
+        )
+        if (
+            binding.state != "bound"
+            or binding.kind is None
+            or binding.name is None
+            or binding.timestamp is None
+        ):
+            return None
+
+        if binding.kind == "agent":
+            members: tuple[ArtifactCandidate, ...]
+            standalone = (
+                self.artifacts_by_dir.get(binding.identity)
+                if binding.identity is not None
+                else None
+            )
+            members = (standalone,) if standalone is not None else ()
+        else:
+            assert binding.generation is not None
+            members = tuple(
+                sorted(
+                    self.clans.get(binding.name, {}).get(binding.generation, []),
+                    key=lambda member: member.timestamp,
+                )
+            )
+        if not members:
+            return None
+        return TribeCandidate(
+            tribe=tribe,
+            kind=binding.kind,
+            name=binding.name,
+            generation=binding.generation,
+            timestamp=binding.timestamp,
+            members=members,
         )
 
     def clan_candidate(
