@@ -78,6 +78,45 @@ manifest. Family member links use stable `member-<role>` anchors; solo links tar
 Because owners mutate disjoint authority files, a bounded non-fast-forward retry can pull a competing owner, recompute
 the shared views, and converge without overwriting either snapshot.
 
+## Browsing page anatomy
+
+Root, user, machine, and hood pages stay focused on indexes. Agent and family pages carry the detailed artifact view for
+one run or lane, and their optional sections keep a deterministic order so stable inputs produce byte-identical
+Markdown.
+
+An agent page uses this anatomy:
+
+- Breadcrumb: root, user, machine, hood, optional family, and the current agent.
+- Summary: model, provider, timing, commit count, and variable count when variables were published. Non-zero counts link
+  to their page sections.
+- Files: links to the published prompt and chat when each file exists.
+- Commits: the run's commit table, when any commits were attributed to the run.
+- Variables: sanitized output variables, when the run published any.
+- Neighbors: related lanes in the same owner/machine hood, when the run's lane has any.
+
+A family page keeps the `Lineage` diagram and accessible member table first, then uses the same optional artifact order:
+`Commits`, `Variables`, and `Neighbors`. Family commit and variable tables include the member role so each row can be
+traced back to a member. Family neighbor rows describe the family lane itself and never list its own members, which are
+already present in the member table.
+
+Commit cells link to hosted commit pages only when the project primary repository has a recognized GitHub remote. If the
+primary remote is missing, not GitHub, or cannot be read, pages still render the same commit rows with plain short SHAs.
+The sidecar wire does not store commit URL bases.
+
+Published variables are the sanitized `sase var set KEY=VALUE` values stored in `agent_meta.json["output_variables"]`.
+Only string keys matching SASE's output-variable identifier rule and string values are published. They are visible to
+anyone who can read the agents sidecar, so do not use output variables for secrets, credentials, private tokens, or
+other sensitive values.
+
+Neighbor rosters are lane-scoped and owner-scoped. A sequential family is one lane, and each family member page renders
+that family lane's roster. Rows mirror the Agents tab's NEIGHBORS grouping: ancestors, descendants, then nearest hood
+groups, with links to solo-agent pages, family pages, and the hood roster when a group is truncated. Cross-owner and
+cross-machine relationships are intentionally excluded.
+
+Compatibility note: snapshots published with `output_variables` metadata require readers from this version or newer.
+Older strict v2 readers that do not allow that metadata key fail loudly with `AgentsSyncFormatError` until they are
+upgraded.
+
 ### Historical-name tolerance
 
 Published history is treated as durable input, even when it contains an agent name that current creation-time validation

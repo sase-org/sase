@@ -2,7 +2,7 @@
 
 [Agent Hoods](../../../../../../README.md) / [alice](../../../../README.md) / [athena](../../README.md) / foo
 
-**Global hood:** `alice.athena.foo` · **Runs:** 9 · **Families:** 2 · **States:** active 1, completed 5, dismissed 1, failed 1, waiting 1
+**Global hood:** `alice.athena.foo` · **Runs:** 10 · **Families:** 2 · **States:** active 1, completed 6, dismissed 1, failed 1, waiting 1
 
 | Agent | State | Model / provider | Timing | Commits | Files |
 |---|---|---|---|---:|---|
@@ -15,3 +15,4 @@
 | [foo.rootless--left](../../../../../../families/alice.athena.foo.rootless.md#member-left) | completed | gpt | 2026-07-23T12:00:00+00:00 → 2026-07-23T12:01:00+00:00 | 0 | [prompt](../../../../../../agents/alice.athena.foo.rootless--left/prompt.md), [chat](../../../../../../agents/alice.athena.foo.rootless--left/chat.md) |
 | [foo.rootless--right](../../../../../../families/alice.athena.foo.rootless.md#member-right) | completed | gpt | 2026-07-23T12:00:00+00:00 → 2026-07-23T12:01:00+00:00 | 0 | [prompt](../../../../../../agents/alice.athena.foo.rootless--right/prompt.md), [chat](../../../../../../agents/alice.athena.foo.rootless--right/chat.md) |
 | [foo.archive](../../../../../../agents/alice.athena.foo.archive/README.md) | dismissed | gpt | 2026-07-23T12:00:00+00:00 → 2026-07-23T12:01:00+00:00 | 0 | [prompt](../../../../../../agents/alice.athena.foo.archive/prompt.md), [chat](../../../../../../agents/alice.athena.foo.archive/chat.md) |
+| [foo.bar.baz.child](../../../../../../agents/alice.athena.foo.bar.baz.child/README.md) | completed | gpt | 2026-07-23T12:00:00+00:00 → 2026-07-23T12:01:00+00:00 | 0 | [prompt](../../../../../../agents/alice.athena.foo.bar.baz.child/prompt.md), [chat](../../../../../../agents/alice.athena.foo.bar.baz.child/chat.md) |

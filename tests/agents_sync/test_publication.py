@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+import re
 
 import pytest
 
@@ -14,6 +15,8 @@ from sase.agents_sync.models import CommitRecord, ProjectTarget
 from sase.agents_sync.publication import publish_agent_hood, reconcile_agent_hoods
 from sase.agents_sync.v2_io import read_hood_snapshot
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+
+_HEADING_RE = re.compile(r"^## (?P<title>.+)$", re.MULTILINE)
 
 
 def _target(tmp_path: Path) -> ProjectTarget:
@@ -93,6 +96,7 @@ def _inventory(owner: AgentOwnerIdentity) -> ProjectHoodInventory:
             },
             relationships=(_InventoryRelationship("parent", "foo.bar", "name"),),
         ),
+        _run("foo.bar.baz.child", "12"),
         _run("foo.boom", "05", state="waiting"),
         _run("foo.bar.kazam", "06", state="failed"),
         _run("foo.rootless--left", "07", family="foo.rootless"),
@@ -119,6 +123,21 @@ def _snapshot_path(root: Path) -> Path:
         / "foo"
         / "snapshot.json"
     )
+
+
+def _section_titles(page: str) -> tuple[str, ...]:
+    return tuple(match.group("title") for match in _HEADING_RE.finditer(page))
+
+
+def _assert_summary_anchors_resolve(page: str) -> None:
+    marker = "## Summary\n\n"
+    if marker not in page:
+        return
+    summary = page.split(marker, 1)[1].split("\n## ", 1)[0]
+    anchors = re.findall(r"\]\(#([^)]+)\)", summary)
+    headings = {title.casefold().replace(" ", "-") for title in _section_titles(page)}
+    for anchor in anchors:
+        assert anchor in headings
 
 
 def test_targeted_publication_captures_complete_hood_and_is_byte_stable(
@@ -156,7 +175,7 @@ def test_targeted_publication_captures_complete_hood_and_is_byte_stable(
     }
 
     snapshot = read_hood_snapshot(_snapshot_path(repo))
-    assert first.hoods_published == 1 and first.runs_published == 9
+    assert first.hoods_published == 1 and first.runs_published == 10
     assert second.hoods_unchanged == 1
     assert before == after
     assert {run.local_name for run in snapshot.runs} == {
@@ -164,6 +183,7 @@ def test_targeted_publication_captures_complete_hood_and_is_byte_stable(
         "foo.bar",
         "foo.bar.baz--code",
         "foo.bar.baz--plan",
+        "foo.bar.baz.child",
         "foo.boom",
         "foo.bar.kazam",
         "foo.rootless--left",
@@ -174,6 +194,32 @@ def test_targeted_publication_captures_complete_hood_and_is_byte_stable(
     assert "alice.athena.foo.bar.baz" in snapshot.structural_ancestors
     assert (repo / "families" / "alice.athena.foo.bar.baz.md").is_file()
     family = (repo / "families" / "alice.athena.foo.bar.baz.md").read_text()
+    agent = (
+        repo / "agents" / "alice.athena.foo.bar.baz--code" / "README.md"
+    ).read_text()
+    assert _section_titles(agent) == (
+        "Summary",
+        "Files",
+        "Commits",
+        "Variables",
+        "Neighbors",
+    )
+    assert _section_titles(family) == (
+        "Lineage",
+        "Commits",
+        "Variables",
+        "Neighbors",
+    )
+    assert (
+        family.index("## Lineage")
+        < family.index("| Role | Agent | State |")
+        < family.index("## Commits")
+    )
+    assert (
+        "| [foo.bar.baz.child](../agents/alice.athena.foo.bar.baz.child/README.md) "
+        "| descendant | completed |" in family
+    )
+    _assert_summary_anchors_resolve(agent)
     assert '<a id="member-code"></a>' in family
     assert "```mermaid" in family
     assert not (repo / "agents" / "alice.athena.foo.bar.baz--code" / "chat.md").exists()
@@ -201,6 +247,7 @@ def test_targeted_publication_captures_complete_hood_and_is_byte_stable(
     update_goldens = request.config.getoption("--sase-update-agents-goldens")
     for golden_name, rendered_path in rendered.items():
         rendered_text = rendered_path.read_text()
+        _assert_summary_anchors_resolve(rendered_text)
         golden_path = golden_root / golden_name
         if update_goldens and rendered_text != golden_path.read_text():
             # Refresh with --sase-update-agents-goldens, then rerun without it.

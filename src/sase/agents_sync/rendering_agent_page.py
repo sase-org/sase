@@ -87,6 +87,7 @@ def render_agent_page(
                 "",
             ]
         )
+    lines.extend(render_agent_variables(run, source_path=source_path))
     lines.extend(
         render_neighbors_section(
             kinship,
@@ -94,7 +95,6 @@ def render_agent_page(
             source_path=source_path,
         )
     )
-    lines.extend(render_agent_variables(run, source_path=source_path))
     return "\n".join(lines)
 
 

@@ -26,17 +26,6 @@ The diagram is an optional enhancement; the ordered table below contains the sam
 |---|---|---|---|
 | code | `aaaaaaa` | foo.bar.baz--code | 1970-01-01 00:00:01 |
 
-## Neighbors
-
-| Agent | Relation | State |
-|---|---|---|
-| [foo.bar](../agents/alice.athena.foo.bar/README.md) | ancestor | completed |
-| [foo](../agents/alice.athena.foo/README.md) | ancestor | completed |
-| [foo.bar.kazam](../agents/alice.athena.foo.bar.kazam/README.md) | foo.bar hood | failed |
-| [foo.archive](../agents/alice.athena.foo.archive/README.md) | foo hood | dismissed |
-| [foo.boom](../agents/alice.athena.foo.boom/README.md) | foo hood | waiting |
-| [foo.rootless](alice.athena.foo.rootless.md) (family · 2) | foo hood | completed 2 |
-
 ## Variables
 
 | Role | Variable | Value |
@@ -44,3 +33,15 @@ The diagram is an optional enhancement; the ordered table below contains the sam
 | code | `report_path` | reports/code.md |
 | plan | `plan_file` | plans/foo.md |
 | plan | `status` | approved |
+
+## Neighbors
+
+| Agent | Relation | State |
+|---|---|---|
+| [foo.bar](../agents/alice.athena.foo.bar/README.md) | ancestor | completed |
+| [foo](../agents/alice.athena.foo/README.md) | ancestor | completed |
+| [foo.bar.baz.child](../agents/alice.athena.foo.bar.baz.child/README.md) | descendant | completed |
+| [foo.bar.kazam](../agents/alice.athena.foo.bar.kazam/README.md) | foo.bar hood | failed |
+| [foo.archive](../agents/alice.athena.foo.archive/README.md) | foo hood | dismissed |
+| [foo.boom](../agents/alice.athena.foo.boom/README.md) | foo hood | waiting |
+| [foo.rootless](alice.athena.foo.rootless.md) (family · 2) | foo hood | completed 2 |

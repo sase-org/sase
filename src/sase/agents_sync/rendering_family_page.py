@@ -115,6 +115,7 @@ def render_family_page(
                 "",
             ]
         )
+    lines.extend(render_family_variables(member_roles))
     lines.extend(
         render_neighbors_section(
             kinship,
@@ -122,7 +123,6 @@ def render_family_page(
             source_path=source_path,
         )
     )
-    lines.extend(render_family_variables(member_roles))
     return "\n".join(lines)
 
 
