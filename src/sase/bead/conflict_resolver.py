@@ -14,6 +14,7 @@ from sase.bead.project import (
     BEADS_DIRNAME_NON_VC,
     BEADS_DIRNAME_ROOT,
 )
+from sase.bead_pages.paths import BEAD_PAGES_DIRNAME
 from sase.core.bead_conflict_facade import (
     event_store_manifest,
     merge_event_streams,
@@ -86,9 +87,16 @@ def _resolve_bead_conflicts(
             "non-bead conflicts remain: " + ", ".join(non_bead),
         )
 
+    regenerable_conflicts = [
+        path for path in bead_conflicts if _is_regenerable_bead_path(path, bead_prefix)
+    ]
+    regenerable_conflict_set = set(regenerable_conflicts)
+    store_conflicts = [
+        path for path in bead_conflicts if path not in regenerable_conflict_set
+    ]
     unsupported = [
         path
-        for path in bead_conflicts
+        for path in store_conflicts
         if not _is_mergeable_bead_path(path, bead_prefix)
     ]
     if unsupported:
@@ -96,14 +104,24 @@ def _resolve_bead_conflicts(
             False,
             "unsupported bead conflicts: " + ", ".join(unsupported),
         )
+    if not store_conflicts:
+        resolved_paths = _resolve_regenerable_conflicts(
+            repo_root,
+            regenerable_conflicts,
+        )
+        return _BeadConflictResolution(
+            True,
+            "resolved bead conflicts: " + ", ".join(resolved_paths),
+            tuple(resolved_paths),
+        )
 
     streams = _load_worktree_streams(
         resolved_beads_dir,
         repo_root,
-        set(bead_conflicts),
+        set(store_conflicts),
     )
     merged_stream_ids: set[str] = set()
-    for path in bead_conflicts:
+    for path in store_conflicts:
         if not _is_event_stream_path(path, bead_prefix):
             continue
         stream_id = Path(path).stem
@@ -130,9 +148,13 @@ def _resolve_bead_conflicts(
         manifest,
         merged_stream_ids,
     )
-    resolved_paths.extend(path for path in bead_conflicts if path not in resolved_paths)
+    staged_paths = _resolve_regenerable_conflicts(repo_root, regenerable_conflicts)
+    resolved_paths.extend(
+        path for path in store_conflicts if path not in resolved_paths
+    )
+    resolved_paths.extend(staged_paths)
     resolved_paths = sorted(dict.fromkeys(resolved_paths))
-    _git_add(repo_root, resolved_paths)
+    _git_add(repo_root, [path for path in resolved_paths if path not in staged_paths])
 
     return _BeadConflictResolution(
         True,
@@ -212,8 +234,16 @@ def resolve_beads_dir(
 
 def _is_bead_path(path: str, bead_prefix: str) -> bool:
     if not bead_prefix:
-        return bool(Path(path).parts) and Path(path).parts[0] in _BEAD_STORE_ENTRIES
+        return bool(Path(path).parts) and (
+            Path(path).parts[0] in _BEAD_STORE_ENTRIES
+            or _is_regenerable_bead_path(path, bead_prefix)
+        )
     return path == bead_prefix or path.startswith(f"{bead_prefix}/")
+
+
+def _is_regenerable_bead_path(path: str, bead_prefix: str) -> bool:
+    parts = Path(path).parts
+    return not bead_prefix and len(parts) > 1 and parts[0] == BEAD_PAGES_DIRNAME
 
 
 def _is_event_stream_path(path: str, bead_prefix: str) -> bool:
@@ -290,6 +320,32 @@ def _read_stage_stream(
             _probe_failure(f"could not read stage {stage} of {path}", result)
         )
     return _parse_stream_text(result.stdout, stream_id)
+
+
+def _resolve_regenerable_conflicts(repo_root: Path, paths: list[str]) -> list[str]:
+    resolved: list[str] = []
+    for path in sorted(paths):
+        _resolve_regenerable_conflict(repo_root, path)
+        resolved.append(path)
+    return resolved
+
+
+def _resolve_regenerable_conflict(repo_root: Path, path: str) -> None:
+    upstream_stage, _local_stage = _upstream_and_local_stages(repo_root)
+    stages = _unmerged_stages(repo_root, path)
+    if upstream_stage not in stages:
+        _git_rm(repo_root, path)
+        return
+
+    result = _run_git(repo_root, ["show", f":{upstream_stage}:{path}"])
+    if result.returncode != 0:
+        raise _GitProbeFailure(
+            _probe_failure(f"could not read stage {upstream_stage} of {path}", result)
+        )
+    target = repo_root / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(result.stdout, encoding="utf-8")
+    _git_add(repo_root, [path])
 
 
 def _parse_stream_text(text: str, stream_id: str) -> dict[str, Any]:
@@ -389,6 +445,13 @@ def _git_add(repo_root: Path, paths: list[str]) -> None:
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "").strip()
             raise RuntimeError(detail or f"git add failed with {result.returncode}")
+
+
+def _git_rm(repo_root: Path, path: str) -> None:
+    result = _run_git(repo_root, ["rm", "-r", "-f", "--", path])
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        raise RuntimeError(detail or f"git rm failed with {result.returncode}")
 
 
 def handle_resolve_conflicts_command() -> int:
