@@ -198,7 +198,19 @@ def extract_directives_and_write_meta(
     wait_names = list(directives.wait)
     wait_identity_deps: list[dict[str, str]] = []
     wait_beads = list(directives.wait_beads)
+    from sase.core.agent_tribe import (
+        is_reserved_tribe_name,
+        parse_tribe_reference,
+        reserved_tribe_target_reason,
+    )
+
     for fork_wait_target in fork_agent_names(fork_reference_prompt):
+        fork_tribe = parse_tribe_reference(fork_wait_target)
+        if fork_tribe is not None and is_reserved_tribe_name(fork_tribe):
+            raise RuntimeError(
+                f"Invalid '#fork' tribe reference {fork_wait_target!r}: "
+                f"{reserved_tribe_target_reason(fork_tribe)}"
+            )
         if fork_wait_target not in wait_names:
             wait_names.append(fork_wait_target)
     if family_attach_plan and family_attach_plan.parent_is_running:
@@ -213,7 +225,6 @@ def extract_directives_and_write_meta(
             }
         )
 
-    from sase.core.agent_tribe import parse_tribe_reference
     from sase.core.agent_identity_facade import (
         AgentIdentitySnapshot,
         normalize_owned_agent_name,

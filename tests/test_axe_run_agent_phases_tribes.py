@@ -471,3 +471,30 @@ def test_medium_phase_worker_directive_metadata_resolves_concrete_lane(
 
     assert (meta["llm_provider"], meta["model"]) == ("codex", "o3")
     assert meta["reasoning_effort"] == "high"
+
+
+def test_fork_reserved_tribe_reference_fails_the_launch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``#fork:@default`` would park forever, so it must not launch at all."""
+    workspace_dir = tmp_path / "workspace"
+    artifacts_dir = tmp_path / "artifacts"
+    workspace_dir.mkdir()
+    artifacts_dir.mkdir()
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+
+    with (
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        patch("sase.agent.names.claim_agent_name"),
+        pytest.raises(RuntimeError) as excinfo,
+    ):
+        extract_directives_and_write_meta(
+            "#fork:@default\nDo work",
+            str(workspace_dir),
+            str(artifacts_dir),
+        )
+
+    message = str(excinfo.value)
+    assert "Invalid '#fork' tribe reference" in message
+    assert "reserved @default panel" in message

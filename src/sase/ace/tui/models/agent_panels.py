@@ -25,6 +25,8 @@ from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import cast
 
+from sase.core.agent_tribe import RESERVED_DEFAULT_TRIBE
+
 from .agent import Agent
 from ._agent_tree import (
     presentation_anchor,
@@ -33,7 +35,7 @@ from ._agent_tree import (
 )
 
 #: Canonical display identity for the reserved fallback tribe.
-DEFAULT_AGENT_TRIBE = "default"
+DEFAULT_AGENT_TRIBE = RESERVED_DEFAULT_TRIBE
 
 #: Panel key type — ``None`` for ``@default``; a tribe string otherwise.
 PanelKey = str | None

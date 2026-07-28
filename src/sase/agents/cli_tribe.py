@@ -90,11 +90,30 @@ def handle_agents_tribe(args: argparse.Namespace) -> None:
 
 
 def _validate_or_exit(raw_tribe: str) -> str:
+    """Validate a tribe name being assigned to an agent.
+
+    Reserved pseudo-tribes are rejected on assignment only: ACE folds such an
+    agent into the untagged panel while the wait index would treat it as a
+    real tribe.  Pre-existing stored assignments keep loading.
+    """
+    from sase.core.agent_tribe import (
+        is_reserved_tribe_name,
+        reserved_tribe_target_reason,
+    )
+
     try:
-        return validate_tribe_name(raw_tribe)
+        cleaned = validate_tribe_name(raw_tribe)
     except InvalidTribeError as exc:
         print(f"Invalid tribe: {exc}", file=sys.stderr)
         sys.exit(2)
+    if is_reserved_tribe_name(cleaned):
+        print(
+            f"Invalid tribe: {cleaned!r} is reserved — "
+            f"{reserved_tribe_target_reason(cleaned)}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    return cleaned
 
 
 def _resolve_or_exit(name: str) -> tuple[AgentType, str, str | None]:

@@ -304,6 +304,33 @@ def test_wait_tribe_reference_rejects_malformed_name(prompt: str) -> None:
         extract_prompt_directives(prompt)
 
 
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "%wait:@default\nDo work",
+        "%w:@default\nDo work",
+        "%wait(@default)\nDo work",
+        "%wait(@epic, @default)\nDo work",
+    ],
+)
+def test_wait_reserved_tribe_reference_is_rejected(prompt: str) -> None:
+    with pytest.raises(DirectiveError) as excinfo:
+        extract_prompt_directives(prompt)
+
+    message = str(excinfo.value)
+    assert "Invalid '%wait' tribe reference" in message
+    assert "reserved @default panel" in message
+
+
+def test_wait_reserved_tribe_reference_rejected_in_template_expansion() -> None:
+    """The expansion path guards the reference too, not just the parse path."""
+    from sase.xprompt._directive_values import resolve_wait_templates
+
+    expanded = {"wait": ["@default"]}
+    with pytest.raises(DirectiveError, match="reserved @default panel"):
+        resolve_wait_templates(expanded)
+
+
 def test_wait_tribe_reference_does_not_collide_with_tribe_directive() -> None:
     cleaned, directives = extract_prompt_directives(
         "%id(worker, tribe=epic)\n%w:@epic\nDo work"

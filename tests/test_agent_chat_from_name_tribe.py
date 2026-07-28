@@ -192,3 +192,19 @@ def test_tribe_fork_reads_archived_clan_member_transcript(
         ("review.archived", str(archived_chat)),
         ("review.live", str(live_chat)),
     ]
+
+
+def test_tribe_fork_rejects_reserved_default_tribe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The fork workflow explains the reserved panel rather than reporting a miss."""
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    current_dir = write_agent(tmp_path, "20260718020000", "waiter")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
+
+    with pytest.raises(RuntimeError) as excinfo:
+        _resolve_agent_chat_sources(["@default"])
+
+    message = str(excinfo.value)
+    assert "Invalid '#fork' tribe reference" in message
+    assert "reserved @default panel" in message

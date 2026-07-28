@@ -19,9 +19,35 @@ RawAgentTribeIdentity = tuple[str, str, str | None]
 
 TRIBE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
+#: Reserved display identity for the untagged agent bucket.  It is a panel
+#: label, never a real tribe assignment, so it can never be a wait target.
+RESERVED_DEFAULT_TRIBE = "default"
+
+#: Every pseudo-tribe that exists only as a display identity.
+RESERVED_TRIBE_NAMES: frozenset[str] = frozenset({RESERVED_DEFAULT_TRIBE})
+
 
 class InvalidTribeError(ValueError):
     """Raised when an agent tribe name fails validation."""
+
+
+def is_reserved_tribe_name(tribe: str) -> bool:
+    """Return whether *tribe* names a reserved display-only pseudo-tribe.
+
+    Reserved names stay valid for :func:`validate_tribe_name` and
+    :func:`parse_tribe_reference` — they are legitimate configuration and
+    panel identities — but they must never be used as a wait or fork target.
+    """
+    return tribe in RESERVED_TRIBE_NAMES
+
+
+def reserved_tribe_target_reason(tribe: str) -> str:
+    """Return the shared explanation for rejecting a reserved tribe target."""
+    return (
+        f"the reserved @{tribe} panel is the untagged bucket, not a real "
+        "tribe, so it can never resolve — target a named tribe, an agent, "
+        "a family, or a clan instead"
+    )
 
 
 def validate_tribe_name(tribe: str) -> str:
@@ -164,12 +190,16 @@ def canonicalize_agent_tribe_metadata(data: dict[str, Any]) -> dict[str, Any]:
 
 __all__ = [
     "InvalidTribeError",
+    "RESERVED_DEFAULT_TRIBE",
+    "RESERVED_TRIBE_NAMES",
     "RawAgentTribeIdentity",
     "TRIBE_NAME_RE",
     "canonicalize_agent_tribe_metadata",
     "canonical_agent_tribes_path",
+    "is_reserved_tribe_name",
     "legacy_agent_tags_path",
     "load_raw_agent_tribes",
     "parse_tribe_reference",
+    "reserved_tribe_target_reason",
     "validate_tribe_name",
 ]

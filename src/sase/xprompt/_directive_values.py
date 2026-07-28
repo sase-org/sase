@@ -49,14 +49,25 @@ def resolve_wait_agent_args(seen_multi: dict[str, list[str]]) -> None:
 
 def _parse_wait_tribe_reference(value: str) -> str | None:
     """Parse a wait tribe target and translate validation into directive errors."""
-    from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
+    from sase.core.agent_tribe import (
+        InvalidTribeError,
+        is_reserved_tribe_name,
+        parse_tribe_reference,
+        reserved_tribe_target_reason,
+    )
 
     try:
-        return parse_tribe_reference(value)
+        tribe = parse_tribe_reference(value)
     except InvalidTribeError as exc:
         raise DirectiveError(
             f"Invalid '%wait' tribe reference {value!r}: {exc}"
         ) from exc
+    if tribe is not None and is_reserved_tribe_name(tribe):
+        raise DirectiveError(
+            f"Invalid '%wait' tribe reference {value!r}: "
+            f"{reserved_tribe_target_reason(tribe)}"
+        )
+    return tribe
 
 
 def resolve_wait_bead_args(wait_bead_args: list[str]) -> list[str]:

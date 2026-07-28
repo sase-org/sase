@@ -372,6 +372,17 @@ def _resolve_tribe_fork_source(reference: str, tribe: str) -> _ForkSource:
     the all-project index here preserves the wait check's entity aggregation and
     earliest-launch ordering when the fork workflow starts after the barrier.
     """
+    from sase.core.agent_tribe import (
+        is_reserved_tribe_name,
+        reserved_tribe_target_reason,
+    )
+
+    if is_reserved_tribe_name(tribe):
+        raise RuntimeError(
+            f"Invalid '#fork' tribe reference {reference!r}: "
+            f"{reserved_tribe_target_reason(tribe)}"
+        )
+
     current_artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not current_artifacts_dir:
         raise RuntimeError(

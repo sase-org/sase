@@ -227,6 +227,18 @@ def test_tribe_set_rejects_invalid_characters(
     assert "must match" in capsys.readouterr().err
 
 
+def test_tribe_set_rejects_reserved_default_tribe(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Assigning the reserved panel name would desync ACE from the wait index."""
+    with pytest.raises(SystemExit) as excinfo:
+        handle_agents_tribe(_tribe_args(tribe="default"))
+    assert excinfo.value.code == 2
+    err = capsys.readouterr().err
+    assert "reserved" in err
+    assert "reserved @default panel" in err
+
+
 def test_tribe_set_unknown_agent_exits_2(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
