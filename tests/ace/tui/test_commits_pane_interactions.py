@@ -167,12 +167,36 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         assert pane.filters.sidecar is False
         assert editor.text == "sidecar:false fix"
         assert "sidecar:" not in pane._build_info().plain
+
+        # With no automatic or picked project, `a` cannot invent hidden cwd
+        # scope and leaves the visible all-project query unchanged.
+        calls_before_unknown_toggle = len(calls)
         await page.press("a")
+        await page.pause()
+        assert len(calls) == calls_before_unknown_toggle
+        assert pane.filters.project is None
+
+        pane.set_project_scope("alpha")
         await page.wait_for(
-            lambda _state: any(call["all_projects"] is True for call in calls)
+            lambda _state: (
+                calls[-1]["project_scope"] == "alpha"
+                and calls[-1]["all_projects"] is False
+            )
         )
+        assert editor.text == "project:alpha sidecar:false fix"
+
+        await page.press("a")
+        await page.wait_for(lambda _state: pane.filters.project is None)
+        assert any(call["all_projects"] is True for call in calls)
+        assert editor.text == "sidecar:false fix"
+
+        await page.press("a")
+        await page.wait_for(lambda _state: pane.filters.project == "alpha")
+        assert editor.text == "project:alpha sidecar:false fix"
+
+        refresh_baseline = len(calls)
         await page.press("R")
-        await page.wait_for(lambda _state: len(calls) >= 5)
+        await page.wait_for(lambda _state: len(calls) == refresh_baseline + 1)
         await page.press("F")
         await page.wait_for(
             lambda _state: any(call["force_fetch"] is True for call in calls)
@@ -230,6 +254,8 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
         help_text = modal._build_left_column().plain
         assert "F / f2" in help_text
         assert "sidecar:true" in help_text
-        assert "Toggle sidecar history" in help_text
+        assert "project:KEY" in help_text
+        assert "Single; omitted = all projects" in help_text
+        assert "Sidecars / project: off/on" in help_text
         assert "until:DAY includes the full day" in help_text
         assert "[P/N] / [P/N+]" in help_text

@@ -548,18 +548,25 @@ ace:
 
 #### `ace.artifacts.commits`
 
-| Field           | Type | Default                   | Description                                                                                                         |
-| --------------- | ---- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `default_query` | str  | `sidecar:false since:24h` | Initial persistent Commits query. Relative windows re-anchor on refresh; configuration changes apply on next start. |
+| Field           | Type | Default                   | Description                                                                                                                                                                    |
+| --------------- | ---- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `default_query` | str  | `sidecar:false since:24h` | Initial persistent Commits query. Supports one `project:`; startup may add the current registered project. Relative windows re-anchor on refresh; changes apply on next start. |
 
 The Commits pane validates this value with its live query parser. Invalid runtime configuration produces a warning and
 falls back to the bundled query. An empty configured query is valid and includes sidecars; the visible canonical row
-renders that state as `sidecar:true`. Commits queries are uncapped unless they contain an explicit positive `limit:N`,
-so the bundled 24-hour query has no row cap. When an explicit cap clips the result, ACE keeps the token visible and
-shows a lower-bound total such as `[1/40+]` in the repository legend while the filter row says `capped`. The legend's
-`[P/N]` form means selected one-based position over displayed matched entries. `limit:all` is accepted as an unlimited
-synonym but is omitted from canonical query text. Day-granular `until:` values include the full named day. This setting
-is independent of the `sase vcs log` CLI's sidecar opt-in and limit contract.
+renders that state as `sidecar:true`. At startup, an explicit project from the ACE query takes precedence over a
+`project:` in this setting, which takes precedence over read-only current registered-project inference. The selected
+project is merged into the query before the pane is composed. `project:` is singular and cannot be negated or contain an
+unquoted comma list. Once startup merging is complete, no `project:` token always means a true all-project collection.
+The Commits project picker replaces only that token, and **All projects** removes it while preserving the rest of the
+query.
+
+Commits queries are uncapped unless they contain an explicit positive `limit:N`, so the bundled 24-hour query has no row
+cap. When an explicit cap clips the result, ACE keeps the token visible and shows a lower-bound total such as `[1/40+]`
+in the repository legend while the filter row says `capped`. The legend's `[P/N]` form means selected one-based position
+over displayed matched entries. `limit:all` is accepted as an unlimited synonym but is omitted from canonical query
+text. Day-granular `until:` values include the full named day. This setting is independent of the `sase vcs log` CLI's
+sidecar opt-in and limit contract.
 
 #### `ace.axe_description_expanded`
 

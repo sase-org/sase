@@ -60,8 +60,8 @@ class CommitsPane(
         self._init_commits_filtering()
         self._init_commits_detail(diff_loader)
         self._registry = load_keymap_registry({})
-        self._project_display_name: str | None = None
-        self._project_file = ""
+        self._last_project_scope = self.filters.project
+        self._project_files: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
         yield CommitFilterBar(id="commit-filter-bar")
@@ -125,13 +125,31 @@ class CommitsPane(
         display_name: str | None = None,
         project_file: str | None = None,
     ) -> None:
-        changed = project != self.project_scope
-        self.project_scope = project
-        self._project_display_name = display_name
-        self._project_file = project_file or ""
-        self._refresh_info()
-        if changed:
-            self._state_changed()
+        """Replace the query-owned project facet from a scope selection."""
+        del display_name
+        if project is not None:
+            self._last_project_scope = project
+            if project_file:
+                self._project_files[project] = project_file
+        if project == self.filters.project:
+            return
+        values = replace(self.filters, project=project)
+        if self.is_mounted:
+            self._commit_filter_values(values, close_session=False)
+        else:
+            self.filters = values
+
+    def set_project_completion_sources(
+        self,
+        projects: tuple[str, ...],
+        *,
+        project_files: dict[str, str] | None = None,
+    ) -> None:
+        """Warm project completions and fetch metadata from loaded inventory."""
+        if project_files:
+            self._project_files.update(project_files)
+        if self.is_mounted:
+            self.query_one(CommitFilterBar).set_project_completion_sources(projects)
 
     def on_activate(self) -> None:
         if self.is_mounted:
@@ -180,9 +198,6 @@ class CommitsPane(
     def _build_info_header(self) -> Text:
         worker = self._collection_worker
         return build_commits_info_header(
-            project_display_name=self._project_display_name,
-            project_scope=self.project_scope,
-            all_projects=self.all_projects,
             refreshing=worker is not None and worker.is_running,
             active_limit=self._active_limit(),
         )
@@ -199,9 +214,6 @@ class CommitsPane(
     def _build_info(self) -> Text:
         worker = self._collection_worker
         return build_commits_info(
-            project_display_name=self._project_display_name,
-            project_scope=self.project_scope,
-            all_projects=self.all_projects,
             result=self.result,
             refreshing=worker is not None and worker.is_running,
             active_limit=self._active_limit(),
@@ -221,8 +233,21 @@ class CommitsPane(
         )
 
     def toggle_all_projects(self) -> None:
-        self.all_projects = not self.all_projects
-        self._state_changed()
+        project = self.filters.project
+        if project is not None:
+            self._last_project_scope = project
+            self._commit_filter_values(
+                replace(self.filters, project=None),
+                close_session=False,
+            )
+            return
+        if self._last_project_scope is None:
+            self.notify("No project to restore; press p to pick one.", timeout=3)
+            return
+        self._commit_filter_values(
+            replace(self.filters, project=self._last_project_scope),
+            close_session=False,
+        )
 
     def refresh_commits(self) -> None:
         self._schedule_collection()
@@ -259,11 +284,16 @@ class CommitsPane(
             elif self.artifacts_active:
                 self._schedule_collection()
 
-        scope = "all" if spec.all_projects else spec.project_scope or "current"
+        scope = spec.project_scope or "all"
+        project_file = (
+            self._project_files.get(spec.project_scope, "")
+            if spec.project_scope is not None
+            else ""
+        )
         submit(
             "commit-fetch",
             f"commits:{scope}",
-            self._project_file,
+            project_file,
             _task,
             display_name=f"Fetch commits ({scope})",
             dedup_key=f"commit-fetch:{scope}",

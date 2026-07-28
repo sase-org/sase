@@ -55,7 +55,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.pick_artifacts_project),
-                    "Pick project scope for panes",
+                    "Pick; Commits rewrites project:",
                 ),
                 (
                     d(a.open_command_palette),
@@ -80,6 +80,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(a.edit_query)} / {d(a.commits_filters)}",
                     "Focus persistent commit filter",
                 ),
+                ("project:KEY", "Single; omitted = all projects"),
                 ("repo: / author:", "Filter repository / author substring"),
                 ("since: / until:", "until:DAY includes the full day"),
                 ("sidecar:true / false", "Include / exclude sidecars"),
@@ -92,7 +93,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ("Enter / Esc", "Commit / restore; row stays"),
                 (
                     f"{d(a.commits_toggle_sdd)} / {d(a.commits_toggle_all_projects)}",
-                    "Toggle sidecar history / all projects",
+                    "Sidecars / project: off/on",
                 ),
                 (
                     f"{d(a.commits_fetch)} / {d(a.commits_refresh)}",

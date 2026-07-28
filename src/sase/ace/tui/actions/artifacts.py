@@ -427,10 +427,15 @@ class ArtifactsMixin(
             project_file = choices.project_files.get(project)
         view = self._artifacts_view()
         if view is not None:
+            commits = self._commits_pane()
+            update_commits = bool(
+                picked or commits is None or commits.filters.project is None
+            )
             view.set_project_scope(
                 project,
                 display_name=display_name,
                 project_file=project_file,
+                update_commits=update_commits,
             )
 
     def _ensure_artifacts_project_choices(self) -> None:
@@ -457,6 +462,12 @@ class ArtifactsMixin(
                 self._artifacts_project_choices_loading = False
 
             self._artifacts_project_choices = result
+            view = self._artifacts_view()
+            if view is not None:
+                view.set_commits_project_sources(
+                    tuple(result.display_names),
+                    project_files=result.project_files,
+                )
             if (
                 self.artifacts_project_scope is None
                 and not self._artifacts_scope_was_picked
@@ -504,10 +515,15 @@ class ArtifactsMixin(
                 return
             self._set_artifacts_project_scope(result.project_key, picked=True)
 
+        current_project = self.artifacts_project_scope
+        if self.current_artifacts_subtab == "commits":
+            pane = self._commits_pane()
+            if pane is not None:
+                current_project = pane.filters.project
         self.push_screen(  # type: ignore[attr-defined]
             InventoryProjectPicker(
                 list(choices.choices),
-                current_project=self.artifacts_project_scope,
+                current_project=current_project,
             ),
             _on_picked,
         )

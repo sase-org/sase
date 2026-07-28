@@ -7,6 +7,7 @@ from jsonschema import Draft7Validator, ValidationError
 
 from sase.ace.tui.widgets.artifacts.commit_config import (
     BUNDLED_COMMITS_DEFAULT_QUERY,
+    merge_commits_startup_project,
     resolve_commits_default_query,
 )
 from sase.config.inventory import config_field_model, load_config_schema
@@ -61,3 +62,45 @@ def test_missing_runtime_query_uses_bundled_value_without_warning() -> None:
     assert to_query_string(resolved.values) == BUNDLED_COMMITS_DEFAULT_QUERY
     assert resolved.values.limit == 0
     assert resolved.diagnostic is None
+
+
+def test_startup_project_precedence_is_explicit_then_config_then_cwd() -> None:
+    configured = parse_commit_filter_query("project:configured sidecar:false")
+
+    assert (
+        merge_commits_startup_project(
+            configured,
+            explicit_project="ace-query",
+            current_project="cwd",
+        ).project
+        == "ace-query"
+    )
+    assert (
+        merge_commits_startup_project(
+            configured,
+            explicit_project=None,
+            current_project="cwd",
+        ).project
+        == "configured"
+    )
+    assert (
+        merge_commits_startup_project(
+            parse_commit_filter_query("sidecar:false"),
+            explicit_project=None,
+            current_project="cwd",
+        ).project
+        == "cwd"
+    )
+
+
+def test_startup_project_remains_absent_without_any_known_project() -> None:
+    values = parse_commit_filter_query("sidecar:false")
+
+    assert (
+        merge_commits_startup_project(
+            values,
+            explicit_project=None,
+            current_project=None,
+        )
+        is values
+    )

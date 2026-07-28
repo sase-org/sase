@@ -75,9 +75,6 @@ def test_commits_info_legend_only_lists_repositories_with_displayed_rows() -> No
     row_limited = replace(with_empty_repo, commits=with_empty_repo.commits[:1])
 
     info = build_commits_info(
-        project_display_name=None,
-        project_scope=None,
-        all_projects=False,
         result=row_limited,
         refreshing=False,
     ).plain
@@ -92,16 +89,10 @@ def test_commits_info_only_renders_active_cap_when_supplied() -> None:
     result = _result()
 
     exact = build_commits_info(
-        project_display_name=None,
-        project_scope=None,
-        all_projects=False,
         result=result,
         refreshing=False,
     ).plain
     capped = build_commits_info(
-        project_display_name=None,
-        project_scope=None,
-        all_projects=False,
         result=result,
         refreshing=False,
         active_limit=40,
@@ -109,6 +100,8 @@ def test_commits_info_only_renders_active_cap_when_supplied() -> None:
 
     assert "limit:" not in exact
     assert "limit:40" in capped
+    assert "Scope" not in capped
+    assert "project" not in capped.casefold()
 
 
 def test_commit_position_badge_is_one_based_styled_and_precedes_repository() -> None:
@@ -129,9 +122,6 @@ def test_commit_position_badge_is_one_based_styled_and_precedes_repository() -> 
     assert denominator_style.color == Color.parse(GOLD)
 
     info = build_commits_info(
-        project_display_name=None,
-        project_scope=None,
-        all_projects=False,
         result=result,
         refreshing=False,
         selected_commit_index=1,
@@ -201,9 +191,6 @@ def test_commit_position_badge_handles_referenced_large_timeline() -> None:
 
 def test_empty_commits_info_has_one_separator_before_presence_legend() -> None:
     info = build_commits_info(
-        project_display_name=None,
-        project_scope=None,
-        all_projects=False,
         result=VcsLogResult((), (), ()),
         refreshing=False,
     )

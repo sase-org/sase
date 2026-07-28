@@ -66,7 +66,11 @@ async def test_custom_default_query_controls_first_collection(
         lambda: {
             "ace": {
                 "artifacts": {
-                    "commits": {"default_query": "repo:plans sidecar:true limit:5"}
+                    "commits": {
+                        "default_query": (
+                            "project:alpha repo:plans sidecar:true limit:5"
+                        )
+                    }
                 }
             }
         },
@@ -83,12 +87,119 @@ async def test_custom_default_query_controls_first_collection(
         bar = pane.query_one(CommitFilterBar)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
         assert bar.display is True
-        assert editor.text == "repo:plans sidecar:true limit:5"
+        assert editor.text == "project:alpha repo:plans sidecar:true limit:5"
         await page.wait_for(lambda _state: bool(calls) and pane.result is not None)
 
+        assert calls[0]["project_scope"] == "alpha"
+        assert calls[0]["all_projects"] is False
         assert calls[0]["repo_filters"] == ("plans",)
         assert calls[0]["include_sidecars"] is True
         assert calls[0]["limit"] == 5
+
+
+async def test_ace_query_project_overrides_config_and_cwd_before_first_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {
+            "ace": {
+                "artifacts": {
+                    "commits": {"default_query": "project:configured sidecar:false"}
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "sase.main.utils.ensure_project_file_and_get_workspace_num",
+        lambda **_kwargs: ("/tmp/cwd-project.sase", 1, "cwd-project"),
+    )
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **kwargs: calls.append(kwargs) or _result(),
+    )
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(
+        query="project:ace-query",
+        initial_tab="changespecs",
+    ) as page:
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        editor = pane.query_one(
+            "#commit-filter-input",
+            SingleLineVimTextArea,
+        )
+        assert editor.text == "project:ace-query sidecar:false"
+        await page.wait_for(lambda _state: bool(calls))
+
+        assert calls[0]["project_scope"] == "ace-query"
+        assert calls[0]["all_projects"] is False
+
+
+async def test_inferred_project_is_visible_before_first_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {
+            "ace": {
+                "artifacts": {"commits": {"default_query": "sidecar:false since:24h"}}
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "sase.main.utils.ensure_project_file_and_get_workspace_num",
+        lambda **_kwargs: ("/tmp/cwd-project.sase", 1, "cwd-project"),
+    )
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **kwargs: calls.append(kwargs) or _result(),
+    )
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(initial_tab="changespecs") as page:
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        editor = pane.query_one(
+            "#commit-filter-input",
+            SingleLineVimTextArea,
+        )
+        assert editor.text == "project:cwd-project sidecar:false since:24h"
+        await page.wait_for(lambda _state: bool(calls))
+
+        assert calls[0]["project_scope"] == "cwd-project"
+        assert calls[0]["all_projects"] is False
+
+
+async def test_absent_project_token_collects_all_projects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"ace": {"artifacts": {"commits": {"default_query": "sidecar:false"}}}},
+    )
+    monkeypatch.setattr(
+        "sase.main.utils.ensure_project_file_and_get_workspace_num",
+        lambda **_kwargs: (None, None, None),
+    )
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **kwargs: calls.append(kwargs) or _result(),
+    )
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(initial_tab="changespecs") as page:
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        assert pane.filters.project is None
+        await page.wait_for(lambda _state: bool(calls))
+
+        assert calls[0]["project_scope"] is None
+        assert calls[0]["all_projects"] is True
 
 
 async def test_commits_filter_bar_rejects_invalid_submit(
@@ -183,7 +294,7 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
 
 
 def test_sidecar_snapshot_coverage_is_directional() -> None:
-    scope = (None, False)
+    scope = (None, True)
     narrow_values = CommitLogFilterValues(sidecar=False)
     broad_values = CommitLogFilterValues()
     narrow = AuthoritativeCommitSnapshot(scope, narrow_values, 0, _result())
@@ -195,7 +306,7 @@ def test_sidecar_snapshot_coverage_is_directional() -> None:
 
 
 def test_snapshot_coverage_trusts_truncation_metadata_not_row_count() -> None:
-    scope = (None, False)
+    scope = (None, True)
     values = CommitLogFilterValues()
     complete_result = AuthoritativeCommitSnapshot(
         scope,
@@ -325,7 +436,7 @@ def test_relative_filter_reparse_reuses_snapshot_cache_key() -> None:
         "sidecar:false since:24h",
         now=first_now + timedelta(hours=3),
     )
-    scope = (None, False)
+    scope = (None, True)
     result = _result()
     snapshot = AuthoritativeCommitSnapshot(scope, first, 0, result)
     cache = {(scope, first): result}

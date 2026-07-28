@@ -35,6 +35,10 @@ def _pin_rolling_default_query_time(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pin rolling-query and remote-fetch clocks for stable visual output."""
     reference = datetime(2026, 7, 7, 12, tzinfo=UTC)
     monkeypatch.setattr(
+        "sase.main.utils.ensure_project_file_and_get_workspace_num",
+        lambda **_kwargs: ("/tmp/sase.sase", 1, "sase"),
+    )
+    monkeypatch.setattr(
         "sase.ace.tui.widgets.artifacts.commits_filtering.normalize_reference_time",
         lambda: reference,
     )
@@ -107,7 +111,7 @@ async def test_commits_timeline_and_detail_png_snapshot(
         await page.wait_for(lambda _state: pane.result is result)
         assert (
             pane.query_one("#commit-filter-input", SingleLineVimTextArea).text
-            == "sidecar:false since:24h"
+            == "project:sase sidecar:false since:24h"
         )
         await wait_for_svg_contains(page, "feat(artifacts): keep every commit")
         await wait_for_svg_contains(page, "Changes:")
@@ -192,7 +196,7 @@ async def test_commits_persistent_filter_small_terminal_png_snapshot(
         pane, bar = await _open_commits(page, result)
         assert (
             bar.query_one("#commit-filter-input", SingleLineVimTextArea).text
-            == "sidecar:false since:24h limit:40"
+            == "project:sase sidecar:false since:24h limit:40"
         )
         assert bar.query_one("#commit-filter-status").content.plain == "capped"
         assert pane.query_one("#commits-position").content.plain == "[1/2+]  ·  "
@@ -315,18 +319,19 @@ async def test_commits_filter_completion_png_snapshot(
     ) as page:
         pane, bar = await _open_commits(page, result)
         pane.show_filters()
-        bar.open("repo:")
+        bar.set_project_completion_sources(("sase", "sase-github"))
+        bar.open("project:")
         completion = bar.query_one("#commit-filter-completion", OptionList)
         await page.wait_for(
             lambda _state: completion.display and completion.option_count == 2
         )
-        await wait_for_svg_contains(page, "repository")
+        await wait_for_svg_contains(page, "project key")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "artifacts_commits_filter_completion_120x40",
-            title="ACE Artifacts Commits repository completion",
+            title="ACE Artifacts Commits project completion",
         )
 
 

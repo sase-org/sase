@@ -35,6 +35,7 @@ UNLIMITED_COMMIT_LOG_LIMIT = 0
 
 CompletionKind = Literal[
     "key",
+    "project",
     "repo",
     "author",
     "since",
@@ -45,7 +46,7 @@ CompletionKind = Literal[
 ]
 RepoAliases = Mapping[str, Iterable[str]]
 
-_FILTER_KEYS = ("repo", "author", "since", "until", "sidecar", "limit")
+_FILTER_KEYS = ("project", "repo", "author", "since", "until", "sidecar", "limit")
 _REPEATABLE_KEYS = frozenset(("repo", "author"))
 _NEGATABLE_KEYS = frozenset(("repo", "author"))
 _NON_NEGATIVE_INTEGER_RE = re.compile(r"^\d+$")
@@ -59,6 +60,7 @@ class CommitFilterQueryError(FilterQueryError):
 class CommitLogFilterValues:
     """Validated values shared by the commits pane and query editor."""
 
+    project: str | None = None
     authors: tuple[str, ...] = ()
     excluded_authors: tuple[str, ...] = ()
     since_text: str = ""
@@ -142,6 +144,8 @@ def parse_commit_filter_query(
 
         if key in singles:
             raise _error(f"{key}: may only appear once", token)
+        if key == "project" and len(split_unquoted(value, value_quoted, ",")) > 1:
+            raise _error("project: does not accept comma-separated values", token)
         singles[key] = (value, token)
 
     since_text, since, _since_token = _parse_date_value("since", singles)
@@ -176,7 +180,10 @@ def parse_commit_filter_query(
             raise _error("sidecar: must be 'true' or 'false'", sidecar_token)
         sidecar = folded == "true"
 
+    project = singles["project"][0] if "project" in singles else None
+
     return CommitLogFilterValues(
+        project=project,
         authors=tuple(authors),
         excluded_authors=tuple(excluded_authors),
         since_text=since_text,
@@ -196,7 +203,10 @@ def to_query_tokens(
     values: CommitLogFilterValues,
 ) -> tuple[str, ...]:
     """Render *values* as canonical tokens in stable filter order."""
-    tokens = [f"repo:{quote_value(value, keyed=True)}" for value in values.repos]
+    tokens = (
+        [f"project:{quote_value(values.project, keyed=True)}"] if values.project else []
+    )
+    tokens.extend(f"repo:{quote_value(value, keyed=True)}" for value in values.repos)
     tokens.extend(
         f"-repo:{quote_value(value, keyed=True)}" for value in values.excluded_repos
     )

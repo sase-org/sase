@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from sase.vcs_log.filter_query import (
@@ -59,6 +59,19 @@ def resolve_commits_default_query(
     return _ResolvedCommitsDefaultQuery(values)
 
 
+def merge_commits_startup_project(
+    values: CommitLogFilterValues,
+    *,
+    explicit_project: str | None,
+    current_project: str | None,
+) -> CommitLogFilterValues:
+    """Apply startup project precedence to an already parsed default query."""
+    project = explicit_project or values.project or current_project
+    if project == values.project:
+        return values
+    return replace(values, project=project)
+
+
 def _bundled_default() -> _ResolvedCommitsDefaultQuery:
     return _ResolvedCommitsDefaultQuery(
         parse_commit_filter_query(BUNDLED_COMMITS_DEFAULT_QUERY)
@@ -78,5 +91,6 @@ def _fallback_diagnostic(reason: str) -> str:
 
 __all__ = [
     "BUNDLED_COMMITS_DEFAULT_QUERY",
+    "merge_commits_startup_project",
     "resolve_commits_default_query",
 ]

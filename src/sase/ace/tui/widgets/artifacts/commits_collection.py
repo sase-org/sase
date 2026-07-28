@@ -27,13 +27,19 @@ CommitScopeKey = tuple[str | None, bool]
 @dataclass(frozen=True)
 class CommitCollectionSpec:
     generation: int
-    project_scope: str | None
-    all_projects: bool
     filters: CommitLogFilterValues
 
     @property
+    def project_scope(self) -> str | None:
+        return self.filters.project
+
+    @property
+    def all_projects(self) -> bool:
+        return self.filters.project is None
+
+    @property
     def scope_key(self) -> CommitScopeKey:
-        return (self.project_scope, self.all_projects)
+        return _scope_key_for(self.filters)
 
 
 @dataclass(frozen=True)
@@ -48,8 +54,6 @@ class CommitsCollectionMixin(_MixinBase):
     """Own commit collection, invalidation, and authoritative snapshots."""
 
     _collector: CommitCollector
-    project_scope: str | None
-    all_projects: bool
     filters: CommitLogFilterValues
     result: VcsLogResult | None
     _generation: int
@@ -107,8 +111,6 @@ class CommitsCollectionMixin(_MixinBase):
         initial_filters: CommitLogFilterValues | None = None,
     ) -> None:
         self._collector = collector
-        self.project_scope = None
-        self.all_projects = False
         self.filters = initial_filters or CommitLogFilterValues()
         self.result = None
         self._generation = 0
@@ -119,24 +121,25 @@ class CommitsCollectionMixin(_MixinBase):
         self._authoritative_results = {}
         self._preview_base = None
 
-    def _state_changed(self) -> None:
-        if (
-            self._preview_base is not None
-            and self._preview_base.scope_key != self._scope_key()
-        ):
-            self._preview_base = None
-        self._generation += 1
-        if self.artifacts_active:
-            self._schedule_collection()
+    @property
+    def project_scope(self) -> str | None:
+        """Return the query-owned project scope."""
+        return self.filters.project
 
-    def _scope_key(self) -> CommitScopeKey:
-        return (self.project_scope, self.all_projects)
+    @property
+    def all_projects(self) -> bool:
+        """Return whether the query requests a true all-project collection."""
+        return self.filters.project is None
+
+    def _scope_key(
+        self,
+        values: CommitLogFilterValues | None = None,
+    ) -> CommitScopeKey:
+        return _scope_key_for(values or self.filters)
 
     def _collection_spec(self) -> CommitCollectionSpec:
         return CommitCollectionSpec(
             generation=self._generation,
-            project_scope=self.project_scope,
-            all_projects=self.all_projects,
             filters=self.filters,
         )
 
@@ -154,7 +157,7 @@ class CommitsCollectionMixin(_MixinBase):
             repo_filters=spec.filters.repos,
             exclude_repo_filters=spec.filters.excluded_repos,
             all_projects=spec.all_projects,
-            project_scope=None if spec.all_projects else spec.project_scope,
+            project_scope=spec.project_scope,
             include_sidecars=spec.filters.sidecar,
             no_fetch=not force_fetch,
             force_fetch=force_fetch,
@@ -267,7 +270,7 @@ class CommitsCollectionMixin(_MixinBase):
         self,
         values: CommitLogFilterValues,
     ) -> AuthoritativeCommitSnapshot | None:
-        scope_key = self._scope_key()
+        scope_key = self._scope_key(values)
         exact = self._authoritative_results.get((scope_key, values))
         if exact is not None:
             return AuthoritativeCommitSnapshot(
@@ -309,6 +312,8 @@ def snapshot_covers(
     snapshot: AuthoritativeCommitSnapshot,
     values: CommitLogFilterValues,
 ) -> bool:
+    if snapshot.scope_key != _scope_key_for(values):
+        return False
     if snapshot.result.potentially_truncated:
         return False
     if snapshot.filters == values:
@@ -329,6 +334,11 @@ def snapshot_covers(
 def _backend_collection_limit(values: CommitLogFilterValues) -> int:
     presentation_exclusions = values.excluded_authors or values.excluded_text
     return 0 if values.text or presentation_exclusions else values.limit
+
+
+def _scope_key_for(values: CommitLogFilterValues) -> CommitScopeKey:
+    project = values.project
+    return (project, project is None)
 
 
 __all__ = [

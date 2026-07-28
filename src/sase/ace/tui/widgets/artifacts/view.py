@@ -160,13 +160,15 @@ class ArtifactsView(Vertical):
         *,
         display_name: str | None = None,
         project_file: str | None = None,
+        update_commits: bool = True,
     ) -> None:
         """Apply the shared scope to every project-backed pane."""
-        self.query_one(CommitsPane).set_project_scope(
-            project,
-            display_name=display_name,
-            project_file=project_file,
-        )
+        if update_commits:
+            self.query_one(CommitsPane).set_project_scope(
+                project,
+                display_name=display_name,
+                project_file=project_file,
+            )
         for pane in self.query(ArtifactPlaceholderPane):
             pane.set_project_scope(project, display_name=display_name)
         for plans_pane in self.query(ArtifactsPlansPane):
@@ -176,6 +178,18 @@ class ArtifactsView(Vertical):
         self.query_one(ArtifactsBugsPane).set_project_scope(
             project,
             display_name=display_name,
+        )
+
+    def set_commits_project_sources(
+        self,
+        projects: tuple[str, ...],
+        *,
+        project_files: dict[str, str],
+    ) -> None:
+        """Forward the already loaded inventory to the Commits filter bar."""
+        self.query_one(CommitsPane).set_project_completion_sources(
+            projects,
+            project_files=project_files,
         )
 
     @on(PanelTabStrip.TabClicked)

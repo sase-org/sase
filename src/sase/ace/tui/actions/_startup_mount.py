@@ -45,7 +45,12 @@ class StartupMountMixin:
             tab_bar.update_tab(self.current_tab)
             artifacts_view = self.query_one("#changespecs-view", ArtifactsView)
             artifacts_view.set_keymap_registry(self._keymap_registry)
-            artifacts_view.set_project_scope(self.artifacts_project_scope)
+            # The Commits pane was composed with its fully merged startup
+            # query. Shared scope setup must not overwrite that visible token.
+            artifacts_view.set_project_scope(
+                self.artifacts_project_scope,
+                update_commits=False,
+            )
             if self.current_tab == "changespecs":
                 # The view's mount hook owns lifecycle activation; share the
                 # same footer/scope entry behavior as top-level navigation.

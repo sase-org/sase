@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 from textual.widgets import ContentSwitcher
 from textual.widgets import Static
@@ -283,9 +285,14 @@ async def test_scope_inventory_is_lazy_and_picker_updates_all_placeholders(
                 display_name="Alpha",
                 state="enabled",
             ),
+            InventoryProjectChoice(
+                project_key="beta",
+                display_name="Beta",
+                state="disabled",
+            ),
         ),
         enabled_projects=("alpha",),
-        display_names={"alpha": "Alpha"},
+        display_names={"alpha": "Alpha", "beta": "Beta"},
     )
     calls = 0
 
@@ -312,18 +319,35 @@ async def test_scope_inventory_is_lazy_and_picker_updates_all_placeholders(
 
         for pane in page.app.query(ArtifactPlaceholderPane):
             assert pane.project_scope == "alpha"
-        assert page.app.query_one(CommitsPane).project_scope == "alpha"
+        commits = page.app.query_one(CommitsPane)
+        assert commits.project_scope == "alpha"
+        assert commits.filters.project == "alpha"
         assert page.app.query_one(ArtifactsChatsPane).project_scope == "alpha"
+
+        retained_filters = replace(
+            commits.filters,
+            repos=("plans",),
+            authors=("Ada",),
+            limit=5,
+            text=("fix",),
+        )
+        commits._commit_filter_values(retained_filters, close_session=False)
+        commits.set_project_scope("beta")
+        await page.wait_for(lambda _state: commits.filters.project == "beta")
+        assert commits.filters == replace(retained_filters, project="beta")
+        assert page.app.artifacts_project_scope == "alpha"
 
         await page.press("p")
         await page.expect_modal("InventoryProjectPicker")
         picker = page.app.screen
         assert isinstance(picker, InventoryProjectPicker)
+        assert picker.query_one("#inventory-project-picker-list").highlighted == 2
         picker.query_one("#inventory-project-picker-list").highlighted = 0
         picker.action_select_highlighted()
         await page.expect_no_modal()
         await page.wait_for(lambda _state: page.app.artifacts_project_scope is None)
         assert page.app.artifacts_project_scope is None
+        assert commits.filters == replace(retained_filters, project=None)
 
 
 async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:

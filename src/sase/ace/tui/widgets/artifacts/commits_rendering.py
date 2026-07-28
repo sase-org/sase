@@ -32,9 +32,6 @@ from .types import ARTIFACTS_ACCENTS
 
 def build_commits_info(
     *,
-    project_display_name: str | None,
-    project_scope: str | None,
-    all_projects: bool,
     result: VcsLogResult | None,
     refreshing: bool,
     active_limit: int | None = None,
@@ -42,9 +39,6 @@ def build_commits_info(
 ) -> Text:
     """Build the scope and collection-status header."""
     text = build_commits_info_header(
-        project_display_name=project_display_name,
-        project_scope=project_scope,
-        all_projects=all_projects,
         refreshing=refreshing,
         active_limit=active_limit,
     )
@@ -61,25 +55,15 @@ def build_commits_info(
 
 def build_commits_info_header(
     *,
-    project_display_name: str | None,
-    project_scope: str | None,
-    all_projects: bool,
     refreshing: bool,
     active_limit: int | None = None,
 ) -> Text:
     """Build the comparatively static first row of the Commits information area."""
     accent = ARTIFACTS_ACCENTS["commits"]
-    scope = (
-        "All projects"
-        if all_projects
-        else project_display_name or project_scope or "Current project"
-    )
     text = Text()
     text.append(" Commits ", style=f"bold #1a1a1a on {accent}")
-    text.append("  Scope ", style="dim")
-    text.append(scope, style=f"bold {accent}")
     if active_limit is not None:
-        text.append("  ·  ", style="dim")
+        text.append("  ", style="dim")
         text.append(f"limit:{active_limit}", style=f"bold {accent}")
     if refreshing:
         text.append("  ·  refreshing…", style="italic #FFD700")

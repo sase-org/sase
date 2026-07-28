@@ -107,10 +107,26 @@ def init_late_startup_state(
     self._reactive_axe_description_expanded = (
         description_expanded if isinstance(description_expanded, bool) else True
     )
-    from ..widgets.artifacts.commit_config import resolve_commits_default_query
+    from ..widgets.artifacts.commit_config import (
+        merge_commits_startup_project,
+        resolve_commits_default_query,
+    )
 
     commits_default = resolve_commits_default_query(ace_cfg)
-    self._commits_default_filter = commits_default.values
+    try:
+        from sase.main.utils import ensure_project_file_and_get_workspace_num
+
+        _project_file, _workspace_num, current_project = (
+            ensure_project_file_and_get_workspace_num(create_missing=False)
+        )
+    except Exception:
+        current_project = None
+        log.debug("Commits current-project inference failed", exc_info=True)
+    self._commits_default_filter = merge_commits_startup_project(
+        commits_default.values,
+        explicit_project=self.artifacts_project_scope,
+        current_project=current_project,
+    )
     self._commits_default_query_diagnostic = commits_default.diagnostic
     if commits_default.diagnostic is not None:
         log.warning(commits_default.diagnostic)

@@ -63,12 +63,13 @@ def test_bundled_query_is_unlimited_without_a_canonical_limit_token() -> None:
 
 def test_parse_every_token_kind_and_case_insensitive_keys() -> None:
     values = parse_commit_filter_query(
-        'REPO:sase,sase-core repo:"SASE docs" '
+        'PROJECT:"SASE Org" REPO:sase,sase-core repo:"SASE docs" '
         'Author:Ada author:"Grace Hopper",@example.com '
         "since:2026-07-01 until:2026-07-18T08:30 SIDECAR:TrUe limit:all "
         'fix "live preview"'
     )
 
+    assert values.project == "SASE Org"
     assert values.repos == ("sase", "sase-core", "SASE docs")
     assert values.authors == ("Ada", "Grace Hopper", "@example.com")
     assert values.since_text == "2026-07-01"
@@ -124,6 +125,25 @@ def test_parse_mixed_positive_and_negative_terms() -> None:
     ("query", "message", "token", "span"),
     (
         ("repo:", "requires a value", "repo:", (0, 5)),
+        ("project:", "requires a value", "project:", (0, 8)),
+        (
+            "project:sase,other",
+            "does not accept comma-separated values",
+            "project:sase,other",
+            (0, 18),
+        ),
+        (
+            "project:sase project:other",
+            "only appear once",
+            "project:other",
+            (13, 26),
+        ),
+        (
+            "-project:sase",
+            "may not be negated",
+            "-project:sase",
+            (0, 13),
+        ),
         ("repo:a,,b", "empty value", "repo:a,,b", (0, 9)),
         ("limit:-1", "non-negative integer", "limit:-1", (0, 8)),
         ("since:not-a-date", "Invalid DATE", "since:not-a-date", (0, 16)),
@@ -169,6 +189,14 @@ def test_unknown_key_error_suggests_close_match() -> None:
     assert "did you mean 'repo:'?" in str(exc_info.value)
 
 
+def test_unknown_project_key_error_suggests_project() -> None:
+    with pytest.raises(CommitFilterQueryError) as exc_info:
+        parse_commit_filter_query("projecct:sase")
+
+    assert exc_info.value.span == (0, 13)
+    assert "did you mean 'project:'?" in str(exc_info.value)
+
+
 def test_since_must_not_be_later_than_until() -> None:
     with pytest.raises(CommitFilterQueryError) as exc_info:
         parse_commit_filter_query("since:2026-07-18 until:2026-07-01")
@@ -204,13 +232,13 @@ def test_canonical_query_has_stable_order_and_omits_unlimited_limit() -> None:
     now = datetime(2026, 7, 18, 12, 0, tzinfo=tz)
 
     values = parse_commit_filter_query(
-        'preview author:"Ada Lovelace" until:2026-07-18 repo:sase '
+        'preview author:"Ada Lovelace" until:2026-07-18 repo:sase project:"SASE Org" '
         "since:7d sidecar:true timeline",
         now=now,
     )
 
     assert to_query_string(values) == (
-        'repo:sase author:"Ada Lovelace" sidecar:true since:7d '
+        'project:"SASE Org" repo:sase author:"Ada Lovelace" sidecar:true since:7d '
         "until:2026-07-18 preview timeline"
     )
     assert to_query_string(CommitLogFilterValues()) == "sidecar:true"
@@ -257,6 +285,7 @@ _VALUE_TEXT = st.text(
 
 
 @given(
+    project=st.one_of(st.none(), _VALUE_TEXT),
     repos=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     authors=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     excluded_repos=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
@@ -275,6 +304,7 @@ _VALUE_TEXT = st.text(
     ),
 )
 def test_canonical_query_round_trip_property(
+    project: str | None,
     repos: tuple[str, ...],
     authors: tuple[str, ...],
     excluded_repos: tuple[str, ...],
@@ -287,6 +317,7 @@ def test_canonical_query_round_trip_property(
 ) -> None:
     since_text, until_text = bounds
     values = CommitLogFilterValues(
+        project=project,
         authors=authors,
         excluded_authors=excluded_authors,
         since_text=since_text,
@@ -308,6 +339,7 @@ def test_backend_filters_exclude_repo_text_and_limit() -> None:
     tz = get_timezone()
     now = datetime(2026, 7, 18, 12, 0, tzinfo=tz)
     values = CommitLogFilterValues(
+        project="sase",
         authors=("Ada",),
         excluded_authors=("bot",),
         since=parse_time_bound("24h"),
@@ -444,6 +476,8 @@ def test_matcher_ignores_limit_for_caller_to_apply() -> None:
         ("", 0, ("key", "")),
         ("repo:sase ", 10, ("key", "")),
         ("rep", 3, ("key", "rep")),
+        ("project:", 8, ("project", "")),
+        ("project:sa", 10, ("project", "sa")),
         ("repo:", 5, ("repo", "")),
         ("repo:sase-core", 9, ("repo", "sase")),
         ('author:"Ada Lo', 14, ("author", "Ada Lo")),
@@ -476,10 +510,12 @@ def test_completion_context_reports_negative_polarity() -> None:
 
 def test_filter_chips_use_canonical_query_tokens() -> None:
     filters = parse_commit_filter_query(
-        'author:"Ada Lovelace" repo:sase sidecar:true limit:all "fix live"'
+        'author:"Ada Lovelace" repo:sase project:alpha '
+        'sidecar:true limit:all "fix live"'
     )
 
     assert commit_filter_chips(filters) == (
+        "project:alpha",
         "repo:sase",
         'author:"Ada Lovelace"',
         "sidecar:true",

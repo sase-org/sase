@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Any
 
 from textual.message import Message
 
@@ -36,6 +37,7 @@ class CommitFilterBar(FilterBar):
     COMPLETION_ID = "commit-filter-completion"
     CANDIDATE_ID_PREFIX = "commit-filter-candidate"
     KEY_COMPLETIONS = (
+        ("project", "single project key; omitted means all projects"),
         ("repo", "repository name or alias"),
         ("author", "name or email substring"),
         ("since", "from an instant or the start of a named day"),
@@ -50,6 +52,7 @@ class CommitFilterBar(FilterBar):
         "limit": ("40", "100", "200", "all"),
     }
     VALUE_HINTS = {
+        "project": "project key",
         "repo": "repository",
         "author": "author",
         "since": "date bound",
@@ -79,13 +82,35 @@ class CommitFilterBar(FilterBar):
     class Dismissed(Message):
         """The user dismissed the bar after closing any completion menu."""
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._projects: tuple[str, ...] = ()
+        self._repos: tuple[str, ...] = ()
+        self._authors: tuple[str, ...] = ()
+
     def set_completion_sources(
         self,
         repos: Iterable[str],
         authors: Iterable[str],
     ) -> None:
         """Replace the in-memory repository and author completion sources."""
-        self._set_completion_sources({"repo": repos, "author": authors})
+        self._repos = tuple(repos)
+        self._authors = tuple(authors)
+        self._refresh_completion_sources()
+
+    def set_project_completion_sources(self, projects: Iterable[str]) -> None:
+        """Replace the warm project-key completion source."""
+        self._projects = tuple(projects)
+        self._refresh_completion_sources()
+
+    def _refresh_completion_sources(self) -> None:
+        self._set_completion_sources(
+            {
+                "project": self._projects,
+                "repo": self._repos,
+                "author": self._authors,
+            }
+        )
 
     def set_status(
         self,
