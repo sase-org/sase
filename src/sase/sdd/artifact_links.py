@@ -6,9 +6,14 @@ import os
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
 
-from sase.core.rust import require_rust_binding
+from sase.sdd.plan_header_block import (
+    PlanHeaderSection,
+    PlanHeaderSectionKind,
+    parse_plan_header_block,
+    render_plan_header_block,
+    upsert_plan_header_section,
+)
 
 
 class SddArtifactLinkKind(StrEnum):
@@ -88,28 +93,48 @@ class SddArtifactLink:
 
 def parse_sdd_artifact_link(document: str) -> SddArtifactLink:
     """Parse canonical and historical links from a complete document."""
-    binding = require_rust_binding("sdd_artifact_link_parse")
-    payload = dict(binding(document))
-    legacy_payload = payload.get("legacy")
+    parsed = parse_plan_header_block(document)
+    counterparts = tuple(
+        section
+        for section in parsed.sections
+        if section.kind in {PlanHeaderSectionKind.PLAN, PlanHeaderSectionKind.PROMPT}
+    )
+    canonical = counterparts[0] if counterparts else None
     legacy = None
-    if isinstance(legacy_payload, dict):
+    if parsed.legacy is not None:
         legacy = _SddLegacyArtifactLink(
-            link_type=SddArtifactLinkType(str(legacy_payload["link_type"])),
-            format=str(legacy_payload["format"]),
-            reference=str(legacy_payload["reference"]),
-            target=str(legacy_payload["target"]),
+            link_type=SddArtifactLinkType(parsed.legacy.kind.value),
+            format=parsed.legacy.format,
+            reference=parsed.legacy.reference,
+            target=parsed.legacy.target,
         )
-    link_type = _optional_str(payload, "link_type")
+    link_type = (
+        SddArtifactLinkType(canonical.kind.value)
+        if canonical is not None
+        else legacy.link_type
+        if legacy is not None
+        else None
+    )
+    if parsed.disposition.value == SddArtifactLinkKind.INVALID.value:
+        kind = SddArtifactLinkKind.INVALID
+    elif canonical is not None and legacy is not None:
+        kind = SddArtifactLinkKind.MIXED
+    elif canonical is not None:
+        kind = SddArtifactLinkKind.CANONICAL
+    elif legacy is not None:
+        kind = SddArtifactLinkKind.LEGACY
+    else:
+        kind = SddArtifactLinkKind.MISSING
     return SddArtifactLink(
-        kind=SddArtifactLinkKind(str(payload["kind"])),
-        link_type=SddArtifactLinkType(link_type) if link_type is not None else None,
-        body=str(payload.get("body") or ""),
-        label=_optional_str(payload, "label"),
-        target=_optional_str(payload, "target"),
+        kind=kind,
+        link_type=link_type,
+        body=parsed.body,
+        label=canonical.label if canonical is not None else None,
+        target=canonical.target if canonical is not None else None,
         legacy=legacy,
-        has_frontmatter=bool(payload.get("has_frontmatter")),
-        canonical_layout=bool(payload.get("canonical_layout")),
-        reason=_optional_str(payload, "reason"),
+        has_frontmatter=parsed.has_frontmatter,
+        canonical_layout=parsed.canonical_layout,
+        reason=parsed.reason,
     )
 
 
@@ -117,8 +142,15 @@ def _render_sdd_artifact_link(
     link_type: SddArtifactLinkType, label: str, target: str
 ) -> str:
     """Render one exact canonical Markdown bullet."""
-    binding = require_rust_binding("sdd_artifact_link_render")
-    return str(binding(link_type.value, label, target))
+    return render_plan_header_block(
+        (
+            PlanHeaderSection(
+                kind=PlanHeaderSectionKind(link_type.value),
+                label=label,
+                target=target,
+            ),
+        )
+    )
 
 
 def _update_sdd_artifact_link(
@@ -131,16 +163,15 @@ def _update_sdd_artifact_link(
     allow_resolved_mixed: bool = False,
 ) -> str:
     """Install a canonical bullet through the shared document updater."""
-    binding = require_rust_binding("sdd_artifact_link_upsert")
-    return str(
-        binding(
-            document,
-            link_type.value,
-            label,
-            target,
-            remove_legacy,
-            allow_resolved_mixed,
-        )
+    return upsert_plan_header_section(
+        document,
+        PlanHeaderSection(
+            kind=PlanHeaderSectionKind(link_type.value),
+            label=label,
+            target=target,
+        ),
+        remove_legacy=remove_legacy,
+        allow_resolved_mixed=allow_resolved_mixed,
     )
 
 
@@ -231,11 +262,6 @@ def _mixed_representations_agree(
             candidates[0].resolve(strict=False),
         )
     return canonical == legacy
-
-
-def _optional_str(payload: dict[str, Any], key: str) -> str | None:
-    value = payload.get(key)
-    return value if isinstance(value, str) else None
 
 
 __all__ = [

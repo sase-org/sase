@@ -238,6 +238,12 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-ag(HostedLinkResolver)' \
         --epic-symbol 'sase-ag(hosted_link_resolver)' \
+        --epic-symbol 'sase-ag(PlanHeaderDisposition)' \
+        --epic-symbol 'sase-ag(PlanHeaderDocument)' \
+        --epic-symbol 'sase-ag(PlanHeaderEntry)' \
+        --epic-symbol 'sase-ag(PlanHeaderLegacyLink)' \
+        --epic-symbol 'sase-ag(remove_plan_header_section)' \
+        --epic-symbol 'sase-ag(replace_plan_header_block)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
