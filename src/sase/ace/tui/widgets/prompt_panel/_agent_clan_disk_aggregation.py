@@ -64,10 +64,11 @@ def aggregate_clan_context_lanes(
         if summary.phase_bead is not None:
             phase = summary.phase_bead
             label = phase.id
-            if phase.description:
-                preview = first_meaningful_line(phase.description)
-                if preview:
-                    label += f" · {preview}"
+            preview = first_meaningful_line(
+                phase.phase_title or phase.description or ""
+            )
+            if preview:
+                label += f" · {preview}"
             _add_context(
                 accumulators,
                 "BEAD",

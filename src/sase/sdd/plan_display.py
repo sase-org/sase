@@ -310,7 +310,7 @@ def _plan_display_phase(phase: ValidatedPlanPhase) -> PlanDisplayPhase:
         raise ValueError(f"validator returned invalid phase size: {phase.size!r}")
     return PlanDisplayPhase(
         id=phase.id,
-        title=phase.title,
+        title=" ".join(phase.title.split()),
         depends_on=phase.depends_on,
         description=phase.description,
         size=size,

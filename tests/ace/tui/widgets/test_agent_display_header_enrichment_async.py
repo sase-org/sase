@@ -113,6 +113,7 @@ def _summary() -> _DetailHeaderSummary:
 def _phase_summary(bead_id: str) -> PhaseBeadSummary:
     return PhaseBeadSummary(
         id=bead_id,
+        phase_title="Deferred selected phase title",
         description="Deferred selected phase description.",
         actual_plan_path="/tmp/workspace/sase/repos/plans/epic.md",
         display_plan_path="sase/repos/plans/epic.md",

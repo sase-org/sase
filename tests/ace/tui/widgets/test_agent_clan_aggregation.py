@@ -21,6 +21,7 @@ from sase.ace.tui.models._agent_clan_sections import (
 )
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_associated_plan import PhaseBeadSummary
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
@@ -267,6 +268,73 @@ def test_context_lanes_dedupe_in_declared_order_and_count_uses() -> None:
     assert [entry.label for entry in by_label["WORKSPACES"].entries] == [
         "workspace 4",
         "sase-core",
+    ]
+
+
+def test_phase_bead_clan_labels_prefer_title_then_description_then_id() -> None:
+    titled = _agent("research.titled")
+    described = _agent("research.described", minute=2)
+    bare = _agent("research.bare", minute=4)
+    container = project_clan_tree([titled, described, bare])[0]
+    in_memory = aggregate_clan_in_memory(container)
+
+    def phase_summary(
+        bead_id: str,
+        *,
+        phase_title: str | None,
+        description: str | None,
+    ) -> DetailHeaderSummary:
+        return DetailHeaderSummary(
+            phase_bead=PhaseBeadSummary(
+                id=bead_id,
+                phase_title=phase_title,
+                description=description,
+                actual_plan_path=None,
+                display_plan_path=None,
+                plan_exists=False,
+                plan_readable=False,
+                epic_title=None,
+                size=None,
+            )
+        )
+
+    members = (
+        _member_snapshot(
+            titled,
+            ".titled",
+            context=phase_summary(
+                "sase-title.1",
+                phase_title="Preferred phase title\nignored continuation",
+                description="Description must not win.",
+            ),
+        ),
+        _member_snapshot(
+            described,
+            ".described",
+            context=phase_summary(
+                "sase-description.1",
+                phase_title=None,
+                description="\nFallback description\nignored continuation",
+            ),
+        ),
+        _member_snapshot(
+            bare,
+            ".bare",
+            context=phase_summary(
+                "sase-bare.1",
+                phase_title=None,
+                description=None,
+            ),
+        ),
+    )
+
+    lanes = _aggregate_clan_context_lanes(in_memory, members)
+
+    bead_lane = next(lane for lane in lanes if lane.label == "BEAD")
+    assert [entry.label for entry in bead_lane.entries] == [
+        "sase-title.1 · Preferred phase title",
+        "sase-description.1 · Fallback description",
+        "sase-bare.1",
     ]
 
 

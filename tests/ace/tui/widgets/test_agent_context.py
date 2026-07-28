@@ -141,6 +141,7 @@ def _bead_section() -> ResponsiveBeadSection:
     return ResponsiveBeadSection(
         PhaseBeadSummary(
             id="sase-42.3",
+            phase_title="Selected phase metadata",
             description="Render only the selected phase metadata.",
             actual_plan_path="/tmp/workspace/sase/repos/plans/epic.md",
             display_plan_path="sase/repos/plans/epic.md",
@@ -209,6 +210,7 @@ def test_bead_only_context_creates_context_and_has_no_plan_range() -> None:
     assert "▸ BEAD · phase sase-42.3\n" in text.plain
     assert "ID:" not in text.plain
     assert text.plain.count("sase-42.3") == 1
+    assert "  Phase Title: Selected phase metadata\n" in text.plain
     assert " Description: Render only the selected phase metadata.\n" in text.plain
     assert "        Size:  medium \n" in text.plain
     assert "   Epic Plan: sase/repos/plans/epic.md\n" in text.plain

@@ -33,6 +33,7 @@ class PhaseBeadSummary:
     """Immutable selected-phase metadata consumed by the BEAD lane."""
 
     id: str
+    phase_title: str | None
     description: str | None
     actual_plan_path: str | None
     display_plan_path: str | None

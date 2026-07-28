@@ -122,6 +122,7 @@ def test_phase_plan_is_not_exposed_as_generic_artifact(
             "phase",
             PhaseBeadSummary(
                 id="sase-9.2",
+                phase_title="Selected phase title",
                 description="Selected phase",
                 actual_plan_path="/tmp/epic.md",
                 display_plan_path="epic.md",
@@ -155,6 +156,7 @@ def test_dual_phase_plan_paths_are_both_removed_from_generic_artifacts(
     )
     bead = PhaseBeadSummary(
         id="sase-83.1",
+        phase_title="Selected parent phase title",
         description="Selected parent phase",
         actual_plan_path="/tmp/parent.md",
         display_plan_path="parent.md",

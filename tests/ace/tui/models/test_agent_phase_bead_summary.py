@@ -39,6 +39,10 @@ def _write_epic(path: Path) -> Path:
         "    depends_on: []\n"
         "    description: Normalize the authoritative validator payload.\n"
         "    size: small\n"
+        "  - id: peer\n"
+        "    title: Peer phase must stay private\n"
+        "    depends_on: [core]\n"
+        "    size: medium\n"
         "---\n"
         "# Plan\n",
         encoding="utf-8",
@@ -95,6 +99,48 @@ def test_modern_phase_normalizes_epic_title_once(tmp_path: Path) -> None:
     assert enrichment.phase_bead.epic_title == "Epic phase metadata"
 
 
+def test_modern_phase_normalizes_folded_phase_title(tmp_path: Path) -> None:
+    plan = _write_epic(tmp_path / "plans" / "epic.md")
+    plan.write_text(
+        plan.read_text(encoding="utf-8").replace(
+            "    title: Canonical phase summary",
+            "    title: >-\n      Canonical   phase\n      summary",
+        ),
+        encoding="utf-8",
+    )
+
+    enrichment = resolve_agent_plan_enrichment(_phase_agent(tmp_path))
+
+    assert enrichment.phase_bead is not None
+    assert enrichment.phase_bead.phase_title == "Canonical phase summary"
+
+
+def test_blank_phase_title_degrades_to_unavailable(tmp_path: Path) -> None:
+    plan = _write_epic(tmp_path / "plans" / "epic.md")
+    plan.write_text(
+        plan.read_text(encoding="utf-8").replace(
+            "    title: Canonical phase summary",
+            '    title: "   "',
+        ),
+        encoding="utf-8",
+    )
+
+    enrichment = resolve_agent_plan_enrichment(_phase_agent(tmp_path))
+
+    assert enrichment.phase_bead is not None
+    assert enrichment.phase_bead.phase_title is None
+
+
+def test_selected_phase_title_never_leaks_peer_phase(tmp_path: Path) -> None:
+    _write_epic(tmp_path / "plans" / "epic.md")
+
+    enrichment = resolve_agent_plan_enrichment(_phase_agent(tmp_path))
+
+    assert enrichment.phase_bead is not None
+    assert enrichment.phase_bead.phase_title == "Canonical phase summary"
+    assert "Peer phase must stay private" not in repr(enrichment.phase_bead)
+
+
 def test_phase_bead_normalizes_missing_legacy_size_to_small(tmp_path: Path) -> None:
     plan = _write_epic(tmp_path / "plans" / "epic.md")
     plan.write_text(
@@ -124,6 +170,7 @@ def test_unreadable_modern_phase_keeps_only_identity_and_known_path(
 
     assert enrichment.phase_bead == PhaseBeadSummary(
         id="sase-1.1",
+        phase_title=None,
         description=None,
         actual_plan_path=str(plan.resolve()),
         display_plan_path="plans/epic.md",
@@ -144,6 +191,7 @@ def test_phase_bead_cache_refreshes_description_and_title_after_plan_edit(
     cached = resolve_agent_plan_enrichment(agent).phase_bead
     assert first is not None
     assert cached == first
+    assert first.phase_title == "Canonical phase summary"
     assert first.description == "Normalize the authoritative validator payload."
     assert first.epic_title == "Epic phase metadata"
     assert first.size == "small"
@@ -152,6 +200,7 @@ def test_phase_bead_cache_refreshes_description_and_title_after_plan_edit(
     updated_content = (
         plan.read_text(encoding="utf-8")
         .replace("title: Epic phase metadata", "title: Updated epic title")
+        .replace("title: Canonical phase summary", "title: Updated phase title")
         .replace(
             "description: Normalize the authoritative validator payload.",
             "description: Updated selected phase description.",
@@ -166,6 +215,7 @@ def test_phase_bead_cache_refreshes_description_and_title_after_plan_edit(
 
     updated = resolve_agent_plan_enrichment(agent).phase_bead
     assert updated is not None
+    assert updated.phase_title == "Updated phase title"
     assert updated.description == "Updated selected phase description."
     assert updated.epic_title == "Updated epic title"
     assert updated.size == "large"

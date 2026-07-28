@@ -520,7 +520,7 @@ async def test_agents_phase_bead_context_png_snapshot(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
-        await wait_for_svg_contains(page, "Epic Title:")
+        await wait_for_svg_contains(page, "Phase Title:")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "SASE CONTEXT")
@@ -530,6 +530,8 @@ async def test_agents_phase_bead_context_png_snapshot(
             r"phase&#160;</text><text[^>]*>sase-visual\.2</text>",
             svg,
         )
+        assert_page_svg_contains(page, "Phase Title:")
+        assert_page_svg_contains(page, "Responsive BEAD lane")
         assert_page_svg_contains(page, "Description:")
         assert_page_svg_contains(page, "Size:")
         assert_page_svg_contains(page, "medium")
@@ -668,6 +670,8 @@ async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
         assert svg_plain.index("BEAD") < svg_plain.index("PLAN")
         assert "sase-83.1" in svg_plain
         assert "Parent epic" in svg_plain
+        assert "Provider update snapshot" in svg_plain
+        assert "Render update awareness" not in svg_plain
         assert "small" in svg_plain
         assert "medium" not in svg_plain
         assert "Phase plan" in svg_plain

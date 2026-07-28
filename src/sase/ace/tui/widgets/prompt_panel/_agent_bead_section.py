@@ -24,7 +24,13 @@ from ._agent_context_common import (
 
 BEAD_SECTION_LABEL = "BEAD"
 BEAD_SECTION_MAX_WIDTH = 80
-_BEAD_FIELD_LABELS = ("Description", "Epic Plan", "Epic Title", "Size")
+_BEAD_FIELD_LABELS = (
+    "Phase Title",
+    "Description",
+    "Epic Plan",
+    "Epic Title",
+    "Size",
+)
 BEAD_FIELD_LABEL_WIDTH = cell_len(f"  {max(_BEAD_FIELD_LABELS, key=len)}: ")
 BEAD_PLAN_STATE_STYLE = "dim italic #FF8787"
 
@@ -77,6 +83,7 @@ class ResponsiveBeadSection:
 
     def _rows(self) -> tuple[tuple[str, Text], ...]:
         return (
+            (self._label("Phase Title"), self._phase_title_value()),
             (self._label("Description"), self._description_value()),
             (self._label("Size"), self._size_value()),
             (self._label("Epic Plan"), self._plan_value()),
@@ -91,6 +98,11 @@ class ResponsiveBeadSection:
     def _description_value(self) -> Text:
         if self.summary.description:
             return Text(self.summary.description, style=COLOR_REASON)
+        return Text("unavailable", style=COLOR_EMPTY)
+
+    def _phase_title_value(self) -> Text:
+        if self.summary.phase_title:
+            return Text(self.summary.phase_title, style=COLOR_BEAD_PRIMARY)
         return Text("unavailable", style=COLOR_EMPTY)
 
     def _plan_value(self) -> Text:

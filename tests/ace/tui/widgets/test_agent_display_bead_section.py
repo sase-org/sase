@@ -45,17 +45,19 @@ def _bead_summary(
     display_path: str | None = "sase/repos/plans/202607/epic plan.md",
     exists: bool = True,
     readable: bool = True,
-    title: str | None = "Phase bead context lane",
+    phase_title: str | None = "Responsive BEAD lane",
+    epic_title: str | None = "Phase bead context lane",
     size: PhaseSizeValue | None = "medium",
 ) -> PhaseBeadSummary:
     return PhaseBeadSummary(
         id=bead_id,
+        phase_title=phase_title,
         description=description,
         actual_plan_path=actual_path,
         display_plan_path=display_path,
         plan_exists=exists,
         plan_readable=readable,
-        epic_title=title,
+        epic_title=epic_title,
         size=size,
     )
 
@@ -108,7 +110,11 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
     assert "▸ BEAD · phase sase-42.3\n" in plain
     assert "ID:" not in plain
     assert plain.count("sase-42.3") == 1
-    assert plain.index("▸ BEAD · phase sase-42.3") < plain.index("Description:")
+    assert (
+        plain.index("▸ BEAD · phase sase-42.3")
+        < plain.index("Phase Title:")
+        < plain.index("Description:")
+    )
     assert plain.index("Description:") < plain.index("Size:")
     assert plain.index("Size:") < plain.index("Epic Plan:")
     assert plain.index("Epic Plan:") < plain.index("Epic Title:")
@@ -117,13 +123,20 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
         for line in plain.splitlines()
         if any(
             label in line
-            for label in ("Description:", "Size:", "Epic Plan:", "Epic Title:")
+            for label in (
+                "Phase Title:",
+                "Description:",
+                "Size:",
+                "Epic Plan:",
+                "Epic Title:",
+            )
         )
     ]
     assert {line.index(":") for line in field_lines} == {13}
     assert_span_covers(header, "▸ BEAD", COLOR_BEAD_SUBHEADER)
     assert_span_covers(header, "phase", COLOR_SUMMARY)
     assert_span_covers(header, "sase-42.3", COLOR_BEAD_PRIMARY)
+    assert_span_covers(header, "Responsive BEAD lane", COLOR_BEAD_PRIMARY)
     assert_span_covers(header, "Render only this selected phase.", COLOR_REASON)
     assert_span_covers(header, "medium", PHASE_SIZE_STYLES["medium"])
     assert_span_covers(header, "epic plan.md", COLOR_ARTIFACT_FILE_BASENAME)
@@ -133,6 +146,18 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
         rendered = "".join(_render(header, width=width))
         assert rendered.count("sase-42.3") == 1
         assert "…" not in rendered
+
+
+def test_phase_and_epic_titles_render_distinct_values() -> None:
+    header = _header(
+        _bead_summary(
+            phase_title="Selected phase title",
+            epic_title="Parent epic title",
+        )
+    )
+
+    assert "Phase Title: Selected phase title\n" in header.plain
+    assert "Epic Title: Parent epic title\n" in header.plain
 
 
 @pytest.mark.parametrize("size", PHASE_SIZE_VALUES)
@@ -158,6 +183,9 @@ def test_bead_size_unavailable_is_quiet_and_visible_to_logical_consumers() -> No
         ("Description", " ".join(f"description{index}" for index in range(32))),
         ("Description", "description_token_that_must_retain_the_complete_suffix"),
         ("Description", "界" * 24 + "終"),
+        ("Phase Title", " ".join(f"phase{index}" for index in range(32))),
+        ("Phase Title", "phase_title_token_that_must_retain_the_complete_suffix"),
+        ("Phase Title", "相" * 24 + "終"),
         ("Epic Title", " ".join(f"title{index}" for index in range(32))),
         ("Epic Title", "epic_title_token_that_must_retain_the_complete_suffix"),
         ("Epic Title", "題" * 24 + "終"),
@@ -172,8 +200,10 @@ def test_bead_values_wrap_losslessly_with_hanging_indent(
     kwargs: dict[str, str] = {}
     if field == "Description":
         kwargs["description"] = value
+    elif field == "Phase Title":
+        kwargs["phase_title"] = value
     elif field == "Epic Title":
-        kwargs["title"] = value
+        kwargs["epic_title"] = value
     else:
         kwargs["display_path"] = value
         kwargs["actual_path"] = f"/tmp/workspace/{value}"
@@ -225,17 +255,25 @@ def test_known_unavailable_plan_keeps_path_and_quiet_state(
 ) -> None:
     header = _header(
         _bead_summary(
+            phase_title=None,
             description=None,
             exists=exists,
             readable=readable,
-            title=None,
+            epic_title=None,
             size=None,
         )
     )
 
     assert f"Epic Plan: sase/repos/plans/202607/epic plan.md{suffix}" in header.plain
-    assert header.plain.count("unavailable") == 3
+    assert header.plain.count("unavailable") == 4
     assert_span_covers(header, suffix.strip(), BEAD_PLAN_STATE_STYLE)
+    assert_span_covers(header, "unavailable", COLOR_EMPTY)
+
+
+def test_phase_title_unavailable_is_quiet_and_visible() -> None:
+    header = _header(_bead_summary(phase_title=None))
+
+    assert "Phase Title: unavailable\n" in header.plain
     assert_span_covers(header, "unavailable", COLOR_EMPTY)
 
 

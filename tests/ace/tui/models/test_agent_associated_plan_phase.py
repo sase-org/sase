@@ -93,6 +93,7 @@ def test_legacy_phase_resolves_parent_design_but_suppresses_plan(
     assert enrichment.role == "phase"
     assert enrichment.phase_bead == PhaseBeadSummary(
         id="sase-1.2",
+        phase_title="Independent documentation",
         description="Phase `docs` in approved epic plan `plans/epic.md`.",
         actual_plan_path=str(plan.resolve()),
         display_plan_path="plans/epic.md",
@@ -284,6 +285,7 @@ def test_missing_parent_store_does_not_suppress_authored_plan(
     (
         "epic_bead_id",
         "phase_bead_id",
+        "expected_phase_title",
         "expected_description",
         "expected_size",
     ),
@@ -291,18 +293,21 @@ def test_missing_parent_store_does_not_suppress_authored_plan(
         (
             "sase-1",
             "sase-1.1",
+            "Canonical phase summaries",
             "Normalize the authoritative validator payload.",
             "small",
         ),
         (
             "sase-1",
             "sase-1.2",
+            "Independent documentation",
             "Phase `docs` in approved epic plan `plans/epic.md`.",
             "small",
         ),
         (
             "sase-42.3",
             "sase-42.3.3",
+            "Responsive roadmap",
             "Phase `render` in approved epic plan `plans/epic.md`.",
             "medium",
         ),
@@ -314,6 +319,7 @@ def test_modern_phase_uses_validated_frontmatter_order_without_bead_lookup(
     monkeypatch: pytest.MonkeyPatch,
     epic_bead_id: str,
     phase_bead_id: str,
+    expected_phase_title: str,
     expected_description: str,
     expected_size: str,
 ) -> None:
@@ -338,6 +344,7 @@ def test_modern_phase_uses_validated_frontmatter_order_without_bead_lookup(
     assert enrichment.role == "phase"
     assert enrichment.phase_bead == PhaseBeadSummary(
         id=phase_bead_id,
+        phase_title=expected_phase_title,
         description=expected_description,
         actual_plan_path=str(plan.resolve()),
         display_plan_path="plans/epic.md",
@@ -419,6 +426,7 @@ def test_modern_phase_plan_failures_stay_bare_and_never_expose_epic(
     assert enrichment.role == "phase"
     assert enrichment.phase_bead is not None
     assert enrichment.phase_bead.id == phase_bead_id
+    assert enrichment.phase_bead.phase_title is None
     assert enrichment.phase_bead.description is None
     assert enrichment.phase_bead.epic_title is None
     assert enrichment.phase_bead.size is None

@@ -265,6 +265,7 @@ def phase_bead_summary(
     normalized = normalize_bead_text(description)
     return PhaseBeadSummary(
         id=phase_bead_id,
+        phase_title=normalize_bead_text(phase.title) or None,
         description=normalized or None,
         actual_plan_path=summary.actual_plan_path,
         display_plan_path=summary.display_plan_path,
@@ -292,6 +293,7 @@ def unavailable_phase_bead(
     )
     return PhaseBeadSummary(
         id=phase_bead_id,
+        phase_title=None,
         description=None,
         actual_plan_path=actual_path,
         display_plan_path=display_path,

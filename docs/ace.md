@@ -615,12 +615,13 @@ When ACE knows a planner/author or epic lander's associated plan, the metadata p
 absent lanes omitted. A plan or any recorded output is enough to show the context section. An epic phase worker never
 shows its parent epic as a `PLAN` lane. Instead, its launch metadata identifies the epic plan and exact phase bead, and
 ACE derives one phase-local `BEAD` lane from that phase's validated, frontmatter-ordered entry. The lane shows
-`Description`, `Size`, `Epic Plan`, and `Epic Title`; `Size` uses the literal `xsmall`, `small`, `medium`, `large`, or
-`xlarge` label and the same accessible chip palette as epic summaries. Authored descriptions are normalized to one line;
-a missing description uses the same stable plan-and-phase pointer generated during deterministic bead creation. This
-modern path does not read the bead store, and missing, unreadable, damaged, explicitly invalid, or out-of-range metadata
-keeps the known identity/path fallbacks while rendering size as `unavailable`, without exposing the epic goal,
-dependencies, or any peer phase.
+`Phase Title`, `Description`, `Size`, `Epic Plan`, and `Epic Title`; `Size` uses the literal `xsmall`, `small`,
+`medium`, `large`, or `xlarge` label and the same accessible chip palette as epic summaries. The phase title comes from
+the same validated entry, is normalized to one line, and wraps losslessly like the other values. Authored descriptions
+are also normalized to one line; a missing description uses the same stable plan-and-phase pointer generated during
+deterministic bead creation. This modern path does not read the bead store, and missing, unreadable, damaged, explicitly
+invalid, or out-of-range metadata keeps the known identity/path fallbacks while rendering optional fields as
+`unavailable`, without exposing the epic goal, dependencies, or any peer phase.
 
 For planner/author and lander rows, the lane body contains the complete normalized `Title`, `Goal`, and canonical
 `Path`. Its header shows the effective user-facing tier (`plan`, `tale`, or `epic`) and, for epics, the phase count. The
@@ -2316,10 +2317,13 @@ a pinned attempt view resets the cursor.
   section headings, and pressing the row's number jumps to that member in the Agents list. At most 100 members receive
   numbers.
 - **SASE CONTEXT / BEAD**: Shown for an epic phase worker and limited to its selected phase. Its fields are
-  `Description`, `Size`, `Epic Plan`, and `Epic Title`, in that order. Exact validated sizes use literal blue `small`,
-  gold `medium`, or rose `large` chips; missing/unreadable/damaged plans, explicit invalid sizes, and out-of-range phase
-  ordinals show a quiet `unavailable` size. Modern explicit phase metadata avoids bead-store reads. The parent goal,
-  dependencies, and peer phases are never rendered, and the parent plan does not become a generic artifact.
+  `Phase Title`, `Description`, `Size`, `Epic Plan`, and `Epic Title`, in that order. The phase title comes from the
+  same validated, frontmatter-ordered phase entry, is normalized to one line, wraps losslessly, and renders a quiet
+  `unavailable` for missing, unreadable, damaged, or out-of-range entries. Exact validated sizes use literal blue
+  `small`, gold `medium`, or rose `large` chips; missing/unreadable/damaged plans, explicit invalid sizes, and
+  out-of-range phase ordinals also show a quiet `unavailable` size. Modern explicit phase metadata avoids bead-store
+  reads. The parent goal, dependencies, and peer phases are never rendered, and the parent plan does not become a
+  generic artifact.
 - **SASE CONTEXT / PLAN**: Shown for the epic-authoring planner and epic lander when direct metadata or a confirmed
   legacy epic association resolves a plan. Phase workers deliberately omit the parent epic lane; no goal or peer roadmap
   phase is rendered. For plan-bearing roles, the body rows are `Title`, `Goal`, and canonical `Path`, in that order. The
