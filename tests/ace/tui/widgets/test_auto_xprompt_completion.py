@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
 from textual.widgets import Static
 
 from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
@@ -13,7 +16,11 @@ from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_K
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
 from sase.xprompt.vcs_project_completion import VcsProjectEntry
 
-from ._completion_helpers import CompletionTestApp
+from ._completion_helpers import (
+    CatalogCompletionTestApp,
+    CompletionTestApp,
+    registered_project_xprompts,
+)
 
 _PROJECT_ENTRIES_PATH = (
     "sase.ace.tui.widgets.vcs_project_completion.build_vcs_project_completion_entries"
@@ -361,3 +368,88 @@ async def test_auto_xprompt_menu_toggle_disables_auto_open_only() -> None:
             "#fix",
             "#foo",
         ]
+
+
+async def test_vcs_tag_project_namespace_opens_project_xprompt_menu(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reported regression: ``#git:proj #proj/`` must offer project xprompts.
+
+    The VCS tag names the project the user-facing way while the catalog knows
+    it by its ProjectSpec directory key, so the menu stayed empty until both
+    spellings were normalized to the canonical namespace.
+    """
+    app = CatalogCompletionTestApp()
+    with registered_project_xprompts(
+        tmp_path,
+        monkeypatch,
+        project_key="gh_org__proj",
+        project_name="proj",
+        xprompts={"reads": "Reads body", "sync": "Sync body"},
+    ):
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("#git:proj #proj")
+            ta.cursor_location = (0, len("#git:proj #proj"))
+
+            await pilot.press("/")
+
+            menu_text = ta.text
+            menu_candidates = [c.insertion for c in ta._file_completion_candidates]
+            menu_active = ta._file_completion_active
+            menu_kind = ta._completion_kind
+
+            # The directory-key spelling is not a real reference, so it must
+            # not be offered either.
+            ta.load_text("#git:proj #gh_org__proj")
+            ta.cursor_location = (0, len("#git:proj #gh_org__proj"))
+
+            await pilot.press("/")
+
+            key_candidates = [c.insertion for c in ta._file_completion_candidates]
+
+    assert menu_text == "#git:proj #proj/"
+    assert menu_active is True
+    assert menu_kind == "xprompt"
+    assert menu_candidates == ["#proj/reads", "#proj/sync"]
+    assert key_candidates == []
+    assert app.requested_projects == ["proj"] * len(app.requested_projects)
+    assert app.requested_projects
+
+
+async def test_prompt_context_project_key_opens_same_project_xprompt_menu(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The prompt-context fallback carries a directory key and must normalize."""
+    app = CatalogCompletionTestApp()
+    with registered_project_xprompts(
+        tmp_path,
+        monkeypatch,
+        project_key="gh_org__proj",
+        project_name="proj",
+        xprompts={"reads": "Reads body", "sync": "Sync body"},
+    ):
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            app._prompt_context = SimpleNamespace(
+                project_name="gh_org__proj",
+                is_home_mode=False,
+            )
+            ta.load_text("#proj")
+            ta.cursor_location = (0, len("#proj"))
+
+            await pilot.press("/")
+
+    assert ta._file_completion_active is True
+    assert [c.insertion for c in ta._file_completion_candidates] == [
+        "#proj/reads",
+        "#proj/sync",
+    ]
+    assert app.requested_projects == ["proj"] * len(app.requested_projects)
+    assert app.requested_projects
+    assert all(
+        "gh_org__proj" not in candidate.insertion
+        for candidate in ta._file_completion_candidates
+    )

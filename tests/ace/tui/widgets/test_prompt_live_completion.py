@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
 from textual.widgets import Static
 
 from sase.ace.tui.widgets.prompt_completion import (
@@ -18,7 +21,11 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptInputHint,
 )
 
-from ._completion_helpers import CompletionTestApp
+from ._completion_helpers import (
+    CatalogCompletionTestApp,
+    CompletionTestApp,
+    registered_project_xprompts,
+)
 
 
 class RecordingCompletionTestApp(CompletionTestApp):
@@ -331,3 +338,42 @@ async def test_cold_cache_auto_completion_does_not_build_catalog_sync() -> None:
             _compute_soft_now(ta)
 
     assert ta._soft_completion is None
+
+
+async def test_soft_xprompt_suggestion_uses_canonical_project_namespace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``<ctrl+l>`` must agree with the menu on the project namespace.
+
+    The prompt context supplies a ProjectSpec directory key, so without
+    normalization the soft builder asks the catalog for a project spelling it
+    can never match and no suggestion is offered.
+    """
+    app = CatalogCompletionTestApp()
+    with registered_project_xprompts(
+        tmp_path,
+        monkeypatch,
+        project_key="gh_org__proj",
+        project_name="proj",
+        xprompts={"reads": "Reads body", "sync": "Sync body"},
+    ):
+        async with app.run_test() as pilot:
+            bar = app.query_one(PromptInputBar)
+            ta = app.query_one(PromptTextArea)
+            app._prompt_context = SimpleNamespace(
+                project_name="gh_org__proj",
+                is_home_mode=False,
+            )
+
+            ta.load_text("#proj/r")
+            ta.cursor_location = (0, 7)
+            _compute_soft_now(ta)
+            subtitle = bar.border_subtitle
+
+            await pilot.press("ctrl+l")
+
+    assert subtitle == "[^L] accept #proj/reads"
+    assert ta.text == "#proj/reads "
+    assert app.requested_projects == ["proj"] * len(app.requested_projects)
+    assert app.requested_projects

@@ -24,6 +24,7 @@ from sase.content_layout import (
 )
 from sase.core.snippet_catalog_facade import compose_snippet_catalog
 from sase.xprompt.loader import get_all_xprompts, get_xprompt_search_paths
+from sase.xprompt.project_identity import canonical_xprompt_project
 from sase.xprompt.snippet_bridge import build_xprompt_snippet_entries_from_catalog
 
 PROMPT_SOURCE_SUFFIXES = frozenset({".md", ".yml", ".yaml"})
@@ -210,12 +211,19 @@ def _project_prompt_file_tokens(dirs: Iterable[Path]) -> tuple[Any, ...]:
 
 
 def _project_xprompt_dirs(project: str) -> tuple[Path, ...]:
+    """Return per-project xprompt source directories to token/watch.
+
+    The project string is normalized first: these directories are named after
+    the canonical user-facing project namespace, so a caller passing a
+    ProjectSpec directory key or alias must still watch the same paths.
+    """
+    canonical = canonical_xprompt_project(project) or project
     resolved = tuple(
         source.path
-        for source in resolve_xprompt_file_sources(project=project)
+        for source in resolve_xprompt_file_sources(project=canonical)
         if source.path is not None and source.scope == "home_project"
     )
-    configured_legacy = CONFIG_DIR / "xprompts" / project
+    configured_legacy = CONFIG_DIR / "xprompts" / canonical
     return tuple(dict.fromkeys((*resolved, configured_legacy)))
 
 

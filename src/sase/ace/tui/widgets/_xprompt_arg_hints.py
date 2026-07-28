@@ -14,6 +14,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     merge_local_xprompt_entries,
     named_args_skeleton,
 )
+from sase.xprompt.project_identity import canonical_xprompt_project
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -211,7 +212,13 @@ class XPromptArgHintMixin(_MixinBase):
         return entries if isinstance(entries, list) else None
 
     def _xprompt_arg_assist_project_from_text(self) -> str | None:
-        """Derive xprompt context from a leading VCS tag or the active app."""
+        """Derive xprompt context from a leading VCS tag or the active app.
+
+        The VCS tag yields a user-facing project name while the prompt context
+        yields a ProjectSpec directory key, so both are normalized to the
+        canonical xprompt namespace. That keeps the app-level catalog cache
+        keyed consistently no matter which source wins.
+        """
         prompt_text_area = _prompt_text_area_module()
         tag = (
             prompt_text_area.extract_vcs_workflow_tag(self.text)
@@ -221,14 +228,14 @@ class XPromptArgHintMixin(_MixinBase):
         if tag is not None:
             project = prompt_text_area.extract_project_from_vcs_tag(tag)
             if project:
-                return project
+                return canonical_xprompt_project(project)
 
         ctx = getattr(self.app, "_prompt_context", None)
         if ctx is None or bool(getattr(ctx, "is_home_mode", False)):
             return None
         project_name = getattr(ctx, "project_name", None)
         if isinstance(project_name, str) and project_name:
-            return project_name
+            return canonical_xprompt_project(project_name)
         return None
 
     def _maybe_show_inserted_xprompt_arg_hint(

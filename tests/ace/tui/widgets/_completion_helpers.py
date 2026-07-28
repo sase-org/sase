@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Mapping
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from unittest.mock import patch
 
+import pytest
 from textual.app import App, ComposeResult
 
+from sase import project_aliases, project_display_names
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptAssistEntry,
+    build_xprompt_assist_entries,
+)
+from sase.xprompt import project_identity
+
+from tests.main.project_handler_helpers import _disk_project_records, _write_project
 
 
 class CompletionTestApp(App[None]):
@@ -44,6 +56,91 @@ class CompletionTestApp(App[None]):
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar()
+
+
+class CatalogCompletionTestApp(CompletionTestApp):
+    """Completion app whose warm catalog is built from the real xprompt catalog.
+
+    Mirrors the ACE app's memory-only catalog: the widget asks for entries by
+    project string and gets a catalog projection built for exactly that string.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.requested_projects: list[str | None] = []
+
+    def get_prompt_catalog_assist_entries(
+        self,
+        project: str | None,
+        *,
+        schedule: bool = True,
+    ) -> list[XPromptAssistEntry]:
+        del schedule
+        self.requested_projects.append(project)
+        return build_xprompt_assist_entries(project=project)
+
+
+@contextmanager
+def registered_project_xprompts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    project_key: str,
+    project_name: str,
+    xprompts: Mapping[str, str],
+) -> Iterator[Path]:
+    """Register one project whose directory key differs from its name.
+
+    The project's workspace holds *xprompts* (``name -> body``) under
+    ``sase/xprompts/``, so the catalog discovers them through the project
+    registry exactly as it does for a real checkout.
+    """
+    projects_root = tmp_path / "projects"
+    projects_root.mkdir(parents=True, exist_ok=True)
+    workspace = tmp_path / "workspace"
+    xprompt_dir = workspace / "sase" / "xprompts"
+    xprompt_dir.mkdir(parents=True, exist_ok=True)
+    for name, body in xprompts.items():
+        (xprompt_dir / f"{name}.md").write_text(body, encoding="utf-8")
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    _write_project(
+        projects_root,
+        project_key,
+        "\n".join(
+            (
+                f"WORKSPACE_DIR: {workspace}",
+                "PROJECT_STATE: enabled",
+                f"PROJECT_NAME: {project_name}",
+            )
+        )
+        + "\n",
+    )
+    monkeypatch.setattr(project_aliases, "list_project_records", _disk_project_records)
+    monkeypatch.setattr(
+        project_display_names,
+        "list_project_records",
+        _disk_project_records,
+    )
+    project_identity._identity_registry.cache_clear()
+    project_identity._canonical_xprompt_project.cache_clear()
+
+    try:
+        with ExitStack() as stack:
+            for target, value in (
+                ("get_all_xprompts", {}),
+                ("get_all_workflows", {}),
+                ("get_known_project_workspaces", {project_key: workspace}),
+                ("get_sase_package_xprompts_dir", tmp_path / "package"),
+                ("get_sase_package_default_xprompts_dir", tmp_path / "defaults"),
+            ):
+                stack.enter_context(
+                    patch(f"sase.xprompt.catalog.{target}", return_value=value)
+                )
+            yield workspace
+    finally:
+        project_identity._identity_registry.cache_clear()
+        project_identity._canonical_xprompt_project.cache_clear()
 
 
 def create_entries(root: Path) -> None:
