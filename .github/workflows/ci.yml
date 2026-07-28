@@ -6,12 +6,16 @@ on:
   pull_request:
     branches: [master]
 
-# Latest-wins per ref: a newer push supersedes queued/in-flight CI for the
-# same ref so high push volume cannot grow the org-wide runner queue without
-# bound (the starvation that stalled the sase-core v0.6.0 wheel publish).
+# Latest-wins per ref for PRs: a newer push supersedes queued/in-flight CI for
+# the same PR ref so high push volume cannot grow the org-wide runner queue
+# without bound (the starvation that stalled the sase-core v0.6.0 wheel
+# publish). Master is exempt: cancelling in-flight master runs meant no master
+# run ever reached a terminal conclusion, so CI produced no signal at all.
+# Concurrency grouping still bounds master to one running + one pending run
+# (a newer push replaces the pending slot), so the queue stays bounded.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 permissions:
   contents: read
@@ -24,6 +28,9 @@ env:
 # other workflow in the org, including release publishes.
 jobs:
   lint:
+    # The release-please PR branch only ever carries version/changelog bumps and
+    # its merge triggers a full master-push run, so its CI is pure runner burn.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -38,6 +45,13 @@ jobs:
         with:
           repository: sase-org/sase--plans
           path: sase/repos/plans
+          token: ${{ secrets.SASE_RELEASE_TOKEN }}
+          persist-credentials: false
+      - name: Check out beads sidecar
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase--beads
+          path: sase/repos/beads
           token: ${{ secrets.SASE_RELEASE_TOKEN }}
           persist-credentials: false
       - name: Check out research sidecar
@@ -61,6 +75,10 @@ jobs:
               "plans": {
                 "repo": "sase-org/sase--plans",
                 "remote_url": "git@github.com:sase-org/sase--plans.git"
+              },
+              "beads": {
+                "repo": "sase-org/sase--beads",
+                "remote_url": "git@github.com:sase-org/sase--beads.git"
               },
               "research": {
                 "repo": "sase-org/sase--research",
@@ -99,11 +117,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/bin
-          key: go-bin-v4-linux-amd64-${{ hashFiles('.github/workflows/ci.yml') }}
+          # Keyed on the pinned tool version, not this file's hash: hashing the
+          # workflow made every unrelated ci.yml edit reinstall the tool, and a
+          # cache eviction could silently change lint behavior.
+          key: go-bin-keep-sorted-v0.8.0-linux-amd64
       - name: Install Go tools (keep-sorted)
         if: steps.cache-go-bin.outputs.cache-hit != 'true'
+        # Must match keep_sorted_version in the Justfile; `just lint` links this
+        # binary from PATH rather than installing its own.
         run: |
-          CGO_ENABLED=0 go install github.com/google/keep-sorted@latest
+          CGO_ENABLED=0 go install github.com/google/keep-sorted@v0.8.0
       - name: Check Python formatting
         run: just fmt-py-check
       - name: Lint
@@ -114,6 +137,9 @@ jobs:
         run: just validate-committed-plans
 
   fmt-md-check:
+    # The release-please PR branch only ever carries version/changelog bumps and
+    # its merge triggers a full master-push run, so its CI is pure runner burn.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -129,6 +155,9 @@ jobs:
         run: just fmt-md-check
 
   docs-build:
+    # The release-please PR branch only ever carries version/changelog bumps and
+    # its merge triggers a full master-push run, so its CI is pure runner burn.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -155,9 +184,15 @@ jobs:
   # Test matrix runs every shipped operation through the Rust binding.
   # Coverage is collected from the 3.12 leg.
   test:
+    # The release-please PR branch only ever carries version/changelog bumps and
+    # its merge triggers a full master-push run, so its CI is pure runner burn.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
+      # One flaky leg must not cancel its siblings: the default fail-fast has
+      # been observed erasing the 3.12 coverage gate over a 3.14-only failure.
+      fail-fast: false
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
     steps:
@@ -205,6 +240,9 @@ jobs:
           fail_ci_if_error: false
 
   visual-test:
+    # The release-please PR branch only ever carries version/changelog bumps and
+    # its merge triggers a full master-push run, so its CI is pure runner burn.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -273,6 +311,9 @@ jobs:
           if-no-files-found: ignore
 
   build:
+    # The release-please PR branch only ever carries version/changelog bumps and
+    # its merge triggers a full master-push run, so its CI is pure runner burn.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -307,6 +348,9 @@ jobs:
   # tests, and a small benchmark smoke together so stale bindings are caught
   # before the broad matrix hides the cause.
   bead-backend:
+    # The release-please PR branch only ever carries version/changelog bumps and
+    # its merge triggers a full master-push run, so its CI is pure runner burn.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -356,6 +400,9 @@ jobs:
   # regression. Slow/manual end-to-end TUI/home-tree measurements stay
   # outside this gate (see sdd/plans/202604/rust_backend_phase7_phase7e_handoff.md).
   phase7-perf-floor:
+    # The release-please PR branch only ever carries version/changelog bumps and
+    # its merge triggers a full master-push run, so its CI is pure runner burn.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -395,6 +442,9 @@ jobs:
   # launch path from drifting back toward the Phase 1 parent-side sleep
   # baseline while still using fake subprocesses/no LLM CLIs.
   launch-perf-floor:
+    # The release-please PR branch only ever carries version/changelog bumps and
+    # its merge triggers a full master-push run, so its CI is pure runner burn.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -434,6 +484,9 @@ jobs:
   # keypress-to-hint-bar path and the cached repeat/refresh paths below the
   # committed synchronous-render baseline.
   view-hints-perf-floor:
+    # The release-please PR branch only ever carries version/changelog bumps and
+    # its merge triggers a full master-push run, so its CI is pure runner burn.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -474,6 +527,9 @@ jobs:
   # and launch bindings work. Calls `sase core health` so the smoke matches
   # the CLI a user would run.
   install-smoke:
+    # The release-please PR branch only ever carries version/changelog bumps and
+    # its merge triggers a full master-push run, so its CI is pure runner burn.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -507,6 +563,9 @@ jobs:
   # checkout. This separate lane installs the exact minimum accepted by SASE
   # from the package index, with no source checkout or dependency override.
   published-core-minimum-smoke:
+    # The release-please PR branch only ever carries version/changelog bumps and
+    # its merge triggers a full master-push run, so its CI is pure runner burn.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
