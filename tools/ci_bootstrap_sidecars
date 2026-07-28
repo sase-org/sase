@@ -1,0 +1,313 @@
+#!/usr/bin/env python3
+"""Clone the SDD sidecar repos declared in ``sase/sase.yml`` and record the store.
+
+CI used to hand-mirror the sidecar configuration: one ``actions/checkout`` step
+per sidecar plus a heredoc that wrote ``.sase/sdd-store.json``. That mirror
+drifted every time ``sase/sase.yml`` changed (the missing ``beads`` sidecar
+broke ``sase validate`` on every master run), so the environment is derived
+from the configuration instead.
+
+Only sidecar roles that the SDD store record can represent are cloned. The
+hidden ``agents`` sidecar is skipped because ``sase init repo --check`` merely
+warns about it.
+"""
+
+from __future__ import annotations
+
+import argparse
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+from typing import Any
+
+import yaml
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_CONFIG_PATH = REPO_ROOT / "sase" / "sase.yml"
+
+SIDECAR_CLONE_ROOT = Path("sase") / "repos"
+STORE_RECORD_PATH = Path(".sase") / "sdd-store.json"
+
+# The store record schema names exactly these sidecar roles; anything else in
+# ``repos.sidecar`` has no place to be recorded and is not needed by CI.
+STORE_SIDECAR_ROLES: tuple[str, ...] = ("plans", "research", "beads")
+# ``sase init repo --check`` only warns when this sidecar is absent, so CI does
+# not pay for the clone.
+HIDDEN_SIDECAR_ROLES = frozenset({"agents"})
+# A sidecar store is only materialized once both of these exist.
+REQUIRED_SIDECAR_ROLES: tuple[str, ...] = ("plans", "research")
+
+HOST = "github.com"
+PROVIDER = "github"
+
+TOKEN_ENV_VARS: tuple[str, ...] = ("SASE_RELEASE_TOKEN", "GITHUB_TOKEN")
+
+
+class BootstrapError(RuntimeError):
+    """Raised with an actionable message when the environment cannot be built."""
+
+
+@dataclass(frozen=True)
+class Sidecar:
+    """One configured sidecar repository that CI must materialize."""
+
+    role: str
+    repo: str
+
+    @property
+    def remote_url(self) -> str:
+        return f"git@{HOST}:{self.repo}.git"
+
+    @property
+    def clone_dir(self) -> Path:
+        return SIDECAR_CLONE_ROOT / self.role
+
+
+@dataclass(frozen=True)
+class SidecarPlan:
+    """Sidecars to clone plus the configured roles deliberately left out."""
+
+    sidecars: tuple[Sidecar, ...]
+    skipped: tuple[tuple[str, str], ...]
+
+
+def sidecar_repo(project_repo: str, role: str) -> str:
+    """Return the ``<owner>/<repo>--<role>`` slug for one sidecar."""
+
+    owner, _, name = project_repo.strip().strip("/").partition("/")
+    if not owner or not name:
+        raise BootstrapError(
+            f"project repository {project_repo!r} is not in <owner>/<repo> form; "
+            "pass --repo or set GITHUB_REPOSITORY"
+        )
+    if name.endswith(".git"):
+        name = name[: -len(".git")]
+    return f"{owner}/{name}--{role}"
+
+
+def load_config(config_path: Path) -> Mapping[str, Any]:
+    """Parse the project's ``sase.yml``."""
+
+    try:
+        raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise BootstrapError(f"missing SASE config: {config_path}") from exc
+    except yaml.YAMLError as exc:
+        raise BootstrapError(f"unparsable SASE config {config_path}: {exc}") from exc
+    if not isinstance(raw, Mapping):
+        raise BootstrapError(f"SASE config {config_path} is not a mapping")
+    return raw
+
+
+def plan_sidecars(config: Mapping[str, Any], project_repo: str) -> SidecarPlan:
+    """Derive the sidecars CI must clone from ``repos.sidecar``."""
+
+    repos = config.get("repos")
+    entries = repos.get("sidecar") if isinstance(repos, Mapping) else None
+    if not isinstance(entries, Sequence) or isinstance(entries, (str, bytes)):
+        entries = []
+
+    sidecars: list[Sidecar] = []
+    skipped: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            continue
+        role = entry.get("name")
+        if not isinstance(role, str) or not role.strip():
+            continue
+        role = role.strip()
+        if role in seen:
+            continue
+        seen.add(role)
+        if entry.get("disabled") is True:
+            skipped.append((role, "disabled in sase.yml"))
+            continue
+        if role in HIDDEN_SIDECAR_ROLES:
+            skipped.append((role, "hidden sidecar; `sase init repo --check` only warns"))
+            continue
+        if role not in STORE_SIDECAR_ROLES:
+            skipped.append((role, "not representable in the SDD store record"))
+            continue
+        configured_repo = entry.get("repo")
+        repo = (
+            configured_repo.strip()
+            if isinstance(configured_repo, str) and configured_repo.strip()
+            else sidecar_repo(project_repo, role)
+        )
+        sidecars.append(Sidecar(role=role, repo=repo))
+
+    order = {role: index for index, role in enumerate(STORE_SIDECAR_ROLES)}
+    sidecars.sort(key=lambda sidecar: order[sidecar.role])
+    return SidecarPlan(sidecars=tuple(sidecars), skipped=tuple(skipped))
+
+
+def build_store_record(sidecars: Sequence[Sidecar]) -> dict[str, Any]:
+    """Return the ``.sase/sdd-store.json`` payload for the cloned sidecars."""
+
+    by_role = {sidecar.role: sidecar for sidecar in sidecars}
+    missing = [role for role in REQUIRED_SIDECAR_ROLES if role not in by_role]
+    if missing:
+        raise BootstrapError(
+            "sidecar SDD storage requires "
+            + " and ".join(REQUIRED_SIDECAR_ROLES)
+            + "; sase.yml is missing: "
+            + ", ".join(missing)
+        )
+    return {
+        # Beads sidecars are only understood from schema_version 3 onward; a
+        # schema_version 2 record naming one is rejected as a foreign record.
+        "schema_version": 3 if "beads" in by_role else 2,
+        "storage": "sidecar_repos",
+        "host": HOST,
+        "provider": PROVIDER,
+        "discovery": "found",
+        "sidecars": {
+            role: {
+                "repo": by_role[role].repo,
+                "remote_url": by_role[role].remote_url,
+            }
+            for role in STORE_SIDECAR_ROLES
+            if role in by_role
+        },
+    }
+
+
+def write_store_record(workspace: Path, record: Mapping[str, Any]) -> Path:
+    """Write the store record under ``workspace`` and return its path."""
+
+    record_path = workspace / STORE_RECORD_PATH
+    record_path.parent.mkdir(parents=True, exist_ok=True)
+    record_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return record_path
+
+
+def _scrub(text: str, secret: str) -> str:
+    return text.replace(secret, "***") if secret else text
+
+
+def _run_git(args: Sequence[str], secret: str) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(
+        ["git", *args], capture_output=True, text=True, check=False
+    )
+    return subprocess.CompletedProcess(
+        args=result.args,
+        returncode=result.returncode,
+        stdout=_scrub(result.stdout, secret),
+        stderr=_scrub(result.stderr, secret),
+    )
+
+
+def clone_sidecar(
+    sidecar: Sidecar,
+    *,
+    workspace: Path,
+    token: str,
+    attempts: int = 3,
+    sleeper: Callable[[float], None] = time.sleep,
+    runner: Callable[[Sequence[str], str], subprocess.CompletedProcess[str]] = _run_git,
+) -> None:
+    """Shallow-clone one sidecar, retrying transient network failures."""
+
+    dest = workspace / sidecar.clone_dir
+    if (dest / ".git").exists():
+        print(f"[ci_bootstrap_sidecars] {sidecar.role}: reusing {dest}")
+        return
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    url = f"https://x-access-token:{token}@{HOST}/{sidecar.repo}.git"
+    last_error = ""
+    for attempt in range(1, attempts + 1):
+        result = runner(["clone", "--depth", "1", url, str(dest)], token)
+        if result.returncode == 0:
+            # Never leave the token behind in the clone's remote config.
+            runner(
+                ["-C", str(dest), "remote", "set-url", "origin",
+                 f"https://{HOST}/{sidecar.repo}.git"],
+                token,
+            )
+            print(f"[ci_bootstrap_sidecars] {sidecar.role}: cloned {sidecar.repo}")
+            return
+        last_error = result.stderr.strip() or result.stdout.strip()
+        if attempt < attempts:
+            print(
+                f"[ci_bootstrap_sidecars] {sidecar.role}: clone attempt "
+                f"{attempt}/{attempts} failed; retrying"
+            )
+            sleeper(2.0 * attempt)
+
+    raise BootstrapError(
+        f"could not clone sidecar repository {sidecar.repo} into {dest} after "
+        f"{attempts} attempts. Confirm the repository exists and that the token "
+        f"in {TOKEN_ENV_VARS[0]} can read it. Last git error: "
+        f"{_scrub(last_error, token)}"
+    )
+
+
+def resolve_token(environ: Mapping[str, str]) -> str:
+    """Return the first configured clone token."""
+
+    for name in TOKEN_ENV_VARS:
+        value = environ.get(name, "").strip()
+        if value:
+            return value
+    raise BootstrapError(
+        "no sidecar clone token: set one of " + ", ".join(TOKEN_ENV_VARS)
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=DEFAULT_CONFIG_PATH,
+        help="Path to the project's sase.yml (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--repo",
+        default=os.environ.get("GITHUB_REPOSITORY", ""),
+        help="Primary repository as <owner>/<repo> (default: $GITHUB_REPOSITORY)",
+    )
+    parser.add_argument(
+        "--workspace",
+        type=Path,
+        default=Path.cwd(),
+        help="Repository checkout to populate (default: the current directory)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the derived store record without cloning or writing it",
+    )
+    namespace = parser.parse_args(argv)
+
+    try:
+        plan = plan_sidecars(load_config(namespace.config), namespace.repo)
+        record = build_store_record(plan.sidecars)
+        for role, reason in plan.skipped:
+            print(f"[ci_bootstrap_sidecars] skipping {role} sidecar: {reason}")
+        if namespace.dry_run:
+            print(json.dumps(record, indent=2, sort_keys=True))
+            return 0
+        token = resolve_token(os.environ)
+        for sidecar in plan.sidecars:
+            clone_sidecar(sidecar, workspace=namespace.workspace, token=token)
+        record_path = write_store_record(namespace.workspace, record)
+        print(f"[ci_bootstrap_sidecars] wrote {record_path}")
+    except BootstrapError as exc:
+        print(f"[ci_bootstrap_sidecars] {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

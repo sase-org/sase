@@ -72,57 +72,18 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Check out plans sidecar
-        uses: actions/checkout@v4
-        with:
-          repository: sase-org/sase--plans
-          path: sase/repos/plans
-          token: ${{ secrets.SASE_RELEASE_TOKEN }}
-          persist-credentials: false
-      - name: Check out beads sidecar
-        uses: actions/checkout@v4
-        with:
-          repository: sase-org/sase--beads
-          path: sase/repos/beads
-          token: ${{ secrets.SASE_RELEASE_TOKEN }}
-          persist-credentials: false
-      - name: Check out research sidecar
-        uses: actions/checkout@v4
-        with:
-          repository: sase-org/sase--research
-          path: sase/repos/research
-          token: ${{ secrets.SASE_RELEASE_TOKEN }}
-          persist-credentials: false
-      - name: Record split SDD sidecar store
-        run: |
-          mkdir -p .sase
-          cat > .sase/sdd-store.json <<'JSON'
-          {
-            "schema_version": 3,
-            "storage": "sidecar_repos",
-            "host": "github.com",
-            "provider": "github",
-            "discovery": "found",
-            "sidecars": {
-              "plans": {
-                "repo": "sase-org/sase--plans",
-                "remote_url": "git@github.com:sase-org/sase--plans.git"
-              },
-              "beads": {
-                "repo": "sase-org/sase--beads",
-                "remote_url": "git@github.com:sase-org/sase--beads.git"
-              },
-              "research": {
-                "repo": "sase-org/sase--research",
-                "remote_url": "git@github.com:sase-org/sase--research.git"
-              }
-            }
-          }
-          JSON
       - name: Install dependencies
         uses: ./.github/actions/setup-sase
         with:
           python-version: '3.12'
+      # Clones every sidecar declared in sase/sase.yml and writes
+      # .sase/sdd-store.json from that same config. Hand-mirroring the sidecar
+      # list here drifted every time the config changed (a missing beads
+      # sidecar broke `sase validate` on every master run).
+      - name: Bootstrap SDD sidecars
+        env:
+          SASE_RELEASE_TOKEN: ${{ secrets.SASE_RELEASE_TOKEN }}
+        run: ./.venv/bin/python tools/ci_bootstrap_sidecars
       - name: Initialize SASE home
         run: |
           ./.venv/bin/sase init memory --no-commit

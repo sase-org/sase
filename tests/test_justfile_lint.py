@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 from pathlib import Path
-
-import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -78,34 +75,19 @@ def test_ci_lint_job_retains_sase_validation_stage() -> None:
     assert "      - name: SASE validation\n        run: just validate\n" in workflow
 
 
-def test_ci_lint_job_validates_split_sdd_sidecars() -> None:
-    workflow_path = ROOT / ".github" / "workflows" / "ci.yml"
-    workflow = yaml.safe_load(workflow_path.read_text())
-    steps = workflow["jobs"]["lint"]["steps"]
+def test_ci_lint_job_derives_sdd_sidecars_from_config() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
 
-    checkouts = {
-        step["with"]["repository"]: step["with"]["path"]
-        for step in steps
-        if step.get("uses") == "actions/checkout@v4" and "with" in step
-    }
-    assert checkouts == {
-        "sase-org/sase--plans": "sase/repos/plans",
-        "sase-org/sase--beads": "sase/repos/beads",
-        "sase-org/sase--research": "sase/repos/research",
-    }
-
-    record_script = next(
-        step["run"]
-        for step in steps
-        if step.get("name") == "Record split SDD sidecar store"
-    )
-    record_text = record_script.split("<<'JSON'\n", maxsplit=1)[1].split(
-        "\nJSON", maxsplit=1
-    )[0]
-    record = json.loads(record_text)
-    assert record["schema_version"] == 3
-    assert record["storage"] == "sidecar_repos"
-    assert set(record["sidecars"]) == {"plans", "beads", "research"}
+    assert "run: ./.venv/bin/python tools/ci_bootstrap_sidecars\n" in workflow
+    # The sidecar environment comes from sase/sase.yml. Hand-mirroring the
+    # sidecar list and the store record here drifted every time the config
+    # changed, which is what broke `sase validate` on every master run.
+    assert "repository: sase-org/sase--plans" not in workflow
+    assert "repository: sase-org/sase--beads" not in workflow
+    assert "repository: sase-org/sase--research" not in workflow
+    assert '"storage": "sidecar_repos"' not in workflow
+    assert "mkdir -p .sase" not in workflow
+    assert "sase-org/sase--sdd" not in workflow
 
 
 def test_public_toobig_target_uses_private_lint_stage() -> None:
