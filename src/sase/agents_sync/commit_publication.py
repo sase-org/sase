@@ -16,6 +16,7 @@ from sase.agents_sync.inventory import (
     ProjectHoodInventory,
     build_project_hood_inventory,
 )
+from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.publication import publish_agent_hood
 from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
@@ -466,6 +467,13 @@ def _prepare_publications(
                 error=error,
                 increment_attempts=True,
                 quarantine_threshold=configured_publication_max_attempts(),
+                terminal_reason=(
+                    error
+                    if isinstance(exc, AgentsSyncFormatError)
+                    and str(exc)
+                    == f"hood {request.local_hood!r} has no publishable runs"
+                    else None
+                ),
             )
             errors.append(error)
 

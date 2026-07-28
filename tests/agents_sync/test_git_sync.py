@@ -598,6 +598,14 @@ def test_full_sync_keeps_outbox_request_when_agent_page_did_not_materialize(
         "during full sync"
     )
 
+    assert git_sync.sync_agents() == (SyncOutcome("proj", "Project", pulled=True),)
+    [retired] = list_agent_publications("proj")
+    assert retired.attempts == 2
+    assert retired.terminal
+    assert retired.terminal_reason == retired.last_error
+    assert not retired.quarantined
+    assert list_agent_publications("proj", include_quarantined=False) == ()
+
 
 def test_network_git_environment_is_noninteractive() -> None:
     original = {"PATH": "/bin", "GIT_TERMINAL_PROMPT": "1"}

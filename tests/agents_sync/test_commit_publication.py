@@ -16,6 +16,7 @@ from sase.agents_sync.commit_publication import (
 )
 from sase.agents_sync.git import run_git
 from sase.agents_sync.inventory import ProjectHoodInventory
+from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import (
     IntegrationCounts,
     ProjectTarget,
@@ -563,3 +564,83 @@ def test_mixed_queue_publishes_good_items_and_quarantines_only_bad_item(
     )
     assert third.queued and not third.published
     assert list_agent_publications("proj")[0].attempts == 2
+
+
+def test_no_publishable_runs_retries_once_then_retires(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, _remote = _setup_target(tmp_path)
+    owner = AgentOwnerIdentity("alice", "athena")
+    monkeypatch.setattr(
+        commit_publication,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        commit_publication,
+        "require_agent_owner_identity",
+        lambda: owner,
+    )
+    monkeypatch.setattr(
+        commit_publication,
+        "integrate_agent_imports_with_receipts",
+        lambda *_args, **_kwargs: IntegrationCounts(),
+    )
+    monkeypatch.setattr(
+        commit_publication,
+        "build_project_hood_inventory",
+        lambda *_args, **_kwargs: ProjectHoodInventory(owner, "proj", ()),
+    )
+
+    def no_publishable_runs(
+        _target: ProjectTarget,
+        _repo: Path,
+        _agent: str,
+        **_kwargs: object,
+    ) -> V2PublicationCounts:
+        raise AgentsSyncFormatError("hood 'missing' has no publishable runs")
+
+    monkeypatch.setattr(
+        commit_publication,
+        "publish_agent_hood",
+        no_publishable_runs,
+    )
+
+    first = publish_committed_agent_hood(
+        "missing--code",
+        "a" * 40,
+        project="Project",
+        git_runner=run_git,
+    )
+    [pending] = list_agent_publications("proj")
+    assert first.queued and not first.published
+    assert pending.attempts == 1
+    assert not pending.terminal
+    assert not pending.quarantined
+
+    second = publish_committed_agent_hood(
+        "missing--code",
+        "a" * 40,
+        project="Project",
+        git_runner=run_git,
+    )
+    [retired] = list_agent_publications("proj")
+    assert second.queued and not second.published
+    assert retired.attempts == 2
+    assert retired.terminal
+    assert retired.terminal_reason == retired.last_error
+    assert not retired.quarantined
+    assert list_agent_publications("proj", include_quarantined=False) == ()
+
+    publish_committed_agent_hood(
+        "missing--code",
+        "a" * 40,
+        project="Project",
+        git_runner=run_git,
+    )
+    [still_retired] = list_agent_publications("proj")
+    assert still_retired.terminal
+    assert still_retired.terminal_reason == retired.terminal_reason
+    assert still_retired.attempts == retired.attempts

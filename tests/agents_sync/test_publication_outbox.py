@@ -7,6 +7,7 @@ from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
     acknowledge_agent_publications,
     clear_quarantined_agent_publications,
+    drop_terminal_agent_publications,
     enqueue_agent_publication,
     list_agent_publications,
     snapshot_agent_publications_from_path,
@@ -14,13 +15,18 @@ from sase.agents_sync.publication_outbox import (
 )
 
 
-def _item() -> AgentPublicationOutboxItem:
+def _item(
+    *,
+    local_agent: str = "foo--code",
+    global_agent: str = "alice.athena.foo--code",
+    revision: str = "a" * 40,
+) -> AgentPublicationOutboxItem:
     return AgentPublicationOutboxItem(
         project_key="proj",
         project="Project",
-        local_agent="foo--code",
-        global_agent="alice.athena.foo--code",
-        primary_revision="a" * 40,
+        local_agent=local_agent,
+        global_agent=global_agent,
+        primary_revision=revision,
         local_hood="foo",
     )
 
@@ -94,6 +100,92 @@ def test_repeated_item_failure_is_quarantined_and_manually_clearable(
     assert cleared.last_error is None
 
 
+def test_repeated_terminal_failure_retires_without_quarantining(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    item = enqueue_agent_publication(_item())
+    error = "hood 'foo' has no publishable runs"
+
+    first = update_agent_publications(
+        "proj",
+        (item.logical_key,),
+        error=error,
+        increment_attempts=True,
+        quarantine_threshold=2,
+        terminal_reason=error,
+    )[0]
+
+    assert first.attempts == 1
+    assert not first.terminal
+    assert first.terminal_reason is None
+    assert list_agent_publications("proj", include_quarantined=False) == (first,)
+
+    retired = update_agent_publications(
+        "proj",
+        (item.logical_key,),
+        error=error,
+        increment_attempts=True,
+        quarantine_threshold=2,
+        terminal_reason=error,
+    )[0]
+
+    assert retired.attempts == 2
+    assert retired.terminal
+    assert retired.terminal_reason == error
+    assert not retired.quarantined
+    assert retired.quarantined_at is None
+    assert list_agent_publications("proj", include_quarantined=False) == ()
+
+
+def test_retry_quarantined_skips_terminal_and_drop_returns_only_terminal(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    retired_item = enqueue_agent_publication(_item())
+    quarantined_item = enqueue_agent_publication(
+        _item(
+            local_agent="bar--code",
+            global_agent="alice.athena.bar--code",
+            revision="b" * 40,
+        )
+    )
+    terminal_error = "hood 'foo' has no publishable runs"
+    for _ in range(2):
+        update_agent_publications(
+            "proj",
+            (retired_item.logical_key,),
+            error=terminal_error,
+            increment_attempts=True,
+            quarantine_threshold=2,
+            terminal_reason=terminal_error,
+        )
+    update_agent_publications(
+        "proj",
+        (quarantined_item.logical_key,),
+        error="malformed history",
+        increment_attempts=True,
+        quarantine_threshold=1,
+    )
+
+    retried = clear_quarantined_agent_publications("proj")
+    retired = next(
+        item for item in retried if item.logical_key == retired_item.logical_key
+    )
+    active = next(
+        item for item in retried if item.logical_key == quarantined_item.logical_key
+    )
+    assert retired.terminal and retired.terminal_reason == terminal_error
+    assert retired.attempts == 2
+    assert not active.quarantined and active.attempts == 0
+    assert active.last_error is None
+
+    assert drop_terminal_agent_publications("proj") == (retired,)
+    assert list_agent_publications("proj") == (active,)
+
+
 def test_schema_v1_backlog_is_read_and_upgraded_without_data_loss(
     tmp_path,
     monkeypatch,
@@ -104,6 +196,8 @@ def test_schema_v1_backlog_is_read_and_upgraded_without_data_loss(
     row = _item().to_json_dict()
     row.pop("quarantined")
     row.pop("quarantined_at")
+    row.pop("terminal")
+    row.pop("terminal_reason")
     path.write_text(
         json.dumps({"schema_version": 1, "items": [row]}),
         encoding="utf-8",
@@ -119,9 +213,37 @@ def test_schema_v1_backlog_is_read_and_upgraded_without_data_loss(
         error="still pending",
     )
     upgraded = json.loads(path.read_text(encoding="utf-8"))
-    assert upgraded["schema_version"] == 2
+    assert upgraded["schema_version"] == 3
     assert upgraded["items"][0]["quarantined"] is False
     assert upgraded["items"][0]["quarantined_at"] is None
+    assert upgraded["items"][0]["terminal"] is False
+    assert upgraded["items"][0]["terminal_reason"] is None
+
+
+def test_schema_v2_backlog_loads_without_terminal_state_and_upgrades(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    path = tmp_path / "projects" / "proj" / "agents-publication-outbox.json"
+    path.parent.mkdir(parents=True)
+    row = _item().to_json_dict()
+    row.pop("terminal")
+    row.pop("terminal_reason")
+    path.write_text(
+        json.dumps({"schema_version": 2, "items": [row]}),
+        encoding="utf-8",
+    )
+
+    [loaded] = list_agent_publications("proj")
+    assert not loaded.terminal
+    assert loaded.terminal_reason is None
+
+    update_agent_publications("proj", (loaded.logical_key,), error="still pending")
+    upgraded = json.loads(path.read_text(encoding="utf-8"))
+    assert upgraded["schema_version"] == 3
+    assert upgraded["items"][0]["terminal"] is False
+    assert upgraded["items"][0]["terminal_reason"] is None
 
 
 def test_lock_free_snapshot_reads_schema_v1_without_writing(
@@ -134,6 +256,8 @@ def test_lock_free_snapshot_reads_schema_v1_without_writing(
     row = _item().to_json_dict()
     row.pop("quarantined")
     row.pop("quarantined_at")
+    row.pop("terminal")
+    row.pop("terminal_reason")
     payload = json.dumps({"schema_version": 1, "items": [row]})
     path.write_text(payload, encoding="utf-8")
 

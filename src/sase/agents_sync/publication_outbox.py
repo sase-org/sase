@@ -16,7 +16,7 @@ import time
 from sase.agents_sync.io import atomic_write_json
 from sase.core.paths import sase_projects_dir, validate_sase_project_name
 
-PUBLICATION_OUTBOX_SCHEMA_VERSION = 2
+PUBLICATION_OUTBOX_SCHEMA_VERSION = 3
 DEFAULT_PUBLICATION_MAX_ATTEMPTS = 3
 _PUBLICATION_MAX_ATTEMPTS_ENV = "SASE_AGENTS_PUBLICATION_MAX_ATTEMPTS"
 AGENT_PUBLICATION_OUTBOX_FILENAME = "agents-publication-outbox.json"
@@ -37,6 +37,8 @@ class AgentPublicationOutboxItem:
     last_error: str | None = None
     quarantined: bool = False
     quarantined_at: float | None = None
+    terminal: bool = False
+    terminal_reason: str | None = None
     created_at: float = 0.0
     updated_at: float = 0.0
 
@@ -70,6 +72,8 @@ class AgentPublicationOutboxItem:
             "last_error": self.last_error,
             "quarantined": self.quarantined,
             "quarantined_at": self.quarantined_at,
+            "terminal": self.terminal,
+            "terminal_reason": self.terminal_reason,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -104,6 +108,12 @@ def enqueue_agent_publication(
             ),
             quarantined_at=(
                 existing.quarantined_at if existing is not None else item.quarantined_at
+            ),
+            terminal=existing.terminal if existing is not None else item.terminal,
+            terminal_reason=(
+                existing.terminal_reason
+                if existing is not None
+                else item.terminal_reason
             ),
             hood_digest=(
                 existing.hood_digest
@@ -143,7 +153,7 @@ def list_agent_publications(
         items = _read_outbox(_outbox_path(project_key), project_key)
     if include_quarantined:
         return items
-    return tuple(item for item in items if not item.quarantined)
+    return tuple(item for item in items if not item.quarantined and not item.terminal)
 
 
 def snapshot_agent_publications_from_path(
@@ -174,11 +184,19 @@ def update_agent_publications(
     error: str | None = None,
     increment_attempts: bool = False,
     quarantine_threshold: int | None = None,
+    terminal_reason: str | None = None,
 ) -> tuple[AgentPublicationOutboxItem, ...]:
-    """Update matching requests atomically and return the resulting outbox."""
+    """Update matching requests atomically and return the resulting outbox.
+
+    ``terminal_reason`` nominates a failure that cannot be fixed by retrying.
+    The request is retired only when its prior recorded error is the same, so
+    an indexing race still receives one retry before becoming terminal.
+    """
 
     if quarantine_threshold is not None and quarantine_threshold < 1:
         raise ValueError("publication quarantine threshold must be positive")
+    if terminal_reason is not None and error != terminal_reason:
+        raise ValueError("terminal publication reason must match the recorded error")
     selected = frozenset(logical_keys)
     now = time.time()
 
@@ -191,8 +209,17 @@ def update_agent_publications(
                 updated.append(item)
                 continue
             attempts = item.attempts + int(increment_attempts)
-            quarantine = item.quarantined or (
-                quarantine_threshold is not None and attempts >= quarantine_threshold
+            terminal = item.terminal or (
+                terminal_reason is not None
+                and item.attempts > 0
+                and item.last_error == terminal_reason
+            )
+            quarantine = not terminal and (
+                item.quarantined
+                or (
+                    quarantine_threshold is not None
+                    and attempts >= quarantine_threshold
+                )
             )
             updated.append(
                 replace(
@@ -203,9 +230,17 @@ def update_agent_publications(
                     quarantined=quarantine,
                     quarantined_at=(
                         item.quarantined_at
-                        if item.quarantined
+                        if quarantine and item.quarantined
                         else now
                         if quarantine
+                        else None
+                    ),
+                    terminal=terminal,
+                    terminal_reason=(
+                        item.terminal_reason
+                        if item.terminal
+                        else terminal_reason
+                        if terminal
                         else None
                     ),
                     updated_at=now,
@@ -235,7 +270,7 @@ def clear_quarantined_agent_publications(
                 quarantined_at=None,
                 updated_at=now,
             )
-            if item.quarantined
+            if item.quarantined and not item.terminal
             else item
             for item in items
         )
@@ -282,6 +317,24 @@ def acknowledge_agent_publications(
         project_key,
         lambda items: tuple(item for item in items if item.logical_key not in selected),
     )
+
+
+def drop_terminal_agent_publications(
+    project_key: str,
+) -> tuple[AgentPublicationOutboxItem, ...]:
+    """Drop terminal requests and return the requests that were removed."""
+
+    dropped: tuple[AgentPublicationOutboxItem, ...] = ()
+
+    def update(
+        items: tuple[AgentPublicationOutboxItem, ...],
+    ) -> tuple[AgentPublicationOutboxItem, ...]:
+        nonlocal dropped
+        dropped = tuple(item for item in items if item.terminal)
+        return tuple(item for item in items if not item.terminal)
+
+    _mutate_outbox(project_key, update)
+    return dropped
 
 
 def _mutate_outbox(
@@ -339,7 +392,7 @@ def _read_outbox(
     if (
         not isinstance(schema_version, int)
         or isinstance(schema_version, bool)
-        or schema_version not in {1, PUBLICATION_OUTBOX_SCHEMA_VERSION}
+        or schema_version not in {1, 2, PUBLICATION_OUTBOX_SCHEMA_VERSION}
     ):
         raise RuntimeError("unsupported agents publication outbox schema")
     rows = payload.get("items")
@@ -378,6 +431,12 @@ def _item_from_json(
             default=False if schema_version == 1 else None,
         ),
         quarantined_at=_json_optional_number(row, "quarantined_at"),
+        terminal=_json_boolean(
+            row,
+            "terminal",
+            default=False if schema_version < 3 else None,
+        ),
+        terminal_reason=_json_optional_text(row, "terminal_reason"),
         created_at=_json_number(row, "created_at", default=0.0),
         updated_at=_json_number(row, "updated_at", default=0.0),
     )
@@ -488,6 +547,7 @@ __all__ = [
     "acknowledge_agent_publications",
     "clear_quarantined_agent_publications",
     "configured_publication_max_attempts",
+    "drop_terminal_agent_publications",
     "enqueue_agent_publication",
     "list_agent_publications",
     "publication_quarantine_diagnostics",

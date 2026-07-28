@@ -110,15 +110,17 @@ def sync_agents(
                 for item in pending_publications:
                     if item in materialized:
                         continue
+                    error = (
+                        f"published agent page for {item.global_agent!r} "
+                        "did not materialize during full sync"
+                    )
                     update_agent_publications(
                         target.project_key,
                         (item.logical_key,),
-                        error=(
-                            f"published agent page for {item.global_agent!r} "
-                            "did not materialize during full sync"
-                        ),
+                        error=error,
                         increment_attempts=True,
                         quarantine_threshold=configured_publication_max_attempts(),
+                        terminal_reason=error,
                     )
             quarantine_diagnostics = publication_quarantine_diagnostics(
                 target.project_key
