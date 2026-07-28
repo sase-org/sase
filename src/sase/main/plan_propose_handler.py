@@ -137,8 +137,6 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         stamps["bead"] = active_bead
     elif target_tier == "epic" and active_bead:
         stamps["parent_bead"] = active_bead
-    if parent_plan:
-        stamps["parent"] = parent_plan
 
     # Format plan file in-place with prettier before archiving.  Stamp the
     # managed association first so the archived copy is fully formatted.
@@ -150,6 +148,10 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         from sase.sdd.frontmatter import set_frontmatter_fields
 
         raw = set_frontmatter_fields(raw, stamps)
+    if parent_plan:
+        from sase.sdd.plan_header_writes import upsert_parent_plan_section
+
+        raw = upsert_parent_plan_section(raw, parent_plan)
     formatted = format_with_prettier(raw)
     if formatted != original:
         plan_path.write_text(formatted, encoding="utf-8")

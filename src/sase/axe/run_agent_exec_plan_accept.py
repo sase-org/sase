@@ -348,6 +348,7 @@ def handle_accepted_plan(
                 plan_result.plan_file,
                 plan_tier=plan_tier,
                 plans_root=sdd_store.kind_root("plans"),
+                store=sdd_store,
             )
             sdd_commit_paths = [sdd_prompt_path_obj, sdd_plan_path]
         state.sdd_spec_path = str(sdd_prompt_path_obj)

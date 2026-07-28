@@ -318,6 +318,41 @@ def test_write_sdd_files_supports_flat_sidecar_plans_root(tmp_path: Path) -> Non
     )
 
 
+def test_write_sdd_files_rebases_seeded_parent_section(tmp_path: Path) -> None:
+    from sase.sdd.plan_header_block import (
+        PlanHeaderSectionKind,
+        parse_plan_header_block,
+    )
+    from sase.sdd.plan_header_writes import upsert_parent_plan_section
+
+    plans_root = tmp_path / "plans"
+    parent = plans_root / "202607" / "parent.md"
+    parent.parent.mkdir(parents=True)
+    parent.write_text("# Parent\n", encoding="utf-8")
+    source = tmp_path / "source.md"
+    source.write_text(
+        upsert_parent_plan_section("# Child\n", "plans:202607/parent.md"),
+        encoding="utf-8",
+    )
+
+    _prompt, plan = write_sdd_files(
+        tmp_path,
+        "child",
+        "# Prompt\n",
+        str(source),
+        plans_root=plans_root,
+    )
+
+    parsed = parse_plan_header_block(plan.read_text(encoding="utf-8"))
+    assert [section.kind for section in parsed.sections] == [
+        PlanHeaderSectionKind.PROMPT,
+        PlanHeaderSectionKind.PARENT,
+    ]
+    parent_section = parsed.sections[1]
+    assert parent_section.label == "202607/parent.md"
+    assert parent_section.target == "parent.md"
+
+
 def test_write_sdd_spec_does_not_write_plan(tmp_path: Path) -> None:
     sdd_dir = tmp_path / "sdd"
 

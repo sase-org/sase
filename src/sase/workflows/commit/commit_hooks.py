@@ -380,6 +380,20 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
                     SddArtifactLinkType.PROMPT,
                     remove_legacy=True,
                 )
+            from sase.sdd.plan_header_writes import (
+                refresh_existing_parent_section,
+            )
+
+            plan_content = refresh_existing_parent_section(
+                plan_content,
+                source_path=Path(plan_path),
+                plans_root=store.kind_root("plans"),
+                store=store,
+                primary_root=Path(repo_root or cwd),
+            )
+            from sase.file_references import format_with_prettier
+
+            plan_content = format_with_prettier(plan_content)
 
     from sase.sdd.committed_plan_validation import validate_plan_for_commit
     from sase.sdd.plan_tiers import read_plan_tier_from_content

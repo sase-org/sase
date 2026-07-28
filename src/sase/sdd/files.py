@@ -7,6 +7,10 @@ stable for callers and tests.
 
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sase.sdd.store import SddStore
 
 from sase.sdd._commit import (
     SddGitCommandTimeout,
@@ -135,6 +139,7 @@ def write_sdd_files(
     *,
     plan_tier: str = "tale",
     plans_root: Path | None = None,
+    store: SddStore | None = None,
 ) -> tuple[Path, Path]:
     """Write a prompt and tiered plan under canonical directories.
 
@@ -147,6 +152,7 @@ def write_sdd_files(
         plan_file,
         plan_tier=plan_tier,
         plans_root=plans_root,
+        store=store,
         yyyymm=get_yyyymm(),
     )
 

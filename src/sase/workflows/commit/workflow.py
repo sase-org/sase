@@ -374,6 +374,14 @@ class CommitWorkflow(BaseWorkflow):
             return RunResult.OK
         if "publish_agent_hood" in cp.completed_steps:
             return RunResult.OK
+        from sase.agents_sync.commit_publication import (
+            refresh_committed_plan_header,
+        )
+
+        refresh_committed_plan_header(
+            str(cp.payload.get("message") or ""),
+            primary_root=cp.cwd,
+        )
         if not cp.publication_agent:
             return RunResult.OK
 

@@ -1,6 +1,7 @@
 """SDD prompt, plan, and Q&A file writes."""
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.sdd._paths import get_yyyymm
 from sase.sdd.artifact_links import (
@@ -8,6 +9,9 @@ from sase.sdd.artifact_links import (
     stable_sdd_reference,
     update_source_aware_artifact_link,
 )
+
+if TYPE_CHECKING:
+    from sase.sdd.store import SddStore
 
 _QA_HEADER = "### Questions and Answers"
 
@@ -59,6 +63,7 @@ def write_sdd_files(
     *,
     plan_tier: str = "tale",
     plans_root: Path | None = None,
+    store: SddStore | None = None,
     yyyymm: str | None = None,
 ) -> tuple[Path, Path]:
     """Write plans/<YYYYMM>/prompts/<name>.md and its paired plan.
@@ -98,6 +103,16 @@ def write_sdd_files(
             SddArtifactLinkType.PROMPT,
             remove_legacy=True,
         )
+        from sase.sdd.plan_header_writes import refresh_existing_parent_section
+
+        plan_content = refresh_existing_parent_section(
+            plan_content,
+            source_path=plan_path,
+            plans_root=plans_dir.parent,
+            store=store,
+            primary_root=Path.cwd(),
+        )
+        plan_content = format_with_prettier(plan_content)
         validate_plan_for_commit(
             plan_content,
             tier=tier,

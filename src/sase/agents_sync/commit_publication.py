@@ -36,6 +36,10 @@ from sase.core.agent_identity_facade import (
     normalize_agent_archive_name,
     normalize_owned_agent_name,
 )
+from sase.sdd.plan_header_refresh import (
+    PlanHeaderRefreshOutcome,
+    refresh_committed_plan_header,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -487,4 +491,8 @@ def _current_project() -> str | None:
         return None
 
 
-__all__ = ["publish_committed_agent_hood"]
+__all__ = [
+    "PlanHeaderRefreshOutcome",
+    "publish_committed_agent_hood",
+    "refresh_committed_plan_header",
+]
