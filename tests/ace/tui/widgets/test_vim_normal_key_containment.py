@@ -135,6 +135,63 @@ async def test_normal_non_printable_keys_still_reach_app_actions() -> None:
             assert actions == ["dismiss_toasts", "jump_to_entry_fast"]
 
 
+@pytest.mark.parametrize("vim_mode", ["insert", "normal"])
+async def test_ctrl_space_leaves_focused_prompt_intact(vim_mode: str) -> None:
+    with (
+        _patch_config(),
+        patch("sase.history.prompt.add_or_update_prompt") as save_history,
+    ):
+        async with AcePage() as page:
+            bar, text_area = await _mount_home_prompt(page, "hello world")
+            if vim_mode == "insert":
+                await page.press("i")
+            assert text_area._vim_mode == vim_mode
+
+            await page.press("ctrl+@")
+
+            assert page.query_one_widget("#prompt-input-bar", PromptInputBar) is bar
+            assert text_area.text == "hello world"
+            save_history.assert_not_called()
+
+
+async def test_ctrl_space_leaves_frontmatter_focused_prompt_intact() -> None:
+    with (
+        _patch_config(),
+        patch("sase.history.prompt.add_or_update_prompt") as save_history,
+    ):
+        async with AcePage() as page:
+            prompt_markdown = (
+                "---\nxprompts:\n  _rules: Follow the checklist\n---\nhello world"
+            )
+            bar, text_area = await _mount_home_prompt(
+                page,
+                prompt_markdown,
+                as_xprompt_markdown=True,
+            )
+            bar.focus_frontmatter_panel()
+            await page.pause()
+            await page.pause()
+            panel = page.query_one_widget("FrontmatterPanel", FrontmatterPanel)
+            await page.wait_for(lambda _state: page.app.focused is panel)
+            prompt_text = text_area.text
+
+            await page.press("ctrl+@")
+
+            assert page.query_one_widget("#prompt-input-bar", PromptInputBar) is bar
+            assert text_area.text == prompt_text
+            save_history.assert_not_called()
+
+
+async def test_ctrl_space_action_is_gated_only_while_prompt_is_mounted() -> None:
+    with _patch_config():
+        async with AcePage() as page:
+            assert page.app.check_action("start_agent_from_changespec", ()) is not False
+
+            await _mount_home_prompt(page, "hello world")
+
+            assert page.app.check_action("start_agent_from_changespec", ()) is False
+
+
 async def test_other_main_screen_vim_hosts_contain_normal_space() -> None:
     with _patch_config():
         async with AcePage() as page:

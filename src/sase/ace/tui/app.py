@@ -333,6 +333,18 @@ class AceApp(
                 )
             ):
                 return False
+        # ``Ctrl+Space`` replays the last launch selection by remounting the
+        # prompt bar, which tears down whatever the user is currently typing
+        # (``_show_prompt_input_bar_for_home`` unmounts first). The printable
+        # launch keys (``+``, ``space``) are swallowed by the focused TextArea,
+        # so this non-printable one is the only launch entry point that can
+        # reach the app mid-prompt. Disable the action instead of the key so
+        # the guard survives rebinding and covers every focus position inside
+        # the bar (prompt panes, frontmatter panel, frontmatter cell editors).
+        if action == "start_agent_from_changespec" and (
+            bool(getattr(self, "_screen_stack", ())) and self._prompt_input_active()
+        ):
+            return False
         if action == "edit_query" and (
             self.current_tab == "agents"
             or (
