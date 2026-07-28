@@ -24,12 +24,18 @@ reference, while the href is relative to the physical file containing it. YAML f
 at byte zero; the bullet is the first Markdown body element and has exactly one blank line after it. A local
 `.sase/sdd/` store uses the equivalent stable label prefix.
 
+A plan's `PROMPT` bullet opens its **header block**: the fixed-order run of `PROMPT`, `PARENT`, `AGENTS`, and `COMMITS`
+bullets that records the plan's parent plan, the agents that worked it, and the commits it produced. SASE derives
+`PARENT`, `AGENTS`, and `COMMITS` from durable state rather than accumulating them, omits sections with nothing to show,
+and links each entry to GitHub when the store has a hosted remote.
+
 ## Commands
 
 - `sase plan search` searches or browses SDD markdown artifacts.
 - `sase repo path plans` and `sase repo path research` print the effective storage directories for those repositories.
 - `sase plan links validate` checks artifact links between prompts and plans.
 - `sase plan links repair` previews canonical bullet migration; add `--write` to update unambiguous pairs.
+- `sase plan links refresh` previews plan header-block reconciliation; add `--write` to apply it.
 - `sase plan search` searches these `sdd/` plans and the machine-local `~/.sase/plans/` archive by content.
 - `sase bead` manages SDD bead issues and epic work.
 

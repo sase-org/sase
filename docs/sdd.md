@@ -135,7 +135,8 @@ empty later note preserves the earlier value.
 ### Artifact Links
 
 Prompt snapshots and plan-like artifacts link to each other through ordinary Markdown bullets, so GitHub renders the
-counterpart as a clickable link. A plan names its prompt:
+counterpart as a clickable link. A plan opens with a **header block**: a contiguous run of those bullets, in the fixed
+order `PROMPT`, `PARENT`, `AGENTS`, `COMMITS`, that carries the plan's full provenance.
 
 ```markdown
 ---
@@ -145,6 +146,12 @@ goal: Demonstrate the plan-side layout.
 ---
 
 - **PROMPT:** [sdd/plans/202605/prompts/example.md](prompts/example.md)
+- **PARENT:** [202605/parent_epic.md](https://github.com/sase-org/sase--plans/blob/main/202605/parent_epic.md)
+- **AGENTS:**
+  - [bbugyi200.athena.sase-8k.6](https://github.com/sase-org/sase--agents/blob/main/agents/bbugyi200.athena.sase-8k.6/README.md)
+- **COMMITS:**
+  - [699456a](https://github.com/sase-org/sase/commit/699456a521e25e0aaa38f4e289db38e71a6488a6) — fix(xprompt):
+    canonicalize workflow project identity
 
 # Plan: Example
 ```
@@ -161,15 +168,44 @@ create_time: 2026-07-21 12:00:00
 Original prompt text.
 ```
 
-When YAML frontmatter exists, its opening `---` remains at byte zero. The artifact-link bullet is the first Markdown
-body element after the closing delimiter, followed by exactly one blank line before the authored content (including an
-H1). Without frontmatter, the bullet is the first file line. `PROMPT` and `PLAN` name the linked counterpart.
+When YAML frontmatter exists, its opening `---` remains at byte zero. The header block is the first Markdown body
+element after the closing delimiter, followed by exactly one blank line before the authored content (including an H1).
+Without frontmatter, the block starts at the first file line. `PROMPT` and `PLAN` name the linked counterpart.
 
-The text inside `[]` is the storage-layout-aware stable SDD label. The href inside `()` is relative to the physical file
-containing the bullet: prompt-to-plan hrefs ascend from `prompts/`, while plan-to-prompt hrefs descend into it. Local
-`.sase/sdd` labels retain that prefix. In a flat `--plans` sidecar, the equivalent bullets are
-`- **PLAN:** [../202605/example.md](../example.md)` in the prompt and
+The text inside `[]` is the storage-layout-aware stable SDD label. For `PROMPT` and `PLAN` the href inside `()` is
+relative to the physical file containing the bullet: prompt-to-plan hrefs ascend from `prompts/`, while plan-to-prompt
+hrefs descend into it. Local `.sase/sdd` labels retain that prefix. In a flat `--plans` sidecar, the equivalent bullets
+are `- **PLAN:** [../202605/example.md](../example.md)` in the prompt and
 `- **PROMPT:** [202605/prompts/example.md](prompts/example.md)` in the plan.
+
+#### Header Block Sections
+
+| Section   | Shape               | Destination                                                          |
+| --------- | ------------------- | -------------------------------------------------------------------- |
+| `PLAN`    | one link (prompts)  | file-relative href inside the plans store                            |
+| `PROMPT`  | one link (plans)    | file-relative href inside the plans store                            |
+| `PARENT`  | one link            | hosted plan URL in the plans sidecar, else a file-relative href      |
+| `AGENTS`  | ordered sub-bullets | hosted agent README URL in the agents sidecar, else an unlinked name |
+| `COMMITS` | ordered sub-bullets | hosted commit URL in the primary repository, else an unlinked SHA    |
+
+Sub-bullets are indented exactly two spaces and deterministically ordered: agents by global name, commits by commit time
+then SHA. Commit sub-bullets show the seven-character short SHA as link text and append `— <subject>`. A section with
+nothing to show is omitted entirely — an empty `- **AGENTS:**` header is never rendered — and a list longer than the
+shared render cap ends with a visible `… and N more` sub-bullet instead of being silently truncated. Rendered bullets
+are wrap-tolerant: prettier may fold a long commit sub-bullet onto continuation lines, and parsing joins those lines
+back into one logical bullet.
+
+`AGENTS` and `COMMITS` are a projection of durable state, never an accumulator. They are re-derived from `SASE_PLAN=` /
+`SASE_AGENT=` commit footers and agent artifact metadata on every refresh, so a stale or wrong entry disappears once its
+source is corrected. An epic plan's sections roll up its own associations with those of every descendant plan reachable
+through `PARENT`. `sase plan links refresh` reconciles the whole tree (dry run by default; `--write` to apply,
+`--plan <ref>` to scope to one plan), and each primary commit refreshes the plan it names on a best-effort basis — a
+plans-store failure never blocks the code commit.
+
+A plan's parent is recorded in the `PARENT` bullet. The historical `parent:` frontmatter property is deprecated: it
+remains accepted so already-committed plans still validate, but it emits a deprecation warning and
+`sase plan links refresh --write` migrates it into a `PARENT` bullet. Plans whose `parent:` value does not resolve to a
+real plan file are reported rather than dropped.
 
 Historical `plan:` and `prompt:` frontmatter values remain readable in both their original plain-path form and their
 later inline-Markdown form. Ordinary reads, search, validation, initialization, and upgrades do not rewrite them. A
@@ -253,11 +289,11 @@ Every tale and epic requires these authored fields:
 | `goal`  | yes      | Non-empty description of the outcome the plan is intended to reach |
 | `model` | no       | Non-empty model value using the same syntax as `%model`            |
 
-SASE-managed `create_time`, `status`, `bead`, `parent`, and `bead_id` fields are accepted but never required. Historical
-plans with a deprecated `prompt` property remain valid, but that property is intentionally omitted from canonical schema
-and authoring output because new links use the Markdown bullet. Epics may also carry the SASE-managed `parent_bead`
-field. Unknown fields are errors. A plan must start with valid, closed YAML frontmatter and contain a non-empty Markdown
-body.
+SASE-managed `create_time`, `status`, `bead`, and `bead_id` fields are accepted but never required. Historical plans
+with a deprecated `prompt` or `parent` property remain valid, but both are intentionally omitted from canonical schema
+and authoring output because new links use the Markdown header block; `parent` additionally reports a deprecation
+warning pointing at the `PARENT` bullet. Epics may also carry the SASE-managed `parent_bead` field. Unknown fields are
+errors. A plan must start with valid, closed YAML frontmatter and contain a non-empty Markdown body.
 
 Epics additionally require an ordered, non-empty `phases` list. Optional `changespec` and integer `bug_id` metadata may
 be supplied; `bug_id` requires `changespec`. The epic-only `parent_bead` associates an approved plan with the bead under
@@ -323,6 +359,7 @@ command group:
 | `sase init repo`           | Alias for `sase repo init`                                                                     |
 | `sase repo path REPO`      | Print a primary or sidecar path; `-e/--ensure` materializes the selected sidecar               |
 | `sase plan links [list]`   | Print each prompt/plan artifact link and whether its reverse link is intact                    |
+| `sase plan links refresh`  | Preview header-block reconciliation; `-w/--write` applies it, `-P/--plan REF` scopes it        |
 | `sase plan links repair`   | Preview canonical link migration; add `-w/--write` to update unambiguous pairs                 |
 | `sase plan links validate` | Validate links; `-j/--json`, `-q/--quiet`, `-s/--strict`, and `-W/--show-warnings` tune output |
 | `sase plan search`         | Search or browse tale, epic, prompt, and research artifacts                                    |

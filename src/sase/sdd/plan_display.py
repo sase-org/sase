@@ -24,6 +24,10 @@ from sase.phase_size_presentation import (
     normalize_phase_size,
     phase_size_chip,
 )
+from sase.sdd.plan_header_block import (
+    PlanHeaderSectionKind,
+    parse_plan_header_block,
+)
 from sase.sdd.plan_tiers import normalize_plan_tier, parse_plan_frontmatter
 from sase.sdd.plan_validate import (
     PlanValidationResult,
@@ -45,6 +49,31 @@ COLOR_PLAN_EMPTY = "dim italic"
 PLAN_MISSING_SUFFIX_STYLE = "dim italic #FF8787"
 PLAN_PHASE_ID_STYLE = "#AF87FF"
 PLAN_PHASE_MODEL_STYLE = "italic #AF87FF"
+PLAN_PROVENANCE_AGENT_STYLE = "#87D7AF"
+PLAN_PROVENANCE_COMMIT_STYLE = "#D7AF87"
+PLAN_PROVENANCE_ENTRY_LIMIT = 6
+
+_PROVENANCE_ROW_LABELS: dict[PlanHeaderSectionKind, str] = {
+    PlanHeaderSectionKind.PLAN: "   Plan: ",
+    PlanHeaderSectionKind.PROMPT: " Prompt: ",
+    PlanHeaderSectionKind.PARENT: " Parent: ",
+    PlanHeaderSectionKind.AGENTS: " Agents: ",
+    PlanHeaderSectionKind.COMMITS: "Commits: ",
+}
+_PROVENANCE_ROW_ORDER: tuple[PlanHeaderSectionKind, ...] = (
+    PlanHeaderSectionKind.PLAN,
+    PlanHeaderSectionKind.PROMPT,
+    PlanHeaderSectionKind.PARENT,
+    PlanHeaderSectionKind.AGENTS,
+    PlanHeaderSectionKind.COMMITS,
+)
+_PROVENANCE_ENTRY_STYLES: dict[PlanHeaderSectionKind, str] = {
+    PlanHeaderSectionKind.PLAN: COLOR_PLAN_PATH,
+    PlanHeaderSectionKind.PROMPT: COLOR_PLAN_PATH,
+    PlanHeaderSectionKind.PARENT: COLOR_PLAN_PATH,
+    PlanHeaderSectionKind.AGENTS: PLAN_PROVENANCE_AGENT_STYLE,
+    PlanHeaderSectionKind.COMMITS: PLAN_PROVENANCE_COMMIT_STYLE,
+}
 
 PlanDisplayTier = Literal["plan", "tale", "epic"]
 AuthoredPlanTier = Literal["tale", "epic"]
@@ -78,6 +107,15 @@ class PlanDisplayPhase:
 
 
 @dataclass(frozen=True, slots=True)
+class _PlanProvenanceSection:
+    """One plan-header block section reduced to display labels."""
+
+    kind: PlanHeaderSectionKind
+    entries: tuple[str, ...]
+    omitted: int = 0
+
+
+@dataclass(frozen=True, slots=True)
 class PlanFileMetadata:
     """Best-effort authored metadata plus strict validation state."""
 
@@ -91,6 +129,7 @@ class PlanFileMetadata:
     phases: tuple[PlanDisplayPhase, ...]
     validation_ok: bool = False
     validation_diagnostics: tuple[str, ...] = ()
+    provenance: tuple[_PlanProvenanceSection, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +150,7 @@ class PlanDisplay:
     phases: tuple[PlanDisplayPhase, ...]
     validation_ok: bool = False
     validation_diagnostics: tuple[str, ...] = ()
+    provenance: tuple[_PlanProvenanceSection, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +207,7 @@ def load_plan_display(
         phases=metadata.phases,
         validation_ok=metadata.validation_ok,
         validation_diagnostics=metadata.validation_diagnostics,
+        provenance=metadata.provenance,
     )
 
 
@@ -280,7 +321,38 @@ def plan_file_metadata_from_content(
         phases=phases,
         validation_ok=validation_ok,
         validation_diagnostics=diagnostics,
+        provenance=_plan_provenance_sections(content),
     )
+
+
+def _plan_provenance_sections(content: str) -> tuple[_PlanProvenanceSection, ...]:
+    """Reduce one document's plan-header block to display-ready sections.
+
+    A malformed or unparseable header block yields no sections rather than
+    raising: the provenance header is a projection, and the plan's authored
+    metadata must stay visible even when that projection is broken.
+    """
+    try:
+        document = parse_plan_header_block(content)
+    except Exception:
+        return ()
+    sections: list[_PlanProvenanceSection] = []
+    for section in document.sections:
+        if section.entries:
+            entries = tuple(entry.label for entry in section.entries)
+        elif section.label:
+            entries = (section.label,)
+        else:
+            continue
+        sections.append(
+            _PlanProvenanceSection(
+                kind=section.kind,
+                entries=entries,
+                omitted=max(section.omitted, 0),
+            )
+        )
+    sections.sort(key=lambda section: _PROVENANCE_ROW_ORDER.index(section.kind))
+    return tuple(sections)
 
 
 def unavailable_plan_metadata(
@@ -362,6 +434,31 @@ def plan_field_rows(
     )
 
 
+def plan_provenance_rows(summary: PlanDisplay) -> tuple[tuple[str, Text], ...]:
+    """Build the compact provenance rows shown under the canonical fields."""
+    return tuple(
+        (_PROVENANCE_ROW_LABELS[section.kind], _provenance_value(section))
+        for section in summary.provenance
+        if section.kind in _PROVENANCE_ROW_LABELS
+    )
+
+
+def _provenance_value(section: _PlanProvenanceSection) -> Text:
+    style = _PROVENANCE_ENTRY_STYLES[section.kind]
+    shown = section.entries[:PLAN_PROVENANCE_ENTRY_LIMIT]
+    hidden = len(section.entries) - len(shown) + section.omitted
+    text = Text()
+    for index, entry in enumerate(shown):
+        if index:
+            text.append(", ", style=COLOR_PLAN_SUMMARY)
+        text.append(entry, style=style)
+    if hidden > 0:
+        if shown:
+            text.append(", ", style=COLOR_PLAN_SUMMARY)
+        text.append(f"+{hidden} more", style=COLOR_PLAN_EMPTY)
+    return text
+
+
 def plan_phase_metadata(phase: PlanDisplayPhase) -> Text:
     """Build one phase's id/dependency/model metadata."""
     text = Text(phase.id, style=PLAN_PHASE_ID_STYLE)
@@ -406,7 +503,11 @@ def plan_logical_text(
 ) -> Text:
     """Return the canonical unwrapped PLAN document used for search/copy."""
     text = plan_lane_header(summary)
-    for label, value in plan_field_rows(summary, hint_number=hint_number):
+    rows = (
+        *plan_field_rows(summary, hint_number=hint_number),
+        *plan_provenance_rows(summary),
+    )
+    for label, value in rows:
         text.append(label, style=COLOR_PLAN_SUMMARY)
         text.append_text(value)
         text.append("\n")
@@ -444,6 +545,8 @@ def render_plan_document(
                 preferred_segment_width=preferred_segment_width,
             )
         )
+    for label, value in plan_provenance_rows(summary):
+        intro.extend(_render_field_lines(label, value, width=width))
 
     phase_blocks: list[tuple[Text, ...]] = []
     if summary.phase_availability == "available":
@@ -652,6 +755,9 @@ __all__ = [
     "PLAN_MISSING_SUFFIX_STYLE",
     "PLAN_PHASE_ID_STYLE",
     "PLAN_PHASE_MODEL_STYLE",
+    "PLAN_PROVENANCE_AGENT_STYLE",
+    "PLAN_PROVENANCE_COMMIT_STYLE",
+    "PLAN_PROVENANCE_ENTRY_LIMIT",
     "PLAN_SECTION_LABEL",
     "PLAN_SECTION_MAX_WIDTH",
     "PlanDisplay",
@@ -667,6 +773,7 @@ __all__ = [
     "plan_logical_text",
     "plan_phase_logical_text",
     "plan_phase_metadata",
+    "plan_provenance_rows",
     "render_plan_document",
     "render_plan_lines",
     "unavailable_plan_metadata",

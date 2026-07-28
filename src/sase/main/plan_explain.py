@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 
-TALE_PLAN_EXPLANATION = """A tale requires this frontmatter shape:
+PLAN_HEADER_BLOCK_NOTE = """Do not author the plan's provenance header block. SASE writes and reconciles the leading
+`PROMPT`, `PARENT`, `AGENTS`, and `COMMITS` Markdown bullets itself, and `sase plan links refresh` keeps them current.
+In particular, name a parent plan through the `PARENT` bullet SASE writes, never through a `parent:` frontmatter
+property: that property is deprecated and is migrated into the bullet."""
+
+TALE_PLAN_EXPLANATION = (
+    """A tale requires this frontmatter shape:
 
 ```yaml
 ---
@@ -14,9 +20,14 @@ goal: Describe the outcome this plan will achieve.
 # Plan: Descriptive title
 
 Describe the implementation.
-```"""
+```
 
-EPIC_PLAN_EXPLANATION = """An epic requires a title and a non-empty ordered phase list:
+"""
+    + PLAN_HEADER_BLOCK_NOTE
+)
+
+EPIC_PLAN_EXPLANATION = (
+    """An epic requires a title and a non-empty ordered phase list:
 
 ```yaml
 ---
@@ -63,7 +74,11 @@ appropriate for the work, unless that phase has an explicit `model` override.
 A phase's `model` is optional. Set it explicitly only when the user's prompt requested a specific model. For a phase
 that only exercises or observes a SASE agent feature and does no consequential work, use `size: xsmall` instead of a
 cheap model override. An explicit phase model is allowed for every size and always takes precedence over the
-size-derived default. The optional top-level `model` selects the tale's coder follow-up or the epic's land agent."""
+size-derived default. The optional top-level `model` selects the tale's coder follow-up or the epic's land agent.
+
+"""
+    + PLAN_HEADER_BLOCK_NOTE
+)
 
 INVALID_PLAN_TIER_HINT = (
     "Set a valid `tier: tale` or `tier: epic` property in the plan frontmatter."

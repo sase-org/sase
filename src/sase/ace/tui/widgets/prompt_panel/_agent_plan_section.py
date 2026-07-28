@@ -27,6 +27,7 @@ from sase.sdd.plan_display import (
     plan_logical_text,
     plan_phase_logical_text,
     plan_phase_metadata,
+    plan_provenance_rows,
 )
 
 from ...models.agent_associated_plan import (
@@ -99,9 +100,9 @@ class ResponsivePlanSection:
         return plan_lane_details(self.summary)
 
     def _rows(self) -> tuple[tuple[str, Text], ...]:
-        return plan_field_rows(
-            self.summary,
-            hint_number=self.hint_number,
+        return (
+            *plan_field_rows(self.summary, hint_number=self.hint_number),
+            *plan_provenance_rows(self.summary),
         )
 
     @staticmethod
