@@ -11,7 +11,11 @@ import pytest
 
 from sase.agent.launch_types import AgentLaunchResult
 from sase.axe.run_agent_runner_bead import claim_bead_for_agent_launch
-from sase.bead.claims import claim_bead_for_waiting_agent
+from sase.bead.claims import (
+    BeadClaimReleaseOutcome,
+    claim_bead_for_waiting_agent,
+    release_bead_claim_for_agent,
+)
 from sase.bead.cli_work_launch import launch_bead_work_agents
 from sase.bead.cli_work_plan import expected_agent_names
 from sase.bead.model import Status
@@ -40,7 +44,7 @@ def _launch_result(name: str) -> AgentLaunchResult:
 
 
 @pytest.mark.parametrize("planned", [False, True], ids=["generic-cwd", "planned"])
-def test_rendered_waves_claim_while_waiting_then_promote_at_execution(
+def test_rendered_epic_preclaims_make_runner_lifecycle_quiet_noops(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     planned: bool,
@@ -49,6 +53,15 @@ def test_rendered_waves_claim_while_waiting_then_promote_at_execution(
     with BeadProject(project_dir) as project:
         project.mark_ready_to_work(epic_id)
         plan = build_epic_work_plan_from_beads_dir(project.beads_dir, epic_id)
+        project.preclaim_epic_work(
+            epic_id,
+            [
+                (assignment.bead_id, assignment.agent_name)
+                for wave in plan.waves
+                for assignment in wave
+            ],
+            plan.land_agent_name,
+        )
 
     launch_context = (
         VCSLaunchContext(vcs_workflow="git", project_name="proj") if planned else None
@@ -123,79 +136,69 @@ def test_rendered_waves_claim_while_waiting_then_promote_at_execution(
         "sase.bead.store_locator.canonical_beads_dir_for_project",
         lambda _project: project_dir / "sdd/beads",
     )
-    for bead_id, directives in directives_by_bead.items():
-        assert directives.name is not None
-        assert claim_bead_for_waiting_agent(
-            project_name="proj",
-            bead_id=bead_id,
-            agent_name=directives.name,
-        )
-
     store = SddStore(
-        storage="in_tree",
+        storage="separate_repo",
         sdd_dir=project_dir / "sdd",
         repo_root=project_dir,
     )
-    model_callbacks: list[str] = []
-
-    def cross_runner_claim(bead_id: str) -> None:
-        directives = directives_by_bead[bead_id]
-        assert directives.name is not None
-        with BeadProject(project_dir) as project:
-            before = project.show(bead_id)
-            assert before.status == Status.CLAIMED
-            assert before.assignee == directives.name
-            assert all(
-                project.show(blocker).status == Status.CLOSED
-                for blocker in directives.wait_beads
+    with (
+        patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+        patch(
+            "sase.bead.sync.commit_bead_claim",
+            side_effect=AssertionError("wait no-op must not commit"),
+        ),
+        patch(
+            "sase.bead.sync.commit_bead_claim_release",
+            side_effect=AssertionError("release no-op must not commit"),
+        ),
+        patch(
+            "sase.bead.sync.publish_bead_claim",
+            side_effect=AssertionError("runner no-op must not publish"),
+        ),
+        patch(
+            "sase.sdd.files.commit_sdd_store_files",
+            side_effect=AssertionError("promotion no-op must not commit"),
+        ),
+    ):
+        for bead_id, directives in directives_by_bead.items():
+            assert directives.name is not None
+            assert claim_bead_for_waiting_agent(
+                project_name="proj",
+                bead_id=bead_id,
+                agent_name=directives.name,
             )
-        claimed = claim_bead_for_agent_launch(
-            agent_name=directives.name,
-            bead_id=bead_id,
-            workspace_dir=str(project_dir),
-            workspace_num=0,
-            artifacts_dir=str(project_dir / "artifacts"),
-        )
-        assert claimed.status == Status.IN_PROGRESS
-        assert claimed.assignee == directives.name
-        model_callbacks.append(bead_id)
-
-    with patch("sase.sdd.store.resolve_sdd_store", return_value=store):
-        first, parallel_a, parallel_b, downstream = phase_ids
-
-        # Every launched runner reserves its work before dependency admission.
-        with BeadProject(project_dir) as project:
-            assert all(
-                project.show(bead).status == Status.CLAIMED for bead in phase_ids
+            promoted = claim_bead_for_agent_launch(
+                agent_name=directives.name,
+                bead_id=bead_id,
+                workspace_dir=str(project_dir),
+                workspace_num=0,
+                artifacts_dir=str(project_dir / "artifacts"),
             )
-            assert project.show(epic_id).status == Status.CLAIMED
+            assert (promoted.status, promoted.assignee) == (
+                Status.IN_PROGRESS,
+                directives.name,
+            )
+            assert (
+                release_bead_claim_for_agent(
+                    project_name="proj",
+                    bead_id=bead_id,
+                    agent_name=directives.name,
+                )
+                is BeadClaimReleaseOutcome.NOTHING_TO_RELEASE
+            )
 
-        cross_runner_claim(first)
-        with BeadProject(project_dir) as project:
-            assert project.show(parallel_a).status == Status.CLAIMED
-            assert project.show(parallel_b).status == Status.CLAIMED
-            project.close([first])
-
-        # Each worker promotes its reservation immediately before its model.
-        cross_runner_claim(parallel_a)
-        with BeadProject(project_dir) as project:
-            assert project.show(parallel_b).status == Status.CLAIMED
-        cross_runner_claim(parallel_b)
-        with BeadProject(project_dir) as project:
-            assert project.show(downstream).status == Status.CLAIMED
-            project.close([parallel_a, parallel_b])
-
-        cross_runner_claim(downstream)
-        with BeadProject(project_dir) as project:
-            assert project.show(epic_id).status == Status.CLAIMED
-            project.close([downstream])
-
-        cross_runner_claim(epic_id)
-
-    assert model_callbacks == [*phase_ids, epic_id]
     with BeadProject(project_dir) as project:
-        assert project.show(epic_id).status == Status.IN_PROGRESS
-        assert project.show(epic_id).assignee == plan.land_agent_name
+        for phase_id in phase_ids:
+            issue = project.show(phase_id)
+            assert (issue.status, issue.assignee) == (
+                Status.IN_PROGRESS,
+                phase_id,
+            )
+        epic = project.show(epic_id)
+        assert (epic.status, epic.assignee) == (
+            Status.IN_PROGRESS,
+            plan.land_agent_name,
+        )
 
 
 def test_wait_claim_survives_publication_lag_and_holds_until_promotion(

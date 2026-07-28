@@ -27,13 +27,19 @@ not merge bead records from numbered sibling workspaces or legacy bead stores.
 - `in_progress` — actively being worked
 - `closed` — complete, canceled, or superseded
 
-Do NOT set `claimed` by hand. The agent runner owns it: it claims a bead when a bead-carrying agent starts waiting,
-promotes the claim to `in_progress` right before that agent begins working, and releases it back to `open` if the agent
-dies before it ever started. A bead you were told to work on is already `in_progress` by the time you read your prompt.
+Do NOT set `claimed` by hand. For an ad-hoc bead-carrying launch, the agent runner owns this transition: it claims the
+bead when the agent starts waiting, promotes the claim to `in_progress` right before work begins, and releases it back
+to `open` if the agent dies before it ever started.
 
-The wait-time claim is best-effort, and the `bead_claim_checks` chop reconciles whatever it misses, so a waiting agent's
-bead can turn `claimed` a few seconds after that agent starts waiting rather than instantly. A freshly launched epic
-whose phases are still `open` is normal for one reconciler interval; it is not a signal to claim anything by hand.
+`sase bead work` uses a stronger epic-launch path. Before any runner spawns, it assigns every rendered phase bead and
+the epic land bead directly to `in_progress` under their exact agent names, then commits and publishes that complete
+launch state. The runner's later wait claim, launch promotion, and waiting-claim release therefore become quiet no-ops.
+If an epic-launched runner dies while waiting, its bead stays `in_progress`; rerun `sase bead work <epic-id|plan.md>` to
+recover and reassign every remaining non-closed bead. Closed phases are never reassigned.
+
+The ad-hoc wait-time claim remains best-effort, and the `bead_claim_checks` chop reconciles whatever it misses, so a
+waiting ad-hoc agent's bead can turn `claimed` a few seconds after that agent starts waiting rather than instantly. A
+bead you were told to work on is already `in_progress` by the time you read your prompt.
 
 ## Types
 

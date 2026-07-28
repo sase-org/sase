@@ -243,7 +243,7 @@ def test_work_relaunch_after_failure_joins_existing_epic_clan(
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
     monkeypatch.setattr(
-        "sase.bead.sync.commit_bead_work_launch",
+        "sase.bead.sync.commit_epic_graph_checkpoint",
         lambda *args, **kwargs: True,
     )
 

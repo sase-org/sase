@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 import json
 import logging
 from pathlib import Path
@@ -14,7 +15,7 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.cli_common import auto_commit_bead_store
 from sase.bead.model import Issue, IssueType, Status
-from sase.bead.project import BeadProject
+from sase.bead.project import BeadProject, EpicPreclaimRollback
 from sase.sdd.store import SddStore
 from sase.sdd.store import write_sdd_store_record
 from tests.sdd_policy_helpers import set_sdd_policy
@@ -342,28 +343,59 @@ def test_handle_bead_dep_add_auto_commit_message(project_dir: Path) -> None:
 def test_rollback_work_launch_auto_commits_cleanup() -> None:
     from sase.bead.cli_work_cleanup import rollback_work_launch
 
-    proj = MagicMock()
+    proj = MagicMock(beads_dir=Path("/tmp/beads"))
+    rollback = (
+        EpicPreclaimRollback("epic-1.1", Status.OPEN, ""),
+        EpicPreclaimRollback("epic-1", Status.IN_PROGRESS, "old-land"),
+    )
 
-    with patch("sase.bead.cli_work_cleanup.auto_commit_bead_store") as auto_commit:
+    with (
+        patch(
+            "sase.bead.sync.bead_store_write_lock",
+            return_value=nullcontext(True),
+        ),
+        patch(
+            "sase.bead.sync.commit_failed_work_launch_recovery",
+            return_value=True,
+        ) as commit,
+        patch("sase.bead.sync.push_bead_work_launch") as push,
+    ):
         rollback_work_launch(
             proj,
             "epic-1",
             marked_ready_this_run=True,
+            rollback_preclaims=rollback,
         )
 
-    proj.update.assert_not_called()
+    assert proj.update.call_args_list == [
+        (("epic-1.1",), {"status": "open", "assignee": ""}),
+        (("epic-1",), {"status": "in_progress", "assignee": "old-land"}),
+    ]
     proj.unmark_ready_to_work.assert_called_once_with("epic-1")
-    auto_commit.assert_called_once_with(
-        "chore(beads): recover failed work launch epic-1"
+    commit.assert_called_once_with(
+        Path("/tmp/beads"),
+        "epic-1",
+        already_locked=True,
     )
+    push.assert_called_once_with(Path("/tmp/beads"))
 
 
 def test_rollback_work_launch_suppresses_push_when_requested() -> None:
     from sase.bead.cli_work_cleanup import rollback_work_launch
 
-    proj = MagicMock()
+    proj = MagicMock(beads_dir=Path("/tmp/beads"))
 
-    with patch("sase.bead.cli_work_cleanup.auto_commit_bead_store") as auto_commit:
+    with (
+        patch(
+            "sase.bead.sync.bead_store_write_lock",
+            return_value=nullcontext(True),
+        ),
+        patch(
+            "sase.bead.sync.commit_failed_work_launch_recovery",
+            return_value=True,
+        ) as commit,
+        patch("sase.bead.sync.push_bead_work_launch") as push,
+    ):
         rollback_work_launch(
             proj,
             "epic-1",
@@ -371,10 +403,12 @@ def test_rollback_work_launch_suppresses_push_when_requested() -> None:
             no_push=True,
         )
 
-    auto_commit.assert_called_once_with(
-        "chore(beads): recover failed work launch epic-1",
-        push_after_commit=False,
+    commit.assert_called_once_with(
+        Path("/tmp/beads"),
+        "epic-1",
+        already_locked=True,
     )
+    push.assert_not_called()
 
 
 def _create_issue(project_dir: Path, title: str) -> Issue:

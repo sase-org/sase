@@ -60,7 +60,7 @@ def test_work_expected_name_container_conflict_aborts_before_mutation(
         ),
     )
     monkeypatch.setattr(
-        "sase.bead.sync.commit_bead_work_launch",
+        "sase.bead.sync.commit_epic_graph_checkpoint",
         lambda *args, **kwargs: pytest.fail("aborted launch must not commit"),
     )
 
@@ -154,7 +154,7 @@ def test_work_family_cleanup_failure_aborts_before_mutation(
         ),
     )
     monkeypatch.setattr(
-        "sase.bead.sync.commit_bead_work_launch",
+        "sase.bead.sync.commit_epic_graph_checkpoint",
         lambda *args, **kwargs: pytest.fail("aborted launch must not commit"),
     )
 
@@ -209,7 +209,7 @@ def test_work_force_reuse_cleanup_failure_aborts_before_mutation(
         ),
     )
     monkeypatch.setattr(
-        "sase.bead.sync.commit_bead_work_launch",
+        "sase.bead.sync.commit_epic_graph_checkpoint",
         lambda *args, **kwargs: pytest.fail("aborted launch must not commit"),
     )
 

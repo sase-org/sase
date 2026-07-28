@@ -14,7 +14,10 @@ from sase.bead.cli_work_cleanup import (
     preview_bead_work_force_reuse,
     rollback_work_launch,
 )
-from sase.bead.cli_work_commit import commit_successful_work_launch
+from sase.bead.cli_work_commit import (
+    EpicLaunchCheckpointError,
+    checkpoint_epic_work_launch,
+)
 from sase.bead.cli_work_context import (
     resolve_vcs_launch_context,
     resolve_changespec_launch_context,
@@ -39,6 +42,7 @@ from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
+    from sase.bead.project import EpicPreclaimRollback
     from sase.bead.work import (
         ChangeSpecLaunchContext,
         VCSLaunchContext,
@@ -53,8 +57,7 @@ class BeadWorkError(RuntimeError):
 
     ``agents_spawned`` records that at least one runner crossed the spawn
     boundary, so plan-file callers must preserve the recoverable epic state.
-    ``agents_launched`` distinguishes failures after every requested agent was
-    successfully started (currently the final bead-state commit).
+    ``agents_launched`` remains available for compatibility with host callers.
 
     ``graph_published`` records that the pre-launch visibility barrier
     completed. ``preserve_epic_state`` is reserved for failures where the
@@ -78,19 +81,6 @@ class BeadWorkError(RuntimeError):
         self.graph_published = graph_published
         self.preserve_epic_state = preserve_epic_state
         self.retry_requires_push = retry_requires_push
-
-
-def _post_launch_commit_error(
-    epic_id: str,
-    exc: Exception,
-    *,
-    graph_published: bool,
-) -> BeadWorkError:
-    return BeadWorkError(
-        f"agents launched for epic {epic_id}, but committing bead state failed: {exc}",
-        agents_launched=True,
-        graph_published=graph_published,
-    )
 
 
 def _make_bead_work_timer(bead_id: str, *, dry_run: bool) -> Any:
@@ -283,44 +273,80 @@ def launch_epic_bead_work(
             launch_context=changespec_context or vcs_context,
         )
 
+    phase_assignments = [
+        (assignment.bead_id, assignment.agent_name)
+        for wave in plan.waves
+        for assignment in wave
+    ]
     marked_ready_this_run = False
+    rollback_preclaims: tuple[EpicPreclaimRollback, ...] = ()
     if not issue.is_ready_to_work:
-        with timer.stage("mark_ready"):
-            try:
+        try:
+            with timer.stage("mark_ready"):
                 proj.mark_ready_to_work(epic_id)
                 marked_ready_this_run = True
-            except AlreadyReadyError:
-                marked_ready_this_run = False
-            except (KeyError, NotAPlanError) as e:
-                raise BeadWorkError(str(e)) from e
+        except AlreadyReadyError:
+            marked_ready_this_run = False
+        except (KeyError, NotAPlanError, ValueError) as exc:
+            raise BeadWorkError(str(exc)) from exc
+    try:
+        with timer.stage("preclaim"):
+            rollback_preclaims = proj.preclaim_epic_work(
+                epic_id,
+                phase_assignments,
+                plan.land_agent_name,
+            )
+    except (KeyError, NotAPlanError, ValueError) as exc:
+        rollback_work_launch(
+            proj,
+            epic_id,
+            marked_ready_this_run=marked_ready_this_run,
+            rollback_preclaims=rollback_preclaims,
+            no_push=True,
+        )
+        raise BeadWorkError(str(exc)) from exc
 
     graph_published = False
-    if before_agent_launch is not None:
-        try:
-            with timer.stage("graph_publication"):
+    try:
+        with timer.stage("graph_publication"):
+            if before_agent_launch is not None:
                 before_agent_launch(proj, epic_id)
-            graph_published = True
-        except BeadWorkError as exc:
-            if marked_ready_this_run and not exc.preserve_epic_state:
-                rollback_work_launch(
-                    proj,
-                    epic_id,
-                    marked_ready_this_run=True,
-                    no_push=True,
-                )
-            raise
-        except Exception as exc:
-            if marked_ready_this_run:
-                rollback_work_launch(
-                    proj,
-                    epic_id,
-                    marked_ready_this_run=True,
-                    no_push=True,
-                )
-            raise BeadWorkError(
-                f"epic graph publication failed before agent launch for "
-                f"{epic_id}: {exc}"
-            ) from exc
+            else:
+                try:
+                    checkpoint_epic_work_launch(
+                        proj.beads_dir,
+                        epic_id,
+                        no_push=no_push or defer_push,
+                        timer=timer,
+                    )
+                except EpicLaunchCheckpointError as exc:
+                    raise BeadWorkError(
+                        str(exc),
+                        preserve_epic_state=exc.checkpoint_created,
+                        retry_requires_push=exc.retry_requires_push,
+                    ) from exc
+        graph_published = True
+    except BeadWorkError as exc:
+        if not exc.preserve_epic_state:
+            rollback_work_launch(
+                proj,
+                epic_id,
+                marked_ready_this_run=marked_ready_this_run,
+                rollback_preclaims=rollback_preclaims,
+                no_push=True,
+            )
+        raise
+    except Exception as exc:
+        rollback_work_launch(
+            proj,
+            epic_id,
+            marked_ready_this_run=marked_ready_this_run,
+            rollback_preclaims=rollback_preclaims,
+            no_push=True,
+        )
+        raise BeadWorkError(
+            f"epic graph publication failed before agent launch for {epic_id}: {exc}"
+        ) from exc
 
     try:
         with timer.stage("agent_launch"):
@@ -341,6 +367,7 @@ def launch_epic_bead_work(
             proj,
             epic_id,
             marked_ready_this_run=marked_ready_this_run,
+            rollback_preclaims=rollback_preclaims,
             no_push=no_push or defer_push,
             launched_pids=launched_pids,
             launched_results=launched_results,
@@ -357,20 +384,6 @@ def launch_epic_bead_work(
         f"✓ Launched {agent_count} agents for epic {epic_id} — {issue.title} "
         f"(workspace {results[0].workspace_num})"
     )
-    try:
-        commit_successful_work_launch(
-            proj.beads_dir,
-            epic_id,
-            kind="epic",
-            no_push=no_push or defer_push,
-            timer=timer,
-        )
-    except Exception as exc:
-        raise _post_launch_commit_error(
-            epic_id,
-            exc,
-            graph_published=graph_published,
-        ) from exc
     return True
 
 

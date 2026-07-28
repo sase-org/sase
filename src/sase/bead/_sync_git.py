@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 class BeadWorkLaunchCommitError(RuntimeError):
-    """Raised when the post-launch bead metadata commit fails."""
+    """Raised when a bead-work launch checkpoint commit fails."""
 
 
 @contextmanager
@@ -192,6 +192,22 @@ def commit_epic_graph_checkpoint(
         message=f"chore(beads): checkpoint approved epic graph {epic_id}",
         auto_commit_type="beads",
         op_prefix="bead.graph_checkpoint",
+        already_locked=already_locked,
+    )
+
+
+def commit_failed_work_launch_recovery(
+    beads_dir: Path,
+    epic_id: str,
+    *,
+    already_locked: bool = False,
+) -> bool:
+    """Commit restored state after an epic launcher spawned no agents."""
+    return _commit_bead_state(
+        beads_dir,
+        message=f"chore(beads): recover failed work launch {epic_id}",
+        auto_commit_type="beads",
+        op_prefix="bead.work_launch_recovery",
         already_locked=already_locked,
     )
 

@@ -1,9 +1,7 @@
-"""Commit and push helpers for successful ``sase bead work`` launches."""
+"""Pre-spawn checkpoint helpers for ``sase bead work`` launches."""
 
 from __future__ import annotations
 
-import shlex
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -11,73 +9,103 @@ if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
 
 
-def _resolve_push_mode(no_push: bool) -> str:
-    """Resolve the post-commit push mode: ``"sync"``, ``"async"`` or ``"off"``.
+class EpicLaunchCheckpointError(RuntimeError):
+    """A pre-spawn checkpoint or publication failure."""
 
-    ``--no-push`` always wins. Otherwise ``bead.push_after_commit`` selects the
-    behavior: ``true`` (default) pushes synchronously, ``false`` skips the push,
-    and ``async`` launches a detached push helper so the command returns without
-    waiting on remote network/credential latency. Unknown string values fall
-    back to the conservative synchronous push.
-    """
-    if no_push:
-        return "off"
-
-    from sase.config import load_merged_config
-
-    raw = load_merged_config().get("bead", {}).get("push_after_commit", True)
-    if isinstance(raw, str):
-        normalized = raw.strip().lower()
-        if normalized == "async":
-            return "async"
-        if normalized in {"false", "no", "off", "0"}:
-            return "off"
-        return "sync"
-    return "sync" if bool(raw) else "off"
+    def __init__(
+        self,
+        message: str,
+        *,
+        checkpoint_created: bool,
+        retry_requires_push: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.checkpoint_created = checkpoint_created
+        self.retry_requires_push = retry_requires_push
 
 
-def commit_successful_work_launch(
+def checkpoint_epic_work_launch(
     beads_dir: Path,
-    bead_id: str,
+    epic_id: str,
     *,
-    kind: str,
     no_push: bool,
     timer: LaunchTimingRecorder,
-) -> None:
+) -> bool:
+    """Commit and, when required, publish an epic launch before spawning.
+
+    Returns whether a remote publication completed. A local checkpoint remains
+    the safe retry point when publication fails after the commit.
+    """
     from sase.bead.sync import (
-        commit_bead_work_launch,
+        bead_state_is_clean,
+        commit_epic_graph_checkpoint,
         push_bead_work_launch,
-        push_bead_work_launch_async,
     )
 
-    with timer.stage("commit"):
-        committed = commit_bead_work_launch(beads_dir, bead_id, kind=kind)
+    try:
+        with timer.stage("commit"):
+            commit_epic_graph_checkpoint(beads_dir, epic_id)
+            if not bead_state_is_clean(beads_dir):
+                raise RuntimeError("bead-state changes remain uncommitted")
+    except Exception as exc:
+        raise EpicLaunchCheckpointError(
+            f"epic launch checkpoint failed before agent launch for {epic_id}: {exc}",
+            checkpoint_created=False,
+        ) from exc
 
-    if not committed:
-        return
+    requires_remote = _requires_remote_publication(beads_dir)
+    if no_push:
+        if requires_remote:
+            raise EpicLaunchCheckpointError(
+                "--no-push cannot launch workers from this detached bead store; "
+                "the launch checkpoint was committed locally and no agents were "
+                "spawned. Retry without --no-push to publish it",
+                checkpoint_created=True,
+                retry_requires_push=True,
+            )
+        print(f"Committed epic launch checkpoint for {epic_id}.")
+        return False
 
-    push_mode = _resolve_push_mode(no_push)
-    suffix = ""
-    with timer.stage("push", mode=push_mode):
-        if push_mode == "sync":
-            outcome = push_bead_work_launch(beads_dir)
-            if outcome.pushed:
-                suffix = " Pushed to remote."
-            elif outcome.error is not None:
-                from sase.bead._sync_git import find_git_root
+    with timer.stage("push", mode="sync"):
+        outcome = push_bead_work_launch(beads_dir)
+    if outcome.error is not None:
+        raise EpicLaunchCheckpointError(
+            f"epic launch checkpoint publication failed before agent launch "
+            f"for {epic_id}: {outcome.error}",
+            checkpoint_created=True,
+            retry_requires_push=True,
+        )
+    if requires_remote and not outcome.pushed:
+        raise EpicLaunchCheckpointError(
+            f"epic launch checkpoint publication failed before agent launch "
+            f"for {epic_id}: the detached bead store has no push remote",
+            checkpoint_created=True,
+            retry_requires_push=True,
+        )
 
-                repo_root = find_git_root(beads_dir) or beads_dir
-                print(
-                    f"Warning: committed bead state for {kind} {bead_id}, "
-                    f"but {outcome.error}. Push manually with "
-                    f"`cd {shlex.quote(str(repo_root))} && git push`.",
-                    file=sys.stderr,
-                )
-        elif push_mode == "async":
-            handle = push_bead_work_launch_async(beads_dir)
-            if handle is not None:
-                suffix = (
-                    f" Pushing to remote in the background (pid {handle.pid}); "
-                    f"output logged to {handle.log_path}."
-                )
-    print(f"Committed bead state for {kind} {bead_id}.{suffix}")
+    suffix = " Pushed to remote." if outcome.pushed else ""
+    print(f"Committed epic launch checkpoint for {epic_id}.{suffix}")
+    return outcome.pushed
+
+
+def _requires_remote_publication(beads_dir: Path) -> bool:
+    """Return whether detached workers need a remote bead-store revision."""
+    from sase.bead.cli_location import resolve_beads_location
+
+    location = resolve_beads_location(beads_dir, require_existing=True)
+    if location is None or location.is_in_tree:
+        return False
+    if location.expected_remote_url:
+        return True
+    store = location.store
+    if store is None:
+        return False
+    if store.beads_dir is not None and store.beads_remote_url:
+        return True
+    return bool(store.remote_url)
+
+
+__all__ = [
+    "EpicLaunchCheckpointError",
+    "checkpoint_epic_work_launch",
+]

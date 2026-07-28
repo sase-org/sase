@@ -87,7 +87,7 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     with BeadProject(project_dir) as project:
         project.update(epic_id, design=plan_ref)
     captured: dict[str, Any] = {}
-    commit_calls: list[tuple[Path, str, str]] = []
+    events: list[str] = []
 
     def fake_launch(
         query: str,
@@ -97,19 +97,32 @@ def test_work_launches_and_passes_rendered_multi_prompt(
         captured["query"] = query
         captured["extra_env"] = extra_env
         captured["segment_extra_env"] = segment_extra_env
+        with BeadProject(project_dir) as project:
+            for phase_id in phase_ids:
+                phase = project.show(phase_id)
+                assert (phase.status, phase.assignee) == (
+                    Status.IN_PROGRESS,
+                    phase_id,
+                )
+            epic = project.show(epic_id)
+            assert (epic.status, epic.assignee) == (
+                Status.IN_PROGRESS,
+                f"{epic_id}.land",
+            )
+        events.append("launch")
         return FakeLaunchResult()
 
     def fake_commit(
         beads_dir: Path,
         bead_id: str,
-        *,
-        kind: str,
     ) -> bool:
-        commit_calls.append((beads_dir, bead_id, kind))
+        assert (beads_dir, bead_id) == (project_dir / "sdd/beads", epic_id)
+        events.append("commit")
         return True
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
-    monkeypatch.setattr("sase.bead.sync.commit_bead_work_launch", fake_commit)
+    monkeypatch.setattr("sase.bead.sync.commit_epic_graph_checkpoint", fake_commit)
+    monkeypatch.setattr("sase.bead.sync.bead_state_is_clean", lambda _path: True)
 
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
 
@@ -167,17 +180,18 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     ):
         _, directives = extract_prompt_directives(segment)
         assert directives.bead_id == env[SASE_BEAD_ID_ENV]
-    assert commit_calls == [(project_dir / "sdd/beads", epic_id, "epic")]
+    assert events == ["commit", "launch"]
 
-    # Launch approval owns readiness; mocked runners have not claimed anything.
+    # Launch approval owns readiness and every exact rendered assignment.
     with BeadProject(project_dir) as proj:
         epic = proj.show(epic_id)
         assert epic.is_ready_to_work is True
-        assert epic.status == Status.OPEN
+        assert epic.status == Status.IN_PROGRESS
+        assert epic.assignee == f"{epic_id}.land"
         for pid in phase_ids:
             phase = proj.show(pid)
-            assert phase.status == Status.OPEN
-            assert phase.assignee == ""
+            assert phase.status == Status.IN_PROGRESS
+            assert phase.assignee == pid
 
     out = capsys.readouterr().out
     assert "Launched" in out
@@ -213,10 +227,6 @@ def test_launch_snapshots_authoritative_plan_and_overwrites_on_relaunch(
         return FakeLaunchResult()
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
-    monkeypatch.setattr(
-        "sase.bead.sync.commit_bead_work_launch",
-        lambda *args, **kwargs: True,
-    )
 
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
 
@@ -284,10 +294,6 @@ def test_snapshot_failure_warns_and_launches_without_snapshot_metadata(
         return FakeLaunchResult()
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
-    monkeypatch.setattr(
-        "sase.bead.sync.commit_bead_work_launch",
-        lambda *args, **kwargs: True,
-    )
 
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
 

@@ -40,7 +40,7 @@ def test_work_dry_run_never_mutates_or_launches(
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
     monkeypatch.setattr(
-        "sase.bead.sync.commit_bead_work_launch",
+        "sase.bead.sync.commit_epic_graph_checkpoint",
         lambda *args, **kwargs: pytest.fail("dry run must not commit"),
     )
 

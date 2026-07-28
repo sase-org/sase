@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -35,6 +35,15 @@ class AlreadyReadyError(Exception):
 
 class NotAPlanError(Exception):
     """Raised when mark_ready_to_work is called on a non-plan issue."""
+
+
+@dataclass(frozen=True)
+class EpicPreclaimRollback:
+    """Prior bead state returned by one atomic epic-work preclaim."""
+
+    bead_id: str
+    status: Status
+    assignee: str
 
 
 BEADS_DIRNAME = "sdd/beads"
@@ -319,6 +328,33 @@ class BeadProject:
         self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return issue, bool(outcome["changed"])
+
+    def preclaim_epic_work(
+        self,
+        epic_id: str,
+        assignments: list[tuple[str, str]],
+        land_agent_name: str,
+    ) -> tuple[EpicPreclaimRollback, ...]:
+        """Preassign one rendered epic work plan and return rollback state."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        _issues, outcome = rust_beads.preclaim_epic_work(
+            self.beads_dir,
+            epic_id,
+            assignments=assignments,
+            land_agent_name=land_agent_name,
+            now=_now(),
+        )
+        self._record_mutation_outcome(outcome)
+        self._refresh_db_from_jsonl()
+        return tuple(
+            EpicPreclaimRollback(
+                bead_id=str(record["bead_id"]),
+                status=Status(str(record["status"])),
+                assignee=str(record.get("assignee", "")),
+            )
+            for record in outcome.get("rollback_preclaims", [])
+        )
 
     def close(
         self,

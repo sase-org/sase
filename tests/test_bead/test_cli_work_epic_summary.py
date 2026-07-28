@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -289,11 +290,20 @@ Deliver the plan-first epic summary.
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
     monkeypatch.setattr(
-        "sase.bead.sync.commit_bead_work_launch",
+        "sase.bead.sync.commit_epic_graph_checkpoint",
         lambda *args, **kwargs: True,
     )
+    monkeypatch.setattr("sase.bead.sync.bead_state_is_clean", lambda _path: True)
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        lambda _path: SimpleNamespace(
+            pushed=True,
+            skipped_no_remote=False,
+            error=None,
+        ),
+    )
 
-    bead_cli.handle_bead_work(make_args(epic.id, yes=True, no_push=True))
+    bead_cli.handle_bead_work(make_args(epic.id, yes=True))
 
     persisted = json.loads(
         (artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")

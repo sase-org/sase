@@ -665,6 +665,13 @@ def test_git_sidecar_fresh_clone_sees_complete_graph_before_launch(
             observed["epic_id"] = epic_id
             observed["phase_ids"] = tuple(phase.id for phase in phases)
             assert epic.is_ready_to_work is True
+            assert (epic.status.value, epic.assignee) == (
+                "in_progress",
+                f"{epic_id}.land",
+            )
+            assert [(phase.status.value, phase.assignee) for phase in phases] == [
+                ("in_progress", phase.id) for phase in phases
+            ]
             assert epic.design.startswith("plans:")
             assert epic.design.endswith("/rollout.md")
             assert [len(phase.dependencies) for phase in phases] == [0, 1, 2]
@@ -685,3 +692,14 @@ def test_git_sidecar_fresh_clone_sees_complete_graph_before_launch(
 
     assert observed["epic_id"] == result.epic_id
     assert observed["phase_ids"] == result.phase_bead_ids
+    commit_subjects = subprocess.run(
+        ["git", "log", "--format=%s"],
+        cwd=sidecar,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    assert (
+        sum("checkpoint approved epic graph" in line for line in commit_subjects) == 1
+    )
+    assert all("mark bead work launched" not in line for line in commit_subjects)

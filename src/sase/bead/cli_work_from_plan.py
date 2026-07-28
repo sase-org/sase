@@ -460,7 +460,7 @@ def _checkpoint_and_publish_graph(
         ) from exc
     if render:
         Console().print(
-            f"[green]✓[/green] Graph committed epic {epic_id} · ready for worker claims"
+            f"[green]✓[/green] Graph committed epic {epic_id} · workers preassigned"
         )
 
     try:

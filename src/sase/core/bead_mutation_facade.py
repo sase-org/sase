@@ -162,6 +162,31 @@ def release_agent_claim(
     return _issue_payload(payload), payload
 
 
+def preclaim_epic_work(
+    beads_dir: Path | str,
+    epic_id: str,
+    assignments: list[tuple[str, str]],
+    *,
+    land_agent_name: str,
+    now: str | None = None,
+) -> tuple[list[Issue], dict[str, Any]]:
+    """Assign every rendered phase and the epic before agent launch."""
+    _guard_bead_store_write(beads_dir, "preclaim_epic_work")
+    binding = require_rust_binding("bead_preclaim_epic_work")
+    payload = _call_issue_operation(
+        binding,
+        str(beads_dir),
+        epic_id,
+        [
+            {"bead_id": bead_id, "agent_name": agent_name}
+            for bead_id, agent_name in assignments
+        ],
+        land_agent_name,
+        now,
+    )
+    return issues_from_list(payload.get("issues", [])), payload
+
+
 def close(
     beads_dir: Path | str,
     issue_ids: list[str],
@@ -341,6 +366,7 @@ __all__ = [
     "init_store",
     "mark_ready_to_work",
     "open_issue",
+    "preclaim_epic_work",
     "release_agent_claim",
     "remove",
     "remove_dependencies",

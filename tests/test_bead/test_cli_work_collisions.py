@@ -100,7 +100,8 @@ def test_work_retry_force_reuses_live_phase_owner_and_launches(
         epic = proj.show(epic_id)
         assert epic.is_ready_to_work is True
         for pid in phase_ids:
-            assert proj.show(pid).status == Status.OPEN
+            phase = proj.show(pid)
+            assert (phase.status, phase.assignee) == (Status.IN_PROGRESS, pid)
 
 
 def test_work_force_reuses_live_land_owner_and_launches(

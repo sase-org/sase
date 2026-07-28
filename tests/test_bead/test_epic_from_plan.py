@@ -314,7 +314,7 @@ def test_valid_plan_runs_real_bead_work_wave_path(
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
     monkeypatch.setattr(
-        "sase.bead.sync.commit_bead_work_launch",
+        "sase.bead.sync.commit_epic_graph_checkpoint",
         lambda *_args, **_kwargs: False,
     )
 
@@ -335,8 +335,13 @@ def test_valid_plan_runs_real_bead_work_wave_path(
 
         assert proj.show(result.epic.id).is_ready_to_work is True
         launched_phases = [proj.show(phase.id) for phase in result.phases]
-        assert all(phase.status is Status.OPEN for phase in launched_phases)
-        assert all(phase.assignee == "" for phase in launched_phases)
+        assert all(phase.status is Status.IN_PROGRESS for phase in launched_phases)
+        assert [phase.assignee for phase in launched_phases] == [
+            phase.id for phase in result.phases
+        ]
+        launched_epic = proj.show(result.epic.id)
+        assert launched_epic.status is Status.IN_PROGRESS
+        assert launched_epic.assignee == f"{result.epic.id}.land"
 
     query = captured["query"]
     for phase in result.phases:

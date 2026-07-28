@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from sase.bead.config import save_config
-from sase.bead.model import IssueType, Status
+from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 from sase.core import bead_mutation_facade as rust_beads
 
@@ -291,6 +291,65 @@ def test_claim_for_agent_launch_converts_issue_and_reassigns(
     assert reassigned.status == Status.IN_PROGRESS
     assert reassigned.assignee == "agent-2"
     assert reassigned.updated_at == "2026-01-01T00:03:00Z"
+
+
+def test_preclaim_epic_work_converts_batch_and_returns_prior_state(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "rust"
+    _init_store(root)
+    epic, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Epic",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+        now="2026-01-01T00:00:00Z",
+    )
+    first, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="First",
+        issue_type=IssueType.PHASE,
+        parent_id=epic.id,
+        now="2026-01-01T00:01:00Z",
+    )
+    second, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Second",
+        issue_type=IssueType.PHASE,
+        parent_id=epic.id,
+        now="2026-01-01T00:02:00Z",
+    )
+    rust_beads.update(
+        root / "sdd/beads",
+        second.id,
+        status="in_progress",
+        assignee="old-worker",
+        now="2026-01-01T00:03:00Z",
+    )
+
+    assigned, outcome = rust_beads.preclaim_epic_work(
+        root / "sdd/beads",
+        epic.id,
+        [(first.id, "epic.1"), (second.id, "epic.2")],
+        land_agent_name="epic.land",
+        now="2026-01-01T00:04:00Z",
+    )
+
+    assert [(issue.id, issue.status, issue.assignee) for issue in assigned] == [
+        (first.id, Status.IN_PROGRESS, "epic.1"),
+        (second.id, Status.IN_PROGRESS, "epic.2"),
+        (epic.id, Status.IN_PROGRESS, "epic.land"),
+    ]
+    assert outcome["operation"] == "preclaim_epic_work"
+    assert outcome["rollback_preclaims"] == [
+        {"bead_id": first.id, "status": "open", "assignee": ""},
+        {
+            "bead_id": second.id,
+            "status": "in_progress",
+            "assignee": "old-worker",
+        },
+        {"bead_id": epic.id, "status": "open", "assignee": ""},
+    ]
 
 
 def test_claim_for_agent_launch_maps_missing_and_preserves_specific_failures(

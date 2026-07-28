@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from sase.bead.model import BeadSearchMatch, Issue, IssueType, Status
-from sase.bead.project import BeadProject
+from sase.bead.project import BeadProject, EpicPreclaimRollback
 from sase.core import bead_mutation_facade, bead_read_facade
 
 
@@ -118,6 +118,89 @@ def test_bead_project_claim_failure_does_not_refresh_compatibility_state(
         with pytest.raises(ValueError, match="closed"):
             project.claim_for_agent_launch("delegated-1", "agent-1")
         assert refreshes == []
+
+
+def test_bead_project_preclaim_epic_work_returns_typed_rollback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with BeadProject.init(tmp_path) as project:
+        calls: list[dict[str, Any]] = []
+        refreshes: list[bool] = []
+        assigned = [
+            Issue(
+                id="epic.1",
+                title="First",
+                issue_type=IssueType.PHASE,
+                status=Status.IN_PROGRESS,
+                assignee="epic.1",
+            ),
+            Issue(
+                id="epic",
+                title="Epic",
+                issue_type=IssueType.PLAN,
+                status=Status.IN_PROGRESS,
+                assignee="epic.land",
+            ),
+        ]
+
+        def fake_preclaim(
+            beads_dir: Path | str,
+            epic_id: str,
+            assignments: list[tuple[str, str]],
+            *,
+            land_agent_name: str,
+            now: str | None = None,
+        ) -> tuple[list[Issue], dict[str, Any]]:
+            calls.append(
+                {
+                    "beads_dir": beads_dir,
+                    "epic_id": epic_id,
+                    "assignments": assignments,
+                    "land_agent_name": land_agent_name,
+                    "now": now,
+                }
+            )
+            return assigned, {
+                "operation": "preclaim_epic_work",
+                "changed": True,
+                "rollback_preclaims": [
+                    {"bead_id": "epic.1", "status": "open", "assignee": ""},
+                    {
+                        "bead_id": "epic",
+                        "status": "in_progress",
+                        "assignee": "old-land",
+                    },
+                ],
+            }
+
+        monkeypatch.setattr(bead_mutation_facade, "preclaim_epic_work", fake_preclaim)
+        monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:00:00Z")
+        monkeypatch.setattr(
+            project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
+        )
+
+        rollback = project.preclaim_epic_work(
+            "epic",
+            [("epic.1", "epic.1")],
+            "epic.land",
+        )
+
+        assert calls == [
+            {
+                "beads_dir": project.beads_dir,
+                "epic_id": "epic",
+                "assignments": [("epic.1", "epic.1")],
+                "land_agent_name": "epic.land",
+                "now": "2026-01-01T00:00:00Z",
+            }
+        ]
+        assert rollback == (
+            EpicPreclaimRollback("epic.1", Status.OPEN, ""),
+            EpicPreclaimRollback("epic", Status.IN_PROGRESS, "old-land"),
+        )
+        assert project.mutation_changed is True
+        assert refreshes == [True]
 
 
 @pytest.mark.parametrize(
