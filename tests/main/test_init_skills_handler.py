@@ -178,7 +178,7 @@ def test_handler_zero_written_does_not_deploy(
     deploy_mock.assert_not_called()
 
 
-def test_handler_unchanged_targets_do_not_deploy(
+def test_handler_missing_manifest_bootstraps_then_unchanged_rerun_does_not_deploy(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -201,9 +201,17 @@ def test_handler_unchanged_targets_do_not_deploy(
     target.path.parent.mkdir(parents=True)
     target.path.write_text(target.content, encoding="utf-8")
 
-    deploy_mock = MagicMock()
+    deploy_mock = MagicMock(return_value=0)
     monkeypatch.setattr(init_skills_handler, "_deploy_to_chezmoi", deploy_mock)
 
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(make_args(provider="claude"))
+
+    assert exc.value.code == 0
+    deploy_mock.assert_called_once()
+    assert deploy_mock.call_args.args[0][0].name == ".sase-skills-manifest.json"
+
+    deploy_mock.reset_mock()
     with pytest.raises(SystemExit) as exc:
         handle_init_skills_command(make_args(provider="claude"))
 
@@ -230,8 +238,10 @@ def test_handler_use_chezmoi_triggers_deploy(
     assert exc.value.code == 0
     deploy_mock.assert_called_once()
     passed_paths = deploy_mock.call_args.args[0]
-    assert len(passed_paths) == 1
-    assert passed_paths[0].name == "SKILL.md"
+    assert [path.name for path in passed_paths] == [
+        "SKILL.md",
+        ".sase-skills-manifest.json",
+    ]
 
 
 def test_handler_deferred_chezmoi_collects_paths_without_deploy(
@@ -253,8 +263,10 @@ def test_handler_deferred_chezmoi_collects_paths_without_deploy(
 
     assert exc.value.code == 0
     deploy_mock.assert_not_called()
-    assert len(deferred.paths) == 1
-    assert deferred.paths[0].name == "SKILL.md"
+    assert [path.name for path in deferred.paths] == [
+        "SKILL.md",
+        ".sase-skills-manifest.json",
+    ]
 
 
 def test_handler_propagates_deploy_exit_code(

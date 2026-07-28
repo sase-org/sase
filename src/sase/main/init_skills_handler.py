@@ -7,6 +7,12 @@ import sys
 from pathlib import Path
 
 from sase.config.core import CHEZMOI_HOME, get_use_chezmoi
+from sase.main._init_chezmoi_deploy import (
+    ChezmoiDeployBehavior,
+    defer_chezmoi_paths,
+    deploy_to_chezmoi,
+)
+from sase.main._init_skills_manifest import prepare_skill_manifest
 from sase.main._init_skills_rendering import (
     RenderedSkillTarget,
     SkillFrameTemplateError,
@@ -25,11 +31,6 @@ from sase.main._init_skills_sources import (
     target_path_for_subpath as _target_path_for_subpath_impl,
 )
 from sase.main._init_skills_source_integrity import skill_source_integrity_error
-from sase.main._init_chezmoi_deploy import (
-    ChezmoiDeployBehavior,
-    defer_chezmoi_paths,
-    deploy_to_chezmoi,
-)
 from sase.main.init_plan import InitAction, InitOperation, InitPlan
 from sase.xprompt.loader import get_all_xprompts, load_xprompts_from_internal
 from sase.xprompt.models import XPrompt
@@ -440,8 +441,25 @@ def run_init_skills(args: argparse.Namespace) -> int:
     has_changes = any(
         _planned_skill_operation(target) is not None for target in targets
     )
+    manifest_write = None
+    if use_chezmoi and not dry_run:
+        manifest_write, manifest_error = prepare_skill_manifest(
+            skill_xprompts,
+            chezmoi_home=CHEZMOI_HOME,
+            force=force,
+        )
+        if manifest_error is not None:
+            print(f"{_COMMAND_LABEL}: {manifest_error}", file=sys.stderr)
+            return 1
+
+    manifest_changed = manifest_write is not None and manifest_write.content is not None
     allow_dirty: bool = getattr(args, "allow_dirty", False)
-    if use_chezmoi and not dry_run and has_changes and not allow_dirty:
+    if (
+        use_chezmoi
+        and not dry_run
+        and (has_changes or manifest_changed)
+        and not allow_dirty
+    ):
         source_error = skill_source_integrity_error()
         if source_error is not None:
             print(f"{_COMMAND_LABEL}: {source_error}", file=sys.stderr)
@@ -481,13 +499,21 @@ def run_init_skills(args: argparse.Namespace) -> int:
         written += 1
         written_paths.append(target.path)
 
+    if manifest_changed and skipped == 0 and manifest_write is not None:
+        manifest_content = manifest_write.content
+        assert manifest_content is not None
+        manifest_write.path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_write.path.write_text(manifest_content, encoding="utf-8")
+        print(f"  {manifest_write.path}")
+        written_paths.append(manifest_write.path)
+
     if dry_run:
         print(f"\nDry run: {len(skill_xprompts)} source entries, no files written")
     else:
         print(f"\nWritten: {written}, Skipped: {skipped}, Unchanged: {unchanged}")
 
     exit_code = 0
-    if use_chezmoi and not dry_run and written > 0:
+    if use_chezmoi and not dry_run and written_paths:
         if defer_chezmoi_paths(written_paths, chezmoi_home=CHEZMOI_HOME):
             exit_code = 0
         else:
