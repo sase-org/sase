@@ -20,6 +20,7 @@ from sase.workflows.commit.runtime_tags import (
     apply_auto_commit_type_tag,
     filter_runtime_owned_tags,
     parse_trailing_commit_tags,
+    resolve_local_agent_name,
     update_trailing_commit_tags,
 )
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
@@ -99,6 +100,34 @@ def test_runtime_tags_fall_back_to_agent_meta(
     assert _resolve_runtime_commit_tags() == {
         "AGENT": "alice.machine_a.agent-meta",
     }
+
+
+def test_commit_agent_name_prefers_current_run_metadata_for_family_member(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"name": "ms--code", "workflow_name": "ms"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SASE_AGENT_NAME", "ms")
+
+    assert resolve_local_agent_name() == "ms--code"
+
+
+def test_commit_agent_name_is_unchanged_for_non_family_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"name": "solo"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SASE_AGENT_NAME", "solo")
+
+    assert resolve_local_agent_name() == "solo"
 
 
 def test_runtime_tags_omit_agent_when_no_name_exists() -> None:

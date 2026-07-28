@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.core.commit_footer_facade import LinkedCommitTagValue
 from sase.workflows.commit import checkpoint
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
 from tests._commit_workflow_fixtures import (
@@ -282,6 +283,63 @@ def test_publication_failure_with_durable_outbox_keeps_primary_successful(
         )
 
     publish.assert_called_once_with("foo--code", "a" * 40)
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_family_member_commit_uses_metadata_for_footer_and_publication(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agents_sync.commit_publication import _CommitPublicationOutcome
+    from sase.core.agent_identity_facade import AgentOwnerIdentity
+
+    (artifacts_dir / "agent_meta.json").write_text(
+        '{"name": "ms--code", "workflow_name": "ms"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_AGENT_NAME", "ms")
+    monkeypatch.setattr(
+        "sase.config.require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("bbugyi200", "athena"),
+    )
+    provider = _make_provider(dispatch_result=(True, "not-a-sha"))
+    provider.revision_id.return_value = "a" * 40
+    mock_get.return_value = provider
+    linked_tag = LinkedCommitTagValue(
+        "bbugyi200.athena.ms--code",
+        "https://github.com/sase-org/sase--agents/blob/main/"
+        "families/bbugyi200.athena.ms.md#member-code",
+    )
+
+    with (
+        patch(
+            "sase.agents_sync.links.resolve_agent_commit_tag",
+            return_value=linked_tag,
+        ) as resolve_tag,
+        patch(
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+            return_value=_CommitPublicationOutcome(published=True),
+        ) as publish,
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value=None,
+        ),
+    ):
+        assert CommitWorkflow({"message": "fix: bug"}, "create_commit").run() == (
+            RunResult.OK
+        )
+
+    payload = provider.create_commit.call_args.args[0]
+    assert payload["message"] == (
+        "fix: bug\n\nSASE_AGENT=[bbugyi200.athena.ms--code][1]\n\n"
+        "[1]: https://github.com/sase-org/sase--agents/blob/main/"
+        "families/bbugyi200.athena.ms.md#member-code"
+    )
+    resolve_tag.assert_called_once()
+    assert resolve_tag.call_args.args[0] == "ms--code"
+    publish.assert_called_once_with("ms--code", "a" * 40)
     assert not (artifacts_dir / "commit_state.json").exists()
 
 

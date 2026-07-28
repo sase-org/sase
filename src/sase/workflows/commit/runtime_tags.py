@@ -52,23 +52,23 @@ def _resolve_runtime_commit_tags() -> dict[str, CommitTagValue]:
 
 def resolve_local_agent_name() -> str | None:
     """Resolve the current locally stored SASE agent name, if available."""
-    env_name = _sanitize_tag_value(os.environ.get("SASE_AGENT_NAME"))
-    if env_name:
-        return env_name
-
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-    if not artifacts_dir:
-        return None
+    if artifacts_dir:
+        meta_path = Path(artifacts_dir) / "agent_meta.json"
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            pass
+        else:
+            if isinstance(meta, dict):
+                meta_name = _sanitize_tag_value(meta.get("name"))
+                if meta_name:
+                    # Family members can replace one another inside a single
+                    # process, leaving SASE_AGENT_NAME set to the lane while
+                    # this run's metadata carries its concrete member name.
+                    return meta_name
 
-    meta_path = Path(artifacts_dir) / "agent_meta.json"
-    try:
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return None
-    if not isinstance(meta, dict):
-        return None
-    meta_name = _sanitize_tag_value(meta.get("name"))
-    return meta_name
+    return _sanitize_tag_value(os.environ.get("SASE_AGENT_NAME"))
 
 
 def apply_runtime_commit_tags(payload: dict) -> None:
