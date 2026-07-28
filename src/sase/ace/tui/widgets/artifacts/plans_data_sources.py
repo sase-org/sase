@@ -68,6 +68,19 @@ def project_beads_dir(project: str) -> Path | None:
     return directories[0]
 
 
+def project_plans_root(project: PlansProject) -> Path | None:
+    """Resolve one project's plans root through its configured SDD store."""
+    if project.workspace_dir is None:
+        return None
+
+    from sase.sdd.store import resolve_sdd_kind_dir
+
+    try:
+        return resolve_sdd_kind_dir(project.workspace_dir, 1, "plans")
+    except Exception:
+        return None
+
+
 def load_proposals(
     project: str | None,
     enabled_projects: frozenset[str],

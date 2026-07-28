@@ -122,6 +122,11 @@ def test_all_projects_snapshot_attributes_each_entry_and_merges_archive(
     )
     monkeypatch.setattr(
         plans_data,
+        "_project_plans_root",
+        lambda project: roots[project.project],
+    )
+    monkeypatch.setattr(
+        plans_data,
         "_load_proposals",
         lambda _scope, _enabled: (),
     )
@@ -181,6 +186,11 @@ def test_all_projects_snapshot_isolates_one_project_store_error(
     )
     monkeypatch.setattr(
         plans_data,
+        "_project_plans_root",
+        lambda project: roots[project.project],
+    )
+    monkeypatch.setattr(
+        plans_data,
         "_load_proposals",
         lambda _scope, _enabled: (),
     )
@@ -202,6 +212,37 @@ def test_all_projects_snapshot_isolates_one_project_store_error(
     assert "alpha" not in snapshot.errors
 
 
+def test_snapshot_degrades_when_plans_root_is_unavailable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        plans_data,
+        "_resolve_projects",
+        lambda _scope: (_project("alpha", workspace_dir=str(tmp_path)),),
+    )
+    monkeypatch.setattr(
+        plans_data,
+        "_project_beads_dir",
+        lambda _project: tmp_path / "beads",
+    )
+    monkeypatch.setattr(
+        plans_data,
+        "_project_plans_root",
+        lambda _project: None,
+    )
+    monkeypatch.setattr(plans_data, "_load_proposals", lambda _scope, _enabled: ())
+    monkeypatch.setattr(plans_data, "_load_project_beads", pytest.fail)
+    monkeypatch.setattr(plans_data, "_load_project_archive", pytest.fail)
+
+    snapshot = load_plans_snapshot("alpha", force=True)
+
+    assert snapshot.epics == ()
+    assert snapshot.archive == ()
+    assert snapshot.plans_roots == {"alpha": None}
+    assert snapshot.errors == {"alpha": "No bead store is available for this project."}
+
+
 def test_source_key_reuses_cache_and_invalidates_when_enabled_set_changes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -217,6 +258,11 @@ def test_source_key_reuses_cache_and_invalidates_when_enabled_set_changes(
         plans_data,
         "_project_beads_dir",
         lambda project: tmp_path / project / "beads",
+    )
+    monkeypatch.setattr(
+        plans_data,
+        "_project_plans_root",
+        lambda project: tmp_path / project.project,
     )
     monkeypatch.setattr(
         plans_data,
@@ -257,6 +303,11 @@ def test_all_projects_archive_is_capped_after_recent_merge(
         plans_data,
         "_project_beads_dir",
         lambda project: tmp_path / project / "beads",
+    )
+    monkeypatch.setattr(
+        plans_data,
+        "_project_plans_root",
+        lambda project: tmp_path / project.project,
     )
     monkeypatch.setattr(
         plans_data,
@@ -302,6 +353,11 @@ def test_project_archive_preview_detects_per_project_truncation(
         plans_data,
         "_project_beads_dir",
         lambda _project: tmp_path / "alpha" / "beads",
+    )
+    monkeypatch.setattr(
+        plans_data,
+        "_project_plans_root",
+        lambda _project: tmp_path / "alpha",
     )
     monkeypatch.setattr(plans_data, "_load_proposals", lambda _scope, _enabled: ())
     monkeypatch.setattr(
@@ -426,6 +482,7 @@ def test_snapshot_sorts_proposals_and_epics_newest_first(
     monkeypatch.setattr(
         plans_data, "_project_beads_dir", lambda _project: root / "beads"
     )
+    monkeypatch.setattr(plans_data, "_project_plans_root", lambda _project: root)
     monkeypatch.setattr(
         plans_data,
         "_load_proposals",

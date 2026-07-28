@@ -40,6 +40,10 @@ def test_snapshot_reads_fixture_bead_dag_and_flat_plan_archive(
         lambda _project: plans_root / "beads",
     )
     monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.plans_data._project_plans_root",
+        lambda _project: plans_root,
+    )
+    monkeypatch.setattr(
         "sase.ace.tui.widgets.artifacts.plans_data._resolve_projects",
         lambda _project: (
             SimpleNamespace(

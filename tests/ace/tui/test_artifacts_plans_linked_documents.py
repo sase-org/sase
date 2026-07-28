@@ -10,15 +10,17 @@ import pytest
 from textual.widgets import Markdown
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.widgets.artifacts import plans_data, plans_detail
+from sase.ace.tui.widgets.artifacts import plans_data, plans_data_sources, plans_detail
 from sase.ace.tui.widgets.artifacts.plans_data import (
     LinkedPlanDocument,
     ProjectIssue,
     load_plans_snapshot,
 )
+from sase.ace.tui.widgets.artifacts.plans_data_models import PlansProject
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.bead.model import BeadTier, IssueType
-from sase.bead.project import BeadProject
+from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
+from sase.sdd.store import write_sdd_store_record
 from tests.ace.tui._artifacts_plans_helpers import _choices, _snapshot
 
 
@@ -35,6 +37,11 @@ def _patch_project_loaders(
     )
     monkeypatch.setattr(
         plans_data,
+        "_project_plans_root",
+        lambda _project: sdd_root,
+    )
+    monkeypatch.setattr(
+        plans_data,
         "_resolve_projects",
         lambda _project: (
             SimpleNamespace(
@@ -46,6 +53,87 @@ def _patch_project_loaders(
     )
     monkeypatch.setattr(plans_data, "_load_proposals", lambda _project, _enabled: ())
     monkeypatch.setattr(plans_data, "_load_project_archive", lambda _root: ())
+
+
+@pytest.mark.parametrize(
+    ("schema_version", "split_beads"),
+    ((3, True), (2, False)),
+)
+def test_snapshot_resolves_plans_root_through_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    schema_version: int,
+    split_beads: bool,
+) -> None:
+    workspace = tmp_path / "workspace"
+    plans_root = workspace / "sase" / "repos" / "plans"
+    beads_dir = (
+        workspace / "sase" / "repos" / "beads" if split_beads else plans_root / "beads"
+    )
+    plan_path = plans_root / "202607" / "linked.md"
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text(
+        "---\ntitle: Store-routed plan\ntier: epic\n---\n# Store-routed body\n",
+        encoding="utf-8",
+    )
+    sidecars = {
+        "plans": {
+            "repo": "owner/project--plans",
+            "remote_url": "git@github.com:owner/project--plans.git",
+        },
+        "research": {
+            "repo": "owner/project--research",
+            "remote_url": "git@github.com:owner/project--research.git",
+        },
+    }
+    if split_beads:
+        sidecars["beads"] = {
+            "repo": "owner/project--beads",
+            "remote_url": "git@github.com:owner/project--beads.git",
+        }
+    write_sdd_store_record(
+        workspace,
+        {
+            "schema_version": schema_version,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": sidecars,
+        },
+    )
+
+    init_root = beads_dir if split_beads else plans_root
+    beads_dirname = BEADS_DIRNAME_ROOT if split_beads else "beads"
+    init_root.mkdir(parents=True, exist_ok=True)
+    with BeadProject.init(init_root, beads_dirname=beads_dirname) as bead_project:
+        epic = bead_project.create(
+            "Store-routed epic",
+            IssueType.PLAN,
+            tier=BeadTier.EPIC,
+            design="plans:202607/linked.md",
+        )
+
+    project = PlansProject("alpha", "Alpha", str(workspace))
+    assert plans_data_sources.project_plans_root(project) == plans_root
+    monkeypatch.setattr(
+        plans_data,
+        "_resolve_projects",
+        lambda _project: (project,),
+    )
+    monkeypatch.setattr(
+        plans_data,
+        "_project_beads_dir",
+        lambda _project: beads_dir,
+    )
+    monkeypatch.setattr(plans_data, "_load_proposals", lambda _project, _enabled: ())
+    monkeypatch.setattr(plans_data, "_load_project_archive", lambda _root: ())
+
+    snapshot = load_plans_snapshot("alpha", force=True)
+    document = snapshot.linked_plan_documents[("alpha", epic.id)]
+
+    assert snapshot.plans_roots == {"alpha": str(plans_root)}
+    assert document.available is True
+    assert document.path == str(plan_path.resolve())
+    assert document.frontmatter["title"] == "Store-routed plan"
 
 
 @pytest.mark.parametrize(

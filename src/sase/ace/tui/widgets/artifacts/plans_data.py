@@ -36,6 +36,7 @@ from .plans_data_sources import (
     parse_proposal_document as _parse_proposal_document,
     plan_title as _plan_title,
     project_beads_dir as _project_beads_dir,
+    project_plans_root as _project_plans_root,
     proposal_key as _proposal_key,
     read_text as _read_text,
     resolve_projects as _resolve_projects,
@@ -81,7 +82,7 @@ def load_plans_snapshot(
     store_keys: list[tuple[str, object]] = []
     for item in resolved:
         beads_dir = _project_beads_dir(item.project)
-        plans_root = None if beads_dir is None else beads_dir.parent
+        plans_root = _project_plans_root(item)
         beads_by_project[item.project] = beads_dir
         plans_by_project[item.project] = plans_root
         store_keys.append(
