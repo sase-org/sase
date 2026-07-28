@@ -98,6 +98,14 @@ def append_pr_tags(payload: dict, parent_cl_name: str | None) -> None:
         return
 
     message = payload.get("message", "")
+    from sase.workflows.commit.runtime_tags import parse_trailing_commit_tag_values
+
+    if "BEAD" in parse_trailing_commit_tag_values(str(message or "")):
+        tags = {
+            key: value
+            for key, value in tags.items()
+            if key not in {"BEAD", "SASE_BEAD"}
+        }
     payload["message"] = update_trailing_commit_tags(message, tags)
 
 

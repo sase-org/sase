@@ -522,7 +522,7 @@ class TestHandleSasePlan:
 class TestHandleBeads:
     """Verify bead hook remains best-effort in test/CI environments."""
 
-    def test_missing_sase_cli_is_non_fatal_and_message_is_still_tagged(
+    def test_missing_sase_cli_is_non_fatal_and_message_is_unchanged(
         self, tmp_path: Path
     ) -> None:
         payload = {"message": "Fix bug", "bead_id": "B-123"}
@@ -532,7 +532,7 @@ class TestHandleBeads:
         ):
             handle_beads(payload, str(tmp_path))
 
-        assert payload["message"] == "Fix bug (B-123)"
+        assert payload["message"] == "Fix bug"
 
     def test_bead_sync_runs_when_bead_dir_exists(self, tmp_path: Path) -> None:
         (tmp_path / "sdd/beads").mkdir(parents=True)

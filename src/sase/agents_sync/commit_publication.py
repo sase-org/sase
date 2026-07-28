@@ -83,7 +83,7 @@ def publish_committed_agent_hood(
 
     selector = project
     if selector is None and commit_cwd is not None:
-        selector = resolve_publication_project_key(
+        selector = _resolve_publication_project_key(
             commit_cwd,
             git_runner=git_runner,
         )
@@ -189,7 +189,7 @@ def publish_committed_agent_hood(
     )
 
 
-def resolve_publication_project_key(
+def _resolve_publication_project_key(
     commit_cwd: Path | str,
     *,
     git_runner: GitRunner = run_git,
@@ -569,5 +569,4 @@ __all__ = [
     "PlanHeaderRefreshOutcome",
     "publish_committed_agent_hood",
     "refresh_committed_plan_header",
-    "resolve_publication_project_key",
 ]

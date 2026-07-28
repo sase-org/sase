@@ -149,6 +149,36 @@ def test_resume_replays_tracking_after_conflict_resolution(
 
 
 @patch(_PROVIDER_TARGET)
+def test_resume_reuses_checkpointed_bead_tag_without_reapplying_it(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    tmp_path: Path,
+) -> None:
+    provider = _make_provider(head_subject="fix: bug")
+    mock_get.return_value = provider
+    message = "fix: bug\n\nSASE_BEAD=sase-ai.2"
+    _save_checkpoint(
+        cwd=str(tmp_path),
+        payload={"message": message, "bead_id": "sase-ai.2"},
+    )
+
+    with (
+        patch("sase.workflows.commit.workflow.apply_bead_commit_tag") as apply_tag,
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value=None,
+        ),
+        patch("sase.workflows.commit.workflow.write_result_marker"),
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    apply_tag.assert_not_called()
+    provider.finalize_commit.assert_called_once()
+    assert provider.finalize_commit.call_args.args[0]["message"] == message
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
 def test_resume_after_hook_failure_does_not_finalize_or_duplicate_dispatch(
     mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
 ) -> None:

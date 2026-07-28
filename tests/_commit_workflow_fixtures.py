@@ -42,5 +42,9 @@ def no_commit_hooks() -> Iterator[None]:
             "sase.workflows.commit.workflow.capture_pre_commit_diff",
             return_value=None,
         ),
+        patch(
+            "sase.bead_pages.links.resolve_bead_commit_tag",
+            side_effect=lambda bead_id, **_kwargs: bead_id,
+        ),
     ):
         yield

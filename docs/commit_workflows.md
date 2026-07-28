@@ -112,7 +112,7 @@ The COMMITS entry note is always derived from the first line of the commit messa
 `CommitWorkflow` (`src/sase/workflows/commit/workflow.py`) is the central dispatcher. It runs through these stages:
 
 ```
-Bead association   (inject SASE_BEAD_ID into message when set)
+Bead association   (append linked SASE_BEAD= footer when SASE_BEAD_ID is set)
     |
 Bead lifecycle     (close bead, sync beads)                               [skip for proposals]
     |
@@ -185,9 +185,10 @@ The CLI maps `-m` / `-M` to `message`, repeated `-f` flags to `files`, `-n` to `
 an empty `files` list.
 
 Bead association is not a user-supplied CLI flag. For new commit attempts, `sase commit` reads `SASE_BEAD_ID`; when it
-is set, the CLI adds that bead to the workflow payload, and `CommitWorkflow` enforces that the bead ID appears in the
-first line of the dispatched commit or PR message. Conflict resumes reuse the bead value captured in the original
-checkpoint.
+is set, the CLI adds that bead to the workflow payload, and `CommitWorkflow` leaves the subject unchanged while adding
+`SASE_BEAD=<id>` as the first structured footer tag. When the project's beads sidecar is hosted on GitHub, the tag is a
+Markdown reference link to the bead's generated page; otherwise it remains the bare ID. Resolution is local-only and
+best-effort. Conflict resumes reuse the already-tagged message captured in the original checkpoint.
 
 Runtime provenance tags are also not user-supplied CLI flags. For `create_commit` and `create_pull_request`,
 `CommitWorkflow` appends or updates a trailing `SASE_AGENT=<username>.<machine>.<agent>` line. When the configured
@@ -204,11 +205,11 @@ also drains older requests for the project. A failure after enqueueing does not 
 request remains for a later agent commit or full `sase agent sync`. Target-resolution and outbox-persistence failures
 occur before that durability guarantee, so they can instead skip publication or require `sase commit --resume`.
 
-**Footer tag prefix:** All SASE-authored commit footer tags (`TYPE`, `AGENT`, `PLAN`, `BUG`, and any configured or
-inherited PR tag keys) are written with a `SASE_` prefix — for example `SASE_TYPE=sdd` and `SASE_AGENT=<name>`. Readers
-(agent-commit/revert discovery, parent-PR tag inheritance, ChangeSpec description stripping) still accept historical
-`MACHINE` tags and the unprefixed spelling, so commit history is not rewritten and old commits remain readable. External
-consumers should accept both historical and `SASE_`-prefixed spellings.
+**Footer tag prefix:** All SASE-authored commit footer tags (`TYPE`, `BEAD`, `AGENT`, `PLAN`, `BUG`, and any configured
+or inherited PR tag keys) are written with a `SASE_` prefix — for example `SASE_TYPE=sdd` and `SASE_AGENT=<name>`.
+Readers (agent-commit/revert discovery, parent-PR tag inheritance, ChangeSpec description stripping) still accept
+historical `MACHINE` tags and the unprefixed spelling, so commit history is not rewritten and old commits remain
+readable. External consumers should accept both historical and `SASE_`-prefixed spellings.
 
 Internal fields added by `CommitWorkflow`:
 
@@ -218,7 +219,7 @@ Internal fields added by `CommitWorkflow`:
 | `_plan_path`       | `_handle_sase_plan` | Plan file path for VCS staging                              |
 | `_pr_body`         | `_build_pr_body`    | Enriched PR description with agent info                     |
 | `_skip_bead_amend` | Internal            | Skip folding post-commit bead-store changes into the commit |
-| `bead_id`          | Environment         | Bead ID resolved from `SASE_BEAD_ID`                        |
+| `bead_id`          | Environment         | Source ID for the linked `SASE_BEAD=` footer tag            |
 
 ## Result Format
 
@@ -419,7 +420,7 @@ has at-least-once execution semantics.
 | `SASE_COMMIT_METHOD_ALLOW_OVERRIDE` | Allow `-t/--type` to override a conflicting `SASE_COMMIT_METHOD`                                 |
 | `SASE_ARTIFACTS_DIR`                | Directory for `commit_result.json` and other artifacts                                           |
 | `SASE_AGENT_NAME`                   | Agent name used for `SASE_AGENT=` runtime commit provenance                                      |
-| `SASE_BEAD_ID`                      | Bead ID to automatically associate with the commit                                               |
+| `SASE_BEAD_ID`                      | Bead ID written as a linked `SASE_BEAD=` footer tag without changing the subject                 |
 | `SASE_PLAN`                         | Plan source for storage/staging, status update, and the storage-relative `SASE_PLAN=` commit tag |
 | `SASE_AGENT_PROJECT_FILE`           | Project file for COMMITS/ChangeSpec tracking                                                     |
 | `SASE_AGENT_CL_NAME`                | PR name used for proposal diff naming                                                            |

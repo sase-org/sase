@@ -2203,7 +2203,7 @@ a provider prefix; use `opencode models` to list models in your configured envir
 | `SASE_VCS_PROVIDER`               | Override VCS provider selection (`git`, `hg`, or `auto`).                                                                                                 |
 | `SASE_WORKSPACE_ROOT`             | Override the workspace-root base for this process. Use an absolute path; `WorkspaceStore` appends `<project_key>/<project>_<num>/` for managed checkouts. |
 | `SASE_BUG_ID`                     | Bug ID for PR workflows. When set and non-zero, injects `SASE_BUG=<id>` into PR tags and ChangeSpec.                                                      |
-| `SASE_BEAD_ID`                    | Bead ID for commit workflows. When set, `sase commit` automatically tags the commit message.                                                              |
+| `SASE_BEAD_ID`                    | Bead ID for commit workflows. When set, `sase commit` adds a linked `SASE_BEAD=` footer tag and leaves the subject unchanged.                             |
 | `SASE_DISABLE_COMMIT_STOP_HOOK`   | Disable commit finalization for this process.                                                                                                             |
 | `SASE_LINKED_REPOS_JSON`          | Resolved linked-repo metadata passed to launched agents.                                                                                                  |
 | `SASE_LINKED_REPO_<ENV_NAME>_DIR` | Workspace-matched directory for one configured linked repo.                                                                                               |

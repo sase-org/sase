@@ -103,30 +103,40 @@ def _commit_hook_output_tail(stdout: str, stderr: str, *, max_lines: int = 50) -
     return "\n".join(lines[-max_lines:])
 
 
-def enforce_bead_id_in_message(payload: dict) -> None:
-    """Add payload["bead_id"] to the commit-message headline when present."""
+def apply_bead_commit_tag(
+    payload: dict,
+    *,
+    store: SddStore | None = None,
+    cwd: str | os.PathLike[str] | None = None,
+) -> None:
+    """Append or update the payload's linked ``SASE_BEAD`` footer tag."""
+
     bead_id = payload.get("bead_id")
     if not bead_id:
         return
 
-    bead_id = str(bead_id)
+    from sase.bead_pages.links import resolve_bead_commit_tag
+    from sase.workflows.commit.runtime_tags import (
+        parse_trailing_commit_tag_values,
+        update_trailing_commit_tags,
+    )
+
     message = str(payload.get("message", "") or "")
-    first_line, sep, rest = message.partition("\n")
-    if _message_line_has_bead_id(first_line, bead_id):
-        return
-
-    tagged_first_line = f"{first_line} ({bead_id})" if first_line else f"({bead_id})"
-    payload["message"] = f"{tagged_first_line}{sep}{rest}"
-
-
-def _message_line_has_bead_id(line: str, bead_id: str) -> bool:
-    """Return True when *line* contains the exact bead ID as a token."""
-    pattern = rf"(?<![A-Za-z0-9_.-]){re.escape(bead_id)}(?![A-Za-z0-9_.-])"
-    return re.search(pattern, line) is not None
+    bead_value = resolve_bead_commit_tag(str(bead_id), store=store, cwd=cwd)
+    existing = parse_trailing_commit_tag_values(message)
+    updates = {
+        "BEAD": bead_value,
+        **{key: value for key, value in existing.items() if key != "BEAD"},
+    }
+    payload["message"] = update_trailing_commit_tags(
+        message,
+        updates,
+        remove_keys=set(existing) | {"BEAD"},
+    )
 
 
 def handle_beads(payload: dict, cwd: str) -> None:
-    """Close and sync beads best-effort; keep message tagging idempotent."""
+    """Close and sync beads best-effort."""
     bead_id = payload.get("bead_id")
     has_bead_dir = (
         os.path.isdir(os.path.join(cwd, BEADS_DIRNAME))
@@ -138,7 +148,6 @@ def handle_beads(payload: dict, cwd: str) -> None:
         # Close bead (best effort)
         print_status(f"Closing bead {bead_id}...", "progress")
         _run_bead_command(["sase", "bead", "close", bead_id], cwd)
-        enforce_bead_id_in_message(payload)
 
     if bead_id or has_bead_dir:
         # Sync beads (best effort)

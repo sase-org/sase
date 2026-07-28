@@ -457,8 +457,13 @@ def test_body_markdown_definition_is_not_mistaken_for_footer_metadata() -> None:
 
 def test_filter_runtime_owned_tags() -> None:
     assert filter_runtime_owned_tags(
-        {"TEAM": "infra", "AGENT": "old", "MACHINE": "old"}
-    ) == {"TEAM": "infra"}
+        {
+            "TEAM": "infra",
+            "BEAD": "sase-ai.2",
+            "AGENT": "old",
+            "MACHINE": "old",
+        }
+    ) == {"TEAM": "infra", "BEAD": "sase-ai.2"}
 
 
 def test_filter_runtime_owned_tags_handles_prefixed_keys() -> None:

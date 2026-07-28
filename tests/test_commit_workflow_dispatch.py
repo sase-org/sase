@@ -48,7 +48,7 @@ class TestCommitWorkflowDispatch:
         mock_provider.create_commit.assert_called_once_with(payload, ANY)
 
     @patch(_PROVIDER_TARGET)
-    def test_create_commit_dispatch_message_contains_bead_id(
+    def test_create_commit_dispatch_message_contains_bead_tag(
         self, mock_get: MagicMock, mock_provider: MagicMock
     ) -> None:
         mock_get.return_value = mock_provider
@@ -57,10 +57,10 @@ class TestCommitWorkflowDispatch:
 
         assert wf.run() == RunResult.OK
         mock_provider.create_commit.assert_called_once_with(payload, ANY)
-        assert payload["message"] == "fix: bug (sase-1.2)"
+        assert payload["message"] == "fix: bug\n\nSASE_BEAD=sase-1.2"
 
     @patch(_PROVIDER_TARGET)
-    def test_create_commit_does_not_duplicate_existing_bead_id(
+    def test_create_commit_keeps_subject_that_already_mentions_bead_id(
         self, mock_get: MagicMock, mock_provider: MagicMock
     ) -> None:
         mock_get.return_value = mock_provider
@@ -69,7 +69,7 @@ class TestCommitWorkflowDispatch:
 
         assert wf.run() == RunResult.OK
         mock_provider.create_commit.assert_called_once_with(payload, ANY)
-        assert payload["message"] == "fix: bug for sase-1.2"
+        assert payload["message"] == ("fix: bug for sase-1.2\n\nSASE_BEAD=sase-1.2")
 
     @patch(_PROVIDER_TARGET)
     def test_dispatches_create_proposal(
@@ -99,7 +99,7 @@ class TestCommitWorkflowDispatch:
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)
-    def test_create_pull_request_dispatch_message_contains_bead_id(
+    def test_create_pull_request_dispatch_message_contains_bead_tag(
         self,
         mock_get: MagicMock,
         mock_proj_name: MagicMock,
@@ -115,7 +115,7 @@ class TestCommitWorkflowDispatch:
 
         assert wf.run() == RunResult.OK
         mock_provider.create_pull_request.assert_called_once_with(payload, ANY)
-        assert payload["message"] == "add feature (sase-1.2)"
+        assert payload["message"] == "add feature\n\nSASE_BEAD=sase-1.2"
 
     def test_invalid_method_returns_false(self) -> None:
         wf = CommitWorkflow({"message": "test"}, "invalid_method")
@@ -194,7 +194,7 @@ class TestProposalSkipsBeadsAndPlan:
             mock_beads.assert_not_called()
             mock_plan.assert_not_called()
             mock_provider.create_proposal.assert_called_once_with(payload, ANY)
-            assert payload["message"] == "propose: change (b123)"
+            assert payload["message"] == "propose: change\n\nSASE_BEAD=b123"
 
     @patch(_PROVIDER_TARGET)
     def test_proposal_records_bead_id_in_result_marker(
@@ -215,7 +215,7 @@ class TestProposalSkipsBeadsAndPlan:
 
         result = json.loads((tmp_path / "commit_result.json").read_text())
         assert result["bead_id"] == "b123"
-        assert result["message"] == "propose: change (b123)"
+        assert result["message"] == "propose: change\n\nSASE_BEAD=b123"
 
     @patch(_PROVIDER_TARGET)
     def test_commit_still_calls_beads_and_plan(

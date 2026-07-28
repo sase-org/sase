@@ -412,6 +412,28 @@ def test_pr_body_agent_info_precedes_structured_footer(
     )
 
 
+def test_linked_bead_tag_survives_into_pr_body(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"llm_provider": "codex", "model": "gpt-5"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    destination = (
+        "https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/sase-ai.2.md"
+    )
+    payload = {
+        "message": (f"Description\n\nSASE_BEAD=[sase-ai.2][1]\n\n[1]: {destination}")
+    }
+
+    build_pr_body(payload)
+
+    assert "SASE_BEAD=[sase-ai.2][1]" in payload["_pr_body"]
+    assert f"[1]: {destination}" in payload["_pr_body"]
+
+
 class TestInheritParentPrTags:
     """Integration tests for parent PR tag inheritance."""
 
@@ -438,6 +460,40 @@ class TestInheritParentPrTags:
         # Legacy parent tags are rendered with the SASE_ prefix on the child PR.
         assert "SASE_TEAM=infra" in sent["message"]
         assert "SASE_OWNER=alice" in sent["message"]
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
+    @patch(
+        _FETCH_PARENT_TARGET,
+        return_value={"BEAD": "sase-parent.1", "TEAM": "infra"},
+    )
+    def test_current_bead_tag_survives_inherited_pr_tags(
+        self,
+        _mock_fetch: MagicMock,
+        mock_get: MagicMock,
+        _mock_proj: MagicMock,
+    ) -> None:
+        provider = MagicMock()
+        provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = provider
+        payload = {
+            "name": "feat-x",
+            "message": "Child PR",
+            "bead_id": "sase-ai.2",
+        }
+
+        with patch(
+            "sase.vcs_provider.config.get_pr_tags",
+            return_value={"SASE_BEAD": "configured-stale"},
+        ):
+            CommitWorkflow(payload, "create_pull_request").run()
+
+        sent = provider.create_pull_request.call_args.args[0]
+        assert sent["message"].count("SASE_BEAD=") == 1
+        assert "SASE_BEAD=sase-ai.2" in sent["message"]
+        assert "sase-parent.1" not in sent["message"]
+        assert "configured-stale" not in sent["message"]
+        assert "SASE_TEAM=infra" in sent["message"]
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)
