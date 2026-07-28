@@ -8,7 +8,7 @@ from typing import Any
 
 from sase.core.rust import require_rust_binding
 
-PLAN_HEADER_BLOCK_WIRE_SCHEMA_VERSION = 1
+PLAN_HEADER_BLOCK_WIRE_SCHEMA_VERSION = 2
 MAX_RENDERED_PLAN_HEADER_ENTRIES = 50
 
 
@@ -28,6 +28,7 @@ class PlanHeaderSectionKind(StrEnum):
     PLAN = "PLAN"
     PROMPT = "PROMPT"
     PARENT = "PARENT"
+    BEAD = "BEAD"
     AGENTS = "AGENTS"
     COMMITS = "COMMITS"
 
@@ -132,6 +133,26 @@ def upsert_plan_header_section(
     )
 
 
+def remove_plan_header_section(
+    document: str,
+    kind: PlanHeaderSectionKind,
+    *,
+    remove_legacy: bool = True,
+    allow_resolved_mixed: bool = False,
+) -> str:
+    """Remove one section while preserving the rest of the header block."""
+    _require_schema_version()
+    binding = require_rust_binding("sdd_plan_header_block_remove_section")
+    return str(
+        binding(
+            document,
+            kind.value,
+            remove_legacy,
+            allow_resolved_mixed,
+        )
+    )
+
+
 def _section_from_payload(payload: dict[str, Any]) -> PlanHeaderSection:
     return PlanHeaderSection(
         kind=PlanHeaderSectionKind(str(payload["kind"])),
@@ -201,6 +222,7 @@ __all__ = [
     "PlanHeaderSection",
     "PlanHeaderSectionKind",
     "parse_plan_header_block",
+    "remove_plan_header_section",
     "render_plan_header_block",
     "upsert_plan_header_section",
 ]

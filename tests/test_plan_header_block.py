@@ -6,6 +6,7 @@ from sase.sdd.plan_header_block import (
     PlanHeaderSection,
     PlanHeaderSectionKind,
     parse_plan_header_block,
+    remove_plan_header_section,
     render_plan_header_block,
     upsert_plan_header_section,
 )
@@ -43,7 +44,11 @@ def test_typed_mutations_preserve_other_sections() -> None:
         kind=PlanHeaderSectionKind.AGENTS,
         entries=(PlanHeaderEntry(label="alice.athena.agent"),),
     )
-    document = f"{render_plan_header_block((agents, prompt))}\n\n# Plan\n"
+    bead = PlanHeaderSection(
+        kind=PlanHeaderSectionKind.BEAD,
+        label="sase-ai.8",
+    )
+    document = f"{render_plan_header_block((agents, bead, prompt))}\n\n# Plan\n"
 
     parent = PlanHeaderSection(
         kind=PlanHeaderSectionKind.PARENT,
@@ -59,7 +64,39 @@ def test_typed_mutations_preserve_other_sections() -> None:
     assert tuple(section.kind for section in parsed.sections) == (
         PlanHeaderSectionKind.PROMPT,
         PlanHeaderSectionKind.PARENT,
+        PlanHeaderSectionKind.BEAD,
         PlanHeaderSectionKind.AGENTS,
+    )
+    assert parsed.sections[2].label == "sase-ai.8"
+    assert parsed.sections[2].target is None
+    assert (
+        remove_plan_header_section(
+            updated,
+            PlanHeaderSectionKind.BEAD,
+            remove_legacy=False,
+        ).count("BEAD")
+        == 0
+    )
+
+
+def test_prettier_wrapped_bead_link_reparses_identically() -> None:
+    document = """- **BEAD:**
+  [sase-ai.8](https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/sase-ai.8.md)
+
+# Plan
+"""
+
+    parsed = parse_plan_header_block(document)
+
+    assert parsed.sections == (
+        PlanHeaderSection(
+            kind=PlanHeaderSectionKind.BEAD,
+            label="sase-ai.8",
+            target=(
+                "https://github.com/sase-org/sase--beads/blob/main/"
+                "pages/sase-ai/sase-ai.8.md"
+            ),
+        ),
     )
 
 

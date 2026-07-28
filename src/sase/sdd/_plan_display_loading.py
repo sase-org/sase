@@ -33,6 +33,7 @@ _PROVENANCE_ROW_ORDER: tuple[PlanHeaderSectionKind, ...] = (
     PlanHeaderSectionKind.PLAN,
     PlanHeaderSectionKind.PROMPT,
     PlanHeaderSectionKind.PARENT,
+    PlanHeaderSectionKind.BEAD,
     PlanHeaderSectionKind.AGENTS,
     PlanHeaderSectionKind.COMMITS,
 )

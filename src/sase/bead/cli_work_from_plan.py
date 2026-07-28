@@ -362,6 +362,8 @@ def _work_from_plan_file_locked(
                 commit_plan_update=commit_plan_link,
                 launch_work=launch_created_epic,
                 parent_override=parent,
+                store=store,
+                primary_root=workspace_dir,
             )
     except Exception as exc:
         retry_requires_push = False

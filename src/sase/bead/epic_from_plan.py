@@ -5,11 +5,15 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.bead.cli_work_handler import BeadWorkError
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType
 from sase.bead.phase_description import generated_phase_description
 from sase.bead.project import BeadProject
+
+if TYPE_CHECKING:
+    from sase.sdd.store import SddStore
 
 type PlanUpdateCommitter = Callable[[Path, str, str], bool]
 type EpicWorkLauncher = Callable[[BeadProject, str], bool]
@@ -51,6 +55,8 @@ def create_and_launch_epic_from_plan(
     commit_plan_update: PlanUpdateCommitter,
     launch_work: EpicWorkLauncher,
     parent_override: str | None = None,
+    store: SddStore | None = None,
+    primary_root: Path | None = None,
 ) -> _EpicFromPlanResult:
     """Create an epic DAG, link the plan, and launch ``sase bead work``.
 
@@ -145,6 +151,13 @@ def create_and_launch_epic_from_plan(
         linked_content = set_frontmatter_fields(
             original_content,
             {"bead_id": epic.id},
+        )
+        from sase.sdd.plan_header_writes import refresh_bead_plan_section
+
+        linked_content = refresh_bead_plan_section(
+            linked_content,
+            store=store,
+            primary_root=primary_root,
         )
         plan_link_update_attempted = True
         if not commit_plan_update(

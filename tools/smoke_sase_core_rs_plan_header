@@ -10,7 +10,7 @@ from types import ModuleType
 from typing import Any
 
 
-WIRE_SCHEMA_VERSION = 1
+WIRE_SCHEMA_VERSION = 2
 REQUIRED_BINDINGS = (
     "sdd_plan_header_block_wire_schema_version",
     "sdd_plan_header_block_parse",
@@ -47,6 +47,14 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
             "target": "prompts/example.md",
         },
         {
+            "kind": "BEAD",
+            "label": "sase-ai.8",
+            "target": (
+                "https://github.com/sase-org/sase--beads/blob/main/"
+                "pages/sase-ai/sase-ai.8.md"
+            ),
+        },
+        {
             "kind": "COMMITS",
             "entries": [
                 {
@@ -68,8 +76,14 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
     if not isinstance(parsed_sections, list):
         raise RuntimeError(f"unexpected parse result: {parsed!r}")
     section_kinds = [section.get("kind") for section in parsed_sections]
-    if section_kinds != ["PROMPT", "COMMITS"]:
+    if section_kinds != ["PROMPT", "BEAD", "COMMITS"]:
         raise RuntimeError(f"unexpected section order: {section_kinds!r}")
+
+    unlinked_bead = module.sdd_plan_header_block_render(
+        [{"kind": "BEAD", "label": "sase-ai.8"}]
+    )
+    if unlinked_bead != "- **BEAD:** sase-ai.8":
+        raise RuntimeError(f"unexpected unlinked BEAD rendering: {unlinked_bead!r}")
 
     parent = {
         "kind": "PARENT",
@@ -161,6 +175,7 @@ metadata:
         "disposition": parsed["kind"],
         "section_kinds": section_kinds,
         "mutation_round_trip": True,
+        "unlinked_bead": True,
         "fenced_examples_ignored": True,
         "legacy_parent_removed": True,
     }

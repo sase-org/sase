@@ -131,7 +131,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "refresh",
         help="Reconcile projected plan provenance headers",
         description=(
-            "Rebuild PARENT, AGENTS, and COMMITS plan-header sections from "
+            "Rebuild PARENT, BEAD, AGENTS, and COMMITS plan-header sections from "
             "durable state. The default is a read-only dry run; --write "
             "updates changed plans and commits them to the plans store in "
             "one batch."

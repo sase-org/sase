@@ -390,6 +390,7 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
                     remove_legacy=True,
                 )
             from sase.sdd.plan_header_writes import (
+                refresh_bead_plan_section,
                 refresh_existing_parent_section,
             )
 
@@ -397,6 +398,11 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
                 plan_content,
                 source_path=Path(plan_path),
                 plans_root=store.kind_root("plans"),
+                store=store,
+                primary_root=Path(repo_root or cwd),
+            )
+            plan_content = refresh_bead_plan_section(
+                plan_content,
                 store=store,
                 primary_root=Path(repo_root or cwd),
             )

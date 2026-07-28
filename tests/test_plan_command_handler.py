@@ -114,6 +114,22 @@ def _assert_archived_associations(
         assert parent_section.label == expected_label
         assert parent_section.target == expected_label
 
+    bead_section = next(
+        (
+            section
+            for section in parsed_header.sections
+            if section.kind is PlanHeaderSectionKind.BEAD
+        ),
+        None,
+    )
+    expected_bead = expected_fields.get("bead")
+    if expected_bead is None:
+        assert bead_section is None
+    else:
+        assert bead_section is not None
+        assert bead_section.label == expected_bead
+        assert bead_section.target is None
+
     tier = "epic" if content == VALID_EPIC else "tale"
     validation = validate_plan(archived_content, tier)
     assert validation.ok

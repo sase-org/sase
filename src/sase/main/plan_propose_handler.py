@@ -152,6 +152,10 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         from sase.sdd.plan_header_writes import upsert_parent_plan_section
 
         raw = upsert_parent_plan_section(raw, parent_plan)
+    if "bead" in stamps:
+        from sase.sdd.plan_header_writes import refresh_bead_plan_section
+
+        raw = refresh_bead_plan_section(raw)
     formatted = format_with_prettier(raw)
     if formatted != original:
         plan_path.write_text(formatted, encoding="utf-8")

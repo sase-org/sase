@@ -43,6 +43,7 @@ _PROVENANCE_ROW_LABELS: dict[PlanHeaderSectionKind, str] = {
     PlanHeaderSectionKind.PLAN: "   Plan: ",
     PlanHeaderSectionKind.PROMPT: " Prompt: ",
     PlanHeaderSectionKind.PARENT: " Parent: ",
+    PlanHeaderSectionKind.BEAD: "   Bead: ",
     PlanHeaderSectionKind.AGENTS: " Agents: ",
     PlanHeaderSectionKind.COMMITS: "Commits: ",
 }
@@ -50,6 +51,7 @@ _PROVENANCE_ENTRY_STYLES: dict[PlanHeaderSectionKind, str] = {
     PlanHeaderSectionKind.PLAN: COLOR_PLAN_PATH,
     PlanHeaderSectionKind.PROMPT: COLOR_PLAN_PATH,
     PlanHeaderSectionKind.PARENT: COLOR_PLAN_PATH,
+    PlanHeaderSectionKind.BEAD: COLOR_PLAN_PATH,
     PlanHeaderSectionKind.AGENTS: PLAN_PROVENANCE_AGENT_STYLE,
     PlanHeaderSectionKind.COMMITS: PLAN_PROVENANCE_COMMIT_STYLE,
 }

@@ -20,6 +20,7 @@ from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 _PROVENANCE_HEADER = """- **PROMPT:** [202607/prompts/tale.md](prompts/tale.md)
 - **PARENT:** [202607/epic.md](https://example.invalid/plans/blob/main/202607/epic.md)
+- **BEAD:** [sase-ai.8](https://example.invalid/beads/blob/main/pages/sase-ai/sase-ai.8.md)
 - **AGENTS:**
   - [user.host.sase-1a.1](https://example.invalid/agents/blob/main/agents/user.host.sase-1a.1/README.md)
   - user.host.sase-1a.2
@@ -96,12 +97,14 @@ def test_provenance_rows_follow_fields_and_match_tui_section(
     assert [section.kind.value for section in loaded.provenance] == [
         "PROMPT",
         "PARENT",
+        "BEAD",
         "AGENTS",
         "COMMITS",
     ]
     assert rows[3:] == [
         " Prompt: 202607/prompts/tale.md",
         " Parent: 202607/epic.md",
+        "   Bead: sase-ai.8",
         " Agents: user.host.sase-1a.1, user.host.sase-1a.2",
         "Commits: 1a67048",
     ]

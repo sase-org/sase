@@ -11,6 +11,7 @@ from sase.sdd.plan_header_block import (
     PlanHeaderSection,
     PlanHeaderSectionKind,
     parse_plan_header_block,
+    remove_plan_header_section,
     upsert_plan_header_section,
 )
 
@@ -88,6 +89,56 @@ def refresh_existing_parent_section(
         plans_root=plans_root,
         store=store,
         primary_root=primary_root,
+    )
+
+
+def refresh_bead_plan_section(
+    document: str,
+    *,
+    store: SddStore | None = None,
+    primary_root: Path | None = None,
+) -> str:
+    """Rebuild ``BEAD`` from the plan's durable bead frontmatter."""
+
+    from sase.sdd.plan_tiers import parse_plan_frontmatter
+
+    frontmatter, parse_error = parse_plan_frontmatter(document)
+    if parse_error is not None:
+        raise ValueError(parse_error)
+    raw_bead = frontmatter.get("bead_id")
+    if raw_bead in (None, ""):
+        raw_bead = frontmatter.get("bead")
+    if raw_bead in (None, ""):
+        parsed = parse_plan_header_block(document)
+        if not any(
+            section.kind is PlanHeaderSectionKind.BEAD for section in parsed.sections
+        ):
+            return document
+        return remove_plan_header_section(
+            document,
+            PlanHeaderSectionKind.BEAD,
+            remove_legacy=False,
+        )
+    if not isinstance(raw_bead, str) or not raw_bead.strip():
+        raise ValueError("plan bead frontmatter must be a non-empty string")
+
+    bead_id = raw_bead.strip()
+    target = None
+    if store is not None:
+        from sase.sdd.hosted_links import hosted_link_resolver
+
+        target = hosted_link_resolver(
+            store,
+            primary_root=primary_root,
+        ).bead_url(bead_id)
+    return upsert_plan_header_section(
+        document,
+        PlanHeaderSection(
+            kind=PlanHeaderSectionKind.BEAD,
+            label=bead_id,
+            target=target,
+        ),
+        remove_legacy=False,
     )
 
 
@@ -223,6 +274,7 @@ def _relative_parent_target(
 
 __all__ = [
     "refresh_association_sections",
+    "refresh_bead_plan_section",
     "refresh_existing_parent_section",
     "upsert_parent_plan_section",
 ]

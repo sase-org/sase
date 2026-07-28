@@ -207,8 +207,15 @@ def _refresh_one(
 
     associations = index.for_plan(plan_ref)
     try:
-        updated, parent_migrated = _refresh_parent(
+        from sase.sdd.plan_header_writes import refresh_bead_plan_section
+
+        updated = refresh_bead_plan_section(
             current,
+            store=store,
+            primary_root=primary,
+        )
+        updated, parent_migrated = _refresh_parent(
+            updated,
             path=path,
             root=root,
             store=store,

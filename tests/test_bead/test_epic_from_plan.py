@@ -12,6 +12,10 @@ from sase.bead.epic_from_plan import create_and_launch_epic_from_plan
 from sase.bead.model import BeadTier, IssueType, PhaseSize
 from sase.bead.project import BeadProject
 from sase.sdd.frontmatter import parse_frontmatter
+from sase.sdd.plan_header_block import (
+    PlanHeaderSectionKind,
+    parse_plan_header_block,
+)
 
 from .cli_work_helpers import FakeLaunchResult
 
@@ -67,6 +71,14 @@ def test_create_and_launch_maps_frontmatter_in_order(
             commits.append(content)
             # The plan link is not committed until the complete DAG exists.
             frontmatter, _body, _had_frontmatter = parse_frontmatter(commits[-1])
+            header = parse_plan_header_block(commits[-1])
+            bead_section = next(
+                section
+                for section in header.sections
+                if section.kind is PlanHeaderSectionKind.BEAD
+            )
+            assert bead_section.label == frontmatter["bead_id"]
+            assert bead_section.target is None
             assert [
                 child.id
                 for child in proj.get_epic_children(str(frontmatter["bead_id"]))

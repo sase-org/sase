@@ -33,12 +33,15 @@ def _write_plan(
     *,
     tier: str = "tale",
     parent: str | None = None,
+    bead: str | None = None,
 ) -> Path:
     path = root / "202607" / f"{name}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     parent_line = f"parent: {parent}\n" if parent else ""
+    bead_line = f"bead: {bead}\n" if bead else ""
     path.write_text(
-        f"---\ntier: {tier}\ntitle: {name}\ngoal: Test\n{parent_line}---\n# {name}\n",
+        f"---\ntier: {tier}\ntitle: {name}\ngoal: Test\n"
+        f"{parent_line}{bead_line}---\n# {name}\n",
         encoding="utf-8",
     )
     return path
@@ -177,3 +180,49 @@ def test_refresh_plan_scope_rejects_missing_reference(tmp_path: Path) -> None:
     assert not report.ok
     assert report.scanned == 0
     assert report.errors[0].code == "plan-unresolved"
+
+
+def test_refresh_backfills_bead_section_from_frontmatter(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "plans"
+    store = _store(root)
+    plan = _write_plan(root, "child", bead="sase-ai.8")
+    index = PlanAssociationIndex(MappingProxyType({}))
+
+    class _Resolver:
+        def bead_url(self, bead_id: str) -> str:
+            assert bead_id == "sase-ai.8"
+            return "https://example.test/pages/sase-ai/sase-ai.8.md"
+
+    monkeypatch.setattr(
+        "sase.sdd.hosted_links.hosted_link_resolver",
+        lambda *_args, **_kwargs: _Resolver(),
+    )
+    monkeypatch.setattr(
+        "sase.sdd._git_contention.store_git_write_lock",
+        _acquired_lock,
+    )
+    monkeypatch.setattr(
+        "sase.file_references.format_markdown_files_with_prettier",
+        lambda _paths: True,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.files.commit_sdd_store_files",
+        lambda *_args, **_kwargs: True,
+    )
+
+    report = refresh_plan_links(
+        store,
+        primary_root=tmp_path,
+        association_index=index,
+        write=True,
+    )
+
+    assert report.ok
+    assert [action.path for action in report.actions] == ["202607/child.md"]
+    bead = parse_plan_header_block(plan.read_text(encoding="utf-8")).sections[0]
+    assert bead.kind is PlanHeaderSectionKind.BEAD
+    assert bead.label == "sase-ai.8"
+    assert bead.target == "https://example.test/pages/sase-ai/sase-ai.8.md"

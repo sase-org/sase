@@ -97,7 +97,10 @@ def _refresh_committed_plan_header(
             return PlanHeaderRefreshOutcome(error="plans store write lock is busy")
 
         from sase.sdd.associations import build_plan_association_index
-        from sase.sdd.plan_header_writes import refresh_association_sections
+        from sase.sdd.plan_header_writes import (
+            refresh_association_sections,
+            refresh_bead_plan_section,
+        )
 
         index = build_plan_association_index(
             store,
@@ -105,8 +108,13 @@ def _refresh_committed_plan_header(
             project=project,
         )
         current = plan_path.read_text(encoding="utf-8")
-        updated = refresh_association_sections(
+        updated = refresh_bead_plan_section(
             current,
+            store=store,
+            primary_root=primary_root,
+        )
+        updated = refresh_association_sections(
+            updated,
             index.for_plan(canonical_ref),
         )
         from sase.file_references import format_with_prettier

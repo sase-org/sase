@@ -105,12 +105,20 @@ def write_sdd_files(
             SddArtifactLinkType.PROMPT,
             remove_legacy=True,
         )
-        from sase.sdd.plan_header_writes import refresh_existing_parent_section
+        from sase.sdd.plan_header_writes import (
+            refresh_bead_plan_section,
+            refresh_existing_parent_section,
+        )
 
         plan_content = refresh_existing_parent_section(
             plan_content,
             source_path=plan_path,
             plans_root=plans_dir.parent,
+            store=store,
+            primary_root=Path.cwd(),
+        )
+        plan_content = refresh_bead_plan_section(
+            plan_content,
             store=store,
             primary_root=Path.cwd(),
         )

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 
 PLAN_HEADER_BLOCK_NOTE = """Do not author the plan's provenance header block. SASE writes and reconciles the leading
-`PROMPT`, `PARENT`, `AGENTS`, and `COMMITS` Markdown bullets itself, and `sase plan links refresh` keeps them current.
+`PROMPT`, `PARENT`, `BEAD`, `AGENTS`, and `COMMITS` Markdown bullets itself, and `sase plan links refresh` keeps them
+current.
 In particular, name a parent plan through the `PARENT` bullet SASE writes, never through a `parent:` frontmatter
 property: that property is deprecated and is migrated into the bullet."""
 
