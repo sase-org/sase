@@ -226,6 +226,7 @@ def _append_wait_field(
                 agent,
                 agent_status_buckets=agent_status_buckets,
                 clan_wait_member_statuses=clan_wait_member_statuses,
+                tribe_wait_bindings=tribe_wait_bindings,
                 wait_bead_statuses=wait_bead_statuses,
                 runner_queue_ahead_count=runner_queue_ahead_count,
             )

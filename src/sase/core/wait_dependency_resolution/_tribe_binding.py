@@ -82,7 +82,7 @@ def resolve_tribe_wait_binding(
     is safe for callers that already hold an artifact or display snapshot.
     """
 
-    if _is_reserved_tribe_name(tribe):
+    if agent_tribe.is_reserved_tribe_name(tribe):
         return TribeWaitBinding(tribe=tribe, state="reserved")
     if newer_than is None:
         return TribeWaitBinding(tribe=tribe, state="pending")
@@ -178,15 +178,6 @@ def _clan_key(row: TribeMemberRow) -> tuple[str, str] | None:
     if row.clan_name is None or row.clan_generation is None:
         return None
     return row.clan_name, row.clan_generation
-
-
-def _is_reserved_tribe_name(tribe: str) -> bool:
-    """Bridge the parallel reserved-tribe phase until both changes are landed."""
-
-    predicate = getattr(agent_tribe, "is_reserved_tribe_name", None)
-    if predicate is not None:
-        return bool(predicate(tribe))
-    return tribe == "default"
 
 
 __all__ = [
