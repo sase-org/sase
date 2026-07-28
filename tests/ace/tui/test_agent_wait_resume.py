@@ -189,6 +189,7 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
     assert agent.wait_runners_explicit is True
     assert agent.wait_priority == 20
     assert agent.wait_priority_explicit is True
+    assert agent.status == "QUEUED"
     assert app.killed_agents == []
 
 
@@ -412,6 +413,7 @@ def test_apply_wait_updates_parked_priority_in_place(tmp_path: Path) -> None:
     assert waiting["slot_requested_at"] == "2026-07-12T12:00:00Z"
     assert agent.wait_priority == 2
     assert agent.wait_priority_explicit is True
+    assert agent.status == "QUEUED"
     assert app.killed_agents == []
 
 

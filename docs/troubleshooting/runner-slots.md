@@ -1,15 +1,15 @@
 # Agent queued for a runner slot
 
 An agent shown as `QUEUED` is at an admission boundary: it has finished every dependency, bead, and time wait and is
-holding only for capacity under the effective global `max_running_agents` value (configured default: 10). It may also
-have received an answer after temporarily yielding its slot at `QUESTION`. Participants are top-level user
-agents—including every clan member launched independently—plus parallel family members. An authored `%wait(runners=N)`
-threshold remains `WAITING`, because that row is held by its explicit condition rather than ambient global capacity.
+holding only for runner capacity. Its threshold may come from the effective global `max_running_agents` value
+(configured default: 10) or an authored `%wait(runners=N)`. It may also have received an answer after temporarily
+yielding its slot at `QUESTION`. Participants are top-level user agents—including every clan member launched
+independently—plus parallel family members.
 
 The ACE Agents header summarizes the same global state as `[R/L · Q queued]`: slots in use, effective limit, and live
-waiters governed by that effective limit. The effective value is an active machine-wide override from
-`~/.sase/max_running_agents_override.json` first and merged configuration second. `Q` does not include waits with an
-explicit `%wait(runners=N)` threshold.
+waiters at the runner-slot admission gate. The effective value is an active machine-wide override from
+`~/.sase/max_running_agents_override.json` first and merged configuration second. `Q` includes both implicit-cap and
+authored-threshold waits.
 
 Admission sorts waiters by lower numeric `%wait(priority=N)` first, then first-in, first-out within the same priority,
 across all projects. ACE shows that full order as `#N/M` on `QUEUED` rows and as `queue #N of M` in details, even while
@@ -26,11 +26,12 @@ choose a different priority.
 
 Selecting a ranked waiter in ACE also shows a bounded `QUEUE` ladder. Its `N ahead` count includes only earlier entries
 whose runner threshold is greater than or equal to the selected waiter's threshold—the entries that become eligible no
-later and therefore really can start first. Earlier, stricter drain waits are shown in the `WAITING` amethyst instead of
-being counted as ahead. The ladder includes the front, up to two entries on either side of the selected waiter, and gap
-counts; short queues show all entries, while long queues show at most seven actual queue entries. Explicit thresholds
-and non-default priorities appear as `≤N` and `pN`. This is current admission context, not an ETA or a prediction that
-no new waiter will arrive, and its entries are not digit-jump targets.
+later and therefore really can start first. Earlier, stricter drain waits use a parked amethyst accent instead of being
+counted as ahead. That accent distinguishes their stricter threshold, not a different status: every entry is still
+`QUEUED`. The ladder includes the front, up to two entries on either side of the selected waiter, and gap counts; short
+queues show all entries, while long queues show at most seven actual queue entries. Explicit thresholds and non-default
+priorities appear as `≤N` and `pN`. This is current admission context, not an ETA or a prediction that no new waiter
+will arrive, and its entries are not digit-jump targets.
 
 A deprioritized waiter — one whose priority is numerically worse than the `10` default — is additionally held back for a
 bounded deference window before it may claim a freed slot, because the sort above only compares waiters already parked
@@ -52,10 +53,10 @@ The agent's own log records the transition with a single `Deferring for up to Ns
 carries `eligible_since` for the window currently in progress.
 
 An explicit priority is also visible in ACE, which is usually the fastest way to confirm which value the queue actually
-used. `WAITING` rows suffix the slot marker with it (`▶10→9 p20`), and the agent detail pane appends `· priority N` to
-its `runners: N/M in use · queue #P of Q` line. The queue ladder shows any normalized non-default value as `pN` beside
-the entry it reordered. A `QUEUED` row shows the resulting rank directly as `#N/M`. Press `w` on the agent to open the
-wait modal and edit the priority in place.
+used. `QUEUED` rows with an authored threshold suffix the rank with the slot marker and priority
+(`QUEUED #4/4 ▶10→9 p20`), and the agent detail pane appends `· priority N` to its `runners: N/M in use · queue #P of Q`
+line. The queue ladder shows any normalized non-default value as `pN` beside the entry it reordered. Press `w` on the
+agent to open the wait modal and edit the priority in place.
 
 To diagnose a wait:
 
@@ -84,8 +85,8 @@ and queue markers. Question continuations keep their authored priority while rea
 Lowering the effective cap below current occupancy is safe and non-preemptive: no running process is killed or forced to
 yield, but no implicit-cap participant is admitted until occupancy falls far enough. Raising it does not bypass
 priority/FIFO order. If the bounded temporary-state lock or file read is briefly unavailable, an implicit launch fails
-closed for that poll, remains published as waiting, releases the slot lock, and retries instead of crashing or silently
-admitting against configuration alone.
+closed for that poll, remains parked, releases the slot lock, and retries instead of crashing or silently admitting
+against configuration alone.
 
 A `%wait(runners=0)` launch is intentionally a drain barrier: it starts only at a true global lull. Newer immediate
 slot-participating launches may start while the barrier is parked when their own thresholds permit it, keeping the

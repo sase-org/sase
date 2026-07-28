@@ -961,8 +961,8 @@ follow-ups and workflow steps, preserving their adjacency and internal order.
 Clan rows aggregate member status using the same operational precedence: human-input questions, pending plan review,
 failure, and running/starting states outrank queued work; `QUEUED` then outranks `WAITING`, followed by an all-done
 result. Consequently, a clan with queued work and ordinary waiters displays `QUEUED` unless a higher-priority member
-state is present. Its count chip remains concrete and independent, so `QUEUED [Q3 W6]` reports three global-cap waiters
-and six explicit, dependency, bead, or time waiters without merging the two categories.
+state is present. Its count chip remains concrete and independent, so `QUEUED [Q3 W6]` reports three runner-slot waiters
+and six dependency, bead, or time waiters without merging the two categories.
 
 The uppercase `H` ladder is group-scoped, with the selected clan receiving precedence inside that scope. If the grouping
 banner that `H` would collapse next contains any open standalone workflow, agent, or sequential-family house, the first
@@ -1042,12 +1042,13 @@ even though it is not selectable yet. Grouping mode, tribe ownership, and fold s
 
 The lane total is followed by an always-visible capacity chip in the form `[R/L · Q queued]`: `R` is the global number
 of slot-participating user agents currently holding runner slots, `L` is the current effective `max_running_agents`
-limit (temporary override first, configured value second), and `Q` counts live `QUEUED` rows governed by that effective
-cap. Slot participants are top-level user agents—including every clan member launched independently—plus parallel family
-members. Serial family follow-ups, workflow Python/bash steps, and axe ChangeSpec runners do not participate. Waits with
-an explicit `%wait(runners=N)` threshold are intentionally excluded from `Q`. The occupancy count `R` always renders
-green, so it reads as a plain count; capacity pressure is carried by `L`, which escalates from dim through gold at half
-the limit, orange at three quarters, and red once `R` reaches or passes it. A nonzero queue count is cornflower blue.
+limit (temporary override first, configured value second), and `Q` counts every live agent parked at the runner-slot
+admission gate, whether its threshold comes from that effective cap or an authored `%wait(runners=N)`. Slot participants
+are top-level user agents—including every clan member launched independently—plus parallel family members. Serial family
+follow-ups, workflow Python/bash steps, and axe ChangeSpec runners do not participate. The occupancy count `R` always
+renders green, so it reads as a plain count; capacity pressure is carried by `L`, which escalates from dim through gold
+at half the limit, orange at three quarters, and red once `R` reaches or passes it. A nonzero queue count is cornflower
+blue.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with numeric counts in place of the
@@ -1055,20 +1056,21 @@ letters and zero-count metrics omitted. These buckets classify the same lanes as
 family's normalized owner status instead of counting historical members separately. `stopped` counts lanes paused for
 plan approval, questions, or workflow human-input steps; `starting` counts just-launched lanes that have not yet
 surfaced as visible rows; `running` excludes queued, waiting, failed, and stopped lanes; `waiting` contains genuinely
-blocked dependency, bead, time, and explicit-runner-threshold lanes, while the capacity chip's `queued` count contains
-the ambient global-cap waiters; `failed` is terminal failed work; `unread` counts terminal lanes that still need
-acknowledgement; and `done` is completed visible work that has already been acknowledged. Nested family/clan member
-summaries remain concrete. The position/navigation denominator is a separate count: rendered selectable roots, where a
-clan container is one row and a hidden `STARTING` lane is excluded. During startup the header renders `Agents: …` until
-the first agent scan has loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping;
-cycling only changes the current session.
+blocked dependency, bead, and time lanes, while the capacity chip's `queued` count contains every live runner-slot
+waiter; `failed` is terminal failed work; `unread` counts terminal lanes that still need acknowledgement; and `done` is
+completed visible work that has already been acknowledged. Nested family/clan member summaries remain concrete. The
+position/navigation denominator is a separate count: rendered selectable roots, where a clan container is one row and a
+hidden `STARTING` lane is excluded. During startup the header renders `Agents: …` until the first agent scan has loaded,
+avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping; cycling only changes the current
+session.
 
-**Queued** holds `QUEUED` agents that have cleared every dependency, bead, and time wait and need only a free slot under
-the global cap. A queued row renders as `QUEUED #3/12` and omits stale dependency and repeated capacity suffixes.
-**Waiting** holds genuinely blocked but self-progressing agents — `WAITING` with a time wait (`%wait(time=5m)`,
-`%wait(time=1430)`), a non-empty `waiting_for` dependency, or an authored `%wait(runners=N)` threshold. Explicit runner
-thresholds use an arrow (`WAITING ▶7→0`) so a drain barrier cannot be mistaken for a fraction. **Stopped** keeps the
-strict "you need to act" semantics for plan approval, questions, and workflow input.
+**Queued** holds `QUEUED` agents that have cleared every dependency, bead, and time wait and need only runner capacity,
+whether their threshold comes from the global cap or an authored `%wait(runners=N)`. A queued row renders as
+`QUEUED #3/12`; an explicit runner threshold keeps its arrow qualifier, such as `QUEUED #4/12 ▶7→0 p20`, so a drain
+barrier cannot be mistaken for a fraction. Implicit-cap rows omit the repeated capacity suffix. **Waiting** holds
+genuinely blocked but self-progressing agents — `WAITING` with a time wait (`%wait(time=5m)`, `%wait(time=1430)`), a
+non-empty `waiting_for` dependency, or a bead wait. **Stopped** keeps the strict "you need to act" semantics for plan
+approval, questions, and workflow input.
 
 ### Agent Row Glyphs
 
@@ -2155,20 +2157,20 @@ active (the agent is still running or awaiting input) and completed (the agent h
 
 ### Active Statuses
 
-| Status             | Color           | Description                                                                                  |
-| ------------------ | --------------- | -------------------------------------------------------------------------------------------- |
-| **RUNNING**        | Gold            | Agent subprocess is executing                                                                |
-| **QUEUED**         | Cornflower blue | Cleared every authored wait and needs only a free slot under the global cap                  |
-| **WAITING**        | Amethyst/purple | Paused on a dependency, bead, time, or explicit runner threshold; `?` marks a missing target |
-| **WAITING INPUT**  | Amber/orange    | Workflow is paused at a human-in-the-loop (HITL) step                                        |
-| **TALE**           | Pink/magenta    | An authored tale is waiting for user review                                                  |
-| **EPIC**           | Orchid          | An authored epic is waiting for user review                                                  |
-| **PLAN**           | Pink/magenta    | A legacy or unreadable-tier plan is waiting for user review                                  |
-| **PLAN APPROVED**  | Cyan            | Plan was approved; follow-up agent has been spawned                                          |
-| **EPIC APPROVED**  | Cyan            | Plan was approved as an epic; `--epic` follow-up is running                                  |
-| **PLAN COMMITTED** | Cyan            | Plan was approved with auto-commit; `--commit` follow-up is running                          |
-| **QUESTION**       | Amber           | Agent is asking the user a question (via `/sase_questions`)                                  |
-| **RETRYING**       | Orange          | Agent hit a retryable error and is in a countdown before retrying                            |
+| Status             | Color           | Description                                                            |
+| ------------------ | --------------- | ---------------------------------------------------------------------- |
+| **RUNNING**        | Gold            | Agent subprocess is executing                                          |
+| **QUEUED**         | Cornflower blue | Cleared dependency, bead, and time waits; parked for runner capacity   |
+| **WAITING**        | Amethyst/purple | Paused on a dependency, bead, or time wait; `?` marks a missing target |
+| **WAITING INPUT**  | Amber/orange    | Workflow is paused at a human-in-the-loop (HITL) step                  |
+| **TALE**           | Pink/magenta    | An authored tale is waiting for user review                            |
+| **EPIC**           | Orchid          | An authored epic is waiting for user review                            |
+| **PLAN**           | Pink/magenta    | A legacy or unreadable-tier plan is waiting for user review            |
+| **PLAN APPROVED**  | Cyan            | Plan was approved; follow-up agent has been spawned                    |
+| **EPIC APPROVED**  | Cyan            | Plan was approved as an epic; `--epic` follow-up is running            |
+| **PLAN COMMITTED** | Cyan            | Plan was approved with auto-commit; `--commit` follow-up is running    |
+| **QUESTION**       | Amber           | Agent is asking the user a question (via `/sase_questions`)            |
+| **RETRYING**       | Orange          | Agent hit a retryable error and is in a countdown before retrying      |
 
 `QUESTION` status survives notification dismissal. While an agent is waiting for an answer it writes a
 `pending_question.json` marker into its run directory and temporarily yields its root runner slot. The marker remains
@@ -2369,10 +2371,10 @@ a pinned attempt view resets the cursor.
   with `?` so typos and stale references are obvious. A WAITING list row also shows one amber `?` when any named
   dependency is absent from the current agent status snapshot; bead-only, timed-only, and runner-only waits do not
   receive that marker. Timed waits add compact duration, target time, and countdown text when available. An explicit
-  runner threshold shows the live running count, threshold, and its `queue #N of M` admission rank; `runners=0` is
-  labeled as a drain barrier. A `QUEUED` detail uses a separate `Queue:` line led by its rank and elapsed time since
-  `slot_requested_at`, followed by cap context. It deliberately suppresses the marker's stale dependency, bead, and
-  time-wait fields.
+  runner threshold on a `QUEUED` row shows the live running count, threshold, and its `queue #N of M` admission rank;
+  `runners=0` is labeled as a drain barrier. A `QUEUED` detail uses a separate `Queue:` line led by its rank and elapsed
+  time since `slot_requested_at`, followed by cap context. It deliberately suppresses the marker's stale dependency,
+  bead, and time-wait fields.
 - **OUTPUT VARIABLES**: Small string values written by the selected agent family with `sase var set KEY=VALUE`. A single
   contributing agent renders as a flat sorted key/value list; multiple family members render with compact role labels so
   root, planner, coder, tester, and follow-up values stay attributable. Multi-line values are indented, and the section

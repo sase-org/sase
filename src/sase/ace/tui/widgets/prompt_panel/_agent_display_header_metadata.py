@@ -218,7 +218,27 @@ def _append_wait_field(
             text.append(" · ", style="dim")
             text.append(f"{queued_for} in queue", style=QUEUED_STATUS_COLOR)
         text.append("\n")
-        return None
+        if not (wait_agent.wait_runners_explicit or wait_agent.wait_priority_explicit):
+            return None
+        lanes = tuple(
+            lane
+            for lane in build_wait_lanes(
+                agent,
+                agent_status_buckets=agent_status_buckets,
+                clan_wait_member_statuses=clan_wait_member_statuses,
+                wait_bead_statuses=wait_bead_statuses,
+                runner_queue_ahead_count=runner_queue_ahead_count,
+            )
+            if lane[0] == "runners"
+        )
+        if not lanes:
+            return None
+        section = ResponsiveWaitSection(lanes)
+        start = len(text)
+        text.append_text(section.logical_text)
+        if responsive_ranges is not None:
+            responsive_ranges[WAIT_SECTION_ID] = (start, len(text))
+        return section
 
     lanes = build_wait_lanes(
         agent,

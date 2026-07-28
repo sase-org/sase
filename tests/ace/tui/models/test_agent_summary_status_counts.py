@@ -400,9 +400,9 @@ def test_queue_counts_are_orthogonal_and_dedupe_container_flat_rows() -> None:
     )
     clan = clan_member_counts(container)
 
-    assert (concrete.total, concrete.queued, concrete.waiting) == (3, 1, 2)
-    assert (lanes.total, lanes.queued, lanes.waiting) == (3, 1, 2)
-    assert (clan.queued, clan.waiting) == (1, 2)
+    assert (concrete.total, concrete.queued, concrete.waiting) == (3, 2, 1)
+    assert (lanes.total, lanes.queued, lanes.waiting) == (3, 2, 1)
+    assert (clan.queued, clan.waiting) == (2, 1)
 
 
 def test_queued_waiters_partition_waiting_counts() -> None:
@@ -420,7 +420,7 @@ def test_queued_waiters_partition_waiting_counts() -> None:
     for index, member in enumerate(members[:2]):
         member.pid = 100 + index
         member.wait_runners = 9
-        member.wait_runners_explicit = False
+        member.wait_runners_explicit = index == 1
         member.slot_requested_at = f"2026-07-19T09:00:0{index}Z"
     refresh_runner_slot_context(members, effective_limit=10)
     container = project_clan_tree(members)[0]

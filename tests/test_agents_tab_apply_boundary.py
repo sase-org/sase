@@ -250,10 +250,10 @@ def test_runner_capacity_installs_atomically_and_survives_local_refilters() -> N
     assert (
         boundary.runner_capacity.effective_limit,
         boundary.runner_capacity.slots_in_use,
-        boundary.runner_capacity.global_cap_queue_count,
-    ) == (10, 1, 1)
+        boundary.runner_capacity.queued_count,
+    ) == (10, 1, 2)
     assert implicit_waiter.status == "QUEUED"
-    assert explicit_waiter.status == "WAITING"
+    assert explicit_waiter.status == "QUEUED"
     assert implicit_waiter.runner_slot_queue_position == 1
     assert explicit_waiter.runner_slot_queue_position == 2
     assert implicit_waiter.runner_slot_queue_size == 2
@@ -277,13 +277,13 @@ def test_runner_capacity_installs_atomically_and_survives_local_refilters() -> N
     app._refilter_agents(refresh_content_index=False)
     assert app._agent_runner_capacity == expected_capacity
     assert implicit_waiter not in app._agents
-    assert explicit_waiter in app._agents
+    assert explicit_waiter not in app._agents
 
     app._agent_search_query = "status:queued"
     app._agent_query_cache = None
     app._refilter_agents(refresh_content_index=False)
     assert implicit_waiter in app._agents
-    assert explicit_waiter not in app._agents
+    assert explicit_waiter in app._agents
 
     app._agent_search_query = ""
     app._agent_query_cache = None

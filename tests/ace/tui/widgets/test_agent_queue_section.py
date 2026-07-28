@@ -64,7 +64,7 @@ def _entry(
         wait_runners_explicit=explicit,
         priority=priority,
         slot_requested_at=requested_at,
-        status="WAITING" if explicit else "QUEUED",
+        status="QUEUED",
     )
 
 
@@ -78,9 +78,7 @@ def _header(
         runner_capacity=RunnerCapacitySnapshot(
             effective_limit=10,
             slots_in_use=10,
-            global_cap_queue_count=sum(
-                not entry.wait_runners_explicit for entry in queue
-            ),
+            queued_count=len(queue),
             queue=queue,
         ),
     )

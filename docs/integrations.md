@@ -74,7 +74,7 @@ Each returned `AgentStatusGroup` contains the bucket label and the running-agent
 | `Stopped` | User-facing blockers such as `PLAN` and `QUESTION`.                   |
 | `Failed`  | Terminal failure statuses (`FAILED...`).                              |
 | `Running` | Active execution, including `PLAN APPROVED` and unrecognized actives. |
-| `Queued`  | `QUEUED` agents waiting only for global runner capacity.              |
+| `Queued`  | `QUEUED` agents parked at the runner-slot admission gate.             |
 | `Waiting` | `WAITING` agents with timer/dependency progress.                      |
 | `Done`    | Terminal success/plan handoff states.                                 |
 
@@ -102,10 +102,10 @@ metadata, family role, parent, tribe, bead and ChangeSpec names, direct-child co
 commit counts, and error text when available. The nested wait/retry/children objects are frozen dataclasses, not raw
 JSON; bridge commands should convert them into their own wire shape.
 
-Global-cap waiters are promoted in memory from the scan-level `WAITING` state to `QUEUED`; the status is never
-persisted. `entry.wait.runner_slot_queue_position` and `runner_slot_queue_size` describe every live runner-slot waiter
-in admission order—lower `wait_priority` first, then `slot_requested_at` FIFO—even while the runner pool is full.
-Explicit `%wait(runners=N)` rows keep `WAITING` but still receive an admission rank.
+Every live runner-slot waiter is promoted in memory from the scan-level `WAITING` state to `QUEUED`; the status is never
+persisted. `entry.wait.runner_slot_queue_position` and `runner_slot_queue_size` describe the same set in admission
+order—lower `wait_priority` first, then `slot_requested_at` FIFO—even while the runner pool is full or an authored
+`%wait(runners=N)` threshold is not yet satisfied.
 
 Source: `src/sase/integrations/agent_list_entries.py`, `src/sase/integrations/provider_badges.py`
 

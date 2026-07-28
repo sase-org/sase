@@ -47,10 +47,10 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 or workflow references, the editor, or the prompt-history picker, and multi-prompt input expands into sequential
 background launches. ACE uses the same launch machinery when users start agents from the TUI.
 
-`sase agent list -j` reports an implicit global-cap waiter as `status: "QUEUED"`. Its
-`runner_slot_queue_position`/`runner_slot_queue_size` rank every live slot waiter by priority and request FIFO,
-including explicit-threshold waits and periods when the pool is full; the fields are not limited to waiters whose
-threshold is already satisfied.
+`sase agent list -j` reports every live runner-slot waiter as `status: "QUEUED"`, whether its threshold comes from the
+global cap or an authored `%wait(runners=N)`. Its `runner_slot_queue_position`/`runner_slot_queue_size` rank the same
+waiters by priority and request FIFO, including periods when the pool is full; the fields are not limited to waiters
+whose threshold is already satisfied.
 
 `sase task` operates on durable background tasks: rows in `~/.sase/tasks/tasks.jsonl` with combined output logs under
 `~/.sase/tasks/logs/`. There are three kinds: `tui` work is run and mirrored by one ACE process; `command` work runs

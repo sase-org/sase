@@ -172,7 +172,7 @@ class AgentInfoDisplayMixin:
                 grouping_mode=grouping_mode,
                 view_mode=view_mode,
                 runner_limit=runner_capacity.effective_limit,
-                runner_queue_count=runner_capacity.global_cap_queue_count,
+                runner_queue_count=runner_capacity.queued_count,
             )
             return
 
@@ -183,7 +183,7 @@ class AgentInfoDisplayMixin:
         if callable(update_runner_capacity):
             update_runner_capacity(
                 runner_capacity.effective_limit,
-                runner_capacity.global_cap_queue_count,
+                runner_capacity.queued_count,
             )
         agent_info_panel.update_agent_counts(
             unread_count,

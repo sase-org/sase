@@ -96,7 +96,7 @@ def test_live_family_root_survives_shared_pid_for_runner_slot_context() -> None:
     assert (
         capacity.effective_limit,
         capacity.slots_in_use,
-        capacity.global_cap_queue_count,
+        capacity.queued_count,
     ) == (1, 1, 1)
     assert waiter.status == "QUEUED"
     assert waiter.runner_slots_in_use == 1

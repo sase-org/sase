@@ -303,6 +303,18 @@ def format_agent_option(
             if queue_size is not None:
                 queue_label += f"/{queue_size}"
             text.append(queue_label, style=QUEUED_STATUS_COLOR)
+        wait_agent = wait_display_agent(agent)
+        slot_label = ""
+        if (
+            wait_agent.wait_runners_explicit
+            and wait_agent.wait_runners is not None
+            and wait_agent.runner_slots_in_use is not None
+        ):
+            slot_label = f" ▶{wait_agent.runner_slots_in_use}→{wait_agent.wait_runners}"
+        if wait_agent.wait_priority_explicit and wait_agent.wait_priority is not None:
+            slot_label = f"{slot_label} p{wait_agent.wait_priority}"
+        if slot_label:
+            text.append(slot_label, style=f"dim {QUEUED_STATUS_COLOR}")
     elif agent.status == "WAITING":
         text.append(display_status, style="bold #AF87FF")  # Amethyst
         wait_agent = wait_display_agent(agent)
@@ -312,25 +324,6 @@ def format_agent_option(
                 _MISSING_WAIT_TARGET_GLYPH,
                 style=_MISSING_WAIT_TARGET_GLYPH_STYLE,
             )
-        if (
-            wait_agent.slot_requested_at
-            and wait_agent.wait_runners is not None
-            and wait_agent.runner_slots_in_use is not None
-        ):
-            if wait_agent.wait_runners_explicit:
-                slot_label = (
-                    f" ▶{wait_agent.runner_slots_in_use}→{wait_agent.wait_runners}"
-                )
-            else:
-                slot_label = (
-                    f" ▶{wait_agent.runner_slots_in_use}/{wait_agent.wait_runners + 1}"
-                )
-            if (
-                wait_agent.wait_priority_explicit
-                and wait_agent.wait_priority is not None
-            ):
-                slot_label = f"{slot_label} p{wait_agent.wait_priority}"
-            text.append(slot_label, style="dim #AF87FF")
         deps_satisfied = (
             not wait_agent.waiting_for and not wait_agent.waiting_for_beads
             if wait_deps_satisfied is None

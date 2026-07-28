@@ -103,12 +103,12 @@ def test_clan_queue_count_projects_parallel_member_behind_family() -> None:
     assert (counts.queued, counts.waiting) == (1, 0)
 
 
-def test_clan_member_counts_ignores_globally_queued_leaf() -> None:
+def test_clan_member_counts_ignores_slot_queued_leaf() -> None:
     leaf = _agent("solo", "WAITING", suffix="solo")
     leaf.agent_clan = None
     leaf.pid = 100
     leaf.wait_runners = 9
-    leaf.wait_runners_explicit = False
+    leaf.wait_runners_explicit = True
     leaf.slot_requested_at = "2026-07-17T10:00:00Z"
 
     assert clan_member_counts(leaf) == ClanStatusCounts()

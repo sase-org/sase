@@ -162,7 +162,7 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
         assert "QUEUE · 2 waiting · 0/10 runners" in prompt_text
         info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
         assert info._build_display_text().plain.startswith(
-            "3  [0/10 running · 1 queued · 2 waiting]"
+            "3  [0/10 running · 2 queued · 1 waiting]"
         )
         ace_png_visual.assert_page_png(
             page,

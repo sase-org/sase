@@ -264,7 +264,7 @@ def test_tribe_queue_count_is_scoped_and_aggregate_is_queued() -> None:
         now=_NOW,
     )
 
-    assert (snapshot.counts.queued, snapshot.counts.waiting) == (1, 2)
+    assert (snapshot.counts.queued, snapshot.counts.waiting) == (2, 1)
     assert snapshot.status == "QUEUED"
     assert snapshot.units[0].status == "QUEUED"
     assert snapshot.attention == ()
@@ -272,7 +272,7 @@ def test_tribe_queue_count_is_scoped_and_aggregate_is_queued() -> None:
     assert (
         snapshot.units[0].status_counts.queued,
         snapshot.units[0].status_counts.waiting,
-    ) == (1, 2)
+    ) == (2, 1)
     assert (unrelated.counts.queued, unrelated.counts.waiting) == (0, 1)
 
 

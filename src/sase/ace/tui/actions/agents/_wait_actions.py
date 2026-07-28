@@ -405,7 +405,7 @@ class AgentWaitActionsMixin:
             agent.wait_priority_explicit = result.priority is not None
         agent.status = runner_slot_display_status(
             agent.status,
-            globally_queued=result.runners is None,
+            slot_queued=True,
         )
         label = (
             f"runners ≤ {result.runners}"

@@ -270,14 +270,10 @@ class TestMissingWaitTargetIndicator:
 
         assert "?" not in left.plain
 
-    def test_marker_precedes_runner_slot_annotation(self) -> None:
+    def test_unsatisfied_dependency_without_slot_request_stays_waiting(self) -> None:
         agent = make_agent(
             status="WAITING",
             waiting_for=["ghost_deploy"],
-            wait_runners=0,
-            wait_runners_explicit=True,
-            slot_requested_at="2026-07-12T12:00:00Z",
-            runner_slots_in_use=3,
         )
 
         left, _, _ = format_agent_option(
@@ -287,7 +283,7 @@ class TestMissingWaitTargetIndicator:
             has_missing_wait_target=True,
         )
 
-        assert left.plain.endswith("test_cl (WAITING ? ▶3→0)")
+        assert left.plain.endswith("test_cl (WAITING ?)")
 
     def test_marker_precedes_relative_duration_annotation(self) -> None:
         agent = make_agent(
@@ -514,11 +510,11 @@ class TestRunnerSlotWaitRendering:
         assert "10/10 runners" not in header.plain
         assert "completed-dependency" not in header.plain
 
-    def test_explicit_priority_renders_on_row_slot_marker(self) -> None:
+    def test_explicit_threshold_and_priority_render_on_queued_row(self) -> None:
         agent = make_agent(
-            status="WAITING",
+            status="QUEUED",
             wait_runners=9,
-            wait_runners_explicit=False,
+            wait_runners_explicit=True,
             wait_priority=20,
             wait_priority_explicit=True,
             slot_requested_at="2026-07-12T12:00:00Z",
@@ -527,11 +523,12 @@ class TestRunnerSlotWaitRendering:
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "test_cl (WAITING ▶10/10 p20)" in left.plain
+        assert "test_cl (QUEUED ▶10→9 p20)" in left.plain
+        assert "dim #5F87FF" in _styles_covering(left, "p20")
 
-    def test_implicit_priority_is_hidden_on_row_slot_marker(self) -> None:
+    def test_implicit_priority_and_threshold_are_hidden_on_queued_row(self) -> None:
         agent = make_agent(
-            status="WAITING",
+            status="QUEUED",
             wait_runners=9,
             wait_runners_explicit=False,
             wait_priority=20,
@@ -542,12 +539,13 @@ class TestRunnerSlotWaitRendering:
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "test_cl (WAITING ▶10/10)" in left.plain
+        assert "test_cl (QUEUED)" in left.plain
+        assert "▶" not in left.plain
         assert "p20" not in left.plain
 
-    def test_ineligible_explicit_barrier_detail_is_unambiguous(self) -> None:
+    def test_explicit_drain_barrier_is_queued_and_unambiguous(self) -> None:
         agent = make_agent(
-            status="WAITING",
+            status="QUEUED",
             wait_runners=0,
             wait_runners_explicit=True,
             slot_requested_at="2026-07-12T12:00:00Z",
@@ -559,7 +557,8 @@ class TestRunnerSlotWaitRendering:
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
         header, _ = build_header_text(agent, cheap=True)
 
-        assert "test_cl (WAITING ▶3→0)" in left.plain
+        assert "test_cl (QUEUED #2/2 ▶3→0)" in left.plain
+        assert "dim #5F87FF" in _styles_covering(left, "▶3→0")
         assert (
             "Wait: [runners] ≤ 0 (drain barrier) · 3 runners still running"
             " · queue #2 of 2"
@@ -567,7 +566,7 @@ class TestRunnerSlotWaitRendering:
 
     def test_explicit_wait_queue_position_is_labeled(self) -> None:
         agent = make_agent(
-            status="WAITING",
+            status="QUEUED",
             wait_runners=3,
             wait_runners_explicit=True,
             slot_requested_at="2026-07-12T12:00:00Z",
@@ -582,7 +581,7 @@ class TestRunnerSlotWaitRendering:
 
     def test_explicit_priority_renders_in_detail_wait_line(self) -> None:
         agent = make_agent(
-            status="WAITING",
+            status="QUEUED",
             wait_runners=9,
             wait_runners_explicit=False,
             wait_priority=20,
@@ -602,7 +601,7 @@ class TestRunnerSlotWaitRendering:
 
     def test_implicit_priority_is_hidden_in_detail_wait_line(self) -> None:
         agent = make_agent(
-            status="WAITING",
+            status="QUEUED",
             wait_runners=9,
             wait_runners_explicit=False,
             wait_priority=20,

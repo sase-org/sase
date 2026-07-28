@@ -114,7 +114,7 @@ def _attach_runner_slot_context(
     for entry in entries:
         status = runner_slot_display_status(
             entry.status,
-            globally_queued=_is_globally_queued(entry),
+            slot_queued=_is_live_slot_waiter(entry),
         )
         bucket = status_bucket_for_values(status, entry.retry.retried_as_timestamp)
         wait = entry.wait
@@ -144,10 +144,6 @@ def _is_live_slot_waiter(entry: AgentListEntry) -> bool:
         and entry.wait.slot_requested_at
         and entry.status in PRE_RUN_WAIT_STATUSES
     )
-
-
-def _is_globally_queued(entry: AgentListEntry) -> bool:
-    return _is_live_slot_waiter(entry) and not entry.wait.wait_runners_explicit
 
 
 def _runner_slot_waiter_sort_key(

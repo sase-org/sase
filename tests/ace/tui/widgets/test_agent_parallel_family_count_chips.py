@@ -141,11 +141,11 @@ def test_non_family_and_zero_bucket_rows_omit_count_chip() -> None:
     assert "[D" not in zero_count_left.plain
 
 
-def test_globally_queued_leaf_row_omits_count_chip() -> None:
+def test_slot_queued_leaf_row_omits_count_chip() -> None:
     leaf = _agent(suffix="queued", status="QUEUED")
     leaf.pid = 100
     leaf.wait_runners = 9
-    leaf.wait_runners_explicit = False
+    leaf.wait_runners_explicit = True
     leaf.slot_requested_at = "2026-07-17T12:00:00Z"
 
     left, _, _ = format_agent_option(

@@ -8,9 +8,7 @@ from pathlib import Path
 
 from sase.agent.status_buckets import (
     PRE_RUN_WAIT_STATUSES,
-    QUEUED_STATUS_BUCKET,
     runner_slot_display_status,
-    status_bucket_for_values,
 )
 from sase.core.runner_slots import (
     normalize_wait_priority,
@@ -39,7 +37,7 @@ class RunnerCapacitySnapshot:
 
     effective_limit: int = 0
     slots_in_use: int = 0
-    global_cap_queue_count: int = 0
+    queued_count: int = 0
     queue: tuple[RunnerQueueEntry, ...] = ()
 
 
@@ -64,7 +62,6 @@ def refresh_runner_slot_context(
     queue_positions: dict[int, int] = {}
     queue_entries: list[RunnerQueueEntry] = []
     queue_size = len(waiters)
-    queued_count = 0
 
     # Promote real waiters before refreshing synthetic clan aggregates below.
     # Clan projection runs before this display-only slot pass, so doing this
@@ -75,7 +72,7 @@ def refresh_runner_slot_context(
         queue_positions[id(agent)] = index
         agent.status = runner_slot_display_status(
             agent.status,
-            globally_queued=_agent_is_globally_queued(agent),
+            slot_queued=True,
         )
         queue_entries.append(
             RunnerQueueEntry(
@@ -93,9 +90,6 @@ def refresh_runner_slot_context(
                 status=agent.status,
             )
         )
-        if status_bucket_for_values(agent.status) == QUEUED_STATUS_BUCKET:
-            queued_count += 1
-
     from ._agent_clan import aggregate_clan_status, clan_members
 
     for agent in agents:
@@ -113,12 +107,12 @@ def refresh_runner_slot_context(
             )
             agent.status = aggregate or runner_slot_display_status(
                 agent.status,
-                globally_queued=False,
+                slot_queued=False,
             )
         else:
             agent.status = runner_slot_display_status(
                 agent.status,
-                globally_queued=_agent_is_globally_queued(agent),
+                slot_queued=_is_live_slot_waiter(agent),
             )
 
     if effective_limit is None:
@@ -126,7 +120,7 @@ def refresh_runner_slot_context(
     return RunnerCapacitySnapshot(
         effective_limit=effective_limit,
         slots_in_use=running_count,
-        global_cap_queue_count=queued_count,
+        queued_count=len(queue_entries),
         queue=tuple(queue_entries),
     )
 
@@ -168,11 +162,6 @@ def _is_live_slot_waiter(agent: Agent) -> bool:
         and bool(agent.slot_requested_at)
         and agent.status in PRE_RUN_WAIT_STATUSES
     )
-
-
-def _agent_is_globally_queued(agent: Agent) -> bool:
-    """Return whether ``agent`` is waiting specifically on the global cap."""
-    return _is_live_slot_waiter(agent) and not agent.wait_runners_explicit
 
 
 def _waiter_sort_key(agent: Agent) -> tuple[int, int, datetime, str, str]:

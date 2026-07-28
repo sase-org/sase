@@ -13,6 +13,7 @@ from sase.agent.status_buckets import (
     agent_is_asking,
     is_pending_plan_review_status,
     pending_plan_status_for_tier,
+    runner_slot_display_status,
     status_bucket_for_values,
 )
 
@@ -35,6 +36,15 @@ def test_pending_plan_review_statuses_share_semantics(status: str) -> None:
 def test_non_pending_status_is_not_pending_plan_review() -> None:
     assert not is_pending_plan_review_status("PLAN APPROVED")
     assert not is_pending_plan_review_status(None)
+
+
+@pytest.mark.parametrize("status", ["WAITING", "QUEUED"])
+def test_live_runner_slot_waiter_displays_queued(status: str) -> None:
+    assert runner_slot_display_status(status, slot_queued=True) == "QUEUED"
+
+
+def test_wait_without_live_slot_request_displays_waiting() -> None:
+    assert runner_slot_display_status("QUEUED", slot_queued=False) == "WAITING"
 
 
 @pytest.mark.parametrize(

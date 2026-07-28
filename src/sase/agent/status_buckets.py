@@ -176,17 +176,17 @@ def agent_is_active(status: str | None) -> bool:
 def runner_slot_display_status(
     status: str | None,
     *,
-    globally_queued: bool,
+    slot_queued: bool,
 ) -> str:
     """Return the reversible display status for runner-slot context.
 
-    ``QUEUED`` is derived only for live agents waiting solely on the global
-    runner cap. Persisted and scan-level statuses remain ``WAITING``.
+    ``QUEUED`` is derived for any live agent parked at the runner-slot
+    admission gate. Persisted and scan-level statuses remain ``WAITING``.
     """
     status_text = status or ""
     if status_text not in PRE_RUN_WAIT_STATUSES:
         return status_text
-    return QUEUED_STATUS if globally_queued else "WAITING"
+    return QUEUED_STATUS if slot_queued else "WAITING"
 
 
 def status_bucket_for_values(

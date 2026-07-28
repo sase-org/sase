@@ -174,7 +174,9 @@ def test_runner_slot_wait_info_includes_live_count_and_queue_position() -> None:
     assert first.wait.runner_slot_holders == ("phase",)
     assert second.wait.wait_runners_explicit is True
     assert second.wait.wait_priority == 1
-    assert second.status == "WAITING"
+    assert second.status == "QUEUED"
+    assert second.status_bucket == "Queued"
+    assert second.status_glyph == "…"
     assert second.wait.runner_slot_queue_position == 1
     assert second.wait.runner_slot_queue_size == 2
     assert second.wait.runner_slot_holders == ("phase",)

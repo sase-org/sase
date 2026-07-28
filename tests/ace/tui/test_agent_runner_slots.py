@@ -38,7 +38,7 @@ def _assert_capacity_metrics(
     assert (
         capacity.effective_limit,
         capacity.slots_in_use,
-        capacity.global_cap_queue_count,
+        capacity.queued_count,
     ) == expected
 
 
@@ -64,13 +64,13 @@ def test_refresh_runner_slot_context_ranks_all_waiters_while_pool_is_full() -> N
 
     capacity = refresh_runner_slot_context([running, second, first], effective_limit=10)
 
-    _assert_capacity_metrics(capacity, (10, 1, 1))
+    _assert_capacity_metrics(capacity, (10, 1, 2))
     assert first.runner_slots_in_use == 1
     assert first.status == "QUEUED"
     assert first.runner_slot_queue_position == 2
     assert first.runner_slot_queue_size == 2
     assert second.runner_slots_in_use == 1
-    assert second.status == "WAITING"
+    assert second.status == "QUEUED"
     assert second.runner_slot_queue_position == 1
     assert second.runner_slot_queue_size == 2
 
@@ -159,7 +159,7 @@ def test_drain_waiter_joins_fifo_order_when_running_count_reaches_zero() -> None
 
     capacity = refresh_runner_slot_context([second, first], effective_limit=10)
 
-    _assert_capacity_metrics(capacity, (10, 0, 1))
+    _assert_capacity_metrics(capacity, (10, 0, 2))
     assert first.runner_slot_queue_position == 1
     assert first.runner_slot_queue_size == 2
     assert second.runner_slot_queue_position == 2
@@ -237,9 +237,7 @@ def test_runner_capacity_empty_pool_and_neutral_fallback() -> None:
     assert refresh_runner_slot_context([]) == RunnerCapacitySnapshot()
 
 
-def test_runner_capacity_excludes_non_slot_and_explicit_waits_from_global_queue() -> (
-    None
-):
+def test_runner_capacity_excludes_only_non_slot_waits_from_queue() -> None:
     implicit = _agent(
         "implicit",
         wait_runners=9,
@@ -262,7 +260,7 @@ def test_runner_capacity_excludes_non_slot_and_explicit_waits_from_global_queue(
         [explicit, dependency_wait, implicit], effective_limit=10
     )
 
-    _assert_capacity_metrics(capacity, (10, 0, 1))
+    _assert_capacity_metrics(capacity, (10, 0, 2))
     assert implicit.runner_slot_queue_position == 1
     assert explicit.runner_slot_queue_position == 2
     assert implicit.runner_slot_queue_size == 2
@@ -270,7 +268,7 @@ def test_runner_capacity_excludes_non_slot_and_explicit_waits_from_global_queue(
     assert dependency_wait.runner_slot_queue_position is None
 
 
-def test_global_queue_derivation_matches_capacity_and_rejects_other_waits() -> None:
+def test_slot_queue_derivation_matches_capacity_and_rejects_other_waits() -> None:
     implicit = _agent(
         "implicit",
         wait_runners=9,
@@ -325,16 +323,14 @@ def test_global_queue_derivation_matches_capacity_and_rejects_other_waits() -> N
     )
     assert [agent.status for agent in agents] == [
         "QUEUED",
-        "WAITING",
+        "QUEUED",
         "WAITING",
         "WAITING",
         "QUESTION",
         "WAITING",
         "WAITING",
     ]
-    assert capacity.global_cap_queue_count == sum(
-        agent.status == "QUEUED" for agent in agents
-    )
+    assert capacity.queued_count == sum(agent.status == "QUEUED" for agent in agents)
 
 
 def test_runner_slot_status_promotion_demotion_and_idempotence() -> None:
@@ -351,8 +347,8 @@ def test_runner_slot_status_promotion_demotion_and_idempotence() -> None:
     )
 
     first = refresh_runner_slot_context([implicit, explicit], effective_limit=10)
-    _assert_capacity_metrics(first, (10, 0, 1))
-    assert (implicit.status, explicit.status) == ("QUEUED", "WAITING")
+    _assert_capacity_metrics(first, (10, 0, 2))
+    assert (implicit.status, explicit.status) == ("QUEUED", "QUEUED")
     assert (
         implicit.runner_slot_queue_position,
         explicit.runner_slot_queue_position,
@@ -363,7 +359,7 @@ def test_runner_slot_status_promotion_demotion_and_idempotence() -> None:
 
     second = refresh_runner_slot_context([implicit, explicit], effective_limit=10)
     assert second == first
-    assert (implicit.status, explicit.status) == ("QUEUED", "WAITING")
+    assert (implicit.status, explicit.status) == ("QUEUED", "QUEUED")
     assert (
         implicit.runner_slot_queue_position,
         explicit.runner_slot_queue_position,
@@ -374,8 +370,8 @@ def test_runner_slot_status_promotion_demotion_and_idempotence() -> None:
 
     implicit.wait_runners_explicit = True
     third = refresh_runner_slot_context([implicit, explicit], effective_limit=10)
-    _assert_capacity_metrics(third, (10, 0, 0))
-    assert implicit.status == "WAITING"
+    _assert_capacity_metrics(third, (10, 0, 2))
+    assert implicit.status == "QUEUED"
 
 
 def test_stale_queued_status_demotes_without_a_live_slot_request() -> None:
@@ -387,7 +383,7 @@ def test_stale_queued_status_demotes_without_a_live_slot_request() -> None:
     assert agent.status == "WAITING"
 
 
-def test_first_refresh_promotes_mixed_queued_waiting_clan_aggregate() -> None:
+def test_first_refresh_promotes_all_slot_waiters_and_clan_aggregate() -> None:
     implicit = _agent(
         "research.implicit",
         agent_clan="research",
@@ -407,15 +403,15 @@ def test_first_refresh_promotes_mixed_queued_waiting_clan_aggregate() -> None:
 
     first = refresh_runner_slot_context(projected, effective_limit=10)
 
-    _assert_capacity_metrics(first, (10, 0, 1))
+    _assert_capacity_metrics(first, (10, 0, 2))
     assert projected[0].status == "QUEUED"
-    assert (implicit.status, explicit.status) == ("QUEUED", "WAITING")
+    assert (implicit.status, explicit.status) == ("QUEUED", "QUEUED")
 
     second = refresh_runner_slot_context(projected, effective_limit=10)
 
     assert second == first
     assert projected[0].status == "QUEUED"
-    assert (implicit.status, explicit.status) == ("QUEUED", "WAITING")
+    assert (implicit.status, explicit.status) == ("QUEUED", "QUEUED")
 
 
 def test_queued_rows_match_chip_header_summary_and_capacity_counts() -> None:
@@ -426,7 +422,8 @@ def test_queued_rows_match_chip_header_summary_and_capacity_counts() -> None:
     )
     second = _agent(
         "second",
-        wait_runners=9,
+        wait_runners=0,
+        wait_runners_explicit=True,
         slot_requested_at="2026-07-12T12:00:01Z",
     )
     blocked = _agent("blocked", waiting_for=["dependency"])
@@ -442,7 +439,7 @@ def test_queued_rows_match_chip_header_summary_and_capacity_counts() -> None:
     panel = AgentInfoPanel()
     panel._runner_limit = capacity.effective_limit
     panel._running_count = capacity.slots_in_use
-    panel._runner_queue_count = capacity.global_cap_queue_count
+    panel._runner_queue_count = capacity.queued_count
     captured: list[str] = []
     with patch.object(
         panel,
@@ -453,7 +450,7 @@ def test_queued_rows_match_chip_header_summary_and_capacity_counts() -> None:
 
     assert displayed_queued == 2
     assert counts.queued == displayed_queued
-    assert capacity.global_cap_queue_count == displayed_queued
+    assert capacity.queued_count == displayed_queued == len(capacity.queue)
     assert "Q2" in chip.plain
     assert "2 queued" in captured[-1]
 
