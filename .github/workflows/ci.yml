@@ -146,37 +146,28 @@ jobs:
         # binary from PATH rather than installing its own.
         run: |
           CGO_ENABLED=0 go install github.com/google/keep-sorted@v0.8.0
+      - name: Cache Prettier dependencies
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: prettier-node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - name: Check Python formatting
         run: just fmt-py-check
+      - name: Check Markdown formatting
+        run: just fmt-md-check
       - name: Lint
         run: just lint
       - name: SASE validation
         run: just validate
       - name: Validate committed plans
         run: just validate-committed-plans
-
-  fmt-md-check:
-    # The release-please PR branch only ever carries version/changelog bumps and
-    # its merge triggers a full master-push run, so its CI is pure runner burn.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install just
-        run: |
-          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
-          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
-          tar -xzf /tmp/just.tar.gz -C /tmp just
-          sudo install -m 0755 /tmp/just /usr/local/bin/just
-          just --version
-      - name: Check Markdown formatting
-        run: just fmt-md-check
+      - name: Build and verify package
+        run: just build-check
 
   docs-build:
-    # The release-please PR branch only ever carries version/changelog bumps and
-    # its merge triggers a full master-push run, so its CI is pure runner burn.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
+    # Master pushes build these same artifacts in docs-deploy.yml. PRs retain
+    # the build-only signal, except for release-please's generated metadata PR.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -185,6 +176,11 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
+      - name: Cache Playwright browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
       - name: Install just
         run: |
           curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
@@ -205,7 +201,7 @@ jobs:
   test:
     needs: build-core
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
     strategy:
       # One flaky leg must not cancel its siblings: the default fail-fast has
       # been observed erasing the 3.12 coverage gate over a 3.14-only failure.
@@ -219,18 +215,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Run tests
-        # Python 3.12 owns visual coverage in the matrix; the dedicated
-        # visual-test job remains the canonical, focused renderer signal.
         env:
-          SASE_PYTEST_EXCLUDE_VISUAL: ${{ matrix.python-version != '3.12' }}
+          # The dedicated visual-test job is the sole visual execution.
+          SASE_PYTEST_EXCLUDE_VISUAL: "true"
         run: just test-cov
-      - name: Upload visual failure artifacts
-        if: failure() && matrix.python-version == '3.12'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ace-visual-artifacts-test-matrix
-          path: .pytest_cache/sase-visual
-          if-no-files-found: ignore
       - name: Upload coverage
         if: matrix.python-version == '3.12'
         uses: codecov/codecov-action@v4
@@ -290,23 +278,10 @@ jobs:
           path: .pytest_cache/sase-visual
           if-no-files-found: ignore
 
-  build:
-    needs: build-core
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        uses: ./.github/actions/setup-sase
-        with:
-          python-version: '3.12'
-      - name: Build and verify package
-        run: just build-check
-
-  # Bead backend gate for the `sase bead` Rust migration. The Rust repository
-  # owns its cargo fmt/clippy/test gate; this lane keeps the focused Python
-  # contracts and benchmark smoke against the shared wheel.
-  bead-backend:
+  # Share one runner setup across the latency floors and bead benchmark smoke.
+  # Every floor step uses `always()` so an earlier regression cannot erase the
+  # remaining signals; any failed command still leaves the job failed.
+  perf-floors:
     needs: build-core
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -316,13 +291,37 @@ jobs:
         uses: ./.github/actions/setup-sase
         with:
           python-version: '3.12'
-      - name: Run Python bead parity and CLI tests
-        run: |
-          .venv/bin/pytest \
-            tests/test_bead \
-            tests/test_core_facade/test_bead_read.py \
-            tests/test_core_facade/test_bead_mutation.py
+      - name: Health check (Rust extension loadable)
+        run: .venv/bin/sase core health --json
+      - name: Run Phase 7E regression floor
+        if: always()
+        run: just phase7-perf-check
+      - name: Upload Phase 7E floor-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase7-perf-floor-report
+          path: sdd/plans/202604/perf_artifacts/rust_backend_phase7_floor_check.json
+      - name: Run launch regression floor
+        if: always()
+        run: just launch-perf-check
+      - name: Upload launch floor-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: launch-perf-floor-report
+          path: sdd/plans/202605/perf_artifacts/agent_launch_regression_check.json
+      - name: Run view-hints regression floor
+        if: always()
+        run: just view-hints-perf-check
+      - name: Upload view-hints floor-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: view-hints-perf-floor-report
+          path: sdd/plans/202607/perf_artifacts/view_hints_regression_check.json
       - name: Run bead performance smoke
+        if: always()
         run: just bead-perf-smoke
       - name: Upload bead performance smoke
         if: always()
@@ -331,94 +330,8 @@ jobs:
           name: bead-perf-smoke
           path: sdd/plans/202605/perf_artifacts/bead_perf_smoke.json
 
-  # Phase 7E regression floor (sase-1e.5). Runs the stable subset of
-  # Phase 7B core-operation benchmarks against the recorded
-  # tests/perf/baselines/phase7_regression_floor.json and fails on a
-  # regression. Slow/manual end-to-end TUI/home-tree measurements stay
-  # outside this gate (see sdd/plans/202604/rust_backend_phase7_phase7e_handoff.md).
-  phase7-perf-floor:
-    needs: build-core
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        uses: ./.github/actions/setup-sase
-        with:
-          python-version: '3.12'
-      - name: Run Phase 7E regression floor
-        run: just phase7-perf-check
-      - name: Upload floor-check report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase7-perf-floor-report
-          path: sdd/plans/202604/perf_artifacts/rust_backend_phase7_floor_check.json
-
-  # Phase 9 launch regression floor (sase-1r.9). Keeps the Rust-backed
-  # launch path from drifting back toward the Phase 1 parent-side sleep
-  # baseline while still using fake subprocesses/no LLM CLIs.
-  launch-perf-floor:
-    needs: build-core
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        uses: ./.github/actions/setup-sase
-        with:
-          python-version: '3.12'
-      - name: Run launch regression floor
-        run: just launch-perf-check
-      - name: Upload launch floor-check report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: launch-perf-floor-report
-          path: sdd/plans/202605/perf_artifacts/agent_launch_regression_check.json
-
-  # Agents-tab view-hints regression floor (sase-a5.6). Keeps the `v`
-  # keypress-to-hint-bar path and the cached repeat/refresh paths below the
-  # committed synchronous-render baseline.
-  view-hints-perf-floor:
-    needs: build-core
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        uses: ./.github/actions/setup-sase
-        with:
-          python-version: '3.12'
-      - name: Run view-hints regression floor
-        run: just view-hints-perf-check
-      - name: Upload view-hints floor-check report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: view-hints-perf-floor-report
-          path: sdd/plans/202607/perf_artifacts/view_hints_regression_check.json
-
-  # Install smoke verifies that a fresh `sase` install resolves the
-  # required `sase-core-rs` runtime dependency and that representative parser
-  # and launch bindings work. Calls `sase core health` so the smoke matches
-  # the CLI a user would run.
-  install-smoke:
-    needs: build-core
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        uses: ./.github/actions/setup-sase
-        with:
-          python-version: '3.12'
-      - name: Health check (Rust extension loadable)
-        run: .venv/bin/sase core health --json
-
-  # The editable install smoke above intentionally follows the run's shared
-  # wheel. This separate lane installs the exact minimum accepted by SASE from
-  # the package index, with no source checkout or dependency override.
+  # This lane installs the exact minimum accepted by SASE from the package
+  # index, with no source checkout or dependency override.
   published-core-minimum-smoke:
     # The release-please PR branch only ever carries version/changelog bumps and
     # its merge triggers a full master-push run, so its CI is pure runner burn.
