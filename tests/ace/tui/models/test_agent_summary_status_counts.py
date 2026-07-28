@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sase.ace.tui.models._agent_clan import (
     ClanStatusCounts,
@@ -26,6 +26,7 @@ def _agent(
     parent_timestamp: str | None = None,
     clan: str | None = None,
     parallel: bool = False,
+    stop_offset: int | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -33,6 +34,11 @@ def _agent(
         project_file="/tmp/family.sase",
         status=status,
         start_time=_STARTED,
+        stop_time=(
+            _STARTED + timedelta(minutes=stop_offset)
+            if stop_offset is not None
+            else None
+        ),
         raw_suffix=f"suffix-{name}",
         parent_timestamp=parent_timestamp,
         agent_name=name,
@@ -264,6 +270,53 @@ def test_clan_counts_settle_handed_off_family_planner_as_done() -> None:
     container = project_clan_tree([family, planner, coder, standalone])[0]
 
     assert family.is_family_container_row
+    assert clan_members(container) == (family, standalone)
+
+    clan_counts = clan_member_counts(container)
+    lane_counts = agent_lane_status_counts((container,), ())
+
+    assert clan_counts == ClanStatusCounts(running=1, done=1)
+    assert (
+        clan_counts.running,
+        clan_counts.waiting,
+        clan_counts.done,
+    ) == (
+        lane_counts.running,
+        lane_counts.waiting,
+        lane_counts.done,
+    )
+
+
+def test_clan_counts_settle_answered_family_planner_as_done() -> None:
+    family = _agent("alpha--plan", "DONE", role="plan", clan="research")
+    planner = _agent(
+        "alpha--plan-step",
+        "ANSWERED",
+        role="plan-step",
+        parent_timestamp=family.raw_suffix,
+        clan="research",
+        stop_offset=1,
+    )
+    planner.agent_family_role = "plan"
+    planner.parent_workflow = "ace-run"
+    planner.step_type = "agent"
+    coder = _agent(
+        "alpha--1",
+        "DONE",
+        role="code",
+        parent_timestamp=family.raw_suffix,
+        clan="research",
+    )
+    family.runtime_children = [planner, coder]
+    family.followup_agents = [coder]
+    standalone = _agent(
+        "research.land",
+        "RUNNING",
+        role="solo",
+        clan="research",
+    )
+    container = project_clan_tree([family, planner, coder, standalone])[0]
+
     assert clan_members(container) == (family, standalone)
 
     clan_counts = clan_member_counts(container)

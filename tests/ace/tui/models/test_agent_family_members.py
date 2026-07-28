@@ -21,6 +21,7 @@ def _agent(
     parent_timestamp: str | None = None,
     workflow_child: bool = False,
     start_offset: int = 0,
+    stop_offset: int | None = None,
     status: str = "DONE",
     step_type: str = "agent",
 ) -> Agent:
@@ -30,6 +31,11 @@ def _agent(
         project_file="/tmp/family.sase",
         status=status,
         start_time=_STARTED + timedelta(minutes=start_offset),
+        stop_time=(
+            _STARTED + timedelta(minutes=stop_offset)
+            if stop_offset is not None
+            else None
+        ),
         raw_suffix=f"suffix-{name}",
         parent_timestamp=parent_timestamp,
         agent_name=name,
@@ -194,3 +200,84 @@ def test_approved_final_family_member_keeps_global_running_bucket() -> None:
     )
 
     assert family_member_status_buckets((planner,)) == ("Running",)
+
+
+def test_stopped_non_final_family_member_projects_done() -> None:
+    planner = _agent(
+        "alpha--plan",
+        role="plan",
+        status="ANSWERED",
+        stop_offset=1,
+    )
+    coder = _agent(
+        "alpha--1",
+        role="code",
+        status="DONE",
+    )
+
+    assert family_member_status_buckets((planner, coder)) == ("Done", "Done")
+
+
+def test_unknown_status_on_stopped_non_final_member_projects_done() -> None:
+    predecessor = _agent(
+        "alpha--0",
+        role="root",
+        status="SOME NEW STATUS",
+        stop_offset=1,
+    )
+    successor = _agent(
+        "alpha--1",
+        role="code",
+        status="DONE",
+    )
+
+    assert family_member_status_buckets((predecessor, successor)) == (
+        "Done",
+        "Done",
+    )
+
+
+def test_running_non_final_family_member_keeps_running_bucket() -> None:
+    predecessor = _agent(
+        "alpha--0",
+        role="root",
+        status="RUNNING",
+    )
+    successor = _agent(
+        "alpha--reviewer",
+        role="review",
+        status="WAITING",
+    )
+
+    assert family_member_status_buckets((predecessor, successor)) == (
+        "Running",
+        "Waiting",
+    )
+
+
+def test_failed_and_question_non_final_members_keep_their_buckets() -> None:
+    successor = _agent(
+        "alpha--1",
+        role="code",
+        status="DONE",
+    )
+    failed = _agent(
+        "alpha--failed",
+        role="root",
+        status="FAILED",
+        stop_offset=1,
+    )
+    question = _agent(
+        "alpha--question",
+        role="root",
+        status="QUESTION",
+    )
+
+    assert family_member_status_buckets((failed, successor)) == (
+        "Failed",
+        "Done",
+    )
+    assert family_member_status_buckets((question, successor)) == (
+        "Stopped",
+        "Done",
+    )

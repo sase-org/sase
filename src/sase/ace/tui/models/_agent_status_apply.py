@@ -5,7 +5,6 @@ from datetime import datetime
 
 from sase.agent.status_buckets import (
     FEEDBACK_STATUS,
-    agent_is_active,
     is_pending_plan_review_status,
 )
 from sase.plan_chain import canonical_plan_chain_suffix
@@ -42,6 +41,7 @@ from ._agent_status_family import (
 )
 from ._agent_status_roles import agent_family_role, is_coder_agent, is_feedback_agent
 from .agent import Agent, AgentType
+from .agent_family_members import agent_row_is_in_flight
 
 
 DiffBadgeClassifier = Callable[[list[Agent]], None]
@@ -55,9 +55,7 @@ def _mirror_root_from_child(parent: Agent, child: Agent) -> None:
 
 def _is_active_root_mirror_candidate(parent: Agent, agent: Agent) -> bool:
     """Return whether *agent* represents active work for root mirroring."""
-    if not agent_is_active(agent.status):
-        return False
-    if agent.stop_time is not None:
+    if not agent_row_is_in_flight(agent):
         return False
     if (
         agent is not parent

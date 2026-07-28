@@ -6,10 +6,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sase.agent.status_buckets import (
-    APPROVED_PLAN_STATUSES,
+    agent_is_active,
     status_bucket_for_values,
 )
 from .agent import Agent, AgentType
+
+
+#: Buckets that claim an agent process is still executing.
+_IN_FLIGHT_BUCKETS: frozenset[str] = frozenset({"Running", "Starting"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +22,11 @@ class ConcreteAgentStatus:
 
     agent: Agent
     bucket: str
+
+
+def agent_row_is_in_flight(agent: Agent) -> bool:
+    """Return whether one row represents work that is still executing."""
+    return agent_is_active(agent.status) and agent.stop_time is None
 
 
 def is_sequential_family_container(agent: Agent) -> bool:
@@ -102,19 +111,32 @@ def concrete_family_member_rows(agent: Agent) -> tuple[Agent, ...]:
     return _dedupe_rows(candidates)
 
 
-def family_member_status_buckets(
-    members: Sequence[Agent],
-) -> tuple[str, ...]:
+def _settled_member_bucket(member: Agent) -> str:
+    """Return the effective bucket for one non-final sequential-family member."""
+    bucket = status_bucket_for_values(member.status)
+    if bucket not in _IN_FLIGHT_BUCKETS or agent_row_is_in_flight(member):
+        return bucket
+    return "Done"
+
+
+def family_member_status_buckets(members: Sequence[Agent]) -> tuple[str, ...]:
     """Return effective buckets for an ordered sequential family.
 
-    An approved planner/tale member with a successor has handed the work off
-    and is therefore settled.  The final member keeps the global bucket so a
-    planner-only family that is still mid-handoff continues to read Running.
+    A family advances one member at a time: a successor is attached only once
+    its predecessor has finished, so a non-final member that is no longer
+    executing has handed the work off and is settled.  Sticky handoff labels
+    (``TALE APPROVED``), transient post-answer labels (``ANSWERED``), and every
+    status that falls through ``status_bucket_for_values``'s ``Running``
+    default would otherwise keep a finished predecessor counted as running.  A
+    non-final member that *is* still executing keeps its bucket: a member
+    attached to a running parent is created as ``WAITING``, so the running
+    predecessor is the real state of the lane.  The final member always keeps
+    the global bucket.
     """
     final_index = len(members) - 1
     return tuple(
-        "Done"
-        if index < final_index and member.status in APPROVED_PLAN_STATUSES
+        _settled_member_bucket(member)
+        if index < final_index
         else status_bucket_for_values(member.status)
         for index, member in enumerate(members)
     )
@@ -188,6 +210,7 @@ def _dedupe_rows(rows: Sequence[Agent]) -> tuple[Agent, ...]:
 
 __all__ = [
     "ConcreteAgentStatus",
+    "agent_row_is_in_flight",
     "concrete_agent_statuses",
     "concrete_family_member_rows",
     "family_member_status_buckets",
