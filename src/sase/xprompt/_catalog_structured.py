@@ -23,6 +23,7 @@ from ._catalog_sources import (
     source_path_display,
 )
 from sase.xprompt.models import UNSET, InputArg
+from sase.xprompt.project_identity import canonical_xprompt_project
 from sase.xprompt.reference_display import (
     workflow_kind_value,
     workflow_reference_insertion,
@@ -108,10 +109,14 @@ def filter_structured_catalog_entries(
     tag: str | None,
     query: str | None,
 ) -> list[StructuredCatalogSource]:
+    normalized_project = canonical_xprompt_project(project)
     normalized_query = query.casefold() if query else None
     filtered: list[StructuredCatalogSource] = []
     for entry in entries:
-        if project is not None and entry.project not in (None, project):
+        if normalized_project is not None and entry.project not in (
+            None,
+            normalized_project,
+        ):
             continue
         if source is not None and entry.bucket != source:
             continue

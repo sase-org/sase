@@ -20,6 +20,7 @@ from sase.xprompt.loader import (
     load_project_local_xprompts,
 )
 from sase.xprompt.models import XPrompt
+from sase.xprompt.project_identity import canonical_xprompt_project
 from sase.xprompt.workflow_models import Workflow
 
 from . import _catalog_sources as _sources
@@ -179,13 +180,25 @@ def _sync_catalog_source_dependencies() -> None:
     """Keep legacy monkeypatch targets on this facade effective."""
     _sources.get_all_workflows = get_all_workflows
     _sources.get_all_xprompts = get_all_xprompts
-    _sources.get_known_project_workspaces = get_known_project_workspaces
+    _sources.known_project_namespaces = _known_project_namespaces_from_facade
     _sources.get_sase_package_default_xprompts_dir = (
         get_sase_package_default_xprompts_dir
     )
     _sources.get_sase_package_xprompts_dir = get_sase_package_xprompts_dir
     _sources.load_project_file_xprompts = load_project_file_xprompts
     _sources.load_project_local_xprompts = load_project_local_xprompts
+
+
+def _known_project_namespaces_from_facade() -> dict[str, Path]:
+    """Adapt legacy workspace patches to canonical catalog namespaces."""
+    try:
+        workspaces = get_known_project_workspaces()
+    except Exception:
+        return {}
+    return {
+        canonical_xprompt_project(project) or project: workspace
+        for project, workspace in workspaces.items()
+    }
 
 
 __all__ = [

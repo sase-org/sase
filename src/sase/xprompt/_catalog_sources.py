@@ -14,13 +14,13 @@ from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disa
 from sase.xprompt.loader import (
     get_all_workflows,
     get_all_xprompts,
-    get_known_project_workspaces,
     get_sase_package_default_xprompts_dir,
     get_sase_package_xprompts_dir,
     load_project_file_xprompts,
     load_project_local_xprompts,
 )
 from sase.xprompt.models import XPrompt, xprompt_to_workflow
+from sase.xprompt.project_identity import known_project_namespaces
 from sase.xprompt.workflow_models import Workflow
 
 from ._catalog_models import CatalogEntry, StructuredCatalogSource
@@ -36,7 +36,7 @@ def gather_entries() -> list[CatalogEntry]:
         entry = classify(xp, project=None)
         seen[(xp.source_path or "", xp.name)] = entry
 
-    for project, workspace in get_known_project_workspaces().items():
+    for project, workspace in known_project_namespaces().items():
         try:
             project_xprompts = {
                 **load_project_local_xprompts(workspace, project),
@@ -79,7 +79,7 @@ def gather_structured_entries() -> list[StructuredCatalogSource]:
         entry = classify_xprompt_for_structured(xp, project=None)
         seen[key] = entry
 
-    for project, workspace in get_known_project_workspaces().items():
+    for project, workspace in known_project_namespaces().items():
         try:
             project_xprompts = {
                 **load_project_local_xprompts(workspace, project),
@@ -167,7 +167,7 @@ def classify(xp: XPrompt, project: str | None) -> CatalogEntry:
             except (ValueError, OSError):
                 pass
 
-        workspaces = get_known_project_workspaces()
+        workspaces = known_project_namespaces()
         for project_name, ws in workspaces.items():
             try:
                 source_path.resolve().relative_to(ws.resolve())
@@ -207,7 +207,7 @@ def source_path_display(
     if not path.is_absolute():
         return source
 
-    for project, workspace in get_known_project_workspaces().items():
+    for project, workspace in known_project_namespaces().items():
         try:
             rel = path.resolve().relative_to(workspace.resolve())
         except (ValueError, OSError):
@@ -265,7 +265,7 @@ def _source_definition_path(source: str, project: str | None) -> Path | None:
 
     if source.startswith("project_local_config:"):
         project_name = source.removeprefix("project_local_config:")
-        workspace = get_known_project_workspaces().get(project_name)
+        workspace = known_project_namespaces().get(project_name)
         if workspace is None:
             return None
         return resolve_project_config_read_path(
@@ -289,7 +289,7 @@ def _source_definition_path(source: str, project: str | None) -> Path | None:
         return path
 
     if project is not None:
-        workspace = get_known_project_workspaces().get(project)
+        workspace = known_project_namespaces().get(project)
         if workspace is not None:
             project_path = workspace / path
             if project_path.is_file():

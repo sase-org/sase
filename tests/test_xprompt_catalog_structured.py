@@ -6,8 +6,11 @@ from unittest.mock import patch
 
 import pytest
 
+from sase import project_aliases, project_display_names
+from sase.xprompt import project_identity
 from sase.xprompt.catalog import (
     MAX_MOBILE_CONTENT_PREVIEW_CHARS,
+    _gather_entries,
     build_structured_xprompts_catalog,
 )
 from sase.xprompt.loader import load_xprompts_from_internal
@@ -16,6 +19,7 @@ from sase.xprompt.tags import XPromptTag
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 from tests._xprompt_catalog_helpers import make_xprompt
+from tests.main.project_handler_helpers import _disk_project_records, _write_project
 
 
 def test_structured_catalog_projects_filters_and_caps_preview(
@@ -93,6 +97,90 @@ def test_structured_catalog_projects_filters_and_caps_preview(
     assert projection.stats.total_count == 1
     assert projection.stats.project_count == 1
     assert projection.stats.skill_count == 1
+
+
+def test_project_catalog_uses_one_canonical_namespace_for_all_project_refs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    projects_root = tmp_path / "projects"
+    workspace = tmp_path / "workspace"
+    source = workspace / "sase" / "xprompts" / "thing.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("Project-local body")
+    projects_root.mkdir()
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    _write_project(
+        projects_root,
+        "gh_org__proj",
+        "\n".join(
+            (
+                f"WORKSPACE_DIR: {workspace}",
+                "PROJECT_STATE: enabled",
+                "PROJECT_NAME: proj",
+                "PROJECT_ALIASES: short",
+            )
+        )
+        + "\n",
+    )
+    monkeypatch.setattr(project_aliases, "list_project_records", _disk_project_records)
+    monkeypatch.setattr(
+        project_display_names,
+        "list_project_records",
+        _disk_project_records,
+    )
+    project_identity._identity_registry.cache_clear()
+    project_identity._canonical_xprompt_project.cache_clear()
+
+    cwd_copy = make_xprompt("proj/thing", source_path=str(source))
+    unrelated = make_xprompt("bd/next", source_path="config")
+    try:
+        with (
+            patch(
+                "sase.xprompt.catalog.get_all_xprompts",
+                return_value={"proj/thing": cwd_copy, "bd/next": unrelated},
+            ),
+            patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
+            patch(
+                "sase.xprompt.catalog.get_known_project_workspaces",
+                return_value={"gh_org__proj": workspace},
+            ),
+            patch(
+                "sase.xprompt.catalog.get_sase_package_xprompts_dir",
+                return_value=tmp_path / "package",
+            ),
+            patch(
+                "sase.xprompt.catalog.get_sase_package_default_xprompts_dir",
+                return_value=tmp_path / "defaults",
+            ),
+        ):
+            gathered = _gather_entries()
+            projections = {
+                ref: build_structured_xprompts_catalog(project=ref)
+                for ref in ("proj", "gh_org__proj", "short")
+            }
+    finally:
+        project_identity._identity_registry.cache_clear()
+        project_identity._canonical_xprompt_project.cache_clear()
+
+    gathered_project_entries = [
+        entry for entry in gathered if entry.bucket == "project"
+    ]
+    assert [
+        (entry.xprompt.name, entry.project) for entry in gathered_project_entries
+    ] == [("proj/thing", "proj")]
+    assert all(
+        [entry.name for entry in projection.entries] == ["bd/next", "proj/thing"]
+        for projection in projections.values()
+    )
+    assert all(
+        projection.entries[1].project == "proj" for projection in projections.values()
+    )
+    assert all(
+        entry.name != "gh_org__proj/thing"
+        for projection in projections.values()
+        for entry in projection.entries
+    )
 
 
 def test_structured_catalog_source_filter_keeps_global_entries(
