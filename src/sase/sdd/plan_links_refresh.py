@@ -117,11 +117,24 @@ def _refresh_locked(
             for item in index.diagnostics
         )
 
+    known_bead_ids = None
+    if paths:
+        from sase.bead_pages.links import known_bead_ids_for_store
+
+        known_bead_ids = known_bead_ids_for_store(store)
+
     actions: list[PlanLinksRefreshAction] = []
     changed_paths: list[Path] = []
     for path in paths:
         assert index is not None
-        result = _refresh_one(path, root, store, primary, index)
+        result = _refresh_one(
+            path,
+            root,
+            store,
+            primary,
+            index,
+            known_bead_ids=known_bead_ids,
+        )
         if isinstance(result, PlanLinksRefreshIssue):
             issues.append(result)
             continue
@@ -184,6 +197,8 @@ def _refresh_one(
     store: SddStore,
     primary: Path,
     index: PlanAssociationIndex,
+    *,
+    known_bead_ids: frozenset[str] | None = None,
 ) -> tuple[PlanLinksRefreshAction | None, str | None] | PlanLinksRefreshIssue:
     from sase.sdd.plan_refs import canonicalize_plan_reference_from_roots
 
@@ -213,6 +228,7 @@ def _refresh_one(
             current,
             store=store,
             primary_root=primary,
+            known_bead_ids=known_bead_ids,
         )
         updated, parent_migrated = _refresh_parent(
             updated,

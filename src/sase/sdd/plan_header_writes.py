@@ -97,8 +97,13 @@ def refresh_bead_plan_section(
     *,
     store: SddStore | None = None,
     primary_root: Path | None = None,
+    known_bead_ids: frozenset[str] | None = None,
 ) -> str:
-    """Rebuild ``BEAD`` from the plan's durable bead frontmatter."""
+    """Rebuild ``BEAD`` from the plan's durable bead frontmatter.
+
+    Pass *known_bead_ids* to reuse one bead-store read when refreshing a whole
+    tree of plans.
+    """
 
     from sase.sdd.plan_tiers import parse_plan_frontmatter
 
@@ -123,14 +128,14 @@ def refresh_bead_plan_section(
         raise ValueError("plan bead frontmatter must be a non-empty string")
 
     bead_id = raw_bead.strip()
-    target = None
-    if store is not None:
-        from sase.sdd.hosted_links import hosted_link_resolver
+    from sase.bead_pages.links import resolve_bead_page_target
 
-        target = hosted_link_resolver(
-            store,
-            primary_root=primary_root,
-        ).bead_url(bead_id)
+    target = resolve_bead_page_target(
+        bead_id,
+        store=store,
+        primary_root=primary_root,
+        known_ids=known_bead_ids,
+    )
     return upsert_plan_header_section(
         document,
         PlanHeaderSection(
