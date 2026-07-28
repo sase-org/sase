@@ -92,8 +92,8 @@ reference notes that agents read only when relevant.
 - Description: Read when working with sase agent skills (aka xprompt skills), which are generated from source templates
   in the `src/sase/xprompts/skills/` and deployed to managed locations (my chezmoi repo, for example).
 - Parent: `AGENTS.md`
-- Lines: 43
-- Approx. tokens: 498
+- Lines: 59
+- Approx. tokens: 748
 
 ### `sase/memory/symvision.md`
 
@@ -126,8 +126,8 @@ reference notes that agents read only when relevant.
 - Total notes: 10
 - Short notes: 5
 - Long notes: 5
-- Total lines: 509
-- Total approx. tokens: 7816
+- Total lines: 525
+- Total approx. tokens: 8066
 
 ## Commands
 

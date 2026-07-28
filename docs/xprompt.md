@@ -856,10 +856,14 @@ suppress that directive for skills that should not record their own use (the bun
 
 **Workflow:** Edit packaged skill sources in `src/sase/xprompts/skills/`, or define user/runtime skill xprompts through
 the normal xprompt catalog sources. Do not include the `sase skill use` directive yourself; the generator injects it
-unless `log_skill_use: false` is set. Then run `sase skill list`, `sase skill init --dry-run`, and finally
-`sase skill init --force` when the preview is correct. When `use_chezmoi` is enabled, `sase skill init` commits, pushes,
-and applies the generated files unless passed `--no-commit`, `--no-push`, or `--no-apply`. Do not edit deployed
-`SKILL.md` files directly. `sase init skills` is a compatibility alias for `sase skill init`.
+unless `log_skill_use: false` is set. Then run `sase skill list` and `sase skill init --dry-run` (or `--diff`) to
+preview. Commit the source change and land it on the canonical branch before deploying, then run
+`sase skill init --force`: a chezmoi deploy is refused when `src/sase/xprompts/` is dirty, when `HEAD` is not an
+ancestor of the canonical branch, or when it would move the destination off the source commit recorded in the provenance
+manifest — see [Commit Before Deploying](init.md#commit-before-deploying). When `use_chezmoi` is enabled,
+`sase skill init` commits, pushes, and applies the generated files unless passed `--no-commit`, `--no-push`, or
+`--no-apply`. Do not edit deployed `SKILL.md` files directly. `sase init skills` is a compatibility alias for
+`sase skill init`.
 
 Provider plugins declare where generated skills should be written. A source can target multiple providers, and a
 provider can have multiple filesystem targets. Built-in targets are:

@@ -2725,14 +2725,19 @@ files from xprompt sources marked with the `skill` field. Generated skill files 
 so agent-side skill use can be audited and later summarized with `sase skill log`, unless the source sets
 `log_skill_use: false`. See [xprompt.md — Skill Field](xprompt.md#skill-field) for the skill-source contract and
 provider targets. Existing files are skipped in non-interactive runs unless `--force` is passed; interactive runs prompt
-before overwriting. `sase init skills` is a compatibility alias for `sase skill init`.
+before overwriting. Commit and land xprompt template changes before deploying: writing chezmoi deploys are refused from
+dirty or unmerged sources, and refused when they would move the destination off the source commit recorded in the
+provenance manifest — see [Commit Before Deploying](init.md#commit-before-deploying). `sase init skills` is a
+compatibility alias for `sase skill init`.
 
 | Form               | Flags                                                                   | Description                                                                                 |
 | ------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | `sase skill`       | -                                                                       | Show the same read-only dashboard as `sase skill list`.                                     |
 | `sase skill list`  | -                                                                       | Inspect generated skill sources, provider targets, and deployed-file drift.                 |
-| `sase skill init`  | `-f, --force`                                                           | Overwrite existing deployed skill files without confirmation.                               |
+| `sase skill init`  | `-f, --force`                                                           | Overwrite deployed skill files without confirmation; bypass the provenance manifest guard.  |
+| `sase skill init`  | `-D, --allow-dirty`                                                     | Deploy from uncommitted or unmerged xprompt sources; can revert other agents' deployments.  |
 | `sase skill init`  | `-n, --dry-run`                                                         | Show what would be written without writing files.                                           |
+| `sase skill init`  | `-c, --check`; `-d, --diff`                                             | Report or diff generated skill-file drift without writing files.                            |
 | `sase skill init`  | `-p, --provider {claude,agy,codex,opencode,qwen}`                       | Deploy only for one provider.                                                               |
 | `sase skill init`  | `-A, --no-apply`                                                        | With `use_chezmoi`, skip `chezmoi apply` after generated files are committed and pushed.    |
 | `sase skill init`  | `-C, --no-commit`                                                       | With `use_chezmoi`, skip the entire git commit, push, and apply sequence.                   |

@@ -34,6 +34,12 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Generate and deploy agent skill files from xprompt sources",
         description=(
             "Generate and deploy agent skill files from xprompt sources. "
+            "Commit xprompt template changes and land them on the canonical "
+            "branch before deploying: a chezmoi deploy is refused when the "
+            "sources are uncommitted, when HEAD is not an ancestor of the "
+            "canonical branch, or when it would move the destination off the "
+            "source commit recorded in the provenance manifest. Preview with "
+            "--diff or --dry-run while iterating. "
             "`sase init skills` is a compatibility alias for `sase skill init`."
         ),
     )

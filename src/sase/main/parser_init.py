@@ -51,7 +51,11 @@ def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
         "-f",
         "--force",
         action="store_true",
-        help="Overwrite existing files without confirmation",
+        help=(
+            "Overwrite existing files without confirmation, and deploy even when "
+            "the recorded provenance manifest names a different source commit "
+            "(dangerous: can revert other agents' deployments)"
+        ),
     )
     parser.add_argument(
         "-A",

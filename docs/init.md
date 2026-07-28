@@ -122,7 +122,9 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | `sase skill init`                       | Generate skill files; existing files require confirmation or `--force`.                           |
 | `sase skill init --dry-run`             | Preview generated skill target paths without writing files.                                       |
 | `sase skill init --check`               | Report generated skill-file drift without writing files.                                          |
-| `sase skill init --force`               | Generate and overwrite deployed skill files without confirmation.                                 |
+| `sase skill init --diff`                | Show full generated skill-file diffs without writing files.                                       |
+| `sase skill init --force`               | Overwrite deployed skill files without confirmation and bypass the provenance manifest guard.     |
+| `sase skill init --allow-dirty`         | Deploy from uncommitted or unmerged xprompt sources; can revert other agents' deployments.        |
 | `sase skill init -p <provider>`         | Deploy only one provider's generated skill files.                                                 |
 | `sase skill log`                        | Summarize or inspect audited generated skill-use events.                                          |
 | `sase skill use <name>`                 | Agent-side audit event recording that a generated skill was used.                                 |
@@ -346,11 +348,14 @@ stale, or missing. Bare `sase skill` shows the same dashboard.
 and user/runtime xprompt catalog entries. By default, generated skill files include a first-step
 `sase skill use <name> --reason ...` directive so agent skill usage is attributable in the same project audit surface as
 memory reads; `sase skill log` summarizes and inspects those recorded skill-use rows. A source can set
-`log_skill_use: false` to omit that directive. The usual workflow is to inspect first, preview writes, then deploy:
+`log_skill_use: false` to omit that directive. The usual workflow is to inspect first, preview writes, commit the source
+change, and only then deploy:
 
 ```bash
 sase skill list
 sase skill init --dry-run
+sase skill init --diff
+# commit the xprompt template change and land it on the canonical branch first
 sase skill init --force
 ```
 
@@ -358,5 +363,26 @@ Without `use_chezmoi`, generated skill files are written directly under the prov
 When `use_chezmoi: true`, skill initialization writes through the chezmoi-managed home tree and can commit, push, and
 apply those dotfile changes. The `--no-commit`, `--no-push`, and `--no-apply` flags only affect that chezmoi deployment
 sequence. `sase init skills` still works as a compatibility alias for `sase skill init`.
+
+### Commit Before Deploying
+
+The chezmoi destination is a single global tree shared by every workspace, so a deploy from a workspace whose sources
+are not canonical publishes content that exists in no sase commit and can revert another agent's deployment. Two guards
+enforce that, and they apply only to writing chezmoi deploys — `--check`, `--diff`, `--dry-run`, and non-chezmoi targets
+are unaffected:
+
+- **Source integrity.** The deploy is refused when `src/sase/xprompts/` has uncommitted changes, or when the invoking
+  workspace's `HEAD` is not an ancestor of the canonical branch. The error names the offending files or the unmerged
+  commits.
+- **Provenance manifest.** Each deploy records the source commit and an xprompt-set hash in `.sase-skills-manifest.json`
+  under the chezmoi source root. A deploy whose source commit differs from the recorded one is refused rather than
+  allowed to move the destination backwards. A missing or unparsable manifest bootstraps cleanly.
+
+So the corrected workflow is: iterate with `--diff` / `--dry-run`, commit the template change to the sase repo, land it
+on the canonical branch, and deploy from that clean merged tree.
+
+`--allow-dirty` overrides the source-integrity guard and `--force` overrides the manifest guard. Both are deliberate
+escape hatches that can revert other agents' deployments; reach for them only when you know the destination is stale.
+`--force` still records the new manifest entry.
 
 See [XPrompt Skill Field](xprompt.md#skill-field) for the skill-source contract and bundled skill list.
