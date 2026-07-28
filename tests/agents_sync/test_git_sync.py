@@ -23,8 +23,10 @@ from sase.agents_sync.publication_outbox import (
     enqueue_agent_publication,
     list_agent_publications,
 )
+from sase.agents_sync.v2_io import apply_payload_atomic
 from sase.agents_sync.v2_models import V2PublicationCounts
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.git_lock_retry import STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS
 
 
 def test_default_sync_lock_timeout_waits_briefly() -> None:
@@ -177,6 +179,83 @@ def test_full_sync_transaction_commits_and_pushes_only_payload(
         "schema_version": 1,
         "agents": {},
     }
+
+
+def test_full_sync_recovers_dirty_payload_before_pull(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote, _seed, sidecar = _setup_repo(tmp_path)
+    target = _target(tmp_path, remote, sidecar)
+    _patch_payload_pass(monkeypatch)
+    (sidecar / "manifest.json").write_text("stranded payload\n")
+    stranded = sidecar / "agents" / "stranded" / "README.md"
+    stranded.parent.mkdir()
+    stranded.write_text("uncommitted payload\n")
+
+    outcome = git_sync._sync_project(target, "athena", git_runner=run_git)
+
+    assert outcome.error is None
+    assert outcome.pushed
+    assert not stranded.exists()
+    assert json.loads((sidecar / "manifest.json").read_text()) == {
+        "schema_version": 1,
+        "agents": {},
+    }
+    assert _git(sidecar, "status", "--short").stdout == ""
+
+
+def test_full_sync_clears_stale_index_lock_before_recovery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote, _seed, sidecar = _setup_repo(tmp_path)
+    target = _target(tmp_path, remote, sidecar)
+    _patch_payload_pass(monkeypatch)
+    lock_path = sidecar / ".git" / "index.lock"
+    lock_path.write_text("abandoned\n")
+    old = lock_path.stat().st_mtime - STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS - 1
+    os.utime(lock_path, (old, old))
+
+    outcome = git_sync._sync_project(target, "athena", git_runner=run_git)
+
+    assert outcome.error is None
+    assert outcome.pushed
+    assert not lock_path.exists()
+    assert _git(sidecar, "status", "--short").stdout == ""
+
+
+def test_full_sync_failure_after_payload_write_restores_clean_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote, _seed, sidecar = _setup_repo(tmp_path)
+    target = _target(tmp_path, remote, sidecar)
+    monkeypatch.setattr(
+        git_sync,
+        "integrate_agent_imports_with_receipts",
+        lambda *_args, **_kwargs: IntegrationCounts(),
+    )
+
+    def fail_after_write(
+        _target: ProjectTarget,
+        repo: Path,
+        **_kwargs: object,
+    ) -> V2PublicationCounts:
+        apply_payload_atomic(
+            repo,
+            {
+                "README.md": b"# Stranded publication\n",
+                "agents/stranded/README.md": b"# Stranded agent\n",
+            },
+        )
+        raise RuntimeError("publication failed after payload write")
+
+    monkeypatch.setattr(git_sync, "reconcile_agent_hoods", fail_after_write)
+
+    outcome = git_sync._sync_project(target, "athena", git_runner=run_git)
+
+    assert outcome.error == "publication failed after payload write"
+    assert not (sidecar / "README.md").exists()
+    assert not (sidecar / "agents" / "stranded").exists()
+    assert _git(sidecar, "status", "--short").stdout == ""
 
 
 def test_payload_commit_force_stages_user_ignored_hood(

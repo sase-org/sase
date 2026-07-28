@@ -11,6 +11,7 @@ from sase.agents_sync.git_sync_ops import (
     abort_agents_rebase,
     agents_ahead_count,
     agents_git_error,
+    clean_agents_payload_worktree,
     commit_agents_payload_if_dirty,
     is_agents_non_fast_forward,
     pull_agents_rebase,
@@ -30,6 +31,29 @@ IntegrateExportPass = Callable[
 
 
 def sync_project_locked(
+    target: ProjectTarget,
+    owner: AgentOwnerIdentity,
+    git_runner: GitRunner,
+    integrate_export_pass: IntegrateExportPass,
+) -> SyncOutcome:
+    repo = target.sidecar_path
+    cleanup_error = clean_agents_payload_worktree(repo, git_runner)
+    if cleanup_error is not None:
+        return _error(target, cleanup_error)
+    outcome: SyncOutcome
+    try:
+        outcome = _sync_project_transaction(
+            target,
+            owner,
+            git_runner,
+            integrate_export_pass,
+        )
+    finally:
+        cleanup_error = clean_agents_payload_worktree(repo, git_runner)
+    return _error(target, cleanup_error) if cleanup_error is not None else outcome
+
+
+def _sync_project_transaction(
     target: ProjectTarget,
     owner: AgentOwnerIdentity,
     git_runner: GitRunner,
@@ -151,6 +175,15 @@ def sync_project_locked(
                 **_v2_import_outcome_counts(integrated),
             )
 
+    cleanup_error = clean_agents_payload_worktree(repo, git_runner)
+    if cleanup_error is not None:
+        return _error(
+            target,
+            cleanup_error,
+            pulled=True,
+            push_attempts=1,
+            **_v2_import_outcome_counts(integrated),
+        )
     repulled = pull_agents_rebase(repo, git_runner, "agents_sync.retry_pull")
     if repulled.returncode != 0:
         cleanup = abort_agents_rebase(repo, git_runner)

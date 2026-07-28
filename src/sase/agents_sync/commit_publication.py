@@ -175,6 +175,41 @@ def _publish_queued_locked(
     if not requests:
         return _DrainResult()
     logical_keys = tuple(item.logical_key for item in requests)
+    cleanup_error = git_sync.clean_agents_payload_worktree(
+        target.sidecar_path,
+        git_runner,
+    )
+    if cleanup_error is not None:
+        return _DrainResult(error=cleanup_error, error_keys=logical_keys)
+    result: _DrainResult
+    try:
+        result = _publish_queued_transaction(
+            target,
+            owner,
+            git_runner,
+            requests,
+        )
+    finally:
+        cleanup_error = git_sync.clean_agents_payload_worktree(
+            target.sidecar_path,
+            git_runner,
+        )
+    return (
+        _DrainResult(error=cleanup_error, error_keys=logical_keys)
+        if cleanup_error is not None
+        else result
+    )
+
+
+def _publish_queued_transaction(
+    target: ProjectTarget,
+    owner: AgentOwnerIdentity,
+    git_runner: GitRunner,
+    requests: tuple[AgentPublicationOutboxItem, ...],
+) -> _DrainResult:
+    from sase.agents_sync import git_sync
+
+    logical_keys = tuple(item.logical_key for item in requests)
     pulled = git_sync.pull_agents_rebase(
         target.sidecar_path, git_runner, "agents_sync.commit_publish_pull"
     )
@@ -259,6 +294,16 @@ def _publish_queued_locked(
                 ),
                 error_keys=prepared_keys,
             )
+    cleanup_error = git_sync.clean_agents_payload_worktree(
+        target.sidecar_path,
+        git_runner,
+    )
+    if cleanup_error is not None:
+        return _DrainResult(
+            item_errors=item_errors,
+            error=cleanup_error,
+            error_keys=prepared_keys,
+        )
     repulled = git_sync.pull_agents_rebase(
         target.sidecar_path, git_runner, "agents_sync.commit_publish_retry_pull"
     )

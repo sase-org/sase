@@ -16,6 +16,7 @@ from sase.agents_sync.git import GitRunner
 from sase.agents_sync.models import ProjectTarget
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.git_lock_retry import STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS
 
 DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS = 10.0
 _LOCK_TIMEOUT_ENV = "SASE_AGENTS_SYNC_LOCK_TIMEOUT"
@@ -84,6 +85,86 @@ def _tracked_legacy_manifest(repo: Path, git_runner: GitRunner) -> bool:
         op="agents_sync.legacy_manifest_tracked",
     )
     return tracked.returncode == 0
+
+
+def clean_agents_payload_worktree(
+    repo: Path,
+    git_runner: GitRunner,
+) -> str | None:
+    """Restore the regenerable sidecar payload to ``HEAD``.
+
+    Agents sync shares this clone with ``sase repo open``, so either actor may
+    have reset the checkout since the previous operation. Keep recovery
+    idempotent and never stash payload writes: every payload path is rebuilt
+    from local agent artifacts on each pass, making discarded writes safe to
+    regenerate.
+    """
+
+    _clear_stale_agents_index_lock(repo, git_runner)
+    payload_paths = (
+        (_LEGACY_MANIFEST_PATH, *_AGENTS_PAYLOAD_PATHS)
+        if (repo / _LEGACY_MANIFEST_PATH).exists()
+        or _tracked_legacy_manifest(repo, git_runner)
+        else _AGENTS_PAYLOAD_PATHS
+    )
+    reset = git_runner(
+        repo,
+        ["reset", "--quiet", "HEAD", "--", *payload_paths],
+        op="agents_sync.payload_reset_index",
+    )
+    if reset.returncode != 0:
+        return agents_git_error("could not reset agents sidecar payload index", reset)
+
+    tracked = git_runner(
+        repo,
+        ["ls-files", "--", *payload_paths],
+        op="agents_sync.payload_tracked",
+    )
+    if tracked.returncode != 0:
+        return agents_git_error("could not inspect tracked agents payload", tracked)
+    tracked_paths = tuple(tracked.stdout.splitlines())
+    restore_roots = tuple(
+        root
+        for root in payload_paths
+        if any(path == root or path.startswith(f"{root}/") for path in tracked_paths)
+    )
+    if restore_roots:
+        restored = git_runner(
+            repo,
+            ["checkout", "--", *restore_roots],
+            op="agents_sync.payload_restore",
+        )
+        if restored.returncode != 0:
+            return agents_git_error(
+                "could not restore tracked agents sidecar payload", restored
+            )
+
+    cleaned = git_runner(
+        repo,
+        ["clean", "-fdx", "--", *payload_paths],
+        op="agents_sync.payload_clean",
+    )
+    if cleaned.returncode != 0:
+        return agents_git_error(
+            "could not remove untracked agents sidecar payload", cleaned
+        )
+    return None
+
+
+def _clear_stale_agents_index_lock(repo: Path, git_runner: GitRunner) -> None:
+    lock_path = agents_git_dir(repo, git_runner) / "index.lock"
+    try:
+        age_seconds = time.time() - lock_path.stat().st_mtime
+    except OSError:
+        return
+    if age_seconds < STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS:
+        return
+    try:
+        lock_path.unlink()
+    except OSError:
+        # The scoped git recovery below will return a useful error if the lock
+        # still exists; a concurrent actor may also have removed it first.
+        pass
 
 
 def ensure_agents_clone(
@@ -251,6 +332,7 @@ __all__ = [
     "agents_git_dir",
     "agents_git_error",
     "bounded_agents_lock",
+    "clean_agents_payload_worktree",
     "coerce_owner",
     "commit_agents_payload_if_dirty",
     "configured_agents_lock_timeout",

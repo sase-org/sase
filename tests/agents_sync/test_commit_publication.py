@@ -25,7 +25,11 @@ from sase.agents_sync.publication_outbox import (
     enqueue_agent_publication,
     list_agent_publications,
 )
-from sase.agents_sync.v2_io import owner_manifest_path, v2_json_bytes
+from sase.agents_sync.v2_io import (
+    apply_payload_atomic,
+    owner_manifest_path,
+    v2_json_bytes,
+)
 from sase.agents_sync.v2_models import (
     V2OwnerHoodEntry,
     V2OwnerManifest,
@@ -161,6 +165,63 @@ def test_push_failure_is_queued_and_next_commit_drains_idempotently(
     verify = tmp_path / "verify"
     _git(tmp_path, "clone", str(remote), str(verify))
     assert (verify / "README.md").read_text() == "# Published hood\n"
+
+
+def test_failed_targeted_publish_cleans_uncommitted_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, _remote = _setup_target(tmp_path)
+    owner = AgentOwnerIdentity("alice", "athena")
+    enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key="proj",
+            project="Project",
+            local_agent="broken--code",
+            global_agent="alice.athena.broken--code",
+            primary_revision="a" * 40,
+            local_hood="broken",
+        )
+    )
+    monkeypatch.setattr(
+        commit_publication,
+        "integrate_agent_imports_with_receipts",
+        lambda *_args, **_kwargs: IntegrationCounts(),
+    )
+    monkeypatch.setattr(
+        commit_publication,
+        "build_project_hood_inventory",
+        lambda *_args, **_kwargs: ProjectHoodInventory(owner, "proj", ()),
+    )
+
+    def fail_after_write(
+        _target: ProjectTarget,
+        repo: Path,
+        _agent: str,
+        **_kwargs: object,
+    ) -> V2PublicationCounts:
+        apply_payload_atomic(
+            repo,
+            {
+                "README.md": b"# Stranded targeted publication\n",
+                "agents/stranded/README.md": b"# Stranded agent\n",
+            },
+        )
+        raise RuntimeError("targeted publication failed")
+
+    monkeypatch.setattr(commit_publication, "publish_agent_hood", fail_after_write)
+
+    result = _publish_queued_locked(target, owner, run_git)
+
+    assert result.error is None
+    assert result.drained == 0
+    assert result.item_errors == (
+        "could not publish agent hood 'broken': targeted publication failed",
+    )
+    assert not (target.sidecar_path / "README.md").exists()
+    assert not (target.sidecar_path / "agents" / "stranded").exists()
+    assert _git(target.sidecar_path, "status", "--short").stdout == ""
 
 
 def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
