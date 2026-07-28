@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def _clean_sase_core_env() -> dict[str, str]:
     env = os.environ.copy()
     env.pop("SASE_CORE_DIR", None)
+    env.pop("SASE_CORE_WHEEL", None)
     env.pop("SASE_LINKED_REPO_SASE_CORE_DIR", None)
     env.pop("SASE_SIBLING_REPO_SASE_CORE_DIR", None)
     env.pop("SASE_SIBLING_REPO_CORE_DIR", None)

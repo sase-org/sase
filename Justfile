@@ -29,11 +29,11 @@ workspace_sase_github_dir := "sase/repos/linked/sase-github"
 fallback_sase_github_dir := if path_exists(workspace_sase_github_dir) == "true" { workspace_sase_github_dir } else { "../sase-github" }
 sase_github_dir := env_var_or_default("SASE_GITHUB_DIR", env_var_or_default("SASE_LINKED_REPO_SASE_GITHUB_DIR", env_var_or_default("SASE_SIBLING_REPO_SASE_GITHUB_DIR", fallback_sase_github_dir)))
 
-# Dev installs build sase_core_rs from the local checkout, so the published
-# sase-core-rs version window in pyproject.toml must not constrain (or
-# downgrade) that build during dependency resolution. When a buildable
-# checkout is present, editable install recipes pass a uv overrides file
-# that lifts the window; wheel-based installs keep the pyproject constraint.
+# Dev installs build sase_core_rs from the local checkout or install the
+# SASE_CORE_WHEEL supplied by CI, so the published sase-core-rs version window
+# in pyproject.toml must not constrain (or downgrade) that build during
+# dependency resolution. In either case editable install recipes pass a uv
+# overrides file that lifts the window.
 core_overrides_file := venv_dir / "sase-core-rs-overrides.txt"
 
 # The pinned renderer stack makes exact PNG equality the default in every
@@ -50,10 +50,10 @@ _venv:
 
 # Print the `--overrides <file>` argument that lifts the published
 # sase-core-rs version window for dev installs. Prints nothing when no
-# buildable sase-core checkout exists, keeping the pyproject constraint
-# authoritative for published-wheel resolution.
+# buildable sase-core checkout or explicit SASE_CORE_WHEEL exists, keeping the
+# pyproject constraint authoritative for normal published-wheel resolution.
 _core-overrides-arg:
-    @if [ -f "{{ sase_core_dir }}/Cargo.toml" ] && command -v cargo > /dev/null 2>&1; then \
+    @if [ -n "${SASE_CORE_WHEEL:-}" ] || { [ -f "{{ sase_core_dir }}/Cargo.toml" ] && command -v cargo > /dev/null 2>&1; }; then \
         printf "sase-core-rs\n" > "{{ core_overrides_file }}"; \
         printf -- "--overrides {{ core_overrides_file }}"; \
     fi
@@ -66,7 +66,14 @@ _core-overrides-arg:
 _setup: _venv
     @validation_status=0; \
     check_core=""; \
-    if [ -d "{{ sase_core_dir }}" ] && [ ! -f "{{ sase_core_dir }}/Cargo.toml" ]; then \
+    if [ -n "${SASE_CORE_WHEEL:-}" ]; then \
+        if [ ! -f "$SASE_CORE_WHEEL" ]; then \
+            printf "error: SASE_CORE_WHEEL does not name a wheel file: %s\n" "$SASE_CORE_WHEEL" >&2; \
+            exit 2; \
+        fi; \
+        printf "[setup] Installing prebuilt sase_core_rs wheel from %s.\n" "$SASE_CORE_WHEEL"; \
+        uv pip install --python {{ venv_bin }}/python "$SASE_CORE_WHEEL"; \
+    elif [ -d "{{ sase_core_dir }}" ] && [ ! -f "{{ sase_core_dir }}/Cargo.toml" ]; then \
         printf "[setup] sase-core checkout at {{ sase_core_dir }} has no Cargo.toml; treating as absent and using the published sase-core-rs wheel.\n"; \
     elif [ -f "{{ sase_core_dir }}/Cargo.toml" ] && command -v cargo > /dev/null 2>&1; then \
         check_core="--check-core"; \
@@ -130,7 +137,14 @@ _header NAME:
 # wheels resolve the same dependency from the published `sase-core-rs`
 # distribution instead.
 install: _venv
-    @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
+    @if [ -n "${SASE_CORE_WHEEL:-}" ]; then \
+        if [ ! -f "$SASE_CORE_WHEEL" ]; then \
+            printf "error: SASE_CORE_WHEEL does not name a wheel file: %s\n" "$SASE_CORE_WHEEL" >&2; \
+            exit 2; \
+        fi; \
+        printf "[install] Installing prebuilt sase_core_rs wheel from %s.\n" "$SASE_CORE_WHEEL"; \
+        uv pip install --python {{ venv_bin }}/python "$SASE_CORE_WHEEL"; \
+    elif [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
         printf "[install] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
         just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi
@@ -138,7 +152,14 @@ install: _venv
 
 # Install in editable mode with dev and visual-test dependencies.
 install-visual: _venv
-    @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
+    @if [ -n "${SASE_CORE_WHEEL:-}" ]; then \
+        if [ ! -f "$SASE_CORE_WHEEL" ]; then \
+            printf "error: SASE_CORE_WHEEL does not name a wheel file: %s\n" "$SASE_CORE_WHEEL" >&2; \
+            exit 2; \
+        fi; \
+        printf "[install-visual] Installing prebuilt sase_core_rs wheel from %s.\n" "$SASE_CORE_WHEEL"; \
+        uv pip install --python {{ venv_bin }}/python "$SASE_CORE_WHEEL"; \
+    elif [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
         printf "[install-visual] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
         just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi
@@ -183,7 +204,14 @@ _setup-demos:
 
 # Install in editable mode with dev and real-terminal smoke-test dependencies.
 install-terminal-smoke: _venv
-    @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
+    @if [ -n "${SASE_CORE_WHEEL:-}" ]; then \
+        if [ ! -f "$SASE_CORE_WHEEL" ]; then \
+            printf "error: SASE_CORE_WHEEL does not name a wheel file: %s\n" "$SASE_CORE_WHEEL" >&2; \
+            exit 2; \
+        fi; \
+        printf "[install-terminal-smoke] Installing prebuilt sase_core_rs wheel from %s.\n" "$SASE_CORE_WHEEL"; \
+        uv pip install --python {{ venv_bin }}/python "$SASE_CORE_WHEEL"; \
+    elif [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
         printf "[install-terminal-smoke] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
         just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi

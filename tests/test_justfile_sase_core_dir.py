@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def _clean_sase_core_env(env_vars: dict[str, str]) -> dict[str, str]:
     env = os.environ.copy()
     env.pop("SASE_CORE_DIR", None)
+    env.pop("SASE_CORE_WHEEL", None)
     env.pop("SASE_LINKED_REPO_SASE_CORE_DIR", None)
     env.pop("SASE_SIBLING_REPO_SASE_CORE_DIR", None)
     env.pop("SASE_SIBLING_REPO_CORE_DIR", None)
@@ -165,3 +166,49 @@ def test_just_test_rust_install_targets_active_venv() -> None:
         "uv pip install --python /tmp/sase-custom-venv/bin/python "
         '--no-sources $(just _core-overrides-arg) -e ".[dev,visual]"'
     ) in output
+
+
+def test_core_overrides_are_enabled_for_prebuilt_wheel(
+    isolated_justfile_root: Path,
+) -> None:
+    wheel = isolated_justfile_root / "sase_core_rs-test.whl"
+    wheel.touch()
+    (isolated_justfile_root / ".venv").mkdir()
+
+    result = subprocess.run(
+        [
+            "just",
+            "--justfile",
+            str(isolated_justfile_root / "Justfile"),
+            "_core-overrides-arg",
+        ],
+        cwd=isolated_justfile_root,
+        env=_clean_sase_core_env({"SASE_CORE_WHEEL": str(wheel)}),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.stdout.strip() == "--overrides .venv/sase-core-rs-overrides.txt"
+    assert (isolated_justfile_root / ".venv/sase-core-rs-overrides.txt").read_text(
+        encoding="utf-8"
+    ) == "sase-core-rs\n"
+
+
+@pytest.mark.parametrize(
+    "recipe",
+    ["install", "install-visual", "install-terminal-smoke", "_setup"],
+)
+def test_prebuilt_wheel_install_path_is_present(recipe: str) -> None:
+    result = subprocess.run(
+        ["just", "--justfile", str(ROOT / "Justfile"), "--dry-run", recipe],
+        cwd=ROOT,
+        env=_clean_sase_core_env({"SASE_CORE_WHEEL": "/tmp/sase-core.whl"}),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    output = result.stdout + result.stderr
+    assert 'if [ -n "${SASE_CORE_WHEEL:-}" ]; then' in output
+    assert 'uv pip install --python .venv/bin/python "$SASE_CORE_WHEEL"' in output

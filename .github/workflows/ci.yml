@@ -20,16 +20,13 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  SASE_CORE_DIR: ${{ github.workspace }}/sase-core
-
 # Every job carries a timeout-minutes ceiling; without one, a wedged job
 # holds an org runner slot for GitHub's 6-hour default and starves every
 # other workflow in the org, including release publishes.
 jobs:
-  lint:
-    # The release-please PR branch only ever carries version/changelog bumps and
-    # its merge triggers a full master-push run, so its CI is pure runner burn.
+  build-core:
+    # All source-based lanes depend on this root job, so the release-please
+    # exclusion propagates without repeating the condition on every consumer.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -40,6 +37,41 @@ jobs:
         with:
           repository: sase-org/sase-core
           path: sase-core
+      - name: Record Rust core revision
+        id: core-sha
+        run: |
+          core_sha="$(git -C sase-core rev-parse HEAD)"
+          echo "sha=$core_sha" >> "$GITHUB_OUTPUT"
+          echo "Building sase-core commit $core_sha"
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "sase-core/**/pyproject.toml"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sase-core -> target
+          shared-key: sase-core-${{ steps.core-sha.outputs.sha }}
+      - name: Build abi3 Rust core wheel
+        working-directory: sase-core/crates/sase_core_py
+        run: uvx maturin build --release --out "$GITHUB_WORKSPACE/dist"
+      - name: Record wheel provenance
+        run: echo "${{ steps.core-sha.outputs.sha }}" > dist/sase-core-sha.txt
+      - name: Upload Rust core wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: sase-core-wheel
+          path: dist/
+          if-no-files-found: error
+
+  lint:
+    needs: build-core
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
       - name: Check out plans sidecar
         uses: actions/checkout@v4
         with:
@@ -87,23 +119,10 @@ jobs:
             }
           }
           JSON
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install just
-        run: |
-          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
-          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
-          tar -xzf /tmp/just.tar.gz -C /tmp just
-          sudo install -m 0755 /tmp/just /usr/local/bin/just
-          just --version
-      - name: Set up Python
-        run: uv python install 3.12
       - name: Install dependencies
-        run: just install
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
       - name: Initialize SASE home
         run: |
           ./.venv/bin/sase init memory --no-commit
@@ -184,9 +203,7 @@ jobs:
   # Test matrix runs every shipped operation through the Rust binding.
   # Coverage is collected from the 3.12 leg.
   test:
-    # The release-please PR branch only ever carries version/changelog bumps and
-    # its merge triggers a full master-push run, so its CI is pure runner burn.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
+    needs: build-core
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -197,28 +214,10 @@ jobs:
         python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
-      - name: Check out Rust core
-        uses: actions/checkout@v4
-        with:
-          repository: sase-org/sase-core
-          path: sase-core
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install just
-        run: |
-          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
-          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
-          tar -xzf /tmp/just.tar.gz -C /tmp just
-          sudo install -m 0755 /tmp/just /usr/local/bin/just
-          just --version
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
-        run: just install
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: ${{ matrix.python-version }}
       - name: Run tests
         # Python 3.12 owns visual coverage in the matrix; the dedicated
         # visual-test job remains the canonical, focused renderer signal.
@@ -240,35 +239,16 @@ jobs:
           fail_ci_if_error: false
 
   visual-test:
-    # The release-please PR branch only ever carries version/changelog bumps and
-    # its merge triggers a full master-push run, so its CI is pure runner burn.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
+    needs: build-core
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - name: Check out Rust core
-        uses: actions/checkout@v4
+      - name: Install visual dependencies
+        uses: ./.github/actions/setup-sase
         with:
-          repository: sase-org/sase-core
-          path: sase-core
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install just
-        run: |
-          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
-          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
-          tar -xzf /tmp/just.tar.gz -C /tmp just
-          sudo install -m 0755 /tmp/just /usr/local/bin/just
-          just --version
-      - name: Set up Python
-        run: uv python install 3.12
-      - name: Install dependencies
-        run: just install-visual
+          python-version: '3.12'
+          install-recipe: install-visual
       - name: Run visual tests
         run: just test-visual
       - name: Build visual failure report
@@ -311,74 +291,31 @@ jobs:
           if-no-files-found: ignore
 
   build:
-    # The release-please PR branch only ever carries version/changelog bumps and
-    # its merge triggers a full master-push run, so its CI is pure runner burn.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
+    needs: build-core
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Check out Rust core
-        uses: actions/checkout@v4
-        with:
-          repository: sase-org/sase-core
-          path: sase-core
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install just
-        run: |
-          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
-          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
-          tar -xzf /tmp/just.tar.gz -C /tmp just
-          sudo install -m 0755 /tmp/just /usr/local/bin/just
-          just --version
-      - name: Set up Python
-        run: uv python install 3.12
       - name: Install dependencies
-        run: just install
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
       - name: Build and verify package
         run: just build-check
 
-  # Bead backend gate for the `sase bead` Rust migration. This job keeps the
-  # focused Python bead contract, Rust bead/parity tests, cross-repo facade
-  # tests, and a small benchmark smoke together so stale bindings are caught
-  # before the broad matrix hides the cause.
+  # Bead backend gate for the `sase bead` Rust migration. The Rust repository
+  # owns its cargo fmt/clippy/test gate; this lane keeps the focused Python
+  # contracts and benchmark smoke against the shared wheel.
   bead-backend:
-    # The release-please PR branch only ever carries version/changelog bumps and
-    # its merge triggers a full master-push run, so its CI is pure runner burn.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
+    needs: build-core
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - name: Check out Rust core
-        uses: actions/checkout@v4
-        with:
-          repository: sase-org/sase-core
-          path: sase-core
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install just
-        run: |
-          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
-          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
-          tar -xzf /tmp/just.tar.gz -C /tmp just
-          sudo install -m 0755 /tmp/just /usr/local/bin/just
-          just --version
-      - name: Set up Python
-        run: uv python install 3.12
       - name: Install dependencies
-        run: just install
-      - name: Run Rust bead checks
-        run: just rust-check
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
       - name: Run Python bead parity and CLI tests
         run: |
           .venv/bin/pytest \
@@ -400,35 +337,15 @@ jobs:
   # regression. Slow/manual end-to-end TUI/home-tree measurements stay
   # outside this gate (see sdd/plans/202604/rust_backend_phase7_phase7e_handoff.md).
   phase7-perf-floor:
-    # The release-please PR branch only ever carries version/changelog bumps and
-    # its merge triggers a full master-push run, so its CI is pure runner burn.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
+    needs: build-core
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Check out Rust core
-        uses: actions/checkout@v4
-        with:
-          repository: sase-org/sase-core
-          path: sase-core
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install just
-        run: |
-          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
-          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
-          tar -xzf /tmp/just.tar.gz -C /tmp just
-          sudo install -m 0755 /tmp/just /usr/local/bin/just
-          just --version
-      - name: Set up Python
-        run: uv python install 3.12
       - name: Install dependencies
-        run: just install
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
       - name: Run Phase 7E regression floor
         run: just phase7-perf-check
       - name: Upload floor-check report
@@ -442,35 +359,15 @@ jobs:
   # launch path from drifting back toward the Phase 1 parent-side sleep
   # baseline while still using fake subprocesses/no LLM CLIs.
   launch-perf-floor:
-    # The release-please PR branch only ever carries version/changelog bumps and
-    # its merge triggers a full master-push run, so its CI is pure runner burn.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
+    needs: build-core
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Check out Rust core
-        uses: actions/checkout@v4
-        with:
-          repository: sase-org/sase-core
-          path: sase-core
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install just
-        run: |
-          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
-          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
-          tar -xzf /tmp/just.tar.gz -C /tmp just
-          sudo install -m 0755 /tmp/just /usr/local/bin/just
-          just --version
-      - name: Set up Python
-        run: uv python install 3.12
       - name: Install dependencies
-        run: just install
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
       - name: Run launch regression floor
         run: just launch-perf-check
       - name: Upload launch floor-check report
@@ -484,35 +381,15 @@ jobs:
   # keypress-to-hint-bar path and the cached repeat/refresh paths below the
   # committed synchronous-render baseline.
   view-hints-perf-floor:
-    # The release-please PR branch only ever carries version/changelog bumps and
-    # its merge triggers a full master-push run, so its CI is pure runner burn.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
+    needs: build-core
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Check out Rust core
-        uses: actions/checkout@v4
-        with:
-          repository: sase-org/sase-core
-          path: sase-core
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install just
-        run: |
-          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
-          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
-          tar -xzf /tmp/just.tar.gz -C /tmp just
-          sudo install -m 0755 /tmp/just /usr/local/bin/just
-          just --version
-      - name: Set up Python
-        run: uv python install 3.12
       - name: Install dependencies
-        run: just install
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
       - name: Run view-hints regression floor
         run: just view-hints-perf-check
       - name: Upload view-hints floor-check report
@@ -527,41 +404,21 @@ jobs:
   # and launch bindings work. Calls `sase core health` so the smoke matches
   # the CLI a user would run.
   install-smoke:
-    # The release-please PR branch only ever carries version/changelog bumps and
-    # its merge triggers a full master-push run, so its CI is pure runner burn.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
+    needs: build-core
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Check out Rust core
-        uses: actions/checkout@v4
-        with:
-          repository: sase-org/sase-core
-          path: sase-core
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install just
-        run: |
-          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
-          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
-          tar -xzf /tmp/just.tar.gz -C /tmp just
-          sudo install -m 0755 /tmp/just /usr/local/bin/just
-          just --version
-      - name: Set up Python
-        run: uv python install 3.12
       - name: Install dependencies
-        run: just install
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
       - name: Health check (Rust extension loadable)
         run: .venv/bin/sase core health --json
 
-  # The editable install smoke above intentionally follows the linked Rust
-  # checkout. This separate lane installs the exact minimum accepted by SASE
-  # from the package index, with no source checkout or dependency override.
+  # The editable install smoke above intentionally follows the run's shared
+  # wheel. This separate lane installs the exact minimum accepted by SASE from
+  # the package index, with no source checkout or dependency override.
   published-core-minimum-smoke:
     # The release-please PR branch only ever carries version/changelog bumps and
     # its merge triggers a full master-push run, so its CI is pure runner burn.
