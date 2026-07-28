@@ -36,6 +36,117 @@
 - **ace:** remove clan and family identity icons while retaining their grouping colors.
 - **xprompt:** preserve unknown frontmatter keys during parse/edit/serialize round trips and warn before comment loss.
 
+## [0.13.0](https://github.com/sase-org/sase/compare/v0.12.0...v0.13.0) (2026-07-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sdd:** Parent plan associations are now written in the PARENT header section instead of the legacy parent frontmatter field.
+
+### Features
+
+* **ace:** add foldable slow tool call details ([e73040a](https://github.com/sase-org/sase/commit/e73040accf00f09ec3d7a0dbc6657114aa159805))
+* **ace:** add project facet to commits filters ([fc72269](https://github.com/sase-org/sase/commit/fc72269b639c93cc29cd617d5b3dd3da4d91cd3d))
+* **ace:** display tribe wait bindings ([ed04c42](https://github.com/sase-org/sase/commit/ed04c42f239002a2f682ca9dc0761442a140cf4c))
+* **ace:** keep family conversations fully visible ([71942fe](https://github.com/sase-org/sase/commit/71942fe16dacc0fd1ea1819ef53b09bdd000144a))
+* **ace:** render wait fields as responsive lanes ([61013b2](https://github.com/sase-org/sase/commit/61013b22957ca7c8c35c0bd93be4c2a10fc59c15))
+* **ace:** show phase titles in BEAD context ([4dcb779](https://github.com/sase-org/sase/commit/4dcb77960eb8484913c531cd53e64914f3231f42))
+* add linked bead commit footer tags (sase-ai.2) ([4f2694c](https://github.com/sase-org/sase/commit/4f2694c9211b289b0dc8f48622fd3334975a2675))
+* add snapshot-driven tribe wait binding resolver ([21e7527](https://github.com/sase-org/sase/commit/21e75272f628e4ce84bfe55453f2cb5fe55950e4))
+* adopt bead state into dedicated sidecar (sase-a8.8) ([2a795b0](https://github.com/sase-org/sase/commit/2a795b049c56283d2e55be8d6abfaaafbb89cf39))
+* **agents-sync:** add lane neighbor sections (sase-a9.4) ([f9064d7](https://github.com/sase-org/sase/commit/f9064d7630ca8b542f2d01323cc81ba3e3a380d6))
+* **agents-sync:** publish linked commit artifacts (sase-a9.2) ([11ddd27](https://github.com/sase-org/sase/commit/11ddd277631aa24521c24e4d8d484d904a704e54))
+* **agents-sync:** publish output variables (sase-a9.3) ([33b57c3](https://github.com/sase-org/sase/commit/33b57c3709b688730e05da2ef0dda74534815c86))
+* **agents-sync:** stabilize sidecar page anatomy (sase-a9.5) ([9a7fb3f](https://github.com/sase-org/sase/commit/9a7fb3fbe157c7c5e87bbdb35656ef0a5f18ebdd))
+* **agents-sync:** surface retired publication requests to operators (sase-ah.3) ([ee5938a](https://github.com/sase-org/sase/commit/ee5938a20b9a42b247a73601c2accc3d5d984504))
+* **agents:** add page breadcrumbs and golden refresh (sase-a9.1) ([dbddc16](https://github.com/sase-org/sase/commit/dbddc16c12396524ab7dec8c81a1fa1e33019d53))
+* **agents:** classify all runner-slot waiters as queued ([d8c2f50](https://github.com/sase-org/sase/commit/d8c2f5019f58e957b34e124f735899dcadc3a307))
+* **axe:** gate lumberjack launches by runner capacity (sase-af.2) ([bd630ec](https://github.com/sase-org/sase/commit/bd630ec7316770881d33fb16b8b822e9a2a25948))
+* **bead-pages:** render deterministic bead pages (sase-ai.4) ([6e15f0d](https://github.com/sase-org/sase/commit/6e15f0dc06c87b9f09241f675f81057d4975a70b))
+* **beads:** add bead page refresh commands ([4b9e313](https://github.com/sase-org/sase/commit/4b9e3131ae6f5c5f219e7a471fa80d8dd194d2fd))
+* **beads:** close with verification notes ([c1272d1](https://github.com/sase-org/sase/commit/c1272d19d702892d26240b50e8b518a3c142a300))
+* **bead:** show hosted page URLs in bead detail ([88a317a](https://github.com/sase-org/sase/commit/88a317a87684772c5c9384ee6f8a8f9a53ad21ae))
+* **beads:** materialize split sidecar on demand (sase-a8.7) ([73a75f9](https://github.com/sase-org/sase/commit/73a75f94d4370b0ba582bccfa025f45839f4976f))
+* **beads:** support repository-root bead stores (sase-a8.5) ([5cf149c](https://github.com/sase-org/sase/commit/5cf149c1f5c2a914c1df0a98a63bd7d02fad5b81))
+* **cli:** support multiline output variable values ([d5e1017](https://github.com/sase-org/sase/commit/d5e10175dfcc58a1d1df0e9b1800f5dcc1b87fa2))
+* illustrate agents sidecar lifecycle ([d4198f1](https://github.com/sase-org/sase/commit/d4198f1cc9b1e87b361fd80b6e0f99c94c5cec27))
+* **plan:** add bulk provenance link refresh (sase-ag.5) ([ca29de3](https://github.com/sase-org/sase/commit/ca29de3befeea34321826e749ffc1e689a8a8b5e))
+* **plan:** project bead links into plan headers (sase-ai.8) ([ab1c360](https://github.com/sase-org/sase/commit/ab1c360404b7af12251a19716b0ed51b429cdbde))
+* **plan:** surface plan header block in viewers and docs (sase-ag.6) ([5c74052](https://github.com/sase-org/sase/commit/5c74052a6728503ee4bd1a42b8b4be58e72f5318))
+* publish bead lineage after commits (sase-ai.5) ([b645718](https://github.com/sase-org/sase/commit/b6457189ccceea2aa2c2df2b78362fabe307ca51))
+* register beads as a managed sidecar (sase-a8.4) ([c113156](https://github.com/sase-org/sase/commit/c113156466bd746064212cfe48e80fc74073ffe3))
+* **sdd:** add bead page addressing and hosted bead URLs (sase-ai.1) ([2a8d2eb](https://github.com/sase-org/sase/commit/2a8d2eb6e42537b6eb56e935d1faf3cdce811d2d))
+* **sdd:** add beads sidecar guide bundle (sase-a8.2) ([fde7e62](https://github.com/sase-org/sase/commit/fde7e62a15f934b3824264848cc068af7f81f88a))
+* **sdd:** add hosted URL resolution for plans, agents, and commits (sase-ag.2) ([563deaf](https://github.com/sase-org/sase/commit/563deafc555973c025e1d99633e4dc770392cd4d))
+* **sdd:** add typed plan header block adapter (sase-ag.1) ([8b2baa8](https://github.com/sase-org/sase/commit/8b2baa881e24ab30dadfe527da1bba514a99d817))
+* **sdd:** derive plan provenance associations (sase-ag.3) ([7270b98](https://github.com/sase-org/sase/commit/7270b986bf6fbcd9055315469c631d2c586c2b5a))
+* **sdd:** index bead commit and agent associations (sase-ai.3) ([9a9bec4](https://github.com/sase-org/sase/commit/9a9bec4ad2673012a77c6e6fe96bce98d654cf01))
+* **sdd:** route bead operations to dedicated sidecar (sase-a8.6) ([3dba997](https://github.com/sase-org/sase/commit/3dba997d0c80ce4ec8234d650514ae50eff838a0))
+* **sdd:** support split beads sidecar records (sase-a8.3) ([f9bd6ad](https://github.com/sase-org/sase/commit/f9bd6ad226fba1067e1abfd6ae885e3ad312c371))
+* **sdd:** write plan provenance headers (sase-ag.4) ([9701511](https://github.com/sase-org/sase/commit/97015111b388e663506d996a2d9c6a7511af0eda))
+* See the 'acecommit' phase of 202607/land_beads_sidecar_epic.md (sase-ab.4) ([11f16e3](https://github.com/sase-org/sase/commit/11f16e3275e53e10681c71400c6dd9dd7a769832))
+* **skills:** enforce monotonic deploy provenance (sase-ae.2) ([046a92a](https://github.com/sase-org/sase/commit/046a92a3b6ce4495d53f431bcca8008c895c8413))
+* **skills:** guard chezmoi deploy source integrity (sase-ae.1) ([3537aa1](https://github.com/sase-org/sase/commit/3537aa141d844123c02fbca3552dbcc669673b3d))
+* surface agent publication outbox health (sase-ad.4) ([5842f04](https://github.com/sase-org/sase/commit/5842f04af4d3eabebed72d81b64a6bec477125a3))
+* **xprompt:** add canonical project identity helpers (sase-ac.1) ([370f260](https://github.com/sase-org/sase/commit/370f2607f684d68272b2416a313133c8d7058e59))
+* **xprompt:** resolve registered project prompts outside cwd (sase-ac.3) ([9148e45](https://github.com/sase-org/sase/commit/9148e45e1829a445e772a07c8c71b6d919a6ff56))
+
+
+### Bug Fixes
+
+* **ace:** canonicalize prompt-bar VCS-tag xprompt lookup (sase-ac.6.2) ([a0a2e40](https://github.com/sase-org/sase/commit/a0a2e4007ae03a801a00f85d79a286683dc2c515))
+* **ace:** escape dead-end panel row focus ([9cdfb37](https://github.com/sase-org/sase/commit/9cdfb378a43753436abac5a9c673f4efa8c60e51))
+* **ace:** prioritize selected clan collapse ([a016706](https://github.com/sase-org/sase/commit/a016706a6118a9d5ce89e0ad817790a79d6d8fb1))
+* **ace:** resolve plans roots through SDD store (sase-ab.3) ([ac12273](https://github.com/sase-org/sase/commit/ac12273f547df64aee8b59ab951ada5e440750da))
+* **ace:** show configured project names in commits UI ([4fb5980](https://github.com/sase-org/sase/commit/4fb5980600a819238d77e4add6bc3487378d5d94))
+* **ace:** surface unresolvable tribe waits ([641229f](https://github.com/sase-org/sase/commit/641229f896b6c59ecf1e1c596b2159e7ef7c6294))
+* **agents-sync:** allow container-named hood publication (sase-ad.2) ([53e94ca](https://github.com/sase-org/sase/commit/53e94ca4a5e8456316a32ffbb5af8222a0d0c385))
+* **agents-sync:** recover sidecar transaction state (sase-ad.3) ([ca5c526](https://github.com/sase-org/sase/commit/ca5c526c724957db6bdcd273b57fe860df2d0883))
+* **agents-sync:** retire terminal publication requests (sase-ah.2) ([d8afeb7](https://github.com/sase-org/sase/commit/d8afeb7b0c0331c24d9bdcf7a4c78679020c9548))
+* **bead-pages:** link plan BEAD bullets only to pages that exist ([48edca8](https://github.com/sase-org/sase/commit/48edca8c449d805ba9c1bc9f3df7f2301e8d4977))
+* **bead:** protect root-layout stores during workspace prep (sase-ab.1) ([0ee67b1](https://github.com/sase-org/sase/commit/0ee67b10a5e36519ffa93998a4b2969c8eca86a1))
+* **bead:** require core dependency removal support (sase-a3.4) ([830245c](https://github.com/sase-org/sase/commit/830245c8cdf01ef0f60c3b86346fba02a0b6d68a))
+* **beads:** consolidate post-commit sidecar sync ([e1e86f2](https://github.com/sase-org/sase/commit/e1e86f276f86192fe469c8a121054d1c4ce93546))
+* **beads:** resolve generated page conflicts (sase-ai.6) ([5043949](https://github.com/sase-org/sase/commit/50439492a6551facacdf8e082c87f418c20db1a1))
+* **beads:** skip commits for no-op mutations ([aae07cf](https://github.com/sase-org/sase/commit/aae07cfee19c92b1134447604a13b1a8cc37d623))
+* **commit:** attribute family member runs correctly (sase-ad.1) ([b201c92](https://github.com/sase-org/sase/commit/b201c9200c8954b36c226dde675af52fd7b1b66d))
+* **commit:** resolve publication targets by repository path (sase-ah.1) ([4fc555d](https://github.com/sase-org/sase/commit/4fc555db0a6b86ccd1f5437c49fdfa668495e169))
+* invalidate xprompt identity on project mutations (sase-ac.6.4) ([02eee83](https://github.com/sase-org/sase/commit/02eee837542948dba30c2327120de3a9c8e6fb3d))
+* label sidecar commits by repository role ([8049b46](https://github.com/sase-org/sase/commit/8049b46ccb83fa3f88ecb8aba4d70545111f19aa))
+* make approved plan linking atomic ([cfbac39](https://github.com/sase-org/sase/commit/cfbac3928a5039a06090e7e4cdf5ce2ef47ee862))
+* materialize beads sidecar before launch claim ([86dd439](https://github.com/sase-org/sase/commit/86dd439409b08005fe24758419e7d669d4c808c7))
+* **memory:** correct generated instruction grammar ([3bd59cd](https://github.com/sase-org/sase/commit/3bd59cdda2a0317ee4b6e60a6ed72b9f1bcec83b))
+* preserve flat plans sidecar with plans README (sase-ab.2) ([8137b10](https://github.com/sase-org/sase/commit/8137b10480ef0e1c03613c3cad862f707e56d95d))
+* **sdd:** defer type-only annotations at runtime ([ee087a3](https://github.com/sase-org/sase/commit/ee087a3df01a59617c8a8650ee333b127c5393b3))
+* **sdd:** keep published core integration commit-safe (sase-af) ([a643a86](https://github.com/sase-org/sase/commit/a643a864c33b1eb864f570c9e009ff89d313a69f))
+* serialize skill chezmoi deploys (sase-ae.3) ([105d9d3](https://github.com/sase-org/sase/commit/105d9d36930f5f6824e49face0fff277e39d4fa9))
+* settle stopped family predecessors ([13e3b1d](https://github.com/sase-org/sase/commit/13e3b1ddc93a77b1fdc1aece5c26aecad554eae1))
+* **tribes:** reject reserved tribe references in wait and fork targets ([d67de4c](https://github.com/sase-org/sase/commit/d67de4caf9530ff1a4912ffa4ecf2727a50d35df))
+* **tui:** preserve active prompts on Ctrl+Space ([18d0d92](https://github.com/sase-org/sase/commit/18d0d924179e250a32cd14f048fbce01f4acbe6f))
+* **tui:** tighten commas after xprompt completions ([5568411](https://github.com/sase-org/sase/commit/5568411c9545b2c34bd112fb30f0d39afd4aacc2))
+* **xprompt:** canonicalize project catalog namespaces (sase-ac.2) ([40f2d52](https://github.com/sase-org/sase/commit/40f2d526e6b1e0b992dbc3e80c8cee66d5750ac6))
+* **xprompt:** canonicalize project-local browser identities (sase-ac.6.1) ([0db608e](https://github.com/sase-org/sase/commit/0db608e985e2031bdb8a58322d8f29b0ce8484fb))
+* **xprompt:** canonicalize workflow project identity (sase-ac.6.3) ([699456a](https://github.com/sase-org/sase/commit/699456a521e25e0aaa38f4e289db38e71a6488a6))
+* **xprompt:** normalize ACE completion project identity (sase-ac.4) ([b449b8a](https://github.com/sase-org/sase/commit/b449b8a4b5a133ded4771fa07e22307bf97620cb))
+* **xprompt:** preserve trailing punctuation in completion ([ad3c751](https://github.com/sase-org/sase/commit/ad3c75151077382cc7f77fe67556b77bb875aadb))
+
+
+### Performance Improvements
+
+* **ace:** guard Agents-tab view-hints latency (sase-a5.6) ([a49e63e](https://github.com/sase-org/sase/commit/a49e63e3581075d5681a3a593234ddb6462f78d1))
+* **bead-pages:** precompute refresh relationship details ([ee2bb5e](https://github.com/sase-org/sase/commit/ee2bb5eee4d0ca76c5cd1d5087abae5269a0b3e3))
+* **tui:** bound file hint rendering work (sase-a5.2) ([9385e8a](https://github.com/sase-org/sase/commit/9385e8a6209256a46176353cda1e5fd2a36f8539))
+* **tui:** cache annotated hint documents (sase-a5.4) ([57c5b8c](https://github.com/sase-org/sase/commit/57c5b8c6a9007fae7c6b18ba4ea56b9e038be88a))
+* **tui:** defer agent hint document rendering (sase-a5.3) ([419790e](https://github.com/sase-org/sase/commit/419790e846b17308052b65ce0d22096d7094ce59))
+* **tui:** skip unchanged hint document renders (sase-a5.5) ([41ba006](https://github.com/sase-org/sase/commit/41ba006bd4c6f41a041abae4508d2ed90c5c8f24))
+
+
+### Documentation
+
+* **beads:** document truthful completion contract (sase-a1.6) ([6ad452e](https://github.com/sase-org/sase/commit/6ad452e1e84d47bafc39eb3a2850a954a1891768))
+* describe the dedicated beads sidecar (sase-a8.9) ([9ddd75a](https://github.com/sase-org/sase/commit/9ddd75a3f34902c48e361942cfe9a652b37b7d49))
+* document the commit-then-deploy skill workflow (sase-ae.6) ([53d732f](https://github.com/sase-org/sase/commit/53d732f30e91839e58eee9047d6e6b5a18cd248f))
+
 ## [0.12.0](https://github.com/sase-org/sase/compare/v0.11.1...v0.12.0) (2026-07-27)
 
 
