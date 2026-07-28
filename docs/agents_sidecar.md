@@ -15,6 +15,10 @@ Before running `sase repo init`, set the intrinsic `agents` sidecar's `visibilit
 restricted. Set `disabled: true` to opt out entirely. Synchronization never creates a remote and cannot bypass the
 explicit consent requested by repository initialization.
 
+Both the initial privacy-forward scaffold and the manifest-derived root browsing index display the same static
+infographic. `sase repo init` owns `assets/agents-directory-map.png`: rerunning it creates or repairs the image without
+replacing a populated sidecar's derived `README.md`. Agent synchronization owns only the dynamic publication paths.
+
 Every publisher needs a complete selected `id.username` / `id.machine_name` owner identity. Local artifacts keep bare
 semantic names such as `foo.bar--code`; v2 transport uses the canonical global name
 `<username>.<machine_name>.foo.bar--code`. The exact owner manifest is the only shared authority file that publisher
@@ -26,6 +30,8 @@ mutates. Run `sase config init` to create or migrate the identity; see
 ```text
 README.md
 schema.json
+assets/
+  agents-directory-map.png
 users/<username>/README.md
 users/<username>/machines/<machine>/README.md
 users/<username>/machines/<machine>/manifest.json

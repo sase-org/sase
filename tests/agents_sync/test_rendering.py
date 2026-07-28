@@ -49,9 +49,22 @@ def test_renderer_escapes_markdown_tables_and_contains_no_volatile_text() -> Non
         (manifest,),
         {("alice", "athena", "foo"): snapshot},
     )
+    root = payload["README.md"].decode()
+    user = payload["users/alice/README.md"].decode()
     machine = payload["users/alice/machines/athena/README.md"].decode()
     hood = payload["users/alice/machines/athena/hoods/foo/README.md"].decode()
 
+    image_markdown = (
+        "![Project-scoped agent hoods pass through explicit privacy consent "
+        "into an owner-sharded agents sidecar, where deterministic sync "
+        "publishes prompts, chats, commits, states, and browsable owner, "
+        "machine, hood, family, and agent pages.]"
+        "(assets/agents-directory-map.png)"
+    )
+    assert image_markdown in root
+    assert "agents-directory-map.png" not in user
+    assert "agents-directory-map.png" not in machine
+    assert "agents-directory-map.png" not in hood
     assert "Project \\| \\<unsafe\\>" in machine
     assert "gpt\\|\\<preview\\>" in hood
     assert "generated at" not in "\n".join(

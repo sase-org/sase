@@ -309,7 +309,11 @@ def _summarize_repo_actions(actions: list[InitAction]) -> str:
     parts: list[str] = []
     if "sidecar repository" in details:
         parts.append("create or connect configured sidecar repositories")
-    if any(action.path.name == "README.md" for action in actions):
+    if any(
+        action.path.name == "README.md"
+        or action.path.name.endswith("-directory-map.png")
+        for action in actions
+    ):
         parts.append("refresh sidecar guide files")
     if any(action.path.name == "sase.yml" for action in actions):
         parts.append("declare the plans, beads, research, and agents sidecars")

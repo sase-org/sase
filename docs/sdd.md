@@ -391,7 +391,9 @@ connects without this creation prompt. `--check` remains offline and non-interac
 nor its generic initializer approval authorizes repository creation.
 
 Keep conceptual details here in `docs/sdd.md`; generated guides are safe to overwrite, so do not put hand-maintained
-conceptual prose in those README files.
+conceptual prose in those README files. Built-in plans, research, beads, and agents roles pair their generated README
+with an illustrated directory map, while generic custom sidecars receive only their deterministic description-based
+README.
 
 Bare-git projects normally do not need a manual `sase repo init`: SASE runs the same generated-file refresh during
 repository setup, workspace materialization, and the first in-tree SDD write. The explicit command remains useful for

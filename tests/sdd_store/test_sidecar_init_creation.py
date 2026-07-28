@@ -207,6 +207,8 @@ def test_agents_init_uses_hidden_root_and_leaves_compatibility_store_two_slot(
     assert outcome.roots == {**visible_clones, "agents": agents_root}
     assert outcome.created == frozenset({"plans", "research", "agents"})
     assert (agents_root / "README.md").is_file()
+    directory_map = agents_root / "assets" / "agents-directory-map.png"
+    assert directory_map.is_file()
     assert json.loads((agents_root / "schema.json").read_text()) == {
         "schema_version": 2,
         "format": "sase-agents-sidecar",

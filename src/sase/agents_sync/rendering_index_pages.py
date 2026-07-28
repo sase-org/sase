@@ -16,6 +16,13 @@ from sase.agents_sync.rendering_markdown import (
 from sase.agents_sync.v2_models import V2HoodSnapshot, V2OwnerManifest
 from sase.core.agent_identity_facade import agent_link_target
 
+_AGENTS_DIRECTORY_MAP_MARKDOWN = (
+    "![Project-scoped agent hoods pass through explicit privacy consent into "
+    "an owner-sharded agents sidecar, where deterministic sync publishes "
+    "prompts, chats, commits, states, and browsable owner, machine, hood, "
+    "family, and agent pages.](assets/agents-directory-map.png)"
+)
+
 
 def render_root_page(manifests: tuple[V2OwnerManifest, ...]) -> str:
     """Render the sidecar root index."""
@@ -31,6 +38,8 @@ def render_root_page(manifests: tuple[V2OwnerManifest, ...]) -> str:
         "# SASE Agent Hoods",
         "",
         "Deterministic, owner-sharded snapshots published by SASE.",
+        "",
+        _AGENTS_DIRECTORY_MAP_MARKDOWN,
         "",
         f"**Owners:** {len(users)} · **Machines:** {len(manifests)} · "
         f"**Hoods:** {hood_count} · **Runs:** {run_count}",

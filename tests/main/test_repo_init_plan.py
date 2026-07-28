@@ -131,6 +131,7 @@ def test_plan_github_reports_every_configured_sidecar_without_writing(
         ".",
         "README.md",
         "schema.json",
+        "assets/agents-directory-map.png",
         "agents/.gitkeep",
         "families/.gitkeep",
         "users/.gitkeep",
@@ -149,6 +150,65 @@ def test_plan_github_reports_every_configured_sidecar_without_writing(
     assert str(agents_connection.path) in rendered
     assert "manifest.json" in rendered
     assert "agents/.gitkeep" in rendered
+
+
+def test_plan_reports_asset_only_agents_guide_refresh(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mark_project(tmp_path)
+    config = tmp_path / "sase" / "sase.yml"
+    config.write_text(
+        """\
+is_sase_managed: true
+repos:
+  sidecar:
+    - name: plans
+    - name: beads
+    - name: research
+    - name: agents
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / ".gitignore").write_text("/sase/repos/\n", encoding="utf-8")
+    state_root = tmp_path / "state"
+    agents_root = state_root / "projects" / "gh_acme__widget" / "repos" / "agents"
+    (agents_root / ".git").mkdir(parents=True)
+    (agents_root / "schema.json").write_text(
+        (
+            '{"authority":"owner-sharded","format":"sase-agents-sidecar",'
+            '"relationship_schema_version":2,"schema_version":2}\n'
+        ),
+        encoding="utf-8",
+    )
+    for dirname in ("agents", "families", "users"):
+        (agents_root / dirname).mkdir()
+        (agents_root / dirname / ".gitkeep").write_text("", encoding="utf-8")
+    owner = agents_root / "users" / "alice" / "machines" / "athena"
+    owner.mkdir(parents=True)
+    (owner / "manifest.json").write_text("{}\n", encoding="utf-8")
+    (agents_root / "README.md").write_text("# Derived\n", encoding="utf-8")
+    monkeypatch.setenv("SASE_HOME", str(state_root))
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda _root: "gh_acme__widget",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: (SidecarInitSpec(role="agents"),),
+    )
+
+    plan = plan_repo_init(_args(tmp_path))
+
+    assert [
+        action.path.relative_to(agents_root).as_posix() for action in plan.actions
+    ] == ["assets/agents-directory-map.png"]
+    assert plan.summary == "refresh sidecar guide files"
+    assert (agents_root / "README.md").read_text(encoding="utf-8") == "# Derived\n"
 
 
 def test_plan_does_not_materialize_recorded_lazy_sidecar_for_check(

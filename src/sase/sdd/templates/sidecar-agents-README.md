@@ -9,6 +9,8 @@ agent's top-level hood. It can publish active prompts before a transcript exists
 with terminal state, commits, or chat. The repository's configured visibility controls who can access that data. Set
 the `agents` sidecar visibility to `private` before creation to restrict access, or set `disabled: true` to opt out.
 
+![Project-scoped agent hoods pass through explicit privacy consent into an owner-sharded agents sidecar, where deterministic sync publishes prompts, chats, commits, states, and browsable owner, machine, hood, family, and agent pages.](assets/agents-directory-map.png)
+
 ## Snapshot layout
 
 - `schema.json` identifies the strict v2 format.

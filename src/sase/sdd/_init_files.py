@@ -15,11 +15,12 @@ from sase.sdd._types import (
 SDD_DIRECTORY_MAP_FILENAME = "sdd-directory-map.png"
 SDD_DIRECTORY_MAP_RELATIVE_PATH = f"assets/{SDD_DIRECTORY_MAP_FILENAME}"
 SDD_SIDECAR_KINDS = ("plans", "research")
-SDD_SIDECAR_GUIDE_KINDS = ("plans", "research", "beads")
+SDD_SIDECAR_GUIDE_KINDS = ("plans", "research", "beads", "agents")
 SDD_SIDECAR_DIRECTORY_MAP_FILENAMES = {
     "plans": "plans-directory-map.png",
     "research": "research-directory-map.png",
     "beads": "beads-directory-map.png",
+    "agents": "agents-directory-map.png",
 }
 AGENTS_SIDECAR_SCHEMA = (
     '{"authority":"owner-sharded","format":"sase-agents-sidecar",'
@@ -83,8 +84,8 @@ def expected_sdd_sidecar_files(
 ) -> tuple[SddExpectedTextFile | SddExpectedBytesFile, ...]:
     """Return deterministic generated files for one sidecar root.
 
-    The plans, research, and beads roles use illustrated guide templates,
-    while agents receives its privacy-forward bundle scaffold.
+    The plans, research, beads, and agents roles use illustrated guide
+    templates. Agents also receives its privacy-forward bundle scaffold.
     Custom roles receive a small deterministic README so repo init can seed
     arbitrary configured sidecars without inventing role-specific layouts.
     """
@@ -99,6 +100,12 @@ def expected_sdd_sidecar_files(
             SddExpectedTextFile(
                 path=sidecar_root / "schema.json",
                 content=AGENTS_SIDECAR_SCHEMA,
+            ),
+            SddExpectedBytesFile(
+                path=sidecar_root
+                / "assets"
+                / SDD_SIDECAR_DIRECTORY_MAP_FILENAMES[kind],
+                content=_read_sdd_sidecar_directory_map_bytes(kind),
             ),
             SddExpectedTextFile(
                 path=sidecar_root / "agents" / ".gitkeep",

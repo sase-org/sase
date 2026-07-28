@@ -306,10 +306,11 @@ README explains the full project-scoped hood privacy implications, owner-sharded
 transcript behavior, and synchronization/recovery commands. Existing v1 payload remains read-only during migration. See
 [Agent Hood Synchronization](agents_sidecar.md).
 
-Plans, research, and beads sidecars retain their illustrated README and directory-map templates. Custom sidecar roles
-receive a deterministic generic README using their configured description. Initialized guide files are committed and
-pushed in their respective sidecar repositories. When plans and research are available, the split SDD store record is
-maintained for compatibility.
+Plans, research, beads, and agents sidecars receive illustrated README guides and directory-map assets. Rerunning
+`sase repo init` upgrades a missing or stale agents infographic while preserving the manifest-derived root index of a
+populated agents sidecar. Custom sidecar roles receive a deterministic generic README using their configured
+description. Initialized guide files are committed and pushed in their respective sidecar repositories. When plans and
+research are available, the split SDD store record is maintained for compatibility.
 
 The beads sidecar holds the project's durable bead state at its repository root. When it is created for a project whose
 bead state still lives in the plans clone, `sase repo init` adopts that state as part of the same run: it copies the

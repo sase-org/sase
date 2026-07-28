@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from PIL import Image
+
 from sase.sdd._init_files import (
     ensure_sdd_sidecar_initialized,
     expected_sdd_directory_readmes,
@@ -50,6 +52,7 @@ def test_legacy_directory_readmes_exclude_beads(tmp_path: Path) -> None:
 
 def test_agents_sidecar_generated_files_are_privacy_forward_and_idempotent(
     tmp_path: Path,
+    real_directory_map_assets: None,
 ) -> None:
     root = tmp_path / "agents"
 
@@ -58,6 +61,7 @@ def test_agents_sidecar_generated_files_are_privacy_forward_and_idempotent(
     assert {action.path.relative_to(root).as_posix() for action in actions} == {
         "README.md",
         "schema.json",
+        "assets/agents-directory-map.png",
         "agents/.gitkeep",
         "families/.gitkeep",
         "users/.gitkeep",
@@ -71,6 +75,12 @@ def test_agents_sidecar_generated_files_are_privacy_forward_and_idempotent(
     assert "`private`" in readme
     assert "`disabled: true`" in readme
     assert "`sase agent sync`" in readme
+    assert "](assets/agents-directory-map.png)" in readme
+    directory_map = root / "assets" / "agents-directory-map.png"
+    with Image.open(directory_map) as image:
+        assert image.format == "PNG"
+        assert image.size == (1600, 900)
+        assert image.mode == "RGB"
     assert json.loads((root / "schema.json").read_text(encoding="utf-8")) == {
         "schema_version": 2,
         "format": "sase-agents-sidecar",
@@ -97,8 +107,36 @@ def test_agents_sidecar_generated_files_are_privacy_forward_and_idempotent(
     owner.mkdir(parents=True)
     (owner / "manifest.json").write_text("{}\n", encoding="utf-8")
     (root / "README.md").write_text("# Derived\n", encoding="utf-8")
+    directory_map.unlink()
+    actions = plan_sdd_sidecar_init_actions("agents", root)
+    assert [
+        (
+            action.path.relative_to(root).as_posix(),
+            action.operation,
+        )
+        for action in actions
+    ] == [("assets/agents-directory-map.png", "create")]
     ensure_sdd_sidecar_initialized("agents", root)
     assert (root / "README.md").read_text(encoding="utf-8") == "# Derived\n"
+    expected_asset = next(
+        expected
+        for expected in expected_sdd_sidecar_files("agents", root)
+        if expected.path == directory_map
+    )
+    assert directory_map.read_bytes() == expected_asset.content
+
+    directory_map.write_bytes(b"stale")
+    actions = plan_sdd_sidecar_init_actions("agents", root)
+    assert [
+        (
+            action.path.relative_to(root).as_posix(),
+            action.operation,
+        )
+        for action in actions
+    ] == [("assets/agents-directory-map.png", "update")]
+    ensure_sdd_sidecar_initialized("agents", root)
+    assert (root / "README.md").read_text(encoding="utf-8") == "# Derived\n"
+    assert directory_map.read_bytes() == expected_asset.content
 
 
 def test_custom_sidecar_generates_deterministic_generic_readme(tmp_path: Path) -> None:
