@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 from rich.syntax import Syntax
 from rich.text import Text
 
+from sase.core.wait_dependency_resolution import TribeWaitBinding
+
 from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 
 from ...models.agent import Agent, AgentType
@@ -68,6 +70,7 @@ def build_header_text(
     summary: DetailHeaderSummary | None = None,
     agent_status_buckets: Mapping[str, str] | None = None,
     clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None = None,
+    tribe_wait_bindings: Mapping[tuple[object, str], TribeWaitBinding] | None = None,
     slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     marked_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
@@ -153,6 +156,7 @@ def build_header_text(
         # callers can patch the cache boundary without touching internals.
         cached_bead_display=cached_bead_display,
         clan_wait_member_statuses=clan_wait_member_statuses,
+        tribe_wait_bindings=tribe_wait_bindings,
         runner_queue_ahead_count=(
             queue_selection.ahead_count if queue_selection is not None else None
         ),

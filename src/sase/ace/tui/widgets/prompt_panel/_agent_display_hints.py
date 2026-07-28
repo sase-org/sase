@@ -427,9 +427,16 @@ class AgentHintsDisplayMixin:
             if wait_display_agent(agent).waiting_for
             else None
         )
-        agent_status_buckets, clan_wait_member_statuses = wait_status_maps or (
-            None,
-            None,
+        agent_status_buckets = (
+            wait_status_maps.buckets if wait_status_maps is not None else None
+        )
+        clan_wait_member_statuses = (
+            wait_status_maps.clan_member_statuses
+            if wait_status_maps is not None
+            else None
+        )
+        tribe_wait_bindings = (
+            wait_status_maps.tribe_bindings if wait_status_maps is not None else None
         )
         lane_fold_level, lane_fold_overrides = panel_fold_state_from_widget(self)
         try:
@@ -450,6 +457,7 @@ class AgentHintsDisplayMixin:
             summary=summary,
             agent_status_buckets=agent_status_buckets,
             clan_wait_member_statuses=clan_wait_member_statuses,
+            tribe_wait_bindings=tribe_wait_bindings,
             unread_agent_ids=getattr(app, "_unread_completed_agent_ids", set()),
             marked_agent_ids=getattr(app, "_marked_agents", set()),
             slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(self),

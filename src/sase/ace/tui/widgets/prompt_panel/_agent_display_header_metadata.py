@@ -13,6 +13,7 @@ from sase.agent.status_buckets import (
     QUEUED_STATUS_COLOR,
     status_bucket_for_values,
 )
+from sase.core.wait_dependency_resolution import TribeWaitBinding
 from sase.project_display_names import humanize_cl_name
 
 from ...models.agent import Agent
@@ -184,6 +185,7 @@ def _append_wait_field(
     agent: Agent,
     agent_status_buckets: Mapping[str, str] | None,
     clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None,
+    tribe_wait_bindings: Mapping[tuple[object, str], TribeWaitBinding] | None,
     runner_queue_ahead_count: int | None,
     wait_bead_statuses: Sequence[tuple[str, str | None]] | None,
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None,
@@ -222,6 +224,7 @@ def _append_wait_field(
         agent,
         agent_status_buckets=agent_status_buckets,
         clan_wait_member_statuses=clan_wait_member_statuses,
+        tribe_wait_bindings=tribe_wait_bindings,
         wait_bead_statuses=wait_bead_statuses,
         runner_queue_ahead_count=runner_queue_ahead_count,
     )
@@ -294,6 +297,7 @@ def append_agent_metadata_fields(
     agent_status_buckets: Mapping[str, str] | None,
     cached_bead_display: Callable[[Agent], object],
     clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None = None,
+    tribe_wait_bindings: Mapping[tuple[object, str], TribeWaitBinding] | None = None,
     runner_queue_ahead_count: int | None = None,
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None = None,
 ) -> tuple[list[tuple[str, str]], ResponsiveWaitSection | None]:
@@ -347,6 +351,7 @@ def append_agent_metadata_fields(
         agent,
         agent_status_buckets,
         clan_wait_member_statuses,
+        tribe_wait_bindings,
         runner_queue_ahead_count,
         summary.wait_bead_statuses if summary is not None else None,
         responsive_ranges,

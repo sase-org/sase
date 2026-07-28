@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_
 from sase.ace.tui.widgets.prompt_panel._agent_display_header_renderable import (
     AgentHeader,
 )
+from sase.core.wait_dependency_resolution import TribeWaitBinding
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
@@ -341,7 +342,9 @@ def test_collect_agent_status_buckets_aggregates_clan_members(
         [(f"member-{index}", status) for index, status in enumerate(statuses)],
     )
 
-    buckets, clan_members = _collect_agent_wait_status_maps(rows)
+    status_maps = _collect_agent_wait_status_maps(rows)
+    buckets = status_maps.buckets
+    clan_members = status_maps.clan_member_statuses
 
     assert buckets["sase-7g"] == expected_bucket
     expected_member_buckets = {
@@ -369,7 +372,9 @@ def test_collect_agent_status_buckets_uses_newest_clan_generation() -> None:
         [("new-0", "DONE"), ("new-1", "DONE")],
     )
 
-    buckets, clan_members = _collect_agent_wait_status_maps([*older, *newest])
+    status_maps = _collect_agent_wait_status_maps([*older, *newest])
+    buckets = status_maps.buckets
+    clan_members = status_maps.clan_member_statuses
 
     assert buckets["sase-7g"] == "Done"
     assert clan_members["sase-7g"] == ((".new-0", "Done"), (".new-1", "Done"))
@@ -392,9 +397,11 @@ def test_real_agent_and_family_names_win_clan_name_collisions() -> None:
         *_clan_rows("legacy-family", "20260719120000", [("done", "DONE")]),
     ]
 
-    buckets, clan_members = _collect_agent_wait_status_maps(
+    status_maps = _collect_agent_wait_status_maps(
         [agent_collision, family_collision, *clans]
     )
+    buckets = status_maps.buckets
+    clan_members = status_maps.clan_member_statuses
 
     assert buckets["legacy-agent"] == "Waiting"
     assert buckets["legacy-family"] == "Failed"
@@ -427,9 +434,37 @@ def test_agent_wait_status_maps_for_app_uses_one_clan_snapshot() -> None:
     )
 
     assert status_maps is not None
-    buckets, clan_members = status_maps
+    buckets = status_maps.buckets
+    clan_members = status_maps.clan_member_statuses
     assert buckets["sase-7g"] == "Running"
     assert clan_members["sase-7g"] == ((".plan", "Done"), (".code", "Running"))
+
+
+def test_collect_agent_wait_status_maps_resolves_tribe_bindings_once() -> None:
+    waiter = make_agent(
+        status="WAITING",
+        raw_suffix="20260728120000",
+        agent_name="waiter",
+        waiting_for=["@epic"],
+    )
+    target = make_agent(
+        status="DONE",
+        raw_suffix="20260728120100",
+        agent_name="epic.builder",
+        tribe="epic",
+    )
+
+    status_maps = _collect_agent_wait_status_maps([waiter, target])
+
+    assert status_maps.tribe_bindings[(waiter.identity, "@epic")] == TribeWaitBinding(
+        tribe="epic",
+        state="bound",
+        kind="agent",
+        identity=target.raw_suffix,
+        name="epic.builder",
+        timestamp=target.raw_suffix,
+        is_terminal=True,
+    )
 
 
 def test_wait_dependencies_satisfied_accepts_empty_wait_list() -> None:
@@ -495,6 +530,39 @@ def test_wait_dependencies_satisfied_uses_clan_aggregate() -> None:
     assert wait_dependencies_satisfied(agent, active_buckets) is False
 
 
+def test_wait_dependencies_satisfied_uses_tribe_binding_state() -> None:
+    agent = make_agent(
+        status="WAITING",
+        raw_suffix="20260728120000",
+        waiting_for=["@epic"],
+    )
+    key = (agent.identity, "@epic")
+
+    assert (
+        wait_dependencies_satisfied(
+            agent,
+            {},
+            {key: TribeWaitBinding(tribe="epic", state="pending")},
+        )
+        is False
+    )
+    assert (
+        wait_dependencies_satisfied(
+            agent,
+            {},
+            {
+                key: TribeWaitBinding(
+                    tribe="epic",
+                    state="bound",
+                    kind="agent",
+                    name="epic.builder",
+                )
+            },
+        )
+        is True
+    )
+
+
 def test_missing_wait_dependency_names_returns_ordered_partial_list() -> None:
     agent = make_agent(
         status="WAITING",
@@ -505,6 +573,20 @@ def test_missing_wait_dependency_names_returns_ordered_partial_list() -> None:
         agent,
         {"coder": "Running", "reviewer": "Failed"},
     ) == ("ghost_deploy",)
+
+
+def test_missing_wait_dependency_names_skips_tribe_references() -> None:
+    agent = make_agent(
+        status="WAITING",
+        waiting_for=["@epic", "ghost_deploy"],
+    )
+
+    missing = missing_wait_dependency_names(agent, {})
+
+    assert missing == ("ghost_deploy",)
+    assert bool(missing_wait_dependency_names(agent, {"ghost_deploy": "Running"})) is (
+        False
+    )
 
 
 def test_missing_wait_dependency_names_treats_every_known_status_as_existing() -> None:

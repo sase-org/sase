@@ -85,7 +85,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.start_rewind), "Revive dismissed (^k loads more)"),
                 (
                     d(a.add_tag),
-                    "Start prompt waiting for agent / marked set / clan / tribe",
+                    "Start wait; @tribe binds next",
                 ),
                 (d(a.reword), "Edit one current agent's wait deps/time / run now"),
                 (d(a.save_marked_agents), "Save/dismiss marked agents"),
@@ -384,6 +384,8 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             [
                 ("▶ ◐ ⏳ ✓ ✗ ▲", "Dependency status (see Grouping)"),
                 ("?", "Waited-for name not found"),
+                ("[tribes] @t → name ✓", "Bound tribe entity/status"),
+                ("[tribes] @t (next launch)", "Pending tribe wait"),
                 ("beads: id ✓", "Bead wait target status"),
             ],
         ),

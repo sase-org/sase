@@ -21,6 +21,7 @@ from sase.ace.tui._agent_completion_visibility import (
     visible_agent_completion_agents,
 )
 from sase.ace.tui._agent_completion_wait import (
+    AgentWaitStatusMaps,
     agent_status_buckets_for_app,
     agent_wait_status_maps_for_app,
     collect_agent_status_buckets,
@@ -36,6 +37,7 @@ _collect_agent_wait_status_maps = collect_agent_wait_status_maps
 __all__ = [
     "AgentCompletionCandidate",
     "AgentVcsWorkflow",
+    "AgentWaitStatusMaps",
     "_collect_agent_status_buckets",
     "_collect_agent_wait_status_maps",
     "agent_prompt_name",

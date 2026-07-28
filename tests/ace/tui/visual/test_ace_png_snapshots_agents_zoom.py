@@ -199,6 +199,35 @@ def _waiting_unknown_agents() -> list[Agent]:
     ]
 
 
+def _waiting_tribe_agents() -> list[Agent]:
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-wait-tribe",
+            project_file="/workspace/sase/visual_project.sase",
+            status="WAITING",
+            start_time=datetime(2026, 5, 9, 10, 30, 0),
+            raw_suffix="20260509-103000-tribe-wait",
+            agent_name="tribe.waiter",
+            waiting_for=["@epic"],
+            llm_provider="codex",
+            model="gpt-5",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-epic-builder",
+            project_file="/workspace/sase/visual_project.sase",
+            status="RUNNING",
+            start_time=datetime(2026, 5, 9, 10, 31, 0),
+            raw_suffix="20260509-103100-epic-builder",
+            agent_name="epic.builder",
+            tribe="epic",
+            llm_provider="codex",
+            model="gpt-5",
+        ),
+    ]
+
+
 def _context_memory_reads() -> list[MemoryReadEvent]:
     return [
         MemoryReadEvent(
@@ -251,6 +280,37 @@ async def test_agents_waiting_missing_target_row_png_snapshot(
             page,
             "agents_waiting_missing_target_row_120x40",
             title="ACE agents missing wait target row and detail",
+        )
+
+
+async def test_agents_waiting_tribe_target_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(
+        monkeypatch,
+        agents=_waiting_tribe_agents(),
+    )
+
+    async with AcePage(query='"wait-tribe"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 2)
+        await wait_for_svg_contains(page, "@epic")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "WAITING")
+        assert_page_svg_contains(page, "Wait:")
+        assert_page_svg_contains(page, "[tribes]")
+        assert_page_svg_contains(page, "@epic")
+        assert_page_svg_contains(page, "epic.builder")
+        assert_page_svg_contains(page, "▶")
+        assert "WAITING ?" not in page.export_svg(title="tribe wait assertion")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_waiting_tribe_target_row_120x40",
+            title="ACE agents pending tribe wait row and detail",
         )
 
 

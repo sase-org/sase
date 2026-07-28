@@ -14,9 +14,15 @@ from sase.agent.status_buckets import (
     AGENT_STATUS_BUCKET_GLYPHS,
     QUEUED_STATUS_COLOR,
 )
+from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
+from sase.core.wait_dependency_resolution import TribeWaitBinding
 
 from ...agent_completion import missing_wait_dependency_names
 from ...models.agent import Agent
+from ...models.tribe_display import (
+    compose_tribe_identity_style,
+    named_tribe_identity_colors,
+)
 from .._agent_list_styling import (
     _MISSING_WAIT_TARGET_GLYPH,
     _MISSING_WAIT_TARGET_GLYPH_STYLE,
@@ -28,6 +34,7 @@ WAIT_FIELD_LABEL_STYLE = "bold #87D7FF"
 _WAITING_VALUE_STYLE = "#FF87D7"
 _WAIT_TAG_STYLES: dict[str, str] = {
     "agents": "dim #AF87FF",
+    "tribes": "dim #FFD75F",
     "beads": "dim #FFAF00",
     "time": "dim #87D7FF",
     "runners": f"dim {QUEUED_STATUS_COLOR}",
@@ -84,11 +91,39 @@ def _append_wait_bead_status_badge(text: Text, status: str | None) -> None:
     text.append(glyph, style=style)
 
 
+def _append_clan_wait_members(
+    value: Text,
+    clan_members: Sequence[tuple[str, str]],
+) -> None:
+    """Append the established expanded clan-member wait detail."""
+    done_count = sum(bucket == "Done" for _label, bucket in clan_members)
+    value.append(" (", style="dim #AF87FF")
+    value.append("all clan members", style="bold #AF87FF")
+    value.append(
+        f" · {done_count}/{len(clan_members)} done: ",
+        style="dim #AF87FF",
+    )
+    for member_index, (label, bucket) in enumerate(clan_members):
+        if member_index:
+            value.append(" · ", style="dim #AF87FF")
+        value.append(label, style=_WAITING_VALUE_STYLE)
+        _append_wait_status_badge(value, bucket)
+    value.append(")", style="dim #AF87FF")
+
+
+def _tribe_target(reference: str) -> str | None:
+    try:
+        return parse_tribe_reference(reference)
+    except InvalidTribeError:
+        return None
+
+
 def build_wait_lanes(
     agent: Agent,
     *,
     agent_status_buckets: Mapping[str, str] | None,
     clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None,
+    tribe_wait_bindings: Mapping[tuple[object, str], TribeWaitBinding] | None,
     wait_bead_statuses: Sequence[tuple[str, str | None]] | None,
     runner_queue_ahead_count: int | None,
 ) -> tuple[WaitLane, ...]:
@@ -103,11 +138,20 @@ def build_wait_lanes(
     wait_agent = wait_display_agent(agent)
     lanes: list[WaitLane] = []
 
-    if wait_agent.waiting_for:
+    ordinary_targets = tuple(
+        name for name in wait_agent.waiting_for if _tribe_target(name) is None
+    )
+    tribe_targets = tuple(
+        (name, tribe)
+        for name in wait_agent.waiting_for
+        if (tribe := _tribe_target(name)) is not None
+    )
+
+    if ordinary_targets:
         value = Text()
         missing_names = missing_wait_dependency_names(agent, agent_status_buckets)
         missing_name_set = set(missing_names or ())
-        for index, name in enumerate(wait_agent.waiting_for):
+        for index, name in enumerate(ordinary_targets):
             if index:
                 value.append(", ", style=_WAITING_VALUE_STYLE)
             value.append(name, style=_WAITING_VALUE_STYLE)
@@ -117,19 +161,7 @@ def build_wait_lanes(
                 else None
             )
             if clan_members is not None:
-                done_count = sum(bucket == "Done" for _label, bucket in clan_members)
-                value.append(" (", style="dim #AF87FF")
-                value.append("all clan members", style="bold #AF87FF")
-                value.append(
-                    f" · {done_count}/{len(clan_members)} done: ",
-                    style="dim #AF87FF",
-                )
-                for member_index, (label, bucket) in enumerate(clan_members):
-                    if member_index:
-                        value.append(" · ", style="dim #AF87FF")
-                    value.append(label, style=_WAITING_VALUE_STYLE)
-                    _append_wait_status_badge(value, bucket)
-                value.append(")", style="dim #AF87FF")
+                _append_clan_wait_members(value, clan_members)
             elif missing_names is not None:
                 assert agent_status_buckets is not None
                 target_bucket = (
@@ -137,6 +169,48 @@ def build_wait_lanes(
                 )
                 _append_wait_status_badge(value, target_bucket)
         lanes.append(("agents", value))
+
+    if tribe_targets:
+        value = Text()
+        colors = named_tribe_identity_colors(
+            {tribe for _reference, tribe in tribe_targets}
+        )
+        for index, (reference, tribe) in enumerate(tribe_targets):
+            if index:
+                value.append(", ", style=_WAITING_VALUE_STYLE)
+            value.append(
+                reference,
+                style=compose_tribe_identity_style(colors[tribe], bold=True),
+            )
+            binding = (
+                tribe_wait_bindings.get((wait_agent.identity, reference))
+                if tribe_wait_bindings is not None
+                else None
+            )
+            if binding is None or binding.name is None:
+                value.append(" (next launch)", style="dim #AF87FF")
+                continue
+            value.append(" → ", style="dim #AF87FF")
+            value.append(binding.name, style=_WAITING_VALUE_STYLE)
+            target_bucket = (
+                "Done"
+                if binding.state == "bound"
+                else (
+                    agent_status_buckets.get(binding.name)
+                    if agent_status_buckets is not None
+                    else None
+                )
+            )
+            if target_bucket is not None:
+                _append_wait_status_badge(value, target_bucket)
+            clan_members = (
+                clan_wait_member_statuses.get(binding.name)
+                if binding.kind == "clan" and clan_wait_member_statuses is not None
+                else None
+            )
+            if clan_members is not None:
+                _append_clan_wait_members(value, clan_members)
+        lanes.append(("tribes", value))
 
     if wait_agent.waiting_for_beads:
         value = Text()

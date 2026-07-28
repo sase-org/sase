@@ -15,8 +15,9 @@ from rich.text import Text
 from textual.widgets.option_list import Option
 
 from ..agent_completion import (
-    agent_status_buckets_for_app,
-    collect_agent_status_buckets,
+    AgentWaitStatusMaps,
+    agent_wait_status_maps_for_app,
+    collect_agent_wait_status_maps,
     missing_wait_dependency_names,
     wait_dependencies_satisfied,
 )
@@ -192,13 +193,16 @@ def _banner_mark_state(
     return "partial"
 
 
-def _agent_status_buckets_for_build(widget: Any, agents: list[Agent]) -> dict[str, str]:
-    """Return status buckets for wait dependency rendering."""
+def _agent_wait_status_maps_for_build(
+    widget: Any,
+    agents: list[Agent],
+) -> AgentWaitStatusMaps:
+    """Return wait state from the app's full loaded snapshot when available."""
     try:
         app = getattr(widget, "app", None)
     except Exception:
         app = None
-    return agent_status_buckets_for_app(app) or collect_agent_status_buckets(agents)
+    return agent_wait_status_maps_for_app(app) or collect_agent_wait_status_maps(agents)
 
 
 def build_list(
@@ -263,7 +267,8 @@ def build_list(
     agent_tier_styles, banner_tier_styles = compute_tier_styles(
         tree, panel_uses_cs=panel_uses_cs, mode=grouping_mode
     )
-    status_buckets = _agent_status_buckets_for_build(widget, agents)
+    wait_status_maps = _agent_wait_status_maps_for_build(widget, agents)
+    status_buckets = wait_status_maps.buckets
 
     # Pre-format agent rows so we know their widths before emitting banner
     # rules (banners are stretched to the widest row, and the runtime
@@ -292,7 +297,11 @@ def build_list(
             else None
         )
         tier_styles = agent_tier_styles.get(i, ())
-        wait_deps_done = wait_dependencies_satisfied(agent, status_buckets)
+        wait_deps_done = wait_dependencies_satisfied(
+            agent,
+            status_buckets,
+            wait_status_maps.tribe_bindings,
+        )
         has_missing_wait_target = bool(
             missing_wait_dependency_names(agent, status_buckets)
         )

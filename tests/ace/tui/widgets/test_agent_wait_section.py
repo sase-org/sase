@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from io import StringIO
 
+import pytest
 from rich.console import Console
 from rich.text import Text
 
@@ -16,6 +17,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_wait_section import (
     ResponsiveWaitSection,
     build_wait_lanes,
 )
+from sase.core.wait_dependency_resolution import TribeWaitBinding
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
@@ -23,6 +25,7 @@ def _lanes(agent, **overrides):
     arguments = {
         "agent_status_buckets": None,
         "clan_wait_member_statuses": None,
+        "tribe_wait_bindings": None,
         "wait_bead_statuses": None,
         "runner_queue_ahead_count": None,
     }
@@ -92,11 +95,11 @@ def test_gutter_width_tracks_only_present_lanes() -> None:
     assert time_line.index("5m") - len("Wait: ") == 7
 
 
-def test_lane_order_is_agents_beads_time_runners() -> None:
+def test_lane_order_is_agents_tribes_beads_time_runners() -> None:
     lanes = _lanes(
         make_agent(
             status="WAITING",
-            waiting_for=["agent-one"],
+            waiting_for=["agent-one", "@epic"],
             waiting_for_beads=["bead-one"],
             wait_duration=300,
             wait_runners=2,
@@ -106,6 +109,7 @@ def test_lane_order_is_agents_beads_time_runners() -> None:
 
     assert tuple(tag for tag, _value in lanes) == (
         "agents",
+        "tribes",
         "beads",
         "time",
         "runners",
@@ -113,7 +117,53 @@ def test_lane_order_is_agents_beads_time_runners() -> None:
     assert [
         line[6 : line.index("]") + 1]
         for line in ResponsiveWaitSection(lanes).logical_text.plain.splitlines()
-    ] == ["[agents]", "[beads]", "[time]", "[runners]"]
+    ] == ["[agents]", "[tribes]", "[beads]", "[time]", "[runners]"]
+
+
+def test_pending_tribe_wait_uses_tribe_lane_without_unknown_glyph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_wait_section."
+        "named_tribe_identity_colors",
+        lambda _names: {"epic": "#123456"},
+    )
+    agent = make_agent(
+        status="WAITING",
+        raw_suffix="20260728120000",
+        waiting_for=["@epic"],
+    )
+
+    text = ResponsiveWaitSection(_lanes(agent)).logical_text
+
+    assert text.plain == "Wait: [tribes] @epic (next launch)\n"
+    assert "?" not in text.plain
+    assert "bold #123456" in _styles_covering(text, "@epic")
+
+
+def test_bound_tribe_wait_names_entity_and_status() -> None:
+    agent = make_agent(
+        status="WAITING",
+        raw_suffix="20260728120000",
+        waiting_for=["@epic"],
+    )
+    binding = TribeWaitBinding(
+        tribe="epic",
+        state="bound",
+        kind="agent",
+        name="epic.builder",
+    )
+
+    text = ResponsiveWaitSection(
+        _lanes(
+            agent,
+            agent_status_buckets={"epic.builder": "Done"},
+            tribe_wait_bindings={(agent.identity, "@epic"): binding},
+        )
+    ).logical_text
+
+    assert text.plain == "Wait: [tribes] @epic → epic.builder ✓\n"
+    assert "?" not in text.plain
 
 
 def test_rendered_wrap_keeps_hanging_indent() -> None:
