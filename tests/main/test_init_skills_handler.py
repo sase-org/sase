@@ -49,6 +49,113 @@ def test_handler_dry_run_does_not_deploy(
     deploy_mock.assert_not_called()
 
 
+def test_handler_dirty_chezmoi_source_is_refused_before_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    stub_skill_source(tmp_path, monkeypatch)
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
+    monkeypatch.setattr(
+        init_skills_handler,
+        "skill_source_integrity_error",
+        lambda: (
+            "refusing chezmoi skill deploy because xprompt sources have "
+            "uncommitted changes:\n  M src/sase/xprompts/skills/foo.md"
+        ),
+    )
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", chezmoi_home)
+
+    deploy_mock = MagicMock()
+    monkeypatch.setattr(init_skills_handler, "_deploy_to_chezmoi", deploy_mock)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(make_args())
+
+    assert exc.value.code == 1
+    assert not chezmoi_home.exists()
+    deploy_mock.assert_not_called()
+    err = capsys.readouterr().err
+    assert "src/sase/xprompts/skills/foo.md" in err
+
+
+def test_handler_allow_dirty_overrides_source_integrity_guard(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub_skill_source(tmp_path, monkeypatch)
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
+    guard_mock = MagicMock(side_effect=AssertionError("guard must be bypassed"))
+    monkeypatch.setattr(init_skills_handler, "skill_source_integrity_error", guard_mock)
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(
+        init_skills_handler, "_deploy_to_chezmoi", MagicMock(return_value=0)
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(make_args(allow_dirty=True))
+
+    assert exc.value.code == 0
+    guard_mock.assert_not_called()
+    assert tuple(chezmoi_home.rglob("SKILL.md"))
+
+
+def test_handler_diff_is_read_only_and_skips_source_integrity_guard(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub_skill_source(tmp_path, monkeypatch)
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
+    guard_mock = MagicMock(side_effect=AssertionError("guard must be bypassed"))
+    monkeypatch.setattr(init_skills_handler, "skill_source_integrity_error", guard_mock)
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", chezmoi_home)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(make_args(diff=True))
+
+    assert exc.value.code == 0
+    guard_mock.assert_not_called()
+    assert not chezmoi_home.exists()
+
+
+def test_handler_check_skips_source_integrity_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.main import init_onboarding
+
+    guard_mock = MagicMock(side_effect=AssertionError("guard must be bypassed"))
+    monkeypatch.setattr(init_skills_handler, "skill_source_integrity_error", guard_mock)
+    check_mock = MagicMock(return_value=0)
+    monkeypatch.setattr(init_onboarding, "run_init_check", check_mock)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(make_args(check=True))
+
+    assert exc.value.code == 0
+    guard_mock.assert_not_called()
+    check_mock.assert_called_once()
+
+
+def test_handler_non_chezmoi_mode_skips_source_integrity_guard(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub_skill_source(tmp_path, monkeypatch)
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    guard_mock = MagicMock(side_effect=AssertionError("guard must be bypassed"))
+    monkeypatch.setattr(init_skills_handler, "skill_source_integrity_error", guard_mock)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(make_args())
+
+    assert exc.value.code == 0
+    guard_mock.assert_not_called()
+
+
 def test_handler_zero_written_does_not_deploy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

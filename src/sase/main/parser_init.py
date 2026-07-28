@@ -19,6 +19,15 @@ def add_enable_project_memory_argument(parser: argparse.ArgumentParser) -> None:
 def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
     """Add flags shared by ``sase skill init`` and its ``sase init skills`` alias."""
     parser.add_argument(
+        "-D",
+        "--allow-dirty",
+        action="store_true",
+        help=(
+            "Allow a chezmoi deploy from dirty or unmerged xprompt sources "
+            "(dangerous: can revert other agents' deployments)"
+        ),
+    )
+    parser.add_argument(
         "-c",
         "--check",
         action="store_true",
@@ -30,7 +39,7 @@ def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
         "--diff",
         action="store_true",
         default=argparse.SUPPRESS,
-        help="Show full generated skill-file diffs",
+        help="Show full generated skill-file diffs without writing files",
     )
     parser.add_argument(
         "-n",

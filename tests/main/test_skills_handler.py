@@ -93,6 +93,7 @@ def test_parser_registers_skills_namespace() -> None:
         [
             "skill",
             "init",
+            "--allow-dirty",
             "--no-apply",
             "--no-commit",
             "--force",
@@ -104,6 +105,7 @@ def test_parser_registers_skills_namespace() -> None:
     )
     assert init_args.command == "skill"
     assert init_args.skill_subcommand == "init"
+    assert init_args.allow_dirty is True
     assert init_args.no_apply is True
     assert init_args.no_commit is True
     assert init_args.force is True
@@ -147,6 +149,22 @@ def test_parser_registers_skills_namespace() -> None:
     default_args = parser.parse_args(["skill"])
     assert default_args.command == "skill"
     assert default_args.skill_subcommand == "list"
+
+
+def test_skill_init_help_warns_that_allow_dirty_can_revert_deployments(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["skill", "init", "--help"])
+
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    normalized = " ".join(out.split())
+    assert "-D, --allow-dirty" in out
+    assert "can revert other agents' deployments" in normalized
+    assert out.index("--allow-dirty") < out.index("--check")
 
 
 def test_parser_rejects_legacy_skills_namespace() -> None:

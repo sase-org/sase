@@ -16,6 +16,7 @@ from sase.xprompt.models import XPrompt
 def make_args(**overrides: Any) -> argparse.Namespace:
     """Build an argparse.Namespace with init skills defaults."""
     defaults: dict[str, Any] = {
+        "allow_dirty": False,
         "force": True,
         "dry_run": False,
         "provider": None,
@@ -128,6 +129,9 @@ def stub_skill_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         skill=["claude"],
     )
     monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(
+        init_skills_handler, "skill_source_integrity_error", lambda: None
+    )
     monkeypatch.setattr(
         init_skills_handler, "get_all_xprompts", lambda project="": {"foo": xprompt}
     )

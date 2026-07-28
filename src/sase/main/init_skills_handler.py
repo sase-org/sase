@@ -24,6 +24,7 @@ from sase.main._init_skills_sources import (
     skill_deploy_subpaths as _skill_deploy_subpaths_impl,
     target_path_for_subpath as _target_path_for_subpath_impl,
 )
+from sase.main._init_skills_source_integrity import skill_source_integrity_error
 from sase.main._init_chezmoi_deploy import (
     ChezmoiDeployBehavior,
     defer_chezmoi_paths,
@@ -407,7 +408,8 @@ def run_init_skills(args: argparse.Namespace) -> int:
     if targets and not use_prettier:
         print(_PRETTIER_WARNING, file=sys.stderr)
 
-    if getattr(args, "diff", False):
+    diff: bool = getattr(args, "diff", False)
+    if diff:
         from .init_preview import preview_console, render_plan_diff
 
         preview_actions: list[InitAction] = []
@@ -433,6 +435,17 @@ def run_init_skills(args: argparse.Namespace) -> int:
                 actions=tuple(preview_actions),
             ),
         )
+        return 0
+
+    has_changes = any(
+        _planned_skill_operation(target) is not None for target in targets
+    )
+    allow_dirty: bool = getattr(args, "allow_dirty", False)
+    if use_chezmoi and not dry_run and has_changes and not allow_dirty:
+        source_error = skill_source_integrity_error()
+        if source_error is not None:
+            print(f"{_COMMAND_LABEL}: {source_error}", file=sys.stderr)
+            return 1
 
     written = 0
     skipped = 0

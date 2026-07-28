@@ -130,12 +130,15 @@ def test_parser_accepts_scoped_init_check_modes() -> None:
 
     skill_long_args = parser.parse_args(["skill", "init", "--check"])
     assert skill_long_args.check is True
+    assert parser.parse_args(["skill", "init", "-D"]).allow_dirty is True
+    assert parser.parse_args(["skill", "init", "--allow-dirty"]).allow_dirty is True
     assert parser.parse_args(["skill", "init", "-d"]).diff is True
 
     init_skills_args = parser.parse_args(["init", "skills", "--check"])
     assert init_skills_args.command == "init"
     assert init_skills_args.init_subcommand == "skills"
     assert init_skills_args.check is True
+    assert parser.parse_args(["init", "skills", "-D"]).allow_dirty is True
     assert parser.parse_args(["init", "skills", "--diff"]).diff is True
 
     parent_skills_args = parser.parse_args(["init", "--check", "skills"])
