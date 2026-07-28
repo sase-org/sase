@@ -9,7 +9,7 @@ from sase.agents_sync.publication_outbox import (
     clear_quarantined_agent_publications,
     enqueue_agent_publication,
     list_agent_publications,
-    snapshot_agent_publications,
+    snapshot_agent_publications_from_path,
     update_agent_publications,
 )
 
@@ -137,7 +137,7 @@ def test_lock_free_snapshot_reads_schema_v1_without_writing(
     payload = json.dumps({"schema_version": 1, "items": [row]})
     path.write_text(payload, encoding="utf-8")
 
-    [loaded] = snapshot_agent_publications("proj")
+    [loaded] = snapshot_agent_publications_from_path(path, "proj")
 
     assert loaded.logical_key == _item().logical_key
     assert loaded.attempts == 0
@@ -173,7 +173,7 @@ def test_typed_snapshot_rejects_malformed_consumed_fields(
     )
 
     with pytest.raises(RuntimeError, match=field):
-        snapshot_agent_publications("proj")
+        snapshot_agent_publications_from_path(path, "proj")
 
 
 def test_schema_v2_snapshot_requires_quarantine_state(
@@ -191,4 +191,4 @@ def test_schema_v2_snapshot_requires_quarantine_state(
     )
 
     with pytest.raises(RuntimeError, match="quarantined"):
-        snapshot_agent_publications("proj")
+        snapshot_agent_publications_from_path(path, "proj")

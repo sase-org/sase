@@ -19,7 +19,7 @@ from sase.core.paths import sase_projects_dir, validate_sase_project_name
 PUBLICATION_OUTBOX_SCHEMA_VERSION = 2
 DEFAULT_PUBLICATION_MAX_ATTEMPTS = 3
 _PUBLICATION_MAX_ATTEMPTS_ENV = "SASE_AGENTS_PUBLICATION_MAX_ATTEMPTS"
-_OUTBOX_FILENAME = "agents-publication-outbox.json"
+AGENT_PUBLICATION_OUTBOX_FILENAME = "agents-publication-outbox.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,7 +146,8 @@ def list_agent_publications(
     return tuple(item for item in items if not item.quarantined)
 
 
-def snapshot_agent_publications(
+def snapshot_agent_publications_from_path(
+    path: Path | str,
     project_key: str,
 ) -> tuple[AgentPublicationOutboxItem, ...]:
     """Read one immutable typed outbox snapshot without taking its lock.
@@ -155,16 +156,11 @@ def snapshot_agent_publications(
     so a reader observes either the previous complete document or the next
     complete document. This read-only path neither creates a lock file nor
     writes to the project directory.
+
+    Callers pass *path* explicitly because readers already resolve it while
+    scanning the projects root, and because ``sase doctor`` reads a projects
+    root it was handed rather than the ambient one.
     """
-
-    return _read_outbox(_outbox_path(project_key), project_key)
-
-
-def snapshot_agent_publications_from_path(
-    path: Path | str,
-    project_key: str,
-) -> tuple[AgentPublicationOutboxItem, ...]:
-    """Read one immutable typed outbox snapshot from an explicit path."""
 
     validate_sase_project_name(project_key)
     return _read_outbox(Path(path), project_key)
@@ -311,7 +307,7 @@ def _mutate_outbox(
 
 def _outbox_path(project_key: str) -> Path:
     validate_sase_project_name(project_key)
-    return sase_projects_dir() / project_key / _OUTBOX_FILENAME
+    return sase_projects_dir() / project_key / AGENT_PUBLICATION_OUTBOX_FILENAME
 
 
 @contextmanager
@@ -485,6 +481,7 @@ def _json_optional_number(
 
 
 __all__ = [
+    "AGENT_PUBLICATION_OUTBOX_FILENAME",
     "DEFAULT_PUBLICATION_MAX_ATTEMPTS",
     "PUBLICATION_OUTBOX_SCHEMA_VERSION",
     "AgentPublicationOutboxItem",
@@ -494,7 +491,6 @@ __all__ = [
     "enqueue_agent_publication",
     "list_agent_publications",
     "publication_quarantine_diagnostics",
-    "snapshot_agent_publications",
     "snapshot_agent_publications_from_path",
     "update_agent_publications",
 ]

@@ -11,8 +11,9 @@ import sqlite3
 from sase.agents_sync.git import run_git
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication_outbox import (
+    AGENT_PUBLICATION_OUTBOX_FILENAME,
     AgentPublicationOutboxItem,
-    snapshot_agent_publications,
+    snapshot_agent_publications_from_path,
 )
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.agents_sync.v2_io import validate_component
@@ -86,11 +87,11 @@ def load_publication_backlog() -> tuple[
     except OSError:
         return {}, ()
     for project_dir in projects:
-        path = project_dir / "agents-publication-outbox.json"
+        path = project_dir / AGENT_PUBLICATION_OUTBOX_FILENAME
         if not path.is_file():
             continue
         try:
-            items = snapshot_agent_publications(project_dir.name)
+            items = snapshot_agent_publications_from_path(path, project_dir.name)
         except (OSError, RuntimeError, ValueError) as exc:
             diagnostics.append(
                 f"{project_dir.name}: could not load publication backlog: {exc}"

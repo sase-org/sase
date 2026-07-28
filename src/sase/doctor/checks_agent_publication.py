@@ -7,6 +7,7 @@ import time
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from sase.agents_sync.publication_outbox import (
+    AGENT_PUBLICATION_OUTBOX_FILENAME,
     AgentPublicationOutboxItem,
     configured_publication_max_attempts,
     snapshot_agent_publications_from_path,
@@ -21,7 +22,6 @@ if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
 
 DEFAULT_PUBLICATION_STALLED_AGE_SECONDS = 24 * 60 * 60
-_OUTBOX_FILENAME = "agents-publication-outbox.json"
 _MAX_DETAIL_ROWS = 10
 _REMEDIATION_COMMAND = "sase agent sync --retry-quarantined"
 
@@ -166,7 +166,7 @@ def _check_agent_publication_outbox(
     problems: list[_OutboxProblem] = []
     errors: list[str] = []
     for record in records:
-        path = projects_root / record.project_name / _OUTBOX_FILENAME
+        path = projects_root / record.project_name / AGENT_PUBLICATION_OUTBOX_FILENAME
         try:
             items = snapshot_agent_publications_from_path(path, record.project_name)
         except Exception as exc:  # noqa: BLE001 - one corrupt outbox is isolated.
