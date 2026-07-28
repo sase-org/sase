@@ -19,10 +19,28 @@ def claim_bead_for_agent_launch(
     try:
         from sase.bead.store_locator import open_bead_project_for_beads_dir
         from sase.bead.sync import bead_store_write_lock
-        from sase.sdd.store import resolve_sdd_store
+        from sase.sdd.store import ensure_sdd_kind_clone, resolve_sdd_store
 
         store = resolve_sdd_store(workspace_dir, workspace_num)
         beads_dir = store.kind_root("beads")
+        if not beads_dir.is_dir():
+            # A dedicated beads sidecar is materialized lazily, and the
+            # provider workflow steps that clone it run after this claim.
+            # Clone it here so the claim, its store lock, and its commit all
+            # target a real repository.
+            ensure_sdd_kind_clone(
+                workspace_dir,
+                workspace_num,
+                "beads",
+                strict=True,
+            )
+            store = resolve_sdd_store(workspace_dir, workspace_num)
+            beads_dir = store.kind_root("beads")
+            if not beads_dir.is_dir():
+                raise RuntimeError(
+                    "beads store could not be materialized for workspace "
+                    f"#{workspace_num} at {beads_dir}"
+                )
 
         # The mutation writes stream JSONL into a shared worktree, so it and
         # its commit hold one store-lock span: an integration that rebased
