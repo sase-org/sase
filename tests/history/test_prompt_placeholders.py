@@ -16,6 +16,7 @@ from sase.history.prompt_placeholders import (
     common_placeholder_source_token,
     load_common_placeholders,
     record_prompt_placeholders,
+    remove_common_placeholder,
     seed_common_placeholders_from_history,
 )
 from sase.history.prompt_store import (
@@ -285,6 +286,43 @@ def test_source_token_tracks_the_store_file(
     record_prompt_placeholders("<alpha>")
 
     assert common_placeholder_source_token() != missing
+
+
+def test_remove_common_placeholder_preserves_remaining_order_and_counts(
+    sase_home_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    freeze_timestamps(monkeypatch, ["260701_000000"])
+    record_prompt_placeholders("<alpha> <beta>")
+    freeze_timestamps(monkeypatch, ["260702_000000"])
+    record_prompt_placeholders("<alpha> <gamma>")
+    before = read_store(sase_home_dir)["placeholders"]
+
+    assert remove_common_placeholder("beta") is True
+    assert remove_common_placeholder("missing") is False
+
+    assert read_store(sase_home_dir)["placeholders"] == [
+        entry for entry in before if entry["text"] != "beta"
+    ]
+
+
+def test_removing_last_placeholder_leaves_store_present_and_seeded(
+    sase_home_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    freeze_timestamps(monkeypatch, ["260701_000000"])
+    record_prompt_placeholders("<alpha>")
+
+    assert remove_common_placeholder("alpha") is True
+    assert store_file(sase_home_dir).exists()
+    assert read_store(sase_home_dir) == {"version": 1, "placeholders": []}
+
+    with patch.object(
+        store,
+        "iter_shard_paths_newest_first",
+        side_effect=AssertionError("history seed reran"),
+    ):
+        assert seed_common_placeholders_from_history(100) is False
 
 
 def test_seed_counts_placeholders_across_shards(sase_home_dir: Path) -> None:

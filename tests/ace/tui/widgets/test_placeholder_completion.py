@@ -73,7 +73,7 @@ async def test_typing_open_bracket_auto_opens_and_live_narrows() -> None:
         ]
         panel = bar.query_one("#prompt-completion", Static)
         assert panel.border_title == "placeholder"
-        assert panel.border_subtitle == ""
+        assert panel.border_subtitle == "[^D] delete"
         assert "<> alpha" in panel.render().plain  # type: ignore[union-attr]
 
         await pilot.press("a", "l", "p", "h")
@@ -329,7 +329,7 @@ async def test_manual_trigger_shows_the_full_saved_list_at_a_bare_bracket() -> N
         ]
         assert _sources(ta) == ["prompt", "prompt", "common", "common"]
         panel = app.query_one("#prompt-completion", Static)
-        assert panel.border_subtitle == "<> prompt   ◆ saved"
+        assert panel.border_subtitle == "<> prompt   ◆ saved  [^D] delete"
         rendered = panel.render().plain  # type: ignore[union-attr]
         assert "<> alpha" in rendered
         assert "◆  feature flag" in rendered
@@ -346,6 +346,95 @@ async def test_manual_bare_bracket_accepts_lone_prompt_before_saved_group() -> N
 
         assert ta.text == "Use <alpha> and <alpha>"
         assert ta._file_completion_active is False
+
+
+async def test_ctrl_d_deletes_saved_placeholder_keeps_menu_open_and_toasts() -> None:
+    app = CompletionTestApp(common_placeholders=["alpha", "alpine"])
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Use <")
+        ta.cursor_location = (0, len(ta.text))
+
+        with (
+            patch("sase.ace.tui.util.io_async.schedule_persist") as schedule,
+            patch.object(app, "notify") as notify,
+        ):
+            await pilot.press("ctrl+t", "ctrl+d")
+
+        assert app.forgotten_common_placeholders == ["alpha"]
+        assert app.common_placeholders() == ["alpine"]
+        assert ta._file_completion_active is True
+        assert _insertions(ta) == ["alpine"]
+        notify.assert_called_once_with(
+            "Deleted saved placeholder: <alpha>",
+            severity="information",
+            markup=False,
+        )
+        assert schedule.call_args.args[0] is app
+        assert schedule.call_args.args[2] == "alpha"
+        before = app.warm_common_requests
+        schedule.call_args.kwargs["on_error"](OSError("disk full"))
+        assert app.warm_common_requests == before + 1
+
+
+async def test_ctrl_d_on_prompt_placeholder_only_explains_without_deleting() -> None:
+    app = CompletionTestApp(common_placeholders=["beta"])
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Use <alpha> and <alpine> then <")
+        ta.cursor_location = (0, len(ta.text))
+
+        with (
+            patch("sase.ace.tui.util.io_async.schedule_persist") as schedule,
+            patch.object(app, "notify") as notify,
+        ):
+            await pilot.press("ctrl+t", "ctrl+d")
+
+        assert _insertions(ta) == ["alpha", "alpine", "beta"]
+        assert app.common_placeholders() == ["beta"]
+        assert app.forgotten_common_placeholders == []
+        schedule.assert_not_called()
+        notify.assert_called_once_with(
+            "This placeholder comes from the current prompt, not the saved list",
+            severity="information",
+            markup=False,
+        )
+
+
+async def test_ctrl_d_deleting_last_saved_placeholder_closes_menu() -> None:
+    app = CompletionTestApp(common_placeholders=["alpha", "alpine"])
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Use <")
+        ta.cursor_location = (0, len(ta.text))
+
+        with patch("sase.ace.tui.util.io_async.schedule_persist") as schedule:
+            await pilot.press("ctrl+t", "ctrl+d", "ctrl+d")
+
+        assert app.forgotten_common_placeholders == ["alpha", "alpine"]
+        assert ta._file_completion_active is False
+        assert schedule.call_count == 2
+
+
+async def test_ctrl_d_saved_placeholder_falls_back_to_local_row_removal() -> None:
+    app = CompletionTestApp(common_placeholders=["alpha", "alpine"])
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Use <")
+        ta.cursor_location = (0, len(ta.text))
+
+        with (
+            patch.object(
+                CompletionTestApp,
+                "forget_common_placeholder",
+                None,
+            ),
+            patch("sase.ace.tui.util.io_async.schedule_persist"),
+        ):
+            await pilot.press("ctrl+t", "ctrl+d")
+
+        assert ta._file_completion_active is True
+        assert _insertions(ta) == ["alpine"]
 
 
 async def test_manual_trigger_accepts_a_lone_saved_match_outright() -> None:

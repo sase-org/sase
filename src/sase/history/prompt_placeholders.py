@@ -136,6 +136,17 @@ def load_common_placeholders(limit: int) -> list[str]:
     return [entry.text for entry in _load_payload()[:limit]]
 
 
+def remove_common_placeholder(text: str) -> bool:
+    """Remove the exact saved placeholder *text*, returning whether it existed."""
+    with _locked_placeholder_store():
+        entries = _load_payload()
+        remaining = [entry for entry in entries if entry.text != text]
+        if len(remaining) == len(entries):
+            return False
+        _save_payload(remaining)
+    return True
+
+
 def common_placeholder_source_token() -> CommonPlaceholderSourceToken:
     """Return a cheap staleness token for the store file.
 

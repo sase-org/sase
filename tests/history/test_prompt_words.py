@@ -5,12 +5,24 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.history.prompt_store import PromptEntry, save_shard
+from sase.history.prompt_word_deletions import delete_prompt_word
 from sase.history.prompt_words import (
     _extract_prompt_words,
     collect_recent_prompt_words,
     history_words_source_token,
 )
+from tests.conftest import redirect_sase_home
+
+
+@pytest.fixture(autouse=True)
+def _redirect_deleted_word_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
 
 
 def _entry(
@@ -111,6 +123,23 @@ def test_collect_recent_words_tolerates_corrupt_shards(tmp_path: Path) -> None:
         ]
 
 
+def test_deleted_words_are_excluded_without_consuming_the_budget(
+    tmp_path: Path,
+) -> None:
+    history_dir = tmp_path / "prompt_history"
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_DIR", history_dir):
+        save_shard(
+            history_dir / "2607.json",
+            [_entry("alpha beta gamma", "260701_000000")],
+        )
+        delete_prompt_word("alpha")
+
+        assert collect_recent_prompt_words(max_words=2, min_length=1) == [
+            "beta",
+            "gamma",
+        ]
+
+
 def test_history_words_source_token_tracks_shards_and_settings(
     tmp_path: Path,
 ) -> None:
@@ -128,3 +157,13 @@ def test_history_words_source_token_tracks_shards_and_settings(
     assert after_write != before
     assert after_count != after_write
     assert after_length != after_write
+
+
+def test_history_words_source_token_tracks_deleted_words(tmp_path: Path) -> None:
+    history_dir = tmp_path / "prompt_history"
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_DIR", history_dir):
+        before = history_words_source_token(max_words=1000, min_length=5)
+        delete_prompt_word("alpha")
+        after = history_words_source_token(max_words=1000, min_length=5)
+
+    assert after != before

@@ -1,4 +1,4 @@
-"""Tests for ``sase.ace.tui.util.io_async._schedule_persist``."""
+"""Tests for ``sase.ace.tui.util.io_async.schedule_persist``."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from sase.ace.tui.util.io_async import _schedule_persist
+from sase.ace.tui.util.io_async import schedule_persist
 
 
 class FakeApp:
@@ -25,7 +25,7 @@ async def _drain_pump_free_tasks(app: FakeApp) -> None:
 
 
 @pytest.mark.asyncio
-async def test__schedule_persist_runs_persist_fn_and_calls_on_success() -> None:
+async def test_schedule_persist_runs_persist_fn_and_calls_on_success() -> None:
     app = FakeApp()
     calls: list[tuple[int, str]] = []
     successes: list[int] = []
@@ -34,7 +34,7 @@ async def test__schedule_persist_runs_persist_fn_and_calls_on_success() -> None:
         calls.append((a, b))
         return 42
 
-    _schedule_persist(
+    schedule_persist(
         app,
         persist,
         7,
@@ -51,14 +51,14 @@ async def test__schedule_persist_runs_persist_fn_and_calls_on_success() -> None:
 
 
 @pytest.mark.asyncio
-async def test__schedule_persist_failure_notifies_and_calls_on_error() -> None:
+async def test_schedule_persist_failure_notifies_and_calls_on_error() -> None:
     app = FakeApp()
     seen: list[BaseException] = []
 
     def persist() -> None:
         raise RuntimeError("boom")
 
-    _schedule_persist(
+    schedule_persist(
         app,
         persist,
         error_label="Approve persist",
@@ -73,13 +73,13 @@ async def test__schedule_persist_failure_notifies_and_calls_on_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test__schedule_persist_failure_without_on_error_still_notifies() -> None:
+async def test_schedule_persist_failure_without_on_error_still_notifies() -> None:
     app = FakeApp()
 
     def persist() -> None:
         raise OSError("disk full")
 
-    _schedule_persist(app, persist, error_label="Persist")
+    schedule_persist(app, persist, error_label="Persist")
 
     await _drain_pump_free_tasks(app)
 
@@ -87,7 +87,7 @@ async def test__schedule_persist_failure_without_on_error_still_notifies() -> No
 
 
 @pytest.mark.asyncio
-async def test__schedule_persist_callbacks_isolate_failures() -> None:
+async def test_schedule_persist_callbacks_isolate_failures() -> None:
     """A throwing on_success callback must not propagate."""
     app = FakeApp()
 
@@ -98,7 +98,7 @@ async def test__schedule_persist_callbacks_isolate_failures() -> None:
         del value
         raise ValueError("callback bug")
 
-    _schedule_persist(
+    schedule_persist(
         app,
         persist,
         error_label="Persist",

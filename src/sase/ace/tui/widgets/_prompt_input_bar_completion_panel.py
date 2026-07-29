@@ -98,6 +98,31 @@ def _reserved_panel_rows(
     return border_box + _PANEL_MARGIN_ROWS
 
 
+def _completion_delete_subtitle(
+    completion_kind: str,
+    visible: list[CompletionCandidate],
+) -> str:
+    """Return the delete affordance for durable completion providers."""
+    delete_hint = "[^L] accept  [^D] delete"
+    if completion_kind == "file_history":
+        return delete_hint
+    if completion_kind == HISTORY_WORD_COMPLETION_KIND:
+        if visible and all(
+            not isinstance(candidate.metadata, HistoryWordCompletionPlaceholder)
+            for candidate in visible
+        ):
+            return delete_hint
+        return ""
+    if completion_kind == PLACEHOLDER_COMPLETION_KIND:
+        legend = (
+            _PLACEHOLDER_SOURCE_LEGEND
+            if _visible_placeholder_sources(visible) == {"prompt", "common"}
+            else ""
+        )
+        return f"{legend}  [^D] delete".strip()
+    return ""
+
+
 class PromptInputBarCompletionMixin(_MixinBase):
     """Completion panel, soft-completion subtitle, and argument hint rendering."""
 
@@ -337,19 +362,15 @@ class PromptInputBarCompletionMixin(_MixinBase):
         else:
             panel.border_title = token
 
-        if is_history:
-            panel.border_subtitle = "[^L] accept  [^D] delete"
+        delete_subtitle = _completion_delete_subtitle(completion_kind, visible)
+        if delete_subtitle:
+            panel.border_subtitle = delete_subtitle
         elif is_model_completion:
             panel.border_subtitle = _model_completion_subtitle(
                 rows,
                 selected_index,
                 max(0, panel.size.width - 2),
             )
-        elif is_placeholder and _visible_placeholder_sources(visible) == {
-            "prompt",
-            "common",
-        }:
-            panel.border_subtitle = _PLACEHOLDER_SOURCE_LEGEND
         else:
             panel.border_subtitle = ""
 

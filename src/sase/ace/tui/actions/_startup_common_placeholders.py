@@ -87,6 +87,21 @@ class StartupCommonPlaceholdersMixin:
                 self._common_placeholders_cache = []
                 self._publish_common_placeholders()
 
+    def forget_common_placeholder(self: Any, text: str) -> None:
+        """Optimistically remove *text* and force a store-backed next warm.
+
+        Clearing the source token takes the first-warm path, whose history seed
+        is a no-op while the authoritative store file exists.
+        """
+        if isinstance(self._common_placeholders_cache, list):
+            self._common_placeholders_cache = [
+                candidate
+                for candidate in self._common_placeholders_cache
+                if candidate != text
+            ]
+        self._common_placeholders_source_token = None
+        self._publish_common_placeholders()
+
     async def _run_common_placeholders_rebuild(
         self: Any,
         *,

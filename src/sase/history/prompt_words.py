@@ -10,8 +10,18 @@ from sase.ace.tui.widgets.prompt_word_completion import (
     word_ranges,
 )
 from sase.history.prompt_store import iter_shard_paths_newest_first, load_shard
+from sase.history.prompt_word_deletions import (
+    PromptWordDeletionsSourceToken,
+    load_deleted_prompt_words,
+    prompt_word_deletions_source_token,
+)
 
-HistoryWordsSourceToken = tuple[int, int, tuple[tuple[str, int, int], ...]]
+HistoryWordsSourceToken = tuple[
+    int,
+    int,
+    tuple[tuple[str, int, int], ...],
+    PromptWordDeletionsSourceToken,
+]
 
 
 def _extract_prompt_words(text: str, *, min_length: int) -> Iterator[str]:
@@ -31,6 +41,7 @@ def collect_recent_prompt_words(*, max_words: int, min_length: int) -> list[str]
     if max_words <= 0:
         return []
 
+    deleted = load_deleted_prompt_words()
     words: list[str] = []
     seen: set[str] = set()
     for path in iter_shard_paths_newest_first():
@@ -38,7 +49,7 @@ def collect_recent_prompt_words(*, max_words: int, min_length: int) -> list[str]
         entries.sort(key=lambda entry: entry.last_used, reverse=True)
         for entry in entries:
             for word in _extract_prompt_words(entry.text, min_length=min_length):
-                if word in seen:
+                if word in deleted or word in seen:
                     continue
                 seen.add(word)
                 words.append(word)
@@ -56,7 +67,12 @@ def history_words_source_token(
     shards: list[tuple[str, int, int]] = []
     for path in iter_shard_paths_newest_first():
         shards.append(_shard_token(path))
-    return (max_words, min_length, tuple(shards))
+    return (
+        max_words,
+        min_length,
+        tuple(shards),
+        prompt_word_deletions_source_token(),
+    )
 
 
 def _shard_token(path: Path) -> tuple[str, int, int]:

@@ -2977,10 +2977,12 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   completion stays quiet for a bare `<` and adds saved placeholders only after you type at least one prefix character;
   manual `Ctrl+T` on a bare `<` shows the saved list explicitly. A lone match in the highest-priority group is inserted
   outright, so saved tags never suppress direct insertion of a lone current-prompt match. Set
-  `common_placeholder_count: 0` to disable saving and display of common placeholders. By default, submitting from ACE
-  opens **Fill in this prompt** and asks once for each distinct live tag before launch; `Ctrl+L` can keep a tag literal.
-  Saving a new xprompt converts the same live tags to typed inputs. Inline-code, fenced-code, and disabled-region tags
-  stay literal in both paths; see [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders).
+  `common_placeholder_count: 0` to disable saving and display of common placeholders. In the completion panel, `Ctrl+D`
+  deletes the highlighted saved (`◆`) placeholder from the store; current-prompt (`<>`) rows are not deletable. By
+  default, submitting from ACE opens **Fill in this prompt** and asks once for each distinct live tag before launch;
+  `Ctrl+L` can keep a tag literal. Saving a new xprompt converts the same live tags to typed inputs. Inline-code,
+  fenced-code, and disabled-region tags stay literal in both paths; see
+  [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders).
 - **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
   `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
   preserved in the completed path (useful for file-reference arguments). Relative paths use the prompt-selected base
@@ -3002,15 +3004,18 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   recent use. ACE retains up to `ace.prompt_completion.history_word_count` unique words that meet the shared
   `ace.prompt_completion.word_min_length` (defaults: `10000` and `5`); set `history_word_count: 0` to disable only this
   final fallback. History is loaded off-thread, so a cold cache briefly shows `loading history words…` without blocking
-  input. The former `history_word_min_length` configuration key has been replaced by `word_min_length`.
+  input. `Ctrl+D` deletes the highlighted word and records it in `~/.sase/prompt_word_deletions.json`, so future history
+  derivations continue to filter it out; remove that file to reset all history-word deletions. The former
+  `history_word_min_length` configuration key has been replaced by `word_min_length`.
 
-| Key                | Action                                   |
-| ------------------ | ---------------------------------------- |
-| `Ctrl+T`           | Start completion or insert shared prefix |
-| `Ctrl+N` / `Down`  | Next candidate                           |
-| `Ctrl+P` / `Up`    | Previous candidate                       |
-| `Enter` / `Ctrl+L` | Accept highlighted candidate             |
-| `Escape`           | Cancel completion                        |
+| Key                | Action                                                               |
+| ------------------ | -------------------------------------------------------------------- |
+| `Ctrl+T`           | Start completion or insert shared prefix                             |
+| `Ctrl+N` / `Down`  | Next candidate                                                       |
+| `Ctrl+P` / `Up`    | Previous candidate                                                   |
+| `Enter` / `Ctrl+L` | Accept highlighted candidate                                         |
+| `Ctrl+D`           | Delete a highlighted recent file, saved placeholder, or history word |
+| `Escape`           | Cancel completion                                                    |
 
 Press `Ctrl+R` to open the recursive fuzzy file finder. With a token such as `src/alp`, `src/` becomes the search root
 and `alp` pre-seeds the fuzzy query; with no token, the finder starts at the prompt-selected base directory described

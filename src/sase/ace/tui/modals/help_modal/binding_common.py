@@ -25,6 +25,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("<...>", "Complete raw placeholders"),
         ("Prompt Inputs", "Collect raw <...> on submit"),
         ("Ctrl+L in panel", "Keep placeholder literal"),
+        ("Ctrl+D in panel", "Delete saved completion entry"),
         ("#name / #!name", "Auto-open xprompt menu"),
         ("%model: / %auto: / %effort:", "Auto-open directive values"),
         ("%model:@", "Model aliases only"),

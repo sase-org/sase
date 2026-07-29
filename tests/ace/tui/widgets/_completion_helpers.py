@@ -39,6 +39,9 @@ class CompletionTestApp(App[None]):
         # ``common_placeholders()`` does before its first warm lands.
         self._common_placeholders: list[str] | None = common_placeholders
         self._common_placeholders_gen = 0
+        self.forgotten_common_placeholders: list[str] = []
+        self.forgotten_history_words: list[str] = []
+        self.warm_common_requests = 0
 
     def get_snippets(self) -> dict[str, str]:
         return self._snippets
@@ -53,6 +56,50 @@ class CompletionTestApp(App[None]):
         """Stand in for a warm cache landing while a menu is already open."""
         self._common_placeholders = list(placeholders)
         self._common_placeholders_gen += 1
+
+    def forget_common_placeholder(self, text: str) -> None:
+        """Mirror the real app cache hook and refresh open placeholder menus."""
+        from sase.ace.tui.widgets.placeholder_completion import (
+            PLACEHOLDER_COMPLETION_KIND,
+        )
+        from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+
+        self.forgotten_common_placeholders.append(text)
+        if isinstance(self._common_placeholders, list):
+            self._common_placeholders = [
+                candidate
+                for candidate in self._common_placeholders
+                if candidate != text
+            ]
+        self._common_placeholders_gen += 1
+        for text_area in self.query(PromptTextArea):
+            if (
+                text_area._file_completion_active
+                and text_area._completion_kind == PLACEHOLDER_COMPLETION_KIND
+            ):
+                text_area._refresh_file_completion_from_cursor()
+
+    def warm_common_placeholders(self) -> None:
+        self.warm_common_requests += 1
+
+    def forget_history_prompt_word(self, word: str) -> None:
+        """Mirror the real app cache hook and refresh open history-word menus."""
+        from sase.ace.tui.widgets.history_word_completion import (
+            HISTORY_WORD_COMPLETION_KIND,
+        )
+        from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+
+        self.forgotten_history_words.append(word)
+        words = getattr(self, "words", None)
+        if isinstance(words, list):
+            words = [candidate for candidate in words if candidate != word]
+            self.words = words
+        for text_area in self.query(PromptTextArea):
+            if (
+                text_area._file_completion_active
+                and text_area._completion_kind == HISTORY_WORD_COMPLETION_KIND
+            ):
+                text_area._apply_history_word_completion_result(words or [])
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar()

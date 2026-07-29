@@ -272,8 +272,13 @@ class TestFileHistoryCompletion:
             ta = app.query_one(PromptTextArea)
             ta.load_text("")
             ta.cursor_location = (0, 0)
-            with patch.object(
-                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            with (
+                patch.object(
+                    type(ta),
+                    "_ace_app",
+                    new_callable=lambda: property(lambda _s: app),
+                ),
+                patch.object(app, "notify") as notify,
             ):
                 await pilot.press("ctrl+t")
                 assert ta._file_completion_active is True
@@ -284,6 +289,11 @@ class TestFileHistoryCompletion:
                     == "/b"
                 )
                 await pilot.press("ctrl+d")
+            notify.assert_called_once_with(
+                "Deleted recent file: /b",
+                severity="information",
+                markup=False,
+            )
             # Panel stays open with the remaining entries.
             assert ta._file_completion_active is True
             assert ta._completion_kind == "file_history"

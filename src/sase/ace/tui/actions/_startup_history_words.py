@@ -40,7 +40,12 @@ class StartupHistoryWordsMixin:
         if max_words <= 0:
             was_cold = self._history_prompt_words_cache is None
             self._history_prompt_words_cache = []
-            self._history_prompt_words_source_token = (0, min_length, ())
+            self._history_prompt_words_source_token = (
+                0,
+                min_length,
+                (),
+                ("", -1, -1),
+            )
             if was_cold:
                 self._refresh_visible_history_word_surfaces()
             return
@@ -77,6 +82,17 @@ class StartupHistoryWordsMixin:
             if self._history_prompt_words_cache is None:
                 self._history_prompt_words_cache = []
                 self._refresh_visible_history_word_surfaces()
+
+    def forget_history_prompt_word(self: Any, word: str) -> None:
+        """Optimistically remove *word* and force the next warm to reload."""
+        if isinstance(self._history_prompt_words_cache, list):
+            self._history_prompt_words_cache = [
+                candidate
+                for candidate in self._history_prompt_words_cache
+                if candidate != word
+            ]
+        self._history_prompt_words_source_token = None
+        self._refresh_visible_history_word_surfaces()
 
     async def _run_history_prompt_words_rebuild(
         self: Any,
