@@ -34,6 +34,22 @@ class PlaceholderCompletionResult:
     candidates: list[CompletionCandidate]
 
 
+def placeholder_lone_leading_match(
+    result: PlaceholderCompletionResult,
+) -> bool:
+    """Return whether the highest-priority source group has one candidate."""
+    if not result.candidates:
+        return False
+
+    first_source = _placeholder_candidate_source(result.candidates[0])
+    leading_count = 0
+    for candidate in result.candidates:
+        if _placeholder_candidate_source(candidate) != first_source:
+            break
+        leading_count += 1
+    return leading_count == 1
+
+
 def build_placeholder_completion_result(
     text: str,
     cursor_offset: int,
@@ -85,6 +101,16 @@ def build_placeholder_completion_result(
         append_closing_bracket=payload.append_closing_bracket,
         candidates=candidates,
     )
+
+
+def _placeholder_candidate_source(
+    candidate: CompletionCandidate,
+) -> PlaceholderCandidateSource:
+    """Read source metadata, defaulting malformed rows to prompt-local."""
+    metadata = candidate.metadata
+    if isinstance(metadata, PlaceholderCompletionMetadata):
+        return metadata.source
+    return "prompt"
 
 
 def _editor_position_for_offset(

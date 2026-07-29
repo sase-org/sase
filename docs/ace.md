@@ -2825,8 +2825,9 @@ frontmatter-declared `input:` arguments. After confirmation, ACE substitutes the
 records history for the resolved prompt that the agents actually received.
 
 Inline backtick spans, fenced code blocks, and `%xprompts_enabled:false` regions are literal zones. Tags inside those
-zones are not highlighted as raw placeholders, are not offered as common placeholder completions, and are not collected
-on submit. Use backticks when a tag-like value is meant to survive literally, for example ``keep `<div>` unchanged``.
+zones are not highlighted as raw placeholders, recorded in the saved common-placeholder store, or collected on submit.
+Their text is still offered as a current-prompt completion candidate, ranked after live tags. Use backticks when a
+tag-like value is meant to survive literally, for example ``keep `<div>` unchanged``.
 
 Each raw placeholder row must be filled before launch unless it is marked literal. Press `Ctrl+L` in the Prompt Inputs
 panel to toggle **keep literal** for the focused placeholder row; when focus is outside the field list, `Ctrl+L` marks
@@ -2970,14 +2971,16 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   flag.
 - **Placeholder completion**: When the cursor is inside an incomplete `<foobar>` tag, completion suggests matching
   placeholders from the current prompt first, then saved common placeholders learned from tags you have written before.
+  Within the current-prompt group, live tags keep document order and literal-zone tags follow in document order.
   Current-prompt rows use the cyan `<>` badge; saved rows use the gold `◆` badge. ACE retains up to
   `ace.prompt_completion.common_placeholder_count` saved placeholders, ranked by use count and recency. Automatic
   completion stays quiet for a bare `<` and adds saved placeholders only after you type at least one prefix character;
-  manual `Ctrl+T` on a bare `<` shows the saved list explicitly. Set `common_placeholder_count: 0` to disable saving and
-  display of common placeholders. By default, submitting from ACE opens **Fill in this prompt** and asks once for each
-  distinct live tag before launch; `Ctrl+L` can keep a tag literal. Saving a new xprompt converts the same live tags to
-  typed inputs. Inline-code, fenced-code, and disabled-region tags stay literal in both paths; see
-  [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders).
+  manual `Ctrl+T` on a bare `<` shows the saved list explicitly. A lone match in the highest-priority group is inserted
+  outright, so saved tags never suppress direct insertion of a lone current-prompt match. Set
+  `common_placeholder_count: 0` to disable saving and display of common placeholders. By default, submitting from ACE
+  opens **Fill in this prompt** and asks once for each distinct live tag before launch; `Ctrl+L` can keep a tag literal.
+  Saving a new xprompt converts the same live tags to typed inputs. Inline-code, fenced-code, and disabled-region tags
+  stay literal in both paths; see [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders).
 - **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
   `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
   preserved in the completed path (useful for file-reference arguments). Relative paths use the prompt-selected base
@@ -3050,10 +3053,11 @@ a known workflow ref trigger such as `#gh:` and local candidates exist. The VCS 
 a known workflow ref trigger such as `#gh:owner/`; cached rows appear immediately and uncached namespaces fetch in a
 background worker. Placeholder auto-completion opens only for an incomplete `<...` context; saved common placeholders
 join automatic results after the prefix is non-empty, while manual `Ctrl+T` can show them from a bare `<`. Manual
-`Ctrl+T` completion still supports file paths, xprompt names, directives, skills, project/ChangeSpec tags, VCS ref
-roots, VCS repository refs, prompt-local prose words, placeholders, and enabled history words regardless of the
-automatic settings. Live suggestions pause while the manual completion panel is open, while snippet tabstops are active,
-in NORMAL mode, and during feedback prompts.
+`Ctrl+T` inserts a lone match in the highest-priority placeholder source group outright; automatic completion only opens
+the menu, even for one match. Manual `Ctrl+T` completion still supports file paths, xprompt names, directives, skills,
+project/ChangeSpec tags, VCS ref roots, VCS repository refs, prompt-local prose words, placeholders, and enabled history
+words regardless of the automatic settings. Live suggestions pause while the manual completion panel is open, while
+snippet tabstops are active, in NORMAL mode, and during feedback prompts.
 
 For file completion, directories appear before files in the candidate list. Dotfiles are hidden unless the partial
 prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The

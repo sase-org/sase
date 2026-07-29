@@ -787,12 +787,12 @@ history retain their original spelling and appear in most-recently-used order. T
 rebuilt when history shards or the shared minimum change. Setting `history_word_count: 0` disables only the history
 fallback; eligible prompt-local words remain available.
 
-Common placeholders are stored at `sase_home()/prompt_placeholders.json` and are learned from complete `<foobar>` tags
-written in submitted, failed-launch, and cancelled prompt drafts. When the store is first created, ACE seeds it once
-from bounded prompt history so existing tags can appear immediately. Retention evicts least-recently-used entries down
-to `common_placeholder_count`, while display order is frecency: use count, then last use, then text. Setting
-`common_placeholder_count: 0` disables recording, loading, and display of saved placeholders; prompt-local placeholder
-completion still works.
+Common placeholders are stored at `sase_home()/prompt_placeholders.json` and are learned from complete raw `<foobar>`
+tags outside literal zones in submitted, failed-launch, and cancelled prompt drafts. When the store is first created,
+ACE seeds it once from bounded prompt history so existing tags can appear immediately. Retention evicts
+least-recently-used entries down to `common_placeholder_count`, while display order is frecency: use count, then last
+use, then text. Setting `common_placeholder_count: 0` disables recording, loading, and display of saved placeholders;
+prompt-local placeholder completion still works.
 
 The former `history_word_min_length` key has been replaced by `word_min_length`. Existing overrides must rename the key
 to keep controlling word completion.

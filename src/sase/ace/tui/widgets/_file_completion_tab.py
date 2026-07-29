@@ -24,6 +24,9 @@ from sase.ace.tui.widgets.history_word_completion import (
     build_loading_history_words_placeholder,
 )
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
+from sase.ace.tui.widgets.placeholder_completion import (
+    placeholder_lone_leading_match,
+)
 from sase.ace.tui.widgets.prompt_word_completion import (
     PROMPT_WORD_COMPLETION_KIND,
     word_range_at_cursor,
@@ -62,16 +65,16 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         """Dispatch manual Ctrl+T completion for the current prompt context.
 
         An explicit request is exhaustive: a bare ``<`` shows the full saved
-        list.  As with every other completion kind, a single match is inserted
-        directly, so ``Ctrl+T`` on a prefix matching exactly one saved tag
-        completes it outright.
+        list. A lone match in the highest-priority source group is inserted
+        directly, so saved tags never suppress direct acceptance of a lone
+        prompt-local match.
         """
         placeholder_result = self._placeholder_completion_at_cursor(
             include_common_when_prefix_empty=True,
         )
         if placeholder_result is not None:
             self._open_placeholder_completion(placeholder_result, trigger="manual")
-            if len(placeholder_result.candidates) == 1:
+            if placeholder_lone_leading_match(placeholder_result):
                 self._accept_file_completion()
             return True
         if self._try_vcs_project_completion():
