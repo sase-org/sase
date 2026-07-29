@@ -23,6 +23,8 @@ from sase.core.axe_chop_facade import (
     validate_chop_result,
 )
 
+from .report import ChopReport, Tone
+
 ChopResultStatus = Literal["ok", "no_op", "check_error"]
 SummaryValue = int | str | None
 
@@ -262,6 +264,7 @@ class ChopResultBuilder:
     counters: dict[str, int] = field(default_factory=dict)
     evidence: list[str] = field(default_factory=list)
     proposed_launches: list[dict[str, Any]] = field(default_factory=list)
+    report: ChopReport | Mapping[str, Any] | None = None
 
     @classmethod
     def from_summary(cls, summary: ChopSummary) -> ChopResultBuilder:
@@ -370,6 +373,11 @@ class ChopResultBuilder:
             document["reason"] = self.reason
         if self.evidence:
             document["evidence"] = list(self.evidence)
+        if isinstance(self.report, ChopReport):
+            if self.report:
+                document["report"] = self.report.to_dict()
+        elif self.report is not None:
+            document["report"] = dict(self.report)
         return document
 
     def write(
@@ -446,9 +454,11 @@ __all__ = [
     "ChopArguments",
     "ChopInvocation",
     "ChopLogger",
+    "ChopReport",
     "ChopResultBuilder",
     "ChopResultStatus",
     "ChopSummary",
+    "Tone",
     "emit_summary",
     "launch_proposal",
     "load_chop_invocation",

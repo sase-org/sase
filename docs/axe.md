@@ -472,7 +472,9 @@ becomes visible immediately rather than only after process exit.
 Chop output is part of the operator contract. Every actual chop run should write a compact, human-readable summary for
 both no-op and action paths. At minimum, include the chop identity or run scope, counts of inspected/skipped/updated or
 launched items, an explicit no-op reason, and bounded identifiers for any affected items. Avoid tokens, full
-notification bodies, full prompts, and unbounded command output in ordinary AXE logs.
+notification bodies, full prompts, and unbounded command output in ordinary AXE logs. A chop with a meaningful
+structured story should also publish a report while keeping this compact stdout summary unchanged; logs and
+notifications continue to use the summary line.
 
 #### Structured Results and Launch Proposals
 
@@ -523,6 +525,52 @@ deduplicated. Different raw clan templates may have different summaries. A summa
 byte, fit within 32 KiB of UTF-8, and avoid both the `]]` text-block terminator and `+` (which xprompt argument decoding
 would turn into a space).
 
+`report` is an optional structured document rendered with the result on the ACE AXE tab. Chop authors supply semantic
+tones rather than colors, and the frontend owns the palette and width-responsive layout. The public SDK keeps report
+construction typed and validates the finished result through the Rust contract:
+
+```python
+from sase.chops import ChopReport, ChopResultBuilder
+
+report = ChopReport(title="CI WATCH")
+report.headline("4 green · 1 red · 1 fix proposed", tone="warn")
+report.heading("REPOSITORIES")
+rows = report.rows(columns=("REPOSITORY", "STATE", "EVIDENCE"))
+rows.row(("sase-org/sase", "red", "ci / test · streak 2/2"), tone="error")
+rows.row(("sase-org/sase-core", "green", "a1b2c3d"), tone="ok")
+report.divider().kv({"mode": "dry run"}, tone="muted")
+
+ChopResultBuilder(
+    status="ok",
+    summary="ci_watch: repos=5 green=4 red=1",
+    report=report,
+).write(context=invocation.context)
+```
+
+A report has an optional `title` and a non-empty `blocks` list. The closed block vocabulary is:
+
+- `headline`: `text` and optional `tone`.
+- `heading`: `text`.
+- `text`: literal `text` and optional `tone`.
+- `kv`: non-empty `items` of `key`, `value`, and optional `tone`.
+- `rows`: optional `columns` plus non-empty `rows`; each row has `cells`, optional `tone`, and optional `glyph`.
+- `bullets`: non-empty `items` of `text`, optional `tone`, and optional `glyph`.
+- `gauge`: `label`, non-negative `value`, positive `max`, and optional `tone`. Values may exceed `max`.
+- `divider`: no additional fields.
+
+The tone vocabulary is `neutral` for ordinary content, `muted` for secondary context, `info` for useful context, `ok`
+for healthy outcomes, `warn` for attention, `error` for failures, and `accent` for report emphasis. A chop cannot supply
+a color. Optional row and bullet glyphs are restricted to `▲ ◆ • · ● ○ ✓ ✗ ↗ ↷ ⏱ ! ▸ ─`; omitting a glyph lets the
+renderer choose one from the tone.
+
+The validated report must fit within 32 KiB of UTF-8 and contain 1–48 blocks. A `kv`, `rows`, or `bullets` block holds
+1–64 entries. Rows contain 1–6 cells; when column names are present there must be 1–6 of them and every row must have
+the same number of cells. Titles are limited to 64 characters, and every other string field to 512 characters. Required
+strings must be nonblank single-line text with no control characters. `ChopReport` collapses whitespace, removes
+controls, truncates bounded strings with a trailing ellipsis, drops empty blocks, and rejects invalid tones, glyphs,
+gauges, or row shapes before writing. Unknown fields, block kinds, and tones are rejected fail-closed by result
+validation.
+
 The runner validates the full document before launching anything. It injects the workspace reference, a deterministic
 agent name and `tribe=chop` in one `%id(...)` directive, model/effort directives, and a `%wait` dependency for
 `wait_on`, then launches proposals in document order. Clan-scoped proposals are preplanned as one multi-prompt batch:
@@ -540,8 +588,9 @@ Once-per keys for accepted proposals that never started are released immediately
 it runs, then releases it only if that agent fails, so successful work remains de-duplicated. A key-release error is
 appended to the chop output and does not replace the original launch or agent outcome.
 
-Python chop packages should use the public `sase.chops` SDK (`load_chop_invocation`, `ChopLogger`, `ChopResultBuilder`,
-and `launch_proposal`) for argument parsing, summaries, validation, and atomic result writes.
+Python chop packages should use the public `sase.chops` SDK (`load_chop_invocation`, `ChopLogger`, `ChopReport`,
+`ChopResultBuilder`, and `launch_proposal`) for argument parsing, summaries, reports, validation, and atomic result
+writes.
 
 #### Triggers, Guards, Dedupe, and Targets
 

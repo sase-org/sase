@@ -11,6 +11,7 @@ import pytest
 
 import sase.chops.builtin as builtin_registry
 from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
+from sase.chops import ChopReport, Tone
 from sase.chops.builtin import (
     BuiltinChopRuntime,
     builtin_chop,
@@ -103,6 +104,132 @@ def test_result_builder_proposal_helper_round_trips(tmp_path: Path) -> None:
     assert proposal["env"] == {"FINDING": "1"}
     assert document["evidence"] == ["reports/finding.json"]
     assert json.loads(result_path.read_text(encoding="utf-8")) == document
+
+
+def test_report_builder_round_trips_every_block_kind(tmp_path: Path) -> None:
+    tone: Tone = "warn"
+    report = (
+        ChopReport(title=" CI   WATCH ")
+        .headline("4 green · 1 red", tone=tone)
+        .heading("REPOSITORIES")
+        .text("One repository needs attention.", tone="info")
+        .kv({"mode": "dry run"}, tone="muted")
+    )
+    rows = report.rows(columns=("REPOSITORY", "STATE", "EVIDENCE"))
+    rows.row(("sase-org/sase", "red", "ci / test"), tone="error", glyph="▲")
+    rows.row(("sase-org/sase-core", "green", "a1b2c3d"), tone="ok")
+    report.bullets(("Inspect the failure", "Propose a fix"), tone="info", glyph="•")
+    report.gauge("passing repositories", 4, 5, tone="warn").divider()
+
+    report_document = report.to_dict()
+    assert report_document["title"] == "CI WATCH"
+    assert [block["kind"] for block in report_document["blocks"]] == [
+        "headline",
+        "heading",
+        "text",
+        "kv",
+        "rows",
+        "bullets",
+        "gauge",
+        "divider",
+    ]
+    assert report_document["blocks"][3]["items"] == [
+        {"key": "mode", "value": "dry run", "tone": "muted"}
+    ]
+    assert report_document["blocks"][4]["rows"][0] == {
+        "cells": ["sase-org/sase", "red", "ci / test"],
+        "tone": "error",
+        "glyph": "▲",
+    }
+
+    result_path = tmp_path / "report.json"
+    document = ChopResultBuilder(summary="ci_watch: repos=5", report=report).write(
+        result_path
+    )
+    assert [block["kind"] for block in document["report"]["blocks"]] == [
+        "headline",
+        "heading",
+        "text",
+        "kv",
+        "rows",
+        "bullets",
+        "gauge",
+        "divider",
+    ]
+    assert json.loads(result_path.read_text(encoding="utf-8")) == document
+
+
+def test_report_builder_validates_tones_and_glyphs() -> None:
+    report = ChopReport()
+
+    with pytest.raises(ValueError, match="unknown chop report tone"):
+        report.headline("finding", tone="rainbow")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="allowlisted"):
+        report.bullets(("finding",), glyph="🚨")
+    with pytest.raises(ValueError, match="allowlisted"):
+        report.rows().row(("finding",), glyph="x")
+
+
+def test_report_builder_normalizes_and_truncates_strings() -> None:
+    report = ChopReport(title="  TITLE\tWITH\nSPACE  " + "x" * 80)
+    report.headline(" left\tmiddle\nright\0 " + "x" * 600)
+    report.kv({" \n ": "ignored", " mode ": " dry\t run "})
+    report.bullets(("", "\0", " useful\nitem "))
+
+    document = report.to_dict()
+    assert document["title"] == "TITLE WITH SPACE " + "x" * 46 + "…"
+    assert len(document["title"]) == 64
+    headline = document["blocks"][0]["text"]
+    assert headline.startswith("left middle right ")
+    assert headline.endswith("…")
+    assert len(headline) == 512
+    assert document["blocks"][1]["items"] == [{"key": "mode", "value": "dry run"}]
+    assert document["blocks"][2]["items"] == [{"text": "useful item"}]
+    assert headline.isprintable()
+
+
+def test_report_rows_reject_mismatched_cell_counts() -> None:
+    rows = ChopReport().rows(columns=("NAME", "STATE"))
+
+    with pytest.raises(ValueError, match="row has 1 cells, expected 2"):
+        rows.row(("only-one",))
+
+
+def test_empty_report_blocks_are_dropped() -> None:
+    report = ChopReport(title="\n")
+    report.headline("\0").heading("  ").text("\t").kv({"": ""}).bullets(("",))
+    report.rows(columns=("NAME",))
+
+    assert report.to_dict() == {"blocks": []}
+    assert ChopResultBuilder(report=report).to_dict() == {
+        "schema_version": 1,
+        "status": "ok",
+        "counters": {},
+        "proposed_launches": [],
+    }
+
+
+def test_result_without_report_keeps_existing_document_shape() -> None:
+    assert ChopResultBuilder(
+        status="no_op",
+        summary="audit: findings=0 reason=no_findings",
+        reason="no_findings",
+        counters={"findings": 0},
+        evidence=["audit.json"],
+        proposed_launches=[
+            {"prompt": "Audit.", "workspace": "git:sase"},
+        ],
+    ).to_dict() == {
+        "schema_version": 1,
+        "status": "no_op",
+        "counters": {"findings": 0},
+        "proposed_launches": [
+            {"prompt": "Audit.", "workspace": "git:sase"},
+        ],
+        "summary": "audit: findings=0 reason=no_findings",
+        "reason": "no_findings",
+        "evidence": ["audit.json"],
+    }
 
 
 def test_launch_proposal_omits_absent_clan_summary(tmp_path: Path) -> None:
