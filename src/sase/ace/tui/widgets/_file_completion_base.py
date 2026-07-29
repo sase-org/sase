@@ -24,6 +24,12 @@ from sase.ace.tui.widgets.prompt_word_completion import (
     WordCompletionResult,
     build_prompt_word_completion_result,
 )
+from sase.ace.tui.widgets.prompt_path_inventory import (
+    PromptPathSnapshot,
+    load_prompt_path_snapshot,
+    prompt_path_directory_key,
+    revalidate_prompt_path_snapshot,
+)
 from sase.ace.tui.widgets.vcs_ref_completion import (
     VCS_REF_COMPLETION_KIND,
     vcs_ref_completion_title,
@@ -67,6 +73,14 @@ class _VcsRepoCompletionWorkerResult:
         return (self.workflow, self.namespace)
 
 
+@dataclass(frozen=True)
+class _PromptPathInventoryWorkerResult:
+    """Result returned by a prompt path inventory worker."""
+
+    snapshot: PromptPathSnapshot
+    changed: bool
+
+
 class FileCompletionBaseMixin(FileCompletionContextMixin):
     """Mixin providing shared completion state helpers."""
 
@@ -85,6 +99,9 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         _vcs_repo_completion_result: VcsRepoFetchResult | None
         _vcs_repo_completion_inflight: set[tuple[str, str]]
         _vcs_ref_completion_has_namespaces: bool
+        _prompt_path_snapshots: dict[str, PromptPathSnapshot]
+        _prompt_path_inflight: set[str]
+        _prompt_path_completion_directory_key: str | None
 
         def _find_prompt_bar(self) -> Any: ...
         def _prompt_completion_settings(self) -> PromptCompletionSettings: ...
@@ -124,6 +141,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             self,
             words: list[str] | None = None,
         ) -> None: ...
+        def _refresh_file_completion_from_cursor(self) -> None: ...
         def _get_warm_artifact_ref_completion_catalog(
             self,
         ) -> ArtifactRefCompletionCatalog | None: ...
@@ -213,6 +231,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         self._vcs_repo_completion_key = None
         self._vcs_repo_completion_result = None
         self._vcs_ref_completion_has_namespaces = False
+        self._prompt_path_completion_directory_key = None
         self._update_file_completion_panel("")
         if clear_xprompt_arg_hint:
             self._clear_xprompt_arg_hint()
@@ -237,6 +256,73 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             group="prompt-vcs-repo",
             thread=True,
         )
+
+    def _prompt_path_directory_key(self, directory: str = "") -> str:
+        """Resolve a caller-visible prompt directory to its cache key."""
+        return prompt_path_directory_key(self.text, directory)
+
+    def _get_warm_prompt_path_snapshot(
+        self,
+        directory_key: str,
+    ) -> PromptPathSnapshot | None:
+        """Return a snapshot using a pure in-memory lookup."""
+        return self._prompt_path_snapshots.get(directory_key)
+
+    def _open_prompt_path_directory(
+        self,
+        directory: str,
+    ) -> PromptPathSnapshot | None:
+        """Mark a menu directory active and revalidate it off-thread."""
+        directory_key = self._prompt_path_directory_key(directory)
+        self._prompt_path_completion_directory_key = directory_key
+        snapshot = self._get_warm_prompt_path_snapshot(directory_key)
+        self._schedule_prompt_path_inventory_load(directory_key, snapshot)
+        return snapshot
+
+    def _schedule_prompt_path_inventory_load(
+        self,
+        directory_key: str,
+        previous: PromptPathSnapshot | None = None,
+    ) -> None:
+        """Coalesce one directory revalidation on a background worker."""
+        if directory_key in self._prompt_path_inflight:
+            return
+        self._prompt_path_inflight.add(directory_key)
+
+        def task() -> _PromptPathInventoryWorkerResult:
+            snapshot = (
+                load_prompt_path_snapshot(directory_key)
+                if previous is None
+                else revalidate_prompt_path_snapshot(directory_key, previous)
+            )
+            return _PromptPathInventoryWorkerResult(
+                snapshot=snapshot,
+                changed=snapshot is not previous,
+            )
+
+        self.run_worker(
+            task,
+            name=f"prompt-path-inventory:{directory_key}",
+            group="prompt-path-inventory",
+            thread=True,
+        )
+
+    def _apply_prompt_path_inventory_result(
+        self,
+        result: _PromptPathInventoryWorkerResult,
+    ) -> None:
+        """Store a worker result and refresh the matching open menu."""
+        snapshot = result.snapshot
+        self._prompt_path_snapshots[snapshot.directory_key] = snapshot
+        if not result.changed:
+            return
+        if (
+            not self._file_completion_active
+            or self._completion_kind != ARTIFACT_REF_COMPLETION_KIND
+            or self._prompt_path_completion_directory_key != snapshot.directory_key
+        ):
+            return
+        self._refresh_file_completion_from_cursor()
 
     def _apply_vcs_repo_completion_result(
         self,
@@ -282,6 +368,23 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle repository-completion fetch worker results."""
+        if event.worker.group == "prompt-path-inventory":
+            if event.state == WorkerState.SUCCESS:
+                result = event.worker.result
+                if isinstance(result, _PromptPathInventoryWorkerResult):
+                    directory_key = result.snapshot.directory_key
+                    self._prompt_path_inflight.discard(directory_key)
+                    self._apply_prompt_path_inventory_result(result)
+                    return
+            elif event.state in (WorkerState.ERROR, WorkerState.CANCELLED):
+                directory_key = event.worker.name.removeprefix("prompt-path-inventory:")
+                self._prompt_path_inflight.discard(directory_key)
+
+            handler = getattr(super(), "on_worker_state_changed", None)
+            if callable(handler):
+                handler(event)
+            return
+
         if event.worker.group != "prompt-vcs-repo":
             handler = getattr(super(), "on_worker_state_changed", None)
             if callable(handler):
@@ -489,6 +592,14 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             name="prompt-vcs-project-catalog",
             thread=True,
         )
+
+    def _warm_prompt_path_inventory(self) -> None:
+        """Warm the prompt's base directory off the keystroke path."""
+        if not callable(getattr(self.app, "get_prompt_completion_settings", None)):
+            return
+        directory_key = self._prompt_path_directory_key()
+        snapshot = self._get_warm_prompt_path_snapshot(directory_key)
+        self._schedule_prompt_path_inventory_load(directory_key, snapshot)
 
     def _warm_model_completion_catalog(self) -> None:
         """Warm the static ``%model`` catalog off the keystroke path."""

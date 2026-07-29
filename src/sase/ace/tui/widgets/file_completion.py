@@ -147,12 +147,12 @@ def build_completion_candidates(
 
     if token.endswith("/"):
         raw_dir = token
-        expanded_dir = _lookup_path(token, base_dir=base_dir)
+        expanded_dir = lookup_completion_path(token, base_dir=base_dir)
         partial = ""
     else:
         raw_head, raw_tail = token.rsplit("/", 1)
         raw_dir = f"{raw_head}/"
-        expanded_head, expanded_tail = _lookup_path(
+        expanded_head, expanded_tail = lookup_completion_path(
             token,
             base_dir=base_dir,
         ).rsplit("/", 1)
@@ -205,7 +205,7 @@ def build_completion_candidates(
     return candidates, shared_extension
 
 
-def _lookup_path(
+def lookup_completion_path(
     raw_path: str,
     *,
     base_dir: str | os.PathLike[str] | None,
