@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.ace.hints import build_editor_args
+from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
 from sase.history.chat_catalog_provenance import ChatCatalogEntry
 
@@ -256,25 +257,11 @@ class ArtifactsChatsActionsMixin:
         if entry is None:
             return
 
-        async def copy_path() -> None:
-            from .clipboard import copy_to_system_clipboard
-
-            copied = await asyncio.to_thread(
-                copy_to_system_clipboard,
-                entry.absolute_path,
-            )
-            self.notify(  # type: ignore[attr-defined]
-                "Copied chat path"
-                if copied
-                else "Copy failed — clipboard tool not available",
-                severity="information" if copied else "error",
-            )
-
-        spawn_pump_free_task(
+        schedule_copy_delivery(
             self,
-            copy_path(),
-            name="sase-chat-copy-path",
-            registry_attr="_pump_free_async_tasks",
+            entry.absolute_path,
+            copied_label="chat path",
+            task_name="sase-chat-copy-path",
         )
 
     def action_chats_refresh(self) -> None:

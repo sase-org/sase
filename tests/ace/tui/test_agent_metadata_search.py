@@ -119,7 +119,7 @@ async def test_inline_metadata_search_yank_and_frozen_refresh(
 ) -> None:
     copied: list[str] = []
     monkeypatch.setattr(
-        "sase.ace.tui.actions.agents._metadata_search.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda text: copied.append(text) or True,
     )
     patch_startup_loaders(monkeypatch, agents=_search_agents()[:1])

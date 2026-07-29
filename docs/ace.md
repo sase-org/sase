@@ -44,6 +44,15 @@ sase ace -m small -r 30 '!!! OR @@@' # Small model, 30s refresh
 When `--profile` is enabled, ACE prints a shortened profile-output path after the TUI exits and tries to copy that
 shortened path to the system clipboard (`pbcopy`, `wl-copy`, `xclip`, or `xsel` when available).
 
+### Clipboard Transports
+
+Every copy inside the ACE TUI runs in the background and tries both a verifiable system transport and OSC 52 for the
+client terminal. Inside tmux, ACE tries `tmux load-buffer -w -` first; otherwise the system candidates are `pbcopy`,
+`wl-copy`, `xclip`, and `xsel` as appropriate for the platform and display environment. A plain `Copied …` toast means a
+subprocess transport confirmed success, while `Copied … (OSC 52)` means ACE emitted the terminal escape sequence without
+a verifiable subprocess result. OSC 52 payloads above the terminal-safe size limit are skipped. If neither transport
+works, ACE opens the generated text in a read-only fallback view so it can still be selected and recovered.
+
 ## Tab System
 
 ACE has three tabs, cycled with `Tab` and `Shift+Tab`:

@@ -1,6 +1,7 @@
 """Tests for accept/apply/kill/copy actions in the Mentor Review modal."""
 
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -254,22 +255,22 @@ def test_copy_comment_copies_current(monkeypatch: pytest.MonkeyPatch) -> None:
     modal._comment_idx = 1
     fake_app = _install_fake_app(monkeypatch, modal)
 
-    captured: list[str] = []
-
-    def fake_copy(content: str) -> bool:
-        captured.append(content)
-        return True
-
+    schedule = MagicMock()
     monkeypatch.setattr(
-        "sase.ace.tui.actions.clipboard.copy_to_system_clipboard", fake_copy
+        "sase.ace.tui.actions.clipboard.schedule_copy_delivery",
+        schedule,
     )
 
     modal.action_copy_comment()
 
-    assert len(captured) == 1
-    assert "file_1.py:2" in captured[0]
-    assert "Comment 1" in captured[0]
-    assert fake_app.notifications == [("Copied comment to clipboard", "information")]
+    content = schedule.call_args.args[1]
+    assert "file_1.py:2" in content
+    assert "Comment 1" in content
+    assert schedule.call_args.kwargs == {
+        "copied_label": "mentor comment",
+        "task_name": "sase-copy-mentor-comment",
+    }
+    assert fake_app.notifications == []
 
 
 def test_copy_comment_no_op_when_mentor_has_no_comments(
@@ -280,36 +281,35 @@ def test_copy_comment_no_op_when_mentor_has_no_comments(
     modal = MentorReviewModal(data)
     fake_app = _install_fake_app(monkeypatch, modal)
 
-    called = False
-
-    def fake_copy(_content: str) -> bool:
-        nonlocal called
-        called = True
-        return True
-
+    schedule = MagicMock()
     monkeypatch.setattr(
-        "sase.ace.tui.actions.clipboard.copy_to_system_clipboard", fake_copy
+        "sase.ace.tui.actions.clipboard.schedule_copy_delivery",
+        schedule,
     )
 
     modal.action_copy_comment()
 
-    assert called is False
+    schedule.assert_not_called()
     assert fake_app.notifications == []
 
 
-def test_copy_comment_notifies_on_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    """y reports an error when the clipboard helper fails."""
+def test_copy_comment_uses_recoverable_delivery_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """y delegates failure recovery to the shared delivery seam."""
     data = _make_modal_data([2])
     modal = MentorReviewModal(data)
     modal._mentor_idx = 0
     modal._comment_idx = 0
     fake_app = _install_fake_app(monkeypatch, modal)
 
+    schedule = MagicMock()
     monkeypatch.setattr(
-        "sase.ace.tui.actions.clipboard.copy_to_system_clipboard",
-        lambda _content: False,
+        "sase.ace.tui.actions.clipboard.schedule_copy_delivery",
+        schedule,
     )
 
     modal.action_copy_comment()
 
-    assert fake_app.notifications == [("Failed to copy to clipboard", "error")]
+    assert schedule.call_args.kwargs.get("on_failure", "modal") == "modal"
+    assert fake_app.notifications == []

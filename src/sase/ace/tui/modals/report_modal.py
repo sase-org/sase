@@ -14,7 +14,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 
 from sase.ace.hints import build_editor_args
-from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.axe.chop_report_render import TONE_STYLES, render_chop_report
 from sase.notifications import NotificationReport, format_relative_time
 
@@ -137,10 +137,12 @@ class ReportModal(ModalScreen[None]):
                 severity="warning",
             )
             return
-        if copy_to_system_clipboard(self._report.path):
-            self.notify(f"Copied: {self._report.path}")
-        else:
-            self.notify("Failed to copy report path", severity="error")
+        schedule_copy_delivery(
+            self,
+            self._report.path,
+            copied_label=f"report path ({self._report.path})",
+            task_name="sase-copy-report-path",
+        )
 
     def action_open_in_editor(self) -> None:
         if not self._report.path:

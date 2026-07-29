@@ -18,7 +18,7 @@ from ...widgets.vim_search_controller import (
     VimSearchController,
     VimSearchMode,
 )
-from ..clipboard import copy_to_system_clipboard
+from ..clipboard import schedule_copy_delivery
 
 if TYPE_CHECKING:
     from textual.widget import Widget
@@ -142,8 +142,13 @@ class AgentMetadataSearchMixin:
         elif not content:
             content = search.corpus[start:end]
 
-        if content and copy_to_system_clipboard(content):
-            self.notify(f"Copied search {label} to clipboard")  # type: ignore[attr-defined]
+        if content:
+            schedule_copy_delivery(
+                self,
+                content,
+                copied_label=f"search {label}",
+                task_name="sase-copy-agent-search",
+            )
 
     def _exit_agent_metadata_search_for_context_change(self) -> None:
         """Close a frozen overlay whose tab or selected identity changed."""

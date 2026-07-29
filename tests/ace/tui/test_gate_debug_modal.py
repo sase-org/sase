@@ -200,11 +200,12 @@ async def test_tabs_and_copy_actions_use_prebuilt_snapshot(tmp_path: Path) -> No
         assert modal._tab_index == 0
 
         with patch(
-            "sase.ace.tui.modals.gate_debug_modal.copy_to_system_clipboard",
+            "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
             return_value=True,
         ) as copy:
             modal.action_copy_tab()
             modal.action_copy_bundle_path()
+            await pilot.pause()
 
         assert copy.call_args_list[0].args == (modal._snapshot.overview.raw_text,)
         assert copy.call_args_list[1].args == (str(tmp_path / "missing-gate"),)

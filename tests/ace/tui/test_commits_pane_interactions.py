@@ -41,7 +41,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
     monkeypatch.setattr(commits_module, "run_vcs_log", collect)
     monkeypatch.setattr(commits_module, "load_commit_diff_text", load_diff)
     monkeypatch.setattr(
-        "sase.ace.tui.actions.clipboard.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda value: copied.append(value) or True,
     )
 

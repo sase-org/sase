@@ -14,7 +14,7 @@ from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
 from sase.ace.changespec.models import DeltaEntry
-from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.ace.tui.util.lazy_syntax import (
     PLAIN_RENDER_MAX_LINES,
     LazySyntaxRenderCache,
@@ -275,10 +275,12 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
     def action_copy_sha(self) -> None:
         spec = self._current_spec
         sha = spec.sha or spec.short_sha
-        if copy_to_system_clipboard(sha):
-            self.notify("Copied commit SHA to clipboard")
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")
+        schedule_copy_delivery(
+            self,
+            sha,
+            copied_label="commit SHA",
+            task_name="sase-copy-commit-view-sha",
+        )
 
     def action_toggle_plan(self) -> None:
         if self._display_mode != "commit":

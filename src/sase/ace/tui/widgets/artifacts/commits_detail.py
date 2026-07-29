@@ -162,15 +162,17 @@ class CommitsDetailMixin(_MixinBase):
         self.open_commit(event.commit_index)
 
     def copy_selected_sha(self) -> None:
-        from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+        from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 
         entry = self._selected_entry()
         if entry is None:
             return
-        if copy_to_system_clipboard(entry.commit.full_id):
-            self.notify("Copied commit SHA to clipboard")
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")
+        schedule_copy_delivery(
+            self,
+            entry.commit.full_id,
+            copied_label="commit SHA",
+            task_name="sase-copy-commit-detail-sha",
+        )
 
     def _selected_entry(self) -> AggregatedCommitWire | None:
         result = self.result

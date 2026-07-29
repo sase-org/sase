@@ -25,7 +25,7 @@ from textual.widgets.option_list import Option
 
 from sase.ace.hints import build_editor_args
 
-from ..actions.clipboard import copy_to_system_clipboard
+from ..actions.clipboard import schedule_copy_delivery
 from ..task_queue import TaskInfo, TaskQueue
 from .tasks_pane_render import (
     BodyCache,
@@ -603,10 +603,12 @@ class TasksPane(Vertical):
             return
 
         line_count = output.count("\n") + (1 if not output.endswith("\n") else 0)
-        if copy_to_system_clipboard(output):
-            self.notify(f"Copied: task output ({line_count} lines)")
-        else:
-            self.notify("Copy failed — clipboard tool not available", severity="error")
+        schedule_copy_delivery(
+            self,
+            output,
+            copied_label=f"task output ({line_count} lines)",
+            task_name="sase-copy-task-output",
+        )
 
     def _rebuild_list(self, highlight_index: int | None = None) -> None:
         """Rebuild the option list from current tasks."""

@@ -539,12 +539,14 @@ class MentorReviewModal(
             f"{comment['file_path']}:{comment['line_number']}\n{comment['description']}"
         )
 
-        from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+        from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 
-        if copy_to_system_clipboard(content):
-            self.app.notify("Copied comment to clipboard")
-        else:
-            self.app.notify("Failed to copy to clipboard", severity="error")
+        schedule_copy_delivery(
+            self,
+            content,
+            copied_label="mentor comment",
+            task_name="sase-copy-mentor-comment",
+        )
 
     # -- Kill --
 

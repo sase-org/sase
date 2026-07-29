@@ -111,11 +111,16 @@ def finish_plan_approval_background_work(
         and result.commit_plan
         and saved_plan_path is not None
     ):
-        from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+        from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 
         short_path = saved_plan_path.replace(str(Path.home()), "~")
-        copy_to_system_clipboard(short_path)
-        app.notify(f"Plan committed — path copied: {short_path}")  # type: ignore[attr-defined]
+        schedule_copy_delivery(
+            app,
+            short_path,
+            copied_label=f"committed plan path ({short_path})",
+            task_name="sase-copy-committed-plan-path",
+        )
+        app.notify("Plan committed")  # type: ignore[attr-defined]
 
     refresh_count = getattr(app, "_refresh_notification_count", None)
     if callable(refresh_count):

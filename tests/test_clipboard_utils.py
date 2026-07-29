@@ -6,7 +6,11 @@ from unittest.mock import call, patch
 
 import pytest
 
-from sase.core.clipboard import _clipboard_commands, copy_to_system_clipboard
+from sase.core.clipboard import (
+    _clipboard_commands,
+    clipboard_commands,
+    copy_to_system_clipboard,
+)
 
 pytestmark = pytest.mark.real_clipboard
 
@@ -114,3 +118,18 @@ def test_clipboard_commands_neither_set() -> None:
             ["xclip", "-selection", "clipboard"],
             ["xsel", "--clipboard", "--input"],
         ]
+
+
+def test_clipboard_commands_put_tmux_first_when_inside_tmux() -> None:
+    assert clipboard_commands(
+        env={"TMUX": "/tmp/tmux-1000/default,1,0", "DISPLAY": ":0"},
+        platform="linux",
+    ) == [
+        ["tmux", "load-buffer", "-w", "-"],
+        ["xclip", "-selection", "clipboard"],
+        ["xsel", "--clipboard", "--input"],
+    ]
+
+
+def test_clipboard_commands_omit_tmux_outside_tmux() -> None:
+    assert clipboard_commands(env={}, platform="unsupported") == []

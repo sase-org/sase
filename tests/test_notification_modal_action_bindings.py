@@ -59,13 +59,16 @@ def test_copy_file_path_copies_current_attachment() -> None:
     modal.notify = MagicMock()  # type: ignore[method-assign]
 
     with patch(
-        "sase.ace.tui.modals.notification_modal_attachments.copy_to_system_clipboard",
-        return_value=True,
-    ) as mock_copy:
+        "sase.ace.tui.modals.notification_modal_attachments.schedule_copy_delivery"
+    ) as schedule:
         modal.action_copy_file_path()
 
-    mock_copy.assert_called_once_with("/tmp/second.txt")
-    modal.notify.assert_called_once_with("Copied: /tmp/second.txt")
+    schedule.assert_called_once_with(
+        modal,
+        "/tmp/second.txt",
+        copied_label="attachment path (/tmp/second.txt)",
+        task_name="sase-copy-notification-attachment-path",
+    )
 
 
 def test_copy_file_path_shortens_home_path() -> None:
@@ -77,13 +80,16 @@ def test_copy_file_path_shortens_home_path() -> None:
     modal.notify = MagicMock()  # type: ignore[method-assign]
 
     with patch(
-        "sase.ace.tui.modals.notification_modal_attachments.copy_to_system_clipboard",
-        return_value=True,
-    ) as mock_copy:
+        "sase.ace.tui.modals.notification_modal_attachments.schedule_copy_delivery"
+    ) as schedule:
         modal.action_copy_file_path()
 
-    mock_copy.assert_called_once_with("~/work/file.py")
-    modal.notify.assert_called_once_with("Copied: ~/work/file.py")
+    schedule.assert_called_once_with(
+        modal,
+        "~/work/file.py",
+        copied_label="attachment path (~/work/file.py)",
+        task_name="sase-copy-notification-attachment-path",
+    )
 
 
 def test_copy_file_path_clamps_out_of_range_index() -> None:
@@ -95,13 +101,12 @@ def test_copy_file_path_clamps_out_of_range_index() -> None:
     modal.notify = MagicMock()  # type: ignore[method-assign]
 
     with patch(
-        "sase.ace.tui.modals.notification_modal_attachments.copy_to_system_clipboard",
-        return_value=True,
-    ) as mock_copy:
+        "sase.ace.tui.modals.notification_modal_attachments.schedule_copy_delivery"
+    ) as schedule:
         modal.action_copy_file_path()
 
     assert modal._current_file_index == 0
-    mock_copy.assert_called_once_with("/tmp/first.txt")
+    assert schedule.call_args.args[1] == "/tmp/first.txt"
 
 
 def test_copy_file_path_warns_without_highlighted_notification() -> None:
@@ -110,11 +115,11 @@ def test_copy_file_path_warns_without_highlighted_notification() -> None:
     modal.notify = MagicMock()  # type: ignore[method-assign]
 
     with patch(
-        "sase.ace.tui.modals.notification_modal_attachments.copy_to_system_clipboard"
-    ) as mock_copy:
+        "sase.ace.tui.modals.notification_modal_attachments.schedule_copy_delivery"
+    ) as schedule:
         modal.action_copy_file_path()
 
-    mock_copy.assert_not_called()
+    schedule.assert_not_called()
     modal.notify.assert_called_once_with("No file path to copy", severity="warning")
 
 
@@ -125,15 +130,15 @@ def test_copy_file_path_warns_without_files() -> None:
     modal.notify = MagicMock()  # type: ignore[method-assign]
 
     with patch(
-        "sase.ace.tui.modals.notification_modal_attachments.copy_to_system_clipboard"
-    ) as mock_copy:
+        "sase.ace.tui.modals.notification_modal_attachments.schedule_copy_delivery"
+    ) as schedule:
         modal.action_copy_file_path()
 
-    mock_copy.assert_not_called()
+    schedule.assert_not_called()
     modal.notify.assert_called_once_with("No file path to copy", severity="warning")
 
 
-def test_copy_file_path_reports_clipboard_failure() -> None:
+def test_copy_file_path_uses_recoverable_delivery_policy() -> None:
     notification = _make_notification("n1", action="JumpToAgent")
     notification.files = ["/tmp/first.txt"]
     modal = NotificationModal([notification])
@@ -141,13 +146,9 @@ def test_copy_file_path_reports_clipboard_failure() -> None:
     modal.notify = MagicMock()  # type: ignore[method-assign]
 
     with patch(
-        "sase.ace.tui.modals.notification_modal_attachments.copy_to_system_clipboard",
-        return_value=False,
-    ) as mock_copy:
+        "sase.ace.tui.modals.notification_modal_attachments.schedule_copy_delivery"
+    ) as schedule:
         modal.action_copy_file_path()
 
-    mock_copy.assert_called_once_with("/tmp/first.txt")
-    modal.notify.assert_called_once_with(
-        "Failed to copy to clipboard",
-        severity="error",
-    )
+    assert schedule.call_args.args[1] == "/tmp/first.txt"
+    assert schedule.call_args.kwargs.get("on_failure", "modal") == "modal"

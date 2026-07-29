@@ -5,9 +5,9 @@ from __future__ import annotations
 from ...keymaps import key_display_name
 
 from ._base import ClipboardBase
+from ._delivery import schedule_copy_delivery
 from ._helpers import (
     capture_tmux_pane,
-    copy_to_system_clipboard,
     format_multi_copy_content,
 )
 
@@ -186,16 +186,17 @@ class ClipboardCoreMixin(ClipboardBase):
 
     def _copy_snapshot(self) -> None:
         """Copy the tmux pane snapshot with header and backticks (%s)."""
-        snapshot_content = capture_tmux_pane()
-        if snapshot_content is None:
-            self.notify("Failed to capture tmux pane", severity="warning")  # type: ignore[attr-defined]
-            return
 
-        # Format with header and backticks
-        contents = [("`sase ace` Snapshot", snapshot_content.strip())]
-        final_content = format_multi_copy_content(contents)
+        def snapshot_value() -> str:
+            snapshot_content = capture_tmux_pane()
+            if snapshot_content is None:
+                raise RuntimeError("failed to capture tmux pane")
+            contents = [("`sase ace` Snapshot", snapshot_content.strip())]
+            return "\n" + format_multi_copy_content(contents)
 
-        if copy_to_system_clipboard("\n" + final_content):
-            self.notify("Copied: Snapshot")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+        schedule_copy_delivery(
+            self,
+            snapshot_value,
+            copied_label="snapshot",
+            task_name="sase-copy-snapshot",
+        )

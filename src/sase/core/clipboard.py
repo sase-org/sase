@@ -22,26 +22,29 @@ def clipboard_commands(
     """Return candidate clipboard commands for the supplied environment."""
     environment = os.environ if env is None else env
     current_platform = sys.platform if platform is None else platform
+    commands: list[list[str]] = []
+    if environment.get("TMUX"):
+        commands.append(["tmux", "load-buffer", "-w", "-"])
 
     if current_platform == "darwin":
-        return [["pbcopy"]]
+        return [*commands, ["pbcopy"]]
     if current_platform.startswith("linux"):
         wayland = bool(environment.get("WAYLAND_DISPLAY"))
         x11 = bool(environment.get("DISPLAY"))
         if not wayland and not x11:
             return [
+                *commands,
                 ["wl-copy"],
                 ["xclip", "-selection", "clipboard"],
                 ["xsel", "--clipboard", "--input"],
             ]
-        commands: list[list[str]] = []
         if wayland:
             commands.append(["wl-copy"])
         if x11:
             commands.append(["xclip", "-selection", "clipboard"])
             commands.append(["xsel", "--clipboard", "--input"])
         return commands
-    return []
+    return commands
 
 
 def copy_to_system_clipboard(content: str) -> bool:

@@ -26,7 +26,7 @@ async def test_artifact_file_modal_y_copies_highlighted_markdown_contents_and_st
     result: object | None = "sentinel"
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.artifact_files_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) or True,
     )
 
@@ -51,7 +51,7 @@ async def test_artifact_file_modal_y_copies_highlighted_markdown_contents_and_st
         assert result == "sentinel"
 
     assert copied == ["# Title\nbody\n"]
-    assert notifications == [("Copied: artifact.md (2 lines)", "information")]
+    assert notifications == [("Copied artifact.md (2 lines)", "information")]
 
 
 async def test_artifact_file_modal_Y_anchors_workspace_stored_path_and_stays_open(
@@ -77,7 +77,7 @@ async def test_artifact_file_modal_Y_anchors_workspace_stored_path_and_stays_ope
 
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.artifact_files_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) or True,
     )
 
@@ -124,7 +124,7 @@ async def test_artifact_file_modal_Y_copies_home_relative_stored_path_without_wo
 
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.artifact_files_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) or True,
     )
 
@@ -172,7 +172,7 @@ async def test_artifact_file_modal_copy_anchors_pdf_markdown_source_path(
 
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.artifact_files_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) or True,
     )
 
@@ -223,7 +223,7 @@ async def test_artifact_file_modal_Y_prefers_stored_path_over_source_for_global_
 
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.artifact_files_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) or True,
     )
 
@@ -271,7 +271,7 @@ async def test_artifact_file_modal_Y_never_emits_bare_path_for_recycled_workspac
 
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.artifact_files_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) or True,
     )
 
@@ -311,7 +311,7 @@ async def test_artifact_file_modal_Y_warns_when_chosen_source_path_is_gone(
 
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.artifact_files_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) or True,
     )
 
@@ -334,7 +334,7 @@ async def test_artifact_file_modal_Y_warns_when_chosen_source_path_is_gone(
     assert notifications == [
         (
             "Copied source path (no longer exists): ~/workspace/docs/report.md",
-            "warning",
+            "information",
         )
     ]
 
@@ -364,7 +364,7 @@ async def test_artifact_file_modal_Y_anchors_path_recovered_from_agent_meta_json
 
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.artifact_files_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) or True,
     )
 
@@ -404,7 +404,7 @@ async def test_artifact_file_modal_y_recovers_workspace_from_agent_meta_json(
     copied: list[str] = []
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.artifact_files_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) or True,
     )
 
@@ -434,7 +434,7 @@ async def test_artifact_file_modal_y_warns_for_non_markdown_artifact_file_withou
     notifications: list[tuple[str, str]] = []
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.artifact_files_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) or True,
     )
 

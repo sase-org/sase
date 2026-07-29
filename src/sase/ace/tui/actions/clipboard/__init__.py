@@ -1,8 +1,8 @@
 """Clipboard action mixin for the ace TUI app.
 
 The ``ClipboardMixin`` is composed of one mixin per tab plus a core mixin that
-handles copy-mode lifecycle and per-tab key dispatch. ``copy_to_system_clipboard``
-is re-exported here because external modules import it from this package.
+handles copy-mode lifecycle and per-tab key dispatch. All TUI clipboard writes
+go through ``schedule_copy_delivery``.
 """
 
 from ._agents import ClipboardAgentsMixin
@@ -10,7 +10,12 @@ from ._artifacts import ClipboardArtifactsMixin
 from ._axe import ClipboardAxeMixin
 from ._changespec import ClipboardChangeSpecMixin
 from ._core import ClipboardCoreMixin
-from ._helpers import copy_to_system_clipboard
+from ._delivery import (
+    CopyDeliveryOutcome,
+    CopyFailurePolicy,
+    deliver_copy,
+    schedule_copy_delivery,
+)
 
 
 class ClipboardMixin(
@@ -23,4 +28,10 @@ class ClipboardMixin(
     """Mixin providing clipboard copy actions for all tabs."""
 
 
-__all__ = ["ClipboardMixin", "copy_to_system_clipboard"]
+__all__ = [
+    "ClipboardMixin",
+    "CopyDeliveryOutcome",
+    "CopyFailurePolicy",
+    "deliver_copy",
+    "schedule_copy_delivery",
+]

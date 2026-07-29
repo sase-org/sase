@@ -19,7 +19,8 @@ from ...util.pump_tasks import spawn_pump_free_task
 from ...widgets.artifacts.chats_list import chat_row_target
 from ...widgets.artifacts.plans_list import plan_row_target
 from ._base import ClipboardBase
-from ._helpers import copy_to_system_clipboard, format_multi_copy_content
+from ._delivery import deliver_copy, schedule_copy_delivery
+from ._helpers import format_multi_copy_content
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,17 +190,15 @@ class ClipboardArtifactsMixin(ClipboardBase):
                     ]
                 )
             )
-            copied = await asyncio.to_thread(copy_to_system_clipboard, content)
             count = len(references)
-            self.notify(  # type: ignore[attr-defined]
-                (
-                    "Copied artifact reference"
-                    if copied and count == 1
-                    else f"Copied {count} artifact references"
-                    if copied
-                    else "Copy failed — clipboard tool not available"
+            await deliver_copy(
+                self,
+                content,
+                copied_label=(
+                    "artifact reference"
+                    if count == 1
+                    else f"{count} artifact references"
                 ),
-                severity="information" if copied else "error",
             )
 
         spawn_pump_free_task(
@@ -656,31 +655,11 @@ class ClipboardArtifactsMixin(ClipboardBase):
         task_name: str = "sase-artifacts-copy",
     ) -> None:
         """Resolve and copy content without blocking Textual's message pump."""
-
-        async def copy_content() -> None:
-            try:
-                value = (
-                    await asyncio.to_thread(content) if callable(content) else content
-                )
-                copied = await asyncio.to_thread(copy_to_system_clipboard, value)
-            except Exception as exc:
-                self.notify(  # type: ignore[attr-defined]
-                    f"Unable to copy: {exc}",
-                    severity="error",
-                )
-                return
-            self.notify(  # type: ignore[attr-defined]
-                copied_message
-                if copied
-                else "Copy failed — clipboard tool not available",
-                severity="information" if copied else "error",
-            )
-
-        spawn_pump_free_task(
+        schedule_copy_delivery(
             self,
-            copy_content(),
-            name=task_name,
-            registry_attr="_pump_free_async_tasks",
+            content,
+            copied_label=copied_message.removeprefix("Copied "),
+            task_name=task_name,
         )
 
 

@@ -24,7 +24,7 @@ from textual.widgets.option_list import Option
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.notification_gates.debug import GateDebugContext
 
-from ..actions.clipboard import copy_to_system_clipboard
+from ..actions.clipboard import schedule_copy_delivery
 from .base import CopyModeForwardingMixin
 
 
@@ -500,10 +500,12 @@ class UserQuestionModal(
             return
         self._save_current_answer()
         content = self._build_qa_markdown()
-        if copy_to_system_clipboard(content):
-            self.notify("Copied: Questions & Answers")
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")
+        schedule_copy_delivery(
+            self,
+            content,
+            copied_label="questions & answers",
+            task_name="sase-copy-user-questions",
+        )
 
     def action_scroll_down(self) -> None:
         """Scroll the options list down."""

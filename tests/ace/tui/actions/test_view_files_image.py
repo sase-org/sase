@@ -437,6 +437,7 @@ async def test_tool_call_report_hint_is_materialized_for_clipboard(
     app._copy_files_to_clipboard = MagicMock()  # type: ignore[method-assign]
 
     await app._process_view_input("1%")
+    await asyncio.sleep(0.05)
 
     assert Path(report_path).is_file()
     app._copy_files_to_clipboard.assert_called_once_with([report_path])
@@ -498,16 +499,20 @@ async def test_commit_hint_copy_suffix_copies_short_sha(
 ) -> None:
     copied: list[str] = []
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) is None or True,
     )
     app = _make_app()
     app._hint_commit_views = {1: _commit_spec(sha="abcdef1234567890")}
 
     await app._process_view_input("1%")
+    await asyncio.sleep(0.05)
 
     assert copied == ["abcdef123456"]
-    app.notify.assert_called_once_with("Copied 1 commit SHA(s) to clipboard")
+    app.notify.assert_called_once_with(
+        "Copied 1 commit SHA(s)",
+        severity="information",
+    )
     app.app.push_screen.assert_not_called()
 
 
@@ -516,7 +521,7 @@ async def test_multiple_commit_hint_copy_suffix_copies_all_short_shas(
 ) -> None:
     copied: list[str] = []
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) is None or True,
     )
     app = _make_app()
@@ -526,9 +531,13 @@ async def test_multiple_commit_hint_copy_suffix_copies_all_short_shas(
     }
 
     await app._process_view_input("1 2%")
+    await asyncio.sleep(0.05)
 
     assert copied == ["111111111111 222222222222"]
-    app.notify.assert_called_once_with("Copied 2 commit SHA(s) to clipboard")
+    app.notify.assert_called_once_with(
+        "Copied 2 commit SHA(s)",
+        severity="information",
+    )
     app.app.push_screen.assert_not_called()
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.ace.tui.widgets._vim_motions import (
     find_char_backward,
     find_char_forward,
@@ -63,7 +63,13 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
         if op == "y":
             self._store_vim_register(text, "charwise")
             if text:
-                copy_to_system_clipboard(text)
+                schedule_copy_delivery(
+                    self,
+                    text,
+                    copied_label="yanked text",
+                    task_name="sase-copy-vim-charwise-yank",
+                    on_failure="toast",
+                )
                 self._flash_yank(start, end)
             self.cursor_location = start
             self._mutation_key_buffer.clear()
@@ -71,7 +77,13 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
         self._record_mutation()
         self._store_vim_register(text, "charwise")
         if text:
-            copy_to_system_clipboard(text)
+            schedule_copy_delivery(
+                self,
+                text,
+                copied_label="deleted text",
+                task_name="sase-copy-vim-charwise-delete",
+                on_failure="toast",
+            )
         was_readonly = self.read_only
         self.read_only = False
         self.delete(start, end)
@@ -162,7 +174,13 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
         self._store_vim_register(text, "linewise")
         if op == "y":
             if lines:
-                copy_to_system_clipboard(text)
+                schedule_copy_delivery(
+                    self,
+                    text,
+                    copied_label="yanked lines",
+                    task_name="sase-copy-vim-linewise-yank",
+                    on_failure="toast",
+                )
             if text:
                 self._flash_yank(
                     (first_row, 0),
@@ -173,7 +191,13 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
 
         self._record_mutation()
         if lines:
-            copy_to_system_clipboard(text)
+            schedule_copy_delivery(
+                self,
+                text,
+                copied_label="deleted lines",
+                task_name="sase-copy-vim-linewise-delete",
+                on_failure="toast",
+            )
 
         was_readonly = self.read_only
         self.read_only = False

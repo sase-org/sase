@@ -1,15 +1,13 @@
 """Pure helpers used by clipboard copy actions.
 
-Includes tmux pane capture, multi-target formatting, system clipboard write,
-and the fallback ChangeSpec text formatter.
+Includes tmux pane capture, multi-target formatting, and the fallback
+ChangeSpec text formatter.
 """
 
 from __future__ import annotations
 
 import subprocess
 from typing import TYPE_CHECKING
-
-from sase.core.clipboard import copy_to_system_clipboard
 
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec

@@ -641,9 +641,7 @@ def test_commit_only_copies_saved_plan_path_after_background_work(
             "sase.ace.tui.actions.agents._notification_modals._archive_plan_for_approval",
             return_value=saved_plan_path,
         ),
-        patch(
-            "sase.ace.tui.actions.clipboard.copy_to_system_clipboard"
-        ) as copy_to_clipboard,
+        patch("sase.ace.tui.actions.clipboard.schedule_copy_delivery") as schedule_copy,
     ):
         handle_plan_approval(app, notification)
         on_dismiss = app.push_screen.call_args[0][1]
@@ -652,7 +650,12 @@ def test_commit_only_copies_saved_plan_path_after_background_work(
         )
 
     assert app._agent_status_overrides[mock_agent.identity] == "PLAN COMMITTED"
-    copy_to_clipboard.assert_called_once_with("~/workspace/.sase/plans/plan.md")
+    schedule_copy.assert_called_once_with(
+        app,
+        "~/workspace/.sase/plans/plan.md",
+        copied_label=("committed plan path (~/workspace/.sase/plans/plan.md)"),
+        task_name="sase-copy-committed-plan-path",
+    )
     app._refresh_notification_count.assert_called_once()
     app._schedule_agents_async_refresh.assert_not_called()
     data = json.loads((response_dir / "plan_response.json").read_text())

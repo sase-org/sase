@@ -605,8 +605,7 @@ async def test_marked_reference_copy_uses_multi_copy_format_and_count(
     )
     copied: list[str] = []
     monkeypatch.setattr(
-        _artifacts,
-        "copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) or True,
     )
     pending: list[Any] = []

@@ -12,7 +12,7 @@ from textual.widgets import Static
 
 from sase.core.paths import get_sase_managed_tmpdir
 
-from ..actions.clipboard import copy_to_system_clipboard
+from ..actions.clipboard import schedule_copy_delivery
 from ..widgets.prompt_panel import AgentPromptPanel
 from ..widgets.renderable_text import renderable_to_text
 from .zoom_panel_rendering import ACTIVE_STATUSES
@@ -227,10 +227,12 @@ def action_copy_zoom_content(modal: Any) -> None:
         modal.notify("No content to copy", severity="warning")
         return
     line_count = content.count("\n") + (1 if not content.endswith("\n") else 0)
-    if copy_to_system_clipboard(content):
-        modal.notify(f"Copied: zoom content ({line_count} lines)")
-    else:
-        modal.notify("Copy failed - clipboard tool not available", severity="error")
+    schedule_copy_delivery(
+        modal,
+        content,
+        copied_label=f"zoom content ({line_count} lines)",
+        task_name="sase-copy-zoom-content",
+    )
 
 
 def action_refresh_zoom_content(modal: Any) -> None:

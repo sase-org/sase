@@ -18,7 +18,7 @@ from textual.worker import Worker, WorkerState
 
 from sase.ace.hints import build_editor_args
 from sase.ace.tui.actions.artifact_viewer_handoff import open_artifact_path
-from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.ace.tui.util.external_tool import suspend_for_external_tool
 from sase.ace.tui.util.lazy_syntax import (
     LazySyntaxRenderCache,
@@ -497,24 +497,11 @@ class PreviewPanelModal(CopyModeForwardingMixin, ModalScreen[None]):
         copied_message: str,
         task_name: str,
     ) -> None:
-        async def copy_value() -> None:
-            try:
-                copied = await asyncio.to_thread(copy_to_system_clipboard, value)
-            except Exception as exc:
-                self.notify(f"Unable to copy: {exc}", severity="error")
-                return
-            self.notify(
-                copied_message
-                if copied
-                else "Copy failed — clipboard tool not available",
-                severity="information" if copied else "error",
-            )
-
-        spawn_pump_free_task(
+        schedule_copy_delivery(
             self,
-            copy_value(),
-            name=task_name,
-            registry_attr="_pump_free_async_tasks",
+            value,
+            copied_label=copied_message.removeprefix("Copied "),
+            task_name=task_name,
         )
 
     def action_open_in_editor(self) -> None:

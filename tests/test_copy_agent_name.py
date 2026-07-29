@@ -45,13 +45,17 @@ def test_copy_agent_name_uses_agent_name_when_set() -> None:
     app = FakeApp(agent)
 
     with patch(
-        "sase.ace.tui.actions.clipboard._agents.copy_to_system_clipboard",
-        return_value=True,
-    ) as mock_copy:
+        "sase.ace.tui.actions.clipboard._agents.schedule_copy_delivery"
+    ) as schedule:
         app._copy_agent_name()
 
-    mock_copy.assert_called_once_with("explicit_name")
-    assert app.notifications == [("Copied: Agent Name (explicit_name)", "information")]
+    schedule.assert_called_once_with(
+        app,
+        "explicit_name",
+        copied_label="agent name (explicit_name)",
+        task_name="sase-copy-agent-name",
+    )
+    assert app.notifications == []
 
 
 def test_copy_agent_name_family_root_uses_root_name() -> None:
@@ -64,13 +68,17 @@ def test_copy_agent_name_family_root_uses_root_name() -> None:
     app = FakeApp(agent)
 
     with patch(
-        "sase.ace.tui.actions.clipboard._agents.copy_to_system_clipboard",
-        return_value=True,
-    ) as mock_copy:
+        "sase.ace.tui.actions.clipboard._agents.schedule_copy_delivery"
+    ) as schedule:
         app._copy_agent_name()
 
-    mock_copy.assert_called_once_with("explicit_name")
-    assert app.notifications == [("Copied: Agent Name (explicit_name)", "information")]
+    schedule.assert_called_once_with(
+        app,
+        "explicit_name",
+        copied_label="agent name (explicit_name)",
+        task_name="sase-copy-agent-name",
+    )
+    assert app.notifications == []
 
 
 def test_copy_agent_name_falls_back_to_display_name() -> None:
@@ -79,38 +87,39 @@ def test_copy_agent_name_falls_back_to_display_name() -> None:
     app = FakeApp(agent)
 
     with patch(
-        "sase.ace.tui.actions.clipboard._agents.copy_to_system_clipboard",
-        return_value=True,
-    ) as mock_copy:
+        "sase.ace.tui.actions.clipboard._agents.schedule_copy_delivery"
+    ) as schedule:
         app._copy_agent_name()
 
-    mock_copy.assert_called_once_with("my_workflow")
-    assert app.notifications == [
-        ("Copied: Agent Display Name (my_workflow)", "information")
-    ]
+    schedule.assert_called_once_with(
+        app,
+        "my_workflow",
+        copied_label="agent display name (my_workflow)",
+        task_name="sase-copy-agent-name",
+    )
+    assert app.notifications == []
 
 
 def test_copy_agent_name_no_agent_selected() -> None:
     app = FakeApp(None)
 
     with patch(
-        "sase.ace.tui.actions.clipboard._agents.copy_to_system_clipboard",
-        return_value=True,
-    ) as mock_copy:
+        "sase.ace.tui.actions.clipboard._agents.schedule_copy_delivery"
+    ) as schedule:
         app._copy_agent_name()
 
-    mock_copy.assert_not_called()
+    schedule.assert_not_called()
     assert app.notifications == [("No agent selected", "warning")]
 
 
-def test_copy_agent_name_clipboard_failure() -> None:
+def test_copy_agent_name_uses_recoverable_delivery_policy() -> None:
     agent = _make_agent(agent_name="explicit_name")
     app = FakeApp(agent)
 
     with patch(
-        "sase.ace.tui.actions.clipboard._agents.copy_to_system_clipboard",
-        return_value=False,
-    ):
+        "sase.ace.tui.actions.clipboard._agents.schedule_copy_delivery"
+    ) as schedule:
         app._copy_agent_name()
 
-    assert app.notifications == [("Failed to copy to clipboard", "error")]
+    assert schedule.call_args.kwargs.get("on_failure", "modal") == "modal"
+    assert app.notifications == []

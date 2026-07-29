@@ -220,7 +220,7 @@ async def test_copy_shortcuts_use_durable_path_and_all_preloaded_content(
     copied: list[str] = []
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setattr(
-        "sase.ace.tui.modals.plan_approval_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda value: copied.append(value) or True,
     )
     modal = PlanApprovalModal(

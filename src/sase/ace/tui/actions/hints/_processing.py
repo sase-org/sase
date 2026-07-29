@@ -19,7 +19,7 @@ from ....hints import (
 from ...tools.report import SlowToolCallReportSpec, write_tool_call_report
 from ...widgets import HintInputBar
 from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
-from ..clipboard import copy_to_system_clipboard
+from ..clipboard import schedule_copy_delivery
 from ._types import HintMixinBase
 
 
@@ -382,10 +382,12 @@ class InputProcessingMixin(HintMixinBase):
         shas = [sha for sha in shas if sha]
         if not files:
             content = " ".join(shas)
-            if copy_to_system_clipboard(content):
-                self.notify(f"Copied {len(shas)} commit SHA(s) to clipboard")  # type: ignore[attr-defined]
-            else:
-                self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+            schedule_copy_delivery(
+                self,
+                content,
+                copied_label=f"{len(shas)} commit SHA(s)",
+                task_name="sase-copy-hinted-commits",
+            )
             return
 
         home = str(Path.home())
@@ -393,10 +395,12 @@ class InputProcessingMixin(HintMixinBase):
             f.replace(home, "~", 1) if f.startswith(home) else f for f in files
         ]
         content = " ".join([*shas, *shortened_files])
-        if copy_to_system_clipboard(content):
-            self.notify("Copied commit SHA(s) and path(s) to clipboard")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+        schedule_copy_delivery(
+            self,
+            content,
+            copied_label="commit SHA(s) and path(s)",
+            task_name="sase-copy-hinted-commit-paths",
+        )
 
     def _process_hooks_input(self, user_input: str) -> None:
         """Process edit hooks input."""

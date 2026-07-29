@@ -80,16 +80,20 @@ def test_copy_path_uses_system_clipboard(monkeypatch: object) -> None:
     report = _report()
     modal = ReportModal(report)
     modal.notify = MagicMock()  # type: ignore[method-assign]
-    copy = MagicMock(return_value=True)
+    schedule = MagicMock()
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        "sase.ace.tui.modals.report_modal.copy_to_system_clipboard",
-        copy,
+        "sase.ace.tui.modals.report_modal.schedule_copy_delivery",
+        schedule,
     )
 
     modal.action_copy_path()
 
-    copy.assert_called_once_with(report.path)
-    modal.notify.assert_called_once_with(f"Copied: {report.path}")
+    schedule.assert_called_once_with(
+        modal,
+        report.path,
+        copied_label=f"report path ({report.path})",
+        task_name="sase-copy-report-path",
+    )
 
 
 def test_copy_path_warns_for_snapshot() -> None:

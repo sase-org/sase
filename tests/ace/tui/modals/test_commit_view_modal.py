@@ -138,7 +138,7 @@ async def test_commit_view_modal_copies_sha_and_closes(
     _write_diff(diff_path, old="old", new="new")
     copied: list[str] = []
     monkeypatch.setattr(
-        "sase.ace.tui.modals.commit_view_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) is None or True,
     )
     app = _CommitModalTestApp([_spec(str(diff_path))])
@@ -185,7 +185,7 @@ async def test_commit_view_modal_navigates_wrapping_and_copies_current_sha(
     )
     copied: list[str] = []
     monkeypatch.setattr(
-        "sase.ace.tui.modals.commit_view_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda content: copied.append(content) is None or True,
     )
     app = _CommitModalTestApp([first, second])

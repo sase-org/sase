@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from ....hint_types import ViewFilesResult
 from ....hints import build_editor_args
+from ..clipboard import schedule_copy_delivery
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 from ...widgets import AgentDetail, ChangeSpecDetail, HintInputBar
@@ -292,33 +293,14 @@ class FileViewingMixin(HintMixinBase):
 
     def _copy_files_to_clipboard(self, files: list[str]) -> None:
         """Copy file paths to system clipboard."""
-        import subprocess
-        import sys
-
         home = str(Path.home())
         shortened_files = [
             f.replace(home, "~", 1) if f.startswith(home) else f for f in files
         ]
         content = " ".join(shortened_files)
-
-        if sys.platform == "darwin":
-            clipboard_cmd = ["pbcopy"]
-        elif sys.platform.startswith("linux"):
-            clipboard_cmd = ["xclip", "-selection", "clipboard"]
-        else:
-            self.notify(  # type: ignore[attr-defined]
-                f"Clipboard not supported on {sys.platform}", severity="error"
-            )
-            return
-
-        try:
-            subprocess.run(clipboard_cmd, input=content, text=True, check=True)
-            self.notify(f"Copied {len(files)} path(s) to clipboard")  # type: ignore[attr-defined]
-        except subprocess.CalledProcessError as e:
-            self.notify(  # type: ignore[attr-defined]
-                f"Clipboard command failed: {e}", severity="error"
-            )
-        except FileNotFoundError:
-            self.notify(  # type: ignore[attr-defined]
-                f"{clipboard_cmd[0]} not found", severity="error"
-            )
+        schedule_copy_delivery(
+            self,
+            content,
+            copied_label=f"{len(files)} path(s)",
+            task_name="sase-copy-hinted-file-paths",
+        )

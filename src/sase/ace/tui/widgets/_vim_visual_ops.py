@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from textual.document._document import Selection
 
-from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.ace.tui.widgets._vim_normal_state import VisualMutation
 from sase.ace.tui.widgets._vim_registers import first_non_blank_col
 from sase.ace.tui.widgets._vim_transforms import apply_case_operator
@@ -18,7 +18,13 @@ class VimVisualOperatorMixin(VimVisualStateMixin):
         """Store selected text in the unnamed register and system clipboard."""
         self._store_vim_register(text, kind)
         if text:
-            copy_to_system_clipboard(text)
+            schedule_copy_delivery(
+                self,
+                text,
+                copied_label="yanked text",
+                task_name="sase-copy-vim-visual-yank",
+                on_failure="toast",
+            )
 
     def _visual_selected_text(self) -> tuple[str, VisualKind]:
         """Return selected text and register kind for the current visual mode."""

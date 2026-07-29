@@ -125,7 +125,7 @@ async def test_preview_modal_copies_contents_and_path_off_pump(
     copied: list[str] = []
     notifications: list[tuple[str, str]] = []
     monkeypatch.setattr(
-        "sase.ace.tui.modals.preview_panel_modal.copy_to_system_clipboard",
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
         lambda value: copied.append(value) or True,
     )
     app = _PreviewModalTestApp(_payload())

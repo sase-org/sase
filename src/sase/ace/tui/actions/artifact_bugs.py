@@ -13,6 +13,7 @@ from sase.ace.tui.artifacts_bugs import (
     issue_url,
     update_project_issue,
 )
+from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.vcs_provider import IssueWire
 
 from ..tab_order import ARTIFACTS_TAB
@@ -378,30 +379,11 @@ class ArtifactBugsMixin:
             return
         _pane, issue, project = context
 
-        async def _copy() -> None:
-            from .clipboard import copy_to_system_clipboard
-
-            try:
-                url = await asyncio.to_thread(resolved_bug_url, project, issue)
-                copied = await asyncio.to_thread(
-                    copy_to_system_clipboard,
-                    f"#{issue.number} {url}",
-                )
-            except Exception as exc:
-                self.notify(f"Unable to copy issue: {exc}", severity="error")  # type: ignore[attr-defined]
-                return
-            self.notify(  # type: ignore[attr-defined]
-                f"Copied issue #{issue.number}"
-                if copied
-                else "Copy failed — clipboard tool not available",
-                severity="information" if copied else "error",
-            )
-
-        spawn_pump_free_task(
+        schedule_copy_delivery(
             self,
-            _copy(),
-            name="sase-bug-copy",
-            registry_attr="_pump_free_async_tasks",
+            lambda: f"#{issue.number} {resolved_bug_url(project, issue)}",
+            copied_label=f"issue #{issue.number}",
+            task_name="sase-bug-copy",
         )
 
     def _selected_bug_copy_context(

@@ -16,7 +16,7 @@ from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.ace.tui.util.pump_tasks import (
     cancel_pump_free_tasks,
     spawn_pump_free_task,
@@ -258,20 +258,24 @@ class GateDebugModal(CopyModeForwardingMixin, ModalScreen[None]):
         if artifact is None:
             self.notify("Gate debug data is still loading", severity="warning")
             return
-        if copy_to_system_clipboard(artifact.raw_text):
-            self.notify(f"Copied {_TAB_NAMES[self._tab_index]} debug data")
-        else:
-            self.notify("Failed to copy gate debug data", severity="error")
+        schedule_copy_delivery(
+            self,
+            artifact.raw_text,
+            copied_label=f"{_TAB_NAMES[self._tab_index]} debug data",
+            task_name="sase-copy-gate-debug-tab",
+        )
 
     def action_copy_bundle_path(self) -> None:
         path = self._bundle_path()
         if path is None:
             self.notify("No gate bundle path to copy", severity="warning")
             return
-        if copy_to_system_clipboard(str(path)):
-            self.notify(f"Copied: {path}")
-        else:
-            self.notify("Failed to copy bundle path", severity="error")
+        schedule_copy_delivery(
+            self,
+            str(path),
+            copied_label=f"gate bundle path ({path})",
+            task_name="sase-copy-gate-bundle-path",
+        )
 
     def action_open_backing_file(self) -> None:
         path = self._backing_path()

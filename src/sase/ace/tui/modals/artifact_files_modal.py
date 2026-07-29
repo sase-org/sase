@@ -17,7 +17,7 @@ from textual.widgets.option_list import Option
 
 from sase.ace.tui.graphics import is_supported_video_path
 
-from ..actions.clipboard import copy_to_system_clipboard
+from ..actions.clipboard import schedule_copy_delivery
 from .base import OptionListNavigationMixin
 
 
@@ -389,26 +389,34 @@ class ArtifactFileSelectionModal(
             self.notify("No artifact file selected", severity="warning")
             return
 
-        path = _artifact_file_resolved_display_path(artifact_file)
-        if path is None:
+        display_path = _artifact_file_display_path(artifact_file)
+        if display_path is None:
             self.notify("Selected artifact file has no path", severity="warning")
             return
-        if not _is_markdown_path(path):
+        if not _is_markdown_path(Path(display_path)):
             self.notify("Selected artifact file is not Markdown", severity="warning")
             return
 
-        try:
-            content = path.read_text(encoding="utf-8", errors="replace")
-        except OSError as exc:
-            self.notify(f"Failed to read artifact file: {exc}", severity="error")
-            return
+        line_count = 0
 
-        if copy_to_system_clipboard(content):
+        # Keep the file read and clipboard subprocess off the message pump.
+        def value() -> str:
+            nonlocal line_count
+            path = _artifact_file_resolved_display_path(artifact_file)
+            if path is None:
+                raise RuntimeError("selected artifact file has no path")
+            content = path.read_text(encoding="utf-8", errors="replace")
             line_count = len(content.splitlines()) if content else 0
-            label = _artifact_file_label(artifact_file)
-            self.notify(f"Copied: {label} ({line_count} lines)")
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")
+            return content
+
+        schedule_copy_delivery(
+            self,
+            value,
+            copied_label=lambda: (
+                f"{_artifact_file_label(artifact_file)} ({line_count} lines)"
+            ),
+            task_name="sase-copy-artifact-file-contents",
+        )
 
     def action_copy_path(self) -> None:
         """Copy the highlighted artifact file's anchored stored or source path."""
@@ -417,20 +425,26 @@ class ArtifactFileSelectionModal(
             self.notify("No artifact file selected", severity="warning")
             return
 
-        copy_path = _artifact_file_clipboard_path(artifact_file)
-        if copy_path is None:
-            self.notify("Selected artifact file has no path", severity="warning")
-            return
-        if not copy_to_system_clipboard(copy_path.text):
-            self.notify("Failed to copy to clipboard", severity="error")
-            return
-        if copy_path.missing:
-            self.notify(
-                f"Copied {copy_path.label} (no longer exists): {copy_path.text}",
-                severity="warning",
-            )
-            return
-        self.notify(f"Copied {copy_path.label}: {copy_path.text}")
+        copy_path: _ArtifactFilePathCopy | None = None
+
+        def value() -> str:
+            nonlocal copy_path
+            copy_path = _artifact_file_clipboard_path(artifact_file)
+            if copy_path is None:
+                raise RuntimeError("selected artifact file has no path")
+            return copy_path.text
+
+        def copied_label() -> str:
+            assert copy_path is not None
+            suffix = " (no longer exists)" if copy_path.missing else ""
+            return f"{copy_path.label}{suffix}: {copy_path.text}"
+
+        schedule_copy_delivery(
+            self,
+            value,
+            copied_label=copied_label,
+            task_name="sase-copy-artifact-file-path",
+        )
 
     def action_open_all(self) -> None:
         self.dismiss(list(self._artifact_files))

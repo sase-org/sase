@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from ._base import ClipboardBase
-from ._helpers import format_multi_copy_content, copy_to_system_clipboard
+from ._delivery import schedule_copy_delivery
+from ._helpers import format_multi_copy_content
 
 
 class ClipboardAxeMixin(ClipboardBase):
@@ -15,69 +16,74 @@ class ClipboardAxeMixin(ClipboardBase):
 
         from ...bgcmd import read_slot_output_tail
 
-        if self._axe_current_view == "axe":
-            full_output = self._axe_output
+        view = self._axe_current_view
+        if view == "axe":
+            warm_output = self._axe_output
             source = "Axe Output"
         else:
-            slot = self._axe_current_view
-            full_output = read_slot_output_tail(slot, 10000)
-            source = f"Command #{slot} Output"
+            warm_output = None
+            source = f"Command #{view} Output"
 
-        if not full_output or not full_output.strip():
-            self.notify("No output to copy", severity="warning")  # type: ignore[attr-defined]
-            return
-
-        # Get visible region from scroll widget
         try:
             scroll = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
             scroll_y = int(scroll.scroll_y)
             visible_height = scroll.scrollable_content_region.height
-
-            # Split output into lines and extract visible portion
-            all_lines = full_output.split("\n")
-            start_line = scroll_y
-            end_line = start_line + visible_height
-            visible_lines = all_lines[start_line:end_line]
-            output = "\n".join(visible_lines)
         except Exception:
-            # Fallback to full output if we can't get scroll info
+            scroll_y = 0
+            visible_height = 0
+
+        lines = 0
+
+        def content() -> str:
+            nonlocal lines
+            full_output = (
+                warm_output if view == "axe" else read_slot_output_tail(view, 10000)
+            )
+            if not full_output or not full_output.strip():
+                raise RuntimeError("no output is available")
             output = full_output
-
-        if not output.strip():
-            self.notify("No visible output to copy", severity="warning")  # type: ignore[attr-defined]
-            return
-
-        # Format with header and code block
-        contents = [(source, output.strip())]
-        final_content = format_multi_copy_content(contents)
-
-        if copy_to_system_clipboard(final_content):
+            if visible_height > 0:
+                all_lines = full_output.split("\n")
+                output = "\n".join(all_lines[scroll_y : scroll_y + visible_height])
+            if not output.strip():
+                raise RuntimeError("no visible output is available")
             lines = len(output.strip().split("\n"))
-            self.notify(f"Copied: {source} ({lines} lines)")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+            return format_multi_copy_content([(source, output.strip())])
+
+        schedule_copy_delivery(
+            self,
+            content,
+            copied_label=lambda: f"{source.lower()} ({lines} lines)",
+            task_name="sase-copy-axe-visible",
+        )
 
     def _copy_axe_full_output(self) -> None:
         """Copy full command output from the AXE tab (%O)."""
         from ...bgcmd import read_slot_output_tail
 
-        if self._axe_current_view == "axe":
-            output = self._axe_output
+        view = self._axe_current_view
+        if view == "axe":
+            warm_output = self._axe_output
             source = "Axe Output (Full)"
         else:
-            slot = self._axe_current_view
-            output = read_slot_output_tail(slot, 10000)  # Get more for full copy
-            source = f"Command #{slot} Output (Full)"
+            warm_output = None
+            source = f"Command #{view} Output (Full)"
 
-        if not output or not output.strip():
-            self.notify("No output to copy", severity="warning")  # type: ignore[attr-defined]
-            return
+        lines = 0
 
-        contents = [(source, output.strip())]
-        final_content = format_multi_copy_content(contents)
-
-        if copy_to_system_clipboard(final_content):
+        def content() -> str:
+            nonlocal lines
+            output = (
+                warm_output if view == "axe" else read_slot_output_tail(view, 10000)
+            )
+            if not output or not output.strip():
+                raise RuntimeError("no output is available")
             lines = len(output.strip().split("\n"))
-            self.notify(f"Copied: {source} ({lines} lines)")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+            return format_multi_copy_content([(source, output.strip())])
+
+        schedule_copy_delivery(
+            self,
+            content,
+            copied_label=lambda: f"{source.lower()} ({lines} lines)",
+            task_name="sase-copy-axe-full",
+        )

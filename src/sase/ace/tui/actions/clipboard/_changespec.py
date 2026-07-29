@@ -9,9 +9,9 @@ from ....changespec import get_raw_changespec_text
 from sase.project_display_names import humanize_cl_name
 
 from ._base import ClipboardBase
+from ._delivery import schedule_copy_delivery
 from ._helpers import (
     capture_tmux_pane,
-    copy_to_system_clipboard,
     format_changespec_for_clipboard,
     format_multi_copy_content,
 )
@@ -26,41 +26,43 @@ class ClipboardChangeSpecMixin(ClipboardBase):
     def _copy_changespec(self) -> None:
         """Copy the raw changespec text to clipboard (%%)."""
         changespec = self.changespecs[self.current_idx]
-        content = get_raw_changespec_text(changespec)
-        if content is None:
-            content = format_changespec_for_clipboard(changespec)
 
-        if copy_to_system_clipboard(content.strip()):
-            self.notify("Copied: ChangeSpec")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+        def content() -> str:
+            value = get_raw_changespec_text(changespec)
+            if value is None:
+                value = format_changespec_for_clipboard(changespec)
+            return value.strip()
+
+        schedule_copy_delivery(
+            self,
+            content,
+            copied_label="ChangeSpec",
+            task_name="sase-copy-changespec",
+        )
 
     def _copy_changespec_and_snapshot(self) -> None:
         """Copy changespec and tmux pane snapshot with multi-format (%!)."""
         changespec = self.changespecs[self.current_idx]
 
-        # Get changespec content
-        cs_content = get_raw_changespec_text(changespec)
-        if cs_content is None:
-            cs_content = format_changespec_for_clipboard(changespec)
+        def content() -> str:
+            cs_content = get_raw_changespec_text(changespec)
+            if cs_content is None:
+                cs_content = format_changespec_for_clipboard(changespec)
+            snapshot_content = capture_tmux_pane()
+            if snapshot_content is None:
+                raise RuntimeError("failed to capture tmux pane")
+            contents = [
+                ("ChangeSpec", cs_content.strip()),
+                ("`sase ace` Snapshot", snapshot_content.strip()),
+            ]
+            return format_multi_copy_content(contents)
 
-        # Get tmux pane snapshot
-        snapshot_content = capture_tmux_pane()
-        if snapshot_content is None:
-            self.notify("Failed to capture tmux pane", severity="warning")  # type: ignore[attr-defined]
-            return
-
-        # Format with headers
-        contents = [
-            ("ChangeSpec", cs_content.strip()),
-            ("`sase ace` Snapshot", snapshot_content.strip()),
-        ]
-        final_content = format_multi_copy_content(contents)
-
-        if copy_to_system_clipboard(final_content):
-            self.notify("Copied: ChangeSpec + Snapshot")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+        schedule_copy_delivery(
+            self,
+            content,
+            copied_label="ChangeSpec + snapshot",
+            task_name="sase-copy-changespec-snapshot",
+        )
 
     def _copy_bug_number(self) -> None:
         """Copy the bug number from the current changespec (%b)."""
@@ -69,10 +71,12 @@ class ClipboardChangeSpecMixin(ClipboardBase):
         if bug_number is None:
             return  # Error already notified
 
-        if copy_to_system_clipboard(bug_number):
-            self.notify(f"Copied: Bug Number ({bug_number})")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+        schedule_copy_delivery(
+            self,
+            bug_number,
+            copied_label=f"bug number ({bug_number})",
+            task_name="sase-copy-changespec-bug",
+        )
 
     def _copy_pr_number(self) -> None:
         """Copy the PR number from the current changespec (%c)."""
@@ -81,32 +85,39 @@ class ClipboardChangeSpecMixin(ClipboardBase):
         if pr_number is None:
             return  # Error already notified
 
-        if copy_to_system_clipboard(pr_number):
-            self.notify(f"Copied: PR Number ({pr_number})")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+        schedule_copy_delivery(
+            self,
+            pr_number,
+            copied_label=f"PR number ({pr_number})",
+            task_name="sase-copy-changespec-pr",
+        )
 
     def _copy_cl_name(self) -> None:
         """Copy the ChangeSpec name from the current changespec (%n)."""
         changespec = self.changespecs[self.current_idx]
         cl_name = humanize_cl_name(changespec.name)
 
-        if copy_to_system_clipboard(cl_name):
-            self.notify(f"Copied: ChangeSpec Name ({cl_name})")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+        schedule_copy_delivery(
+            self,
+            cl_name,
+            copied_label=f"ChangeSpec name ({cl_name})",
+            task_name="sase-copy-changespec-name",
+        )
 
     def _copy_project_spec(self) -> None:
         """Copy the project spec file content (%p)."""
         changespec = self.changespecs[self.current_idx]
-        content = self._get_project_spec_content(changespec)
-        if content is None:
-            return  # Error already notified
 
-        if copy_to_system_clipboard(content.strip()):
-            self.notify("Copied: Project Spec File")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+        def content() -> str:
+            with open(changespec.file_path) as handle:
+                return handle.read().rstrip("\n").strip()
+
+        schedule_copy_delivery(
+            self,
+            content,
+            copied_label="ProjectSpec file",
+            task_name="sase-copy-project-spec",
+        )
 
     def _get_bug_number(self, changespec: ChangeSpec) -> str | None:
         """Extract the bug number from a ChangeSpec's bug field.

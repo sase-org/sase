@@ -6,7 +6,7 @@ import os
 from sase.project_display_names import humanize_vcs_refs_in_text
 
 from ._base import ClipboardBase
-from ._helpers import copy_to_system_clipboard
+from ._delivery import schedule_copy_delivery
 
 
 class ClipboardAgentsMixin(ClipboardBase):
@@ -28,13 +28,13 @@ class ClipboardAgentsMixin(ClipboardBase):
         if chat_path.startswith(home):
             chat_path = "~" + chat_path[len(home) :]
 
-        if copy_to_system_clipboard(chat_path):
-            display_path = (
-                chat_path if len(chat_path) <= 50 else "..." + chat_path[-47:]
-            )
-            self.notify(f"Copied: {display_path}")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+        display_path = chat_path if len(chat_path) <= 50 else "..." + chat_path[-47:]
+        schedule_copy_delivery(
+            self,
+            chat_path,
+            copied_label=f"chat path ({display_path})",
+            task_name="sase-copy-agent-chat-path",
+        )
 
     def _copy_agent_name(self) -> None:
         """Copy the selected agent's name (%n on agents tab)."""
@@ -50,10 +50,12 @@ class ClipboardAgentsMixin(ClipboardBase):
             name_value = agent.display_name
             label = "Agent Display Name"
 
-        if copy_to_system_clipboard(name_value):
-            self.notify(f"Copied: {label} ({name_value})")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+        schedule_copy_delivery(
+            self,
+            name_value,
+            copied_label=f"{label.lower()} ({name_value})",
+            task_name="sase-copy-agent-name",
+        )
 
     def _copy_agent_prompt(self) -> None:
         """Copy the prompt (raw xprompt) of the selected agent (%p on agents tab)."""
@@ -67,11 +69,13 @@ class ClipboardAgentsMixin(ClipboardBase):
             return
 
         display_content = humanize_vcs_refs_in_text(content).strip()
-        if copy_to_system_clipboard(display_content):
-            lines = len(display_content.split("\n"))
-            self.notify(f"Copied: Agent Prompt ({lines} lines)")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+        lines = len(display_content.split("\n"))
+        schedule_copy_delivery(
+            self,
+            display_content,
+            copied_label=f"agent prompt ({lines} lines)",
+            task_name="sase-copy-agent-prompt",
+        )
 
     def _copy_file_path(self) -> None:
         """Copy the file path from the file panel (%E on agents tab)."""
@@ -99,10 +103,10 @@ class ClipboardAgentsMixin(ClipboardBase):
         if file_path.startswith(home):
             file_path = "~" + file_path[len(home) :]
 
-        if copy_to_system_clipboard(file_path):
-            display_path = (
-                file_path if len(file_path) <= 50 else "..." + file_path[-47:]
-            )
-            self.notify(f"Copied: {display_path}")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+        display_path = file_path if len(file_path) <= 50 else "..." + file_path[-47:]
+        schedule_copy_delivery(
+            self,
+            file_path,
+            copied_label=f"file path ({display_path})",
+            task_name="sase-copy-agent-file-path",
+        )

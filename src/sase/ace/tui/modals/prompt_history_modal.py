@@ -458,12 +458,14 @@ class PromptHistoryModal(
         """Handle Ctrl+Y - copy selected prompt to clipboard and dismiss."""
         prompt_text = self._get_selected_prompt_text()
         if prompt_text:
-            from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+            from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 
-            if copy_to_system_clipboard(prompt_text):
-                self.app.notify("Copied prompt to clipboard")
-            else:
-                self.app.notify("Failed to copy to clipboard", severity="error")
+            schedule_copy_delivery(
+                self.app,
+                prompt_text,
+                copied_label="prompt",
+                task_name="sase-copy-prompt-history",
+            )
         self.dismiss(None)
 
     def _update_preview(self, item: _PromptDisplayItem) -> None:

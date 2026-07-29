@@ -25,7 +25,7 @@ from sase.plan_gate import (
     plan_gate_option_icon,
     plan_gate_option_label,
 )
-from ..actions.clipboard import copy_to_system_clipboard
+from ..actions.clipboard import schedule_copy_delivery
 from ..keymaps import (
     GateModalKeymaps,
     build_gate_modal_bindings,
@@ -640,18 +640,23 @@ class PlanApprovalModal(
 
     def action_copy_plan(self) -> None:
         """Copy the plan file contents to clipboard."""
-        content = (
-            self._plan_content
-            if self._plan_content is not None
-            else self._read_plan_file()
+
+        def content() -> str:
+            value = (
+                self._plan_content
+                if self._plan_content is not None
+                else self._read_plan_file()
+            )
+            if value.startswith("[Error"):
+                raise RuntimeError("failed to read plan file")
+            return value
+
+        schedule_copy_delivery(
+            self,
+            content,
+            copied_label="all plan contents",
+            task_name="sase-copy-plan-contents",
         )
-        if content.startswith("[Error"):
-            self.notify("Failed to read plan file", severity="error")
-            return
-        if copy_to_system_clipboard(content):
-            self.notify("Copied: All contents")
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")
 
     def _copy_plan_path_to_clipboard(self) -> None:
         """Copy the plan file path to clipboard (with ~ for home dir)."""
@@ -659,10 +664,12 @@ class PlanApprovalModal(
         path = os.path.expanduser(self._copy_plan_path)
         if path.startswith(home):
             path = "~" + path[len(home) :]
-        if copy_to_system_clipboard(path):
-            self.notify(f"Copied: {path}")
-        else:
-            self.notify("Failed to copy to clipboard", severity="error")
+        schedule_copy_delivery(
+            self,
+            path,
+            copied_label=f"plan path ({path})",
+            task_name="sase-copy-plan-path",
+        )
 
     def action_copy_plan_path(self) -> None:
         """Copy the plan file path to clipboard (with ~ for home dir)."""

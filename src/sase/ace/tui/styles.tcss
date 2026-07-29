@@ -7051,3 +7051,38 @@ InventoryProjectPicker #inventory-project-picker-hints {
     text-align: center;
     margin-top: 1;
 }
+
+/* ===== Clipboard Fallback Modal Styling ===== */
+
+CopyFallbackModal {
+    align: center middle;
+}
+
+CopyFallbackModal #copy-fallback-container {
+    width: 80%;
+    max-width: 110;
+    height: 75%;
+    border: double $warning;
+    background: $surface;
+    padding: 1 2;
+}
+
+CopyFallbackModal #copy-fallback-title {
+    height: auto;
+    text-align: center;
+    text-style: bold;
+    color: $warning;
+    margin-bottom: 1;
+}
+
+CopyFallbackModal #copy-fallback-text {
+    height: 1fr;
+    border: solid $secondary;
+}
+
+CopyFallbackModal #copy-fallback-footer {
+    height: 1;
+    text-align: center;
+    color: $text-muted;
+    margin-top: 1;
+}
