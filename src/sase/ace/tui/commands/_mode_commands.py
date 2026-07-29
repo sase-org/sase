@@ -57,6 +57,32 @@ _COPY_LABELS: dict[str, dict[str, str]] = {
         "spec": "Copy spec text",
         "snapshot": "Copy snapshot",
     },
+    "artifacts_commits": {
+        "sha": "Copy commit SHA",
+        "message": "Copy commit message",
+        "repo_sha": "Copy repo@SHA",
+        "plan": "Copy linked plan reference",
+        "snapshot": "Copy Artifacts snapshot",
+    },
+    "artifacts_plans": {
+        "path": "Copy plan path",
+        "title": "Copy plan title",
+        "body": "Copy plan body",
+        "snapshot": "Copy Artifacts snapshot",
+    },
+    "artifacts_chats": {
+        "path": "Copy chat path",
+        "agent": "Copy chat agent name",
+        "transcript": "Copy chat transcript",
+        "snapshot": "Copy Artifacts snapshot",
+    },
+    "artifacts_bugs": {
+        "number": "Copy issue number",
+        "url": "Copy issue URL",
+        "title": "Copy issue title",
+        "prompt": "Copy issue agent prompt",
+        "snapshot": "Copy Artifacts snapshot",
+    },
     "agents": {
         "chat": "Copy chat path",
         "file_path": "Copy file path",
@@ -175,6 +201,10 @@ def _iter_copy_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
     prefix = copy.prefix
     tab_to_command_tab: dict[str, CommandTab] = {
         "changespecs": "changespecs",
+        "artifacts_commits": "changespecs",
+        "artifacts_plans": "changespecs",
+        "artifacts_chats": "changespecs",
+        "artifacts_bugs": "changespecs",
         "agents": "agents",
         "axe": "axe",
     }

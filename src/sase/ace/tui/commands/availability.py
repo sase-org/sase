@@ -220,6 +220,8 @@ def _get_base_status(status: str) -> str:
 
 
 def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
+    if spec.id.startswith("copy.artifacts_"):
+        return spec.id.startswith(f"copy.artifacts_{ctx.artifacts_subtab}.")
     if spec.id == "app.edit_query":
         return ctx.artifacts_subtab in {"prs", "commits", "plans"}
     if spec.id in _BUG_COMMANDS:

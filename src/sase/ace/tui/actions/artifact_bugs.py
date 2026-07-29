@@ -373,17 +373,16 @@ class ArtifactBugsMixin:
         )
 
     def action_copy_bug(self) -> None:
-        pane = self._bugs_pane()
-        issue = pane.selected_issue if pane is not None else None
-        project = pane.project_scope if pane is not None else None
-        if not self._bugs_active() or issue is None or project is None:
+        context = self._selected_bug_copy_context()
+        if not self._bugs_active() or context is None:
             return
+        _pane, issue, project = context
 
         async def _copy() -> None:
             from .clipboard import copy_to_system_clipboard
 
             try:
-                url = await asyncio.to_thread(issue_url, project, issue)
+                url = await asyncio.to_thread(resolved_bug_url, project, issue)
                 copied = await asyncio.to_thread(
                     copy_to_system_clipboard,
                     f"#{issue.number} {url}",
@@ -404,6 +403,17 @@ class ArtifactBugsMixin:
             name="sase-bug-copy",
             registry_attr="_pump_free_async_tasks",
         )
+
+    def _selected_bug_copy_context(
+        self,
+    ) -> tuple[ArtifactsBugsPane, IssueWire, str] | None:
+        """Return the visible issue context shared by all Bugs copy targets."""
+        pane = self._bugs_pane()
+        issue = pane.selected_issue if pane is not None else None
+        project = pane.project_scope if pane is not None else None
+        if pane is None or issue is None or project is None:
+            return None
+        return pane, issue, project
 
     def action_start_agent_from_bug(self) -> None:
         pane = self._bugs_pane()
@@ -434,7 +444,7 @@ class ArtifactBugsMixin:
                 )  # type: ignore[attr-defined]
                 return
             prefix = f"#{workflow_type}:{display_name} "
-            prompt = _bug_agent_prompt(prefix, issue)
+            prompt = bug_agent_prompt(prefix, issue)
             self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
                 initial_text=prompt,
                 display_name=f"{display_name} #{issue.number}",
@@ -470,7 +480,7 @@ class ArtifactBugsMixin:
         self._switch_artifacts_subtab("prs")  # type: ignore[attr-defined]
 
 
-def _bug_agent_prompt(prefix: str, issue: IssueWire) -> str:
+def bug_agent_prompt(prefix: str, issue: IssueWire) -> str:
     body = issue.body.strip() or "(No issue body.)"
     return (
         f"{prefix}Work on external bug #{issue.number}: {issue.title}\n\n"
@@ -478,6 +488,11 @@ def _bug_agent_prompt(prefix: str, issue: IssueWire) -> str:
         f"Keep bug_id: {issue.number} on any epic plan you create so its beads "
         "and resulting ChangeSpecs remain linked to this issue."
     )
+
+
+def resolved_bug_url(project: str, issue: IssueWire) -> str:
+    """Use a provider-supplied URL before asking the provider to resolve one."""
+    return issue.url or issue_url(project, issue)
 
 
 __all__ = ["ArtifactBugsMixin", "BUG_ARTIFACT_ACTIONS"]

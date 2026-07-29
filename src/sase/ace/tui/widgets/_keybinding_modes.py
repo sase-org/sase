@@ -387,15 +387,28 @@ class KeybindingModesMixin:
         display_name = mode_name.upper().replace("_", " ")
         self._update_display(bindings, mode_label=display_name)
 
-    def update_copy_bindings(self, tab: str, *, file_visible: bool = False) -> None:
+    def update_copy_bindings(
+        self,
+        tab: str,
+        *,
+        artifacts_subtab: str | None = None,
+        file_visible: bool = False,
+    ) -> None:
         """Update bindings to show copy mode options for the current tab.
 
         Args:
             tab: Current tab name ("changespecs", "agents", or "axe").
+            artifacts_subtab: Visible Artifacts pane when ``tab`` is changespecs.
             file_visible: Whether the file panel is visible (agents tab only).
         """
         d = footer_key_display
-        tab_keys = self._kr().copy_mode.keys.get(tab, {})
+        key_group = (
+            f"artifacts_{artifacts_subtab}"
+            if tab == "changespecs"
+            and artifacts_subtab in {"commits", "plans", "chats", "bugs"}
+            else tab
+        )
+        tab_keys = self._kr().copy_mode.keys.get(key_group, {})
         assert isinstance(tab_keys, dict)
 
         def k(name: str) -> str:
@@ -406,7 +419,37 @@ class KeybindingModesMixin:
             assert isinstance(v, str)
             return d(v)
 
-        if tab == "changespecs":
+        if key_group == "artifacts_commits":
+            bindings = [
+                (k("sha"), "SHA"),
+                (k("message"), "message"),
+                (k("repo_sha"), "repo@SHA"),
+                (k("plan"), "plan ref"),
+                (k("snapshot"), "snap"),
+            ]
+        elif key_group == "artifacts_plans":
+            bindings = [
+                (k("path"), "path"),
+                (k("title"), "title"),
+                (k("body"), "body"),
+                (k("snapshot"), "snap"),
+            ]
+        elif key_group == "artifacts_chats":
+            bindings = [
+                (k("path"), "path"),
+                (k("agent"), "agent"),
+                (k("transcript"), "transcript"),
+                (k("snapshot"), "snap"),
+            ]
+        elif key_group == "artifacts_bugs":
+            bindings = [
+                (k("number"), "issue #"),
+                (k("url"), "url"),
+                (k("title"), "title"),
+                (k("prompt"), "agent prompt"),
+                (k("snapshot"), "snap"),
+            ]
+        elif tab == "changespecs":
             bindings = [
                 (k("raw"), "raw"),
                 (k("with_snapshot"), "+snap"),

@@ -6,6 +6,7 @@ is re-exported here because external modules import it from this package.
 """
 
 from ._agents import ClipboardAgentsMixin
+from ._artifacts import ClipboardArtifactsMixin
 from ._axe import ClipboardAxeMixin
 from ._changespec import ClipboardChangeSpecMixin
 from ._core import ClipboardCoreMixin
@@ -14,6 +15,7 @@ from ._helpers import copy_to_system_clipboard
 
 class ClipboardMixin(
     ClipboardCoreMixin,
+    ClipboardArtifactsMixin,
     ClipboardChangeSpecMixin,
     ClipboardAgentsMixin,
     ClipboardAxeMixin,

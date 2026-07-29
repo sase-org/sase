@@ -267,7 +267,10 @@ class ChangeSpecDisplayMixin(ChangeSpecOnboardingMixin):
         elif getattr(self, "_bang_mode_active", False):
             footer_widget.update_bang_bindings()  # type: ignore[attr-defined]
         elif getattr(self, "_copy_mode_active", False):
-            footer_widget.update_copy_bindings(self.current_tab)  # type: ignore[attr-defined]
+            footer_widget.update_copy_bindings(  # type: ignore[attr-defined]
+                self.current_tab,
+                artifacts_subtab=getattr(self, "current_artifacts_subtab", None),
+            )
         elif (cm := getattr(self, "_custom_mode_active", None)) is not None:
             footer_widget.update_custom_mode_bindings(cm)  # type: ignore[attr-defined]
         else:

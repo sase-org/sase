@@ -70,7 +70,9 @@ class AgentFooterDisplayMixin:
         elif getattr(self, "_copy_mode_active", False):
             file_visible = agent_detail.is_file_visible()
             footer_widget.update_copy_bindings(
-                self.current_tab, file_visible=file_visible
+                self.current_tab,
+                artifacts_subtab=getattr(self, "current_artifacts_subtab", None),
+                file_visible=file_visible,
             )
         elif (cm := getattr(self, "_custom_mode_active", None)) is not None:
             footer_widget.update_custom_mode_bindings(cm)

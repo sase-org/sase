@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec
@@ -20,6 +20,7 @@ class ClipboardBase:
     changespecs: list[ChangeSpec]
     current_idx: int
     current_tab: TabName
+    current_artifacts_subtab: Any
     _agents: list[Agent]
     _axe_current_view: AxeViewType
     _axe_output: str

@@ -94,6 +94,22 @@ Shared entry-jump surfaces allocate hints from the zero-based alphabet `0`–`9`
 `01`, …, `0Z`, `10` and ending at the fixed `ZZ` capacity. The first character of a two-character hint keeps jump mode
 open; the second completes the jump. Hints remain case-sensitive.
 
+### Copy Mode in Commits, Plans, Chats, and Bugs
+
+Press `%` on any non-PR Artifacts sub-tab to open that pane's copy menu. The next key copies from the visible entry;
+`Esc` cancels, and `%s` captures the current `sase ace` tmux pane on every sub-tab.
+
+| Sub-tab | Keys                                                                                        |
+| ------- | ------------------------------------------------------------------------------------------- |
+| Commits | `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` linked plan reference · `%s` snapshot |
+| Plans   | `%p` path · `%t` title · `%b` body · `%s` snapshot                                          |
+| Chats   | `%p` path · `%a` agent name · `%t` transcript contents · `%s` snapshot                      |
+| Bugs    | `%b` `#N` · `%u` URL · `%t` title · `%p` agent-ready prompt · `%s` snapshot                 |
+
+The menu and copied value follow the active sub-tab, even though Artifacts uses the internal `changespecs` tab id. Thus,
+for example, `%n` on Chats reports the Chats key set instead of copying the hidden PR's name. After a copy, cancel, or
+invalid key, the footer returns to the active pane's normal bindings.
+
 ### Filtering Commits and Plans
 
 Commits keeps its effective canonical query visible above the timeline. Press `/` or the local `f` shortcut to focus

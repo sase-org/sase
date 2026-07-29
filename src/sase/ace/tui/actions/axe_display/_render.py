@@ -210,7 +210,10 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             elif getattr(self, "_bang_mode_active", False):
                 footer.update_bang_bindings()
             elif getattr(self, "_copy_mode_active", False):
-                footer.update_copy_bindings(self.current_tab)
+                footer.update_copy_bindings(
+                    self.current_tab,
+                    artifacts_subtab=getattr(self, "current_artifacts_subtab", None),
+                )
             elif (cm := getattr(self, "_custom_mode_active", None)) is not None:
                 footer.update_custom_mode_bindings(cm)
             else:

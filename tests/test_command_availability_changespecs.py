@@ -73,6 +73,23 @@ def test_plans_filter_command_is_available_only_on_plans() -> None:
         )
 
 
+def test_artifacts_copy_commands_follow_the_active_subtab() -> None:
+    catalog = _catalog_by_id()
+    groups = ("commits", "plans", "chats", "bugs")
+
+    for active in groups:
+        ctx = CommandContext(tab="changespecs", artifacts_subtab=active)
+        for group in groups:
+            spec = catalog[f"copy.artifacts_{group}.snapshot"]
+            assert is_command_available(spec, ctx) is (group == active)
+
+    prs = CommandContext(tab="changespecs", artifacts_subtab="prs")
+    assert all(
+        not is_command_available(catalog[f"copy.artifacts_{group}.snapshot"], prs)
+        for group in groups
+    )
+
+
 def test_saved_query_picker_and_slots_are_pr_only() -> None:
     catalog = _catalog_by_id()
     picker = catalog["app.open_saved_query_picker"]

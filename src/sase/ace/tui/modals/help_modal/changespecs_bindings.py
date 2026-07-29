@@ -23,6 +23,14 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
 
     cs_copy = cm.keys["changespecs"]
     assert isinstance(cs_copy, dict)
+    commits_copy = cm.keys["artifacts_commits"]
+    plans_copy = cm.keys["artifacts_plans"]
+    chats_copy = cm.keys["artifacts_chats"]
+    bugs_copy = cm.keys["artifacts_bugs"]
+    assert isinstance(commits_copy, dict)
+    assert isinstance(plans_copy, dict)
+    assert isinstance(chats_copy, dict)
+    assert isinstance(bugs_copy, dict)
     pr_copy_key = cs_copy.get("pr_number", cs_copy.get("cl_number"))
     assert isinstance(pr_copy_key, str)
     artifact_list_navigation = [
@@ -394,6 +402,98 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (
                     f"{d(a.expand_all_folds)} / {d(a.hooks_or_collapse_all)}",
                     "Expand/collapse all",
+                ),
+            ],
+        ),
+        (
+            f"Copy Mode · Commits ({d(cm.prefix)})",
+            [
+                (
+                    key_sequence_display(cm.prefix, commits_copy["sha"]),
+                    "Copy full SHA",
+                ),
+                (
+                    key_sequence_display(cm.prefix, commits_copy["message"]),
+                    "Copy commit message",
+                ),
+                (
+                    key_sequence_display(cm.prefix, commits_copy["repo_sha"]),
+                    "Copy repo@SHA",
+                ),
+                (
+                    key_sequence_display(cm.prefix, commits_copy["plan"]),
+                    "Copy linked plan reference",
+                ),
+                (
+                    key_sequence_display(cm.prefix, commits_copy["snapshot"]),
+                    "Copy sase ace snapshot",
+                ),
+            ],
+        ),
+        (
+            f"Copy Mode · Plans ({d(cm.prefix)})",
+            [
+                (
+                    key_sequence_display(cm.prefix, plans_copy["path"]),
+                    "Copy plan path",
+                ),
+                (
+                    key_sequence_display(cm.prefix, plans_copy["title"]),
+                    "Copy plan title",
+                ),
+                (
+                    key_sequence_display(cm.prefix, plans_copy["body"]),
+                    "Copy plan body",
+                ),
+                (
+                    key_sequence_display(cm.prefix, plans_copy["snapshot"]),
+                    "Copy sase ace snapshot",
+                ),
+            ],
+        ),
+        (
+            f"Copy Mode · Chats ({d(cm.prefix)})",
+            [
+                (
+                    key_sequence_display(cm.prefix, chats_copy["path"]),
+                    "Copy transcript path",
+                ),
+                (
+                    key_sequence_display(cm.prefix, chats_copy["agent"]),
+                    "Copy agent name",
+                ),
+                (
+                    key_sequence_display(cm.prefix, chats_copy["transcript"]),
+                    "Copy transcript contents",
+                ),
+                (
+                    key_sequence_display(cm.prefix, chats_copy["snapshot"]),
+                    "Copy sase ace snapshot",
+                ),
+            ],
+        ),
+        (
+            f"Copy Mode · Bugs ({d(cm.prefix)})",
+            [
+                (
+                    key_sequence_display(cm.prefix, bugs_copy["number"]),
+                    "Copy issue number",
+                ),
+                (
+                    key_sequence_display(cm.prefix, bugs_copy["url"]),
+                    "Copy issue URL",
+                ),
+                (
+                    key_sequence_display(cm.prefix, bugs_copy["title"]),
+                    "Copy issue title",
+                ),
+                (
+                    key_sequence_display(cm.prefix, bugs_copy["prompt"]),
+                    "Copy agent-ready prompt",
+                ),
+                (
+                    key_sequence_display(cm.prefix, bugs_copy["snapshot"]),
+                    "Copy sase ace snapshot",
                 ),
             ],
         ),

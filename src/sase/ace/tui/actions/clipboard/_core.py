@@ -21,7 +21,11 @@ class ClipboardCoreMixin(ClipboardBase):
 
     def action_start_copy_mode(self) -> None:
         """Start copy mode - wait for second key to determine copy action."""
-        if self.current_tab == "changespecs" and not self.changespecs:
+        if (
+            self.current_tab == "changespecs"
+            and getattr(self, "current_artifacts_subtab", "prs") == "prs"
+            and not self.changespecs
+        ):
             self.notify("No ChangeSpec to copy", severity="warning")  # type: ignore[attr-defined]
             return
 
@@ -41,10 +45,12 @@ class ClipboardCoreMixin(ClipboardBase):
 
         if key == "escape":
             # Cancel copy mode silently and restore footer
-            self._refresh_current_tab()  # type: ignore[attr-defined]
+            self._restore_copy_footer()
             return True
 
-        if self.current_tab == "changespecs":
+        if self._non_pr_artifacts_copy_active():  # type: ignore[attr-defined]
+            result = self._handle_artifacts_copy_key(key)  # type: ignore[attr-defined]
+        elif self.current_tab == "changespecs":
             result = self._handle_changespecs_copy_key(key)
         elif self.current_tab == "agents":
             result = self._handle_agents_copy_key(key)
@@ -52,8 +58,15 @@ class ClipboardCoreMixin(ClipboardBase):
             result = self._handle_axe_copy_key(key)
 
         # Restore normal footer
-        self._refresh_current_tab()  # type: ignore[attr-defined]
+        self._restore_copy_footer()
         return result
+
+    def _restore_copy_footer(self) -> None:
+        """Restore the active pane's normal footer after copy mode."""
+        if self._non_pr_artifacts_copy_active():  # type: ignore[attr-defined]
+            self._sync_active_artifacts_entry_state()  # type: ignore[attr-defined]
+        else:
+            self._refresh_current_tab()  # type: ignore[attr-defined]
 
     def _update_copy_footer(self) -> None:
         """Update the footer to show copy mode bindings."""
@@ -67,7 +80,11 @@ class ClipboardCoreMixin(ClipboardBase):
 
                 agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
                 file_visible = agent_detail.is_file_visible()
-            footer.update_copy_bindings(self.current_tab, file_visible=file_visible)
+            footer.update_copy_bindings(
+                self.current_tab,
+                artifacts_subtab=getattr(self, "current_artifacts_subtab", None),
+                file_visible=file_visible,
+            )
         except Exception:
             pass
 

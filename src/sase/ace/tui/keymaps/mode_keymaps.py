@@ -63,6 +63,32 @@ class CopyModeKeymaps(ModeKeymaps):
                 "spec": "p",
                 "snapshot": "s",
             },
+            "artifacts_commits": {
+                "sha": "percent_sign",
+                "message": "m",
+                "repo_sha": "r",
+                "plan": "p",
+                "snapshot": "s",
+            },
+            "artifacts_plans": {
+                "path": "p",
+                "title": "t",
+                "body": "b",
+                "snapshot": "s",
+            },
+            "artifacts_chats": {
+                "path": "p",
+                "agent": "a",
+                "transcript": "t",
+                "snapshot": "s",
+            },
+            "artifacts_bugs": {
+                "number": "b",
+                "url": "u",
+                "title": "t",
+                "prompt": "p",
+                "snapshot": "s",
+            },
             "agents": {
                 "chat": "c",
                 "file_path": "E",
