@@ -87,6 +87,18 @@ class AgentPanelNavigationMixin:
         remember = getattr(self, "_remember_focused_panel_selection", None)
         if callable(remember):
             remember(stop)
+        self._acknowledge_panel_stop_arrival(payload)
+
+    def _acknowledge_panel_stop_arrival(self, agent_idx: int) -> None:
+        """Clear unread state for the row a panel move just selected."""
+        agents = getattr(self, "_agents", ())
+        if not (0 <= agent_idx < len(agents)):
+            return
+        ack_unread = getattr(self, "_acknowledge_agent_unread", None)
+        if callable(ack_unread):
+            # Some callers also acknowledge fallback destinations; the
+            # underlying unread transition is intentionally idempotent.
+            ack_unread(agents[agent_idx])
 
     def _focus_whole_panel_target(
         self,

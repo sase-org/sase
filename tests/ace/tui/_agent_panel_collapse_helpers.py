@@ -11,6 +11,7 @@ from sase.ace.tui.actions.agents._navigation_order import AgentNavigationOrderMi
 from sase.ace.tui.actions.agents._panel_detail import AgentPanelDetailMixin
 from sase.ace.tui.actions.agents._panel_navigation import AgentPanelNavigationMixin
 from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
+from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
 from sase.ace.tui.actions.navigation._entry_jump_agents import (
     EntryJumpAgentHistoryMixin,
 )
@@ -156,15 +157,48 @@ class AgentPanelCollapseApp(
         self.group_fold_changes.append((panel_key, group_key, collapsed))
 
 
-def make_agent(*, name: str, project: str, tribe: str | None) -> Agent:
-    """Create a running agent for panel collapse tests."""
+class AgentPanelUnreadEntryApp(AgentUnreadMixin, AgentPanelCollapseApp):
+    """Panel-collapse harness with real unread-state mutation."""
+
+    def __init__(
+        self,
+        agents: list[Agent],
+        *,
+        focused_key: str | None = None,
+        merged: bool = False,
+    ) -> None:
+        super().__init__(agents, focused_key=focused_key, merged=merged)
+        self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._agent_info_metrics_cache: tuple[Any, ...] | None = None
+        self.patch_calls: list[Agent] = []
+        self.notification_count_refresh_calls = 0
+
+    def _try_patch_agent_row(self, agent: Agent) -> bool:
+        self.patch_calls.append(agent)
+        return True
+
+    def _refresh_notification_count(self) -> None:
+        self.notification_count_refresh_calls += 1
+
+
+def make_agent(
+    *,
+    name: str,
+    project: str,
+    tribe: str | None,
+    status: str = "RUNNING",
+    stop_time: datetime | None = None,
+) -> Agent:
+    """Create an agent for panel collapse tests."""
 
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=name,
         project_file=f"/r/{project}/project.sase",
-        status="RUNNING",
+        status=status,
         start_time=datetime(2026, 7, 15, 12, 0, 0),
+        stop_time=stop_time,
         raw_suffix=name,
         agent_name=name,
         tribe=tribe,
