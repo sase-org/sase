@@ -33,12 +33,14 @@ from sase.stats.ranges import (
 from .statistics_pane_data import (
     PROJECTS_GROUP_ORDER,
     RUNTIME_GROUP_ORDER,
+    XPROMPTS_GROUP_ORDER,
     VIEW_COMPACT_LABELS,
     VIEW_LABELS,
     VIEW_ORDER,
     ProjectsGroupBy,
     StatisticsView,
     StatisticsViewData,
+    XPromptsGroupBy,
     load_statistics_view,
     statistics_view_supports_grouping,
 )
@@ -112,7 +114,7 @@ class _CustomRangeInput(Input):
 
 
 class StatisticsPane(StatisticsPanePresentationBase):
-    """Eight numeric Statistics views backed by durable agent activity."""
+    """Nine numeric Statistics views backed by durable agent activity."""
 
     can_focus = True
     BINDINGS = []
@@ -133,6 +135,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
         self._range = resolve_preset(DEFAULT_PRESET)
         self._runtime_group_by: RuntimeGroupBy = "tribe"
         self._projects_group_by: ProjectsGroupBy = "project"
+        self._xprompts_group_by: XPromptsGroupBy = "usage"
         self._project_filter: str | None = None
         self._project_filter_options: tuple[str, ...] = ()
         self._auto_load = auto_load
@@ -155,6 +158,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
             self._view,
             uppercase_active=True,
             compact_below=_VIEWS_COMPACT_BELOW_WIDTH,
+            compact_separator="│",
             id="statistics-views",
         )
         yield Static(
@@ -304,6 +308,12 @@ class StatisticsPane(StatisticsPanePresentationBase):
                 (index + 1) % len(PROJECTS_GROUP_ORDER)
             ]
             self._selection_changed(reload=False)
+        elif self._view == "xprompts":
+            index = XPROMPTS_GROUP_ORDER.index(self._xprompts_group_by)
+            self._xprompts_group_by = XPROMPTS_GROUP_ORDER[
+                (index + 1) % len(XPROMPTS_GROUP_ORDER)
+            ]
+            self._selection_changed(reload=False)
 
     def action_cycle_project_filter(self) -> None:
         """Cycle forward through All and cached ranked projects."""
@@ -380,6 +390,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
                 selected_range=self._range,
                 runtime_group_by=self._runtime_group_by,
                 projects_group_by=self._projects_group_by,
+                xprompts_group_by=self._xprompts_group_by,
                 project_label=project_label,
                 generated_at=result.generated_at if result is not None else None,
                 keymaps=self._keymaps,

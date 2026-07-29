@@ -21,6 +21,7 @@ from .statistics_pane_data import (
     ProjectsGroupBy,
     StatisticsView,
     StatisticsViewData,
+    XPromptsGroupBy,
     VIEW_DESCRIPTIONS,
     VIEW_LABELS,
     statistics_view_supports_grouping,
@@ -36,6 +37,12 @@ _PROJECTS_GROUP_LABELS: dict[ProjectsGroupBy, str] = {
     "changespec": "By ChangeSpec",
     "drilldown": "Project → ChangeSpec",
 }
+_XPROMPTS_GROUP_LABELS: dict[XPromptsGroupBy, str] = {
+    "usage": "By Usage",
+    "model": "By Model",
+    "project": "By Project",
+    "pairing": "Used With",
+}
 
 
 class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
@@ -48,6 +55,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     _view: StatisticsView
     _runtime_group_by: RuntimeGroupBy
     _projects_group_by: ProjectsGroupBy
+    _xprompts_group_by: XPromptsGroupBy
     _project_filter: str | None
     _preset_key: PresetKey | None
     _range: StatsRange
@@ -312,6 +320,11 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         elif self._view == "projects":
             scope.append(
                 f"Projects · {_PROJECTS_GROUP_LABELS[self._projects_group_by]}",
+                style=f"bold {_GREEN}",
+            )
+        elif self._view == "xprompts":
+            scope.append(
+                f"XPrompts · {_XPROMPTS_GROUP_LABELS[self._xprompts_group_by]}",
                 style=f"bold {_GREEN}",
             )
         else:

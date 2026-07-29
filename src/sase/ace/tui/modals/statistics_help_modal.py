@@ -28,6 +28,7 @@ from .statistics_pane_data import (
     VIEW_ORDER,
     ProjectsGroupBy,
     StatisticsView,
+    XPromptsGroupBy,
     statistics_view_supports_grouping,
 )
 from .statistics_pane_legends import VIEW_LEGENDS
@@ -59,6 +60,7 @@ class StatisticsHelpModal(ModalScreen[None]):
         selected_range: StatsRange,
         runtime_group_by: RuntimeGroupBy,
         projects_group_by: ProjectsGroupBy,
+        xprompts_group_by: XPromptsGroupBy,
         project_label: str,
         generated_at: float | None,
         keymaps: StatisticsPaneKeymaps,
@@ -68,6 +70,7 @@ class StatisticsHelpModal(ModalScreen[None]):
         self._selected_range = selected_range
         self._runtime_group_by = runtime_group_by
         self._projects_group_by = projects_group_by
+        self._xprompts_group_by = xprompts_group_by
         self._project_label = project_label
         self._generated_at = generated_at
         self._keymaps = keymaps
@@ -161,6 +164,8 @@ class StatisticsHelpModal(ModalScreen[None]):
         if action == "cycle_group":
             if self._current_view == "runtime":
                 return f"Runtime · {self._runtime_group_by.title()}"
+            if self._current_view == "xprompts":
+                return f"XPrompts · {self._xprompts_group_label()}"
             return f"Projects · {self._projects_group_label()}"
         if action == "cycle_project_filter":
             return f"next ranked project; current: {self._project_label}"
@@ -180,6 +185,15 @@ class StatisticsHelpModal(ModalScreen[None]):
         if self._projects_group_by == "changespec":
             return "By ChangeSpec"
         return "Project → ChangeSpec"
+
+    def _xprompts_group_label(self) -> str:
+        if self._xprompts_group_by == "usage":
+            return "By Usage"
+        if self._xprompts_group_by == "model":
+            return "By Model"
+        if self._xprompts_group_by == "project":
+            return "By Project"
+        return "Used With"
 
     def _glossary_text(self) -> Text:
         text = Text()

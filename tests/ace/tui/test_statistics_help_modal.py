@@ -21,6 +21,7 @@ def _modal(current_view: StatisticsView = "overview") -> StatisticsHelpModal:
         selected_range=StatsRange(100, 200, "exact range", "Last 7 days"),
         runtime_group_by="tribe",
         projects_group_by="project",
+        xprompts_group_by="usage",
         project_label="All projects",
         generated_at=150.0,
         keymaps=StatisticsPaneKeymaps(),
@@ -62,6 +63,8 @@ def test_help_group_control_is_visible_only_for_grouping_views() -> None:
             assert "Group By — Projects · By Project" in controls
         elif view == "runtime":
             assert "Group By — Runtime · Tribe" in controls
+        elif view == "xprompts":
+            assert "Group By — XPrompts · By Usage" in controls
         else:
             assert "Group By" not in controls
 

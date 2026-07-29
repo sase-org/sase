@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.tui.modals.statistics_pane import StatisticsPane
+from sase.project_display_names import ProjectDisplaySnapshot
 from sase.stats.ranges import StatsRange
 from sase.stats.views import build_statistics_views
 
@@ -103,3 +104,95 @@ def test_project_filter_marks_only_global_plan_and_question_values() -> None:
     assert "Questions (all projects): 3" in rendered
     assert "Mean questions per session (all projects): 1.50" in rendered
     assert "Questions (all projects)" in rendered
+
+
+@pytest.mark.parametrize(
+    ("group_by", "distinctive_copy"),
+    (
+        ("usage", ("Refs", "Agents", "Last used")),
+        ("model", ("XPrompt → Model", "gpt-5.6", "(no model recorded)")),
+        ("project", ("XPrompt → Project", "SASE", "Core")),
+        ("pairing", ("XPrompt → Used with", "#gh", "(used alone)")),
+    ),
+)
+def test_xprompts_grouping_modes_render_distinctive_columns_and_rows(
+    group_by: str,
+    distinctive_copy: tuple[str, ...],
+) -> None:
+    pane = StatisticsPane(auto_load=False)
+    pane._view = "xprompts"
+    pane._xprompts_group_by = group_by  # type: ignore[assignment]
+    result = _result(
+        "xprompts",
+        pane._range,
+        pane._runtime_group_by,
+        project_display_snapshot=ProjectDisplaySnapshot(
+            {"sase": "SASE", "core": "Core"}
+        ),
+    )
+
+    rendered = _render_plain(pane._view_renderable(result))
+
+    assert (
+        "2 xprompts · 4 runs referenced · 5 references · "
+        "2 runs without xprompts (33.3%)"
+    ) in rendered
+    assert all(copy in rendered for copy in distinctive_copy)
+    assert "Scope = launch-boundary references only" in rendered
+
+
+def test_xprompts_truncation_is_explicit() -> None:
+    pane = StatisticsPane(auto_load=False)
+    payload = _run_payload(pane._range, pane._runtime_group_by)
+    payload["xprompts"]["truncated_rows"] = 7
+    views = build_statistics_views(payload, _activity_payload())
+
+    rendered = _render_plain(pane._xprompts_usage_renderable(views.xprompts))
+
+    assert "7 more xprompts not shown." in rendered
+
+
+def test_xprompts_unavailable_and_no_reference_states_use_effective_keys() -> None:
+    pane = StatisticsPane(auto_load=False)
+    unavailable = _run_payload(pane._range, pane._runtime_group_by)
+    unavailable.pop("xprompts")
+    unavailable_result = _result(
+        "xprompts",
+        pane._range,
+        pane._runtime_group_by,
+    )
+    unavailable_result = unavailable_result.__class__(
+        view="xprompts",
+        selected_range=pane._range,
+        runtime_group_by=pane._runtime_group_by,
+        generated_at=unavailable_result.generated_at,
+        views=build_statistics_views(unavailable, _activity_payload()),
+    )
+    pane._view = "xprompts"
+
+    rendered = _render_plain(pane._view_renderable(unavailable_result))
+    assert "XPrompt statistics unavailable" in rendered
+    assert "Press r to refresh" in rendered
+
+    empty_payload = _run_payload(pane._range, pane._runtime_group_by)
+    empty_payload["xprompts"].update(
+        {
+            "runs_with_xprompts": 0,
+            "runs_without_xprompts": 6,
+            "distinct_xprompts": 0,
+            "total_references": 0,
+            "rows": [],
+        }
+    )
+    empty_result = unavailable_result.__class__(
+        view="xprompts",
+        selected_range=pane._range,
+        runtime_group_by=pane._runtime_group_by,
+        generated_at=unavailable_result.generated_at,
+        views=build_statistics_views(empty_payload, _activity_payload()),
+    )
+    rendered = _render_plain(pane._view_renderable(empty_result))
+    assert (
+        f"No prompt in {pane._range.display_label} referenced an xprompt." in rendered
+    )
+    assert "Press t to widen the range." in rendered

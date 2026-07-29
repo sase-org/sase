@@ -40,6 +40,7 @@ class PanelTabStrip(Static):
         show_numbers: bool = False,
         uppercase_active: bool = False,
         compact_below: int | None = None,
+        compact_separator: str = " │ ",
         **kwargs: Any,
     ) -> None:
         self._tabs = tuple(tabs)
@@ -47,6 +48,7 @@ class PanelTabStrip(Static):
         self._show_numbers = show_numbers
         self._uppercase_active = uppercase_active
         self._compact_below = compact_below
+        self._compact_separator = compact_separator
         self._compact = False
         self._tab_ranges: dict[str, tuple[int, int]] = {}
         self._line_width = 0
@@ -74,7 +76,8 @@ class PanelTabStrip(Static):
         self._tab_ranges.clear()
         for index, tab in enumerate(self._tabs):
             if index > 0:
-                text.append(" │ ", style="#444444")
+                separator = self._compact_separator if self._compact else " │ "
+                text.append(separator, style="#444444")
             is_active = tab.id == self._active_tab
             label_style = f"bold {tab.accent_color}" if is_active else "#888888"
             start = len(text.plain)

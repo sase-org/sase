@@ -82,6 +82,20 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
             "distinct agent names that used the skill or memory",
         ),
     ),
+    "xprompts": (
+        _MetricLegend("Runs", "runs whose launch prompt referenced the xprompt"),
+        _MetricLegend(
+            "Refs",
+            "references; the same name with different arguments counts twice",
+        ),
+        _MetricLegend("Share", "share of runs that referenced any xprompt"),
+        _MetricLegend("Agents", "distinct agent names"),
+        _MetricLegend("Used with", "xprompts referenced by the same run"),
+        _MetricLegend(
+            "Scope",
+            "launch-boundary references only; workflow step templates excluded",
+        ),
+    ),
     "plans_questions": (
         _MetricLegend(
             "(all projects)",

@@ -59,6 +59,9 @@ def test_view_renderables_include_verified_metric_definitions() -> None:
         "providers": "Avg runtime = mean among runs with a valid finish/stop duration",
         "runtime": "In progress = excluded from duration math",
         "activity": "Agents = distinct agent names that used the skill or memory",
+        "xprompts": (
+            "Scope = launch-boundary references only; workflow step templates excluded"
+        ),
         "plans_questions": (
             "(all projects) = global durable activity the project filter cannot scope"
         ),

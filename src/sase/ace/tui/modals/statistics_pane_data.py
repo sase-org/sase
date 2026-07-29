@@ -22,9 +22,11 @@ StatisticsView = Literal[
     "providers",
     "runtime",
     "activity",
+    "xprompts",
     "plans_questions",
 ]
 ProjectsGroupBy = Literal["project", "changespec", "drilldown"]
+XPromptsGroupBy = Literal["usage", "model", "project", "pairing"]
 
 VIEW_ORDER: tuple[StatisticsView, ...] = (
     "overview",
@@ -34,6 +36,7 @@ VIEW_ORDER: tuple[StatisticsView, ...] = (
     "providers",
     "runtime",
     "activity",
+    "xprompts",
     "plans_questions",
 )
 VIEW_LABELS: dict[StatisticsView, str] = {
@@ -44,6 +47,7 @@ VIEW_LABELS: dict[StatisticsView, str] = {
     "providers": "Providers",
     "runtime": "Runtime",
     "activity": "Activity",
+    "xprompts": "XPrompts",
     "plans_questions": "Plans & Questions",
 }
 VIEW_COMPACT_LABELS: dict[StatisticsView, str] = {
@@ -58,6 +62,9 @@ VIEW_DESCRIPTIONS: dict[StatisticsView, str] = {
     "providers": "Provider, model, and effort usage with success and runtime measures.",
     "runtime": "Runtime distribution and share grouped by the selected dimension.",
     "activity": "Skill and memory usage across agents in the selected scope.",
+    "xprompts": (
+        "XPrompt usage across prompts, with model, project, and co-usage breakdowns."
+    ),
     "plans_questions": "Plan decisions, epic structure, and agent question patterns.",
 }
 
@@ -65,6 +72,12 @@ PROJECTS_GROUP_ORDER: tuple[ProjectsGroupBy, ...] = (
     "project",
     "changespec",
     "drilldown",
+)
+XPROMPTS_GROUP_ORDER: tuple[XPromptsGroupBy, ...] = (
+    "usage",
+    "model",
+    "project",
+    "pairing",
 )
 
 RUNTIME_GROUP_ORDER: tuple[RuntimeGroupBy, ...] = (
@@ -82,7 +95,7 @@ RUNTIME_GROUP_ORDER: tuple[RuntimeGroupBy, ...] = (
 
 def statistics_view_supports_grouping(view: StatisticsView) -> bool:
     """Return whether ``view`` exposes a configurable grouping strategy."""
-    return view in ("projects", "runtime")
+    return view in ("projects", "runtime", "xprompts")
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,6 +169,7 @@ def load_statistics_view(
 __all__ = [
     "PROJECTS_GROUP_ORDER",
     "RUNTIME_GROUP_ORDER",
+    "XPROMPTS_GROUP_ORDER",
     "VIEW_DESCRIPTIONS",
     "VIEW_COMPACT_LABELS",
     "VIEW_LABELS",
@@ -163,6 +177,7 @@ __all__ = [
     "StatisticsView",
     "StatisticsViewData",
     "ProjectsGroupBy",
+    "XPromptsGroupBy",
     "load_statistics_view",
     "statistics_view_supports_grouping",
 ]

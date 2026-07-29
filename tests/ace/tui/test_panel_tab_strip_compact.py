@@ -70,3 +70,25 @@ def test_full_labels_remain_canonical_until_compact_threshold() -> None:
     assert strip._build_content().plain == " RUNS  │  Plans & Questions "
     assert strip._tab_ranges["runs"] == (0, 6)
     assert strip._tab_ranges["plans_questions"] == (9, 28)
+
+
+def test_custom_compact_separator_preserves_width_and_click_ranges() -> None:
+    strip = PanelTabStrip(
+        (
+            PanelTab("one", "One", "cyan"),
+            PanelTab("two", "Two", "magenta"),
+            PanelTab("three", "Three", "green"),
+        ),
+        "one",
+        compact_below=100,
+        compact_separator="│",
+    )
+    strip._compact = True
+
+    assert strip._build_content().plain == "One│Two│Three"
+    assert strip._line_width == 13
+    assert strip._tab_ranges == {
+        "one": (0, 3),
+        "two": (4, 7),
+        "three": (8, 13),
+    }

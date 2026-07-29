@@ -134,8 +134,8 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
             pane._set_view(view)
             await page.pause()
             group_scope = pane.query_one("#statistics-scope-group", Static)
-            assert group_scope.display is (view in {"projects", "runtime"})
-            if view in {"projects", "runtime"}:
+            assert group_scope.display is (view in {"projects", "runtime", "xprompts"})
+            if view in {"projects", "runtime", "xprompts"}:
                 continue
             pane.action_cycle_group()
             await page.pause()
@@ -161,6 +161,13 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
         assert pane._projects_group_by == "changespec"
         assert pane._runtime_group_by == "clan"
         assert "Runtime · Clan" in _scope_plain(pane, "group")
+
+        pane._set_view("xprompts")
+        pane.action_cycle_group()
+        await page.pause()
+        assert pane._xprompts_group_by == "model"
+        assert len(calls) == 2
+        assert "XPrompts · By Model" in _scope_plain(pane, "group")
 
         pane._set_view("runs")
         pane.action_cycle_group()
@@ -307,6 +314,23 @@ def test_project_filter_cycle_is_inert_without_choices_and_handles_stale_selecti
     assert changes == [True, True]
 
 
+def test_compact_nine_view_strip_fits_narrow_statistics_layout() -> None:
+    strip = PanelTabStrip(
+        sp._VIEW_TABS,
+        "overview",
+        uppercase_active=True,
+        compact_below=sp._VIEWS_COMPACT_BELOW_WIDTH,
+        compact_separator="│",
+    )
+    strip._compact = True
+
+    rendered = strip._build_content()
+
+    assert strip._line_width == len(rendered.plain)
+    assert strip._line_width < 90
+    assert len(strip._tab_ranges) == 9
+
+
 async def test_project_filter_label_submits_canonical_key_across_reload_paths(
     monkeypatch: pytest.MonkeyPatch,
     project_display_case: ProjectDisplayCase,
@@ -396,7 +420,7 @@ async def test_view_cycle_reuses_composite_result_and_updates_strip(
         assert len(calls) == 1
 
 
-async def test_eight_view_keyboard_and_mouse_navigation_share_order_without_reload(
+async def test_nine_view_keyboard_and_mouse_navigation_share_order_without_reload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []

@@ -15,6 +15,7 @@ from sase.telemetry.render import format_duration
 from .statistics_pane_data import StatisticsView, StatisticsViewData
 from .statistics_pane_projects import StatisticsProjectsRenderingMixin
 from .statistics_pane_runners import StatisticsRunnersRenderingMixin
+from .statistics_pane_xprompts import StatisticsXPromptsRenderingMixin
 
 _ACCENT = "#FF87D7"
 _CYAN = "#87D7FF"
@@ -24,6 +25,7 @@ _RED = "#FF5F5F"
 
 
 class StatisticsViewsRenderingMixin(
+    StatisticsXPromptsRenderingMixin,
     StatisticsProjectsRenderingMixin,
     StatisticsRunnersRenderingMixin,
 ):
@@ -50,6 +52,8 @@ class StatisticsViewsRenderingMixin(
             renderable = self._runtime_renderable(views.runtime)
         elif self._view == "activity":
             renderable = self._activity_renderable(views.activity)
+        elif self._view == "xprompts":
+            return self._xprompts_renderable(result)
         elif self._view == "plans_questions":
             renderable = self._plans_questions_renderable(views.plans_questions)
         return Group(renderable, self._legend_note(self._view))
