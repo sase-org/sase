@@ -11,6 +11,7 @@ from textual.widgets import Input, OptionList
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.plans_data import PlansSnapshot
+from sase.ace.tui.widgets.artifacts.plans_list import build_plan_options
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.bead.model import Issue, Status
 from tests.ace.tui._artifacts_plans_helpers import (
@@ -19,6 +20,29 @@ from tests.ace.tui._artifacts_plans_helpers import (
     _choices,
     _snapshot,
 )
+
+
+def test_plans_preview_payloads_default_to_rendered(tmp_path: Path) -> None:
+    snapshot = _snapshot(tmp_path)
+    _options, rows = build_plan_options(
+        snapshot,
+        project_scope="alpha",
+        loading=False,
+        expanded_epics={("alpha", "alpha-1")},
+    )
+    pane = ArtifactsPlansPane()
+    pane._snapshot = snapshot  # noqa: SLF001
+
+    def default_view(row_id: str) -> str:
+        payload = pane.preview_for_row(rows[row_id])
+        assert payload is not None
+        return payload.default_view
+
+    archive_id = f"archive:{snapshot.archive[0].match.plan.path}"
+    assert default_view("proposal:proposal-1") == "rendered"
+    assert default_view("epic:alpha-1") == "rendered"
+    assert default_view("phase:alpha-1.1") == "rendered"
+    assert default_view(archive_id) == "rendered"
 
 
 async def test_plans_pane_renders_groups_and_expands_phase_tree(

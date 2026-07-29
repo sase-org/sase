@@ -206,13 +206,15 @@ knows a canonical artifact reference, the title shows that logical reference bes
 | `y`                 | Copy the complete preview contents                         |
 | `Y`                 | Copy the local source path, when available                 |
 | `%`                 | Open the active Artifacts sub-tab's copy menu              |
+| `R`                 | Toggle Markdown previews between rendered and source views |
 | `o`                 | Open the source path in `$EDITOR` (falling back to `nvim`) |
 | `Z`                 | Hand the source path to the rich terminal artifact viewer  |
 | `Esc` / `q`         | Close the reader                                           |
 
 Path-only actions are omitted from the footer when the preview has no local source path; invoking one still produces a
 specific warning instead of failing. Clipboard operations run in the background and report when no clipboard tool is
-available.
+available. Plans open in rendered Markdown by default when they fit the reader's bounded render budget; chats, xprompts,
+skills, files, and oversized plan documents open as source.
 
 ### Chats Pane
 

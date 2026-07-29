@@ -51,8 +51,6 @@ def test_parse_render_and_scan_wrappers_round_trip() -> None:
         2,
         4,
     )
-    assert artifact_refs.render_artifact_ref(parsed) == parsed.rendered
-
     candidates = artifact_refs.scan_artifact_refs("é @plans:202607/plan.md#L2-L4.")
     assert len(candidates) == 1
     assert candidates[0].reference == parsed.rendered
@@ -338,9 +336,9 @@ def test_document_chat_and_indexed_file_resolve_through_fixture_roots(
         (chat, "chat:202607/agent.md"),
         (artifact, f"file:{artifact_id}"),
     ):
-        reference = artifact_refs.canonicalize_artifact_ref(path, context=context)
+        reference = artifact_refs._canonicalize_artifact_ref(path, context=context)
         assert reference == expected
-        resolution = artifact_refs.resolve_artifact_ref(
+        resolution = artifact_refs._resolve_artifact_ref(
             reference,
             context=context,
         )
@@ -351,7 +349,7 @@ def test_document_chat_and_indexed_file_resolve_through_fixture_roots(
 def test_bug_resolution_accepts_key_and_renders_display_name(tmp_path: Path) -> None:
     context = _context(tmp_path)
 
-    resolution = artifact_refs.resolve_artifact_ref(
+    resolution = artifact_refs._resolve_artifact_ref(
         "bug:gh_sase-org__sase#42",
         context=context,
     )

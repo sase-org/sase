@@ -5,13 +5,14 @@ from __future__ import annotations
 from collections import OrderedDict
 from pathlib import Path
 from threading import RLock
-from time import monotonic
+from time import monotonic, time_ns
 from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
 PLAN_TIERS = ("tale", "epic")
 _PLAN_TIER_CACHE_MAX_ENTRIES = 256
+_HOT_FILE_CACHE_BYPASS_NS = 1_000_000_000
 _NEGATIVE_PLAN_TIER_TTL_SECONDS = 5.0
 _PlanFileSignature = tuple[int, int]
 _PlanTierCacheEntry = tuple[_PlanFileSignature | None, str | None, float | None]
@@ -80,16 +81,20 @@ def cached_plan_tier(path: str | Path | None) -> str | None:
     try:
         stat = normalized.stat()
         signature: _PlanFileSignature | None = (stat.st_mtime_ns, stat.st_size)
+        stable_for_cache = time_ns() - stat.st_mtime_ns >= _HOT_FILE_CACHE_BYPASS_NS
     except OSError:
         signature = None
+        stable_for_cache = True
 
     now = monotonic()
     with _PLAN_TIER_CACHE_LOCK:
         entry = _PLAN_TIER_CACHE.get(normalized)
         if entry is not None:
             cached_signature, cached_tier, expires_at = entry
-            if cached_signature == signature and (
-                expires_at is None or expires_at > now
+            if (
+                stable_for_cache
+                and cached_signature == signature
+                and (expires_at is None or expires_at > now)
             ):
                 _PLAN_TIER_CACHE.move_to_end(normalized)
                 return cached_tier

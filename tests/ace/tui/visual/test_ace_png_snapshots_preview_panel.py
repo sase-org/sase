@@ -127,6 +127,7 @@ async def test_preview_panel_reference_png_snapshot(
         source_path="/workspace/sase/sase/repos/plans/202607/preview_panel_reader.md",
         reference="plans:202607/preview_panel_reader.md",
         lexer="markdown",
+        default_view="rendered",
         content=(
             "---\n"
             "tier: epic\n"
@@ -144,13 +145,16 @@ async def test_preview_panel_reference_png_snapshot(
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(PreviewPanelModal(payload))
         await page.expect_modal("PreviewPanelModal")
+        modal = page.app.screen_stack[-1]
+        assert isinstance(modal, PreviewPanelModal)
+        await page.wait_for(lambda _state: modal._view_mode == "rendered")  # noqa: SLF001
         await wait_for_svg_contains(page, "Reader Core")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "preview_panel_reference_120x40",
-            title="ACE preview panel - reference and resolved path",
+            title="ACE preview panel - rendered reference and resolved path",
         )
 
 

@@ -18,6 +18,7 @@ from sase.xprompt.models import UNSET, InputArg, XPrompt
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 PreviewKind = Literal["xprompt", "file"]
+PreviewDefaultView = Literal["source", "rendered"]
 
 _MAX_PREVIEW_READ_BYTES = 512_000
 _BINARY_SNIFF_BYTES = 8192
@@ -58,6 +59,7 @@ class PreviewPayload:
     content: str
     lexer: str
     reference: str | None = None
+    default_view: PreviewDefaultView = "source"
 
 
 class PreviewError(Exception):

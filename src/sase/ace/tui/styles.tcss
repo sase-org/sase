@@ -4271,6 +4271,12 @@ PreviewPanelModal #preview-content {
     height: auto;
 }
 
+PreviewPanelModal #preview-rendered {
+    width: 100%;
+    height: auto;
+    padding: 0 1 1 1;
+}
+
 PreviewPanelModal #preview-footer {
     text-align: center;
     color: $text-muted;

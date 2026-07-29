@@ -226,6 +226,7 @@ class PlansNavigationMixin(_MixinBase):
                 kind_label="proposal",
                 icon="◆",
                 source_path=row.proposal.plan_path,
+                default_view="rendered",
             )
         if row.archive is not None:
             plan = row.archive.plan
@@ -241,6 +242,7 @@ class PlansNavigationMixin(_MixinBase):
                 icon="▤",
                 source_path=plan.path,
                 reference=f"{role}:{plan.relpath}",
+                default_view="rendered",
             )
         if row.issue is not None:
             return PreviewPayload(
@@ -261,6 +263,7 @@ class PlansNavigationMixin(_MixinBase):
                     project=row.project,
                 ),
                 reference=_document_reference(row.issue.design),
+                default_view="rendered",
             )
         return None
 

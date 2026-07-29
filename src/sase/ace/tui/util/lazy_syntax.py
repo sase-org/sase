@@ -277,6 +277,15 @@ def _exceeds_lexer_cap(
     return _exceeds_cap(content, line_range)
 
 
+def exceeds_plain_render_cap(
+    content: str,
+    line_range: tuple[int, int] | None = None,
+) -> bool:
+    """Return True when content is too large for bounded plain rendering."""
+    byte_size, line_count = _measure(content, line_range)
+    return byte_size > PLAIN_RENDER_MAX_BYTES or line_count > PLAIN_RENDER_MAX_LINES
+
+
 def _line_count(content: str) -> int:
     """Return the logical line count used by capped plain rendering."""
     return content.count("\n") + (1 if not content.endswith("\n") else 0)

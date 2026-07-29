@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
+
 from sase.sdd.links import _list_sdd_files, validate_sdd_tree
 from sase.sdd.plan_tiers import (
     cached_plan_tier,
@@ -37,6 +39,24 @@ def test_cached_plan_tier_invalidates_on_rewrite(tmp_path: Path) -> None:
 
     plan.write_text("---\ntier: epic\n---\n# Plan\n", encoding="utf-8")
     os.utime(plan, ns=(original_mtime + 1_000_000, original_mtime + 1_000_000))
+
+    assert cached_plan_tier(plan) == "epic"
+
+
+def test_cached_plan_tier_rechecks_hot_same_signature_rewrite(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.sdd import plan_tiers
+
+    plan = _write(tmp_path / "plan.md", "---\ntier: tale\n---\n# Plan\n")
+    original_mtime = plan.stat().st_mtime_ns
+
+    assert cached_plan_tier(plan) == "tale"
+
+    plan.write_text("---\ntier: epic\n---\n# Plan\n", encoding="utf-8")
+    os.utime(plan, ns=(original_mtime, original_mtime))
+    monkeypatch.setattr(plan_tiers, "time_ns", lambda: original_mtime)
 
     assert cached_plan_tier(plan) == "epic"
 

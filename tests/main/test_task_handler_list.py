@@ -33,7 +33,7 @@ def test_list_renders_a_row_and_glyph_for_every_status(
         stored(
             f"{index}00000000000",
             status=status,
-            label=f"Task {status}",
+            label=status,
             created_at=f"2026-07-25T12:0{index}:00Z",
             finished_at=None if active else "2026-07-25T12:09:00Z",
             exit_code=None if active else 0,
@@ -46,7 +46,7 @@ def test_list_renders_a_row_and_glyph_for_every_status(
     out = capsys.readouterr().out
     for glyph in ("◌", "●", "✓", "✗", "⊘"):
         assert glyph in out
-    assert out.index("Task killed") < out.index("Task pending")
+    assert out.index("killed") < out.index("pending")
 
 
 def test_bare_task_command_announces_the_list_delegation(

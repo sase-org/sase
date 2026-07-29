@@ -4,8 +4,8 @@ The ace TUI re-reads the same JSON artifact files on every refresh. Most of
 those files are immutable once written (done.json, completed
 workflow_state.json, prompt_step_*.json, dismissed bundles), so parsing them
 repeatedly is pure waste. This module provides a small LRU cache keyed on
-``(path, st_mtime_ns, st_size)`` — any write to the file bumps mtime and
-invalidates the entry automatically.
+``(path, st_mtime_ns, st_size)``. Very recent files bypass cached hits because
+some filesystems can report the same stat signature for rapid rewrites.
 """
 
 from __future__ import annotations
@@ -15,9 +15,11 @@ import os
 from collections import OrderedDict
 from pathlib import Path
 from threading import Lock
+from time import time_ns
 from typing import Any
 
 _CACHE_CAP = 4096
+_HOT_FILE_CACHE_BYPASS_NS = 1_000_000_000
 
 
 class _MTimeJsonCache:
@@ -43,9 +45,15 @@ class _MTimeJsonCache:
             raise
         mtime_ns = st.st_mtime_ns
         size = st.st_size
+        stable_for_cache = time_ns() - mtime_ns >= _HOT_FILE_CACHE_BYPASS_NS
         with self._lock:
             cached = self._data.get(p)
-            if cached is not None and cached[0] == mtime_ns and cached[1] == size:
+            if (
+                cached is not None
+                and stable_for_cache
+                and cached[0] == mtime_ns
+                and cached[1] == size
+            ):
                 self._data.move_to_end(p)
                 return cached[2]
 
