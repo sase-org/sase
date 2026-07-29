@@ -72,7 +72,7 @@ class AgentDetailRenderMixin:
     ) -> bool:
         """Render the live tribe document when whole-panel focus is active."""
         resolver = getattr(self, "_focused_tribe_summary", None)
-        snapshot = resolver() if callable(resolver) else None
+        snapshot = resolver(with_entry_target=not cheap) if callable(resolver) else None
         if snapshot is None:
             return False
         agent_detail.show_tribe_summary(snapshot, cheap=cheap)

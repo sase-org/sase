@@ -8,6 +8,9 @@ from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.widgets.prompt_panel._agent_display_clan import (
     build_clan_detail_text,
 )
+from sase.ace.tui.widgets.prompt_panel._member_roster import (
+    MEMBER_ENTRY_CURSOR_GLYPH,
+)
 from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
 
 
@@ -53,6 +56,7 @@ def test_clan_members_render_family_aggregate_and_every_member() -> None:
         "    ├─ --plan-0 · agent · ✓ DONE · gpt-5 · 1m\n"
         "    └─ --code · agent · ✓ DONE · sonnet · 1m\n"
     )
+    assert MEMBER_ENTRY_CURSOR_GLYPH not in members_section
     assert len(jump_maps) == 1
     assert tuple(
         (target.number, target.member_identity, target.kind)

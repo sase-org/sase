@@ -44,6 +44,8 @@ from ._fold_language import (
 )
 from ._helpers import append_major_section_divider, append_section_heading
 from ._member_roster import (
+    MEMBER_ENTRY_CURSOR_GLYPH,
+    MEMBER_ENTRY_CURSOR_STYLE,
     MemberJumpMap,
     MemberRosterChild,
     MemberRosterEntry,
@@ -265,9 +267,32 @@ def _roster_entries(
                 ),
                 is_marked=unit.is_marked,
                 is_unread=unit.is_unread,
+                is_entry_target=(
+                    snapshot.entry_target is not None
+                    and unit.identity == snapshot.entry_target.unit_identity
+                ),
             )
         )
     return tuple(entries)
+
+
+def _entry_target_heading_suffix(
+    snapshot: AgentTribeSummarySnapshot,
+) -> Text | None:
+    """Build the panel-entry affordance for an expanded tribe roster."""
+    target = snapshot.entry_target
+    if snapshot.panel_collapsed or target is None:
+        return None
+    suffix = Text()
+    suffix.append(" · ", style="dim")
+    suffix.append(target.key_label, style=_FIELD_LABEL_STYLE)
+    suffix.append(" ")
+    suffix.append(
+        MEMBER_ENTRY_CURSOR_GLYPH + " ",
+        style=MEMBER_ENTRY_CURSOR_STYLE,
+    )
+    suffix.append(target.label, style=f"bold {TRIBE_IDENTITY_COLOR}")
+    return suffix
 
 
 def _append_errors(
@@ -609,6 +634,8 @@ def build_tribe_detail_text(
         member_anchor_prefix="tribe:member:",
         children_from_level=FoldLevel.FULLY_EXPANDED,
         full_annotations_from_level=FoldLevel.EXHAUSTIVE,
+        entry_cursor=not snapshot.panel_collapsed,
+        heading_suffix=_entry_target_heading_suffix(snapshot),
     )
     if member_jump_map_publisher is not None:
         member_jump_map_publisher(jump_map)

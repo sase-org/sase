@@ -25,7 +25,11 @@ from ._agent_clan_sections import (
     clan_section_member_rows,
     first_meaningful_line,
 )
-from ._agent_tree import agent_is_tree_child
+from ._agent_tree import (
+    agent_is_tree_child,
+    presentation_anchor_lookup,
+    tree_parent_lookup,
+)
 from .agent import Agent, AgentType, compute_row_runtime
 from .agent_family_members import (
     concrete_family_member_rows,
@@ -118,6 +122,16 @@ class TribeAttentionEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class TribeEntryTarget:
+    """The roster destination the panel-entry key selects."""
+
+    unit_identity: AgentIdentity | None
+    label: str
+    kind: Literal["unit", "member", "group"]
+    key_label: str = "l"
+
+
+@dataclass(frozen=True, slots=True)
 class AgentTribeSummarySnapshot:
     """Complete renderer-facing snapshot for one tribe metadata document."""
 
@@ -137,6 +151,7 @@ class AgentTribeSummarySnapshot:
     errors: tuple[ClanErrorEntry, ...]
     output_variables: tuple[ClanVariableEntry, ...]
     workflow_variables: tuple[ClanVariableEntry, ...]
+    entry_target: TribeEntryTarget | None = None
 
 
 def _tribe_panel_identity(panel_key: PanelKey) -> TribePanelIdentity:
@@ -232,6 +247,55 @@ def _relative_child_label(unit: Agent, child: Agent) -> str:
     if family_name and name.startswith(family_name) and len(name) > len(family_name):
         return name[len(family_name) :]
     return name
+
+
+def tribe_entry_target_for_row(
+    agents: Sequence[Agent],
+    row: Agent,
+    *,
+    key_label: str = "l",
+) -> TribeEntryTarget:
+    """Resolve one selectable row to its owning tribe roster unit."""
+    panel_rows = list(agents)
+    parent_lookup = tree_parent_lookup(panel_rows)
+    anchor = presentation_anchor_lookup(panel_rows, parent_lookup).get(id(row))
+    roots = tribe_unit_roots(panel_rows)
+    root_ids = {id(root) for root in roots}
+
+    if anchor is None or id(anchor) not in root_ids:
+        return TribeEntryTarget(
+            unit_identity=None,
+            label=_row_name(row),
+            kind="member" if agent_is_tree_child(row) else "unit",
+            key_label=key_label,
+        )
+    if anchor is row:
+        return TribeEntryTarget(
+            unit_identity=anchor.identity,
+            label=_row_name(anchor),
+            kind="unit",
+            key_label=key_label,
+        )
+    return TribeEntryTarget(
+        unit_identity=anchor.identity,
+        label=f"{_row_name(anchor)} › {_relative_child_label(anchor, row)}",
+        kind="member",
+        key_label=key_label,
+    )
+
+
+def tribe_entry_target_for_group(
+    label: str,
+    *,
+    key_label: str = "l",
+) -> TribeEntryTarget:
+    """Build the entry target for a collapsed grouping banner."""
+    return TribeEntryTarget(
+        unit_identity=None,
+        label=f"{label} (group)",
+        kind="group",
+        key_label=key_label,
+    )
 
 
 def _duration(agent: Agent, *, now: datetime) -> str:
@@ -379,6 +443,7 @@ def build_agent_tribe_summary_snapshot(
     unread_ids: Collection[AgentIdentity] = (),
     marked_ids: Collection[AgentIdentity] = (),
     now: datetime | None = None,
+    entry_target: TribeEntryTarget | None = None,
 ) -> AgentTribeSummarySnapshot:
     """Build a fold-independent tribe snapshot using loaded rows only."""
     reference = now or agent_time.local_now()
@@ -446,6 +511,7 @@ def build_agent_tribe_summary_snapshot(
             real_rows,
             labels=labels,
         ),
+        entry_target=entry_target,
     )
 
 
@@ -454,9 +520,12 @@ __all__ = [
     "AgentTribeSummarySnapshot",
     "CollapsedAgentPanelFocus",
     "TribeAttentionEntry",
+    "TribeEntryTarget",
     "TribePanelIdentity",
     "TribeStatusCounts",
     "build_agent_tribe_summary_snapshot",
+    "tribe_entry_target_for_group",
+    "tribe_entry_target_for_row",
     "tribe_unit_real_rows",
     "tribe_unit_roots",
 ]

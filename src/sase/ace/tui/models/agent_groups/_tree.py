@@ -477,8 +477,8 @@ def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSumma
     )
 
 
-def banner_label(group: GroupRow) -> str:
-    """Compose the human-readable banner label for *group*.
+def banner_label_for_group_key(group_key: tuple[str, ...]) -> str:
+    """Compose the human-readable banner label for *group_key*.
 
     * Level 0 (1-tuple ``(project,)``) → project name or ``"(no project)"``.
     * Level 1, 3-level mode (2-tuple ``(project, changespec)``) → the
@@ -492,13 +492,18 @@ def banner_label(group: GroupRow) -> str:
 
     All non-L0 banners use the ``group_key[-1]`` suffix as their label.
     """
-    if len(group.group_key) == 1:
-        proj = group.group_key[0]
+    if len(group_key) == 1:
+        proj = group_key[0]
         return proj if proj else "(no project)"
-    suffix = group.group_key[-1]
+    suffix = group_key[-1]
     if suffix:
         return humanize_cl_name(suffix)
     return NO_CHANGESPEC_LABEL
+
+
+def banner_label(group: GroupRow) -> str:
+    """Compose the human-readable banner label for *group*."""
+    return banner_label_for_group_key(group.group_key)
 
 
 def banner_summary_text(summary: _BannerSummary) -> str:

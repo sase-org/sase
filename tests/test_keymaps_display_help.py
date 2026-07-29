@@ -157,7 +157,7 @@ def test_agents_help_describes_zoom_isolation_and_capital_h_collapsing() -> None
         for key, label in bindings
     }
 
-    assert ("l", "Expand real fold / enter panel") in agent_pairs
+    assert ("l", "Expand fold / enter panel (❯)") in agent_pairs
     assert ("h", "Up: workflow/family/clan/tribe") in agent_pairs
     assert ("h", "Collapse selected panel") in agent_pairs
     assert ("H", "Fully collapse lanes in scope") in agent_pairs

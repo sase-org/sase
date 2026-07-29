@@ -136,7 +136,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             [
                 (
                     d(a.expand_or_layout),
-                    "Expand real fold / enter panel",
+                    "Expand fold / enter panel (❯)",
                 ),
                 (
                     d(a.hooks_or_collapse),

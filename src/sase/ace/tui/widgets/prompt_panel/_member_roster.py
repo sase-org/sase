@@ -35,6 +35,8 @@ type MemberJumpRole = Literal["member", "neighbor", "dismissed"]
 
 MEMBER_ROSTER_SECTION_ID = "members"
 MEMBER_ROSTER_LIMIT = 100
+MEMBER_ENTRY_CURSOR_GLYPH = "❯"
+MEMBER_ENTRY_CURSOR_STYLE = "bold #FFFFFF"
 
 _ROSTER_RULE = "━" * 50
 _MEMBER_KIND_STYLE = "italic #AF87FF"
@@ -127,6 +129,7 @@ class MemberRosterEntry:
     group_label: str | None = None
     is_dismissed: bool = False
     target_role: MemberJumpRole | None = None
+    is_entry_target: bool = False
 
 
 @dataclass(slots=True)
@@ -189,6 +192,8 @@ def append_member_roster(
     hidden_tail_hint: str = "not numbered",
     extra_tail: str | None = None,
     target_role: MemberJumpRole = "member",
+    entry_cursor: bool = False,
+    heading_suffix: Text | None = None,
 ) -> MemberJumpMap:
     """Append a numbered roster and return the jump map rendered from it."""
     ordered_entries = tuple(entries)
@@ -206,6 +211,7 @@ def append_member_roster(
         level=roster_level,
         accent=accent,
         section_id=section_id,
+        suffix=heading_suffix,
     )
     numbering = numbering or MemberJumpNumbering(total=len(ordered_entries))
     limited_entries = (
@@ -235,6 +241,7 @@ def append_member_roster(
             accent=accent,
             children_from_level=children_from_level,
             full_annotations_from_level=full_annotations_from_level,
+            entry_cursor=entry_cursor,
         )
         targets.append(
             _MemberJumpTarget(
@@ -308,6 +315,7 @@ def _append_roster_heading(
     level: FoldLevel,
     accent: str,
     section_id: str,
+    suffix: Text | None,
 ) -> None:
     text.append("\n")
     text.append(_ROSTER_RULE + "\n", style=f"bold {accent}")
@@ -316,6 +324,8 @@ def _append_roster_heading(
     heading.append("❖ ", style=f"bold {accent}")
     heading.append(title, style=f"bold {accent} underline")
     heading.append(f" · {count}", style=fold_count_style(title))
+    if suffix is not None:
+        heading.append_text(suffix)
     append_section_heading(
         text,
         heading,
@@ -333,8 +343,17 @@ def _append_numbered_entry(
     accent: str,
     children_from_level: FoldLevel | None,
     full_annotations_from_level: FoldLevel,
+    entry_cursor: bool,
 ) -> None:
     line = Text()
+    if entry_cursor:
+        if entry.is_entry_target:
+            line.append(
+                MEMBER_ENTRY_CURSOR_GLYPH + " ",
+                style=MEMBER_ENTRY_CURSOR_STYLE,
+            )
+        else:
+            line.append("  ")
     line.append(f" {number} ", style=f"bold black on {accent}")
     line.append(" ")
     _append_member_fields(
@@ -364,6 +383,8 @@ def _append_numbered_entry(
         return
     for index, child in enumerate(entry.children):
         branch = "    └─ " if index == len(entry.children) - 1 else "    ├─ "
+        if entry_cursor:
+            text.append("  ")
         text.append(branch, style="dim #808080")
         _append_member_fields(
             text,
@@ -483,6 +504,8 @@ def _format_timestamp(value: datetime) -> str:
 
 
 __all__ = [
+    "MEMBER_ENTRY_CURSOR_GLYPH",
+    "MEMBER_ENTRY_CURSOR_STYLE",
     "MEMBER_ROSTER_LIMIT",
     "MEMBER_ROSTER_SECTION_ID",
     "MemberJumpMap",

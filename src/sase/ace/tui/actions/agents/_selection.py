@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
+from ._panel_entry_target import (
+    PanelSelectionStop,
+    resolve_panel_entry_stop,
+)
 from ._panel_fold_intent import panel_is_collapsed
 
 if TYPE_CHECKING:
@@ -14,11 +18,6 @@ if TYPE_CHECKING:
         AgentTribeSummarySnapshot,
         CollapsedAgentPanelFocus,
     )
-
-type PanelSelectionStop = tuple[
-    Literal["agent", "banner"],
-    int | tuple[str, ...],
-]
 
 
 class AgentSelectionMixin:
@@ -139,17 +138,7 @@ class AgentSelectionMixin:
         if focus is None or focus.collapsed:
             return False
 
-        stops_fn = getattr(self, "_panel_navigation_stops", None)
-        stops: list[PanelSelectionStop] = []
-        if callable(stops_fn):
-            try:
-                stops = stops_fn(include_panel_focus=True)
-            except TypeError:
-                stops = stops_fn()
-        remembered = getattr(self, "_panel_selection_memory", {}).get(focus.panel_key)
-        destination = (
-            remembered if remembered in stops else (stops[0] if stops else None)
-        )
+        destination = resolve_panel_entry_stop(self, focus.panel_key)
 
         self._expanded_panel_focus = False
         if destination is not None:
@@ -186,6 +175,8 @@ class AgentSelectionMixin:
 
     def _focused_tribe_summary(
         self,
+        *,
+        with_entry_target: bool = True,
     ) -> AgentTribeSummarySnapshot | None:
         """Build the current whole-panel tribe snapshot from cached rows."""
         focus = self._resolve_focused_panel()
@@ -195,8 +186,43 @@ class AgentSelectionMixin:
         agents = panel_index.slice_for(focus.panel_key).agents
 
         from ...models.agent_tribe_summary import (
+            TribeEntryTarget,
             build_agent_tribe_summary_snapshot,
+            tribe_entry_target_for_group,
+            tribe_entry_target_for_row,
         )
+
+        entry_target: TribeEntryTarget | None = None
+        if with_entry_target and not focus.collapsed:
+            key_label = "l"
+            registry = getattr(self, "_keymap_registry", None)
+            app_keymap = getattr(registry, "app", None)
+            configured_key = getattr(app_keymap, "expand_or_layout", None)
+            if isinstance(configured_key, str):
+                from ...keymaps.display import footer_key_display
+
+                key_label = footer_key_display(configured_key) or key_label
+
+            destination = resolve_panel_entry_stop(self, focus.panel_key)
+            if destination is not None:
+                kind, payload = destination
+                if (
+                    kind == "agent"
+                    and isinstance(payload, int)
+                    and 0 <= payload < len(self._agents)
+                ):
+                    entry_target = tribe_entry_target_for_row(
+                        agents,
+                        self._agents[payload],
+                        key_label=key_label,
+                    )
+                elif kind == "banner" and isinstance(payload, tuple):
+                    from ...models.agent_groups import banner_label_for_group_key
+
+                    entry_target = tribe_entry_target_for_group(
+                        banner_label_for_group_key(payload),
+                        key_label=key_label,
+                    )
 
         return build_agent_tribe_summary_snapshot(
             focus.panel_key,
@@ -204,6 +230,7 @@ class AgentSelectionMixin:
             panel_collapsed=(focus.collapsed),
             unread_ids=getattr(self, "_unread_completed_agent_ids", set()),
             marked_ids=getattr(self, "_marked_agents", set()),
+            entry_target=entry_target,
         )
 
     def _get_selected_agent(self) -> Agent | None:
