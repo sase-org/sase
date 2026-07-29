@@ -244,8 +244,6 @@ def agent_render_key(
         agent.display_name,
         agent.display_status,
         agent.cl_name,
-        agent.activity,
-        tuple(sorted(agent.pdf_status.items())) if agent.pdf_status else None,
         tier_styles,
         _runtime_signature(agent, now),
     )

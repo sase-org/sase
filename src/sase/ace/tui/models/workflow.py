@@ -41,7 +41,6 @@ class WorkflowEntry:
     error_traceback: str | None = None
     output_path: str | None = None
     activity: str | None = None
-    pdf_status: dict | None = None
 
     @property
     def display_type(self) -> str:

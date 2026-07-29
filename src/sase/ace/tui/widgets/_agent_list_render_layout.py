@@ -53,7 +53,6 @@ _RUNTIME_UNREAD_MARKER_STYLE = "#5FD7FF"
 # an explicit user action instead of active runtime.
 _RUNTIME_USER_PAUSED_MARKER = "✋ "
 _RUNTIME_USER_PAUSED_MARKER_STYLE = "#FFAF5F"
-_ACTIVITY_STYLE = "bold #D7AF5F"
 
 
 def _runtime_suffix_user_paused(agent: Agent, *, is_ticking: bool) -> bool:
@@ -138,56 +137,6 @@ def build_runtime_suffix(
             style=_RUNTIME_USER_PAUSED_MARKER_STYLE,
         )
     return suffix
-
-
-def build_activity_suffix(agent: Agent) -> Text:
-    """Return a compact live activity suffix for a row, when available."""
-    label = _agent_activity_label(agent)
-    suffix = Text()
-    if not label:
-        return suffix
-    suffix.append(label, style=_ACTIVITY_STYLE)
-    return suffix
-
-
-def combine_suffixes(*parts: Text) -> Text:
-    """Join non-empty row suffix fragments with a dim separator."""
-    combined = Text()
-    for part in parts:
-        if part.cell_len == 0:
-            continue
-        if combined.cell_len:
-            combined.append(" · ", style="dim")
-        combined.append_text(part)
-    return combined
-
-
-def _agent_activity_label(agent: Agent) -> str | None:
-    if agent.activity:
-        return agent.activity
-    status = agent.pdf_status
-    if not isinstance(status, dict):
-        return None
-    stage = status.get("stage")
-    total = status.get("total")
-    index = status.get("index")
-    source = status.get("source_path")
-    reason = status.get("reason")
-    if stage in {"source_started", "engine_started"}:
-        prefix = f"PDF {index}/{total}" if index and total else "PDF"
-        return f"{prefix} {source or ''}".strip()
-    if stage == "source_succeeded":
-        prefix = f"PDF done {index}/{total}" if index and total else "PDF done"
-        return f"{prefix} {source or ''}".strip()
-    if stage in {"source_failed", "skipped"}:
-        if status.get("active") is False:
-            return None
-        return f"PDFs skipped: {reason}" if reason else "PDF skipped"
-    if stage == "completed":
-        return None
-    if stage == "started":
-        return "Preparing PDFs from Markdown..."
-    return None
 
 
 def build_attempt_runtime_suffix(record: AttemptRecord) -> Text:

@@ -806,8 +806,8 @@ Only one plan artifact is shown for an agent. When both an archived plan and an 
 the committed SDD plan; otherwise it keeps the path that best matches the run metadata.
 
 During successful-agent finalization, Markdown-to-PDF rendering updates `workflow_state.json.pdf_status` and a compact
-activity label. ACE renders that label on the agent row and in the prompt/detail header, so long conversions show
-progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)` instead of looking idle.
+activity label. ACE renders that label only in the prompt/detail header's labeled `Activity:` field, so long conversions
+show progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)` instead of looking idle.
 
 ### Tribe Side Panels
 

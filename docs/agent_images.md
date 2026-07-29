@@ -103,9 +103,9 @@ are omitted. Successful PDF paths are persisted as `markdown_pdf_paths` in `done
 skip note.
 
 While PDFs are being prepared, the runner writes `workflow_state.json.pdf_status` plus a compact `activity` label. ACE
-loads those fields during refresh and shows messages such as `Preparing PDFs from Markdown...`, `PDF 2/4 <path>`, or
-`PDFs done 3/4 (1 skipped)` on the Agents row and in the agent header. This status is transient finalization state; the
-durable output remains `done.json.markdown_pdf_paths` and `markdown_pdfs/index.json`.
+loads the activity during refresh and shows messages such as `Preparing PDFs from Markdown...`, `PDF 2/4 <path>`, or
+`PDFs done 3/4 (1 skipped)` only in the prompt/detail header's labeled `Activity:` field. This status is transient
+finalization state; the durable output remains `done.json.markdown_pdf_paths` and `markdown_pdfs/index.json`.
 
 Markdown PDFs use a built-in small-screen layout by default: a narrow portrait page, small margins, larger readable body
 text, and wrapping-friendly CSS for code blocks, tables, links, and other long content. The preferred `wkhtmltopdf` path

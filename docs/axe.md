@@ -747,10 +747,11 @@ sources remain, Axe skips Markdown PDF rendering for that completion and adds a 
 is otherwise best-effort: missing conversion tools or render failures omit that source without failing the agent run.
 Generated Markdown PDFs are optimized for narrow viewers with a small portrait page, small margins, and larger type. As
 PDFs are prepared, axe updates `workflow_state.json.pdf_status` and a compact `activity` label so ACE can show live
-finalization progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)`. Successful runs also copy discovered
-media artifacts, plus prompt-referenced images and videos, into persistent SASE artifact storage for ACE.
-Prompt-referenced media are not appended to completion notifications unless they were also generated/modified files or
-explicit artifacts. See [`agent_images.md`](agent_images.md) for the full contract.
+finalization progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)` in the prompt/detail header's labeled
+`Activity:` field. Successful runs also copy discovered media artifacts, plus prompt-referenced images and videos, into
+persistent SASE artifact storage for ACE. Prompt-referenced media are not appended to completion notifications unless
+they were also generated/modified files or explicit artifacts. See [`agent_images.md`](agent_images.md) for the full
+contract.
 
 The Agents tab exposes completion artifacts through the `a` action. When artifacts exist, ACE opens the artifact panel
 for selection. Chat transcripts, plan files, generated PDFs/images/videos, prompt-referenced media from saved prompt

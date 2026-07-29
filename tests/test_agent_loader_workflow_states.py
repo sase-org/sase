@@ -52,7 +52,7 @@ def test_workflow_waiting_hitl_dead_pid_marked_as_failed() -> None:
         assert entries[0].status == "FAILED"
 
 
-def test_load_workflow_states_preserves_pdf_activity_metadata() -> None:
+def test_load_workflow_states_preserves_activity_metadata() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         sase_projects = Path(tmpdir) / ".sase" / "projects" / "myproject"
         workflow_artifacts = (
@@ -61,13 +61,6 @@ def test_load_workflow_states_preserves_pdf_activity_metadata() -> None:
         workflow_artifacts.mkdir(parents=True)
         (sase_projects / "myproject.sase").touch()
 
-        pdf_status = {
-            "stage": "engine_started",
-            "index": 2,
-            "total": 5,
-            "source_path": "docs/notes.md",
-            "engine": "wkhtmltopdf",
-        }
         state = {
             "workflow_name": "deploy",
             "status": "running",
@@ -75,7 +68,6 @@ def test_load_workflow_states_preserves_pdf_activity_metadata() -> None:
             "context": {"cl_name": "test_cl"},
             "steps": [],
             "activity": "PDF 2/5 docs/notes.md",
-            "pdf_status": pdf_status,
         }
         (workflow_artifacts / "workflow_state.json").write_text(json.dumps(state))
 
@@ -92,23 +84,15 @@ def test_load_workflow_states_preserves_pdf_activity_metadata() -> None:
             agents = load_workflow_agents()
 
     assert entries[0].activity == "PDF 2/5 docs/notes.md"
-    assert entries[0].pdf_status == pdf_status
     assert agents[0].activity == "PDF 2/5 docs/notes.md"
-    assert agents[0].pdf_status == pdf_status
 
 
-def test_load_workflow_states_from_snapshot_preserves_pdf_activity_metadata() -> None:
+def test_load_workflow_states_from_snapshot_preserves_activity_metadata() -> None:
     from sase.ace.tui.models._loaders import (
         load_workflow_agents_from_snapshot,
         load_workflow_states_from_snapshot,
     )
 
-    pdf_status = {
-        "stage": "completed",
-        "generated": 4,
-        "skipped": 1,
-        "total": 5,
-    }
     snapshot = AgentArtifactScanWire(
         schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
         projects_root="/tmp/.sase/projects",
@@ -127,7 +111,6 @@ def test_load_workflow_states_from_snapshot_preserves_pdf_activity_metadata() ->
                     cl_name="test_cl",
                     status="running",
                     activity="PDFs done 4/5 (1 skipped)",
-                    pdf_status=pdf_status,
                 ),
             )
         ],
@@ -137,6 +120,4 @@ def test_load_workflow_states_from_snapshot_preserves_pdf_activity_metadata() ->
     agents = load_workflow_agents_from_snapshot(snapshot)
 
     assert entries[0].activity == "PDFs done 4/5 (1 skipped)"
-    assert entries[0].pdf_status == pdf_status
     assert agents[0].activity == "PDFs done 4/5 (1 skipped)"
-    assert agents[0].pdf_status == pdf_status

@@ -221,7 +221,6 @@ def test_bundle_dict_is_json_serializable_for_populated_agent() -> None:
         response_path="/tmp/response.md",
         extra_files=["/tmp/plan.md"],
         step_output={"ok": True, "count": 2},
-        pdf_status={"path": "/tmp/report.pdf", "done": True},
         linked_repos=(
             LinkedRepoMetadata(
                 name="sase-core",

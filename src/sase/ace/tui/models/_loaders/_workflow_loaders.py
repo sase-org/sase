@@ -180,9 +180,6 @@ def load_workflow_states(
             activity = data.get("activity")
             if not isinstance(activity, str):
                 activity = None
-            pdf_status = data.get("pdf_status")
-            if not isinstance(pdf_status, dict):
-                pdf_status = None
 
             # Extract diff_path: search backward through all steps for an
             # explicit "diff_path" output.  Handles embedded workflows (e.g.
@@ -251,7 +248,6 @@ def load_workflow_states(
                     error_traceback=error_traceback,
                     output_path=output_path,
                     activity=activity,
-                    pdf_status=pdf_status,
                 )
             )
         except Exception:
@@ -355,7 +351,6 @@ def load_workflow_agents(
             error_traceback=entry.error_traceback,
             output_path=entry.output_path,
             activity=entry.activity,
-            pdf_status=entry.pdf_status,
             step_output=step_output,
             workspace_num=workspace_num,
         )

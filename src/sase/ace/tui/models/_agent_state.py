@@ -146,9 +146,9 @@ class AgentState:
     error_traceback: str | None = None
 
     # Transient activity surfaced from workflow_state.json while finalization
-    # work is still running (for example Markdown PDF construction).
+    # work is still running (for example Markdown PDF construction). The
+    # prompt/detail header renders this as a labeled Activity field.
     activity: str | None = None
-    pdf_status: dict[str, Any] | None = None
 
     # Runner stdout/stderr output file path (for debugging failed agents)
     output_path: str | None = None

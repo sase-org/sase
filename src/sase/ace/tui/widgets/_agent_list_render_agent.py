@@ -57,9 +57,7 @@ from ._agent_list_render_cache import (
     agent_render_key,
 )
 from ._agent_list_render_layout import (
-    build_activity_suffix,
     build_runtime_suffix,
-    combine_suffixes,
     render_tier_gutter,
 )
 from ._agent_list_styling import (
@@ -486,10 +484,7 @@ def format_agent_option(
     else:
         runtime_with_file_change = runtime_suffix
 
-    suffix = combine_suffixes(
-        build_activity_suffix(agent),
-        runtime_with_file_change,
-    )
+    suffix = runtime_with_file_change
     option_id = f"{index}:{agent.agent_type.value}:{agent.cl_name}"
     return text, suffix, option_id
 
