@@ -103,7 +103,18 @@ explicit valid username unless exactly one existing username is clearly confirme
 conflicting usernames. Creation and migration minimally set `id.username` and `id.machine_name` in the same overlay,
 remove its deprecated top-level key, preserve unrelated YAML/comments, and then write the selector. With
 `use_chezmoi: true`, the overlay edit is made in the chezmoi source tree. Direct `sase config init` uses the normal
-commit/push/apply deployment; bare `sase init` combines the edit with deferred chezmoi deployment.
+commit/push/apply deployment; bare `sase init` combines the edit with deferred chezmoi deployment. The initializer also
+adds a hostname guard to the chezmoi source `.chezmoiignore`, staging it in the same commit as the new overlay:
+
+```text
+{{ if ne .chezmoi.hostname "<chezmoi-hostname>" }}
+.config/sase/sase_<machine>.yml
+{{ end }}
+```
+
+The guard uses chezmoi's hostname, which may differ from the SASE machine name, so the overlay is applied only on the
+machine where it was initialized. If `.chezmoiignore` already contains an entry for that overlay, the existing guard is
+left unchanged.
 
 Prompting requires a TTY. `sase config init --check`, bare `sase init --check`, and `sase doctor` report missing
 usernames, legacy migration, invalid values, selector mismatches, duplicate overlays, and identity conflicts without

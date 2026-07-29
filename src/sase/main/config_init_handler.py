@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 import re
 import socket
 import sys
@@ -20,6 +21,11 @@ from ._init_chezmoi_deploy import (
     ChezmoiDeployBehavior,
     defer_chezmoi_paths,
     deploy_to_chezmoi,
+)
+from ._init_chezmoi_ignore import (
+    chezmoi_hostname,
+    chezmoi_target_entry,
+    ensure_machine_ignore_entry,
 )
 from .init_plan import InitAction, InitOperation, InitPlan
 
@@ -276,10 +282,11 @@ def _write_identity_overlay(
     machine_name: str,
     use_chezmoi: bool,
 ) -> tuple[Path, bool]:
-    """Minimally write the nested identity and remove the legacy key."""
+    """Write identity, materializing a missing destination from the target."""
     write_path = resolve_write_path(str(target_path), use_chezmoi=use_chezmoi)
     if write_path is None:  # pragma: no cover - a concrete target was supplied.
         raise ConfigEditError("machine overlay has no writable destination")
+    destination_exists = write_path.exists()
     current_text = _read_overlay_text(write_path, target_path)
     updated_text = set_key(current_text, ("id", "username"), username)
     updated_text = set_key(
@@ -288,7 +295,7 @@ def _write_identity_overlay(
         machine_name,
     )
     updated_text = unset_key(updated_text, ("machine_name",))
-    if updated_text == current_text:
+    if destination_exists and updated_text == current_text:
         return write_path, False
     write_path.parent.mkdir(parents=True, exist_ok=True)
     write_path.write_text(updated_text, encoding="utf-8")
@@ -302,11 +309,14 @@ def _write_machine_selector(machine_name: str) -> Path:
     return path
 
 
-def _deploy_machine_overlay(path: Path, args: argparse.Namespace) -> int:
-    if defer_chezmoi_paths((path,), chezmoi_home=config_core.CHEZMOI_HOME):
+def _deploy_machine_overlay(
+    paths: Sequence[Path],
+    args: argparse.Namespace,
+) -> int:
+    if defer_chezmoi_paths(paths, chezmoi_home=config_core.CHEZMOI_HOME):
         return 0
     return deploy_to_chezmoi(
-        (path,),
+        paths,
         ChezmoiDeployBehavior(
             command_label=_COMMAND_LABEL,
             commit_message="chore: initialize SASE owner identity",
@@ -316,6 +326,30 @@ def _deploy_machine_overlay(path: Path, args: argparse.Namespace) -> int:
             no_push=getattr(args, "no_push", False),
             no_apply=getattr(args, "no_apply", False),
         ),
+    )
+
+
+def _ensure_machine_overlay_ignored(
+    overlay_write_path: Path,
+) -> Path | None:
+    entry = chezmoi_target_entry(
+        overlay_write_path,
+        chezmoi_home=config_core.CHEZMOI_HOME,
+    )
+    if entry is None:
+        return None
+    hostname = chezmoi_hostname()
+    if hostname is None:
+        print(
+            "config init: could not determine the chezmoi hostname; "
+            f"add a `.chezmoiignore` guard for {entry} manually",
+            file=sys.stderr,
+        )
+        return None
+    return ensure_machine_ignore_entry(
+        chezmoi_home=config_core.CHEZMOI_HOME,
+        entry=entry,
+        hostname=hostname,
     )
 
 
@@ -496,7 +530,19 @@ def run_config_init(args: argparse.Namespace) -> int:
     )
 
     if use_chezmoi and overlay_changed and overlay_write_path is not None:
-        return _deploy_machine_overlay(overlay_write_path, args)
+        deploy_paths = [overlay_write_path]
+        try:
+            ignore_path = _ensure_machine_overlay_ignored(overlay_write_path)
+        except OSError as exc:
+            print(
+                f"error: failed to update the chezmoi ignore list: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+        if ignore_path is not None:
+            print(f"Restricted {machine_name} overlay to this machine in {ignore_path}")
+            deploy_paths.append(ignore_path)
+        return _deploy_machine_overlay(deploy_paths, args)
     return 0
 
 
