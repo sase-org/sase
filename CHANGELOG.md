@@ -36,6 +36,54 @@
 - **ace:** remove clan and family identity icons while retaining their grouping colors.
 - **xprompt:** preserve unknown frontmatter keys during parse/edit/serialize round trips and warn before comment loss.
 
+## [0.13.3](https://github.com/sase-org/sase/compare/v0.13.2...v0.13.3) (2026-07-29)
+
+
+### Features
+
+* **ace:** add copy mode to artifact sub-tabs ([7d41d17](https://github.com/sase-org/sase/commit/7d41d17a02a44aea76dbe7f19d800bb24d0889c9))
+* **ace:** browse all document sidecars ([880c9c8](https://github.com/sase-org/sase/commit/880c9c891757ac2c1e3a29e6fc98f3ef2b056c31))
+* **ace:** delete persistent completion entries ([1054f3b](https://github.com/sase-org/sase/commit/1054f3b79dc1f8b71e8f5b2913f18f3b0a90a699))
+* **ace:** link epic summaries to hosted bead pages ([f36f37d](https://github.com/sase-org/sase/commit/f36f37d3ceb5154e1b23602f5ce50ed44eebb52d))
+* **ace:** raise history word completion default ([4ee5cd0](https://github.com/sase-org/sase/commit/4ee5cd092b45fe813c6e359f04f9248f8ff71c6a))
+* **ace:** support marks across artifact panes ([d867a44](https://github.com/sase-org/sase/commit/d867a44ff21343d9a193f9480c46435f881ef5fd))
+* **agent:** expose keyed agent-name markers in Python ([79be1d5](https://github.com/sase-org/sase/commit/79be1d53a316d326790a9421435edf2942481fd9))
+* **agent:** resolve keyed name markers at launch ([6209176](https://github.com/sase-org/sase/commit/6209176ae2b38de2c5a4fd5bdf18909d647b2619))
+* **axe:** render structured chop result reports ([bc501e5](https://github.com/sase-org/sase/commit/bc501e595b0ee0e09d915daf68b7528b1bc50a84))
+* **chops:** add typed report builder ([5885890](https://github.com/sase-org/sase/commit/58858901b857cfb9b3831cb61bb8c00e1bfbfd78))
+* enrich model completion alias metadata ([e55e18b](https://github.com/sase-org/sase/commit/e55e18b94f132b52eb0badf6440d49a849ad717d))
+* **notifications:** add generic report action contract ([73cc28b](https://github.com/sase-org/sase/commit/73cc28b7c5e6df26486971d62e2a4ac55debcf26))
+* **plan-search:** support generic document sidecar roles ([5f554c3](https://github.com/sase-org/sase/commit/5f554c3ea4112ef6e472ef5eced04978776298d5))
+* qualify keyed markers per xprompt invocation ([62a6ba6](https://github.com/sase-org/sase/commit/62a6ba6f7ad25c7e601ea94525b7cde3a9128e25))
+* **sdd:** route document sidecars through role registry ([107904b](https://github.com/sase-org/sase/commit/107904b6bea97c5d036921b2fbbc7ee92e7ceb0e))
+* **sdd:** support generic sidecar roles ([70a22c3](https://github.com/sase-org/sase/commit/70a22c347e617988e3a25b62975ab12837ea4444))
+* **tui:** add notification report viewer ([1a4ad18](https://github.com/sase-org/sase/commit/1a4ad1828148b7ae17fd9eaca457c82793224246))
+* **tui:** enrich model completion rows ([c5d2e1a](https://github.com/sase-org/sase/commit/c5d2e1a2cbec42eb6903c2ae4069a8cda792692d))
+* **tui:** show tribe panel entry target ([2110954](https://github.com/sase-org/sase/commit/2110954eb1d6833a03228298d5716681d484980a))
+
+
+### Bug Fixes
+
+* **ace:** anchor artifact-file path copy ([69d403c](https://github.com/sase-org/sase/commit/69d403c4c7f17f665cccaffd52dc910be8177c99))
+* **ace:** exit populated bullets with ctrl+j ([3463978](https://github.com/sase-org/sase/commit/3463978fb3b571b5770eae676279ded54b39f780))
+* **ace:** mark handed-off root questions answered ([e7e4121](https://github.com/sase-org/sase/commit/e7e41216496356c24fa1268ca4fd4e4d67c02216))
+* **ace:** remove PDF activity from agent rows ([7e20cd2](https://github.com/sase-org/sase/commit/7e20cd22e847c12fc6e435e6da4003e9d054f358))
+* **ace:** restore prompt-local placeholder precedence ([1e44e03](https://github.com/sase-org/sase/commit/1e44e0367cdc1fa4fbf81b9dde350de8c45a8103))
+* **ace:** safely dump text artifact fallback ([02e8384](https://github.com/sase-org/sase/commit/02e83845b1ef0fa7e173915a1a010fe27cfa047a))
+* **ace:** strip prompt bullet markers on join ([a813226](https://github.com/sase-org/sase/commit/a8132265be0d7e27f93695c6ad3da8d3191ec217))
+* **config:** initialize chezmoi machine overlays safely ([9180a1f](https://github.com/sase-org/sase/commit/9180a1fd67ae9b32231153fe65a2378fb179733c))
+* harden task ownership and temporary cleanup ([#260](https://github.com/sase-org/sase/issues/260)) ([dfd3c48](https://github.com/sase-org/sase/commit/dfd3c48ab6390e62726d40bebe91cc5b306b9b26))
+* keep epic page labels inline with URLs ([13b8aab](https://github.com/sase-org/sase/commit/13b8aab3687aefc453a9cdf7681572a24ed91844))
+* keep leading model aliases in completion context ([6405e40](https://github.com/sase-org/sase/commit/6405e40eeb57d97909c601d5bc4764b61dae5f8b))
+* preserve epic bead page URLs ([9e5eadc](https://github.com/sase-org/sase/commit/9e5eadc6b364d218571ea1cbde82f48d72f3d082))
+* report lane counts in cleanup confirmations ([65732cb](https://github.com/sase-org/sase/commit/65732cb3b621319e012b44905d7bf50722f20e53))
+
+
+### Documentation
+
+* **ace:** document the %model alias completion rows ([fe53df8](https://github.com/sase-org/sase/commit/fe53df885faf473a7ec5e459258e35764e6f8049))
+* document keyed xprompt markers ([0272356](https://github.com/sase-org/sase/commit/0272356a5df3070960e1634eae673524fe3d0bc0))
+
 ## [0.13.2](https://github.com/sase-org/sase/compare/v0.13.1...v0.13.2) (2026-07-29)
 
 
