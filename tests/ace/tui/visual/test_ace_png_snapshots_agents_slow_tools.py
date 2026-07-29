@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 _NOW = datetime(2026, 7, 28, 12, 10, tzinfo=UTC)
+_ACTIVE_TOOLS_FOOTER_RE = re.compile(r">●</text><text[^>]*>\s*tools</text>")
 
 
 class _FixedDateTime(datetime):
@@ -175,11 +177,16 @@ async def _focus_slow_tool_section(page: AcePage) -> AgentPromptPanel:
     panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
     for _ in range(20):
         if panel.active_section_identity == "slow-tool-calls":
-            break
+            await wait_for_visual_idle(page)
+            if _active_tools_footer_visible(page):
+                return panel
         await page.press("ctrl+j")
-    assert panel.active_section_identity == "slow-tool-calls"
-    await wait_for_visual_idle(page)
-    return panel
+    raise AssertionError("Timed out focusing slow-tool calls section")
+
+
+def _active_tools_footer_visible(page: AcePage) -> bool:
+    svg = page.export_svg(title="ACE active tools footer probe").replace("&#160;", " ")
+    return _ACTIVE_TOOLS_FOOTER_RE.search(svg) is not None
 
 
 async def test_agents_slow_tool_calls_fold_levels_png_snapshots(

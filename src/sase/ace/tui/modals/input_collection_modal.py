@@ -325,6 +325,10 @@ class InputCollectionModal(ModalScreen["PromptInputValues | None"]):
         self._refresh_confirm_enabled()
         if event.text_area.has_focus:
             self._scroll_editor_cursor_visible(event.text_area)
+            self.call_after_refresh(
+                self._scroll_editor_cursor_visible,
+                event.text_area,
+            )
 
     def _scroll_editor_cursor_visible(self, editor: TextArea) -> None:
         """Reveal *editor*'s cursor row inside the fields scroll container."""

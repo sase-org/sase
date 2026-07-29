@@ -370,14 +370,18 @@ async def test_growing_last_field_keeps_cursor_visible_in_fields_scroll() -> Non
             (0, 0),
             maintain_selection_offset=False,
         )
-        await pilot.pause()
-        await pilot.pause()
-
         fields = modal.query_one("#input-fields", VerticalScroll)
-        window = fields.content_region
-        cursor_y = editor.cursor_screen_offset.y
+        for _ in range(10):
+            await pilot.pause()
+            window = fields.content_region
+            cursor_y = editor.cursor_screen_offset.y
+            if fields.scroll_offset.y > 0 and window.y <= cursor_y < window.bottom:
+                break
+
         assert fields.max_scroll_y > 0
         assert fields.scroll_offset.y > 0
+        window = fields.content_region
+        cursor_y = editor.cursor_screen_offset.y
         assert window.y <= cursor_y < window.bottom
 
 
