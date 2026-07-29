@@ -176,6 +176,79 @@ class ActivityView:
 
 
 @dataclass(frozen=True, slots=True)
+class XPromptCountRow:
+    """One xprompt cross-tab count and its within-xprompt share."""
+
+    key: str
+    label: str
+    count: int
+    share: float
+
+
+@dataclass(frozen=True, slots=True)
+class XPromptRow:
+    """One ranked launch-boundary xprompt usage row."""
+
+    name: str
+    kind: str
+    tags: tuple[str, ...]
+    runs: int
+    references: int
+    distinct_agents: int
+    completed: int
+    failed: int
+    success_rate: float
+    total_runtime_seconds: float
+    mean_runtime_seconds: float | None
+    first_run_ts: float
+    last_run_ts: float
+    share: float
+    models: tuple[XPromptCountRow, ...]
+    projects: tuple[XPromptCountRow, ...]
+    partners: tuple[XPromptCountRow, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class XPromptFocusView:
+    """Full breakdown for one exact xprompt focus."""
+
+    name: str
+    found: bool
+    kind: str
+    tags: tuple[str, ...]
+    runs: int
+    references: int
+    distinct_agents: int
+    completed: int
+    failed: int
+    success_rate: float
+    total_runtime_seconds: float
+    mean_runtime_seconds: float | None
+    first_run_ts: float
+    last_run_ts: float
+    models: tuple[XPromptCountRow, ...]
+    projects: tuple[XPromptCountRow, ...]
+    partners: tuple[XPromptCountRow, ...]
+    providers: tuple[XPromptCountRow, ...]
+    tribes: tuple[XPromptCountRow, ...]
+    buckets: tuple[RunBucket, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class XPromptsView:
+    """Launch-boundary xprompt usage for the selected Statistics scope."""
+
+    available: bool
+    runs_with_xprompts: int
+    runs_without_xprompts: int
+    distinct_xprompts: int
+    total_references: int
+    truncated_rows: int
+    rows: tuple[XPromptRow, ...]
+    focus: XPromptFocusView | None
+
+
+@dataclass(frozen=True, slots=True)
 class PlansQuestionsView:
     plans_proposed: int
     plan_tiers: tuple[CountRow, ...]

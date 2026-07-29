@@ -44,9 +44,37 @@ def test_query_run_stats_passes_paths_and_request_to_rust(
                 "top_n": 9,
                 "project": "sase",
                 "work_top_n": 17,
+                "xprompt_top_n": 40,
+                "xprompt_breakdown_top_n": 5,
+                "xprompt_focus": None,
             },
         )
     ]
+
+
+def test_query_run_stats_passes_xprompt_request_controls(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    requests: list[dict[str, object]] = []
+
+    def binding(_index: str, request: dict[str, object]) -> dict[str, Any]:
+        requests.append(request)
+        return {}
+
+    monkeypatch.setattr("sase.stats.query.require_rust_binding", lambda _name: binding)
+
+    query_run_stats(
+        start_ts=10,
+        end_ts=20,
+        xprompt_top_n=21,
+        xprompt_breakdown_top_n=8,
+        xprompt_focus="split_file",
+        index_path=tmp_path / "index.sqlite",
+    )
+
+    assert requests[0]["xprompt_top_n"] == 21
+    assert requests[0]["xprompt_breakdown_top_n"] == 8
+    assert requests[0]["xprompt_focus"] == "split_file"
 
 
 def test_query_activity_stats_uses_home_for_default_index(
@@ -125,3 +153,6 @@ def test_query_run_stats_passes_new_runtime_groups_and_default_work_controls(
     ]
     assert all(request["project"] is None for request in requests)
     assert all(request["work_top_n"] == 50 for request in requests)
+    assert all(request["xprompt_top_n"] == 40 for request in requests)
+    assert all(request["xprompt_breakdown_top_n"] == 5 for request in requests)
+    assert all(request["xprompt_focus"] is None for request in requests)

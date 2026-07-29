@@ -95,6 +95,7 @@ class StatisticsViewData:
     generated_at: float
     views: StatisticsViews
     project_filter: str | None = None
+    xprompt_focus: str | None = None
     project_display_snapshot: ProjectDisplaySnapshot = field(
         default_factory=ProjectDisplaySnapshot
     )
@@ -105,8 +106,9 @@ def load_statistics_view(
     selected_range: StatsRange,
     runtime_group_by: RuntimeGroupBy,
     project_filter: str | None = None,
+    xprompt_focus: str | None = None,
 ) -> StatisticsViewData:
-    """Query composite bindings and build all eight view models off-thread."""
+    """Query composite bindings and build all view models off-thread."""
     from sase.config.core import get_max_running_agents
 
     project_display_snapshot = load_project_display_snapshot()
@@ -116,6 +118,7 @@ def load_statistics_view(
         end_ts=selected_range.end_ts,
         runtime_group_by=runtime_group_by,
         project=project_filter,
+        xprompt_focus=xprompt_focus,
     )
     activity_payload = query_activity_stats(
         start_ts=selected_range.start_ts,
@@ -145,6 +148,7 @@ def load_statistics_view(
             current_runner_limit=current_runner_limit,
         ),
         project_filter=project_filter,
+        xprompt_focus=xprompt_focus,
         project_display_snapshot=project_display_snapshot,
     )
 

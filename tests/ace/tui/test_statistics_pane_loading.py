@@ -161,7 +161,7 @@ async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(
 def test_loader_queries_current_activity_and_previous_equal_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[str, int, int, str | None]] = []
+    calls: list[tuple[str, int, int, str | None, str | None]] = []
     selected_range = StatsRange(10, 20, "absolute", "Last 10 seconds")
     display_snapshot = ProjectDisplaySnapshot({"sase": "SASE Display"})
     snapshot_loads = 0
@@ -178,6 +178,7 @@ def test_loader_queries_current_activity_and_previous_equal_window(
                 int(kwargs["start_ts"]),  # type: ignore[arg-type]
                 int(kwargs["end_ts"]),  # type: ignore[arg-type]
                 kwargs.get("project"),  # type: ignore[arg-type]
+                kwargs.get("xprompt_focus"),  # type: ignore[arg-type]
             )
         )
         return _run_payload(selected_range, "tribe")
@@ -189,6 +190,7 @@ def test_loader_queries_current_activity_and_previous_equal_window(
                 int(kwargs["start_ts"]),  # type: ignore[arg-type]
                 int(kwargs["end_ts"]),  # type: ignore[arg-type]
                 kwargs.get("project"),  # type: ignore[arg-type]
+                kwargs.get("xprompt_focus"),  # type: ignore[arg-type]
             )
         )
         return _activity_payload()
@@ -206,15 +208,22 @@ def test_loader_queries_current_activity_and_previous_equal_window(
     )
     monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 9)
 
-    result = sp.load_statistics_view("overview", selected_range, "tribe", "sase")
+    result = sp.load_statistics_view(
+        "overview",
+        selected_range,
+        "tribe",
+        "sase",
+        "split_file",
+    )
 
     assert calls == [
-        ("runs", 10, 20, "sase"),
-        ("activity", 10, 20, "sase"),
-        ("runs", 0, 10, "sase"),
+        ("runs", 10, 20, "sase", "split_file"),
+        ("activity", 10, 20, "sase", None),
+        ("runs", 0, 10, "sase", None),
     ]
     assert result.views.overview.agents_run == 6
     assert result.project_filter == "sase"
+    assert result.xprompt_focus == "split_file"
     assert snapshot_loads == 1
     assert result.project_display_snapshot is display_snapshot
     assert result.views.projects.projects[0].project_label == "SASE Display"

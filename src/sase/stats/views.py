@@ -16,6 +16,7 @@ from sase.stats._view_builders import (
     build_providers_view,
     build_runs_view,
     build_runtime_view,
+    build_xprompts_view,
 )
 from sase.stats._view_models import (
     ActivityView,
@@ -26,13 +27,14 @@ from sase.stats._view_models import (
     RunnersView,
     RunsView,
     RuntimeView,
+    XPromptsView,
 )
 from sase.stats._view_payload import Payload, integer, mapping
 
 
 @dataclass(frozen=True, slots=True)
 class StatisticsViews:
-    """All eight views built from one run and one activity response."""
+    """All presentation views built from one run and one activity response."""
 
     start_ts: int
     end_ts: int
@@ -43,6 +45,7 @@ class StatisticsViews:
     providers: ProvidersView
     runtime: RuntimeView
     activity: ActivityView
+    xprompts: XPromptsView
     plans_questions: PlansQuestionsView
     runners: RunnersView
 
@@ -84,6 +87,11 @@ def build_statistics_views(
             run_payload,
             activity_payload,
             display_snapshot,
+        ),
+        xprompts=build_xprompts_view(
+            run_payload,
+            display_snapshot,
+            timezone=resolved_timezone,
         ),
         plans_questions=build_plans_questions_view(run_payload, activity_payload),
         runners=build_runners_view(

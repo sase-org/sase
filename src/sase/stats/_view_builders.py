@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping
 from datetime import tzinfo
 from typing import cast
 
@@ -27,6 +28,10 @@ from sase.stats._view_models import (
     RuntimeRow,
     RuntimeView,
     WorkspaceRow,
+    XPromptCountRow,
+    XPromptFocusView,
+    XPromptRow,
+    XPromptsView,
 )
 from sase.stats._view_payload import (
     Payload,
@@ -332,6 +337,187 @@ def build_activity_view(
         skills=activity_rows(rows(activity_payload, "skills")),
         memories=activity_rows(rows(activity_payload, "memories")),
         workspaces=tuple(workspace_rows),
+    )
+
+
+def _xprompt_tags(payload: Payload) -> tuple[str, ...]:
+    value = payload.get("tags")
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(item for item in value if isinstance(item, str) and item)
+
+
+def _xprompt_count_rows(
+    payload: Payload,
+    key: str,
+    owning_runs: int,
+    display_snapshot: ProjectDisplaySnapshot,
+    *,
+    projects: bool = False,
+) -> tuple[XPromptCountRow, ...]:
+    count_rows_: list[XPromptCountRow] = []
+    for row in rows(payload, key):
+        row_key = text(row.get("name"), "unknown")
+        label = (
+            project_display_for(
+                row_key,
+                snapshot=display_snapshot,
+            ).project_label
+            if projects
+            else row_key
+        )
+        count = integer(row.get("count"))
+        count_rows_.append(
+            XPromptCountRow(
+                key=row_key,
+                label=label,
+                count=count,
+                share=ratio(count, owning_runs),
+            )
+        )
+    return tuple(count_rows_)
+
+
+def build_xprompts_view(
+    run_payload: Payload,
+    display_snapshot: ProjectDisplaySnapshot,
+    *,
+    timezone: tzinfo,
+) -> XPromptsView:
+    """Build launch-boundary xprompt usage from the optional wire section."""
+    section_value = run_payload.get("xprompts")
+    if not isinstance(section_value, Mapping):
+        return XPromptsView(
+            available=False,
+            runs_with_xprompts=0,
+            runs_without_xprompts=0,
+            distinct_xprompts=0,
+            total_references=0,
+            truncated_rows=0,
+            rows=(),
+            focus=None,
+        )
+
+    section = mapping(section_value)
+    runs_with_xprompts = integer(section.get("runs_with_xprompts"))
+    xprompt_rows: list[XPromptRow] = []
+    for row in rows(section, "rows"):
+        row_runs = integer(row.get("runs"))
+        xprompt_rows.append(
+            XPromptRow(
+                name=text(row.get("name"), "unknown"),
+                kind=text(row.get("kind"), "unknown"),
+                tags=_xprompt_tags(row),
+                runs=row_runs,
+                references=integer(row.get("references")),
+                distinct_agents=integer(row.get("distinct_agents")),
+                completed=integer(row.get("completed")),
+                failed=integer(row.get("failed")),
+                success_rate=number(row.get("success_rate")),
+                total_runtime_seconds=number(row.get("total_runtime_seconds")),
+                mean_runtime_seconds=optional_number(row.get("mean_runtime_seconds")),
+                first_run_ts=number(row.get("first_run_ts")),
+                last_run_ts=number(row.get("last_run_ts")),
+                share=ratio(row_runs, runs_with_xprompts),
+                models=_xprompt_count_rows(
+                    row,
+                    "models",
+                    row_runs,
+                    display_snapshot,
+                ),
+                projects=_xprompt_count_rows(
+                    row,
+                    "projects",
+                    row_runs,
+                    display_snapshot,
+                    projects=True,
+                ),
+                partners=_xprompt_count_rows(
+                    row,
+                    "partners",
+                    row_runs,
+                    display_snapshot,
+                ),
+            )
+        )
+
+    focus_value = section.get("focus")
+    focus: XPromptFocusView | None = None
+    if isinstance(focus_value, Mapping):
+        focus_payload = mapping(focus_value)
+        focus_runs = integer(focus_payload.get("runs"))
+        bucket_seconds = integer(run_payload.get("bucket_seconds"), 86_400)
+        focus = XPromptFocusView(
+            name=text(focus_payload.get("name"), "unknown"),
+            found=boolean(focus_payload.get("found")),
+            kind=text(focus_payload.get("kind"), "unknown"),
+            tags=_xprompt_tags(focus_payload),
+            runs=focus_runs,
+            references=integer(focus_payload.get("references")),
+            distinct_agents=integer(focus_payload.get("distinct_agents")),
+            completed=integer(focus_payload.get("completed")),
+            failed=integer(focus_payload.get("failed")),
+            success_rate=number(focus_payload.get("success_rate")),
+            total_runtime_seconds=number(focus_payload.get("total_runtime_seconds")),
+            mean_runtime_seconds=optional_number(
+                focus_payload.get("mean_runtime_seconds")
+            ),
+            first_run_ts=number(focus_payload.get("first_run_ts")),
+            last_run_ts=number(focus_payload.get("last_run_ts")),
+            models=_xprompt_count_rows(
+                focus_payload,
+                "models",
+                focus_runs,
+                display_snapshot,
+            ),
+            projects=_xprompt_count_rows(
+                focus_payload,
+                "projects",
+                focus_runs,
+                display_snapshot,
+                projects=True,
+            ),
+            partners=_xprompt_count_rows(
+                focus_payload,
+                "partners",
+                focus_runs,
+                display_snapshot,
+            ),
+            providers=_xprompt_count_rows(
+                focus_payload,
+                "providers",
+                focus_runs,
+                display_snapshot,
+            ),
+            tribes=_xprompt_count_rows(
+                focus_payload,
+                "tribes",
+                focus_runs,
+                display_snapshot,
+            ),
+            buckets=tuple(
+                RunBucket(
+                    start_ts=integer(row.get("start_ts")),
+                    label=bucket_label(
+                        integer(row.get("start_ts")),
+                        bucket_seconds,
+                        timezone,
+                    ),
+                    runs=integer(row.get("runs")),
+                )
+                for row in rows(focus_payload, "buckets")
+            ),
+        )
+
+    return XPromptsView(
+        available=True,
+        runs_with_xprompts=runs_with_xprompts,
+        runs_without_xprompts=integer(section.get("runs_without_xprompts")),
+        distinct_xprompts=integer(section.get("distinct_xprompts")),
+        total_references=integer(section.get("total_references")),
+        truncated_rows=integer(section.get("truncated_rows")),
+        rows=tuple(xprompt_rows),
+        focus=focus,
     )
 
 
