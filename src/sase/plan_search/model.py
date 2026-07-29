@@ -17,10 +17,11 @@ class Plan:
     """A single discovered markdown plan artifact.
 
     ``source`` is ``"repo"`` for committed SDD artifacts and ``"local"`` for the
-    machine-local archive. ``kind`` is one of the repo artifact kinds
-    (``tale``/``epic``/``prompt``/``research``) or the synthetic ``"local"``
-    kind for archive entries. ``relpath`` is relative to the plan's
-    root and always uses ``/`` separators.
+    machine-local archive. ``kind`` is ``"tale"``/``"epic"`` for canonical
+    plans, ``"prompt"`` for a prompt snapshot, a configured document-sidecar
+    role name for other repo documents, or the synthetic ``"local"`` kind for
+    archive entries. ``relpath`` is relative to that document corpus root and
+    always uses ``/`` separators.
     """
 
     source: str

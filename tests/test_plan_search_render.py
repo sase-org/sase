@@ -87,6 +87,15 @@ def test_status_icons_use_bead_vocabulary() -> None:
     assert R._status_icon("mystery") == "○"
 
 
+def test_kind_styles_preserve_fixed_kinds_and_hash_document_roles() -> None:
+    assert R._kind_style("tale") == "cyan"
+    assert R._kind_style("epic") == "magenta"
+    assert R._kind_style("local") == "bright_black"
+    assert R._kind_style("designs") == R._kind_style("designs")
+    assert R._kind_style("designs") in R._DOCUMENT_KIND_STYLES
+    assert R._kind_style("research") in R._DOCUMENT_KIND_STYLES
+
+
 def test_single_line_snippet_centers_and_truncates_on_query() -> None:
     value = "x" * 80 + " findme " + "y" * 80
     snippet = R._single_line_snippet(value, "findme", max_chars=40)

@@ -312,6 +312,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plan search auth\n"
             "  sase plan search auth --format json\n"
             "  sase plan search --kind epic --since 14d --status wip\n"
+            "  sase plan search --kind designs --source repo\n"
             "  sase plan search auth --source repo --sort recent --limit 5"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -338,11 +339,11 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     search_parser.add_argument(
         "-k",
         "--kind",
-        choices=["tale", "epic", "prompt", "research"],
         action="append",
+        metavar="KIND",
         help=(
-            "Filter SDD-store artifacts by plan-file tier (tale or epic), "
-            "prompt, or research kind (repeatable)"
+            "Filter repo artifacts by plan tier, prompt, or configured "
+            "document-sidecar role (repeatable)"
         ),
     )
     search_parser.add_argument(

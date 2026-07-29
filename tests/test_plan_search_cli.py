@@ -20,6 +20,7 @@ import pytest
 from sase.main import plan_command_handler
 from sase.main.parser import create_parser
 from sase.main.plan_search_handler import handle_plan_search_command
+from sase.sdd.store import write_sdd_store_record
 
 
 def _write_plan(
@@ -163,6 +164,12 @@ def test_search_parser_accepts_prompt_kind() -> None:
     assert args.kind == ["prompt"]
 
 
+def test_search_parser_accepts_custom_document_role() -> None:
+    args = _run(["plan", "search", "--kind", "designs"])
+
+    assert args.kind == ["designs"]
+
+
 def test_search_parser_rejects_negative_limit(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -227,6 +234,31 @@ def test_handler_rejects_invalid_date(
 
     assert excinfo.value.code == 2
     assert "--until" in capsys.readouterr().err
+
+
+def test_handler_rejects_unknown_kind_with_project_values(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.plan_search import facade
+
+    monkeypatch.setattr(
+        facade,
+        "available_kinds",
+        lambda: ("tale", "epic", "prompt", "designs"),
+    )
+    search = patch.object(facade, "search")
+    with (
+        search as search_mock,
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_plan_search_command(_search_namespace(kind=["mystery"]))
+
+    assert excinfo.value.code == 2
+    error = capsys.readouterr().err
+    assert "invalid --kind 'mystery'" in error
+    assert "tale, epic, prompt, designs" in error
+    search_mock.assert_not_called()
 
 
 def test_handler_compact_renders_grouped_listing(
@@ -419,6 +451,60 @@ def test_search_json_prompt_kind(
     payload = json.loads(capsys.readouterr().out)
     assert [result["plan"]["name"] for result in payload["results"]] == ["auth_request"]
     assert payload["results"][0]["plan"]["kind"] == "prompt"
+
+
+def test_search_json_custom_document_role(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    write_sdd_store_record(
+        workspace,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": {
+                role: {
+                    "repo": f"owner/project--{role}",
+                    "remote_url": f"git@github.com:owner/project--{role}.git",
+                }
+                for role in ("plans", "designs")
+            },
+        },
+    )
+    _write_plan(
+        workspace / "sase" / "repos" / "designs" / "202607" / "interface.md",
+        title="Interface design",
+        status="wip",
+        create_time="2026-07-20 09:00:00",
+        body="A custom document-sidecar result.",
+    )
+    monkeypatch.chdir(workspace)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    handle_plan_search_command(
+        _run(
+            [
+                "plan",
+                "search",
+                "--format",
+                "json",
+                "--source",
+                "repo",
+                "--kind",
+                "designs",
+            ]
+        )
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert [
+        (result["plan"]["name"], result["plan"]["kind"])
+        for result in payload["results"]
+    ] == [("interface", "designs")]
 
 
 def test_search_json_no_matches_is_success(

@@ -19,6 +19,7 @@ honoring ``NO_COLOR`` and TTY detection (``rich`` handles both natively in
 
 from __future__ import annotations
 
+import hashlib
 import sys
 from pathlib import Path
 from typing import TextIO
@@ -50,10 +51,18 @@ _DEFAULT_STATUS_STYLE = "dim"
 _KIND_STYLES = {
     "tale": "cyan",
     "epic": "magenta",
-    "research": "green",
     "local": "bright_black",
 }
-_DEFAULT_KIND_STYLE = "white"
+_DOCUMENT_KIND_STYLES = (
+    "green",
+    "yellow",
+    "blue",
+    "red",
+    "bright_cyan",
+    "bright_magenta",
+    "bright_green",
+    "bright_blue",
+)
 
 _TITLE_STYLE = "bold"
 _SNIPPET_STYLE = "dim"
@@ -95,7 +104,13 @@ def _status_style(status: str) -> str:
 
 
 def _kind_style(kind: str) -> str:
-    return _KIND_STYLES.get(kind, _DEFAULT_KIND_STYLE)
+    fixed = _KIND_STYLES.get(kind)
+    if fixed is not None:
+        return fixed
+    digest = hashlib.sha256(kind.encode("utf-8")).digest()
+    return _DOCUMENT_KIND_STYLES[
+        int.from_bytes(digest[:2], "big") % len(_DOCUMENT_KIND_STYLES)
+    ]
 
 
 def _display_path(plan: Plan) -> str:

@@ -15,6 +15,7 @@ import pytest
 from tests.sdd_policy_helpers import set_sdd_policy
 
 from sase.plan_search import facade
+from sase.sdd.store import write_sdd_store_record
 
 
 def _write_plan(
@@ -247,6 +248,133 @@ def test_search_treats_monthly_plans_subdir_as_nested_root(tmp_path: Path) -> No
     )
 
     assert _names(matches) == ["nested_wins"]
+
+
+def test_search_discovers_configured_document_sidecars(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    sidecars = {
+        role: {
+            "repo": f"owner/project--{role}",
+            "remote_url": f"git@github.com:owner/project--{role}.git",
+        }
+        for role in ("plans", "research", "designs", "beads")
+    }
+    write_sdd_store_record(
+        workspace,
+        {
+            "schema_version": 3,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": sidecars,
+        },
+    )
+    sidecar_root = workspace / "sase" / "repos"
+    _write_plan(
+        sidecar_root / "plans" / "202607" / "canonical.md",
+        title="Canonical plan",
+        status="wip",
+        create_time="2026-07-01 09:00:00",
+        body="Canonical plan body.",
+    )
+    _write_plan(
+        sidecar_root / "research" / "202607" / "findings.md",
+        title="Research findings",
+        status="done",
+        create_time="2026-07-02 09:00:00",
+        body="Research body.",
+        tier="epic",
+    )
+    _write_plan(
+        sidecar_root / "designs" / "interface.md",
+        title="Interface design",
+        status="wip",
+        create_time="2026-07-03 09:00:00",
+        body="Custom document role body.",
+        tier="epic",
+    )
+    _write_prompt(
+        sidecar_root / "plans" / "202607" / "prompts" / "canonical.md",
+        title="Canonical prompt",
+        create_time="2026-07-04 09:00:00",
+        body="Prompt snapshot body.",
+        plan="../canonical.md",
+    )
+
+    matches = facade.search(
+        source=facade.SOURCE_REPO,
+        cwd=workspace,
+        local_dir=tmp_path / "local",
+    )
+
+    assert {(match.plan.name, match.plan.kind) for match in matches} == {
+        ("canonical", "tale"),
+        ("findings", "research"),
+        ("interface", "designs"),
+        ("canonical", "prompt"),
+    }
+    assert facade.available_kinds(cwd=workspace) == (
+        "tale",
+        "epic",
+        "prompt",
+        "designs",
+        "research",
+    )
+    assert _names(
+        facade.search(
+            source=facade.SOURCE_REPO,
+            kinds=["designs"],
+            cwd=workspace,
+            local_dir=tmp_path / "local",
+        )
+    ) == ["interface"]
+    assert _names(
+        facade.search(
+            source=facade.SOURCE_REPO,
+            kinds=["research"],
+            cwd=workspace,
+            local_dir=tmp_path / "local",
+        )
+    ) == ["findings"]
+    assert _names(
+        facade.search(
+            source=facade.SOURCE_REPO,
+            kinds=["prompt"],
+            cwd=workspace,
+            local_dir=tmp_path / "local",
+        )
+    ) == ["canonical"]
+
+
+def test_available_kinds_omits_unconfigured_research_sidecar(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    write_sdd_store_record(
+        workspace,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": {
+                role: {
+                    "repo": f"owner/project--{role}",
+                    "remote_url": f"git@github.com:owner/project--{role}.git",
+                }
+                for role in ("plans", "designs")
+            },
+        },
+    )
+
+    assert facade.available_kinds(cwd=workspace) == (
+        "tale",
+        "epic",
+        "prompt",
+        "designs",
+    )
 
 
 @pytest.mark.parametrize("flat", [False, True])

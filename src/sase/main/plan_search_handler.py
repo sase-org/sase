@@ -16,6 +16,7 @@ import dataclasses
 import json
 import re
 import sys
+from collections.abc import Sequence
 from typing import NoReturn
 
 from sase.plan_search.model import PlanSearchMatch
@@ -51,9 +52,9 @@ def plan_date_arg(value: str) -> str:
 
 def handle_plan_search_command(args: argparse.Namespace) -> None:
     """Validate args, run the plan search, and render the result."""
-    _validate_args(args)
-
     from sase.plan_search import facade
+
+    _validate_args(args, valid_kinds=facade.available_kinds())
 
     matches = facade.search(
         args.query,
@@ -88,7 +89,11 @@ def _effective_sort_label(args: argparse.Namespace) -> str:
     return "relevance" if (args.query and args.query.strip()) else "recent"
 
 
-def _validate_args(args: argparse.Namespace) -> None:
+def _validate_args(
+    args: argparse.Namespace,
+    *,
+    valid_kinds: Sequence[str] | None = None,
+) -> None:
     """Re-validate limit and date args defensively before searching.
 
     The parser enforces these via ``nonnegative_int`` / :func:`plan_date_arg`,
@@ -100,6 +105,15 @@ def _validate_args(args: argparse.Namespace) -> None:
     for flag, value in (("--since", args.since), ("--until", args.until)):
         if value is not None and not _is_valid_plan_date(value):
             _usage_error(f"invalid {flag} date {value!r}; expected {_DATE_HELP}")
+    if valid_kinds is not None and args.kind:
+        valid = tuple(dict.fromkeys(valid_kinds))
+        invalid = tuple(kind for kind in args.kind if kind not in valid)
+        if invalid:
+            invalid_label = ", ".join(repr(kind) for kind in invalid)
+            _usage_error(
+                f"invalid --kind {invalid_label}; valid values for the current "
+                f"project: {', '.join(valid)}"
+            )
 
 
 def _render_search_json(matches: list[PlanSearchMatch], query: str | None) -> str:
