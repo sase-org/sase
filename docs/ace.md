@@ -1695,6 +1695,33 @@ entire SASE project directory: ProjectSpecs, project-local config, artifacts, an
 `~/.sase/projects/<project>/`. Deletion is refused while the project still has `RUNNING` claims or live artifact
 markers. It does not delete workspace checkouts, and system-managed projects such as `home` are excluded from the panel.
 
+## Statistics Tab
+
+Open the SASE Admin Center with `#`, then press `4` or switch to **Statistics**. Its nine sub-tabs summarize runs,
+runners, projects, providers, runtime, agent activity, xprompt usage, and plan/question activity for the selected time
+range and optional project filter. Use `[` / `]` to move between views, `t` / `T` to cycle time ranges, `p` / `P` to
+cycle project scope, and `r` to refresh.
+
+The Statistics **XPrompts** sub-tab reports xprompts referenced by agent launch prompts:
+
+- **By Usage** ranks xprompts by runs and shows references, share, agents, success, runtime, and recency.
+- **By Model** breaks each xprompt down by model.
+- **By Project** breaks it down by project.
+- **Used With** shows xprompts referenced together in the same run.
+
+Press `g` to cycle those four groupings without reloading the underlying statistics. Press `x` to choose one xprompt and
+replace the ranking with its full time, model, project, provider, tribe, and co-usage breakdown; press `X` to clear that
+focus. The range and project filters apply before all xprompt aggregation.
+
+These counts come from each run's launch-boundary `xprompts.json`, recorded before prompt expansion. A run counts once
+per xprompt name, while **Refs** counts distinct argument variants of the same name separately. References introduced
+inside workflow step templates are intentionally excluded. Historical runs appear after the agent-artifact index
+rebuilds at the current schema.
+
+This Statistics sub-tab is distinct from the Admin Center's top-level **XPrompts** tab described in
+[XPrompt Browser](#xprompt-browser): the top-level tab browses and edits xprompt definitions, while the Statistics
+sub-tab measures how launch prompts used them.
+
 ## Models Panel
 
 Press `,m` from any tab to open the **Models** panel — one keyboard-driven surface for viewing and managing every model

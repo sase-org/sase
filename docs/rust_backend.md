@@ -15,9 +15,11 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
 - Query parsing and evaluation: `tokenize_query`, `parse_query`, `canonicalize_query`, legacy one-shot
   `evaluate_query_many`, and the product persistent-corpus path (`compile_corpus`, `compile_query`, `evaluate_many`)
   used by `sase.core.query_corpus_facade`
-- Agent artifact scan/index operations: `scan_agent_artifacts`, `rebuild_agent_artifact_index`,
+- Agent artifact scan/index and statistics operations: `scan_agent_artifacts`, `rebuild_agent_artifact_index`,
   `upsert_agent_artifact_index_row`, `delete_agent_artifact_index_row`, `query_agent_artifact_index`, and dismissed
-  projection replacement for hiding dismissed identities in indexed visible-inbox queries
+  projection replacement for hiding dismissed identities in indexed visible-inbox queries. Scan records project each
+  run's launch-boundary `xprompts.json`, the index signs that marker so late writes refresh the row, and the run
+  statistics query rolls the projection up by xprompt, model, project, co-usage, and optional focused detail.
 - Status and status-transition helpers: `read_status_from_lines`, `apply_status_update`, and `plan_status_transition`
 - Git query parsers: `parse_git_name_status_z`, `parse_git_branch_name`, `derive_git_workspace_name`,
   `parse_git_conflicted_files`, and `parse_git_local_changes`

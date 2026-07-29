@@ -233,6 +233,10 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
     ):
         _error("agent statistics work-schema probe payload has invalid work rows")
         return False
+    xprompts = payload.get("xprompts")
+    if not isinstance(xprompts, dict) or not isinstance(xprompts.get("rows"), list):
+        _error("agent statistics xprompt-schema probe payload has invalid xprompts")
+        return False
     return True
 
 

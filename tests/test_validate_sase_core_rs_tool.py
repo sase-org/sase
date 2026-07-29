@@ -134,7 +134,7 @@ def test_validate_sase_core_rs_requires_cleanup_wire_version_binding() -> None:
     )
 
 
-def test_validate_sase_core_rs_requires_agent_stats_schema_v4() -> None:
+def test_validate_sase_core_rs_requires_agent_stats_schema_v4_with_xprompts() -> None:
     validator = _load_validate_sase_core_rs()
 
     def module_with_payload(payload: object) -> SimpleNamespace:
@@ -151,11 +151,17 @@ def test_validate_sase_core_rs_requires_agent_stats_schema_v4() -> None:
             {"schema_version": 3, "work": {"projects": [], "changespecs": []}}
         )
     )
+    assert not validator._validate_agent_stats_work_schema(
+        module_with_payload(
+            {"schema_version": 4, "work": {"projects": [], "changespecs": []}}
+        )
+    )
     assert validator._validate_agent_stats_work_schema(
         module_with_payload(
             {
                 "schema_version": 4,
                 "work": {"projects": [], "changespecs": []},
+                "xprompts": {"rows": []},
             }
         )
     )

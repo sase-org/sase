@@ -77,6 +77,109 @@ async def test_config_center_statistics_runtime_png_snapshot(
         )
 
 
+async def test_config_center_statistics_xprompts_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("xprompts")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_xprompts_120x40",
+            title="ACE SASE Admin Center — Statistics XPrompts usage",
+        )
+
+
+async def test_config_center_statistics_xprompts_model_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("xprompts")
+        pane.action_cycle_group()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_xprompts_model_120x40",
+            title="ACE SASE Admin Center — Statistics XPrompts by model",
+        )
+
+
+async def test_config_center_statistics_xprompts_focus_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("xprompts")
+        pane._xprompt_focus = "split_file"
+        pane._selection_changed(reload=True)
+        await page.wait_for(
+            lambda _state: (
+                pane._last_result is not None
+                and pane._last_result.xprompt_focus == "split_file"
+                and not pane._loading
+            )
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_xprompts_focus_120x40",
+            title="ACE SASE Admin Center — Statistics focused XPrompt",
+        )
+
+
+async def test_config_center_statistics_xprompts_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(
+        query='"visual"',
+        changespecs=changespecs(),
+        size=(90, 30),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("xprompts")
+        await wait_for_visual_idle(page)
+
+        assert pane._compact_scope is True
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_xprompts_narrow_90x30",
+            title="ACE SASE Admin Center — Statistics XPrompts narrow",
+        )
+
+
 async def test_config_center_statistics_runs_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
