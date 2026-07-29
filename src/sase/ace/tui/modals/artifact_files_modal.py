@@ -104,31 +104,42 @@ def _clipboard_path(path: Path) -> str:
     return _home_relative_path(path.expanduser().resolve(strict=False))
 
 
-def _artifact_file_clipboard_path(artifact_file: Any) -> str | None:
-    path_text = _artifact_file_display_path(artifact_file)
+@dataclass(frozen=True)
+class _ArtifactFilePathCopy:
+    """One anchored path answer, plus which of the two paths it came from."""
+
+    text: str
+    origin: str
+    missing: bool = False
+
+    @property
+    def label(self) -> str:
+        return "stored path" if self.origin == "stored" else "source path"
+
+
+def _artifact_file_clipboard_path(artifact_file: Any) -> _ArtifactFilePathCopy | None:
+    """Resolve the anchored path `Y` copies for one artifact file.
+
+    The stored path is preferred because it exists for every indexed artifact,
+    while ``source_path`` often points at a deleted file or a recycled `sase_<N>`
+    workspace. The answer is always anchored (home-relative or absolute); a bare
+    workspace-relative path names a different file once a workspace is reused.
+    """
+    stored_text = _artifact_file_path(artifact_file)
+    source_text = str(getattr(artifact_file, "source_path", "") or "")
+    prefers_source = bool(source_text and getattr(artifact_file, "kind", None) == "pdf")
+
+    if prefers_source or not stored_text:
+        path_text, origin = source_text, "source"
+    else:
+        path_text, origin = stored_text, "stored"
     if not path_text:
         return None
 
     workspace_dir = _artifact_file_clipboard_workspace_dir(artifact_file)
     path = _resolve_artifact_file_path(path_text, workspace_dir=workspace_dir)
-    workspace_path = _workspace_relative_path(path, workspace_dir=workspace_dir)
-    if workspace_path is not None:
-        return workspace_path
-
-    source_path_text = str(getattr(artifact_file, "source_path", "") or "")
-    if source_path_text and source_path_text != path_text:
-        source_path = _resolve_artifact_file_path(
-            source_path_text,
-            workspace_dir=workspace_dir,
-        )
-        workspace_path = _workspace_relative_path(
-            source_path,
-            workspace_dir=workspace_dir,
-        )
-        if workspace_path is not None:
-            return workspace_path
-
-    return _clipboard_path(path)
+    missing = origin == "source" and not path.exists()
+    return _ArtifactFilePathCopy(_clipboard_path(path), origin, missing)
 
 
 def _resolve_artifact_file_path(path_text: str, *, workspace_dir: str | None) -> Path:
@@ -136,24 +147,6 @@ def _resolve_artifact_file_path(path_text: str, *, workspace_dir: str | None) ->
     if not path.is_absolute() and workspace_dir:
         path = Path(workspace_dir).expanduser() / path
     return path
-
-
-def _workspace_relative_path(
-    path: Path,
-    *,
-    workspace_dir: str | None,
-) -> str | None:
-    if not workspace_dir:
-        return None
-    try:
-        relative = (
-            path.expanduser()
-            .resolve(strict=False)
-            .relative_to(Path(workspace_dir).expanduser().resolve(strict=False))
-        )
-    except (OSError, ValueError):
-        return None
-    return relative.as_posix() or "."
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:
@@ -418,25 +411,26 @@ class ArtifactFileSelectionModal(
             self.notify("Failed to copy to clipboard", severity="error")
 
     def action_copy_path(self) -> None:
-        """Copy the highlighted artifact-file display path."""
+        """Copy the highlighted artifact file's anchored stored or source path."""
         artifact_file = self._selected_artifact_file()
         if artifact_file is None:
             self.notify("No artifact file selected", severity="warning")
-            return
-
-        path = _artifact_file_resolved_display_path(artifact_file)
-        if path is None:
-            self.notify("Selected artifact file has no path", severity="warning")
             return
 
         copy_path = _artifact_file_clipboard_path(artifact_file)
         if copy_path is None:
             self.notify("Selected artifact file has no path", severity="warning")
             return
-        if copy_to_system_clipboard(copy_path):
-            self.notify(f"Copied: {copy_path}")
-        else:
+        if not copy_to_system_clipboard(copy_path.text):
             self.notify("Failed to copy to clipboard", severity="error")
+            return
+        if copy_path.missing:
+            self.notify(
+                f"Copied {copy_path.label} (no longer exists): {copy_path.text}",
+                severity="warning",
+            )
+            return
+        self.notify(f"Copied {copy_path.label}: {copy_path.text}")
 
     def action_open_all(self) -> None:
         self.dismiss(list(self._artifact_files))
