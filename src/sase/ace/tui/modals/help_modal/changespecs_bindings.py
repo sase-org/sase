@@ -179,8 +179,9 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ("y / Y", "Copy contents / source path"),
                 ("%", "Open active pane copy menu"),
                 ("R", "Toggle Markdown rendered/source view"),
+                ("/ · n/N", "Search source · next/previous match"),
                 ("o / Z", "Open editor / rich viewer"),
-                ("Esc / q", "Close preview reader"),
+                ("Esc / q", "Clear search then close / always close"),
             ],
         ),
         (

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from textual.widgets import Input
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.commit_view_modal import CommitViewModal
@@ -155,6 +156,62 @@ async def test_preview_panel_reference_png_snapshot(
             page,
             "preview_panel_reference_120x40",
             title="ACE preview panel - rendered reference and resolved path",
+        )
+
+
+async def test_preview_panel_active_search_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    payload = PreviewPayload(
+        kind_label="chat",
+        icon="◈",
+        title="reader-search transcript",
+        source_path="/workspace/sase/chats/reader-search.md",
+        reference="chat:bbugyi200.athena.reader-search",
+        lexer="markdown",
+        content=(
+            "# Reader Search\n\n"
+            "The preview reader searches source text on enter.\n\n"
+            "## Matching\n\n"
+            "Every reader match is highlighted, while n and N navigate.\n\n"
+            "The reader keeps navigation responsive on narrow terminals.\n"
+        ),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        modal = PreviewPanelModal(payload)
+        page.app.push_screen(modal)
+        await page.expect_modal("PreviewPanelModal")
+        await page.press("/")
+        for key in "reader":
+            await page.press(key)
+        await page.press("enter")
+        await wait_for_state(
+            page,
+            lambda: modal._match_lines == (1, 3, 7, 9),  # noqa: SLF001
+            description="preview search matches to finish loading",
+        )
+        # Reopen the prefilled input so the snapshot covers the complete search UI.
+        await page.press("/")
+        await wait_for_state(
+            page,
+            lambda: (
+                modal.query_one("#preview-search-input", Input).display
+                and modal.query_one("#preview-search-input", Input).value == "reader"
+            ),
+            description="preview search input to reopen with its committed query",
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "preview_panel_active_search_120x40",
+            title="ACE preview panel - active source search",
         )
 
 

@@ -50,6 +50,7 @@ class _SyntaxRenderableKey:
     word_wrap: bool
     line_range: tuple[int, int] | None
     line_numbers: bool
+    highlight_lines: frozenset[int] | None = None
     render_kind: str = "syntax"
     max_render_lines: int | None = None
     truncation_hint: str | None = None
@@ -165,6 +166,7 @@ class LazySyntaxRenderCache:
         word_wrap: bool,
         line_range: tuple[int, int] | None,
         line_numbers: bool,
+        highlight_lines: frozenset[int] | None,
     ) -> CachedRenderable:
         key = _SyntaxRenderableKey(
             content_digest=_content_digest(content),
@@ -174,6 +176,7 @@ class LazySyntaxRenderCache:
             word_wrap=word_wrap,
             line_range=line_range,
             line_numbers=line_numbers,
+            highlight_lines=highlight_lines,
         )
         cached = self._entries.get(key)
         if cached is not None:
@@ -190,6 +193,7 @@ class LazySyntaxRenderCache:
                 word_wrap=word_wrap,
                 line_numbers=line_numbers,
                 line_range=line_range,
+                highlight_lines=set(highlight_lines or ()),
             ),
             content,
         )
@@ -207,6 +211,7 @@ class LazySyntaxRenderCache:
         word_wrap: bool,
         line_range: tuple[int, int] | None,
         line_numbers: bool,
+        highlight_lines: frozenset[int] | None,
         max_render_lines: int,
         truncation_hint: str,
         renderable_factory: Callable[[], RenderableType],
@@ -220,6 +225,7 @@ class LazySyntaxRenderCache:
             word_wrap=word_wrap,
             line_range=line_range,
             line_numbers=line_numbers,
+            highlight_lines=highlight_lines,
             render_kind="plain",
             max_render_lines=max_render_lines,
             truncation_hint=truncation_hint,
@@ -275,6 +281,15 @@ def _exceeds_lexer_cap(
             or line_count > MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES
         )
     return _exceeds_cap(content, line_range)
+
+
+def exceeds_syntax_highlight_cap(
+    content: str,
+    lexer: str,
+    line_range: tuple[int, int] | None = None,
+) -> bool:
+    """Return whether ``lazy_renderable`` will use its plain-text path."""
+    return _exceeds_lexer_cap(content, lexer, line_range)
 
 
 def exceeds_plain_render_cap(
@@ -358,13 +373,22 @@ def _format_approx_bytes(byte_count: int) -> str:
     return f"{byte_count / (1_024 * 1_024):.1f} MiB"
 
 
-def _segmented_plain_text(content: str) -> Text:
+def _segmented_plain_text(
+    content: str,
+    highlight_lines: frozenset[int] | None = None,
+    *,
+    start_line: int = 1,
+) -> Text:
     """Build plain text whose rendered segments never span multiple lines."""
     text = Text(no_wrap=False)
-    for line in content.splitlines(keepends=True):
+    for line_number, line in enumerate(
+        content.splitlines(keepends=True),
+        start=start_line,
+    ):
         # An explicit neutral span keeps Rich from merging the whole body into
         # one segment while preserving the same visible style.
-        text.append(line, style="none")
+        style = "on #5F5F00" if line_number in (highlight_lines or ()) else "none"
+        text.append(line, style=style)
     return text
 
 
@@ -379,6 +403,7 @@ def lazy_renderable(
     render_cache: LazySyntaxRenderCache | None = None,
     max_render_lines: int | None = None,
     truncation_hint: str = DEFAULT_TRUNCATION_HINT,
+    highlight_lines: frozenset[int] | None = None,
 ) -> RenderableType:
     """Return a Rich ``Syntax`` when small enough, else a capped plain block.
 
@@ -387,7 +412,7 @@ def lazy_renderable(
     always byte- and line-capped; callers may lower the default line cap and
     customize the trailing truncation hint for their surface.
     """
-    if not _exceeds_lexer_cap(content, lexer, line_range):
+    if not exceeds_syntax_highlight_cap(content, lexer, line_range):
         if render_cache is not None:
             return render_cache.get(
                 content,
@@ -396,6 +421,7 @@ def lazy_renderable(
                 word_wrap=word_wrap,
                 line_range=line_range,
                 line_numbers=line_numbers,
+                highlight_lines=highlight_lines,
             )
         return Syntax(
             content,
@@ -404,6 +430,7 @@ def lazy_renderable(
             word_wrap=word_wrap,
             line_numbers=line_numbers,
             line_range=line_range,
+            highlight_lines=set(highlight_lines or ()),
         )
 
     notice = Text(
@@ -439,7 +466,11 @@ def lazy_renderable(
 
         renderables: list[RenderableType] = [
             notice,
-            _segmented_plain_text(rendered_content),
+            _segmented_plain_text(
+                rendered_content,
+                highlight_lines,
+                start_line=line_range[0] if line_range is not None else 1,
+            ),
         ]
         if line_truncated or byte_truncated:
             omitted: list[str] = []
@@ -465,6 +496,7 @@ def lazy_renderable(
             word_wrap=word_wrap,
             line_range=line_range,
             line_numbers=line_numbers,
+            highlight_lines=highlight_lines,
             max_render_lines=effective_max_render_lines,
             truncation_hint=truncation_hint,
             renderable_factory=build_plain,

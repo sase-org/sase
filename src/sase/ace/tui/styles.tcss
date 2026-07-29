@@ -4277,6 +4277,12 @@ PreviewPanelModal #preview-rendered {
     padding: 0 1 1 1;
 }
 
+PreviewPanelModal #preview-search-input {
+    height: 3;
+    margin-top: 1;
+    border: tall $accent;
+}
+
 PreviewPanelModal #preview-footer {
     text-align: center;
     color: $text-muted;

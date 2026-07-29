@@ -207,14 +207,23 @@ knows a canonical artifact reference, the title shows that logical reference bes
 | `Y`                 | Copy the local source path, when available                 |
 | `%`                 | Open the active Artifacts sub-tab's copy menu              |
 | `R`                 | Toggle Markdown previews between rendered and source views |
+| `/`                 | Open source search (smartcase substring matching)          |
+| `n` / `N`           | Jump to the next / previous match with wraparound          |
 | `o`                 | Open the source path in `$EDITOR` (falling back to `nvim`) |
 | `Z`                 | Hand the source path to the rich terminal artifact viewer  |
-| `Esc` / `q`         | Close the reader                                           |
+| `Esc`               | Cancel input, clear active search, then close the reader   |
+| `q`                 | Close the reader                                           |
 
 Path-only actions are omitted from the footer when the preview has no local source path; invoking one still produces a
 specific warning instead of failing. Clipboard operations run in the background and report when no clipboard tool is
 available. Plans open in rendered Markdown by default when they fit the reader's bounded render budget; chats, xprompts,
 skills, files, and oversized plan documents open as source.
+
+Search is commit-on-enter: `/` opens a one-line input prefilled with the last committed query, and `Enter` highlights
+every matching source line before jumping to the first match at or below the current viewport. Queries containing an
+uppercase character are case-sensitive; other queries are case-insensitive. Starting search from rendered Markdown
+switches to source view. `Esc` in the input cancels the edit, while `Esc` after a committed search first clears the
+matches and only closes the reader on the next press.
 
 ### Chats Pane
 

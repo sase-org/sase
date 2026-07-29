@@ -5,14 +5,16 @@ from __future__ import annotations
 import asyncio
 import os
 import subprocess
-from typing import Literal
+from typing import Literal, cast
 
 from rich.console import RenderableType
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Markdown, Static
+from textual.widgets import Input, Markdown, Static
+from textual.worker import Worker, WorkerState
 
 from sase.ace.hints import build_editor_args
 from sase.ace.tui.actions.artifact_viewer_handoff import open_artifact_path
@@ -29,11 +31,26 @@ from sase.ace.tui.util.pump_tasks import (
 )
 from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
 
-from .base import CopyModeForwardingMixin
+from .base import CopyModeForwardingMixin, FilterInput
+from .preview_search import PreviewSearchResult, build_search_result
 
 
 _COLOR_MUTED = "dim #87D7FF"
 _ViewMode = Literal["source", "rendered"]
+
+
+class _PreviewSearchInput(FilterInput):
+    """Search input that gives escape back to the preview reader."""
+
+    BINDINGS = [
+        *FilterInput.BINDINGS,
+        ("escape", "cancel_preview_search", "Cancel search"),
+    ]
+
+    def action_cancel_preview_search(self) -> None:
+        modal = self.screen
+        if isinstance(modal, PreviewPanelModal):
+            modal._hide_search_input()  # noqa: SLF001
 
 
 def _fence_leading_yaml_frontmatter(content: str) -> str:
@@ -54,8 +71,12 @@ class PreviewPanelModal(CopyModeForwardingMixin, ModalScreen[None]):
     """Presentational modal for resolved xprompt/file previews."""
 
     BINDINGS = [
-        ("escape", "close", "Close"),
+        ("escape", "escape", "Clear search / close"),
         ("q", "close", "Close"),
+        ("/", "open_search", "Search"),
+        ("n", "next_match", "Next match"),
+        ("N", "previous_match", "Previous match"),
+        ("shift+n", "previous_match", "Previous match"),
         ("y", "copy_contents", "Copy contents"),
         ("Y", "copy_path", "Copy path"),
         ("shift+y", "copy_path", "Copy path"),
@@ -84,6 +105,16 @@ class PreviewPanelModal(CopyModeForwardingMixin, ModalScreen[None]):
             payload.default_view == "rendered" and self._can_render_markdown()
         )
         self._render_task: asyncio.Task[None] | None = None
+        self._search_query = ""
+        self._match_lines: tuple[int, ...] = ()
+        self._match_index: int | None = None
+        self._row_offsets_by_width: dict[int, tuple[int, ...]] = {}
+        self._displayed_line_count = max(1, payload.content.count("\n") + 1)
+        self._search_worker: Worker[PreviewSearchResult] | None = None
+        self._search_identity: tuple[int, str, int] | None = None
+        self._search_serial = 0
+        self._search_viewport_row = 0
+        self._pending_match_delta: int | None = None
 
     def compose(self) -> ComposeResult:
         with Container(id="preview-modal-container"):
@@ -93,6 +124,12 @@ class PreviewPanelModal(CopyModeForwardingMixin, ModalScreen[None]):
                 rendered = Markdown("", id="preview-rendered")
                 rendered.display = False
                 yield rendered
+            search_input = _PreviewSearchInput(
+                placeholder="Search source (smartcase)",
+                id="preview-search-input",
+            )
+            search_input.display = False
+            yield search_input
             yield Static(self._build_footer(), id="preview-footer")
 
     def on_mount(self) -> None:
@@ -100,7 +137,66 @@ class PreviewPanelModal(CopyModeForwardingMixin, ModalScreen[None]):
             self._schedule_rendered_update()
 
     def on_unmount(self) -> None:
+        self._cancel_search_worker()
         cancel_pump_free_tasks(self)
+
+    def on_key(self, event: events.Key) -> None:
+        if isinstance(self.focused, _PreviewSearchInput):
+            return
+        super().on_key(event)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "preview-search-input":
+            return
+        event.stop()
+        query = event.value
+        self._hide_search_input()
+        if not query:
+            self._clear_search()
+            return
+        self._start_search(query)
+
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker is not self._search_worker:
+            return
+        if event.state not in {
+            WorkerState.SUCCESS,
+            WorkerState.ERROR,
+            WorkerState.CANCELLED,
+        }:
+            return
+        identity = self._search_identity
+        self._search_worker = None
+        if event.state != WorkerState.SUCCESS or identity is None:
+            return
+        serial, query, width = identity
+        if serial != self._search_serial or query != self._search_query:
+            return
+        current_width = self._source_width()
+        if width != current_width:
+            self._start_search(query, preserve_matches=True)
+            return
+        result = cast(PreviewSearchResult, event.worker.result)
+        self._row_offsets_by_width[width] = result.row_offsets
+        self._displayed_line_count = result.displayed_line_count
+        self._match_lines = result.match_lines
+        if self._pending_match_delta is not None and self._match_lines:
+            current = self._match_index if self._match_index is not None else 0
+            self._match_index = (current + self._pending_match_delta) % len(
+                self._match_lines
+            )
+            self._pending_match_delta = None
+        else:
+            self._pending_match_delta = None
+            self._match_index = self._match_at_or_after_viewport(
+                result,
+                self._search_viewport_row,
+            )
+        if not self.is_attached:
+            return
+        self.query_one("#preview-content", Static).update(self._build_content())
+        self.query_one("#preview-footer", Static).update(self._build_footer())
+        self._jump_to_current_match()
 
     def _build_title(self) -> Text:
         text = Text()
@@ -127,8 +223,19 @@ class PreviewPanelModal(CopyModeForwardingMixin, ModalScreen[None]):
             "j/k scroll",
             "ctrl+d/u page",
             "g/G top/bottom",
-            "y contents",
+            "/ search",
         ]
+        if self._search_query:
+            if self._match_index is None:
+                parts.append(f"0/{len(self._match_lines)}")
+            else:
+                line_number = self._match_lines[self._match_index]
+                parts.append(
+                    f"{self._match_index + 1}/{len(self._match_lines)} · "
+                    f"line {line_number}"
+                )
+            parts.append("n/N matches")
+        parts.append("y contents")
         if self._is_markdown_payload():
             target = "source" if self._view_mode == "rendered" else "rendered"
             parts.append(f"R {target}")
@@ -146,6 +253,7 @@ class PreviewPanelModal(CopyModeForwardingMixin, ModalScreen[None]):
             line_numbers=True,
             theme="monokai",
             render_cache=self._syntax_render_cache,
+            highlight_lines=frozenset(self._match_lines) or None,
         )
 
     def _is_markdown_payload(self) -> bool:
@@ -211,6 +319,133 @@ class PreviewPanelModal(CopyModeForwardingMixin, ModalScreen[None]):
 
     def action_close(self) -> None:
         self.dismiss(None)
+
+    def action_escape(self) -> None:
+        if self._search_query:
+            self._clear_search()
+            return
+        self.action_close()
+
+    def action_open_search(self) -> None:
+        if self._view_mode == "rendered" or self._requested_rendered:
+            self._set_view_mode("source")
+        search_input = self.query_one("#preview-search-input", _PreviewSearchInput)
+        search_input.value = self._search_query
+        search_input.display = True
+        search_input.focus()
+        search_input.cursor_position = len(search_input.value)
+
+    def _hide_search_input(self) -> None:
+        if not self.is_attached:
+            return
+        search_input = self.query_one("#preview-search-input", _PreviewSearchInput)
+        search_input.value = self._search_query
+        search_input.display = False
+        self.set_focus(None)
+
+    def _source_width(self) -> int:
+        if not self.is_attached:
+            return 1
+        source = self.query_one("#preview-content", Static)
+        return max(1, source.content_region.width)
+
+    def _cancel_search_worker(self) -> None:
+        if self._search_worker is not None:
+            self._search_worker.cancel()
+        self._search_worker = None
+        self._search_identity = None
+
+    def _start_search(
+        self,
+        query: str,
+        *,
+        preserve_matches: bool = False,
+    ) -> None:
+        self._cancel_search_worker()
+        self._search_query = query
+        if not preserve_matches:
+            self._match_lines = ()
+            self._match_index = None
+            self._pending_match_delta = None
+        self._search_serial += 1
+        width = self._source_width()
+        scroll = self.query_one("#preview-scroll", VerticalScroll)
+        self._search_viewport_row = int(scroll.scroll_y)
+        identity = (self._search_serial, query, width)
+        self._search_identity = identity
+        content = self._payload.content
+        lexer = self._payload.lexer
+        self._search_worker = self.run_worker(
+            lambda: build_search_result(content, query, width, lexer),
+            name="preview-search",
+            group="preview-search",
+            thread=True,
+            exclusive=True,
+            exit_on_error=False,
+        )
+
+    @staticmethod
+    def _match_at_or_after_viewport(
+        result: PreviewSearchResult,
+        viewport_row: int,
+    ) -> int | None:
+        for match_index, line_number in enumerate(result.match_lines):
+            if result.row_offsets[line_number - 1] >= viewport_row:
+                return match_index
+        return 0 if result.match_lines else None
+
+    def _clear_search(self) -> None:
+        self._cancel_search_worker()
+        self._search_query = ""
+        self._match_lines = ()
+        self._match_index = None
+        self._pending_match_delta = None
+        if not self.is_attached:
+            return
+        self.query_one("#preview-content", Static).update(self._build_content())
+        self.query_one("#preview-footer", Static).update(self._build_footer())
+
+    def action_next_match(self) -> None:
+        self._move_match(1)
+
+    def action_previous_match(self) -> None:
+        self._move_match(-1)
+
+    def _move_match(self, delta: int) -> None:
+        if not self._match_lines:
+            return
+        if self._view_mode == "rendered":
+            self._set_view_mode("source")
+        width = self._source_width()
+        if width not in self._row_offsets_by_width:
+            self._pending_match_delta = delta
+            self._start_search(self._search_query, preserve_matches=True)
+            return
+        current = self._match_index if self._match_index is not None else 0
+        self._match_index = (current + delta) % len(self._match_lines)
+        self.query_one("#preview-footer", Static).update(self._build_footer())
+        self._jump_to_current_match()
+
+    def _jump_to_current_match(self) -> None:
+        if self._match_index is None or not self._match_lines:
+            return
+        line_number = self._match_lines[self._match_index]
+        if line_number > self._displayed_line_count:
+            self.notify(
+                f"Match at line {line_number} is beyond the displayed portion",
+                severity="warning",
+            )
+            return
+        offsets = self._row_offsets_by_width.get(self._source_width())
+        if offsets is None or line_number > len(offsets):
+            return
+        scroll = self.query_one("#preview-scroll", VerticalScroll)
+        center_offset = max(0, scroll.scrollable_content_region.height // 3)
+        scroll.scroll_to(
+            y=max(0, offsets[line_number - 1] - center_offset),
+            animate=False,
+            immediate=True,
+        )
 
     def action_toggle_rendered(self) -> None:
         if not self._is_markdown_payload():

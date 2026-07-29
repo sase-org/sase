@@ -313,6 +313,52 @@ def test_cached_plain_renderable_keys_include_cap_and_hint() -> None:
     assert cache.hits == 1
 
 
+def test_cached_renderable_keys_include_highlight_lines() -> None:
+    cache = LazySyntaxRenderCache(max_entries=4)
+    content = "alpha\nbeta\nalpha\n"
+
+    first = lazy_renderable(
+        content,
+        "text",
+        line_numbers=True,
+        render_cache=cache,
+        highlight_lines=frozenset({1, 3}),
+    )
+    same = lazy_renderable(
+        content,
+        "text",
+        line_numbers=True,
+        render_cache=cache,
+        highlight_lines=frozenset({1, 3}),
+    )
+    different = lazy_renderable(
+        content,
+        "text",
+        line_numbers=True,
+        render_cache=cache,
+        highlight_lines=frozenset({2}),
+    )
+
+    assert first is same
+    assert different is not first
+    assert isinstance(first.renderable, Syntax)
+    assert first.renderable.highlight_lines == {1, 3}
+
+
+def test_plain_fallback_applies_background_to_highlighted_lines() -> None:
+    content = "\n".join(["alpha", *["line"] * SYNTAX_HIGHLIGHT_MAX_LINES])
+    out = lazy_renderable(
+        content,
+        "diff",
+        highlight_lines=frozenset({1}),
+    )
+
+    assert isinstance(out, Group)
+    body = out.renderables[1]
+    assert isinstance(body, Text)
+    assert any(span.start == 0 and span.style == "on #5F5F00" for span in body.spans)
+
+
 def test_5mb_response_renders_as_plain_group() -> None:
     """A 5 MB response paints immediately as plain text and skips Syntax."""
     huge = "a" * (5 * 1024 * 1024)
