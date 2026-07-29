@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from rich.cells import cell_len
+from rich.console import Console
 
 from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
     ResponsivePlanSection,
@@ -255,15 +256,13 @@ def test_render_plan_document_places_page_after_bead_row(tmp_path: Path) -> None
     bead_index = next(
         index for index, line in enumerate(lines) if line.plain.startswith("   Bead: ")
     )
-    page_value = lines[bead_index + 2]
+    page_line = lines[bead_index + 1]
 
-    assert lines[bead_index + 1].plain == BEAD_PAGE_ROW_LABEL
-    assert page_value.plain == page_url
-    assert page_value.plain.startswith("https://")
-    assert not page_value.plain[0].isspace()
-    assert sum(line.plain == page_url for line in lines) == 1
-    assert cell_len(page_value.plain) > 48
-    assert all(cell_len(line.plain) <= 48 for line in lines if line is not page_value)
+    assert page_line.plain == BEAD_PAGE_ROW_LABEL + page_url
+    assert page_line.plain.startswith("   Page: https://")
+    assert sum(line.plain.count(page_url) for line in lines) == 1
+    assert cell_len(page_line.plain) > 48
+    assert all(cell_len(line.plain) <= 48 for line in lines if line is not page_line)
 
 
 def test_render_plan_document_places_page_after_final_non_bead_provenance(
@@ -287,12 +286,60 @@ def test_render_plan_document_places_page_after_final_non_bead_provenance(
         bead_page_url=page_url,
     ).lines
 
-    assert lines[-3].plain.startswith(" Agents: ")
-    assert lines[-2].plain == BEAD_PAGE_ROW_LABEL
-    assert lines[-1].plain == page_url
+    assert lines[-2].plain.startswith(" Agents: ")
+    assert lines[-1].plain == BEAD_PAGE_ROW_LABEL + page_url
 
 
-def test_bead_page_url_text_handles_url_shapes_and_preserves_overflow() -> None:
+def test_bead_page_line_reflows_without_inserting_url_whitespace(
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "tale.md"
+    plan.write_text(_plan_with_header(_PROVENANCE_HEADER), encoding="utf-8")
+    loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
+    page_url = (
+        "https://github.com/sase-org/sase--beads/blob/main/pages/sase-ar/README.md"
+    )
+    page_line = next(
+        line
+        for line in render_plan_document(
+            loaded,
+            width=48,
+            bead_page_url=page_url,
+        ).lines
+        if page_url in line.plain
+    )
+
+    for width in (96, 82, 81, 52):
+        console = Console(
+            width=width,
+            color_system=None,
+            force_terminal=False,
+            force_interactive=False,
+            highlight=False,
+            markup=False,
+            emoji=False,
+        )
+        fragments = [
+            line.plain
+            for line in page_line.wrap(
+                console,
+                width,
+                overflow="fold",
+                no_wrap=False,
+            )
+        ]
+
+        if width >= 82:
+            assert len(fragments) == 1
+        else:
+            assert fragments[0] == BEAD_PAGE_ROW_LABEL
+            assert all(
+                fragment and not fragment[0].isspace() for fragment in fragments[1:]
+            )
+        assert "".join(fragments).removeprefix(BEAD_PAGE_ROW_LABEL) == page_url
+
+
+def test_bead_page_url_text_handles_url_shapes() -> None:
     trailing = "https://example.invalid/pages/sase-ai/"
     bare = "README.md"
     multibyte = "https://example.invalid/pages/sase-ai/界.md"
@@ -318,6 +365,6 @@ def test_bead_page_url_text_handles_url_shapes_and_preserves_overflow() -> None:
         COLOR_PLAN_PATH_BASENAME,
     ]
     assert all(
-        text.overflow == "ignore" and text.no_wrap is True
+        text.overflow is None and text.no_wrap is None
         for text in (trailing_text, bare_text, multibyte_text)
     )

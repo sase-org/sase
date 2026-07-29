@@ -144,13 +144,12 @@ def test_plan_summary_renders_recorded_bead_page_after_bead_row() -> None:
     rendered = Text.from_markup(markup)
     lines = rendered.plain.splitlines()
     bead_index = lines.index("   Bead: sase-ao")
+    page_line = "   Page: " + page_url
 
-    assert lines[bead_index + 1 : bead_index + 3] == ["   Page:", page_url]
-    assert lines[bead_index + 2].startswith("https://")
-    assert not lines[bead_index + 2][0].isspace()
+    assert lines[bead_index + 1] == page_line
     assert rendered.plain.count(page_url) == 1
-    assert cell_len(page_url) > 76
-    assert all(cell_len(line) <= 76 for line in lines if line != page_url)
+    assert cell_len(page_line) > 76
+    assert all(cell_len(line) <= 76 for line in lines if line != page_line)
 
     console = Console()
     prefix_style = rendered.get_style_at_offset(
@@ -196,7 +195,7 @@ def test_plan_summary_resolves_bare_bead_provenance_live(
     rendered = Text.from_markup(captured.out)
     lines = rendered.plain.splitlines()
     bead_index = lines.index("   Bead: sase-older")
-    assert lines[bead_index + 1 : bead_index + 3] == ["   Page:", page_url]
+    assert lines[bead_index + 1] == "   Page: " + page_url
     assert captured.err == ""
 
 

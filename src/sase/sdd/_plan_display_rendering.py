@@ -24,7 +24,7 @@ from ._plan_display_models import (
 PLAN_SECTION_LABEL = "PLAN"
 PLAN_SECTION_MAX_WIDTH = 80
 PLAN_FIELD_LABEL_WIDTH = cell_len("  Title: ")
-BEAD_PAGE_ROW_LABEL = "   Page:"
+BEAD_PAGE_ROW_LABEL = "   Page: "
 
 COLOR_PLAN_SUBHEADER = "bold #AF87FF"
 COLOR_PLAN_PRIMARY = "bold #D7AFFF"
@@ -144,13 +144,21 @@ def _provenance_value(section: PlanProvenanceSection) -> Text:
 def bead_page_url_text(url: str) -> Text:
     """Style a hosted bead-page URL like the canonical plan path row."""
     dirname, separator, basename = url.rpartition("/")
-    text = Text(overflow="ignore", no_wrap=True)
+    text = Text()
     if separator:
         text.append(dirname + separator, style=COLOR_PLAN_PATH)
         text.append(basename, style=COLOR_PLAN_PATH_BASENAME)
     else:
         text.append(url, style=COLOR_PLAN_PATH_BASENAME)
     return text
+
+
+def _bead_page_line(url: str) -> Text:
+    """Compose the page label and complete URL as one reflowable line."""
+    line = Text()
+    line.append(BEAD_PAGE_ROW_LABEL, style=COLOR_PLAN_SUMMARY)
+    line.append_text(bead_page_url_text(url))
+    return line
 
 
 def plan_phase_metadata(phase: PlanDisplayPhase) -> Text:
@@ -218,7 +226,11 @@ def render_plan_document(
     hint_number: int | None = None,
     bead_page_url: str | None = None,
 ) -> _RenderedPlanDocument:
-    """Render complete Rich lines at ``width`` without filesystem access."""
+    """Render complete Rich lines at ``width`` without filesystem access.
+
+    The optional page line may exceed ``width`` and is emitted unwrapped so the
+    viewport can reflow it without inserting whitespace inside the URL.
+    """
     width = max(width, PLAN_FIELD_LABEL_WIDTH + 1)
     header = plan_lane_header(summary)
     header.rstrip()
@@ -248,20 +260,10 @@ def render_plan_document(
         value = _provenance_value(section)
         intro.extend(_render_field_lines(label, value, width=width))
         if bead_page_url is not None and section.kind is PlanHeaderSectionKind.BEAD:
-            intro.extend(
-                (
-                    Text(BEAD_PAGE_ROW_LABEL, style=COLOR_PLAN_SUMMARY),
-                    bead_page_url_text(bead_page_url),
-                )
-            )
+            intro.append(_bead_page_line(bead_page_url))
             page_rendered = True
     if bead_page_url is not None and not page_rendered:
-        intro.extend(
-            (
-                Text(BEAD_PAGE_ROW_LABEL, style=COLOR_PLAN_SUMMARY),
-                bead_page_url_text(bead_page_url),
-            )
-        )
+        intro.append(_bead_page_line(bead_page_url))
 
     phase_blocks: list[tuple[Text, ...]] = []
     if summary.phase_availability == "available":

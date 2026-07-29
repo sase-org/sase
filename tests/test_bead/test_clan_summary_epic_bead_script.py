@@ -212,15 +212,16 @@ def test_epic_summary_places_bead_page_after_plan_reference() -> None:
     plan_index = next(
         index for index, line in enumerate(lines) if line.startswith("Plan: ")
     )
-    page_index = lines.index("Page:")
+    page_index = next(
+        index for index, line in enumerate(lines) if line.startswith("Page: ")
+    )
+    page_line = "Page: " + page_url
 
     assert page_index > plan_index
     assert lines[page_index - 1]
-    assert lines[page_index + 1] == page_url
-    assert lines[page_index + 1].startswith("https://")
-    assert not lines[page_index + 1][0].isspace()
+    assert lines[page_index] == page_line
     assert rendered.plain.count(page_url) == 1
-    assert all(cell_len(line) <= 76 for line in lines if line != page_url)
+    assert all(cell_len(line) <= 76 for line in lines if line != page_line)
 
 
 def test_epic_summary_separates_page_region_without_plan_reference() -> None:
@@ -236,15 +237,16 @@ def test_epic_summary_separates_page_region_without_plan_reference() -> None:
 
     rendered = Text.from_markup(_render_epic_summary(epic, (), page_url=page_url))
     lines = rendered.plain.splitlines()
-    page_index = lines.index("Page:")
+    page_index = next(
+        index for index, line in enumerate(lines) if line.startswith("Page: ")
+    )
+    page_line = "Page: " + page_url
 
     assert lines[page_index - 1] == ""
-    assert lines[page_index + 1] == page_url
-    assert lines[page_index + 1].startswith("https://")
-    assert not lines[page_index + 1][0].isspace()
+    assert lines[page_index] == page_line
     assert rendered.plain.count(page_url) == 1
     assert "Plan:" not in rendered.plain
-    assert all(cell_len(line) <= 76 for line in lines if line != page_url)
+    assert all(cell_len(line) <= 76 for line in lines if line != page_line)
 
 
 def test_bead_page_url_reflows_without_inserting_whitespace() -> None:
@@ -262,9 +264,12 @@ def test_bead_page_url_reflows_without_inserting_whitespace() -> None:
         emoji=False,
     )
 
+    page_line = Text()
+    page_line.append("Page: ", style="bold dim")
+    page_line.append_text(bead_page_url_text(page_url))
     fragments = [
         line.plain
-        for line in bead_page_url_text(page_url).wrap(
+        for line in page_line.wrap(
             console,
             width,
             overflow="fold",
@@ -273,8 +278,9 @@ def test_bead_page_url_reflows_without_inserting_whitespace() -> None:
     ]
 
     assert len(fragments) > 1
-    assert all(fragment and not fragment[0].isspace() for fragment in fragments)
-    assert "".join(fragments) == page_url
+    assert fragments[0] == "Page: "
+    assert all(fragment and not fragment[0].isspace() for fragment in fragments[1:])
+    assert "".join(fragments[1:]) == page_url
 
 
 def test_epic_summary_many_phases_stays_parseable_and_below_internal_budget() -> None:

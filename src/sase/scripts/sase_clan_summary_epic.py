@@ -403,12 +403,10 @@ def _bead_page_block_lines(
 ) -> tuple[Text, ...]:
     """Render the trailing bead-page reference region."""
     lines: list[Text] = [Text()] if leading_blank else []
-    lines.extend(
-        (
-            Text("Page:", style="bold dim"),
-            bead_page_url_text(page_url),
-        )
-    )
+    page_line = Text()
+    page_line.append("Page: ", style="bold dim")
+    page_line.append_text(bead_page_url_text(page_url))
+    lines.append(page_line)
     return tuple(lines)
 
 
