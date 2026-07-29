@@ -174,6 +174,17 @@ def run_agent_launch_body(
         )
         multi.segments = [record.prompt for record in expanded_records]
         multi.template_groups = [record.template_group for record in expanded_records]
+        from sase.agent.agent_name_keys import resolve_agent_name_key_markers
+
+        if len(multi.segments) == 1 and expanded_records[0].template_group is None:
+            # Preserve local-xprompt frontmatter for the later single-agent
+            # parse. parse_multi_prompt() deliberately strips it from
+            # ``segments``, but no swarm expansion replaced this prompt.
+            prompt = resolve_agent_name_key_markers([prompt])[0]
+        else:
+            multi.segments = resolve_agent_name_key_markers(multi.segments)
+            if len(multi.segments) == 1:
+                prompt = multi.segments[0]
     if len(multi.segments) > 1:
         if ctx.is_home_mode:
             multi.segments = [

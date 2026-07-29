@@ -145,6 +145,10 @@ def launch_agents_from_cwd_impl(
             record.template_group for record in expanded_records
         ]
 
+    from sase.agent.agent_name_keys import resolve_agent_name_key_markers
+
+    expanded_segments = resolve_agent_name_key_markers(expanded_segments)
+
     if not expanded_segments:
         return []
 

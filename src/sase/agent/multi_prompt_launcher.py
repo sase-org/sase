@@ -92,6 +92,9 @@ def launch_multi_prompt_agents(
     if allow_hyphenated_names is not None:
         allow_reserved_family_separator_names = allow_hyphenated_names
 
+    from sase.agent.agent_name_keys import resolve_agent_name_key_markers
+
+    segments = resolve_agent_name_key_markers(segments)
     results: list[AgentLaunchResult] = []
     timestamp_allocator = LaunchTimestampBatchAllocator()
 

@@ -8,6 +8,7 @@ without polling ``agent_meta.json``.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -135,6 +136,50 @@ def test_single_prompt_launch_result_carries_explicit_name(
     assert results[0].agent_name == "foo"
     kwargs = spawn.call_args.kwargs
     assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "foo"
+
+
+def test_single_prompt_resolves_keyed_name_before_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_no_workspace_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agents_from_cwd
+
+    spawn = _make_spawn_capture()
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000"],
+        ),
+        patch(
+            "sase.agent.agent_name_keys.agent_name_allocation_lock",
+            return_value=nullcontext(),
+        ),
+        patch(
+            "sase.agent.agent_name_keys.iter_agent_name_template_tokens",
+            return_value=iter(["o"]),
+        ),
+        patch(
+            "sase.agent.agent_name_keys.get_reserved_agent_names",
+            return_value=set(),
+        ),
+        patch(
+            "sase.agent.agent_name_keys.get_reserved_clan_names",
+            return_value=set(),
+        ),
+        patch("sase.agent.names.get_reserved_agent_names", return_value=set()),
+        patch("sase.agent.launcher.spawn_agent_subprocess", spawn),
+        patch("sase.running_field.get_first_available_axe_workspace"),
+        patch("sase.running_field.get_workspace_directory_for_num"),
+    ):
+        results = launch_agents_from_cwd("%id:research.{@1!}.cdx\ndo work")
+
+    assert results[0].agent_name == "research.o.cdx"
+    assert spawn.call_args.kwargs["prompt"] == "%id:research.o.cdx\ndo work"
 
 
 def test_configured_single_prompt_publishes_qualified_planned_name(

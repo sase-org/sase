@@ -122,6 +122,14 @@ def extract_directives_and_write_meta(
         extra_xprompts=multi.local_xprompts or None,
         defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
     )
+    from sase.agent.agent_name_keys import has_unresolved_agent_name_key_marker
+
+    if has_unresolved_agent_name_key_marker(expanded_for_directives):
+        raise RuntimeError(
+            "Agent prompt still contains an unresolved keyed agent-name marker. "
+            "The parent launch pipeline failed to resolve keyed markers before "
+            "starting the runner."
+        )
     _, directives = extract_prompt_directives(expanded_for_directives)
     bead_id = directives.bead_id
     if bead_id is not None:

@@ -12,6 +12,7 @@ under ``agent_launch_vcs/``.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 import threading
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -38,6 +39,36 @@ def test_run_agent_launch_body_skips_xprompt_processing_for_plain_prompt() -> No
     assert app.launch_thread_ids == [body_thread_id]
     assert len(outcome.results) == 1
     assert app.refresh_count == 0
+
+
+def test_run_agent_launch_body_spawns_the_resolved_keyed_prompt() -> None:
+    app = _LaunchBodyApp()
+
+    with (
+        patch(
+            "sase.agent.agent_name_keys.agent_name_allocation_lock",
+            return_value=nullcontext(),
+        ),
+        patch(
+            "sase.agent.agent_name_keys.iter_agent_name_template_tokens",
+            return_value=iter(["o"]),
+        ),
+        patch(
+            "sase.agent.agent_name_keys.get_reserved_agent_names",
+            return_value=set(),
+        ),
+        patch(
+            "sase.agent.agent_name_keys.get_reserved_clan_names",
+            return_value=set(),
+        ),
+    ):
+        _run_launch_body_with_common_patches(
+            app,
+            "%id:research.{@1!}.cdx\nDo work",
+        )
+
+    assert len(app.launched) == 1
+    assert app.launched[0]["prompt"] == "%id:research.o.cdx\nDo work"
 
 
 def test_run_agent_launch_body_expands_possible_xprompt_for_model_dispatch() -> None:
