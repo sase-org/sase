@@ -12,6 +12,7 @@ from sase.xprompt._disabled_regions import (
     protect_disabled_regions,
     unprotect_disabled_regions,
 )
+from sase.xprompt._directive_types import KEY_MARKER_PATTERN
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 
 from sase.output import print_status
@@ -57,10 +58,15 @@ _MAX_EXPANSION_ITERATIONS = 100
 #   - #name:`arg` - colon syntax with backtick-delimited arg (any content)
 #   - #name:$(cmd) - colon syntax with command substitution
 #   - #name+ - plus syntax, equivalent to #name:true
+# The colon arg also admits a keyed `{@<id>}` agent-name marker as an
+# indivisible unit, so #fork:research.{@1!}.final survives lexing.
 _XPROMPT_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"  # Group 1: xprompt name with optional namespace
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,+/@-]*[a-zA-Z0-9_~,+/@-])|(\+))?"  # Group 2: open paren OR Group 3: colon arg (backtick, $(cmd), or word) OR Group 4: plus
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|"  # Group 2: open paren OR Group 3: colon arg (backtick, $(cmd), or word)
+    rf"(?:{KEY_MARKER_PATTERN}|[a-zA-Z0-9_.~,+/@-])*"  # arg body
+    rf"(?:{KEY_MARKER_PATTERN}|[a-zA-Z0-9_~,+/@-])"  # arg must not end in .
+    r")|(\+))?"  # Group 4: plus
 )
 
 _COMMON_VCS_XPROMPT_NAMES = frozenset({"gh", "git", "p4"})

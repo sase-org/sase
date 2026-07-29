@@ -217,3 +217,25 @@ def test_xprompt_pattern_double_underscore_with_args() -> None:
     assert match is not None
     assert match.group(1) == "foo__bar"
     assert match.group(2) == "("
+
+
+def test_xprompt_pattern_keeps_keyed_agent_name_marker() -> None:
+    """A keyed `{@<id>}` marker survives inside a colon argument."""
+    match = re.search(_XPROMPT_PATTERN, "#fork:research.{@1}.final")
+    assert match is not None
+    assert match.group(1) == "fork"
+    assert match.group(3) == "research.{@1}.final"
+
+
+def test_xprompt_pattern_keeps_qualified_keyed_marker() -> None:
+    """The `!` qualification suffix is part of the colon argument."""
+    match = re.search(_XPROMPT_PATTERN, "#fork:research.{@swarm.1!}.final")
+    assert match is not None
+    assert match.group(3) == "research.{@swarm.1!}.final"
+
+
+def test_xprompt_pattern_keeps_marker_that_ends_the_argument() -> None:
+    """A trailing `}` is accepted as the final argument character."""
+    match = re.search(_XPROMPT_PATTERN, "#resume:research.{@1}")
+    assert match is not None
+    assert match.group(3) == "research.{@1}"

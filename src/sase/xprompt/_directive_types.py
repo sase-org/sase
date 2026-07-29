@@ -9,13 +9,22 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
+# A keyed `{@<id>}` / `{@<id>!}` agent-name marker. Colon arguments admit this
+# as an indivisible unit rather than adding `{}` to their character classes: a
+# loose `}` would let `%m:#codex}` swallow the closing brace of the enclosing
+# `%{a | b}` fan-out group.
+KEY_MARKER_PATTERN = r"\{@[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)*!?\}"
+
 # Pattern to match directive references: %id, %id(, %id:arg, %id:`arg`, %id+
 # Mirrors _XPROMPT_PATTERN from processor.py but with % prefix.
 # The colon-arg character class is expanded to include # (for xprompt refs in args).
 _DIRECTIVE_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"%([a-zA-Z_][a-zA-Z0-9_]*)"  # Group 1: directive name
-    r"(?:(\()|:(`[^`]*`|[!a-zA-Z0-9_#/.,()@=-]*[a-zA-Z0-9_#/,()@=-])|(\+))?"  # Group 2: paren OR Group 3: colon arg OR Group 4: plus
+    r"(?:(\()|:(`[^`]*`|"  # Group 2: paren OR Group 3: colon arg
+    rf"(?:{KEY_MARKER_PATTERN}|[!a-zA-Z0-9_#/.,()@=-])*"  # arg body
+    rf"(?:{KEY_MARKER_PATTERN}|[a-zA-Z0-9_#/,()@=-])"  # arg must not end in . or !
+    r")|(\+))?"  # Group 4: plus
 )
 
 # Known directive names

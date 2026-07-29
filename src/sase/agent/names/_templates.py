@@ -50,12 +50,36 @@ class AgentNameTemplateNotFoundError(AgentNameTemplateError):
 
 
 @dataclass(frozen=True)
+class AgentNameTemplateKey:
+    """Resolution key carried by a braced ``{@<id>}`` marker."""
+
+    id: str
+    qualified: bool
+
+
+@dataclass(frozen=True)
+class AgentNameKeyMarker:
+    """One agent-name marker located in arbitrary text.
+
+    ``id`` is ``None`` for the bare ``@`` marker, which carries no key.
+    """
+
+    start: int
+    end: int
+    id: str | None
+    qualified: bool
+    braced: bool
+
+
+@dataclass(frozen=True)
 class AgentNameTemplate:
     """Parsed one-marker agent-name template."""
 
     template: str
     prefix: str
     suffix: str
+    marker: str = AGENT_NAME_TEMPLATE_MARKER
+    key: AgentNameTemplateKey | None = None
 
 
 @dataclass
@@ -155,6 +179,48 @@ def parse_agent_name_template(template: str) -> AgentNameTemplate:
         template=str(payload["template"]),
         prefix=str(payload["prefix"]),
         suffix=str(payload["suffix"]),
+        marker=str(payload["marker"]),
+        key=_template_key(payload["key"]),
+    )
+
+
+def agent_name_template_key(template: str) -> AgentNameTemplateKey | None:
+    """Return the resolution key carried by *template*, if it has one.
+
+    A bare ``@`` template has no key and yields ``None``.
+    """
+    try:
+        payload = _core("agent_name_template_key")(template)
+    except ValueError as exc:
+        raise _template_error(template, exc) from exc
+    return _template_key(payload)
+
+
+def iter_agent_name_key_markers(text: str) -> list[AgentNameKeyMarker]:
+    """Return every agent-name marker in *text*, in appearance order.
+
+    This is a purely lexical scan over arbitrary text, so directives, named
+    arguments, and prose are all reported by the same pass. Both the braced
+    ``{@<id>}`` form and the bare ``@`` marker are included.
+    """
+    return [
+        AgentNameKeyMarker(
+            start=int(payload["start"]),
+            end=int(payload["end"]),
+            id=None if payload["id"] is None else str(payload["id"]),
+            qualified=bool(payload["qualified"]),
+            braced=bool(payload["braced"]),
+        )
+        for payload in _core("iter_agent_name_key_markers")(text)
+    ]
+
+
+def _template_key(payload: Any) -> AgentNameTemplateKey | None:
+    if payload is None:
+        return None
+    return AgentNameTemplateKey(
+        id=str(payload["id"]),
+        qualified=bool(payload["qualified"]),
     )
 
 
@@ -165,8 +231,8 @@ def agent_name_template_base(template: str) -> str:
     ``<base>-@`` template base as a display/context key. It is not used for
     allocation semantics.
     """
-    parse_agent_name_template(template)
-    base = template.replace(AGENT_NAME_TEMPLATE_MARKER, "")
+    parsed = parse_agent_name_template(template)
+    base = template.replace(parsed.marker, "")
     base = re.sub(r"([.-])\1+", r"\1", base).strip(".-")
     return base or template
 

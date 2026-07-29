@@ -30,7 +30,7 @@ def _load_tool() -> ModuleType:
 def test_declared_minimum_tracks_pyproject_dependency() -> None:
     tool = _load_tool()
 
-    assert tool.declared_minimum_version(ROOT / "pyproject.toml") == "0.12.5"
+    assert tool.declared_minimum_version(ROOT / "pyproject.toml") == "0.12.8"
 
 
 def test_declared_minimum_requires_inclusive_floor(tmp_path: Path) -> None:

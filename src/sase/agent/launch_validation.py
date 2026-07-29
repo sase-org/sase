@@ -102,6 +102,20 @@ class AgentNameSyntaxError(_LaunchNameValidationError):
         )
 
 
+class _AgentNameUnresolvedKeyMarkerError(_LaunchNameValidationError):
+    """Raised when a keyed ``{@<id>}`` marker survives into a name claim."""
+
+    def __init__(self, name: str, marker: str) -> None:
+        self.name = name
+        self.marker = marker
+        super().__init__(
+            f"Agent name '{name}' still contains the unresolved agent-name "
+            f"marker '{marker}'. The launch pipeline is responsible for "
+            "resolving keyed markers into concrete names before an agent "
+            "claims one; reaching a claim means that resolution was skipped."
+        )
+
+
 class AgentNameForeignMachineError(_LaunchNameValidationError):
     """Raised when a launch names another configured machine's agent."""
 
@@ -128,6 +142,7 @@ def validate_user_agent_name(name: str) -> None:
     """
     if AGENT_FAMILY_SEPARATOR in name:
         raise AgentNameSyntaxError(name)
+    _reject_unresolved_key_marker(name)
     from sase.core.agent_identity_facade import (
         AgentIdentitySnapshot,
         foreign_agent_owner_root,
@@ -141,6 +156,19 @@ def validate_user_agent_name(name: str) -> None:
             foreign_machine,
             identity.owner.machine_name,
         )
+
+
+def _reject_unresolved_key_marker(name: str) -> None:
+    """Fail loudly when a keyed marker reaches a concrete-name code path."""
+    if "{@" not in name:
+        return
+    from sase.agent.names import iter_agent_name_key_markers
+
+    for marker in iter_agent_name_key_markers(name):
+        if marker.braced:
+            raise _AgentNameUnresolvedKeyMarkerError(
+                name, name[marker.start : marker.end]
+            )
 
 
 def internal_agent_name_bypass_enabled(

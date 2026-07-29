@@ -143,3 +143,31 @@ def test_name_template_middle_shape_arg() -> None:
     assert directives.name_template == "research.@.final"
     assert directives.name_template_base == "research.final"
     assert directives.name_indexed_template is True
+
+
+@pytest.mark.parametrize(
+    ("prompt", "expected"),
+    [
+        ("%id:research.{@1}.cdx\nDo work", "research.{@1}.cdx"),
+        ("%id:research.{@swarm.1!}.cdx\nDo work", "research.{@swarm.1!}.cdx"),
+        ("%i(research.{@1}.cdx)\nDo work", "research.{@1}.cdx"),
+    ],
+)
+def test_id_directive_keeps_keyed_agent_name_marker(prompt: str, expected: str) -> None:
+    """`%id` arguments are not truncated at the marker's braces."""
+    _, directives = extract_prompt_directives(prompt)
+
+    assert directives.name == expected
+    assert directives.name_template == expected
+
+
+def test_clan_directive_keeps_keyed_agent_name_marker() -> None:
+    """`%clan` accepts a keyed marker in both colon and paren forms."""
+    _, colon = extract_prompt_directives("%clan:research.{@1}\nDo work")
+    _, paren = extract_prompt_directives(
+        "%clan(research.{@1}, tribe=research)\nDo work"
+    )
+
+    assert colon.clan == "research.{@1}"
+    assert paren.clan == "research.{@1}"
+    assert paren.clan_tribe == "research"

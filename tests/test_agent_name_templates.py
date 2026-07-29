@@ -7,14 +7,17 @@ from itertools import islice
 import pytest
 
 from sase.agent.names import (
+    AgentNameTemplateKey,
     AgentNameTemplateNotFoundError,
     InvalidAgentNameTemplateError,
     AgentNameNamespaceReservationIndex,
     agent_name_template_base,
+    agent_name_template_key,
     agent_name_template_namespace_template,
     allocate_agent_name_template,
     compare_agent_name_template_tokens,
     is_agent_name_template,
+    iter_agent_name_key_markers,
     iter_agent_name_template_tokens,
     latest_agent_name_template,
     match_agent_name_template,
@@ -206,3 +209,85 @@ def test_latest_uses_canonical_conditional_separator_shapes() -> None:
 def test_require_latest_raises_typed_error() -> None:
     with pytest.raises(AgentNameTemplateNotFoundError, match="review-@"):
         require_latest_agent_name_template("review-@", names={"review", "review.x"})
+
+
+def test_parse_reports_keyed_marker_and_key() -> None:
+    parsed = parse_agent_name_template("research.{@1}.cdx")
+
+    assert parsed.prefix == "research."
+    assert parsed.suffix == ".cdx"
+    assert parsed.marker == "{@1}"
+    assert parsed.key == AgentNameTemplateKey(id="1", qualified=False)
+
+
+def test_parse_reports_qualified_key() -> None:
+    parsed = parse_agent_name_template("research.{@swarm.1!}")
+
+    assert parsed.marker == "{@swarm.1!}"
+    assert parsed.key == AgentNameTemplateKey(id="swarm.1", qualified=True)
+
+
+def test_parse_reports_no_key_for_bare_marker() -> None:
+    parsed = parse_agent_name_template("build-@")
+
+    assert parsed.marker == "@"
+    assert parsed.key is None
+
+
+def test_agent_name_template_key_wrapper() -> None:
+    assert agent_name_template_key("research.{@1}.cdx") == AgentNameTemplateKey(
+        id="1", qualified=False
+    )
+    assert agent_name_template_key("build-@") is None
+
+
+def test_agent_name_template_key_rejects_invalid_template() -> None:
+    with pytest.raises(InvalidAgentNameTemplateError):
+        agent_name_template_key("research.{@1}.{@2}")
+
+
+def test_keyed_template_renders_and_matches_like_a_bare_marker() -> None:
+    assert render_agent_name_template("research.{@1}.cdx", "o") == "research.o.cdx"
+    assert render_agent_name_template("foo{@1}", "o") == "foo-o"
+    assert render_agent_name_template("{@1}.cdx", "o") == "o.cdx"
+    assert match_agent_name_template("research.{@1}.cdx", "research.o.cdx") == "o"
+    assert match_agent_name_template("research.{@1}.cdx", "other.o.cdx") is None
+
+
+def test_keyed_template_namespace_keeps_the_marker() -> None:
+    assert (
+        agent_name_template_namespace_template("research.{@1}.cdx") == "research.{@1}"
+    )
+    assert render_agent_name_template_namespace("research.{@1}.cdx", "o") == (
+        "research.o"
+    )
+
+
+def test_keyed_value_is_recognized_as_a_template() -> None:
+    assert is_agent_name_template("research.{@1}.cdx") is True
+    assert is_agent_name_template("research.{@1!}") is True
+    assert is_agent_name_template("research.cdx") is False
+
+
+def test_iter_key_markers_finds_prose_and_directive_occurrences() -> None:
+    text = "%id:research.{@1}.cdx reads `research.{@1}.cld` then bare @ wins"
+
+    markers = iter_agent_name_key_markers(text)
+
+    assert [marker.id for marker in markers] == ["1", "1", None]
+    assert [marker.braced for marker in markers] == [True, True, False]
+    assert all(text[marker.start : marker.end] == "{@1}" for marker in markers[:2])
+    assert text[markers[2].start : markers[2].end] == "@"
+
+
+def test_iter_key_markers_reports_qualification() -> None:
+    markers = iter_agent_name_key_markers("{@a} and {@b!}")
+
+    assert [(marker.id, marker.qualified) for marker in markers] == [
+        ("a", False),
+        ("b", True),
+    ]
+
+
+def test_iter_key_markers_ignores_non_marker_braces() -> None:
+    assert iter_agent_name_key_markers("{{ prompt }} {@} { @1 } {@-bad}") == []
