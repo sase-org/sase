@@ -215,6 +215,15 @@ def test_a_missing_root_is_not_an_error(tmp_path: Path) -> None:
     assert not result.capped
 
 
+@pytest.mark.parametrize(
+    "unsafe_root",
+    [Path("/"), Path("/tmp"), Path("/var/tmp"), Path.cwd(), Path.cwd().parent],
+)
+def test_broad_cleanup_roots_are_rejected(unsafe_root: Path) -> None:
+    with pytest.raises(ValueError, match="dedicated directory"):
+        reap_managed_tmpdir(unsafe_root, now=NOW)
+
+
 def test_describe_names_the_busiest_buckets(tmp_path: Path) -> None:
     for index in range(3):
         _aged_file(tmp_path, f"editors/n{index}.md", age_seconds=13 * HOUR)

@@ -415,6 +415,20 @@ def test_configured_pytest_tmpdir_rejects_empty_override(
         runner._configured_pytest_tmpdir()
 
 
+@pytest.mark.parametrize(
+    "unsafe_root",
+    [Path("/"), Path("/tmp"), Path("/var/tmp"), ROOT, ROOT.parent],
+)
+def test_configured_pytest_tmpdir_rejects_broad_cleanup_targets(
+    monkeypatch: pytest.MonkeyPatch, unsafe_root: Path
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(unsafe_root))
+
+    with pytest.raises(pytest.UsageError, match="dedicated scratch directory"):
+        runner._configured_pytest_tmpdir()
+
+
 def test_reaper_removes_only_stale_pytest_run_directories(tmp_path: Path) -> None:
     runner = _load_run_pytest()
     user_root = tmp_path / "pytest-of-user"

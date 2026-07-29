@@ -124,7 +124,7 @@ def reap_managed_tmpdir(
     *max_removals* entries have been removed, so a long-neglected root
     converges across invocations instead of stalling one of them.
     """
-    reap_root = managed_tmpdir_root() if root is None else root
+    reap_root = _validated_reap_root(managed_tmpdir_root() if root is None else root)
     clock = time.time() if now is None else now
 
     scanned = 0
@@ -178,6 +178,19 @@ def reap_managed_tmpdir(
         deindexed=deindexed,
         capped=capped,
     )
+
+
+def _validated_reap_root(root: Path) -> Path:
+    """Reject broad roots whose children cannot all be assumed disposable."""
+    resolved = root.expanduser().resolve()
+    cwd = Path.cwd().resolve()
+    if resolved in {Path("/"), Path("/tmp"), Path("/var/tmp")} or (
+        resolved == cwd or resolved in cwd.parents
+    ):
+        raise ValueError(
+            f"managed SASE temp root must be a dedicated directory, not {resolved}"
+        )
+    return resolved
 
 
 def _iter_children(directory: Path) -> list[Path]:

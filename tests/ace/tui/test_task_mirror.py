@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -122,6 +123,7 @@ def test_mirror_writes_row_log_and_terminal_update(sandboxed_home: Path) -> None
         assert row.workspace_num == 14
         assert row.cl_name == "sase-42"
         assert row.tags == ["ace", "sync"]
+        assert row.pid == os.getpid()
         assert "remote: counting objects" in read_task_log_tail(task_id, 10)
 
         info.log.append("second line")
@@ -286,28 +288,31 @@ def test_mirror_tick_reconciles_and_mirrors_progress(
     monkeypatch: pytest.MonkeyPatch, sandboxed_home: Path
 ) -> None:
     del sandboxed_home
+    caller = threading.get_ident()
     reconciled: list[str] = []
-    monkeypatch.setattr(
-        tm, "reconcile_running_tasks", lambda: reconciled.append("swept") or []
-    )
+
+    def reconcile() -> list[Any]:
+        if threading.get_ident() == caller:
+            reconciled.append("swept")
+        return []
+
+    monkeypatch.setattr(tm, "reconcile_running_tasks", reconcile)
     updates: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        tm,
-        "update_task",
-        lambda task_id, **changes: updates.append({"task_id": task_id, **changes}),
-    )
+
+    def update(task_id: str, **changes: Any) -> None:
+        if threading.get_ident() == caller:
+            updates.append({"task_id": task_id, **changes})
+
+    monkeypatch.setattr(tm, "update_task", update)
 
     mirror = TaskMirror()
-    assert mirror.start() is True
-    try:
-        info = _task_info()
-        task_id = mirror.track(info)
-        assert mirror.flush(timeout=5.0) is True
+    info = _task_info()
+    task_id = "mirrored-progress"
+    info.durable_task_id = task_id
+    mirror._handle_track(tm._TrackOp(info=info, cl_name=None))
 
-        info.phase = "Fetching"
-        mirror._tick()
-    finally:
-        _stop(mirror)
+    info.phase = "Fetching"
+    mirror._tick()
 
     assert reconciled == ["swept"]
     assert updates == [{"task_id": task_id, "status": "running", "phase": "Fetching"}]

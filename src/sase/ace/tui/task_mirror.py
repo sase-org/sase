@@ -265,6 +265,7 @@ class TaskMirror:
                 origin=MIRROR_ORIGIN,
                 cl_name=op.cl_name or info.cl_name or None,
                 tags=sorted({MIRROR_ORIGIN, info.task_type} - {""}),
+                pid=os.getpid(),
                 phase=info.phase,
                 message=info.message or None,
                 created_at=created_at,
