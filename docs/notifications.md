@@ -195,26 +195,78 @@ notification includes the `memory` tag, evidence entries that resolved to local 
 the entry point. Proposal creation still succeeds if notification delivery fails, and the CLI reports the notification
 id when delivery succeeds.
 
+### Report Notifications
+
+Any producer — a chop, a hook, or an agent — may attach a structured report to a notification by setting
+`action: "ViewReport"`. The report is a **chop report document** (`{"title": ..., "blocks": [...]}`), the same artifact
+`sase.chops.ChopReport` builds and the AXE tab already renders, so the notification carries no producer-private schema.
+
+`action_data` describes where the document lives:
+
+| Key            | Meaning                                                                                 |
+| -------------- | --------------------------------------------------------------------------------------- |
+| `report_path`  | Absolute (or `~`-prefixed) path to a JSON report document the producer keeps up to date |
+| `report`       | A JSON-encoded report document embedded in the notification — an immutable snapshot     |
+| `report_title` | Optional display title override; otherwise the document's own `title`, else `"Report"`  |
+
+Both keys are optional and both may be present. Resolution order, and the provenance the reader sees:
+
+1. `report_path` resolves, loads, and validates → **live**, stamped with the file's mtime (`live · updated 2m ago`).
+2. Otherwise `report` parses and validates → **snapshot**, stamped with the notification timestamp
+   (`snapshot · captured 3h ago`).
+3. Otherwise → one explicit failure line naming the reason, plus the path that was tried. Never an exception, never an
+   empty pane.
+
+Pointing at a stable published path lets an hours-old notification open the _current_ picture, while the inline snapshot
+guarantees the pane still renders honestly if the producer's state was wiped.
+
+The loader (`sase.notifications.load_notification_report`) is fail-closed and never raises. It performs no network
+access and no subprocess calls, and it rejects:
+
+- a relative or `~`-unexpandable path, a missing path, or a path that is not a regular file;
+- a file larger than 256 KiB — a size failure, not a truncation;
+- content that is not a JSON object, or that fails chop-report validation through the Rust schema authority
+  (`sase.chops.validate_chop_report`).
+
+Every failure becomes a bounded, human-readable `error` string such as `report file not found`,
+`report file is too large (312 KiB)`, or ``report document is invalid: unknown variant `bogus` ``. Rendering is safe by
+construction: `render_chop_report` builds Rich text with explicit styles and never interprets console markup or ANSI
+from the document.
+
+In ACE, selecting a `ViewReport` notification renders the report in the modal's right pane under its provenance line,
+with a dim `attachments:` footer when the notification also carries files. Pressing Enter re-reads the document and
+opens the full-screen report modal, so the modal always shows the freshest published report rather than the pane's
+cached load. That modal binds `Ctrl+D`/`Ctrl+U` for half-page scrolling, `j`/`k` for lines, `g`/`G` for top/bottom, `y`
+to copy the report path, `e` to open the file in `$EDITOR`, and `Esc`/`q` to close. `y` and `e` warn instead for an
+inline snapshot, which has no file path. `ViewReport` is an ordinary informational action: selecting it marks the
+notification read.
+
+### Action-less Notifications
+
+A notification with no `action` is a valid, common shape — an informational row with nothing to open. Selecting one in
+ACE marks it read and does nothing else; it is a silent no-op, not a producer error. Only a non-empty `action` string
+this build does not recognize produces an "Unsupported notification action" warning.
+
 ## Notification Fields
 
 Each notification contains:
 
-| Field          | Type         | Description                                                                                            |
-| -------------- | ------------ | ------------------------------------------------------------------------------------------------------ |
-| `id`           | string       | UUID4 unique identifier                                                                                |
-| `timestamp`    | string       | ISO-8601 creation timestamp                                                                            |
-| `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                        |
-| `icon`         | string\|null | Optional single emoji or display glyph                                                                 |
-| `notes`        | list[string] | Human-readable message lines                                                                           |
-| `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                   |
-| `tags`         | list[string] | Optional normalized labels for filtering and modal tabs                                                |
-| `action`       | string       | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `UserQuestion`, `LaunchApproval`, etc.            |
-| `action_data`  | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json`  |
-| `read`         | bool         | Whether the notification has been read                                                                 |
-| `dismissed`    | bool         | Whether the notification has been dismissed                                                            |
-| `silent`       | bool         | Silent notifications are stored but hidden from the TUI                                                |
-| `muted`        | bool         | Muted notifications appear under `Muted` and are excluded from the indicator, arrival bell, and toasts |
-| `snooze_until` | string\|null | ISO-8601 timestamp at which a snoozed notification automatically un-mutes                              |
+| Field          | Type         | Description                                                                                                                                                     |
+| -------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`           | string       | UUID4 unique identifier                                                                                                                                         |
+| `timestamp`    | string       | ISO-8601 creation timestamp                                                                                                                                     |
+| `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                                                                                 |
+| `icon`         | string\|null | Optional single emoji or display glyph                                                                                                                          |
+| `notes`        | list[string] | Human-readable message lines                                                                                                                                    |
+| `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                                                                            |
+| `tags`         | list[string] | Optional normalized labels for filtering and modal tabs                                                                                                         |
+| `action`       | string\|null | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `UserQuestion`, `LaunchApproval`, `ViewReport`, etc. `null` means the notification is purely informational |
+| `action_data`  | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json`                                                           |
+| `read`         | bool         | Whether the notification has been read                                                                                                                          |
+| `dismissed`    | bool         | Whether the notification has been dismissed                                                                                                                     |
+| `silent`       | bool         | Silent notifications are stored but hidden from the TUI                                                                                                         |
+| `muted`        | bool         | Muted notifications appear under `Muted` and are excluded from the indicator, arrival bell, and toasts                                                          |
+| `snooze_until` | string\|null | ISO-8601 timestamp at which a snoozed notification automatically un-mutes                                                                                       |
 
 ## Silent Notifications
 

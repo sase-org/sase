@@ -592,6 +592,34 @@ Python chop packages should use the public `sase.chops` SDK (`load_chop_invocati
 `ChopResultBuilder`, and `launch_proposal`) for argument parsing, summaries, reports, validation, and atomic result
 writes.
 
+#### Publishing a Report a Notification Can Open
+
+Per-chop run history is capped, so a report that only rides along with a chop result answers "what did this tick do",
+not "where do things stand". A chop that wants the second answer should **publish** a standalone report document into
+its own state directory (`invocation.context.state_dir`) and point a notification at it:
+
+```python
+from sase.chops import ChopReport, validate_chop_report
+
+report = ChopReport(title="RELEASES")
+report.headline("2 merged today · 3 pending", tone="warn")
+document = validate_chop_report(report.to_dict())
+# atomically write `document` to <state_dir>/<name>.report.json on every tick
+```
+
+`validate_chop_report` runs the same Rust chop-result contract used for an embedded `report`, so an invalid document is
+caught before it is written; log and skip that tick rather than raising, leaving the previous good file in place.
+Rewriting the file on every tick — including no-op ticks — is what keeps the published picture fresh without any network
+call or latency inside the TUI.
+
+The notification then carries `action: "ViewReport"` with
+`action_data: {"report_path": "<state_dir>/<name>.report.json", "report_title": "..."}`. Selecting it in ACE renders the
+document in the notification modal's right pane and Enter opens it full-screen; see `docs/notifications.md` for the
+contract, the inline-snapshot alternative, and the fail-closed loader limits. Prefer the published path over inlining a
+snapshot into `action_data` whenever the chop has a durable state directory. Timestamps inside a published document
+should be absolute, because the file may be read long after it was written; relative freshness belongs to the single
+provenance line the reader sees.
+
 #### Triggers, Guards, Dedupe, and Targets
 
 Policy is runner-owned and evaluated before the script:
