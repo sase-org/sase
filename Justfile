@@ -270,6 +270,23 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-av(ArtifactRef)' \
+        --epic-symbol 'sase-av(ArtifactRefContext)' \
+        --epic-symbol 'sase-av(ArtifactRefDocumentRoot)' \
+        --epic-symbol 'sase-av(ArtifactRefFragment)' \
+        --epic-symbol 'sase-av(ArtifactRefPayload)' \
+        --epic-symbol 'sase-av(ArtifactRefProject)' \
+        --epic-symbol 'sase-av(ArtifactRefPromptCandidate)' \
+        --epic-symbol 'sase-av(ArtifactRefRepository)' \
+        --epic-symbol 'sase-av(ArtifactRefResolution)' \
+        --epic-symbol 'sase-av(ArtifactRefSpan)' \
+        --epic-symbol 'sase-av(artifact_ref_context)' \
+        --epic-symbol 'sase-av(canonicalize_artifact_ref)' \
+        --epic-symbol 'sase-av(parse_artifact_ref)' \
+        --epic-symbol 'sase-av(reference_for_entry_target)' \
+        --epic-symbol 'sase-av(render_artifact_ref)' \
+        --epic-symbol 'sase-av(resolve_artifact_ref)' \
+        --epic-symbol 'sase-av(scan_artifact_refs)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

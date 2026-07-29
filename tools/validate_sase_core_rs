@@ -65,6 +65,12 @@ REQUIRED_BINDINGS = (
     "plan_reference_canonicalize",
     "plan_reference_resolve",
     "plan_reference_resolution_wire_schema_version",
+    "artifact_ref_parse",
+    "artifact_ref_render",
+    "artifact_ref_canonicalize",
+    "artifact_ref_resolve",
+    "artifact_ref_scan_prompt",
+    "artifact_ref_wire_schema_version",
     "sdd_artifact_link_parse",
     "sdd_artifact_link_render",
     "sdd_artifact_link_upsert",
@@ -212,9 +218,9 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
     if not isinstance(payload, dict):
         _error("agent statistics work-schema probe returned a non-dict payload")
         return False
-    if payload.get("schema_version") != 3:
+    if payload.get("schema_version") != 4:
         _error(
-            "agent statistics work-schema probe requires schema version 3: "
+            "agent statistics work-schema probe requires schema version 4: "
             f"got {payload.get('schema_version')!r}"
         )
         return False

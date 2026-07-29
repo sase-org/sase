@@ -44,6 +44,7 @@ class PlanRow:
     proposal: PlanProposal | None = None
     issue: Issue | None = None
     archive: PlanSearchMatch | None = None
+    archive_role: str | None = None
 
 
 def _plan_entry_target(
@@ -290,6 +291,7 @@ def build_plan_options(
             option_id,
             project,
             archive=match,
+            archive_role=project_archive.role,
         )
         rows[option_id] = row
         options.append(
