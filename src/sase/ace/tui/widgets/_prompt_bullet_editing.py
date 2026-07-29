@@ -14,6 +14,7 @@ __all__ = [
     "plan_prompt_bullet_shift",
     "prompt_bullet_row_has_bullet_above",
     "prompt_bullet_sibling_prefix",
+    "strip_prompt_bullet_marker",
 ]
 
 
@@ -52,6 +53,21 @@ def _is_bullet_boundary(line: str) -> bool:
 def is_prompt_bullet_marker_only(line: str) -> bool:
     """Return whether *line* is exactly a spaces-only hyphen bullet marker."""
     return _BULLET_MARKER_RE.fullmatch(line) is not None
+
+
+def strip_prompt_bullet_marker(line: str) -> str:
+    """Return *line* without a leading prompt hyphen bullet marker.
+
+    Lines that do not open with the prompt's supported space-indented ``- ``
+    marker -- tight dashes, tab indentation, unsupported markers, thematic
+    breaks -- are returned unchanged.
+    """
+    if _THEMATIC_BREAK_RE.match(line):
+        return line
+    marker = _BULLET_MARKER_RE.match(line)
+    if marker is None:
+        return line
+    return line[marker.end() :]
 
 
 def plan_prompt_bullet_shift(

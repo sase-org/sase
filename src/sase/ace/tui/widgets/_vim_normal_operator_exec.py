@@ -29,6 +29,7 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
             start: tuple[int, int],
             end: tuple[int, int],
         ) -> None: ...
+        def _normal_join_next_line_text(self, next_line: str) -> str: ...
 
     def _execute_charwise_operator(
         self,
@@ -401,7 +402,15 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
             next_line = doc.get_line(row + 1)
             # Strip trailing space on current, leading space on next.
             stripped_cur = cur_line.rstrip()
-            stripped_next = next_line.lstrip()
+            # A fold into real content drops the pulled-up line's structural
+            # prefix; pulling a line onto a blank one folds nothing, so it
+            # stays verbatim.
+            folded_next = (
+                self._normal_join_next_line_text(next_line)
+                if stripped_cur
+                else next_line
+            )
+            stripped_next = folded_next.lstrip()
             if stripped_cur and stripped_next:
                 joined = stripped_cur + " " + stripped_next
                 join_col = len(stripped_cur)

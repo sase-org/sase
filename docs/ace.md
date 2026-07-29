@@ -2767,16 +2767,17 @@ characters, when text is selected (the typed character replaces the selection li
 possessives, and for repeated quotes/backticks needed to type Markdown fences or code spans.
 
 INSERT-mode `Ctrl+J` and prompt NORMAL-mode `o` / `O` continue a containing space-indented `- ` bullet using that
-bullet's indentation. This also works from physical continuation lines, including Prettier-wrapped nested bullets;
-non-bullet lines keep the ordinary bare newline or open-line behavior. In INSERT mode, when there is no selection,
-pressing `Ctrl+J` anywhere on a line containing only zero or more leading spaces followed by `- ` replaces that marker
-with a bare newline and moves the cursor to column zero, ending the list -- but only when the line above that marker is
-itself part of a hyphen bullet. The common sequence is therefore `Ctrl+J` once to create the next sibling marker and
-`Ctrl+J` again to exit the list. A marker-only line whose preceding line is not part of a bullet -- a freshly typed `- `
-on the first line, or one following a blank line or plain prose -- grows a sibling marker on the next line instead, so
-the exit still happens on the following press. Those two edits are separate undo checkpoints. A selection uses the
-normal replacement path instead. Extra spaces after the marker, tab indentation, other Markdown markers, and markers
-containing text do not trigger either path.
+bullet's indentation. Prompt NORMAL-mode `J` is the inverse operation: when it folds the next line into a nonblank
+current line, it drops that line's supported `- ` marker. Bullet continuation also works from physical continuation
+lines, including Prettier-wrapped nested bullets; non-bullet lines keep the ordinary bare newline or open-line behavior.
+In INSERT mode, when there is no selection, pressing `Ctrl+J` anywhere on a line containing only zero or more leading
+spaces followed by `- ` replaces that marker with a bare newline and moves the cursor to column zero, ending the list --
+but only when the line above that marker is itself part of a hyphen bullet. The common sequence is therefore `Ctrl+J`
+once to create the next sibling marker and `Ctrl+J` again to exit the list. A marker-only line whose preceding line is
+not part of a bullet -- a freshly typed `- ` on the first line, or one following a blank line or plain prose -- grows a
+sibling marker on the next line instead, so the exit still happens on the following press. Those two edits are separate
+undo checkpoints. A selection uses the normal replacement path instead. Extra spaces after the marker, tab indentation,
+other Markdown markers, and markers containing text do not trigger either path.
 
 On a line beginning with zero or more spaces followed by `- `, INSERT-mode `Tab` and `Shift+Tab` indent or dedent the
 bullet when the selection is collapsed and the cursor is anywhere from column zero through the marker's content column.
@@ -3187,38 +3188,39 @@ Text objects compose with `d`, `c`, and `y`.
 
 #### Other Commands
 
-| Key        | Action                                                                                    |
-| ---------- | ----------------------------------------------------------------------------------------- |
-| `i`        | Enter INSERT mode; inserted text is repeatable with `.`                                   |
-| `v`        | Enter charwise VISUAL mode                                                                |
-| `V`        | Enter linewise V-LINE mode                                                                |
-| `a`        | Append after cursor; inserted text is repeatable with `.`                                 |
-| `A`        | Append at end of line; inserted text is repeatable with `.`                               |
-| `I`        | Insert at line start; inserted text is repeatable with `.`                                |
-| `o`        | Open below; prompt hyphen bullets auto-continue, and inserted text repeats with `.`       |
-| `O`        | Open above; prompt hyphen bullets auto-continue, and inserted text repeats with `.`       |
-| `[<Space>` | Insert blank line(s) above current line without leaving NORMAL mode                       |
-| `]<Space>` | Insert blank line(s) below current line without leaving NORMAL mode                       |
-| `u`        | Undo                                                                                      |
-| `Ctrl+R`   | Redo                                                                                      |
-| `Ctrl+A`   | Increment the number at/after cursor, wrapping to the prompt top (supports count and `.`) |
-| `Ctrl+X`   | Decrement the number at/after cursor, wrapping to the prompt top (supports count and `.`) |
-| `x`        | Delete character                                                                          |
-| `X`        | Delete character before cursor                                                            |
-| `r{c}`     | Replace character(s) at cursor (supports count: `3rx`)                                    |
-| `p`        | Paste after cursor / below line from the internal register                                |
-| `P`        | Paste before cursor / above line from the internal register                               |
-| `~`        | Toggle case of character(s) at cursor (supports count: `5~`)                              |
-| `.`        | Repeat last mutation, including inserted text; a count replaces the recorded count        |
-| `J`        | Join current line with next (supports count: `5J`)                                        |
-| `K`        | Preview the xprompt, workflow, skill, file, or plain word under the cursor                |
-| `Ctrl+]`   | Jump to the xprompt/workflow/skill definition or file under the cursor                    |
-| `/` / `?`  | Search forward / backward in the current prompt pane                                      |
-| `n` / `N`  | Repeat the last confirmed search in its original / opposite direction                     |
+| Key        | Action                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------- |
+| `i`        | Enter INSERT mode; inserted text is repeatable with `.`                                     |
+| `v`        | Enter charwise VISUAL mode                                                                  |
+| `V`        | Enter linewise V-LINE mode                                                                  |
+| `a`        | Append after cursor; inserted text is repeatable with `.`                                   |
+| `A`        | Append at end of line; inserted text is repeatable with `.`                                 |
+| `I`        | Insert at line start; inserted text is repeatable with `.`                                  |
+| `o`        | Open below; prompt hyphen bullets auto-continue, and inserted text repeats with `.`         |
+| `O`        | Open above; prompt hyphen bullets auto-continue, and inserted text repeats with `.`         |
+| `[<Space>` | Insert blank line(s) above current line without leaving NORMAL mode                         |
+| `]<Space>` | Insert blank line(s) below current line without leaving NORMAL mode                         |
+| `u`        | Undo                                                                                        |
+| `Ctrl+R`   | Redo                                                                                        |
+| `Ctrl+A`   | Increment the number at/after cursor, wrapping to the prompt top (supports count and `.`)   |
+| `Ctrl+X`   | Decrement the number at/after cursor, wrapping to the prompt top (supports count and `.`)   |
+| `x`        | Delete character                                                                            |
+| `X`        | Delete character before cursor                                                              |
+| `r{c}`     | Replace character(s) at cursor (supports count: `3rx`)                                      |
+| `p`        | Paste after cursor / below line from the internal register                                  |
+| `P`        | Paste before cursor / above line from the internal register                                 |
+| `~`        | Toggle case of character(s) at cursor (supports count: `5~`)                                |
+| `.`        | Repeat last mutation, including inserted text; a count replaces the recorded count          |
+| `J`        | Join current line with next, removing a pulled-up prompt `- ` marker (supports count: `5J`) |
+| `K`        | Preview the xprompt, workflow, skill, file, or plain word under the cursor                  |
+| `Ctrl+]`   | Jump to the xprompt/workflow/skill definition or file under the cursor                      |
+| `/` / `?`  | Search forward / backward in the current prompt pane                                        |
+| `n` / `N`  | Repeat the last confirmed search in its original / opposite direction                       |
 
 In prompt panes, `o` and `O` continue the containing hyphen bullet below or above at the same indentation, including
 when the cursor is on a physical continuation line produced by Prettier wrapping. Non-bullet lines retain ordinary bare
-open-line behavior.
+open-line behavior. Prompt `J` removes a supported `- ` marker when joining onto a nonblank current line; a blank
+current line keeps the marker, and non-prompt editors retain vanilla `J` behavior.
 
 For `Ctrl+]`, ACE opens the target directly in `$EDITOR` when there is only one available action. Inside tmux, or for
 loadable Markdown xprompt definitions, it can show a small chooser for editor, tmux-pane, or load-into-prompt actions.

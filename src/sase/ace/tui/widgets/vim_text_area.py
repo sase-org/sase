@@ -258,6 +258,10 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         """Return the structural text inserted by NORMAL-mode ``O``."""
         return "\n"
 
+    def _normal_join_next_line_text(self, next_line: str) -> str:
+        """Return the pulled-up line NORMAL-mode ``J`` folds in. Default: verbatim."""
+        return next_line
+
     def _normalize_normal_open_below_replay_text(self, insert_text: str) -> str:
         """Normalize captured ``o`` text after structural replay. Default: identity."""
         return insert_text

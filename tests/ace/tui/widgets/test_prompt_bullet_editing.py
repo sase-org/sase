@@ -12,6 +12,7 @@ from sase.ace.tui.widgets._prompt_bullet_editing import (
     plan_prompt_bullet_shift,
     prompt_bullet_row_has_bullet_above,
     prompt_bullet_sibling_prefix,
+    strip_prompt_bullet_marker,
 )
 from sase.ace.tui.widgets._paired_text_editing import TextEdit
 
@@ -53,6 +54,53 @@ from sase.ace.tui.widgets._paired_text_editing import TextEdit
 )
 def test_is_prompt_bullet_marker_only(line: str, expected: bool) -> None:
     assert is_prompt_bullet_marker_only(line) is expected
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("- x", "x"),
+        ("  - x", "x"),
+        ("-   x", "  x"),
+        ("- ", ""),
+        ("  - ", ""),
+        ("-x", "-x"),
+        ("-", "-"),
+        ("\t- x", "\t- x"),
+        (" \t- x", " \t- x"),
+        ("* x", "* x"),
+        ("+ x", "+ x"),
+        ("1. x", "1. x"),
+        ("> x", "> x"),
+        ("- - -", "- - -"),
+        ("---", "---"),
+        ("", ""),
+        ("   ", "   "),
+        ("plain", "plain"),
+    ],
+    ids=[
+        "top-level",
+        "nested",
+        "extra-content-space",
+        "marker-only",
+        "nested-marker-only",
+        "tight-dash",
+        "dash-only",
+        "tab-indented",
+        "space-tab-indented",
+        "asterisk",
+        "plus",
+        "ordered",
+        "blockquote",
+        "thematic-break-spaced",
+        "thematic-break-tight",
+        "empty",
+        "whitespace",
+        "plain",
+    ],
+)
+def test_strip_prompt_bullet_marker(line: str, expected: str) -> None:
+    assert strip_prompt_bullet_marker(line) == expected
 
 
 @pytest.mark.parametrize(

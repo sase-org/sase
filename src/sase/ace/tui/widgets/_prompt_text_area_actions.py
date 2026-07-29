@@ -19,6 +19,7 @@ from sase.ace.tui.widgets._prompt_bullet_editing import (
     normalize_prompt_bullet_replay_text,
     prompt_bullet_row_has_bullet_above,
     prompt_bullet_sibling_prefix,
+    strip_prompt_bullet_marker,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
@@ -117,6 +118,10 @@ class PromptTextAreaActionsMixin(_MixinBase):
         """Auto-continue a containing prompt hyphen bullet for ``O``."""
         prefix = prompt_bullet_sibling_prefix(self.document.lines, row)
         return f"{prefix}\n" if prefix is not None else "\n"
+
+    def _normal_join_next_line_text(self, next_line: str) -> str:
+        """Drop a pulled-up prompt hyphen bullet marker for ``J``."""
+        return strip_prompt_bullet_marker(next_line)
 
     def _normalize_normal_open_below_replay_text(self, insert_text: str) -> str:
         """Avoid replaying a typed marker after structural prompt bullet text."""
