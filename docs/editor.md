@@ -42,8 +42,8 @@ The wrapper also exports installed package xprompt locations, bundled default co
 plugin config paths to the Rust server. It also materializes a local artifact-reference catalog under
 `~/.sase/xprompt_lsp/` by default. The server refreshes its xprompt catalog when the LSP session starts, keeps a short
 cache for completion requests, and exposes a `sase.xpromptLsp.refreshCatalog` command for clients that surface LSP
-commands. Artifact-reference completion and diagnostics re-read their catalog on each request, so a launcher refresh or
-external rewrite is visible on the next completion or diagnostic pass.
+commands. Artifact-reference completion, diagnostics, and semantic highlighting re-read their catalog on each request,
+so a launcher refresh or external rewrite is visible on the next editor pass.
 
 ## LSP Features
 
@@ -62,6 +62,7 @@ The xprompt language server is focused on prompt and xprompt editing:
 | Snippets                | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                                                      |
 | Hover                   | Shows xprompt metadata, descriptions, previews, source display paths, tags, and active input hints.                                                                |
 | Diagnostics             | Reports xprompt/directive issues plus malformed or unresolved known artifact references outside prompt literal zones.                                              |
+| Semantic highlighting   | Highlights the kind, payload, and fragment of known artifact references outside prompt literal zones using standard LSP semantic tokens.                           |
 | Definition              | Jumps from xprompt and slash-skill references to real source files when the catalog provides a resolvable path.                                                    |
 
 Snippet completions come from the same registry ACE uses: xprompts with `snippet` front matter plus user-defined
@@ -73,6 +74,12 @@ Artifact assistance is local-only. Document-role kinds (including dynamic sideca
 files are enumerated or resolved from the selected project's catalog roots. `commit` and `bug` references receive shape
 validation but no completion enumeration or resolution request, and the LSP never contacts git hosts, issue trackers, or
 other network providers. Unknown `@kind:` text remains ordinary prose.
+
+Artifact-reference semantic tokens use the standard LSP legend: `namespace` for the kind, `string` for the payload, and
+`number` for the fragment. Dynamic document-role references carry the standard `documentation` modifier; builtin
+references do not. Editors therefore use their normal semantic-token theme without SASE-specific client configuration.
+The provider currently emits artifact-reference tokens only. Neovim's native LSP semantic-token support consumes this
+capability directly, so the `sase-nvim` plugin needs no matching syntax or capability changes.
 
 ## Helper Bridge
 
