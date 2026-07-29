@@ -1,4 +1,4 @@
-"""ACE PNG regression for group-scoped uppercase-H house collapse."""
+"""ACE PNG regression for group-scoped uppercase-H lane collapse."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
-    group_house_collapse_precedence_agents,
+    group_lane_collapse_precedence_agents,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     pin_agents_visual_now,
@@ -28,14 +28,14 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-async def test_group_house_collapse_precedes_status_banner_png_snapshot(
+async def test_group_lane_collapse_precedes_status_banner_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 22, 7, 15, 0))
     patch_startup_loaders(
         monkeypatch,
-        agents=group_house_collapse_precedence_agents(),
+        agents=group_lane_collapse_precedence_agents(),
     )
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -66,7 +66,7 @@ async def test_group_house_collapse_precedes_status_banner_png_snapshot(
 
         footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
         assert footer._last_layout_inputs is not None
-        assert ("H", "collapse houses") in footer._last_layout_inputs[0]
+        assert ("H", "collapse lanes") in footer._last_layout_inputs[0]
 
         await page.press("H")
         await page.expect_state("agent_count", 3)
@@ -81,8 +81,8 @@ async def test_group_house_collapse_precedes_status_banner_png_snapshot(
         assert ("H", "collapse group") in footer._last_layout_inputs[0]
         ace_png_visual.assert_page_png(
             page,
-            "agents_group_house_collapse_precedence_120x40",
-            title="ACE group-wide house collapse before status banner",
+            "agents_group_lane_collapse_precedence_120x40",
+            title="ACE group-wide lane collapse before status banner",
         )
 
         await page.press("H")

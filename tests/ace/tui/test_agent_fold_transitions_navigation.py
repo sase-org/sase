@@ -13,7 +13,7 @@ from ._agent_fold_transition_helpers import (
     make_agent,
     make_loader_shaped_aliased_plan_family,
     make_sequential_family,
-    make_standalone_workflow_house,
+    make_standalone_workflow_lane,
 )
 
 WORKFLOW_STEP_KINDS = (
@@ -222,7 +222,7 @@ def test_h_standalone_family_member_then_top_level_family_selects_tribe() -> Non
 def test_h_standalone_workflow_steps_navigate_to_workflow_owner(
     step_kind: str,
 ) -> None:
-    agents, root, steps = make_standalone_workflow_house()
+    agents, root, steps = make_standalone_workflow_lane()
     selected = steps[step_kind]
     app = StubFoldApp(agents, current_idx=agents.index(selected))
 
@@ -235,7 +235,7 @@ def test_h_standalone_workflow_steps_navigate_to_workflow_owner(
 
 
 def test_h_clan_workflow_step_walks_workflow_clan_tribe_one_level_at_a_time() -> None:
-    projected, root, steps = make_standalone_workflow_house(
+    projected, root, steps = make_standalone_workflow_lane(
         clan="research",
         tribe="research",
     )
@@ -262,7 +262,7 @@ def test_h_clan_workflow_step_walks_workflow_clan_tribe_one_level_at_a_time() ->
 
 
 def test_h_workflow_step_jump_history_restores_exact_script_row() -> None:
-    agents, root, steps = make_standalone_workflow_house()
+    agents, root, steps = make_standalone_workflow_lane()
     selected = steps["python"]
     app = StubFoldApp(agents, current_idx=agents.index(selected))
 
@@ -334,7 +334,7 @@ def test_h_rejects_stale_ambiguous_and_self_referential_parent_edges() -> None:
 
 
 def test_h_rejects_cycles_and_inconsistent_tree_depth() -> None:
-    agents, _root, steps = make_standalone_workflow_house()
+    agents, _root, steps = make_standalone_workflow_lane()
     inconsistent = steps["python"]
     inconsistent.tree_depth = 3
     bad_depth = StubFoldApp(agents, current_idx=agents.index(inconsistent))
@@ -351,7 +351,7 @@ def test_h_rejects_cycles_and_inconsistent_tree_depth() -> None:
 
 
 def test_h_rejects_conflicting_explicit_and_persisted_parent_keys() -> None:
-    agents, root, steps = make_standalone_workflow_house()
+    agents, root, steps = make_standalone_workflow_lane()
     selected = steps["bash"]
     selected.tree_parent_key = root.raw_suffix
     selected.tree_depth = 1

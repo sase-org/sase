@@ -851,13 +851,13 @@ lone expanded panel, as well as collapsed titles, and support the normal `Ctrl+O
 
 Lowercase `l` only advances a real fold owned by the selected row or its immediate workflow/family owner, so a visible
 hidden leaf under an already fully expanded workflow is a no-op. Uppercase `H` is the structural mutation key. In the
-next grouping scope it fully collapses every open workflow/family house in one press, regardless of which house row is
-selected. Once houses are closed, the next press collapses only the open canonical clan enclosing the selected row. With
-that now-collapsed clan container still selected, another press collapses every remaining open canonical clan in the
-group; only a later press collapses the grouping banner. A banner, standalone lane, or already-collapsed clan selection
+next grouping scope it fully collapses every open lane in one press, regardless of which lane row is selected. Once
+lanes are closed, the next press collapses only the open canonical clan enclosing the selected row. With that
+now-collapsed clan container still selected, another press collapses every remaining open canonical clan in the group;
+only a later press collapses the grouping banner. A banner, standalone lane, or already-collapsed clan selection
 proceeds directly to that group-wide clan sweep. Tools detail still takes priority. On a selected expanded whole panel,
-`H` uses a separate panel-wide ladder: the first press fully collapses every open canonical house in that panel,
-including houses hidden by grouping banners; the next press collapses every open canonical clan in the panel, also
+`H` uses a separate panel-wide ladder: the first press fully collapses every open canonical lane in that panel,
+including lanes hidden by grouping banners; the next press collapses every open canonical clan in the panel, also
 including clans hidden by grouping banners; later presses collapse the last expanded top-level grouping banner in
 rendered order, one banner per press; and the final press collapses the panel through the same path as lowercase `h`. An
 already collapsed panel is a terminal no-op with the usual already-collapsed notification. The merged layout has no
@@ -920,19 +920,19 @@ Labels such as L0, L1, and L2 describe a banner's nesting depth, not a shared fo
 banner has its own binary expanded/collapsed state, kept separately for each tribe panel and grouping mode. Three
 independent folding layers can therefore be visible at once:
 
-| Layer             | What it controls                                         | Default keys                                                    |
-| ----------------- | -------------------------------------------------------- | --------------------------------------------------------------- |
-| Grouping banner   | Project, ChangeSpec, date, status, and name buckets      | Repeated `H` collapses after scoped houses/clans; `l` expands   |
-| Structural row    | Clan members, family members, and workflow descendants   | `H` fully collapses group houses, then group clans; `l` expands |
-| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` or `L` expands           |
+| Layer             | What it controls                                         | Default keys                                                   |
+| ----------------- | -------------------------------------------------------- | -------------------------------------------------------------- |
+| Grouping banner   | Project, ChangeSpec, date, status, and name buckets      | Repeated `H` collapses after scoped lanes/clans; `l` expands   |
+| Structural row    | Clan members, family members, and workflow descendants   | `H` fully collapses group lanes, then group clans; `l` expands |
+| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` or `L` expands          |
 
-| Key | Action                                                                                                                  |
-| --- | ----------------------------------------------------------------------------------------------------------------------- |
-| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel        |
-| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists  |
-| `L` | Expand a collapsed focused panel and enter its first selectable row                                                     |
-| `H` | Collapse group houses/clans/group, or selected-panel houses/clans/top-level groups/panel; compact expanded Tools detail |
-| `Z` | On whole-panel focus, isolate that panel or restore the pre-isolation layout; otherwise zoom the active detail panel    |
+| Key | Action                                                                                                                 |
+| --- | ---------------------------------------------------------------------------------------------------------------------- |
+| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel       |
+| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists |
+| `L` | Expand a collapsed focused panel and enter its first selectable row                                                    |
+| `H` | Collapse group lanes/clans/group, or selected-panel lanes/clans/top-level groups/panel; compact expanded Tools detail  |
+| `Z` | On whole-panel focus, isolate that panel or restore the pre-isolation layout; otherwise zoom the active detail panel   |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain visible headings but are skipped by
 row navigation. When a collapsed banner is focused, `l` expands only that banner and moves focus to the next visible
@@ -965,25 +965,25 @@ state is present. Its count chip remains concrete and independent, so `QUEUED [Q
 and six dependency, bead, or time waiters without merging the two categories.
 
 The uppercase `H` ladder is group-scoped, with the selected clan receiving precedence inside that scope. If the grouping
-banner that `H` would collapse next contains any open standalone workflow, agent, or sequential-family house, the first
-press drives every such house directly to fully collapsed while leaving the banner open. A selected child row re-anchors
-to its visible house owner. Once houses are saturated, a selection inside an open canonical clan makes the next press
+banner that `H` would collapse next contains any open standalone workflow, agent, or sequential-family lane, the first
+press drives every such lane directly to fully collapsed while leaving the banner open. A selected child row re-anchors
+to its visible lane owner. Once lanes are saturated, a selection inside an open canonical clan makes the next press
 collapse only that clan. A selected descendant re-anchors to its visible clan container; selecting the container itself
 preserves selection without writing new selection memory. With the collapsed container still selected, the following
 press drives every remaining open canonical clan in the group directly to collapsed. A grouping banner, standalone lane,
 already-collapsed clan, or invalid clan owner falls through to that group-wide sweep immediately. The footer advertises
-`H collapse houses`, then `H collapse clan`, then `H collapse clans`, and only then `H collapse group`. Equal group
-names in other tribe panels are never affected; merged layout intentionally treats the merged panel as one scope.
-Ambiguous or malformed clan owners are skipped without blocking valid siblings.
+`H collapse lanes`, then `H collapse clan`, then `H collapse clans`, and only then `H collapse group`. Equal group names
+in other tribe panels are never affected; merged layout intentionally treats the merged panel as one scope. Ambiguous or
+malformed clan owners are skipped without blocking valid siblings.
 
 Whole-panel focus has its own `H` ordering because it has no selected row or grouping scope. It first fully collapses
-all open canonical houses anywhere in the selected panel in one press. It next collapses every open canonical clan in
+all open canonical lanes anywhere in the selected panel in one press. It next collapses every open canonical clan in
 that panel in one batch. Both structural steps include owners hidden by grouping banners and skip ambiguous or malformed
 owners without blocking valid siblings. It then walks backward through that panel's expanded level-0 banners in actual
-rendered order, collapsing only one per press and leaving nested banner folds unchanged. Once no house, clan, or
+rendered order, collapsing only one per press and leaving nested banner folds unchanged. Once no lane, clan, or
 top-level banner remains open, the next press collapses the panel itself. The footer shows the configured
-`hooks_or_collapse_all` key as `collapse houses`, `collapse clans`, or `collapse group` for the next distinct inner
-step; at the terminal step, the existing lowercase `h collapse panel` chip is the sole panel-collapse hint.
+`hooks_or_collapse_all` key as `collapse lanes`, `collapse clans`, or `collapse group` for the next distinct inner step;
+at the terminal step, the existing lowercase `h collapse panel` chip is the sole panel-collapse hint.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  ` segment per ancestor L0/L1
 banner (in the parent tier's dim accent — project blue or ChangeSpec cooler accent), so nesting reads as a tree at a
@@ -1005,11 +1005,11 @@ selection always lands somewhere meaningful in the rendered tree.
 Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes. The Agents tab shows a brief toast
 (`Grouping: by project` / `by date` / `by status`) on each cycle:
 
-| Mode        | L0 buckets                                                                    | Notes                                                                                                                                                                          |
-| ----------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `STANDARD`  | Project (with optional ChangeSpec sub-level)                                  | The "by project" default. Uses the 2-/3-level layout described above.                                                                                                          |
-| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`                               | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.                                                                                      |
-| `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Queued` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; status priority fixes bucket position. Standalone houses precede name subgroups, with launch recency sorting units inside each partition. |
+| Mode        | L0 buckets                                                                    | Notes                                                                                                                                                                         |
+| ----------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STANDARD`  | Project (with optional ChangeSpec sub-level)                                  | The "by project" default. Uses the 2-/3-level layout described above.                                                                                                         |
+| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`                               | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.                                                                                     |
+| `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Queued` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; status priority fixes bucket position. Standalone lanes precede name subgroups, with launch recency sorting units inside each partition. |
 
 In `BY_DATE` mode, ACE chooses one L1 subgroup style from the L0 date bucket: one-hour windows (`09:00`) for `Today` and
 `Yesterday`, calendar-day labels for `This Week`, and Monday-start week ranges for `Earlier`. The time anchor is
@@ -1019,9 +1019,9 @@ timestamp fall into a `(no time)` subgroup that sorts last.
 
 In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root, with the same singleton-suppression rule
 as `STANDARD`. Status priority fixes the bucket order: Stopped, Failed, Running, Queued, Waiting, Done, Starting. Within
-each bucket, standalone houses render before every visible name-root subgroup; `start_time` sorts houses newest-first
+each bucket, standalone lanes render before every visible name-root subgroup; `start_time` sorts lanes newest-first
 inside the standalone partition and subgroup units newest-first inside the subgroup partition. The same partitioning
-rule applies under a name-root, where directly contained houses precede visible dotted-prefix subgroups. Units with no
+rule applies under a name-root, where directly contained lanes precede visible dotted-prefix subgroups. Units with no
 launch timestamp sort after timestamped units within their partition, with structural names and input order providing
 deterministic tie-breakers. A family, clan, or workflow subtree uses its outer/root agent's launch time and remains
 contiguous. Inside a clan, direct members still use the clan-local Failed, Stopped, Running/Starting, Queued, Waiting,

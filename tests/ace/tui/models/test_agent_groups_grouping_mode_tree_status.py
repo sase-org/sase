@@ -113,7 +113,7 @@ def test_build_agent_tree_by_status_sorts_running_units_by_launch_recency() -> N
     ]
 
 
-def test_build_agent_tree_by_status_keeps_standalone_houses_above_subgroups() -> None:
+def test_build_agent_tree_by_status_keeps_standalone_lanes_above_subgroups() -> None:
     hh = _agent(
         cl_name="hh",
         agent_name="hh",
@@ -230,7 +230,7 @@ def test_build_agent_tree_by_status_keeps_root_anchored_family_contiguous() -> N
 
     entries = build_agent_tree(agents, mode=GroupingMode.BY_STATUS, now=_NOW)
 
-    # Standalone houses remain above the visible family subgroup and stay
+    # Standalone lanes remain above the visible family subgroup and stay
     # newest-first within that partition. The family's 09:00 root still anchors
     # the complete name group, and its established root/follow-up/child preorder
     # remains intact.
@@ -355,7 +355,7 @@ def test_build_agent_tree_by_status_groups_shared_second_period_prefixes() -> No
     ]
 
 
-def test_build_agent_tree_by_status_partitions_direct_houses_before_prefix_groups() -> (
+def test_build_agent_tree_by_status_partitions_direct_lanes_before_prefix_groups() -> (
     None
 ):
     root = _agent(

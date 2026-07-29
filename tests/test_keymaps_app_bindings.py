@@ -222,7 +222,7 @@ def test_h_binding_metadata_describes_navigation_and_contextual_collapse() -> No
 
     lower = "Parent / Collapse or Jump Panel/Fold"
     upper = (
-        "Collapse Scoped Houses/Selected Clan/Clans/Groups/Panel / Compact Tools / All"
+        "Collapse Scoped Lanes/Selected Clan/Clans/Groups/Panel / Compact Tools / All"
     )
     zoom = "Zoom Detail / Only/Restore Panels"
     assert runtime_by_action["hooks_or_collapse"].description == lower

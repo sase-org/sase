@@ -17,16 +17,16 @@ from ._agent_fold_transition_helpers import (
     StubFoldApp,
     make_agent,
     make_sequential_family,
-    make_standalone_workflow_house,
+    make_standalone_workflow_lane,
 )
 
 
-def _named_workflow_house(
+def _named_workflow_lane(
     name: str,
     *,
     tribe: str | None = None,
 ) -> tuple[list[Agent], Agent]:
-    rows, root, steps = make_standalone_workflow_house(tribe=tribe)
+    rows, root, steps = make_standalone_workflow_lane(tribe=tribe)
     fold_key = f"{name}-fold"
     root.cl_name = name
     root.agent_name = name
@@ -37,7 +37,7 @@ def _named_workflow_house(
     return rows, root
 
 
-def _named_family_house(name: str) -> tuple[list[Agent], Agent]:
+def _named_family_lane(name: str) -> tuple[list[Agent], Agent]:
     rows, root, member = make_sequential_family()
     fold_key = f"{name}-fold"
     root.cl_name = name
@@ -174,10 +174,10 @@ def test_equal_status_group_keys_fold_independently_between_panels() -> None:
     assert split_done.is_collapsed(("Done",)) is True
 
 
-def test_capital_h_collapses_every_open_house_before_status_group() -> None:
-    hu_rows, hu = _named_workflow_house("hu")
-    ht_rows, ht = _named_workflow_house("ht")
-    hs_rows, hs = _named_family_house("hs")
+def test_capital_h_collapses_every_open_lane_before_status_group() -> None:
+    hu_rows, hu = _named_workflow_lane("hu")
+    ht_rows, ht = _named_workflow_lane("ht")
+    hs_rows, hs = _named_family_lane("hs")
     agents = [*hu_rows, *ht_rows, *hs_rows]
     app = StubFoldApp(agents, current_idx=agents.index(hu))
     app._grouping_mode = GroupingMode.BY_STATUS
@@ -189,7 +189,7 @@ def test_capital_h_collapses_every_open_house_before_status_group() -> None:
     app._fold_manager.expand(hs_key)
     _sync_fold_projection(app, agents, hu)
 
-    target = app._resolve_agent_house_collapse_target()
+    target = app._resolve_agent_lane_collapse_target()
     assert target is not None
     assert target.group_key == ("Running",)
     assert set(target.fold_keys) == {ht_key, hs_key}
@@ -211,9 +211,9 @@ def test_capital_h_collapses_every_open_house_before_status_group() -> None:
     assert app.group_fold_changes == [(None, ("Running",), True)]
 
 
-def test_house_collapse_reanchors_each_disappearing_child_kind() -> None:
-    rows, root = _named_workflow_house("selected")
-    family_rows, family = _named_family_house("family")
+def test_lane_collapse_reanchors_each_disappearing_child_kind() -> None:
+    rows, root = _named_workflow_lane("selected")
+    family_rows, family = _named_family_lane("family")
     agents = [*rows, *family_rows]
     app = StubFoldApp(agents)
     app._grouping_mode = GroupingMode.BY_DATE
@@ -247,9 +247,9 @@ def test_house_collapse_reanchors_each_disappearing_child_kind() -> None:
         assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
 
 
-def test_collapsed_child_banner_scopes_house_step_to_its_open_parent() -> None:
-    first_rows, first = _named_workflow_house("coder.claude")
-    second_rows, second = _named_workflow_house("coder.codex")
+def test_collapsed_child_banner_scopes_lane_step_to_its_open_parent() -> None:
+    first_rows, first = _named_workflow_lane("coder.claude")
+    second_rows, second = _named_workflow_lane("coder.codex")
     agents = [*first_rows, *second_rows]
     app = StubFoldApp(agents, current_idx=agents.index(first))
     app._grouping_mode = GroupingMode.BY_STATUS
@@ -264,7 +264,7 @@ def test_collapsed_child_banner_scopes_house_step_to_its_open_parent() -> None:
     app._group_fold_registry.collapse(child_group)
     app._current_group_key = child_group
 
-    target = app._resolve_agent_house_collapse_target()
+    target = app._resolve_agent_lane_collapse_target()
     assert target is not None
     assert target.group_key == parent_group
 
@@ -280,10 +280,10 @@ def test_collapsed_child_banner_scopes_house_step_to_its_open_parent() -> None:
     assert app._group_fold_registry.is_collapsed(parent_group)
 
 
-def test_house_collapse_isolated_by_panel_and_merged_layout() -> None:
+def test_lane_collapse_isolated_by_panel_and_merged_layout() -> None:
     selector = make_agent(agent_name="selector")
-    default_rows, default = _named_workflow_house("default")
-    tribe_rows, tribe = _named_workflow_house("research", tribe="research")
+    default_rows, default = _named_workflow_lane("default")
+    tribe_rows, tribe = _named_workflow_lane("research", tribe="research")
     agents = [selector, *default_rows, *tribe_rows]
     default_key = agent_fold_key(default)
     tribe_key = agent_fold_key(tribe)
@@ -308,10 +308,10 @@ def test_house_collapse_isolated_by_panel_and_merged_layout() -> None:
     assert merged._fold_manager.get(tribe_key) is FoldLevel.COLLAPSED
 
 
-def test_malformed_house_fails_closed_while_valid_sibling_collapses() -> None:
-    closed_rows, closed = _named_workflow_house("closed")
-    valid_rows, valid = _named_workflow_house("valid")
-    malformed_rows, malformed = _named_workflow_house("malformed")
+def test_malformed_lane_fails_closed_while_valid_sibling_collapses() -> None:
+    closed_rows, closed = _named_workflow_lane("closed")
+    valid_rows, valid = _named_workflow_lane("valid")
+    malformed_rows, malformed = _named_workflow_lane("malformed")
     malformed.tree_depth = 1
     agents = [*closed_rows, *valid_rows, *malformed_rows]
     app = StubFoldApp(agents, current_idx=agents.index(closed))
@@ -330,10 +330,10 @@ def test_malformed_house_fails_closed_while_valid_sibling_collapses() -> None:
     assert not app._group_fold_registry.is_collapsed(("Running",))
 
 
-def test_duplicate_house_owner_is_not_mutated_as_a_bulk_candidate() -> None:
-    closed_rows, closed = _named_workflow_house("closed")
-    first_rows, first = _named_workflow_house("duplicate")
-    second_rows, second = _named_workflow_house("other")
+def test_duplicate_lane_owner_is_not_mutated_as_a_bulk_candidate() -> None:
+    closed_rows, closed = _named_workflow_lane("closed")
+    first_rows, first = _named_workflow_lane("duplicate")
+    second_rows, second = _named_workflow_lane("other")
     duplicate_key = agent_fold_key(first)
     assert duplicate_key is not None
     second.raw_suffix = duplicate_key
@@ -353,10 +353,10 @@ def test_duplicate_house_owner_is_not_mutated_as_a_bulk_candidate() -> None:
     assert app._group_fold_registry.is_collapsed(("Running",))
 
 
-def test_selected_panel_h_collapses_open_houses_across_every_l0_group() -> None:
-    first_rows, first = _named_workflow_house("first")
-    second_rows, second = _named_workflow_house("second")
-    other_rows, other = _named_workflow_house("other", tribe="research")
+def test_selected_panel_h_collapses_open_lanes_across_every_l0_group() -> None:
+    first_rows, first = _named_workflow_lane("first")
+    second_rows, second = _named_workflow_lane("second")
+    other_rows, other = _named_workflow_lane("other", tribe="research")
     for row in first_rows:
         row.project_file = "/r/first/project.sase"
     for row in second_rows:
@@ -384,7 +384,7 @@ def test_selected_panel_h_collapses_open_houses_across_every_l0_group() -> None:
     registry = app._group_fold_registry.for_panel(None)
     registry.collapse(("second",))
 
-    target = app._resolve_focused_panel_house_collapse_target()
+    target = app._resolve_focused_panel_lane_collapse_target()
     assert target is not None
     assert set(target.fold_keys) == {first_key, second_key}
 
@@ -404,11 +404,11 @@ def test_selected_panel_h_collapses_open_houses_across_every_l0_group() -> None:
     assert app.group_fold_changes == []
 
 
-def test_selected_panel_house_probe_fails_closed_per_owner() -> None:
-    valid_rows, valid = _named_workflow_house("valid")
-    malformed_rows, malformed = _named_workflow_house("malformed")
-    duplicate_rows, duplicate = _named_workflow_house("duplicate")
-    other_rows, other = _named_workflow_house("other", tribe="research")
+def test_selected_panel_lane_probe_fails_closed_per_owner() -> None:
+    valid_rows, valid = _named_workflow_lane("valid")
+    malformed_rows, malformed = _named_workflow_lane("malformed")
+    duplicate_rows, duplicate = _named_workflow_lane("duplicate")
+    other_rows, other = _named_workflow_lane("other", tribe="research")
     malformed.tree_depth = 1
     duplicate_key = agent_fold_key(duplicate)
     assert duplicate_key is not None
@@ -437,7 +437,7 @@ def test_selected_panel_house_probe_fails_closed_per_owner() -> None:
     app.current_idx = app._agents.index(valid)
     app._expanded_panel_focus = True
 
-    target = app._resolve_focused_panel_house_collapse_target()
+    target = app._resolve_focused_panel_lane_collapse_target()
     assert target is not None
     assert target.fold_keys == (valid_key,)
 

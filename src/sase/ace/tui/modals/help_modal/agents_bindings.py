@@ -156,7 +156,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.hooks_or_collapse_all),
-                    "Fully collapse houses in scope",
+                    "Fully collapse lanes in scope",
                 ),
                 (
                     d(a.hooks_or_collapse_all),

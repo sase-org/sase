@@ -88,9 +88,9 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                         "Panel is already collapsed", timeout=1.5
                     )
                     return
-                panel_house_target = self._resolve_focused_panel_house_collapse_target()
-                if panel_house_target is not None and self._collapse_agent_house_folds(
-                    panel_house_target
+                panel_lane_target = self._resolve_focused_panel_lane_collapse_target()
+                if panel_lane_target is not None and self._collapse_agent_lane_folds(
+                    panel_lane_target
                 ):
                     return
                 panel_clan_target = self._resolve_focused_panel_clan_collapse_target()
@@ -110,9 +110,9 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 self._collapse_fold()
                 return
 
-            house_target = self._resolve_agent_house_collapse_target()
-            if house_target is not None:
-                self._collapse_agent_house_folds(house_target)
+            lane_target = self._resolve_agent_lane_collapse_target()
+            if lane_target is not None:
+                self._collapse_agent_lane_folds(lane_target)
                 return
             clan_target = self._resolve_agent_clan_collapse_target()
             if clan_target is not None:

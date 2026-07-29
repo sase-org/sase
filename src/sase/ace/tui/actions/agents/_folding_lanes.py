@@ -1,4 +1,4 @@
-"""Group- and panel-scoped agent-house collapse target resolution."""
+"""Group- and panel-scoped agent-lane collapse target resolution."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentHouseCollapseTarget:
-    """One validated, group-scoped, saturating house-collapse action."""
+class AgentLaneCollapseTarget:
+    """One validated, group-scoped, saturating lane-collapse action."""
 
     panel_key: PanelKey
     group_key: GroupKey
@@ -22,22 +22,22 @@ class AgentHouseCollapseTarget:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentPanelHouseCollapseTarget:
-    """One validated, panel-wide, saturating house-collapse action."""
+class AgentPanelLaneCollapseTarget:
+    """One validated, panel-wide, saturating lane-collapse action."""
 
     panel_key: PanelKey
     fold_keys: tuple[str, ...]
     reanchor_index: int | None = None
 
 
-def _is_canonical_house_owner(
+def _is_canonical_lane_owner(
     agent: Agent,
     *,
     fold_key: str,
     panel_agents: list[Agent],
     owners_by_key: dict[str, list[Agent]],
 ) -> bool:
-    """Validate one standalone or direct-clan-member house owner."""
+    """Validate one standalone or direct-clan-member lane owner."""
     from ...models._agent_tree import agent_fold_key, agent_parent_fold_key
 
     if agent.is_clan_container or agent.is_child_row:
@@ -52,9 +52,9 @@ def _is_canonical_house_owner(
     if parent_key is None:
         return agent.tree_parent_key is None and agent.tree_depth == 0
 
-    # The only valid house owner below another structural row is a direct
+    # The only valid lane owner below another structural row is a direct
     # clan member. Workflow steps and sequential-family members are aliases
-    # of their outer house and were rejected above via ``is_child_row``.
+    # of their outer lane and were rejected above via ``is_child_row``.
     if (
         agent.tree_parent_key != parent_key
         or agent.tree_depth != 1
@@ -69,14 +69,14 @@ def _is_canonical_house_owner(
     return len(clan_owners) == 1
 
 
-def _open_canonical_house_keys(
+def _open_canonical_lane_keys(
     owner: Any,
     *,
     panel_agents: list[Agent],
     global_indices: list[int],
     candidate_indices: tuple[int, ...],
 ) -> tuple[tuple[str, ...], dict[str, int]]:
-    """Return validated open house keys and their global owner indices."""
+    """Return validated open lane keys and their global owner indices."""
     from ...models._agent_tree import agent_fold_key
     from ...models.fold_state import FoldLevel
 
@@ -109,7 +109,7 @@ def _open_canonical_house_keys(
         counts = fold_counts.get(fold_key)
         if counts is None or sum(counts) <= 0:
             continue
-        if not _is_canonical_house_owner(
+        if not _is_canonical_lane_owner(
             candidate,
             fold_key=fold_key,
             panel_agents=panel_agents,
@@ -126,11 +126,11 @@ def _open_canonical_house_keys(
     return tuple(open_keys), owner_global_index
 
 
-def resolve_group_house_collapse_target(
+def resolve_group_lane_collapse_target(
     owner: Any,
     group_key: GroupKey,
-) -> AgentHouseCollapseTarget | None:
-    """Resolve every open canonical house in one focused-panel group.
+) -> AgentLaneCollapseTarget | None:
+    """Resolve every open canonical lane in one focused-panel group.
 
     Group membership comes from a fully expanded grouping projection. This
     recovers the complete target membership when the focused banner is a
@@ -159,7 +159,7 @@ def resolve_group_house_collapse_target(
     if target_group is None:
         return None
 
-    open_keys, owner_global_index = _open_canonical_house_keys(
+    open_keys, owner_global_index = _open_canonical_lane_keys(
         owner,
         panel_agents=panel_agents,
         global_indices=global_indices,
@@ -180,7 +180,7 @@ def resolve_group_house_collapse_target(
 
     panel_group = getattr(owner, "_panel_group", None)
     panel_key = panel_group.focused_key if panel_group is not None else None
-    return AgentHouseCollapseTarget(
+    return AgentLaneCollapseTarget(
         panel_key=panel_key,
         group_key=group_key,
         fold_keys=tuple(open_keys),
@@ -188,15 +188,15 @@ def resolve_group_house_collapse_target(
     )
 
 
-def resolve_panel_house_collapse_target(
+def resolve_panel_lane_collapse_target(
     owner: Any,
     panel_key: PanelKey,
-) -> AgentPanelHouseCollapseTarget | None:
-    """Resolve every open canonical house in one selected tribe panel."""
+) -> AgentPanelLaneCollapseTarget | None:
+    """Resolve every open canonical lane in one selected tribe panel."""
     from ._navigation_order import rendered_panel_slice
 
     global_indices, panel_agents = rendered_panel_slice(owner, panel_key)
-    open_keys, _owner_global_index = _open_canonical_house_keys(
+    open_keys, _owner_global_index = _open_canonical_lane_keys(
         owner,
         panel_agents=panel_agents,
         global_indices=global_indices,
@@ -204,15 +204,15 @@ def resolve_panel_house_collapse_target(
     )
     if not open_keys:
         return None
-    return AgentPanelHouseCollapseTarget(
+    return AgentPanelLaneCollapseTarget(
         panel_key=panel_key,
         fold_keys=open_keys,
     )
 
 
 __all__ = [
-    "AgentHouseCollapseTarget",
-    "AgentPanelHouseCollapseTarget",
-    "resolve_group_house_collapse_target",
-    "resolve_panel_house_collapse_target",
+    "AgentLaneCollapseTarget",
+    "AgentPanelLaneCollapseTarget",
+    "resolve_group_lane_collapse_target",
+    "resolve_panel_lane_collapse_target",
 ]

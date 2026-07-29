@@ -158,12 +158,12 @@ def parent_navigation_family_agents() -> list[Agent]:
     return [root, main, coder, prepare, setup]
 
 
-def group_house_collapse_precedence_agents() -> list[Agent]:
-    """Return three Running houses with workflow and family descendants."""
+def group_lane_collapse_precedence_agents() -> list[Agent]:
+    """Return three Running lanes with workflow and family descendants."""
     project_file = "/workspace/sase/visual_project.sase"
     started = datetime(2026, 7, 22, 7, 0, 0)
 
-    def workflow_house(name: str, minute: int) -> tuple[Agent, Agent, Agent]:
+    def workflow_lane(name: str, minute: int) -> tuple[Agent, Agent, Agent]:
         fold_key = f"2026072207{minute:02d}00"
         root = Agent(
             agent_type=AgentType.WORKFLOW,
@@ -206,8 +206,8 @@ def group_house_collapse_precedence_agents() -> list[Agent]:
         root.runtime_children.extend([agent_step, hidden_step])
         return root, agent_step, hidden_step
 
-    hu = workflow_house("hu", 0)
-    ht = workflow_house("ht", 1)
+    hu = workflow_lane("hu", 0)
+    ht = workflow_lane("ht", 1)
 
     hs_root = Agent(
         agent_type=AgentType.RUNNING,

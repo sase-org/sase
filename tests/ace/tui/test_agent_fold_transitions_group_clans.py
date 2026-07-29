@@ -290,7 +290,7 @@ def test_row_h_narrows_deep_descendant_to_enclosing_clan() -> None:
     app._fold_manager.expand(member_key)
     _sync_fold_projection(app, rows, child)
     app._fold_manager.collapse_fully_all([member_key])
-    assert app._resolve_agent_house_collapse_target() is None
+    assert app._resolve_agent_lane_collapse_target() is None
 
     target = app._resolve_agent_clan_collapse_target()
     assert target is not None
@@ -306,7 +306,7 @@ def test_row_h_narrows_deep_descendant_to_enclosing_clan() -> None:
     assert app.panel_selection_memory_calls == [("agent", app._agents.index(clan))]
 
 
-def test_row_h_closes_houses_then_all_group_clans_then_group() -> None:
+def test_row_h_closes_lanes_then_all_group_clans_then_group() -> None:
     family_rows, family, _member = make_sequential_family(clan="workers")
     sibling_rows = _projected_clan("reviewers")
     closed_rows = _projected_clan("closed")

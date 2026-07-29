@@ -196,23 +196,23 @@ def make_loader_shaped_aliased_plan_family() -> tuple[
     return agents, root, main, coder, steps
 
 
-def make_standalone_workflow_house(
+def make_standalone_workflow_lane(
     *,
     clan: str | None = None,
     tribe: str | None = None,
 ) -> tuple[list[Agent], Agent, dict[str, Agent]]:
-    """Build an ordinary workflow house with every supported child shape."""
+    """Build an ordinary workflow lane with every supported child shape."""
     root = make_agent(
-        cl_name="house",
-        raw_suffix="workflow-house",
+        cl_name="lane",
+        raw_suffix="workflow-lane",
         agent_type=AgentType.WORKFLOW,
         tribe=tribe,
     )
-    root.workflow = "house-workflow"
+    root.workflow = "lane-workflow"
     if clan is not None:
         root.agent_clan = clan
         root.agent_clan_generation = "generation"
-    steps = _make_loader_shaped_workflow_steps(root, workflow="house-workflow")
+    steps = _make_loader_shaped_workflow_steps(root, workflow="lane-workflow")
     root.runtime_children.extend(steps.values())
     rows = [root, *steps.values()]
     return (project_clan_tree(rows) if clan is not None else rows), root, steps

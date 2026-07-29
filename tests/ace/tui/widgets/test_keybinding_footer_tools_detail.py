@@ -9,7 +9,7 @@ from sase.ace.tui.widgets.tools_panel import ToolDetailLevel
 from tests.ace.tui._agent_fold_transition_helpers import (
     StubFoldApp,
     make_loader_shaped_aliased_plan_family,
-    make_standalone_workflow_house,
+    make_standalone_workflow_lane,
 )
 
 
@@ -82,12 +82,12 @@ def test_footer_without_selected_agent_omits_agent_only_actions() -> None:
 def test_footer_selected_panel_advertises_next_collapse_ladder_step() -> None:
     footer = KeybindingFooter()
 
-    houses = _labels(
+    lanes = _labels(
         footer._compute_agent_bindings(
             None,
             panel_focused=True,
             panel_collapsed=False,
-            house_collapse_available=True,
+            lane_collapse_available=True,
             clan_collapse_available=True,
             group_collapse_available=True,
         )
@@ -132,13 +132,13 @@ def test_footer_selected_panel_advertises_next_collapse_ladder_step() -> None:
         )
     )
 
-    assert ("H", "collapse houses") in houses
+    assert ("H", "collapse lanes") in lanes
     assert ("H", "collapse clans") in clans
     assert ("H", "collapse group") not in clans
     assert ("H", "collapse group") in group
     assert ("h", "collapse panel") in terminal
     assert not any(key == "H" for key, _label in terminal)
-    assert ("Z", "only panel") in houses
+    assert ("Z", "only panel") in lanes
     assert ("Z", "only panel") in collapsed
     assert not any(key == "H" for key, _label in collapsed)
     assert ("h", "last expanded panel") not in collapsed
@@ -180,12 +180,12 @@ def test_footer_panel_isolation_uses_custom_zoom_action_key() -> None:
         footer._compute_agent_bindings(
             None,
             panel_focused=True,
-            house_collapse_available=True,
+            lane_collapse_available=True,
         )
     )
 
     assert ("<f2>", "only panel") in bindings
-    assert ("<f3>", "collapse houses") in bindings
+    assert ("<f3>", "collapse lanes") in bindings
 
 
 def test_footer_selected_panel_clan_rung_uses_custom_collapse_action_key() -> None:
@@ -281,10 +281,10 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
             clan_collapse_available=True,
         )
     )
-    house_collapse = _labels(
+    lane_collapse = _labels(
         footer._compute_agent_bindings(
             None,
-            house_collapse_available=True,
+            lane_collapse_available=True,
             clan_collapse_available=True,
             structural_collapse_kind="clan",
             group_collapse_available=True,
@@ -319,9 +319,9 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     assert ("H", "collapse clans") not in selected_clan_collapse
     assert ("H", "collapse clans") in group_clan_collapse
     assert ("H", "collapse clan") not in group_clan_collapse
-    assert ("H", "collapse houses") in house_collapse
-    assert ("H", "collapse clan") not in house_collapse
-    assert ("H", "collapse group") not in house_collapse
+    assert ("H", "collapse lanes") in lane_collapse
+    assert ("H", "collapse clan") not in lane_collapse
+    assert ("H", "collapse group") not in lane_collapse
     assert ("H", "collapse clans") in panel_clan_collapse
     assert ("H", "collapse family") not in panel_clan_collapse
     assert ("H", "collapse group") not in panel_clan_collapse
@@ -348,7 +348,7 @@ def test_footer_labels_aliased_family_workflow_steps_from_shared_resolver(
 
 
 def test_footer_omits_parent_for_invalid_ancestry() -> None:
-    agents, root, steps = make_standalone_workflow_house()
+    agents, root, steps = make_standalone_workflow_lane()
     selected = steps["python"]
     selected.tree_parent_key = root.raw_suffix
     selected.tree_depth = 7
@@ -365,15 +365,15 @@ def test_footer_omits_parent_for_invalid_ancestry() -> None:
     assert not any(label.startswith("parent ") for _key, label in bindings)
 
 
-def test_footer_saturated_hidden_leaf_advertises_group_house_collapse() -> None:
-    agents, root, steps = make_standalone_workflow_house()
+def test_footer_saturated_hidden_leaf_advertises_group_lane_collapse() -> None:
+    agents, root, steps = make_standalone_workflow_lane()
     app = StubFoldApp(agents, current_idx=agents.index(steps["pre_prompt"]))
     assert root.raw_suffix is not None
     app._fold_manager.expand(root.raw_suffix)
     app._fold_manager.expand(root.raw_suffix)
     assert app._fold_manager.get(root.raw_suffix) is FoldLevel.FULLY_EXPANDED
     left = app._resolve_agent_left_navigation_target()
-    collapse = app._resolve_agent_house_collapse_target()
+    collapse = app._resolve_agent_lane_collapse_target()
     assert left is not None
     assert collapse is not None
 
@@ -381,9 +381,9 @@ def test_footer_saturated_hidden_leaf_advertises_group_house_collapse() -> None:
         KeybindingFooter()._compute_agent_bindings(
             None,
             left_navigation_kind=left.kind,
-            house_collapse_available=True,
+            lane_collapse_available=True,
         )
     )
 
     assert ("h", "parent workflow") in bindings
-    assert ("H", "collapse houses") in bindings
+    assert ("H", "collapse lanes") in bindings

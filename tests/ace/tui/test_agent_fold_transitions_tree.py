@@ -13,7 +13,7 @@ from ._agent_fold_transition_helpers import (
     make_agent,
     make_loader_shaped_aliased_plan_family,
     make_sequential_family,
-    make_standalone_workflow_house,
+    make_standalone_workflow_lane,
 )
 
 
@@ -65,7 +65,7 @@ def test_capital_h_collapses_aliased_plan_family_before_group_fold() -> None:
 def test_capital_h_collapses_workflow_step_owner_before_group(
     step_kind: str,
 ) -> None:
-    agents, root, steps = make_standalone_workflow_house()
+    agents, root, steps = make_standalone_workflow_lane()
     selected = steps[step_kind]
     app = StubFoldApp(agents, current_idx=agents.index(selected))
     workflow_key = agent_fold_key(root)
@@ -82,7 +82,7 @@ def test_capital_h_collapses_workflow_step_owner_before_group(
 
 
 def test_l_expands_child_owner_but_saturated_hidden_leaf_is_noop() -> None:
-    agents, root, steps = make_standalone_workflow_house()
+    agents, root, steps = make_standalone_workflow_lane()
     workflow_key = agent_fold_key(root)
     assert workflow_key is not None
     app = StubFoldApp(agents, current_idx=agents.index(steps["bash"]))

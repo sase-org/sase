@@ -42,7 +42,7 @@ def _clan_container(agents: list[Agent], clan: str) -> Agent:
     )
 
 
-def test_selected_panel_h_collapses_houses_before_clans_before_group() -> None:
+def test_selected_panel_h_collapses_lanes_before_clans_before_group() -> None:
     projected, family, _member = make_sequential_family(clan="workers")
     sibling = make_agent(agent_name="sibling", tribe="research")
     agents = [*projected, sibling]

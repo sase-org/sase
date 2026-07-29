@@ -7,11 +7,11 @@ from typing import TYPE_CHECKING, cast
 
 from ._fold_scope import focused_panel_fold_registry, panel_fold_registry
 from ._folding_clans import AgentPanelClanFoldingMixin
-from ._folding_houses import (
-    AgentHouseCollapseTarget,
-    AgentPanelHouseCollapseTarget,
-    resolve_group_house_collapse_target,
-    resolve_panel_house_collapse_target,
+from ._folding_lanes import (
+    AgentLaneCollapseTarget,
+    AgentPanelLaneCollapseTarget,
+    resolve_group_lane_collapse_target,
+    resolve_panel_lane_collapse_target,
 )
 from ._navigation_order import rendered_panel_slice
 
@@ -338,26 +338,26 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
         if self._fold_manager.collapse(key):
             self._refilter_agents()  # type: ignore[attr-defined]
 
-    def _resolve_agent_house_collapse_target(
+    def _resolve_agent_lane_collapse_target(
         self,
-    ) -> AgentHouseCollapseTarget | None:
-        """Resolve the group-wide house step that precedes structural ``H``."""
+    ) -> AgentLaneCollapseTarget | None:
+        """Resolve the group-wide lane step that precedes structural ``H``."""
         group_key = self._resolve_group_collapse_target()
         if group_key is None:
             return None
-        return resolve_group_house_collapse_target(self, group_key)
+        return resolve_group_lane_collapse_target(self, group_key)
 
-    def _resolve_focused_panel_house_collapse_target(
+    def _resolve_focused_panel_lane_collapse_target(
         self,
-    ) -> AgentPanelHouseCollapseTarget | None:
-        """Resolve the panel-wide house step for selected-panel ``H``."""
+    ) -> AgentPanelLaneCollapseTarget | None:
+        """Resolve the panel-wide lane step for selected-panel ``H``."""
         if self.current_tab != "agents":
             return None
         resolve_panel = getattr(self, "_resolve_focused_panel", None)
         panel_focus = resolve_panel() if callable(resolve_panel) else None
         if panel_focus is None or panel_focus.collapsed:
             return None
-        return resolve_panel_house_collapse_target(self, panel_focus.panel_key)
+        return resolve_panel_lane_collapse_target(self, panel_focus.panel_key)
 
     def _restore_focused_panel_inner_fold_state(
         self,
@@ -401,13 +401,13 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
             remembered_selection=remembered_selection,
         )
 
-    def _collapse_agent_house_folds(
+    def _collapse_agent_lane_folds(
         self,
-        target: AgentHouseCollapseTarget | AgentPanelHouseCollapseTarget | None = None,
+        target: AgentLaneCollapseTarget | AgentPanelLaneCollapseTarget | None = None,
     ) -> bool:
-        """Fully collapse all open canonical houses in one resolved scope."""
+        """Fully collapse all open canonical lanes in one resolved scope."""
         if target is None:
-            target = self._resolve_agent_house_collapse_target()
+            target = self._resolve_agent_lane_collapse_target()
         if target is None:
             return False
 
@@ -420,7 +420,7 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
         # A fold-only mutation neither changes the cached content corpus nor
         # needs one background content-index rebuild. Apply every fold state
         # first, then take the normal in-memory display path exactly once.
-        if isinstance(target, AgentPanelHouseCollapseTarget):
+        if isinstance(target, AgentPanelLaneCollapseTarget):
             self._refilter_focused_panel_inner_fold(target.panel_key)
         else:
             self._refilter_agents(  # type: ignore[attr-defined]

@@ -111,7 +111,7 @@ class KeybindingBindingsMixin:
         panel_collapse_jump_available: bool = False,
         panel_restore_armed: bool = False,
         left_navigation_kind: str | None = None,
-        house_collapse_available: bool = False,
+        lane_collapse_available: bool = False,
         clan_collapse_available: bool = False,
         selected_clan_collapse_available: bool = False,
         structural_collapse_kind: str | None = None,
@@ -225,8 +225,8 @@ class KeybindingBindingsMixin:
         collapse_all_label: str | None = None
         if tools_can_compact:
             collapse_all_label = "compact tools"
-        elif house_collapse_available:
-            collapse_all_label = "collapse houses"
+        elif lane_collapse_available:
+            collapse_all_label = "collapse lanes"
         elif clan_collapse_available:
             collapse_all_label = (
                 "collapse clan"

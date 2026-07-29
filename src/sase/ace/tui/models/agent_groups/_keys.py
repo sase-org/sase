@@ -357,10 +357,10 @@ def walk_order(
     else:
         sortable_indices = list(range(len(keys_per_agent)))
 
-    # BY_STATUS partitions each status bucket into standalone houses followed
+    # BY_STATUS partitions each status bucket into standalone lanes followed
     # by visible name-root subgroups. Recency applies only inside those two
     # partitions, so an older standalone cannot fall below a newer subgroup.
-    # Apply the same rule inside each visible name-root: direct houses precede
+    # Apply the same rule inside each visible name-root: direct lanes precede
     # visible dotted-prefix subgroups, with recency ordering each partition.
     # Every visible subgroup receives one effective recency so its banner and
     # members stay contiguous. An exact root/prefix marker owns that subgroup's

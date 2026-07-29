@@ -24,9 +24,9 @@ any of its non-project-scoped agents targets a ChangeSpec
 
 ``BY_STATUS`` replaces the project level with a priority-ordered status
 bucket, then uses the same name-root and optional name-prefix levels. Within a
-status bucket, standalone houses render before visible name-root subgroups;
+status bucket, standalone lanes render before visible name-root subgroups;
 launch recency sorts units only within those two partitions. The same rule
-places houses directly under a name-root before its visible dotted-prefix
+places lanes directly under a name-root before its visible dotted-prefix
 subgroups. Subgroups use their outer/root agent's ``start_time`` and remain
 contiguous. ``BY_DATE`` replaces the tree with date bucket → time subgroup and
 intentionally suppresses name-root/name-prefix grouping.
