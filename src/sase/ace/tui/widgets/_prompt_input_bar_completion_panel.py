@@ -33,7 +33,12 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
 )
 from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
-from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
+from sase.ace.tui.widgets.file_completion import (
+    COMPLETION_PANEL_BORDER_ROWS,
+    COMPLETION_PANEL_MAX_HEIGHT,
+    CompletionCandidate,
+    completion_visible_rows,
+)
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
     HistoryWordCompletionPlaceholder,
@@ -58,10 +63,10 @@ else:
     _MixinBase = object
 
 # Mirror styles.tcss for #prompt-completion. The panel reserves a border-box
-# height capped by max-height, plus its one-row bottom margin.
-_PANEL_BORDER_ROWS = 2
+# height capped by max-height, plus its one-row bottom margin. The border and
+# max-height mirrors live in file_completion so the row budget and the height
+# reservation cannot drift apart.
 _PANEL_MARGIN_ROWS = 1
-_COMPLETION_PANEL_MAX_HEIGHT = 10
 _JINJA_PANEL_MAX_HEIGHT = 5
 _PLACEHOLDER_SOURCE_LEGEND = "<> prompt   ◆ saved"
 
@@ -95,10 +100,10 @@ def _model_completion_subtitle(
 
 def _reserved_panel_rows(
     line_count: int,
-    max_height: int = _COMPLETION_PANEL_MAX_HEIGHT,
+    max_height: int = COMPLETION_PANEL_MAX_HEIGHT,
 ) -> int:
     """Rows occupied by the completion panel, clamped to its CSS max-height."""
-    border_box = min(line_count + _PANEL_BORDER_ROWS, max_height)
+    border_box = min(line_count + COMPLETION_PANEL_BORDER_ROWS, max_height)
     return border_box + _PANEL_MARGIN_ROWS
 
 
@@ -154,6 +159,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         selected_index: int,
         scroll_offset: int = 0,
         completion_kind: str = "file",
+        group_rule: bool = False,
     ) -> None:
         """Show the shared manual-completion panel with Rich styling.
 
@@ -163,12 +169,15 @@ class PromptInputBarCompletionMixin(_MixinBase):
             selected_index: Highlighted row index.
             scroll_offset: First visible entry index for scrolling.
             completion_kind: Named provider kind used to render rows and title.
+            group_rule: True when a group rule line is drawn between groups,
+                which claims one of the panel's content lines.
         """
         panel = self._completion_panel()
         if panel is None:
             return
         total = len(rows)
-        visible = rows[scroll_offset : scroll_offset + MAX_VISIBLE]
+        row_budget = completion_visible_rows(total, group_rule=group_rule)
+        visible = rows[scroll_offset : scroll_offset + row_budget]
 
         is_xprompt = completion_kind == "xprompt"
         is_directive = completion_kind == "directive"

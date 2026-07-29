@@ -16,7 +16,10 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefCompletionResult,
     build_artifact_ref_completion_result,
 )
-from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
+from sase.ace.tui.widgets.file_completion import (
+    CompletionCandidate,
+    completion_scroll_offset,
+)
 from sase.ace.tui.widgets.prompt_word_completion import (
     WordCompletionResult,
     build_prompt_word_completion_result,
@@ -154,14 +157,12 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             return
 
         rows = self._file_completion_candidates
-        total = len(rows)
-        if total <= MAX_VISIBLE:
-            scroll_offset = 0
-        else:
-            half = MAX_VISIBLE // 2
-            scroll_offset = max(
-                0, min(self._file_completion_index - half, total - MAX_VISIBLE)
-            )
+        group_rule = self._completion_group_rule_reserved()
+        scroll_offset = completion_scroll_offset(
+            len(rows),
+            self._file_completion_index,
+            group_rule=group_rule,
+        )
         display_token = token
         if self._completion_kind == VCS_REF_COMPLETION_KIND:
             ref_trigger = self._get_vcs_ref_trigger()
@@ -189,7 +190,17 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             self._file_completion_index,
             scroll_offset,
             completion_kind=self._completion_kind,
+            group_rule=group_rule,
         )
+
+    def _completion_group_rule_reserved(self) -> bool:
+        """Return True when the panel draws a group rule for the active menu.
+
+        The rule costs one of the panel's content lines, so the row budget has
+        to know about it before any rows are windowed. Providers that render
+        grouped menus override this.
+        """
+        return False
 
     def _clear_file_completion(self, *, clear_xprompt_arg_hint: bool = True) -> None:
         """Reset manual completion state and hide its panel."""

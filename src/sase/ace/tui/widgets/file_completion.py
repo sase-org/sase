@@ -6,8 +6,58 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
-MAX_VISIBLE = 10
-"""Maximum number of completion entries visible in the panel at once."""
+COMPLETION_PANEL_MAX_HEIGHT = 10
+"""Mirror of the ``max-height`` for ``#prompt-completion`` in styles.tcss."""
+
+COMPLETION_PANEL_BORDER_ROWS = 2
+"""Top and bottom border rows the completion panel spends on its frame."""
+
+COMPLETION_PANEL_CONTENT_ROWS = (
+    COMPLETION_PANEL_MAX_HEIGHT - COMPLETION_PANEL_BORDER_ROWS
+)
+"""Content lines the completion panel can render without clipping."""
+
+
+def completion_visible_rows(total: int, *, group_rule: bool = False) -> int:
+    """Return how many candidate rows the panel can render without clipping.
+
+    Args:
+        total: Number of candidates available.
+        group_rule: True when the renderer draws a group rule line, which
+            costs one content line of its own.
+
+    Returns:
+        The visible-row budget, reserving a line for the ``↓ N more…``
+        indicator whenever the candidates overflow the panel.
+    """
+    capacity = COMPLETION_PANEL_CONTENT_ROWS - (1 if group_rule else 0)
+    if total > capacity:
+        capacity -= 1
+    return max(1, capacity)
+
+
+def completion_scroll_offset(
+    total: int,
+    selected_index: int,
+    *,
+    group_rule: bool = False,
+) -> int:
+    """Return the first visible row index that keeps *selected_index* on screen.
+
+    Args:
+        total: Number of candidates available.
+        selected_index: Highlighted candidate index.
+        group_rule: True when the renderer draws a group rule line.
+
+    Returns:
+        A scroll offset clamped so the highlighted row is inside the window
+        produced by :func:`completion_visible_rows`.
+    """
+    visible = completion_visible_rows(total, group_rule=group_rule)
+    if total <= visible:
+        return 0
+    half = visible // 2
+    return max(0, min(selected_index - half, total - visible))
 
 
 @dataclass(slots=True)
