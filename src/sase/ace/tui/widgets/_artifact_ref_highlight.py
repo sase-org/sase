@@ -54,22 +54,29 @@ def _load_known_artifact_ref_kinds(
     workspace_dir: str | None,
     workspace_num: int,
 ) -> _KnownKindsResult:
-    """Load one target project's known kinds away from the UI thread."""
-    workspace = Path(workspace_dir) if workspace_dir else None
-    if workspace is None:
-        workspace = known_project_namespaces().get(project) if project else Path.cwd()
-    if workspace is None:
-        kinds = frozenset(BUILTIN_ARTIFACT_REF_KINDS)
-        return _KnownKindsResult(
-            project,
-            kinds,
-            ArtifactRefCompletionCatalog(project, tuple(BUILTIN_ARTIFACT_REF_KINDS)),
-        )
+    """Load known kinds from the workspace represented by the cache key.
+
+    A target-project namespace wins over the caller's session workspace because
+    the resulting catalog is cached by target project. The caller workspace is
+    the fallback, followed by the current directory.
+    """
+    project_workspace = (
+        known_project_namespaces().get(project) if project is not None else None
+    )
+    if project_workspace is not None:
+        workspace = project_workspace
+        effective_workspace_num = 1
+    elif workspace_dir:
+        workspace = Path(workspace_dir)
+        effective_workspace_num = workspace_num if workspace_num > 0 else 1
+    else:
+        workspace = Path.cwd()
+        effective_workspace_num = 1
 
     try:
         context = artifact_ref_context(
             workspace,
-            workspace_num if workspace_num > 0 else 1,
+            effective_workspace_num,
             project=project,
         )
     except Exception:

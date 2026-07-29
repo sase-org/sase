@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import threading
 
 from rich.color import Color
 
 from sase.ace.tui.widgets import _artifact_ref_highlight
+from sase.ace.tui.widgets.artifact_ref_completion import (
+    ArtifactRefCompletionCatalog,
+)
 from sase.ace.tui.widgets._jinja_highlight import _MAX_OVERLAY_BYTES
 from sase.ace.tui.widgets.prompt_completion import DEFAULT_PROMPT_COMPLETION_SETTINGS
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.artifact_refs import ArtifactRefContext, ArtifactRefDocumentRoot
 
 from ._completion_helpers import CompletionTestApp
 
@@ -35,6 +40,107 @@ def _artifact_highlights(
         for start, end, name in spans
         if name.startswith("artifact_ref.")
     ]
+
+
+def _stub_known_kind_loaders(monkeypatch, tmp_path: Path):
+    calls: list[tuple[Path, int, str | None]] = []
+    context = ArtifactRefContext(
+        document_roots=(ArtifactRefDocumentRoot("designs", tmp_path / "designs"),),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifact-files.jsonl",
+        repositories=(),
+        projects=(),
+    )
+
+    def _context(
+        workspace: str | Path,
+        workspace_num: int,
+        project: str | None = None,
+    ) -> ArtifactRefContext:
+        calls.append((Path(workspace), workspace_num, project))
+        return context
+
+    def _catalog(
+        project: str | None,
+        loaded_context: ArtifactRefContext,
+    ) -> ArtifactRefCompletionCatalog:
+        assert loaded_context is context
+        return ArtifactRefCompletionCatalog(project, loaded_context.known_kinds)
+
+    monkeypatch.setattr(_artifact_ref_highlight, "artifact_ref_context", _context)
+    monkeypatch.setattr(
+        _artifact_ref_highlight,
+        "load_artifact_ref_completion_catalog",
+        _catalog,
+    )
+    return calls
+
+
+def test_known_kinds_target_project_wins_over_caller_workspace(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    target_workspace = tmp_path / "target"
+    caller_workspace = tmp_path / "caller"
+    monkeypatch.setattr(
+        _artifact_ref_highlight,
+        "known_project_namespaces",
+        lambda: {"proj": target_workspace},
+    )
+    calls = _stub_known_kind_loaders(monkeypatch, tmp_path)
+
+    result = _artifact_ref_highlight._load_known_artifact_ref_kinds(
+        "proj",
+        str(caller_workspace),
+        7,
+    )
+
+    assert calls == [(target_workspace, 1, "proj")]
+    assert "designs" in result.kinds
+
+
+def test_known_kinds_without_project_keeps_caller_workspace(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    caller_workspace = tmp_path / "caller"
+    monkeypatch.setattr(
+        _artifact_ref_highlight,
+        "known_project_namespaces",
+        lambda: {"proj": tmp_path / "target"},
+    )
+    calls = _stub_known_kind_loaders(monkeypatch, tmp_path)
+
+    result = _artifact_ref_highlight._load_known_artifact_ref_kinds(
+        None,
+        str(caller_workspace),
+        7,
+    )
+
+    assert calls == [(caller_workspace, 7, None)]
+    assert "designs" in result.kinds
+
+
+def test_known_kinds_unknown_project_falls_back_to_caller_workspace(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    caller_workspace = tmp_path / "caller"
+    monkeypatch.setattr(
+        _artifact_ref_highlight,
+        "known_project_namespaces",
+        lambda: {},
+    )
+    calls = _stub_known_kind_loaders(monkeypatch, tmp_path)
+
+    result = _artifact_ref_highlight._load_known_artifact_ref_kinds(
+        "proj",
+        str(caller_workspace),
+        3,
+    )
+
+    assert calls == [(caller_workspace, 3, "proj")]
+    assert "designs" in result.kinds
 
 
 async def test_artifact_ref_overlay_marks_each_part_and_registers_styles() -> None:

@@ -66,10 +66,13 @@ _CATALOG = ArtifactRefCompletionCatalog(
 
 
 def _seed_catalog(
-    text_area: PromptTextArea, catalog: ArtifactRefCompletionCatalog
+    text_area: PromptTextArea,
+    catalog: ArtifactRefCompletionCatalog,
+    *,
+    project: str | None = None,
 ) -> None:
-    text_area._artifact_ref_known_kinds_by_project[None] = frozenset(catalog.kinds)
-    text_area._artifact_ref_completion_catalogs_by_project[None] = catalog
+    text_area._artifact_ref_known_kinds_by_project[project] = frozenset(catalog.kinds)
+    text_area._artifact_ref_completion_catalogs_by_project[project] = catalog
 
 
 @pytest.mark.parametrize(
@@ -165,6 +168,29 @@ async def test_auto_kind_menu_opens_only_after_two_characters() -> None:
         assert text_area._file_completion_active is True
         assert [row.insertion for row in text_area._file_completion_candidates] == [
             "@plans:"
+        ]
+
+
+async def test_vcs_tag_uses_target_project_catalog_for_dynamic_kind(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._xprompt_arg_hints.canonical_xprompt_project",
+        lambda _project: "proj",
+    )
+    app = CompletionTestApp()
+    async with app.run_test():
+        text_area = app.query_one(PromptTextArea)
+        catalog = replace(_CATALOG, project="proj")
+        _seed_catalog(text_area, catalog, project="proj")
+        text_area.load_text("#git:proj @des")
+        text_area.cursor_location = (0, len(text_area.text))
+
+        assert text_area._xprompt_arg_assist_project_from_text() == "proj"
+        assert text_area._try_artifact_ref_completion(force=True) is True
+        assert text_area._completion_kind == ARTIFACT_REF_COMPLETION_KIND
+        assert [row.insertion for row in text_area._file_completion_candidates] == [
+            "@designs:"
         ]
 
 
