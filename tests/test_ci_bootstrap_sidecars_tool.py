@@ -157,7 +157,7 @@ def test_store_record_is_accepted_by_sase(tool: types.ModuleType) -> None:
     assert normalized.schema_version == 3
     assert normalized.storage == "sidecar_repos"
     assert normalized.plans is not None
-    assert normalized.research is not None
+    assert normalized.sidecar_for_kind("research") is not None
     assert normalized.beads is not None
     assert normalized.beads.repo == "sase-org/sase--beads"
 

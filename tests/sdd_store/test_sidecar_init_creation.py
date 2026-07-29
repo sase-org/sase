@@ -120,7 +120,7 @@ def test_split_init_creates_both_repos_before_writing_record(
     record = read_sdd_store_record(project)
     assert record is not None and record.is_sidecar_storage
     assert record.plans is not None and record.plans.repo == "acme/widget--plans"
-    assert record.research is not None
+    assert record.sidecar_for_kind("research") is not None
     assert (clones["plans"] / "README.md").is_file()
     assert (clones["plans"] / ".gitignore").read_text().splitlines() == [
         "beads/beads.db",
@@ -130,7 +130,58 @@ def test_split_init_creates_both_repos_before_writing_record(
     assert (clones["research"] / "README.md").is_file()
 
 
-def test_agents_init_uses_hidden_root_and_leaves_compatibility_store_two_slot(
+def test_split_init_materializes_plans_and_custom_role_without_research(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_git_environment(monkeypatch)
+    project = tmp_path / "widget"
+    project.mkdir()
+    (project / ".git").mkdir()
+    roles = ("plans", "designs")
+    remotes = {role: bare_remote(tmp_path, role) for role in roles}
+    clones = {role: tmp_path / f"widget--{role}" for role in roles}
+
+    def create_remote(
+        _primary: str, _workspace: str, options: dict[str, object]
+    ) -> dict[str, object]:
+        role = str(options["sdd_sidecar_suffix"])
+        return {
+            "schema_version": 1,
+            "storage": "separate_repo",
+            "provider": "github",
+            "host": "github.com",
+            "repo": f"acme/widget--{role}",
+            "remote_url": str(remotes[role]),
+            "discovery": "found",
+            "created": True,
+        }
+
+    monkeypatch.setattr("sase.workspace_provider.create_sdd_remote", create_remote)
+    monkeypatch.setattr(
+        "sase.linked_repos.sidecar_repo_clone_dir",
+        lambda _workspace, role: str(clones[role]),
+    )
+
+    outcome = initialize_sidecars(
+        project,
+        1,
+        tuple(SidecarInitSpec(role=role) for role in roles),
+        creation_authorized=dict.fromkeys(roles, True),
+    )
+
+    assert outcome.record is not None
+    assert set(outcome.record.sidecars) == {"plans", "designs"}
+    assert outcome.record.sidecar_for_kind("research") is None
+    assert outcome.store is not None
+    assert outcome.store.kind_root("designs") == clones["designs"]
+    assert outcome.store.repo_root_for_kind("designs") == clones["designs"]
+    assert set(
+        json.loads((project / ".sase" / "sdd-store.json").read_text())["sidecars"]
+    ) == {"plans", "designs"}
+
+
+def test_agents_init_uses_hidden_root_and_records_every_sidecar_role(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -222,9 +273,11 @@ def test_agents_init_uses_hidden_root_and_leaves_compatibility_store_two_slot(
 
     record = read_sdd_store_record(project)
     assert record is not None and record.is_sidecar_storage
-    assert record.plans is not None and record.research is not None
+    assert record.plans is not None
+    assert record.sidecar_for_kind("research") is not None
+    assert record.sidecar_for_kind("agents") is not None
     persisted = json.loads((project / ".sase" / "sdd-store.json").read_text())
-    assert set(persisted["sidecars"]) == {"plans", "research"}
+    assert set(persisted["sidecars"]) == {"plans", "research", "agents"}
 
     roots = initialize_materialized_sidecars(project, (specs[-1],))
     assert roots == {"agents": agents_root}

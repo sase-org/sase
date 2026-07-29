@@ -86,23 +86,23 @@ def test_commit_sdd_store_files_does_not_push_local_store(
     async_push.assert_not_called()
 
 
-def test_commit_sdd_store_files_routes_split_paths_to_owning_repos(
+def test_commit_sdd_store_files_routes_custom_role_paths_to_owning_repos(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plans = tmp_path / "project--plans"
-    research = tmp_path / "project--research"
+    designs = tmp_path / "project--designs"
     beads = tmp_path / "project--beads"
     init_test_git_repo(plans)
-    init_test_git_repo(research)
+    init_test_git_repo(designs)
     init_test_git_repo(beads)
     plan = plans / "202607" / "plan.md"
-    report = research / "202607" / "report.md"
+    design = designs / "202607" / "design.md"
     issue = beads / "issues.jsonl"
     plan.parent.mkdir()
-    report.parent.mkdir()
+    design.parent.mkdir()
     plan.write_text("# Plan\n", encoding="utf-8")
-    report.write_text("# Research\n", encoding="utf-8")
+    design.write_text("# Design\n", encoding="utf-8")
     issue.write_text('{"id":"project-1"}\n', encoding="utf-8")
     monkeypatch.setattr(
         "sase.config.load_merged_config",
@@ -113,15 +113,15 @@ def test_commit_sdd_store_files_routes_split_paths_to_owning_repos(
         sdd_dir=plans,
         repo_root=plans,
         remote_url="git@example.com:acme/project--plans.git",
-        research_dir=research,
-        research_remote_url="git@example.com:acme/project--research.git",
+        sidecar_dirs={"designs": designs},
+        sidecar_remote_urls={"designs": "git@example.com:acme/project--designs.git"},
         beads_dir=beads,
     )
 
     assert commit_sdd_store_files(
         store,
         "Commit split SDD",
-        paths=[plan, report, issue],
+        paths=[plan, design, issue],
     )
 
     assert subprocess.run(
@@ -133,11 +133,11 @@ def test_commit_sdd_store_files_routes_split_paths_to_owning_repos(
     ).stdout.splitlines() == ["202607/plan.md"]
     assert subprocess.run(
         ["git", "show", "--name-only", "--format=", "HEAD"],
-        cwd=research,
+        cwd=designs,
         capture_output=True,
         text=True,
         check=True,
-    ).stdout.splitlines() == ["202607/report.md"]
+    ).stdout.splitlines() == ["202607/design.md"]
     assert subprocess.run(
         ["git", "show", "--name-only", "--format=", "HEAD"],
         cwd=beads,
@@ -159,8 +159,8 @@ def test_commit_sdd_store_files_pushes_each_changed_sidecar(
         sdd_dir=plans,
         repo_root=plans,
         remote_url="git@example.com:acme/project--plans.git",
-        research_dir=research,
-        research_remote_url="git@example.com:acme/project--research.git",
+        sidecar_dirs={"research": research},
+        sidecar_remote_urls={"research": "git@example.com:acme/project--research.git"},
         beads_dir=beads,
     )
     commit_roots: list[Path] = []
@@ -273,7 +273,7 @@ def test_sidecar_commit_targets_are_labeled_by_role_in_numbered_workspace(
     ]
     assert [target.remote_url for target in targets] == [
         topology.store.remote_url,
-        topology.store.research_remote_url,
+        topology.store.remote_url_for_kind("research"),
         topology.store.beads_remote_url,
     ]
 

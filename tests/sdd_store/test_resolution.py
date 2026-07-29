@@ -341,11 +341,12 @@ def test_legacy_github_https_sidecars_resolve_to_ssh_without_rewriting_record(
     store = resolve_sdd_store(workspace, 2)
 
     assert record is not None and record.plans is not None
-    assert record.research is not None
+    research = record.sidecar_for_kind("research")
+    assert research is not None
     assert record.plans.remote_url == "git@github.com:owner/repo--plans.git"
-    assert record.research.remote_url == "git@github.com:owner/repo--research.git"
+    assert research.remote_url == "git@github.com:owner/repo--research.git"
     assert store.remote_url == record.plans.remote_url
-    assert store.research_remote_url == record.research.remote_url
+    assert store.remote_url_for_kind("research") == research.remote_url
     assert json.loads(record_path.read_text(encoding="utf-8")) == raw
 
 
@@ -377,11 +378,13 @@ def test_legacy_github_enterprise_https_sidecars_use_configured_ssh_port(
         },
     )
 
-    assert record.plans is not None and record.research is not None
+    assert record.plans is not None
+    research = record.sidecar_for_kind("research")
+    assert research is not None
     assert record.plans.remote_url == (
         "ssh://git@github.enterprise.test:2222/acme/widget--plans.git"
     )
-    assert record.research.remote_url == (
+    assert research.remote_url == (
         "ssh://git@github.enterprise.test:2222/acme/widget--research.git"
     )
 
@@ -459,17 +462,17 @@ def test_legacy_split_record_normalizes_and_rewrites_canonical_spellings(
     assert legacy_sidecars_key not in rewritten
 
 
-def test_sidecar_record_requires_both_kind_mappings(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="plans and research"):
+def test_sidecar_record_requires_plans_mapping(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="require a plans mapping"):
         write_sdd_store_record(
             tmp_path,
             {
                 "schema_version": 2,
                 "storage": "sidecar_repos",
                 "sidecars": {
-                    "plans": {
-                        "repo": "owner/repo--plans",
-                        "remote_url": "plans-remote",
+                    "designs": {
+                        "repo": "owner/repo--designs",
+                        "remote_url": "designs-remote",
                     }
                 },
             },

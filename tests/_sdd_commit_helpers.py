@@ -82,8 +82,10 @@ def make_sidecar_workspace_topology(
         sdd_dir=plans,
         repo_root=plans,
         remote_url=f"{remote_prefix}--plans.git",
-        research_dir=research,
-        research_remote_url=f"{remote_prefix}--research.git",
+        sidecar_dirs={"research": research},
+        sidecar_remote_urls={
+            "research": f"{remote_prefix}--research.git",
+        },
         beads_dir=beads,
         beads_remote_url=f"{remote_prefix}--beads.git",
     )

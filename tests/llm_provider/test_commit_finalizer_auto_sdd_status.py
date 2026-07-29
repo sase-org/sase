@@ -326,8 +326,8 @@ def test_split_sdd_store_auto_commit_targets_only_bead_state(
         sdd_dir=plans,
         repo_root=plans,
         remote_url="git@example.com:acme/project--plans.git",
-        research_dir=research,
-        research_remote_url="git@example.com:acme/project--research.git",
+        sidecar_dirs={"research": research},
+        sidecar_remote_urls={"research": "git@example.com:acme/project--research.git"},
         beads_dir=beads,
     )
     commit = MagicMock(return_value=True)
@@ -381,7 +381,7 @@ def test_clean_bead_state_skips_finalizer_retry_commits(
         storage="sidecar_repos",
         sdd_dir=plans,
         repo_root=plans,
-        research_dir=research,
+        sidecar_dirs={"research": research},
         beads_dir=beads,
     )
     commit = MagicMock(return_value=True)

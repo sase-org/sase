@@ -37,8 +37,6 @@ from sase.sdd._store_types import (
 if TYPE_CHECKING:
     from sase.workspace_provider import SddSidecarPreflight
 
-SPLIT_SIDECAR_KINDS = ("plans", "research", "beads")
-
 
 @dataclass(frozen=True)
 class SidecarInitSpec:
@@ -207,21 +205,17 @@ def initialize_sidecars(
             split_beads=bool(existing and existing.has_split_beads),
         )
 
-        existing_plans = _existing_compatibility_sidecar(existing, "plans")
-        existing_research = _existing_compatibility_sidecar(existing, "research")
-        plans = sidecars.get("plans") or existing_plans
-        research = sidecars.get("research") or existing_research
-        beads = sidecars.get("beads") or _existing_compatibility_sidecar(
-            existing, "beads"
+        combined_sidecars = (
+            dict(existing.sidecars)
+            if existing is not None and existing.is_sidecar_storage
+            else {}
         )
+        combined_sidecars.update(sidecars)
+        plans = combined_sidecars.get("plans")
+        beads = combined_sidecars.get("beads")
         plans_root = roots.get("plans") or primary / "sase" / "repos" / "plans"
         beads_root = roots.get("beads") or primary / "sase" / "repos" / "beads"
-        should_adopt = (
-            "beads" in sidecars
-            and plans is not None
-            and research is not None
-            and beads is not None
-        )
+        should_adopt = "beads" in sidecars and plans is not None and beads is not None
         adoption: AdoptionOutcome | None = None
         if should_adopt:
             assert plans is not None
@@ -233,6 +227,7 @@ def initialize_sidecars(
 
         record, store = _write_compatibility_store(
             primary,
+            workspace,
             roots,
             sidecars,
             existing=existing,
@@ -321,8 +316,6 @@ def _existing_compatibility_sidecar(
     existing: SddStoreRecord | None,
     role: str,
 ) -> SddSidecar | None:
-    if role not in SPLIT_SIDECAR_KINDS:
-        return None
     if not (
         is_materialized_record(existing)
         and existing is not None
@@ -334,6 +327,7 @@ def _existing_compatibility_sidecar(
 
 def _write_compatibility_store(
     primary: Path,
+    workspace: Path,
     roots: dict[str, Path],
     sidecars: dict[str, SddSidecar],
     *,
@@ -341,13 +335,15 @@ def _write_compatibility_store(
     provider: str | None,
     host: str | None,
 ) -> tuple[SddStoreRecord | None, SddStore | None]:
-    existing_plans = _existing_compatibility_sidecar(existing, "plans")
-    existing_research = _existing_compatibility_sidecar(existing, "research")
-    existing_beads = _existing_compatibility_sidecar(existing, "beads")
-    plans = sidecars.get("plans") or existing_plans
-    research = sidecars.get("research") or existing_research
-    beads = sidecars.get("beads") or existing_beads
-    if plans is None or research is None:
+    combined_sidecars = (
+        dict(existing.sidecars)
+        if existing is not None and existing.is_sidecar_storage
+        else {}
+    )
+    combined_sidecars.update(sidecars)
+    plans = combined_sidecars.get("plans")
+    beads = combined_sidecars.get("beads")
+    if plans is None:
         return None, None
 
     record = write_sdd_store_record(
@@ -358,18 +354,25 @@ def _write_compatibility_store(
             provider=provider or (existing.provider if existing is not None else None),
             host=host or (existing.host if existing is not None else None),
             discovery="found",
-            plans=plans,
-            research=research,
-            beads=beads,
+            sidecars=combined_sidecars,
         ),
     )
     plans_root = roots.get("plans") or primary / "sase" / "repos" / "plans"
-    research_root = roots.get("research") or primary / "sase" / "repos" / "research"
     beads_root = (
         roots.get("beads") or primary / "sase" / "repos" / "beads"
         if beads is not None
         else None
     )
+    sidecar_dirs = {
+        role: roots.get(role) or sidecar_clone_root(workspace, role)
+        for role in combined_sidecars
+        if role not in {"plans", "beads"}
+    }
+    sidecar_remote_urls = {
+        role: sidecar.remote_url
+        for role, sidecar in combined_sidecars.items()
+        if role not in {"plans", "beads"}
+    }
     return (
         record,
         SddStore(
@@ -378,8 +381,8 @@ def _write_compatibility_store(
             repo_root=plans_root,
             provider=record.provider,
             remote_url=plans.remote_url,
-            research_dir=research_root,
-            research_remote_url=research.remote_url,
+            sidecar_dirs=sidecar_dirs,
+            sidecar_remote_urls=sidecar_remote_urls,
             beads_dir=beads_root,
             beads_remote_url=beads.remote_url if beads is not None else None,
         ),

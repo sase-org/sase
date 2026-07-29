@@ -264,7 +264,7 @@ def test_agent_env_exports_all_sidecar_kind_roots(
         "sidecar_repos",
         plans,
         plans,
-        research_dir=research,
+        sidecar_dirs={"research": research},
         beads_dir=beads if split_beads else None,
     )
     monkeypatch.setattr("sase.sdd.store.resolve_sdd_dir", lambda *_args: plans)

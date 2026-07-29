@@ -259,12 +259,10 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
         from sase.sdd.store import resolve_sdd_store
 
         store = resolve_sdd_store(primary, 1)
-        sidecars = (
-            ("plans", store.repo_root, store.remote_url),
-            ("research", store.research_dir, store.research_remote_url),
-        )
-        for kind, sidecar_clone, remote_url in sidecars:
-            if sidecar_clone is None or not (sidecar_clone / ".git").is_dir():
+        for kind in store.split_sidecar_roles():
+            sidecar_clone = store.repo_root_for_kind(kind)
+            remote_url = store.remote_url_for_kind(kind)
+            if not (sidecar_clone / ".git").is_dir():
                 issues.append(
                     _StorageIssue(
                         "error",

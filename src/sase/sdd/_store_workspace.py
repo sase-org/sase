@@ -117,7 +117,7 @@ def ensure_sdd_kind_clone(
             )
         return root
 
-    remote_url = store.research_remote_url if kind == "research" else store.remote_url
+    remote_url = store.remote_url_for_kind(kind)
     if remote_url is None:
         if strict:
             raise SddMaterializationError(f"no remote URL recorded for SDD kind {kind}")

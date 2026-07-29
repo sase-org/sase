@@ -70,24 +70,32 @@ def resolve_sdd_store(
     )
     if storage == SDD_STORAGE_SIDECAR_REPOS:
         assert record is not None and record.plans is not None
-        assert record.research is not None
-        from sase.linked_repos import sidecar_repo_clone_dir
+        from sase.sdd._sidecar_init import sidecar_clone_root
 
-        plans_dir = Path(sidecar_repo_clone_dir(workspace_dir, "plans"))
-        research_dir = Path(sidecar_repo_clone_dir(workspace_dir, "research"))
+        plans_dir = sidecar_clone_root(workspace_dir, "plans")
         beads_dir = (
-            Path(sidecar_repo_clone_dir(workspace_dir, "beads"))
+            sidecar_clone_root(workspace_dir, "beads")
             if record.has_split_beads
             else None
         )
+        sidecar_dirs = {
+            role: sidecar_clone_root(workspace_dir, role)
+            for role in record.sidecars
+            if role not in {"plans", "beads"}
+        }
+        sidecar_remote_urls = {
+            role: sidecar.remote_url
+            for role, sidecar in record.sidecars.items()
+            if role not in {"plans", "beads"}
+        }
         return SddStore(
             storage=storage,
             sdd_dir=plans_dir,
             repo_root=plans_dir,
             provider=record.provider,
             remote_url=record.plans.remote_url,
-            research_dir=research_dir,
-            research_remote_url=record.research.remote_url,
+            sidecar_dirs=sidecar_dirs,
+            sidecar_remote_urls=sidecar_remote_urls,
             beads_dir=beads_dir,
             beads_remote_url=(
                 record.beads.remote_url if record.beads is not None else None

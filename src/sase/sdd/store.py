@@ -26,6 +26,10 @@ from sase.sdd._store_resolution import (
     resolve_sdd_store as _resolve_sdd_store,
 )
 from sase.sdd._store_types import (
+    AGENTS_SIDECAR_ROLE,
+    BEADS_SIDECAR_ROLE,
+    PLANS_SIDECAR_ROLE,
+    RESERVED_SIDECAR_ROLES,
     SDD_STORAGE_IN_TREE,
     SDD_STORAGE_LOCAL,
     SDD_STORAGE_SEPARATE_REPO,
@@ -36,6 +40,7 @@ from sase.sdd._store_types import (
     SddStorage,
     SddStore,
     SddStoreRecord,
+    document_sidecar_roles,
 )
 from sase.sdd._store_workspace import (
     ensure_beads_sidecar_clone as _ensure_beads_sidecar_clone,
@@ -49,6 +54,10 @@ __all__ = [
     "SDD_STORAGE_SIDECAR_REPOS",
     "SDD_STORAGE_SEPARATE_REPO",
     "SDD_STORE_RECORD_FILENAME",
+    "AGENTS_SIDECAR_ROLE",
+    "BEADS_SIDECAR_ROLE",
+    "PLANS_SIDECAR_ROLE",
+    "RESERVED_SIDECAR_ROLES",
     "SddInitOutcome",
     "SddSidecar",
     "SddMaterializationError",
@@ -57,6 +66,7 @@ __all__ = [
     "SddStoreRecord",
     "create_and_materialize_sdd_store",
     "delete_sdd_store_record",
+    "document_sidecar_roles",
     "ensure_beads_sidecar_clone",
     "ensure_workspace_sdd_clone",
     "ensure_sdd_kind_clone",

@@ -129,10 +129,10 @@ def test_split_init_normalizes_legacy_https_clone_and_record_in_place(
         ).stdout.strip()
         == "git@github.com:acme/widget--research.git"
     )
-    assert outcome.record is not None and outcome.record.research is not None
-    assert outcome.record.research.remote_url == (
-        "git@github.com:acme/widget--research.git"
-    )
+    assert outcome.record is not None
+    research = outcome.record.sidecar_for_kind("research")
+    assert research is not None
+    assert research.remote_url == ("git@github.com:acme/widget--research.git")
     persisted = json.loads(record_path.read_text(encoding="utf-8"))
     assert persisted["sidecars"]["research"]["remote_url"] == (
         "git@github.com:acme/widget--research.git"
@@ -205,9 +205,11 @@ def test_split_init_cuts_over_changed_pinned_sidecar(
 
     assert captured[0]["sdd_repo"] == "sase-org/shared-research"
     assert captured[0]["sdd_remote_url"] == str(shared_remote)
-    assert outcome.record is not None and outcome.record.research is not None
-    assert outcome.record.research.repo == "sase-org/shared-research"
-    assert outcome.record.research.remote_url == str(shared_remote)
+    assert outcome.record is not None
+    research = outcome.record.sidecar_for_kind("research")
+    assert research is not None
+    assert research.repo == "sase-org/shared-research"
+    assert research.remote_url == str(shared_remote)
     origin = subprocess.run(
         ["git", "remote", "get-url", "origin"],
         cwd=clone,
@@ -284,6 +286,7 @@ def test_split_init_re_records_stale_research_sidecar(
     assert outcome.record is not None
     assert outcome.record.plans is not None
     assert outcome.record.plans.repo == "acme/widget--plans"
-    assert outcome.record.research is not None
-    assert outcome.record.research.repo == "acme/widget--research"
-    assert outcome.record.research.remote_url == str(research_remote)
+    research = outcome.record.sidecar_for_kind("research")
+    assert research is not None
+    assert research.repo == "acme/widget--research"
+    assert research.remote_url == str(research_remote)

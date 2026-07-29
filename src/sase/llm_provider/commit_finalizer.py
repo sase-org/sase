@@ -403,11 +403,11 @@ def _auto_commit_separate_sdd_store_if_possible(
             SDD_STORAGE_SIDECAR_REPOS,
         }:
             return False
-        repo_roots = [store.repo_root]
-        if store.is_sidecar_storage and store.research_dir is not None:
-            repo_roots.append(store.research_dir)
-        if store.is_sidecar_storage and store.beads_dir is not None:
-            repo_roots.append(store.beads_dir)
+        repo_roots = (
+            [store.repo_root_for_kind(role) for role in store.split_sidecar_roles()]
+            if store.is_sidecar_storage
+            else [store.repo_root]
+        )
         if not any((root / ".git").exists() for root in repo_roots):
             return False
         beads_root = store.kind_root("beads")

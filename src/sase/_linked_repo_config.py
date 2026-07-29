@@ -15,6 +15,7 @@ from sase._linked_repo_identity import (
     resolve_sidecar_repo_identity,
 )
 from sase.content_layout import resolve_project_config_read_path
+from sase.sdd._store_types import AGENTS_SIDECAR_ROLE
 
 REPOS_CONFIG_KEY = "repos"
 REPOS_LINKED_CONFIG_KEY = "linked"
@@ -23,7 +24,6 @@ LINKED_REPOS_CONFIG_KEY = "linked_repos"
 SIBLING_REPOS_CONFIG_KEY = "sibling_repos"
 DEFAULT_LINKED_REPOS_CONFIG_KEY = "default_linked_repos"
 
-AGENTS_SIDECAR_ROLE = "agents"
 DEFAULT_AGENTS_DESCRIPTION = (
     "Hidden sidecar that stores commit-associated sase agent data for this project."
 )

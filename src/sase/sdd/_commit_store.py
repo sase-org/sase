@@ -131,7 +131,7 @@ def commit_sdd_files(
 def sdd_commit_targets(
     store: "SddStore", paths: Iterable[str | Path] | None
 ) -> list[tuple["SddStore", list[str | Path] | None]]:
-    """Partition split-store paths among the plans, research, and beads repos."""
+    """Partition split-store paths among every configured sidecar repo."""
 
     if not store.is_sidecar_storage:
         return [(store, list(paths) if paths is not None else None)]
@@ -141,28 +141,28 @@ def sdd_commit_targets(
         store,
         sdd_dir=plans_root,
         repo_root=store.repo_root_for_kind("plans"),
-        research_dir=None,
-        research_remote_url=None,
+        sidecar_dirs={},
+        sidecar_remote_urls={},
         beads_dir=None,
         beads_remote_url=None,
         sidecar_role="plans",
     )
     target_specs: list[tuple[Path, SddStore]] = [(plans_root, plans_store)]
-    if store.research_dir is not None:
-        research_root = store.kind_root("research")
+    for role in store.sidecar_dirs:
+        role_root = store.kind_root(role)
         target_specs.append(
             (
-                research_root,
+                role_root,
                 replace(
                     store,
-                    sdd_dir=research_root,
-                    repo_root=store.repo_root_for_kind("research"),
-                    remote_url=store.research_remote_url,
-                    research_dir=None,
-                    research_remote_url=None,
+                    sdd_dir=role_root,
+                    repo_root=store.repo_root_for_kind(role),
+                    remote_url=store.remote_url_for_kind(role),
+                    sidecar_dirs={},
+                    sidecar_remote_urls={},
                     beads_dir=None,
                     beads_remote_url=None,
-                    sidecar_role="research",
+                    sidecar_role=role,
                 ),
             )
         )
@@ -176,8 +176,8 @@ def sdd_commit_targets(
                     sdd_dir=beads_root,
                     repo_root=store.repo_root_for_kind("beads"),
                     remote_url=store.beads_remote_url,
-                    research_dir=None,
-                    research_remote_url=None,
+                    sidecar_dirs={},
+                    sidecar_remote_urls={},
                     beads_dir=None,
                     beads_remote_url=None,
                     sidecar_role="beads",
