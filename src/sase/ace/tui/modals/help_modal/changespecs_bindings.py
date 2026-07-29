@@ -173,6 +173,16 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            "Preview Reader",
+            [
+                ("j/k · Ctrl+D/U · g/G", "Line / page / edge scrolling"),
+                ("y / Y", "Copy contents / source path"),
+                ("%", "Open active pane copy menu"),
+                ("o / Z", "Open editor / rich viewer"),
+                ("Esc / q", "Close preview reader"),
+            ],
+        ),
+        (
             "PR Navigation",
             [
                 (

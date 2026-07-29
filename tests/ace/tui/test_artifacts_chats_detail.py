@@ -229,5 +229,5 @@ def test_chat_reference_rejects_imports_outside_the_chats_root(
     transcript.write_text("# Chat")
     monkeypatch.setattr(chats_detail, "sase_subdir", lambda _name: chats_root)
 
-    assert chats_detail._chat_reference(str(transcript)) == "chat:202607/agent.md"
-    assert chats_detail._chat_reference(str(tmp_path / "imported.md")) is None
+    assert chats_detail.chat_reference(str(transcript)) == "chat:202607/agent.md"
+    assert chats_detail.chat_reference(str(tmp_path / "imported.md")) is None

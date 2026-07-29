@@ -79,6 +79,7 @@ focusable Linked work list. Movement clamps at the first or last entry and silen
 | Key                       | Action                                                                                  |
 | ------------------------- | --------------------------------------------------------------------------------------- |
 | `g` / `G`                 | Select the first / last commit, issue, proposal, bead, phase, or archived plan          |
+| `Enter`                   | Open the selected commit, plan, bead, or chat in its full-screen reader                 |
 | `Ctrl+F` / `Ctrl+B`       | Move down / up 10 selectable entries                                                    |
 | `Ctrl+D` / `Ctrl+U`       | Scroll the active right-hand detail pane down / up (half page)                          |
 | `'`                       | Show adaptive entry hints; press `'` again for the first entry or the last jump origin  |
@@ -191,6 +192,28 @@ project workspace and its plans store. ACE does not clone or materialize a missi
 reference, unavailable path, non-file path, or unreadable file produces a specific toast and leaves the commit visible.
 Moving to another commit always returns the modal to commit mode.
 
+### Preview Reader
+
+Press `Enter` on a Plans proposal, bead, phase, or archived document—or on a Chats transcript—to open its full contents
+in the preview reader. Prompt-normal-mode `K` opens the same reader for a previewable xprompt, skill, or file. When ACE
+knows a canonical artifact reference, the title shows that logical reference beside the resolved local path.
+
+| Key                 | Action                                                     |
+| ------------------- | ---------------------------------------------------------- |
+| `j` / `k`           | Scroll down / up one line                                  |
+| `Ctrl+D` / `Ctrl+U` | Scroll down / up half a page                               |
+| `g` / `G`           | Jump to the top / bottom                                   |
+| `y`                 | Copy the complete preview contents                         |
+| `Y`                 | Copy the local source path, when available                 |
+| `%`                 | Open the active Artifacts sub-tab's copy menu              |
+| `o`                 | Open the source path in `$EDITOR` (falling back to `nvim`) |
+| `Z`                 | Hand the source path to the rich terminal artifact viewer  |
+| `Esc` / `q`         | Close the reader                                           |
+
+Path-only actions are omitted from the footer when the preview has no local source path; invoking one still produces a
+specific warning instead of failing. Clipboard operations run in the background and report when no clipboard tool is
+available.
+
 ### Chats Pane
 
 The Chats sub-tab (`3`) lists agent chat transcripts newest first, grouped under day headings, from the same catalog
@@ -214,7 +237,7 @@ artifact directory, so a `remote` transcript with no local artifact shows the tr
 | Key       | Action                                                                                    |
 | --------- | ----------------------------------------------------------------------------------------- |
 | `j` / `k` | Select the next / previous transcript, skipping day headings                              |
-| `Enter`   | Open the full transcript in the preview modal                                             |
+| `Enter`   | Open the full transcript in the [preview reader](#preview-reader)                         |
 | `f`       | Edit the pane's filter query                                                              |
 | `s`       | Cycle the provenance filter: All → local → shared → remote → unknown → All                |
 | `a`       | Jump to the transcript's agent on the Agents tab, reviving it first when it was dismissed |

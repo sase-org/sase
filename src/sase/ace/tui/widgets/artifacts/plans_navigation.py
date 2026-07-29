@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from textual.widgets import Markdown, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.artifact_refs import parse_artifact_ref
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 
 from .._prompt_preview_target import PreviewPayload
@@ -228,16 +229,18 @@ class PlansNavigationMixin(_MixinBase):
             )
         if row.archive is not None:
             plan = row.archive.plan
+            role = row.archive_role or "plans"
             return PreviewPayload(
                 content=archive_preview_markdown(
                     row.archive,
-                    role=row.archive_role or "plans",
+                    role=role,
                 ),
                 lexer="markdown",
                 title=plan.title or plan.name,
                 kind_label=f"{plan.kind} plan",
                 icon="▤",
                 source_path=plan.path,
+                reference=f"{role}:{plan.relpath}",
             )
         if row.issue is not None:
             return PreviewPayload(
@@ -257,6 +260,7 @@ class PlansNavigationMixin(_MixinBase):
                     self._snapshot,
                     project=row.project,
                 ),
+                reference=_document_reference(row.issue.design),
             )
         return None
 
@@ -366,6 +370,17 @@ class PlansNavigationMixin(_MixinBase):
             if not option_list.get_option_at_index(index).disabled:
                 return index
         return None
+
+
+def _document_reference(value: str | None) -> str | None:
+    """Return a normalized document reference when *value* parses as one."""
+    if not value:
+        return None
+    try:
+        parsed = parse_artifact_ref(value)
+    except (RuntimeError, ValueError):
+        return None
+    return parsed.rendered if parsed.kind_type == "document" else None
 
 
 __all__ = ["PlansNavigationMixin"]

@@ -62,7 +62,7 @@ def load_chat_detail(entry: ChatCatalogEntry) -> ChatDetailData:
         absolute_path=entry.absolute_path,
         transcript_preview=preview,
         transcript_truncated=truncated,
-        reference=_chat_reference(entry.absolute_path),
+        reference=chat_reference(entry.absolute_path),
         model=model,
         provider=provider,
         agent_status=status,
@@ -289,7 +289,7 @@ def _field(text: Text, label: str, value: object | None) -> None:
     text.append(f"{value}\n")
 
 
-def _chat_reference(path: str) -> str | None:
+def chat_reference(path: str) -> str | None:
     """Canonicalize a transcript path without loading unrelated project context."""
 
     context = ArtifactRefContext(

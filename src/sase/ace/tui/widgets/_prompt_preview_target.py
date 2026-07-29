@@ -57,6 +57,7 @@ class PreviewPayload:
     source_path: str | None
     content: str
     lexer: str
+    reference: str | None = None
 
 
 class PreviewError(Exception):

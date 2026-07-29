@@ -14,7 +14,7 @@ from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
 from sase.history.chat_catalog_provenance import ChatCatalogEntry
 
 from ..widgets._prompt_preview_target import PreviewPayload
-from ..widgets.artifacts.chats_detail import read_full_chat
+from ..widgets.artifacts.chats_detail import chat_reference, read_full_chat
 from ..widgets.artifacts.chats_pane import ArtifactsChatsPane
 from ..widgets.artifacts.chats_rendering import CHAT_PROVENANCE_GLYPHS
 
@@ -69,8 +69,11 @@ class ArtifactsChatsActionsMixin:
             return
         absolute_path = entry.absolute_path
 
+        def load_preview() -> tuple[str, str | None]:
+            return read_full_chat(entry), chat_reference(entry.absolute_path)
+
         async def open_preview() -> None:
-            content = await asyncio.to_thread(read_full_chat, entry)
+            content, reference = await asyncio.to_thread(load_preview)
             current_pane = self._chats_pane()
             current = current_pane.selected_entry if current_pane is not None else None
             if current is None or current.absolute_path != absolute_path:
@@ -86,6 +89,7 @@ class ArtifactsChatsActionsMixin:
                         kind_label="chat transcript",
                         icon=CHAT_PROVENANCE_GLYPHS[entry.provenance],
                         source_path=entry.absolute_path,
+                        reference=reference,
                     )
                 )
             )

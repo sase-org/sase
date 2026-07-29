@@ -4245,7 +4245,7 @@ PreviewPanelModal {
 }
 
 PreviewPanelModal > Container {
-    width: 85%;
+    width: 96%;
     height: 85%;
     max-width: 150;
     max-height: 42;
@@ -4274,10 +4274,12 @@ PreviewPanelModal #preview-content {
 PreviewPanelModal #preview-footer {
     text-align: center;
     color: $text-muted;
-    height: auto;
+    height: 3;
     margin-top: 1;
     border-top: solid $secondary;
     padding-top: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 /* ===== Notification Report Modal Styling ===== */

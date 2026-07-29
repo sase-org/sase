@@ -114,6 +114,46 @@ async def test_preview_panel_file_png_snapshot(
         )
 
 
+async def test_preview_panel_reference_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    payload = PreviewPayload(
+        kind_label="epic plan",
+        icon="▤",
+        title="Make PreviewPanelModal a real reader",
+        source_path="/workspace/sase/sase/repos/plans/202607/preview_panel_reader.md",
+        reference="plans:202607/preview_panel_reader.md",
+        lexer="markdown",
+        content=(
+            "---\n"
+            "tier: epic\n"
+            "title: Make PreviewPanelModal a real reader\n"
+            "status: wip\n"
+            "---\n\n"
+            "# Reader Core\n\n"
+            "The preview modal supports copying, editor hand-off, and a rich viewer.\n"
+        ),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(PreviewPanelModal(payload))
+        await page.expect_modal("PreviewPanelModal")
+        await wait_for_svg_contains(page, "Reader Core")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "preview_panel_reference_120x40",
+            title="ACE preview panel - reference and resolved path",
+        )
+
+
 async def test_commit_view_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

@@ -13,6 +13,8 @@ from sase.ace.tui.widgets.artifacts.plans_data import (
     PlansSnapshot,
     ProjectIssue,
 )
+from sase.ace.tui.widgets.artifacts.plans_list import PlanRow
+from sase.ace.tui.widgets.artifacts.plans_navigation import PlansNavigationMixin
 from tests.ace.tui._artifacts_plans_helpers import _snapshot
 
 
@@ -134,6 +136,49 @@ def test_preview_markdown_marks_a_missing_plan(tmp_path: Path) -> None:
     )
 
     assert "**Resolved plan:** → (unresolved: no plan file found)" in preview
+
+
+def test_bead_preview_payload_carries_its_document_reference(
+    tmp_path: Path,
+) -> None:
+    snapshot, epic = _snapshot_with_design(
+        tmp_path,
+        reference="plans:202607/durable.md",
+        resolved_path="/plans/202607/durable.md",
+    )
+    harness = PlansNavigationMixin()
+    harness._snapshot = snapshot
+
+    payload = harness.preview_for_row(
+        PlanRow(
+            kind="epic",
+            row_id="epic:alpha-1",
+            project="alpha",
+            issue=epic.issue,
+        )
+    )
+
+    assert payload is not None
+    assert payload.reference == "plans:202607/durable.md"
+
+
+def test_archive_preview_payload_builds_a_role_reference(tmp_path: Path) -> None:
+    snapshot = _snapshot(tmp_path)
+    harness = PlansNavigationMixin()
+    harness._snapshot = snapshot
+
+    payload = harness.preview_for_row(
+        PlanRow(
+            kind="archive",
+            row_id="archive:rollout",
+            project="alpha",
+            archive=snapshot.archive[0].match,
+            archive_role="research",
+        )
+    )
+
+    assert payload is not None
+    assert payload.reference == "research:202607/archive.md"
 
 
 def test_resolved_plan_path_is_none_when_the_link_is_broken(

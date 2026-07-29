@@ -112,7 +112,7 @@ async def test_artifacts_chats_populated_png_snapshot(
                 f"# {entry.basename}\n\nPrompt and response body for {entry.basename}."
             ),
             transcript_truncated=False,
-            reference=chats_detail._chat_reference(entry.absolute_path),
+            reference=chats_detail.chat_reference(entry.absolute_path),
         ),
     )
     monkeypatch.setattr(
