@@ -32,28 +32,28 @@ def test_bare_task_defaults_to_list_and_records_delegation() -> None:
     assert getattr(explicit, _DEFAULT_LIST_GROUP_DEST) is None
 
 
-def test_task_list_help_documents_every_filter_and_examples(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_task_list_help_documents_every_filter_and_examples() -> None:
     """Each documented ``list`` filter keeps a short alias and a metavar."""
-    monkeypatch.setenv("COLUMNS", "120")
-    list_help = flat_help(parser_for(("sase", "task", "list")).format_help())
+    list_parser = parser_for(("sase", "task", "list"))
+    list_help = flat_help(list_parser.format_help())
 
     assert "usage: sase task list" in list_help
     assert "-a, --all" in list_help
     assert "-d, --detached" in list_help
     assert "-j, --json" in list_help
     assert "-r, --running" in list_help
-    for short, long in (
-        ("-k", "--kind"),
-        ("-n", "--limit"),
-        ("-p", "--project"),
-        ("-q", "--query"),
-        ("-s", "--session"),
-        ("-S", "--status"),
-        ("-t", "--tag"),
+    for short, long, metavar in (
+        ("-k", "--kind", "KIND"),
+        ("-n", "--limit", "N"),
+        ("-p", "--project", "NAME"),
+        ("-q", "--query", "TEXT"),
+        ("-s", "--session", "REF"),
+        ("-S", "--status", "STATUS"),
+        ("-t", "--tag", "TAG"),
     ):
-        assert f"{short}," in list_help and long in list_help
+        action = list_parser._option_string_actions[long]
+        assert list_parser._option_string_actions[short] is action
+        assert action.metavar == metavar
     assert "tasks.history_limit" in list_help
     assert "sase task list --tag epic --json" in list_help
 
@@ -81,19 +81,23 @@ def test_task_kill_help_documents_prefix_and_json() -> None:
     assert "sase task kill k7m2" in kill_help
 
 
-def test_task_show_help_documents_log_and_follow_options(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_task_show_help_documents_log_and_follow_options() -> None:
     """``sase task show --help`` covers the log tail, format, and follow."""
-    monkeypatch.setenv("COLUMNS", "120")
-    show_help = flat_help(parser_for(("sase", "task", "show")).format_help())
+    show_parser = parser_for(("sase", "task", "show"))
+    show_help = flat_help(show_parser.format_help())
 
     assert "usage: sase task show" in show_help
     assert "-A, --all-lines" in show_help
     assert "-F, --follow" in show_help
     assert "-o, --output-only" in show_help
-    assert "-l," in show_help and "--log-lines" in show_help
-    assert "-f," in show_help and "--format" in show_help
+    assert (
+        show_parser._option_string_actions["-l"]
+        is show_parser._option_string_actions["--log-lines"]
+    )
+    assert (
+        show_parser._option_string_actions["-f"]
+        is show_parser._option_string_actions["--format"]
+    )
     assert "sase task show k7m2 --follow" in show_help
 
 
