@@ -9,6 +9,7 @@ from sase.ace.tui.widgets._paired_text_editing import TextEdit
 from sase.ace.tui.widgets._vim_transforms import INDENT_UNIT
 
 __all__ = [
+    "is_prompt_bullet_content_column",
     "is_prompt_bullet_marker_only",
     "normalize_prompt_bullet_replay_text",
     "plan_prompt_bullet_shift",
@@ -53,6 +54,14 @@ def _is_bullet_boundary(line: str) -> bool:
 def is_prompt_bullet_marker_only(line: str) -> bool:
     """Return whether *line* is exactly a spaces-only hyphen bullet marker."""
     return _BULLET_MARKER_RE.fullmatch(line) is not None
+
+
+def is_prompt_bullet_content_column(line: str, cursor_col: int) -> bool:
+    """Return whether *cursor_col* is just after a supported bullet marker."""
+    if _is_bullet_boundary(line):
+        return False
+    marker = _BULLET_MARKER_RE.match(line)
+    return marker is not None and cursor_col == marker.end()
 
 
 def strip_prompt_bullet_marker(line: str) -> str:

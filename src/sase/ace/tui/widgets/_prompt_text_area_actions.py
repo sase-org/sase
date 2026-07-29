@@ -15,6 +15,7 @@ from sase.ace.tui.widgets._paired_text_editing import (
     plan_pair_delete_right,
 )
 from sase.ace.tui.widgets._prompt_bullet_editing import (
+    is_prompt_bullet_content_column,
     is_prompt_bullet_marker_only,
     normalize_prompt_bullet_replay_text,
     prompt_bullet_row_has_bullet_above,
@@ -340,6 +341,14 @@ class PromptTextAreaActionsMixin(_MixinBase):
                 # ``\n- - ``.
                 line_end = (row, len(line))
                 self._replace_via_keyboard(f"\n{line}", line_end, line_end)
+            return
+
+        if (
+            start == end
+            and is_prompt_bullet_content_column(line, start[1])
+            and prompt_bullet_row_has_bullet_above(self.document.lines, row)
+        ):
+            self._replace_via_keyboard("\n", (row, 0), start)
             return
 
         prefix = prompt_bullet_sibling_prefix(self.document.lines, row)

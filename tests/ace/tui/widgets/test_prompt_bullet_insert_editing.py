@@ -65,6 +65,88 @@ async def test_prompt_insert_ctrl_j_marker_selection_uses_replacement_path() -> 
 
 
 @pytest.mark.parametrize(
+    ("text", "cursor", "expected_text", "expected_cursor"),
+    [
+        (
+            "- foo bar\n- #plan",
+            (1, 2),
+            "- foo bar\n\n#plan",
+            (2, 0),
+        ),
+        (
+            "- outer\n  - nested\n  - #plan",
+            (2, 4),
+            "- outer\n  - nested\n\n#plan",
+            (3, 0),
+        ),
+    ],
+    ids=["top-level", "nested"],
+)
+async def test_prompt_insert_ctrl_j_exits_populated_bullet_at_content_column(
+    text: str,
+    cursor: tuple[int, int],
+    expected_text: str,
+    expected_cursor: tuple[int, int],
+) -> None:
+    async with PromptPage(text, cursor=cursor, mode="insert") as page:
+        await page.press("ctrl+j")
+
+        assert page.text == expected_text
+        assert page.cursor == expected_cursor
+        assert page.mode == "insert"
+
+
+async def test_prompt_insert_ctrl_j_populated_exit_is_one_undo_checkpoint() -> None:
+    text = "- item\n- #plan"
+    async with PromptPage(text, cursor=(1, 2), mode="insert") as page:
+        await page.press("ctrl+j")
+        assert page.text == "- item\n\n#plan"
+
+        await page.press("escape", "u")
+        assert page.text == text
+
+
+async def test_prompt_insert_ctrl_j_populated_lone_bullet_opens_sibling() -> None:
+    async with PromptPage("- #plan", cursor=(0, 2), mode="insert") as page:
+        await page.press("ctrl+j")
+
+        assert page.text == "- \n- #plan"
+        assert page.cursor == (1, 2)
+        assert page.mode == "insert"
+
+
+@pytest.mark.parametrize(
+    ("cursor", "expected_text", "expected_cursor"),
+    [
+        ((1, 1), "- first\n-\n-  tail", (2, 2)),
+        ((1, 3), "- first\n- t\n- ail", (2, 2)),
+    ],
+    ids=["before-content-column", "inside-content"],
+)
+async def test_prompt_insert_ctrl_j_populated_exit_requires_exact_content_column(
+    cursor: tuple[int, int],
+    expected_text: str,
+    expected_cursor: tuple[int, int],
+) -> None:
+    async with PromptPage("- first\n- tail", cursor=cursor, mode="insert") as page:
+        await page.press("ctrl+j")
+
+        assert page.text == expected_text
+        assert page.cursor == expected_cursor
+        assert page.mode == "insert"
+
+
+async def test_prompt_insert_ctrl_j_populated_selection_uses_replacement_path() -> None:
+    async with PromptPage("- first\n- #plan", mode="insert") as page:
+        page.ta.selection = Selection((1, 0), (1, 2))
+        await page.press("ctrl+j")
+
+        assert page.text == "- first\n\n- #plan"
+        assert page.cursor == (2, 2)
+        assert page.mode == "insert"
+
+
+@pytest.mark.parametrize(
     ("text", "cursor", "expected_text", "expected_cursor", "marker_text"),
     [
         ("- item", (0, 6), "- item\n\n", (2, 0), "- item\n- "),

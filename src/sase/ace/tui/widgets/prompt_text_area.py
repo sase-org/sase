@@ -99,8 +99,8 @@ class PromptTextArea(
     the ``PromptInputBar`` integration -- by overriding the base's host hooks.
 
     Enter submits the prompt, or opens the submit chooser for prompt stacks.
-    Ctrl+J continues a containing hyphen bullet, and exits from an empty
-    marker only when the line above is already part of the bullet.
+    Ctrl+J continues a containing hyphen bullet, and exits from a marker's
+    content column when the line above is already part of the bullet.
     Line numbers appear automatically when there's more than one line.
     """
 

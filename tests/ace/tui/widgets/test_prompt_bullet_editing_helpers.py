@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.tui.widgets._prompt_bullet_editing import (
+    is_prompt_bullet_content_column,
     is_prompt_bullet_marker_only,
     normalize_prompt_bullet_replay_text,
     plan_prompt_bullet_shift,
@@ -52,6 +53,55 @@ from sase.ace.tui.widgets._paired_text_editing import TextEdit
 )
 def test_is_prompt_bullet_marker_only(line: str, expected: bool) -> None:
     assert is_prompt_bullet_marker_only(line) is expected
+
+
+@pytest.mark.parametrize(
+    ("line", "cursor_col", "expected"),
+    [
+        ("- item", 2, True),
+        ("  - item", 4, True),
+        ("- ", 2, True),
+        ("  - ", 4, True),
+        ("- item", 1, False),
+        ("- item", 3, False),
+        ("  - item", 3, False),
+        ("  - item", 5, False),
+        ("- - -", 2, False),
+        ("---", 0, False),
+        ("-tight", 1, False),
+        ("\t- item", 3, False),
+        (" \t- item", 3, False),
+        ("* item", 2, False),
+        ("+ item", 2, False),
+        ("1. item", 3, False),
+        ("> item", 2, False),
+    ],
+    ids=[
+        "top-level-populated",
+        "nested-populated",
+        "top-level-marker-only",
+        "nested-marker-only",
+        "before-content-column",
+        "inside-content",
+        "nested-before-content-column",
+        "nested-inside-content",
+        "thematic-break-spaced",
+        "thematic-break-tight",
+        "tight-dash",
+        "tab-indented",
+        "space-tab-indented",
+        "asterisk",
+        "plus",
+        "ordered",
+        "blockquote",
+    ],
+)
+def test_is_prompt_bullet_content_column(
+    line: str,
+    cursor_col: int,
+    expected: bool,
+) -> None:
+    assert is_prompt_bullet_content_column(line, cursor_col) is expected
 
 
 @pytest.mark.parametrize(
