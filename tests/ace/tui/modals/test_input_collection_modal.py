@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from textual.app import App
+from textual.containers import VerticalScroll
 from textual.widgets import Button, Label
 
 from sase.agent.prompt_placeholder_inputs import (
@@ -24,6 +25,15 @@ class _TestApp(App[None]):
     pass
 
 
+_ROOT = Path(__file__).resolve().parents[4]
+
+
+class _StyledTestApp(App[None]):
+    """Minimal modal host with the production ACE stylesheet."""
+
+    CSS_PATH = _ROOT / "src/sase/ace/tui/styles.tcss"
+
+
 _REQUIRED_ONLY = "---\ninput:\n  service: word\n  retries: int\n---\n{{ service }}"
 
 _WITH_OPTIONAL = (
@@ -32,6 +42,17 @@ _WITH_OPTIONAL = (
     "  dry_run:\n    type: bool\n    default: false\n"
     "---\n{{ service }}"
 )
+
+_LONG_VALUE = (
+    "Make PreviewPanelModal a real reader — M, highest daily value per line changed"
+)
+
+
+def _normalized_rendered_text(editor: SingleLineVimTextArea) -> str:
+    rendered = "\n".join(
+        editor.render_line(y).text for y in range(editor.region.height)
+    )
+    return " ".join(rendered.split())
 
 
 async def test_confirm_disabled_until_required_filled() -> None:
@@ -280,4 +301,121 @@ async def test_mixed_plan_dismisses_unified_values_in_flat_field_order() -> None
     assert result == PromptInputValues(
         placeholders={"the plan": "cleanup"},
         declared={"retries": "3"},
+    )
+
+
+async def test_long_placeholder_value_wraps_grows_and_fully_renders() -> None:
+    modal = InputCollectionModal(
+        build_prompt_input_plan("Implement <the plan> and report back"),
+        agent_count=1,
+    )
+    async with _StyledTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        editor = modal.query_one("#field-input-0", SingleLineVimTextArea)
+        editor.text = _LONG_VALUE
+        editor.cursor_position = len(_LONG_VALUE)
+        await pilot.pause()
+        await pilot.pause()
+
+        assert editor.soft_wrap is True
+        assert editor.show_horizontal_scrollbar is False
+        assert editor.show_vertical_scrollbar is False
+        assert editor.size.height == editor.wrapped_document.height > 1
+        assert editor.scrollable_content_region.height >= editor.wrapped_document.height
+        assert " ".join(_LONG_VALUE.split()) in _normalized_rendered_text(editor)
+
+
+@pytest.mark.parametrize("value", ["", "short"])
+async def test_empty_and_short_placeholder_values_keep_one_content_row(
+    value: str,
+) -> None:
+    modal = InputCollectionModal(
+        build_prompt_input_plan("Implement <the plan> and report back"),
+        agent_count=1,
+    )
+    async with _StyledTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        editor = modal.query_one("#field-input-0", SingleLineVimTextArea)
+        editor.text = value
+        await pilot.pause()
+        await pilot.pause()
+
+        assert editor.size.height == 1
+        assert editor.wrapped_document.height == 1
+        assert editor.region.height == 3
+
+
+async def test_growing_last_field_keeps_cursor_visible_in_fields_scroll() -> None:
+    modal = InputCollectionModal(
+        build_prompt_input_plan(
+            "Compare <first result> with <second result> and <third result>"
+        ),
+        agent_count=1,
+    )
+    async with _StyledTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        editor = modal.query_one("#field-input-2", SingleLineVimTextArea)
+        modal._focus_field(2)
+        await pilot.pause()
+        long_value = f"{_LONG_VALUE} " * 10
+        editor.replace(
+            long_value,
+            (0, 0),
+            (0, 0),
+            maintain_selection_offset=False,
+        )
+        await pilot.pause()
+        await pilot.pause()
+
+        fields = modal.query_one("#input-fields", VerticalScroll)
+        window = fields.content_region
+        cursor_y = editor.cursor_screen_offset.y
+        assert fields.max_scroll_y > 0
+        assert fields.scroll_offset.y > 0
+        assert window.y <= cursor_y < window.bottom
+
+
+async def test_enter_advances_then_confirms_complete_wrapped_value() -> None:
+    result: object = "unset"
+    modal = InputCollectionModal(
+        build_prompt_input_plan("Compare <first result> with <second result>"),
+        agent_count=1,
+    )
+
+    def _on_dismiss(value: object) -> None:
+        nonlocal result
+        result = value
+
+    async with _StyledTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal, callback=_on_dismiss)
+        await pilot.pause()
+
+        first = modal.query_one("#field-input-0", SingleLineVimTextArea)
+        first.text = _LONG_VALUE
+        first.cursor_position = len(_LONG_VALUE)
+        await pilot.pause()
+        assert first.wrapped_document.height > 1
+
+        await pilot.press("enter")
+        await pilot.pause()
+        second = modal.query_one("#field-input-1", SingleLineVimTextArea)
+        assert second.has_focus
+
+        second.text = "the comparison"
+        second.cursor_position = len(second.text)
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert result == PromptInputValues(
+        placeholders={
+            "first result": _LONG_VALUE,
+            "second result": "the comparison",
+        },
+        declared={},
     )

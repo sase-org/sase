@@ -37,6 +37,10 @@ _MIXED = (
     "Implement <the plan> in <service> and report back."
 )
 
+_LONG_VALUE = (
+    "Make PreviewPanelModal a real reader — M, highest daily value per line changed"
+)
+
 
 async def _open_modal(page: AcePage, prompt: str) -> InputCollectionModal:
     modal = InputCollectionModal(build_prompt_input_plan(prompt), agent_count=2)
@@ -98,4 +102,37 @@ async def test_prompt_inputs_mixed_literal_png_snapshot(
             page,
             "prompt_inputs_mixed_literal_120x40",
             title="ACE Prompt Inputs - placeholders and declared inputs",
+        )
+
+
+async def test_prompt_inputs_long_value_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+        modal = await _open_modal(page, "Implement <the plan> and report back.")
+        editor = modal.query_one("#field-input-0")
+        editor.text = _LONG_VALUE
+        editor.cursor_position = len(_LONG_VALUE)
+        await wait_for_state(
+            page,
+            lambda: (
+                editor.wrapped_document.height > 1
+                and not editor.show_horizontal_scrollbar
+                and not editor.show_vertical_scrollbar
+            ),
+            description="long prompt input wrapped without scrollbars",
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_inputs_long_value_120x40",
+            title="ACE Prompt Inputs - long wrapped value",
         )

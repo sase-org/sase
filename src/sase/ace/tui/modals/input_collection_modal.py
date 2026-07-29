@@ -18,6 +18,7 @@ from rich.style import Style
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.geometry import Region
 from textual.screen import ModalScreen
 from textual.widgets import Button, Label, TextArea
 
@@ -31,6 +32,10 @@ if TYPE_CHECKING:
 
 class _InputCollectionInput(SingleLineVimTextArea):
     """Single-line vim editor for prompt input values."""
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        kwargs.setdefault("soft_wrap", True)
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
 
 
 class _LiteralPlaceholderLine(Label):
@@ -318,6 +323,25 @@ class InputCollectionModal(ModalScreen["PromptInputValues | None"]):
         if idx is not None:
             self._validate_field(idx)
         self._refresh_confirm_enabled()
+        if event.text_area.has_focus:
+            self._scroll_editor_cursor_visible(event.text_area)
+
+    def _scroll_editor_cursor_visible(self, editor: TextArea) -> None:
+        """Reveal *editor*'s cursor row inside the fields scroll container."""
+        try:
+            fields = self.query_one("#input-fields", VerticalScroll)
+            window = fields.scrollable_content_region
+            target_y = editor.cursor_screen_offset.y - window.y + fields.scroll_offset.y
+            fields.scroll_to_region(
+                # Keep one row of breathing room below the cursor. When the
+                # parent scrollbar first appears it narrows the editor and can
+                # add one final wrapped row during the same layout pass.
+                Region(0, target_y, 1, 2),
+                animate=False,
+                immediate=True,
+            )
+        except Exception:
+            pass
 
     def _index_of(self, widget: object) -> int | None:
         widget_id = getattr(widget, "id", "") or ""
@@ -437,6 +461,7 @@ class InputCollectionModal(ModalScreen["PromptInputValues | None"]):
         editor = self.query_one(f"#field-input-{idx}", SingleLineVimTextArea)
         editor.focus()
         editor._update_vim_mode_display()
+        self.call_after_refresh(self._scroll_editor_cursor_visible, editor)
 
     def _toggle_optional(self) -> None:
         self._optional_revealed = not self._optional_revealed

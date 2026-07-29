@@ -1,13 +1,14 @@
-"""One-line :class:`VimTextArea` -- a vim/readline replacement for ``Input``.
+"""Single-line :class:`VimTextArea` -- a vim/readline replacement for ``Input``.
 
 ``SingleLineVimTextArea`` gives a host the full vim + readline editing layer in
 a widget that behaves like a Textual ``Input``: Enter submits (posting a
 ``Submitted`` message) instead of inserting a newline, and the document is kept
 to a single line -- ``o`` / ``O`` / ``ctrl+j`` are suppressed and any newline in
-inserted, pasted, or register text is flattened to a space. ``Changed`` is the
-inherited ``TextArea.Changed`` message, so hosts keep their event-driven
-validation flow with only the value read (prefer ``.text``; ``.value`` is a
-compatibility alias during the migration) changing.
+inserted, pasted, or register text is flattened to a space. Hosts may enable
+``soft_wrap`` to display that one logical line across multiple visual rows.
+``Changed`` is the inherited ``TextArea.Changed`` message, so hosts keep their
+event-driven validation flow with only the value read (prefer ``.text``;
+``.value`` is a compatibility alias during the migration) changing.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ _UNSET = object()
 
 
 class SingleLineVimTextArea(VimTextArea):
-    """A single-line ``VimTextArea`` that submits on Enter, like an ``Input``.
+    """A one-document-line ``VimTextArea`` that submits on Enter.
 
     Adoption recipe for replacing a Textual ``Input``:
 
@@ -40,6 +41,12 @@ class SingleLineVimTextArea(VimTextArea):
     - modal Escape bindings become two-stage: INSERT ``esc`` enters NORMAL,
       NORMAL ``esc`` bubbles to the modal cancel action;
     - leave ``tab_behavior`` at its default ``"focus"`` for multi-field forms.
+
+    ``soft_wrap`` defaults to false, but hosts may enable it to grow or scroll
+    over multiple display rows while preserving the single logical document
+    line. Line start/end motions (``ctrl+a``, ``ctrl+e``, ``0``, and ``$``)
+    remain logical-line based. In NORMAL mode, ``j`` and ``k`` follow Textual's
+    wrap-aware navigator and therefore move between wrapped display rows.
     """
 
     class Submitted(Message):
@@ -64,7 +71,8 @@ class SingleLineVimTextArea(VimTextArea):
                     "or via value=, not both"
                 )
             args = (value,)
-        # A one-line box never soft-wraps or shows line numbers.
+        # Hosts may opt into soft wrapping; line numbers never make sense for
+        # the single logical document line.
         kwargs.setdefault("soft_wrap", False)
         kwargs.setdefault("show_line_numbers", False)
         super().__init__(*args, **kwargs)

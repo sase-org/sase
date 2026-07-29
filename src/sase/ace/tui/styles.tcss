@@ -2587,6 +2587,7 @@ InputCollectionModal .field-error {
 
 InputCollectionModal SingleLineVimTextArea {
     width: 100%;
+    height: auto;
     margin: 0;
 }
 
@@ -3192,6 +3193,7 @@ VimTextArea.-vim-visual .text-area--cursor {
 SingleLineVimTextArea {
     width: 100%;
     height: 3;
+    scrollbar-size: 0 0;
     /* Border carries the vim mode title ([INSERT] / [NORMAL] / ...). */
     border: solid $secondary;
 }
