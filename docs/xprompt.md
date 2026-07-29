@@ -1124,8 +1124,11 @@ Directives use the same argument syntax as xprompt references:
 #tribe:review                # Built-in shorthand for %id(tribe=review)
 %id                        # Bare — auto-generates a unique name
 %id:!reviewer              # Force reuse by wiping the previous owner
-%clan:research.@             # Declare a new clan; this member uses a full hood-qualified id
-%c:research.@                # Same, using alias
+%clan:research.{@1}          # Declare a keyed template clan; this member uses a full hood-qualified id
+%c:research.{@1}             # Same, using alias
+%id:research.{@1}.cdx        # Keyed template; same key resolves together across the dispatch
+%id(image, clan=research.{@1}) # Join the same keyed clan and derive research.{@1}.image
+%id:outer.{@shared!}.lead    # Already-qualified key; share deliberately across nested swarms
 %clan(research, tribe=review) # Declare a new clan in tribe @review
 %clan(research, summary="Audit the authentication boundary") # Store a launch-time clan description
 %clan(research, summary_script=./describe-clan) # Generate that description with an executable
@@ -1262,14 +1265,37 @@ are allowed, and a leading `!` forces reuse of the derived name. `%id(<id>, trib
 mutually exclusive, and none can be combined with a `%clan` declaration in the same prompt. Bare `%wait` resolves to the
 most recently named agent (raises an error if no previous agent exists).
 
-Agent-name templates contain exactly one `@` marker. The marker is not a wildcard; SASE replaces it with the next token
-from the shared auto-name sequence (`0`, `1`, ..., `9`, `a`, ..., `z`, `00`, ...). For example, with no reserved names,
-`%id:@.cld` renders as `0.cld`, `%id:build-@` renders as `build-0`, and `%id:research.@.final` renders as
-`research.0.final`; `%id(cld, clan=research.@)` derives that same `research.@.cld` template before allocation. The older
-terminal `-@` form still works, but new allocations now start at token `0` and use the alphanumeric sequence instead of
-positive integers. Later `%wait`, `#fork`, and `#resume` references can use the same template text; in one multi-agent
-launch, SASE rewrites those references to the concrete name already planned for that template before spawning dependent
-agents.
+Agent-name templates contain exactly one marker: either the bare `@` marker or a keyed marker written `{@<id>}` or
+`{@<id>!}`. The marker is not a wildcard; SASE replaces it with the next token from the shared auto-name sequence (`0`,
+`1`, ..., `9`, `a`, ..., `z`, `00`, ...). The `<id>` in a keyed marker is one or more alphanumeric segments joined by
+dots, such as `{@1}`, `{@research}`, or `{@lead.a}`. A single agent-name value cannot contain multiple markers or mix a
+braced marker with a stray bare `@`.
+
+For bare templates, with no reserved names, `%id:@.cld` renders as `0.cld`, `%id:build-@` renders as `build-0`, and
+`%id:research.@.final` renders as `research.0.final`; `%id(cld, clan=research.@)` derives that same `research.@.cld`
+template before allocation. The older terminal `-@` form still works, but new allocations now start at token `0` and use
+the alphanumeric sequence instead of positive integers. Later `%wait`, `#fork`, and `#resume` references can use the
+same template text; in one multi-agent launch, SASE rewrites those references to the concrete name already planned for
+that template before spawning dependent agents.
+
+Keyed markers resolve once per dispatch before directives are extracted or agent processes spawn. Every occurrence of
+the same key in the prompt text gets the same concrete token, including `%id`, `%clan`, `clan=`, `%wait`, `#fork`,
+`#resume`, and ordinary prose references such as `research.{@1}.cdx`. The same separator rule as bare templates applies:
+with token `o`, `research.{@1!}` becomes `research.o`, `foo{@1!}` becomes `foo-o`, and a marker at the start of a line
+becomes `o`.
+
+Inside an xprompt swarm, unqualified keyed markers are implicitly qualified to `{@<xprompt>.<stamp>.<id>!}` while the
+swarm expands. That qualification gives each swarm invocation its own key space, even when the same swarm is invoked
+more than once in one dispatch. Keys are dispatch-scoped: a later `sase run` or TUI launch allocates fresh tokens rather
+than reusing a previous dispatch's table. A trailing `!` means "already qualified" and suppresses the implicit
+`<xprompt>.<stamp>.` prefix; use it only when a caller and a nested swarm must deliberately share one hood, for example
+`{@shared!}` in both bodies. Outside xprompt swarm expansion, an unqualified keyed marker in a literal prompt or plain
+inline xprompt resolves with its literal id, as if it had been written with `!`.
+
+The bare `@` marker remains supported and is not deprecated, but references to a bare template keep the historical
+latest-wins behavior. That is unsafe for xprompt swarms whose members can start late, because a later swarm launch can
+become the latest matching hood before a deferred member boots. Use keyed markers in xprompt swarms whenever several
+segments, waits, clan references, or prose references need the same generated name.
 
 Agent names are permanent IDs. A name that belongs to any existing agent state cannot be reused by a normal `%id:<name>`
 launch; SASE cancels the launch before spawning an agent, records the prompt as cancelled, and suggests the lowest free
@@ -2097,6 +2123,26 @@ sase run '#three_phase(login)'
 
 ...dispatches three agents (`plan`, `code`, `review`), each receiving `target=login`. The `%wait` directives chain them
 sequentially; without `%wait` they would run in parallel.
+
+For swarm-owned generated hoods, use keyed agent-name markers so every segment and prose reference resolves in the
+parent launch before any agent starts:
+
+```text
+%id:research.{@1}.cdx
+Audit with Codex. Write your report path for `research.{@1}.cdx`.
+---
+%id:research.{@1}.cld
+Audit with Claude. Write your report path for `research.{@1}.cld`.
+---
+%id(final, clan=research.{@1})
+%wait:research.{@1}.cdx,research.{@1}.cld
+Summarize both reports.
+```
+
+During swarm expansion, each unqualified `{@1}` is rewritten to an invocation-specific qualified key before dispatch, so
+overlapping launches of the same xprompt cannot steal each other's clan or hood. Use `{@shared!}` only when a nested
+swarm should intentionally share a key with its caller. See [Directives](#directives) for the complete keyed-marker
+grammar and dispatch-scoping rules.
 
 Detection happens at dispatch time (after standard `parse_multi_prompt`), in `src/sase/agent/xprompt_swarm.py`, and
 applies at every dispatch site (`sase run`, the TUI agent launcher, the query handler).

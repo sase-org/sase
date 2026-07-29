@@ -37,8 +37,12 @@ The short form is `%c:release`. `%clan` is create-only: exactly one prompt may d
 already exists is an error. Use `%clan(<name>, tribe=<tribe>)` (or the `%c(...)` alias) to assign the declaration's
 tribe to the entire clan generation; `tribe=` on `%id` cannot be combined with clan membership. Every other member uses
 `clan=`. That form joins an existing clan or creates it implicitly without a tribe, takes exactly one member id, allows
-dotted ids, and accepts a leading `!` for forced reuse. Static names and templates such as `%id(cld, clan=research.@)`
-work; the derived `research.@.cld` name flows through normal template allocation.
+dotted ids, and accepts a leading `!` for forced reuse. Static names and templates such as
+`%id(cld, clan=research.{@1})` work; the derived `research.{@1}.cld` name flows through normal template allocation. In
+xprompt swarms, prefer keyed markers like `{@1}` so every clan member, wait, fork/resume target, and prose reference is
+substituted in the parent dispatch before any member starts. Bare templates such as `research.@` still work, but their
+references use latest-wins lookup and are unsafe for late-starting swarm members. See
+[XPrompt template directives](xprompt.md#directives) for `{@<id>}` and `{@<id>!}`.
 
 ### Launch-time clan summaries
 
@@ -136,8 +140,8 @@ the clan alone.
 
 Retrying a clan member from ACE keeps it in the same named clan. ACE rewrites the prompt into
 `%id(<new-member-id>, clan=<clan>)`, where the member id carries the retry suffix. It does not repeat the create-only
-`%clan` declaration. If the original prompt used a clan template such as `research.@`, ACE first substitutes the
-member's concrete clan, such as `research.2`.
+`%clan` declaration. If the original prompt used a clan template such as `research.@` or `research.{@1}`, ACE first
+substitutes the member's concrete clan, such as `research.2`.
 
 ACE renders every grouping row with a trailing color-coded name and no kind icon. A clan is synthetic and ends with an
 orchid `<name>` after its rolled-up status counts; its `@tribe` labels follow the name. A real multi-member family root

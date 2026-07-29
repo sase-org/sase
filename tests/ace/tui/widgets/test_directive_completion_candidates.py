@@ -85,10 +85,10 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     )
     assert directive_metadata(model).argument_hint == (":model or (model, alias=model)")
     assert directive_metadata(agent_id).description == (
-        "assign an agent id with an optional bead, clan, family, or user-managed tribe"
+        "assign an agent id/template with optional bead, clan, family, or tribe"
     )
     assert directive_metadata(agent_id).argument_hint == (
-        ":agent-id or ([id], bead=bead, clan=/family=/tribe=)"
+        ":agent-id or :name.{@key}; ([id], bead=bead, clan=/family=/tribe=)"
     )
     assert directive_metadata(wait).description == (
         "defer launch for agents, a time floor, or a runner threshold"
@@ -121,10 +121,11 @@ def test_directive_completion_includes_clan_and_alias() -> None:
     assert alias.insertion == "%clan"
     assert directive_metadata(clan).aliases == ("c",)
     assert directive_metadata(clan).argument_hint == (
-        ":name, (name, tribe=/summary=/summary_script=), or :name:: summary"
+        ":name or :name.{@key}, "
+        "(name, tribe=/summary=/summary_script=), or :name:: summary"
     )
     assert directive_metadata(clan).description == (
-        "declare a parallel agent clan with optional tribe or summary"
+        "declare a parallel agent clan; use {@key} for swarm-safe templates"
     )
 
 

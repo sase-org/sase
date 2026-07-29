@@ -89,11 +89,14 @@ class _ModelEntryDisplay(Protocol):
 _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "alt": "(variants)",
     "auto": ":argument (e.g. plan|tale|epic)",
-    "clan": ":name, (name, tribe=/summary=/summary_script=), or :name:: summary",
+    "clan": (
+        ":name or :name.{@key}, "
+        "(name, tribe=/summary=/summary_script=), or :name:: summary"
+    ),
     "effort": ":level",
     "hide": "flag",
     "model": ":model or (model, alias=model)",
-    "id": (":agent-id or ([id], bead=bead, clan=/family=/tribe=)"),
+    "id": (":agent-id or :name.{@key}; ([id], bead=bead, clan=/family=/tribe=)"),
     "repeat": ":count",
     "wait": ":agent or (agent, time=5m, runners=1, priority=10)",
 }
@@ -102,11 +105,11 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
 _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "alt": "split a prompt into variants; shorthand %{A | B}",
     "auto": "request automatic gate resolution; arguments are gate-specific",
-    "clan": "declare a parallel agent clan with optional tribe or summary",
+    "clan": "declare a parallel agent clan; use {@key} for swarm-safe templates",
     "effort": "set the reasoning-effort level for this prompt",
     "hide": "hide the agent from the default Agents tab",
     "model": "choose a model and optional launch-family alias overrides",
-    "id": "assign an agent id with an optional bead, clan, family, or user-managed tribe",
+    "id": "assign an agent id/template with optional bead, clan, family, or tribe",
     "repeat": "run the prompt multiple serial iterations",
     "wait": "defer launch for agents, a time floor, or a runner threshold",
 }

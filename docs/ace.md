@@ -2119,11 +2119,13 @@ Prompts with no `%id` directive, or with a bare `%id`, use the plain auto-name t
 available token from the sequence `0`, `1`, ..., `9`, `a`, ..., `z`, `00`, `01`, ...; with no reserved names, plain
 auto-naming yields concrete names such as `0`, then `1`.
 
-An explicit `%id` value containing exactly one `@` marker is an agent-name template. SASE substitutes the same token
-sequence into the marker, so the first allocation for `%id:@.cld` becomes `0.cld`, `%id:build-@` becomes `build-0`, and
-`%id:research.@.final` becomes `research.0.final`. Later `%wait`, `#fork`, and `#resume` references can use the same
-template text; within a multi-agent launch, SASE rewrites those references to the concrete name already planned for that
-template.
+An explicit `%id` value containing exactly one marker is an agent-name template. The legacy marker is bare `@`, so the
+first allocation for `%id:@.cld` becomes `0.cld`, `%id:build-@` becomes `build-0`, and `%id:research.@.final` becomes
+`research.0.final`. Keyed markers such as `%id:research.{@1}.final` are preferred for xprompt swarms: SASE resolves
+every matching key in `%id`, `%clan`, `clan=`, waits, fork/resume references, and prose before any spawned member can
+start. Bare `@` still works, but template references use latest-wins lookup and can be unsafe when a swarm member starts
+after a newer overlapping launch. See [XPrompt template directives](xprompt.md#directives) for `{@<id>}` and `{@<id>!}`
+qualification rules.
 
 Names are permanent IDs: a name used by any existing agent state remains reserved until that agent is explicitly wiped
 or deleted. This enables the fork-by-name workflow: press `f` on a running named agent to queue a follow-up that waits
