@@ -22,6 +22,7 @@ from sase.ace.tui.widgets.vcs_repo_completion import (
     vcs_repo_completion_candidates,
     vcs_repo_completion_title,
 )
+from sase.xprompt.model_completion import build_model_completion_catalog
 from sase.xprompt.vcs_project_completion import build_vcs_project_completion_entries
 from sase.xprompt.vcs_repo_completion import (
     VcsRepoFetchResult,
@@ -366,6 +367,19 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         self.run_worker(
             _warm_vcs_completion_catalogs,
             name="prompt-vcs-project-catalog",
+            thread=True,
+        )
+
+    def _warm_model_completion_catalog(self) -> None:
+        """Warm the static ``%model`` catalog off the keystroke path."""
+        if getattr(self, "_model_completion_catalog_warmed", False):
+            return
+        if not callable(getattr(self.app, "get_prompt_completion_settings", None)):
+            return
+        self._model_completion_catalog_warmed = True
+        self.run_worker(
+            build_model_completion_catalog,
+            name="prompt-model-catalog",
             thread=True,
         )
 

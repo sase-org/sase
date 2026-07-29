@@ -6,7 +6,16 @@ from collections.abc import Iterable
 
 from rich.text import Text
 
-from sase.ace.tui.provider_styles import provider_model_badge_markup
+from sase.ace.tui.model_alias_styles import (
+    MODEL_ALIAS_KIND_STYLES,
+    OWNERSHIP_ACCENT,
+    alias_kind_label,
+    alias_state_text,
+    append_alias_reference,
+    append_effort_suffix,
+    append_pool_chip,
+    provider_model_text,
+)
 from sase.llm_provider import AliasView, BucketView, ModelsPanelSection
 from sase.llm_provider.config import DEFAULT_MODEL_ALIAS_NAME
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
@@ -27,33 +36,13 @@ _OWNERSHIP_GUTTER_CELL = 2
 PROVIDER_MODEL_CELL_MAX = 32
 _STATE_GAP = "   "
 
-_KIND_LABELS: dict[str, str] = {
-    "default": "default",
-    "role": "role",
-    "provider_coder": "coder",
-    "user": "user",
-}
-
-OWNERSHIP_ACCENT = "#D7AF87"
-
-_KIND_STYLES: dict[str, str] = {
-    "default": "bold #87D7FF",
-    "role": "bold #87D7AF",
-    "provider_coder": "bold #AFAFFF",
-    "user": f"bold {OWNERSHIP_ACCENT}",
-}
-
 _OVERRIDE_TAG_STYLE = "bold #AF87FF"
-_CONFIGURED_TAG_STYLE = "#87D787"
 _IMPLICIT_TAG_STYLE = "dim #9E9E9E"
-_REFERENCE_TAG_STYLE = "bold #87D7FF"
 _DESCRIPTION_STYLE = "italic #B0B0B0"
 _DESCRIPTION_MISSING_STYLE = "italic #D7AF87"
 _BUCKET_STYLE = "bold #FFD787"
 _BUCKET_DIM_STYLE = "dim #FFD787"
 _WARNING_STYLE = "bold #FFD75F"
-_EFFORT_CONNECTIVE_STYLE = "#878787"
-_EFFORT_LEVEL_STYLE = "bold #AF87FF"
 _POOL_AVAILABLE_STYLE = "#87D787"
 _POOL_UNAVAILABLE_STYLE = "#D78787"
 _OWNERSHIP_STYLE = f"bold {OWNERSHIP_ACCENT}"
@@ -127,7 +116,11 @@ def render_empty_custom_hint() -> Text:
 
 def kind_label(view: AliasView) -> str:
     """Return the small kind badge text for *view*."""
-    return _KIND_LABELS.get(view.kind, view.kind)
+    # Keep the Models panel's established ``user`` label while the denser
+    # completion table uses the clearer shared ``custom`` vocabulary.
+    if view.kind == "user":
+        return "user"
+    return alias_kind_label(view.kind)
 
 
 def custom_builtin_shadow_warning_message(names: Iterable[str]) -> str:
@@ -166,67 +159,36 @@ def _override_chip(override: TemporaryLLMOverride, now: float) -> str:
     return f"override · {format_remaining(override.expires_at - now)} left"
 
 
-def _append_reference(
-    text: Text,
-    target: str,
-    effort: str | None = None,
-) -> None:
-    """Append a consistently styled alias-reference suffix to *text*."""
-    text.append(" → ", style=_IMPLICIT_TAG_STYLE)
-    text.append(f"@{target}", style=_REFERENCE_TAG_STYLE)
-    if effort is not None:
-        _append_effort_suffix(text, effort)
-
-
 def state_tag(view: AliasView, now: float) -> Text:
     """Return the styled provenance / override state column for *view*."""
     if view.override is not None:
         return Text(_override_chip(view.override, now), style=_OVERRIDE_TAG_STYLE)
-    if view.configured:
-        text = Text("configured", style=_CONFIGURED_TAG_STYLE)
-        if view.selector_mode == "round_robin" and view.selector_members:
-            _append_pool_chip(text, view)
-        elif view.references is not None:
-            _append_reference(text, view.references, view.reference_effort)
-        return text
-    text = Text("implicit", style=_IMPLICIT_TAG_STYLE)
-    if view.selector_mode == "round_robin" and view.selector_members:
-        _append_pool_chip(text, view)
-    elif view.name != DEFAULT_MODEL_ALIAS_NAME and view.implicit_fallback is not None:
-        _append_reference(text, view.implicit_fallback, view.reference_effort)
+    reference = ""
+    if view.configured and view.references is not None:
+        reference = view.references
+    elif (
+        not view.configured
+        and view.name != DEFAULT_MODEL_ALIAS_NAME
+        and view.implicit_fallback is not None
+    ):
+        reference = view.implicit_fallback
+    members = view.selector_members if view.selector_mode == "round_robin" else ()
+    text = alias_state_text("configured" if view.configured else "implicit")
+    if members:
+        append_pool_chip(
+            text,
+            sum(member.available for member in members),
+            len(members),
+        )
+    elif reference:
+        append_alias_reference(text, reference, view.reference_effort or "")
     return text
 
 
-def _append_pool_chip(text: Text, view: AliasView) -> None:
-    """Append an availability-colored ``pool <up>/<total>`` chip."""
-    available = sum(member.available for member in view.selector_members)
-    total = len(view.selector_members)
-    if available == total:
-        style = _POOL_AVAILABLE_STYLE
-    elif available:
-        style = _WARNING_STYLE
-    else:
-        style = _POOL_UNAVAILABLE_STYLE
-    text.append(" · ", style=_IMPLICIT_TAG_STYLE)
-    text.append(f"pool {available}/{total}", style=style)
-
-
-def _append_effort_suffix(text: Text, effort: str) -> None:
-    """Append the uniform `` @ <effort>`` suffix used across SASE."""
-    text.append(" @ ", style=_EFFORT_CONNECTIVE_STYLE)
-    text.append(effort, style=_EFFORT_LEVEL_STYLE)
-
-
 def _provider_model_text(view: AliasView) -> Text:
-    """Build the themed ``PROVIDER(model)`` badge for *view* as a Rich ``Text``.
-
-    Building a ``Text`` (rather than leaving the raw markup string) keeps the
-    badge measurable and truncatable while preserving provider styling - and
-    ensures no markup ever leaks into a rendered row.
-    """
-    text = Text.from_markup(provider_model_badge_markup(view.provider, view.model))
-    if view.effort:
-        _append_effort_suffix(text, view.effort)
+    """Build the shared provider/model badge for one alias view."""
+    text = provider_model_text(view.provider, view.model)
+    append_effort_suffix(text, view.effort or "")
     return text
 
 
@@ -260,7 +222,10 @@ def render_alias_row(view: AliasView, *, now: float, provider_model_width: int) 
     if view.is_custom_builtin_shadow:
         text.append(_pad(f"! {kind}", _KIND_CELL), style=_WARNING_STYLE)
     else:
-        text.append(_pad(kind, _KIND_CELL), style=_KIND_STYLES.get(view.kind))
+        text.append(
+            _pad(kind, _KIND_CELL),
+            style=MODEL_ALIAS_KIND_STYLES.get(view.kind),
+        )
     text.append(" ")
     text.append(_pad(view.name, _NAME_CELL), style="bold")
     text.append(" ")

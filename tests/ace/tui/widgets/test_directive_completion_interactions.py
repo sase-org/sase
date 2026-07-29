@@ -161,8 +161,9 @@ async def test_colon_after_model_auto_opens_model_value_panel() -> None:
             "gpt-5.6-sol",
         ]
         panel = bar.query_one("#prompt-completion", Static)
-        assert panel.border_title == "directive values"
-        assert "Claude (fable)" in panel.render().plain
+        assert panel.border_title == "%model values"
+        assert "Claude" in panel.render().plain
+        assert panel.border_subtitle.replace(r"\[", "[") == "[@] model aliases"
 
 
 async def test_colon_after_wait_auto_opens_wait_targets_panel() -> None:

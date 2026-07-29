@@ -9,6 +9,12 @@ from sase.ace.tui.agent_completion import (
     neutral_vcs_workflow,
     status_style,
 )
+from sase.ace.tui.model_alias_styles import (
+    MODEL_ALIAS_KIND_STYLES,
+    alias_kind_label,
+    alias_state_text,
+    provider_model_text,
+)
 from sase.ace.tui.models.tribe_display import (
     TRIBE_IDENTITY_FALLBACK_COLOR,
     compose_tribe_identity_style,
@@ -16,6 +22,7 @@ from sase.ace.tui.models.tribe_display import (
 from sase.ace.tui.widgets.directive_completion import (
     DirectiveArgCompletionMetadata,
     DirectiveCompletionMetadata,
+    ModelCompletionMetadata,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.jinja_completion import JinjaCompletionMetadata
@@ -30,6 +37,7 @@ from sase.ace.tui.widgets._agent_list_styling import (
     _FAMILY_NAME_STYLE,
 )
 from sase.project_display_names import project_display_name_for
+from sase.ace.tui.provider_styles import provider_name_style
 from sase.workspace_provider import VcsNamespaceEntry, VcsRepoEntry
 from sase.xprompt.vcs_project_completion import VcsProjectEntry
 
@@ -37,6 +45,9 @@ _PROMPT_PLACEHOLDER_BADGE = "<> "
 _PROMPT_PLACEHOLDER_STYLE = "cyan"
 _COMMON_PLACEHOLDER_BADGE = "◆  "
 _COMMON_PLACEHOLDER_STYLE = "#D7AF5F"
+_MODEL_NAME_CELL_MAX = 30
+_MODEL_KIND_CELL = 7
+_MODEL_TARGET_CELL_MAX = 34
 
 
 def vcs_project_label_width(candidate: CompletionCandidate) -> int:
@@ -72,6 +83,30 @@ def vcs_ref_label_width(candidate: CompletionCandidate) -> int:
 
 def is_agent_completion_candidate(candidate: CompletionCandidate) -> bool:
     return isinstance(candidate.metadata, AgentCompletionCandidate)
+
+
+def model_completion_column_widths(
+    visible: list[CompletionCandidate],
+) -> tuple[int, int]:
+    """Return capped name/target widths for visible ``%model`` rows."""
+    names = [
+        Text(candidate.display).cell_len
+        for candidate in visible
+        if isinstance(candidate.metadata, ModelCompletionMetadata)
+    ]
+    targets = [
+        _model_completion_target_text(metadata).cell_len
+        for candidate in visible
+        if isinstance(
+            (metadata := candidate.metadata),
+            ModelCompletionMetadata,
+        )
+        and not _model_completion_is_degraded_alias(metadata)
+    ]
+    return (
+        min(max(names, default=0), _MODEL_NAME_CELL_MAX),
+        min(max(targets, default=0), _MODEL_TARGET_CELL_MAX),
+    )
 
 
 def append_xprompt_completion_row(
@@ -133,6 +168,7 @@ def append_directive_arg_completion_row(
     candidate: CompletionCandidate,
     is_selected: bool,
     tribe_colors: dict[str, str] | None = None,
+    model_widths: tuple[int, int] | None = None,
 ) -> None:
     """Append one prompt directive argument completion row."""
     if is_agent_completion_candidate(candidate):
@@ -141,6 +177,15 @@ def append_directive_arg_completion_row(
             candidate,
             is_selected,
             tribe_colors=tribe_colors,
+        )
+        return
+
+    if isinstance(candidate.metadata, ModelCompletionMetadata):
+        append_model_completion_row(
+            content,
+            candidate,
+            is_selected,
+            model_widths or model_completion_column_widths([candidate]),
         )
         return
 
@@ -155,6 +200,91 @@ def append_directive_arg_completion_row(
     )
     if metadata is not None and metadata.description:
         content.append(f"  {metadata.description}", style="dim")
+
+
+def append_model_completion_row(
+    content: Text,
+    candidate: CompletionCandidate,
+    is_selected: bool,
+    widths: tuple[int, int],
+) -> None:
+    """Append one model or alias in the shared four-column grid."""
+    metadata = candidate.metadata
+    if not isinstance(metadata, ModelCompletionMetadata):
+        content.append(
+            candidate.display, style="bold magenta" if is_selected else "magenta"
+        )
+        return
+    if _model_completion_is_degraded_alias(metadata):
+        content.append(
+            candidate.display,
+            style="bold magenta" if is_selected else "magenta",
+        )
+        if metadata.description:
+            content.append(f"  {metadata.description}", style="dim")
+        return
+
+    name_width, target_width = widths
+    if metadata.kind == "model":
+        name_style = "bold magenta" if is_selected else "magenta"
+        kind_label = "model"
+        kind_style = "bold magenta"
+        state = Text(metadata.short_alias, style="dim")
+    else:
+        kind_style = MODEL_ALIAS_KIND_STYLES.get(metadata.alias_kind, "bold magenta")
+        name_style = _selected_style(kind_style, is_selected)
+        kind_label = alias_kind_label(metadata.alias_kind)
+        state = alias_state_text(
+            metadata.provenance,
+            metadata.reference,
+            metadata.reference_effort,
+            metadata.pool_available,
+            metadata.pool_total,
+        )
+
+    name = Text(candidate.display, style=name_style)
+    name.truncate(name_width, overflow="ellipsis", pad=True)
+    content.append_text(name)
+    content.append("  ")
+
+    kind = Text(kind_label, style=kind_style)
+    kind.truncate(_MODEL_KIND_CELL, overflow="ellipsis", pad=True)
+    content.append_text(kind)
+    content.append("  ")
+
+    target = _model_completion_target_text(metadata)
+    target.truncate(target_width, overflow="ellipsis", pad=True)
+    content.append_text(target)
+    if state:
+        content.append("  ")
+        content.append_text(state)
+
+
+def _model_completion_target_text(metadata: ModelCompletionMetadata) -> Text:
+    if metadata.kind == "model":
+        return Text(
+            metadata.provider_display or metadata.description,
+            style=provider_name_style(metadata.provider),
+        )
+    return provider_model_text(
+        metadata.target_provider,
+        metadata.target_model,
+        metadata.target_effort,
+    )
+
+
+def _model_completion_is_degraded_alias(
+    metadata: ModelCompletionMetadata,
+) -> bool:
+    return metadata.kind != "model" and not (
+        metadata.alias_kind and metadata.target_model and metadata.provenance
+    )
+
+
+def _selected_style(style: str, selected: bool) -> str:
+    """Use a kind's color without bolding unselected alias names."""
+    unselected = style.removeprefix("bold ")
+    return style if selected else unselected
 
 
 def append_agent_completion_row(

@@ -15,6 +15,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_directive_arg_completion_row,
     append_directive_completion_row,
     append_jinja_completion_row,
+    append_model_completion_row,
     append_placeholder_completion_row,
     append_prompt_word_completion_row,
     append_vcs_project_completion_row,
@@ -22,10 +23,12 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_vcs_repo_completion_row,
     append_xprompt_completion_row,
     is_agent_completion_candidate,
+    model_completion_column_widths,
     vcs_project_label_width,
     vcs_ref_label_width,
     vcs_repo_label_width,
 )
+from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
@@ -57,6 +60,33 @@ _PANEL_MARGIN_ROWS = 1
 _COMPLETION_PANEL_MAX_HEIGHT = 10
 _JINJA_PANEL_MAX_HEIGHT = 5
 _PLACEHOLDER_SOURCE_LEGEND = "<> prompt   ◆ saved"
+
+
+def _model_completion_subtitle(
+    rows: list[CompletionCandidate],
+    selected_index: int,
+    inner_width: int,
+) -> Text:
+    """Return the contextual subtitle for an enriched model menu."""
+    if not 0 <= selected_index < len(rows):
+        return Text()
+    metadata = rows[selected_index].metadata
+    if not isinstance(metadata, ModelCompletionMetadata):
+        return Text()
+    if metadata.kind == "model":
+        subtitle = "[@] model aliases"
+    elif metadata.description:
+        subtitle = metadata.description
+    elif metadata.alias_kind == "user":
+        alias = metadata.value.lstrip("@")
+        subtitle = f"set llm_provider.model_aliases.custom.{alias}.description"
+    else:
+        subtitle = ""
+    text = Text(subtitle, no_wrap=True, overflow="ellipsis")
+    if inner_width <= 0:
+        return text
+    text.truncate(inner_width, overflow="ellipsis")
+    return text
 
 
 def _reserved_panel_rows(
@@ -117,6 +147,10 @@ class PromptInputBarCompletionMixin(_MixinBase):
         is_directive_arg_agent = is_directive_arg and any(
             is_agent_completion_candidate(candidate) for candidate in rows
         )
+        is_model_completion = is_directive_arg and any(
+            isinstance(candidate.metadata, ModelCompletionMetadata)
+            for candidate in rows
+        )
         is_history = completion_kind == "file_history"
         is_arg_completion = completion_kind in ("xprompt_arg_name", "xprompt_arg_value")
         is_xprompt_arg_agent = completion_kind == "xprompt_arg_agent"
@@ -164,6 +198,9 @@ class PromptInputBarCompletionMixin(_MixinBase):
             if is_vcs_repo
             else 0
         )
+        model_widths = (
+            model_completion_column_widths(visible) if is_model_completion else (0, 0)
+        )
         _clear_jinja_panel_classes(panel)
         content = Text()
         for i, candidate in enumerate(visible):
@@ -180,12 +217,21 @@ class PromptInputBarCompletionMixin(_MixinBase):
             elif is_directive:
                 append_directive_completion_row(content, candidate, is_selected)
             elif is_directive_arg:
-                append_directive_arg_completion_row(
-                    content,
-                    candidate,
-                    is_selected,
-                    tribe_colors,
-                )
+                if isinstance(candidate.metadata, ModelCompletionMetadata):
+                    append_model_completion_row(
+                        content,
+                        candidate,
+                        is_selected,
+                        model_widths,
+                    )
+                else:
+                    append_directive_arg_completion_row(
+                        content,
+                        candidate,
+                        is_selected,
+                        tribe_colors=tribe_colors,
+                        model_widths=model_widths,
+                    )
             elif is_xprompt_arg_agent:
                 append_agent_completion_row(
                     content,
@@ -256,6 +302,10 @@ class PromptInputBarCompletionMixin(_MixinBase):
             panel.border_title = "directives"
         elif is_directive_arg_agent:
             panel.border_title = "wait targets"
+        elif is_model_completion:
+            panel.border_title = (
+                "model aliases" if token.startswith("@") else "%model values"
+            )
         elif is_directive_arg:
             panel.border_title = "directive values"
         elif is_vcs_project:
@@ -289,6 +339,12 @@ class PromptInputBarCompletionMixin(_MixinBase):
 
         if is_history:
             panel.border_subtitle = "[^L] accept  [^D] delete"
+        elif is_model_completion:
+            panel.border_subtitle = _model_completion_subtitle(
+                rows,
+                selected_index,
+                max(0, panel.size.width - 2),
+            )
         elif is_placeholder and _visible_placeholder_sources(visible) == {
             "prompt",
             "common",

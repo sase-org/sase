@@ -6,6 +6,8 @@ from unittest.mock import patch
 
 from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.widgets.directive_completion import (
+    DirectiveArgCompletionMetadata,
+    ModelCompletionMetadata,
     build_agent_arg_completion_candidates,
     build_directive_arg_completion_candidates,
 )
@@ -18,6 +20,7 @@ from ._directive_completion_helpers import (
     MODEL_CATALOG_PATCH,
     agent_candidate,
     directive_arg_metadata,
+    model_metadata,
     model_entries,
 )
 
@@ -233,7 +236,11 @@ def test_directive_arg_completion_builds_model_candidates_from_catalog() -> None
         "gpt-5.6-sol",
     ]
     assert shared == ""
-    assert directive_arg_metadata(candidates[0]).description == "Claude (fable)"
+    metadata = model_metadata(candidates[0])
+    assert metadata.description == "Claude (fable)"
+    assert metadata.provider == "claude"
+    assert metadata.provider_display == "Claude"
+    assert metadata.short_alias == "fable"
 
 
 def test_directive_arg_completion_filters_model_candidates_by_short_alias() -> None:
@@ -265,11 +272,77 @@ def test_directive_arg_completion_filters_leading_at_to_model_aliases() -> None:
     assert shared == ""
 
 
+def test_model_alias_candidate_carries_resolution_and_provenance() -> None:
+    catalog = [
+        _ModelCompletionEntry(
+            value="@coder",
+            display="@coder",
+            description="Coder model.",
+            kind="implicit_alias",
+            aliases=("coder",),
+            alias_kind="role",
+            target_provider="codex",
+            target_model="gpt-5.6-sol",
+            target_effort="high",
+            provenance="configured",
+            reference="default",
+            reference_effort="medium",
+            pool_available=2,
+            pool_total=3,
+            config_source="builtin",
+        )
+    ]
+
+    with patch(MODEL_CATALOG_PATCH, return_value=catalog):
+        candidates, _ = build_directive_arg_completion_candidates("model", "@")
+
+    metadata = model_metadata(candidates[0])
+    assert metadata == ModelCompletionMetadata(
+        value="@coder",
+        kind="implicit_alias",
+        alias_kind="role",
+        target_provider="codex",
+        target_model="gpt-5.6-sol",
+        target_effort="high",
+        provenance="configured",
+        reference="default",
+        reference_effort="medium",
+        pool_available=2,
+        pool_total=3,
+        description="Coder model.",
+        config_source="builtin",
+    )
+
+
+def test_model_completion_keystroke_path_never_uses_override_lock() -> None:
+    with (
+        patch(MODEL_CATALOG_PATCH, return_value=model_entries()),
+        patch(
+            "sase.llm_provider.temporary_override.get_active_alias_overrides",
+            side_effect=AssertionError("authoritative override load reached"),
+        ),
+        patch(
+            "sase.llm_provider.temporary_override._locked_state",
+            side_effect=AssertionError("override lock reached"),
+        ),
+    ):
+        candidates, _ = build_directive_arg_completion_candidates("model", "")
+
+    assert [candidate.insertion for candidate in candidates] == [
+        "claude-fable-5",
+        "gpt-5.6-sol",
+    ]
+
+
 def test_directive_arg_completion_metadata_has_descriptions() -> None:
     candidates, _ = build_directive_arg_completion_candidates("auto", "")
 
     assert all(
         directive_arg_metadata(candidate).description for candidate in candidates
+    )
+    assert all(
+        isinstance(candidate.metadata, DirectiveArgCompletionMetadata)
+        for candidate in candidates
     )
 
 

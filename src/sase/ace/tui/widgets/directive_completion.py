@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Protocol
 
 from sase.ace.tui.agent_completion import (
     AgentCompletionCandidate,
@@ -18,6 +19,7 @@ from sase.ace.tui.widgets._directive_completion_tokens import (
     selected_wait_values_around_cursor,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.llm_provider.temporary_override import peek_active_alias_overrides
 from sase.xprompt._directive_types import (
     AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS,
     _DIRECTIVE_ALIASES,
@@ -47,6 +49,41 @@ class DirectiveArgCompletionMetadata:
 
     directive_name: str = ""
     description: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class ModelCompletionMetadata:
+    """Display metadata for an enriched ``%model`` completion row."""
+
+    value: str
+    kind: str
+    alias_kind: str = ""
+    provider: str = ""
+    provider_display: str = ""
+    short_alias: str = ""
+    target_provider: str = ""
+    target_model: str = ""
+    target_effort: str = ""
+    provenance: str = ""
+    reference: str = ""
+    reference_effort: str = ""
+    pool_available: int = 0
+    pool_total: int = 0
+    description: str = ""
+    config_source: str = ""
+
+
+class _ModelEntryDisplay(Protocol):
+    """Catalog scalars used to recover the provider's display label."""
+
+    @property
+    def kind(self) -> str: ...
+
+    @property
+    def description(self) -> str: ...
+
+    @property
+    def aliases(self) -> tuple[str, ...]: ...
 
 
 _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
@@ -401,7 +438,7 @@ def _build_model_arg_completion_candidates(
 ) -> tuple[list[CompletionCandidate], str]:
     """Build dynamic candidates for a ``%model`` directive argument token."""
     entries = filter_model_completion_entries(
-        build_model_completion_catalog(),
+        build_model_completion_catalog(overrides=peek_active_alias_overrides()),
         partial,
     )
     candidates = [
@@ -410,9 +447,25 @@ def _build_model_arg_completion_candidates(
             insertion=entry.value,
             is_dir=False,
             name=entry.value,
-            metadata=DirectiveArgCompletionMetadata(
-                directive_name="model",
+            metadata=ModelCompletionMetadata(
+                value=entry.value,
+                kind=entry.kind,
+                alias_kind=entry.alias_kind,
+                provider=entry.provider,
+                provider_display=_model_provider_display(entry),
+                short_alias=(
+                    entry.aliases[0] if entry.kind == "model" and entry.aliases else ""
+                ),
+                target_provider=entry.target_provider,
+                target_model=entry.target_model,
+                target_effort=entry.target_effort,
+                provenance=entry.provenance,
+                reference=entry.reference,
+                reference_effort=entry.reference_effort,
+                pool_available=entry.pool_available,
+                pool_total=entry.pool_total,
                 description=entry.description,
+                config_source=entry.config_source,
             ),
         )
         for entry in entries
@@ -431,6 +484,16 @@ def _build_model_arg_completion_candidates(
             shared_extension = shared_prefix[len(partial) :]
 
     return candidates, shared_extension
+
+
+def _model_provider_display(entry: _ModelEntryDisplay) -> str:
+    """Extract the provider display label retained in a model entry."""
+    if entry.kind != "model":
+        return ""
+    if not entry.aliases:
+        return entry.description
+    suffix = f" ({entry.aliases[0]})"
+    return entry.description.removesuffix(suffix)
 
 
 def _build_model_alias_key_completion_candidates(

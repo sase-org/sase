@@ -6,6 +6,7 @@ from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.widgets.directive_completion import (
     DirectiveArgCompletionMetadata,
     DirectiveCompletionMetadata,
+    ModelCompletionMetadata,
     build_directive_completion_candidates,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
@@ -33,6 +34,11 @@ def directive_arg_metadata(
     candidate: CompletionCandidate,
 ) -> DirectiveArgCompletionMetadata:
     assert isinstance(candidate.metadata, DirectiveArgCompletionMetadata)
+    return candidate.metadata
+
+
+def model_metadata(candidate: CompletionCandidate) -> ModelCompletionMetadata:
+    assert isinstance(candidate.metadata, ModelCompletionMetadata)
     return candidate.metadata
 
 
