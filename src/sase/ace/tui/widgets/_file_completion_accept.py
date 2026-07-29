@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from sase.ace.tui.widgets._file_completion_base import FileCompletionBaseMixin
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
+    AtReferenceFileCompletionMetadata,
     ArtifactRefKindCompletionMetadata,
     ArtifactRefPayloadCompletionMetadata,
 )
@@ -184,6 +185,8 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         """Move highlighted completion candidate."""
         if not self._file_completion_active or not self._file_completion_candidates:
             return False
+        self._completion_selection_moved = True
+        self._artifact_ref_completion_force = False
         size = len(self._file_completion_candidates)
         self._file_completion_index = (self._file_completion_index + delta) % size
         if self._completion_kind == "jinja":
@@ -403,6 +406,16 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             return False
         if context.stage == "kind":
             metadata = selected.metadata
+            if isinstance(metadata, AtReferenceFileCompletionMetadata):
+                self._replace_absolute_range(
+                    context.replacement_start,
+                    context.replacement_end,
+                    selected.insertion,
+                )
+                self._clear_file_completion()
+                if metadata.is_dir:
+                    self._try_artifact_ref_completion()
+                return True
             if not isinstance(metadata, ArtifactRefKindCompletionMetadata):
                 self._clear_file_completion()
                 return False
@@ -412,7 +425,7 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
                 selected.insertion,
             )
             self._clear_file_completion()
-            self._try_artifact_ref_completion(force=True)
+            self._try_artifact_ref_completion()
             return True
 
         metadata = selected.metadata

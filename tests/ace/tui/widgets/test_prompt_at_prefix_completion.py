@@ -23,7 +23,7 @@ class TestAtPrefixIntegration:
         monkeypatch.setenv("HOME", str(tmp_path))
         create_entries(tmp_path)
         app = CompletionTestApp()
-        async with app.run_test():
+        async with app.run_test() as pilot:
             ta = app.query_one(PromptTextArea)
             ta.load_text("@~/")
             ta.cursor_location = (0, 3)
@@ -31,6 +31,10 @@ class TestAtPrefixIntegration:
                 type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
             ):
                 assert ta._try_file_completion_tab() is True
+            for _ in range(100):
+                if not ta._prompt_path_inflight:
+                    break
+                await pilot.pause(0.01)
             assert ta._file_completion_active is True
             assert len(ta._file_completion_candidates) > 1
             for c in ta._file_completion_candidates:
@@ -44,7 +48,7 @@ class TestAtPrefixIntegration:
         monkeypatch.setenv("HOME", str(tmp_path))
         (tmp_path / "alpha").mkdir()
         app = CompletionTestApp()
-        async with app.run_test():
+        async with app.run_test() as pilot:
             ta = app.query_one(PromptTextArea)
             ta.load_text("@~/al")
             ta.cursor_location = (0, 5)
@@ -52,6 +56,10 @@ class TestAtPrefixIntegration:
                 type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
             ):
                 assert ta._try_file_completion_tab() is True
+            for _ in range(100):
+                if not ta._prompt_path_inflight:
+                    break
+                await pilot.pause(0.01)
             assert ta.text == "@~/alpha/"
             assert ta._file_completion_active is False
 

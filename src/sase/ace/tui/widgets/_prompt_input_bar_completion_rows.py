@@ -25,6 +25,7 @@ from sase.ace.tui.widgets.directive_completion import (
     ModelCompletionMetadata,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
+    AtReferenceLoadingCompletionMetadata,
     ArtifactRefKindCompletionMetadata,
     ArtifactRefPayloadCompletionMetadata,
 )
@@ -182,6 +183,9 @@ def append_artifact_ref_completion_row(
 ) -> None:
     """Append one kind or provider-specific artifact payload row."""
     metadata = candidate.metadata
+    if isinstance(metadata, AtReferenceLoadingCompletionMetadata):
+        content.append(candidate.display, style="dim")
+        return
     if isinstance(metadata, ArtifactRefKindCompletionMetadata):
         content.append("@ ", style="bold #5FD7AF")
         content.append(

@@ -113,6 +113,7 @@ async def test_at_keystroke_does_not_stat_or_scan() -> None:
         with (
             patch.object(os, "stat", side_effect=fail),
             patch.object(os, "scandir", side_effect=fail),
+            patch.object(type(text_area), "run_worker"),
         ):
             await pilot.press("@")
 

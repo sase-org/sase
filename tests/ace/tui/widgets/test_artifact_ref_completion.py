@@ -8,8 +8,13 @@ from unittest.mock import patch
 import pytest
 from textual.widgets import Static
 
+from sase.ace.tui.widgets._file_completion_base import (
+    _PromptPathInventoryWorkerResult,
+)
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
+    AtReferenceFileCompletionMetadata,
+    AtReferenceLoadingCompletionMetadata,
     ArtifactRefBugCandidate,
     _ArtifactRefChatCandidate,
     ArtifactRefCommitCandidate,
@@ -24,6 +29,10 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
 )
 from sase.artifact_refs import ArtifactRefContext
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_path_inventory import (
+    PromptPathRow,
+    PromptPathSnapshot,
+)
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 from ._completion_helpers import CompletionTestApp
@@ -75,6 +84,19 @@ def _seed_catalog(
     text_area._artifact_ref_completion_catalogs_by_project[project] = catalog
 
 
+def _seed_paths(
+    text_area: PromptTextArea,
+    directory: str,
+    rows: tuple[PromptPathRow, ...],
+) -> str:
+    key = text_area._prompt_path_directory_key(directory)
+    text_area._prompt_path_snapshots[key] = PromptPathSnapshot(key, rows, (1, 1))
+    # Keep the synthetic snapshot stable instead of letting a real worker
+    # revalidate the test process's directory.
+    text_area._prompt_path_inflight.add(key)
+    return key
+
+
 @pytest.mark.parametrize(
     ("text", "cursor", "expected"),
     (
@@ -106,19 +128,33 @@ def test_detect_artifact_ref_context_at_kind_and_payload_positions(
 
 
 @pytest.mark.parametrize(
-    "text",
-    (
-        "@~/notes.md",
-        "@/tmp/notes.md",
-        "@./notes.md",
-        "@../notes.md",
-        "person@example:thing",
-        "(@plans:thing.md)",
-        "`@plans:thing.md`",
-        "@not.valid:thing",
-    ),
+    "text", ("@~/notes.md", "@/tmp/notes.md", "@./notes.md", "@../notes.md")
 )
-def test_detector_declines_paths_invalid_left_context_and_literals(text: str) -> None:
+def test_detector_keeps_path_shaped_tokens_in_kind_stage(text: str) -> None:
+    context = detect_artifact_ref_completion_context(text, len(text), _KINDS)
+
+    assert context is not None
+    assert context.stage == "kind"
+    assert context.path_directory is not None
+
+
+def test_detector_converts_rust_byte_spans_to_python_offsets() -> None:
+    text = "😀 @pl"
+
+    context = detect_artifact_ref_completion_context(text, len(text), _KINDS)
+
+    assert context is not None
+    assert (context.replacement_start, context.replacement_end) == (2, 5)
+    assert (context.query_start, context.query_end) == (3, 5)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ("person@example:thing", "(@plans:thing.md)", "`@plans:thing.md`", "@foo!"),
+)
+def test_detector_declines_invalid_left_context_literals_and_punctuation(
+    text: str,
+) -> None:
     assert detect_artifact_ref_completion_context(text, len(text), _KINDS) is None
 
 
@@ -154,20 +190,167 @@ def test_payload_rows_keep_full_prefix_metadata_and_shared_extension() -> None:
     assert (metadata.source, metadata.label) == ("document", "Alpha plan")
 
 
-async def test_auto_kind_menu_opens_only_after_two_characters() -> None:
+def test_kind_menu_filters_artifacts_and_files_through_shared_policy() -> None:
+    context = detect_artifact_ref_completion_context("@pl", 3, _KINDS)
+    assert context is not None
+
+    result = build_artifact_ref_completion_result(
+        context,
+        _CATALOG,
+        paths=(PromptPathRow("plans", True), PromptPathRow("plain.txt", False)),
+    )
+
+    assert [candidate.insertion for candidate in result.candidates] == [
+        "@plans:",
+        "@plans/",
+        "@plain.txt",
+    ]
+    assert isinstance(result.candidates[0].metadata, ArtifactRefKindCompletionMetadata)
+    assert all(
+        isinstance(candidate.metadata, AtReferenceFileCompletionMetadata)
+        for candidate in result.candidates[1:]
+    )
+
+
+def test_path_query_returns_only_rows_from_the_requested_directory() -> None:
+    context = detect_artifact_ref_completion_context("@src/", 5, _KINDS)
+    assert context is not None
+
+    result = build_artifact_ref_completion_result(
+        context,
+        _CATALOG,
+        paths=(PromptPathRow("pkg", True), PromptPathRow("main.py", False)),
+    )
+
+    assert [candidate.insertion for candidate in result.candidates] == [
+        "@src/pkg/",
+        "@src/main.py",
+    ]
+    assert all(
+        isinstance(candidate.metadata, AtReferenceFileCompletionMetadata)
+        for candidate in result.candidates
+    )
+
+
+async def test_bare_at_opens_artifacts_then_files() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         text_area = app.query_one(PromptTextArea)
         _seed_catalog(text_area, _CATALOG)
+        _seed_paths(
+            text_area,
+            "",
+            (PromptPathRow("src", True), PromptPathRow("Justfile", False)),
+        )
 
-        await pilot.press("@", "p")
-        assert text_area._file_completion_active is False
+        await pilot.press("@")
 
-        await pilot.press("l")
         assert text_area._completion_kind == ARTIFACT_REF_COMPLETION_KIND
         assert text_area._file_completion_active is True
+        insertions = [row.insertion for row in text_area._file_completion_candidates]
+        first_file = next(
+            index
+            for index, row in enumerate(text_area._file_completion_candidates)
+            if isinstance(row.metadata, AtReferenceFileCompletionMetadata)
+        )
+        assert all(
+            not isinstance(row.metadata, AtReferenceFileCompletionMetadata)
+            for row in text_area._file_completion_candidates[:first_file]
+        )
+        assert insertions[first_file:] == ["@src/", "@Justfile"]
+
+
+async def test_directory_accept_drills_down_and_file_accept_closes() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        text_area = app.query_one(PromptTextArea)
+        _seed_catalog(text_area, _CATALOG)
+        _seed_paths(text_area, "", (PromptPathRow("src", True),))
+        _seed_paths(text_area, "src/", (PromptPathRow("main.py", False),))
+        text_area.load_text("@s")
+        text_area.cursor_location = (0, 2)
+
+        assert text_area._try_artifact_ref_completion() is True
+        await pilot.press("enter")
+
+        assert text_area.text == "@src/"
+        assert text_area._file_completion_active is True
         assert [row.insertion for row in text_area._file_completion_candidates] == [
-            "@plans:"
+            "@src/main.py"
+        ]
+
+        await pilot.press("enter")
+        assert text_area.text == "@src/main.py"
+        assert text_area._file_completion_active is False
+
+
+async def test_bare_at_enter_submits_but_ctrl_l_and_navigation_accept() -> None:
+    app = CompletionTestApp()
+    submitted = 0
+    async with app.run_test() as pilot:
+        text_area = app.query_one(PromptTextArea)
+        _seed_catalog(text_area, _CATALOG)
+        _seed_paths(text_area, "", ())
+
+        def record_submit() -> None:
+            nonlocal submitted
+            submitted += 1
+
+        text_area.action_submit_prompt = record_submit  # type: ignore[method-assign]
+        text_area.load_text("@")
+        text_area.cursor_location = (0, 1)
+        assert text_area._try_artifact_ref_completion() is True
+
+        await pilot.press("enter")
+        assert submitted == 1
+        assert text_area.text == "@"
+        assert text_area._file_completion_active is False
+
+        assert text_area._try_artifact_ref_completion() is True
+        await pilot.press("ctrl+l")
+        assert submitted == 1
+        assert text_area.text != "@"
+
+        text_area.load_text("@")
+        text_area.cursor_location = (0, 1)
+        assert text_area._try_artifact_ref_completion() is True
+        await pilot.press("ctrl+n", "enter")
+        assert submitted == 1
+        assert text_area.text != "@"
+
+
+async def test_cold_path_snapshot_refreshes_the_open_menu() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        text_area = app.query_one(PromptTextArea)
+        _seed_catalog(text_area, _CATALOG)
+        text_area.load_text("@src/")
+        text_area.cursor_location = (0, 5)
+        text_area._prompt_path_inflight.add(
+            text_area._prompt_path_directory_key("src/")
+        )
+
+        assert text_area._try_artifact_ref_completion() is True
+        assert isinstance(
+            text_area._file_completion_candidates[0].metadata,
+            AtReferenceLoadingCompletionMetadata,
+        )
+        directory_key = text_area._prompt_path_completion_directory_key
+        assert directory_key is not None
+
+        text_area._apply_prompt_path_inventory_result(
+            _PromptPathInventoryWorkerResult(
+                PromptPathSnapshot(
+                    directory_key,
+                    (PromptPathRow("main.py", False),),
+                    (2, 2),
+                ),
+                changed=True,
+            )
+        )
+
+        assert [row.insertion for row in text_area._file_completion_candidates] == [
+            "@src/main.py"
         ]
 
 
@@ -187,14 +370,14 @@ async def test_vcs_tag_uses_target_project_catalog_for_dynamic_kind(
         text_area.cursor_location = (0, len(text_area.text))
 
         assert text_area._xprompt_arg_assist_project_from_text() == "proj"
-        assert text_area._try_artifact_ref_completion(force=True) is True
+        assert text_area._try_artifact_ref_completion() is True
         assert text_area._completion_kind == ARTIFACT_REF_COMPLETION_KIND
         assert [row.insertion for row in text_area._file_completion_candidates] == [
             "@designs:"
         ]
 
 
-async def test_cold_catalog_schedules_warm_without_opening_or_discovering() -> None:
+async def test_cold_catalog_schedules_warm_and_shows_loading_row() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         text_area = app.query_one(PromptTextArea)
@@ -205,10 +388,14 @@ async def test_cold_catalog_schedules_warm_without_opening_or_discovering() -> N
             type(text_area),
             "_warm_current_artifact_ref_completion_catalog",
         ) as warm:
-            assert text_area._try_artifact_ref_completion(force=True) is True
+            assert text_area._try_artifact_ref_completion() is True
 
         warm.assert_called_once_with()
-        assert text_area._file_completion_active is False
+        assert text_area._file_completion_active is True
+        assert isinstance(
+            text_area._file_completion_candidates[0].metadata,
+            AtReferenceLoadingCompletionMetadata,
+        )
 
 
 async def test_accept_kind_reopens_payload_then_accepts_document() -> None:
@@ -221,7 +408,7 @@ async def test_accept_kind_reopens_payload_then_accepts_document() -> None:
         text_area.load_text("@pl")
         text_area.cursor_location = (0, 3)
 
-        assert text_area._try_artifact_ref_completion(force=True) is True
+        assert text_area._try_artifact_ref_completion() is True
         await pilot.press("enter")
 
         assert text_area.text == "@plans:"
@@ -274,7 +461,7 @@ async def test_all_payload_sources_render_stage_title_and_canonical_insertion(
                 return_value=(ArtifactRefBugCandidate("sase", 42, "Issue"),),
             ),
         ):
-            assert text_area._try_artifact_ref_completion(force=True) is True
+            assert text_area._try_artifact_ref_completion() is True
 
         assert panel.border_title == title
         assert text_area._file_completion_candidates[0].insertion == expected
@@ -297,9 +484,6 @@ async def test_mid_payload_accept_replaces_the_complete_detected_range() -> None
         text_area.cursor_location = (0, len("@plans:202607/ol"))
 
         await pilot.press("ctrl+t")
-        assert text_area._file_completion_active is True
-        await pilot.press("enter")
-
         assert text_area.text == "@plans:202607/old.md after"
 
 
@@ -331,7 +515,7 @@ async def test_refresh_preserves_selected_insertion_when_catalog_lands() -> None
         )
 
 
-async def test_bare_at_does_not_claim_artifact_completion() -> None:
+async def test_bare_at_claims_artifact_completion() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         text_area = app.query_one(PromptTextArea)
@@ -339,8 +523,9 @@ async def test_bare_at_does_not_claim_artifact_completion() -> None:
         text_area.load_text("@")
         text_area.cursor_location = (0, 1)
 
-        assert text_area._try_artifact_ref_completion(force=True) is False
-        assert text_area._file_completion_active is False
+        _seed_paths(text_area, "", ())
+        assert text_area._try_artifact_ref_completion() is True
+        assert text_area._file_completion_active is True
 
 
 async def test_warm_keystroke_paths_do_not_touch_discovery_providers() -> None:

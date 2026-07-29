@@ -7,7 +7,7 @@ operations and projects their wire records into typed Python values.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 import sys
@@ -55,6 +55,76 @@ _RESOLUTION_STATUSES = {
     "unknown_repo",
     "unknown_project",
 }
+
+
+def at_reference_context(
+    text: str,
+    cursor_offset: int,
+    known_kinds: Iterable[str] = (),
+) -> dict[str, Any] | None:
+    """Return the shared ``@`` context at a Python character offset.
+
+    The Rust binding accepts an LSP UTF-16 position and returns UTF-8 byte
+    spans.  TUI callers work in Python character offsets, so this facade owns
+    both conversions and leaves the widget mapping layer encoding-agnostic.
+    """
+    position = _lsp_position_for_offset(text, cursor_offset)
+    if position is None:
+        return None
+    binding = require_rust_binding("at_reference_context")
+    raw = binding(text, position[0], position[1], list(known_kinds))
+    if raw is None:
+        return None
+    context = dict(cast(Mapping[str, Any], raw))
+    for field in ("candidate_span", "replacement_span", "query_span"):
+        converted = _utf8_span_to_character_offsets(text, context.get(field))
+        if converted is None:
+            return None
+        context[field] = list(converted)
+    return context
+
+
+def at_reference_menu(
+    context: Mapping[str, Any],
+    inventory: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build one shared, I/O-free ``@`` menu from caller-owned inventory."""
+    binding = require_rust_binding("at_reference_menu")
+    return dict(cast(Mapping[str, Any], binding(dict(context), dict(inventory))))
+
+
+def _lsp_position_for_offset(text: str, offset: int) -> tuple[int, int] | None:
+    """Convert a Python character offset to an LSP UTF-16 position."""
+    if offset < 0 or offset > len(text):
+        return None
+    line_start = text.rfind("\n", 0, offset) + 1
+    line = text.count("\n", 0, line_start)
+    character = sum(2 if ord(char) > 0xFFFF else 1 for char in text[line_start:offset])
+    return line, character
+
+
+def _utf8_span_to_character_offsets(
+    text: str,
+    value: object,
+) -> tuple[int, int] | None:
+    """Convert one Rust UTF-8 byte span into Python character offsets."""
+    if (
+        not isinstance(value, (list, tuple))
+        or len(value) != 2
+        or not all(isinstance(offset, int) for offset in value)
+    ):
+        return None
+    start, end = cast(tuple[int, int], tuple(value))
+    encoded = text.encode("utf-8")
+    if start < 0 or end < start or end > len(encoded):
+        return None
+    try:
+        return (
+            len(encoded[:start].decode("utf-8")),
+            len(encoded[:end].decode("utf-8")),
+        )
+    except UnicodeDecodeError:
+        return None
 
 
 def artifact_ref_context(

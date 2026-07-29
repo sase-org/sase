@@ -89,6 +89,8 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         _file_completion_index: int
         _file_completion_active: bool
         _completion_kind: str
+        _completion_selection_moved: bool
+        _artifact_ref_completion_force: bool
         # ``"auto"`` or ``"manual"``, recorded for the lifetime of an open
         # placeholder menu so refresh and accept keep resolving the same
         # candidate set the user is looking at.
@@ -145,6 +147,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         def _get_warm_artifact_ref_completion_catalog(
             self,
         ) -> ArtifactRefCompletionCatalog | None: ...
+        def _get_warm_artifact_ref_known_kinds(self) -> frozenset[str] | None: ...
         def _warm_current_artifact_ref_completion_catalog(self) -> None: ...
         def _expand_snippet_template_at_range(
             self,
@@ -226,6 +229,8 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         self._file_completion_candidates = []
         self._file_completion_index = 0
         self._completion_kind = "file"
+        self._completion_selection_moved = False
+        self._artifact_ref_completion_force = False
         self._placeholder_completion_trigger = None
         self._agent_completion_candidates = None
         self._vcs_repo_completion_key = None
@@ -434,12 +439,23 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             return None
         catalog = self._get_warm_artifact_ref_completion_catalog()
         if catalog is None:
-            return None
+            if context.stage == "payload":
+                return None
+            catalog = ArtifactRefCompletionCatalog(
+                project=None,
+                kinds=tuple(self._get_warm_artifact_ref_known_kinds() or ()),
+            )
+        path_snapshot = None
+        if context.stage == "kind" and context.path_directory is not None:
+            directory_key = self._prompt_path_directory_key(context.path_directory)
+            path_snapshot = self._get_warm_prompt_path_snapshot(directory_key)
         return build_artifact_ref_completion_result(
             context,
             catalog,
             commits=self._snapshot_artifact_ref_commit_candidates(),
             bugs=self._snapshot_artifact_ref_bug_candidates(),
+            paths=() if path_snapshot is None else path_snapshot.rows,
+            paths_loading=context.stage == "kind" and path_snapshot is None,
         )
 
     def _snapshot_artifact_ref_commit_candidates(

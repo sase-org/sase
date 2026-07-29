@@ -22,6 +22,9 @@ if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 
     from sase.ace.tui.widgets._vcs_mru_cycling import VcsMruCycleKey
+    from sase.ace.tui.widgets.artifact_ref_completion import (
+        ArtifactRefCompletionContext,
+    )
     from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
     from sase.ace.tui.widgets.xprompt_arg_assist import (
@@ -57,6 +60,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         _active_xprompt_arg_hint: ActiveXPromptArgHint | None
         _pending_xprompt_completion_spacer: PendingXPromptCompletionSpacer | None
         _completion_kind: str
+        _completion_selection_moved: bool
         _dot_insert_capture_offset: int | None
         _file_completion_active: bool
         _snippet_tabstops: list[int]
@@ -70,6 +74,9 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
+        def _get_artifact_ref_completion_context(
+            self,
+        ) -> ArtifactRefCompletionContext | None: ...
         def _accept_file_completion(self) -> bool: ...
         def _accept_or_build_soft_completion(self) -> bool: ...
         def _apply_xprompt_colon_arg_hint(self) -> bool: ...
@@ -203,14 +210,27 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             event.stop()
             event.prevent_default()
             if self._file_completion_active:
-                self._accept_file_completion()
+                artifact_context = (
+                    self._get_artifact_ref_completion_context()
+                    if self._completion_kind == "artifact_ref"
+                    else None
+                )
+                unowned_bare_at = (
+                    artifact_context is not None
+                    and artifact_context.stage == "kind"
+                    and not artifact_context.prefix
+                    and not self._completion_selection_moved
+                )
+                if not unowned_bare_at:
+                    self._accept_file_completion()
+                    return
+                self._clear_file_completion()
+            bar = self._find_prompt_bar()
+            if bar is not None and bar.is_multi_pane() and self.text.strip():
+                self._open_submit_choice_panel()
             else:
-                bar = self._find_prompt_bar()
-                if bar is not None and bar.is_multi_pane() and self.text.strip():
-                    self._open_submit_choice_panel()
-                else:
-                    self._clear_xprompt_arg_hint()
-                    self.action_submit_prompt()
+                self._clear_xprompt_arg_hint()
+                self.action_submit_prompt()
             return
 
         # Active-pane stash. ``^S`` is prompt-local in every vim mode.

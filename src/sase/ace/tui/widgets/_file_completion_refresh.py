@@ -13,6 +13,7 @@ from sase.ace.tui.widgets.directive_completion import (
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
+    at_reference_leading_match_count,
 )
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
@@ -73,6 +74,16 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                 return
             self._replace_completion_candidates_preserving_selection(result.candidates)
             self._update_file_completion_panel(context.prefix)
+            if self._artifact_ref_completion_force:
+                if at_reference_leading_match_count(result.candidates) == 1:
+                    self._accept_artifact_ref_completion(result.candidates[0])
+                elif result.shared_extension:
+                    self._replace_absolute_range(
+                        context.query_start,
+                        context.query_end,
+                        f"{context.prefix}{result.shared_extension}",
+                    )
+                    self._try_artifact_ref_completion(force=True)
             return
 
         if self._completion_kind == PROMPT_WORD_COMPLETION_KIND:
@@ -468,9 +479,7 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
         if self._get_vcs_ref_trigger() is not None:
             return True
         artifact_ctx = self._get_artifact_ref_completion_context()
-        if artifact_ctx is not None and (
-            artifact_ctx.stage == "payload" or bool(artifact_ctx.partial_kind)
-        ):
+        if artifact_ctx is not None:
             return True
 
         cursor_offset = self._absolute_offset(self.cursor_location)

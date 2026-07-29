@@ -6,16 +6,17 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import islice
-import os
 from pathlib import Path
-import re
 from typing import Literal
 
 from sase.artifact_refs import (
     BUILTIN_ARTIFACT_REF_KINDS,
     ArtifactRefContext,
+    at_reference_context,
+    at_reference_menu,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.ace.tui.widgets.prompt_path_inventory import PromptPathRow
 
 
 ARTIFACT_REF_COMPLETION_KIND = "artifact_ref"
@@ -28,10 +29,6 @@ ArtifactRefPayloadSource = Literal[
     "bug",
 ]
 
-_KIND_RE = re.compile(r"[a-z][a-z0-9_-]*\Z")
-_PARTIAL_KIND_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]*\Z")
-_LEFT_CONTEXT = frozenset("'\"")
-_TOKEN_TERMINATORS = frozenset("'\"`?!;,()[]{}<>|&=+*^%$\\")
 _MAX_DOCUMENT_ROWS = 500
 _MAX_ARTIFACT_FILE_ROWS = 500
 _MAX_CHAT_SCAN_ROWS = 1000
@@ -49,6 +46,11 @@ class ArtifactRefCompletionContext:
     partial_payload: str
     kind: str | None
     panel_title: str
+    path_directory: str | None = None
+    path_partial: str = ""
+    query_start: int = 0
+    query_end: int = 0
+    wire: dict[str, object] | None = None
 
     @property
     def prefix(self) -> str:
@@ -78,6 +80,19 @@ class ArtifactRefPayloadCompletionMetadata:
     label: str = ""
     detail: str = ""
     age: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class AtReferenceFileCompletionMetadata:
+    """Metadata for one local path row in the shared ``@`` menu."""
+
+    is_dir: bool
+    directory: str
+
+
+@dataclass(frozen=True, slots=True)
+class AtReferenceLoadingCompletionMetadata:
+    """Non-selectable row shown while a local path snapshot is cold."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,93 +170,62 @@ class _ArtifactIndexCacheEntry:
 _ARTIFACT_INDEX_CACHE: dict[Path, _ArtifactIndexCacheEntry] = {}
 
 
+def at_reference_leading_match_count(
+    candidates: Sequence[CompletionCandidate],
+) -> int:
+    """Count selectable rows in the menu's leading shared-core group."""
+    if not candidates:
+        return 0
+    first_metadata = candidates[0].metadata
+    if isinstance(first_metadata, AtReferenceLoadingCompletionMetadata):
+        return 0
+    first_group = type(first_metadata)
+    count = 0
+    for candidate in candidates:
+        if type(candidate.metadata) is not first_group:
+            break
+        count += 1
+    return count
+
+
 def detect_artifact_ref_completion_context(
     text: str,
     cursor_offset: int,
     known_kinds: Iterable[str] = (),
 ) -> ArtifactRefCompletionContext | None:
-    """Detect an incomplete ``@kind:payload`` context without filesystem work."""
-    if not 0 <= cursor_offset <= len(text) or "@" not in text:
+    """Map the shared Rust cursor policy into prompt-local context."""
+    raw = at_reference_context(text, cursor_offset, known_kinds)
+    if raw is None:
         return None
-    if _cursor_is_literal(text, cursor_offset):
-        return None
-
-    line_start = text.rfind("\n", 0, cursor_offset) + 1
-    marker = text.rfind("@", line_start, cursor_offset + 1)
-    while marker >= line_start and not _valid_left_context(text, marker):
-        marker = text.rfind("@", line_start, marker)
-    if marker < line_start:
-        return None
-
-    token_end = _candidate_end(text, cursor_offset)
-    token = text[marker:token_end]
-    cursor_in_token = cursor_offset - marker
-    if cursor_in_token < 1:
-        return None
-    prefix = token[:cursor_in_token]
-    if any(char.isspace() or char in _TOKEN_TERMINATORS for char in prefix[1:]):
-        return None
-
-    separator = token.find(":")
-    if separator == -1:
-        raw_kind = token[1:]
-        if raw_kind and _PARTIAL_KIND_RE.fullmatch(raw_kind) is None:
-            return None
-        # Anything path-shaped belongs to the existing @file provider.
-        if "/" in raw_kind or raw_kind.startswith((".", "~")):
-            return None
-        partial_kind = token[1:cursor_in_token]
-        if partial_kind and _PARTIAL_KIND_RE.fullmatch(partial_kind) is None:
-            return None
-        return ArtifactRefCompletionContext(
-            replacement_start=marker,
-            replacement_end=token_end,
-            stage="kind",
-            partial_kind=partial_kind,
-            partial_payload="",
-            kind=None,
-            panel_title="artifact kinds",
-        )
-
-    raw_kind = token[1:separator]
-    if cursor_in_token <= separator:
-        partial_kind = token[1:cursor_in_token]
-        if _PARTIAL_KIND_RE.fullmatch(raw_kind) is None or (
-            partial_kind and _PARTIAL_KIND_RE.fullmatch(partial_kind) is None
-        ):
-            return None
-        canonical_kind = _canonical_kind(raw_kind, known_kinds)
-        return ArtifactRefCompletionContext(
-            replacement_start=marker,
-            replacement_end=marker + separator + 1,
-            stage="kind",
-            partial_kind=partial_kind,
-            partial_payload="",
-            kind=canonical_kind,
-            panel_title="artifact kinds",
-        )
-
-    if _KIND_RE.fullmatch(raw_kind) is None:
-        return None
-    canonical_kind = _canonical_kind(raw_kind, known_kinds)
-    payload_end = token_end
-    fragment = token.find("#", separator + 1)
-    if canonical_kind.casefold() != "bug" and fragment != -1:
-        fragment_offset = marker + fragment
-        if cursor_offset > fragment_offset:
-            return None
-        payload_end = fragment_offset
-    if cursor_offset > payload_end:
-        return None
-    partial_payload = text[marker + separator + 1 : cursor_offset]
+    stage = str(raw["stage"])
+    candidate_start, candidate_end = (int(value) for value in raw["candidate_span"])
+    query_start, query_end = (int(value) for value in raw["query_span"])
+    query = str(raw["query"])
+    kind_value = raw.get("kind")
+    kind = None if kind_value is None else str(kind_value)
+    path_query = raw.get("path_query")
+    path_directory: str | None = None
+    path_partial = ""
+    if isinstance(path_query, dict):
+        path_directory = str(path_query.get("directory", ""))
+        path_partial = str(path_query.get("partial", ""))
     return ArtifactRefCompletionContext(
-        replacement_start=marker,
-        replacement_end=payload_end,
-        stage="payload",
-        partial_kind=raw_kind,
-        partial_payload=partial_payload,
-        kind=canonical_kind,
-        panel_title=_artifact_ref_payload_panel_title(canonical_kind),
+        replacement_start=candidate_start,
+        replacement_end=candidate_end,
+        stage="kind" if stage == "kind" else "payload",
+        partial_kind=query if stage == "kind" else (kind or ""),
+        partial_payload=query if stage == "payload" else "",
+        kind=kind,
+        panel_title=(
+            "artifact kinds"
+            if stage == "kind"
+            else _artifact_ref_payload_panel_title(kind or "")
+        ),
+        path_directory=path_directory,
+        path_partial=path_partial,
+        query_start=query_start,
+        query_end=query_end,
+        wire=raw,
     )
 
 
@@ -265,18 +249,71 @@ def build_artifact_ref_completion_result(
     *,
     commits: Sequence[ArtifactRefCommitCandidate] = (),
     bugs: Sequence[ArtifactRefBugCandidate] = (),
+    paths: Sequence[PromptPathRow] = (),
+    paths_loading: bool = False,
 ) -> ArtifactRefCompletionResult:
-    """Build memory-only candidates for one artifact completion stage."""
-    if context.stage == "kind":
-        candidates, shared = _build_kind_candidates(context.partial_kind, catalog.kinds)
-    else:
-        candidates, shared = _build_payload_candidates(
-            context,
-            catalog,
-            commits=commits,
-            bugs=bugs,
+    """Map shared Rust menu rows onto prompt completion candidates."""
+    wire = context.wire
+    if wire is None:
+        return ArtifactRefCompletionResult(context, [], "")
+    kinds = _kind_inventory(catalog.kinds)
+    payloads, payload_metadata = _payload_inventory(
+        context,
+        catalog,
+        commits=commits,
+        bugs=bugs,
+    )
+    inventory = {
+        "kinds": kinds,
+        "paths": [{"name": row.name, "is_dir": row.is_dir} for row in paths],
+        "payloads": payloads,
+    }
+    menu = at_reference_menu(wire, inventory)
+    candidates: list[CompletionCandidate] = []
+    for raw_row in menu.get("rows", []):
+        if not isinstance(raw_row, dict):
+            continue
+        group = str(raw_row.get("group", ""))
+        insertion = str(raw_row.get("insertion", ""))
+        label = str(raw_row.get("label", ""))
+        if group == "artifact":
+            metadata: object = ArtifactRefKindCompletionMetadata(
+                kind=label,
+                builtin=bool(raw_row.get("builtin", False)),
+            )
+        elif group == "file":
+            metadata = AtReferenceFileCompletionMetadata(
+                is_dir=bool(raw_row.get("is_dir", False)),
+                directory=context.path_directory or "",
+            )
+        else:
+            metadata = payload_metadata.get(insertion)
+            if metadata is None:
+                continue
+        candidates.append(
+            CompletionCandidate(
+                display=label,
+                insertion=insertion,
+                is_dir=bool(raw_row.get("is_dir", False)),
+                name=label.removesuffix("/"),
+                metadata=metadata,
+            )
         )
-    return ArtifactRefCompletionResult(context, candidates, shared)
+    if context.stage == "kind" and paths_loading and not candidates:
+        candidates.append(
+            CompletionCandidate(
+                display="loading files…",
+                insertion="",
+                is_dir=False,
+                name="",
+                metadata=AtReferenceLoadingCompletionMetadata(),
+            )
+        )
+    return ArtifactRefCompletionResult(
+        context,
+        candidates,
+        str(menu.get("shared_extension", "")),
+    )
 
 
 def load_artifact_ref_completion_catalog(
@@ -293,48 +330,34 @@ def load_artifact_ref_completion_catalog(
     )
 
 
-def _build_kind_candidates(
-    partial: str,
-    kinds: Sequence[str],
-) -> tuple[list[CompletionCandidate], str]:
+def _kind_inventory(kinds: Sequence[str]) -> list[dict[str, object]]:
+    """Project the warm kind catalog into shared-core inventory rows."""
     builtin = {kind.casefold() for kind in BUILTIN_ARTIFACT_REF_KINDS}
-    ordered = tuple(
-        dict.fromkeys(
-            (
-                *BUILTIN_ARTIFACT_REF_KINDS,
-                *sorted(
-                    (kind for kind in kinds if kind.casefold() not in builtin),
-                    key=lambda value: (value.casefold(), value),
-                ),
-            )
-        )
-    )
-    matches = [
-        kind for kind in ordered if kind.casefold().startswith(partial.casefold())
-    ]
-    candidates = [
-        CompletionCandidate(
-            display=kind,
-            insertion=f"@{kind}:",
-            is_dir=False,
-            name=kind,
-            metadata=ArtifactRefKindCompletionMetadata(
-                kind,
-                kind.casefold() in builtin,
+    return [
+        {
+            "kind": kind,
+            "builtin": kind.casefold() in builtin,
+            "detail": (
+                "builtin artifact kind"
+                if kind.casefold() in builtin
+                else "document artifact"
             ),
-        )
-        for kind in matches
+        }
+        for kind in dict.fromkeys((*BUILTIN_ARTIFACT_REF_KINDS, *kinds))
     ]
-    return candidates, _shared_extension(matches, partial)
 
 
-def _build_payload_candidates(
+def _payload_inventory(
     context: ArtifactRefCompletionContext,
     catalog: ArtifactRefCompletionCatalog,
     *,
     commits: Sequence[ArtifactRefCommitCandidate],
     bugs: Sequence[ArtifactRefBugCandidate],
-) -> tuple[list[CompletionCandidate], str]:
+) -> tuple[
+    list[dict[str, object]],
+    dict[str, ArtifactRefPayloadCompletionMetadata],
+]:
+    """Project existing warm payload providers into shared-core inventory."""
     kind = context.kind or context.partial_kind
     folded = kind.casefold()
     rows: list[tuple[str, ArtifactRefPayloadCompletionMetadata]] = []
@@ -414,79 +437,19 @@ def _build_payload_candidates(
             if row.kind.casefold() == folded
         )
 
-    partial = context.partial_payload
-    filtered = [
-        (payload, metadata)
+    inventory: list[dict[str, object]] = [
+        {
+            "payload": payload,
+            "label": metadata.label,
+            "detail": metadata.detail,
+            "age": metadata.age,
+        }
         for payload, metadata in rows
-        if _payload_matches(partial, payload, metadata)
     ]
-    candidates = [
-        CompletionCandidate(
-            display=payload,
-            insertion=f"@{kind}:{payload}",
-            is_dir=False,
-            name=payload,
-            metadata=metadata,
-        )
-        for payload, metadata in filtered
-    ]
-    return candidates, _shared_extension([payload for payload, _ in filtered], partial)
-
-
-def _payload_matches(
-    partial: str,
-    payload: str,
-    metadata: ArtifactRefPayloadCompletionMetadata,
-) -> bool:
-    folded = partial.casefold()
-    if not folded:
-        return True
-    return payload.casefold().startswith(
-        folded
-    ) or metadata.label.casefold().startswith(folded)
-
-
-def _shared_extension(values: Sequence[str], partial: str) -> str:
-    if len(values) < 2:
-        return ""
-    folded = os.path.commonprefix([value.casefold() for value in values])
-    if len(folded) <= len(partial):
-        return ""
-    return values[0][len(partial) : len(folded)]
-
-
-def _valid_left_context(text: str, marker: int) -> bool:
-    return (
-        marker == 0 or text[marker - 1].isspace() or text[marker - 1] in _LEFT_CONTEXT
-    )
-
-
-def _candidate_end(text: str, cursor_offset: int) -> int:
-    end = cursor_offset
-    while end < len(text):
-        char = text[end]
-        if char.isspace() or char in _TOKEN_TERMINATORS:
-            break
-        end += 1
-    return end
-
-
-def _canonical_kind(kind: str, known_kinds: Iterable[str]) -> str:
-    folded = kind.casefold()
-    return next(
-        (known for known in known_kinds if known.casefold() == folded),
-        kind.lower(),
-    )
-
-
-def _cursor_is_literal(text: str, cursor_offset: int) -> bool:
-    try:
-        from sase.xprompt._literal_zones import literal_zone_ranges
-
-        probe = max(0, cursor_offset - 1)
-        return any(start <= probe < end for start, end in literal_zone_ranges(text))
-    except Exception:
-        return False
+    metadata_by_insertion = {
+        f"@{kind}:{payload}": metadata for payload, metadata in rows
+    }
+    return inventory, metadata_by_insertion
 
 
 def _load_document_candidates(
@@ -669,6 +632,8 @@ def _age_label(value: str | int | float) -> str:
 
 __all__ = [
     "ARTIFACT_REF_COMPLETION_KIND",
+    "AtReferenceFileCompletionMetadata",
+    "AtReferenceLoadingCompletionMetadata",
     "ArtifactRefBugCandidate",
     "ArtifactRefCommitCandidate",
     "ArtifactRefCompletionCatalog",
@@ -676,6 +641,7 @@ __all__ = [
     "ArtifactRefCompletionResult",
     "ArtifactRefKindCompletionMetadata",
     "ArtifactRefPayloadCompletionMetadata",
+    "at_reference_leading_match_count",
     "build_artifact_ref_completion_result",
     "detect_artifact_ref_completion_context",
     "load_artifact_ref_completion_catalog",
