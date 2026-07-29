@@ -32,6 +32,7 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
                 "statistics": {
                     "prev_view": "f12",
                     "next_view": "f11",
+                    "select_view": "f13",
                     "cycle_range": "f10",
                     "cycle_range_reverse": "f9",
                     "custom_range": "f8",
@@ -52,6 +53,7 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
     assert statistics_help_bindings(registry.statistics) == [
         ("f12", "Previous View"),
         ("f11", "Next View"),
+        ("f13", "Select View by Number"),
         ("f10", "Time Range"),
         ("f9", "Previous Time Range"),
         ("f8", "Custom Range"),
@@ -72,7 +74,8 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
 
         hints = pane.query_one("#statistics-hints", Static).render().plain
         assert hints == (
-            "f12 / f11 views   f8 custom range   f5/f4 scroll   f3 refresh   f2 help"
+            "f12 / f11 · f13N views   f8 custom range   "
+            "f5/f4 scroll   f3 refresh   f2 help"
         )
         assert _scope_plain(pane, "range").startswith(" f10/f9  Range ")
         assert pane.query_one("#statistics-scope-group", Static).display is False

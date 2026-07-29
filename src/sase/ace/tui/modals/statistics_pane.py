@@ -8,7 +8,7 @@ from textual import on
 from textual.app import ComposeResult
 from textual.binding import BindingsMap
 from textual.containers import Horizontal, VerticalScroll
-from textual.events import Click, Resize
+from textual.events import Click, Key, Resize
 from textual.message import Message
 from textual.widgets import Input, Static
 from textual.worker import Worker, WorkerState
@@ -17,6 +17,7 @@ from sase.ace.tui.keymaps import (
     StatisticsPaneKeymaps,
     build_statistics_bindings,
     load_keymap_registry,
+    split_key_alternatives,
 )
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.widgets.panel_tab_strip import PanelTab, PanelTabStrip
@@ -36,6 +37,7 @@ from .statistics_pane_data import (
     XPROMPTS_GROUP_ORDER,
     VIEW_COMPACT_LABELS,
     VIEW_LABELS,
+    VIEW_MICRO_LABELS,
     VIEW_ORDER,
     ProjectsGroupBy,
     StatisticsView,
@@ -48,13 +50,15 @@ from .statistics_pane_rendering import StatisticsPanePresentationBase
 
 _ACCENT = "#FF87D7"
 _REFRESH_INTERVAL_SECONDS = 30.0
-_VIEWS_COMPACT_BELOW_WIDTH = 108
+_VIEWS_COMPACT_BELOW_WIDTH = 136
+_VIEWS_MICRO_BELOW_WIDTH = 92
 _VIEW_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(
         view,
         VIEW_LABELS[view],
         _ACCENT,
         compact_label=VIEW_COMPACT_LABELS[view],
+        micro_label=VIEW_MICRO_LABELS[view],
     )
     for view in VIEW_ORDER
 )
@@ -150,6 +154,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
         self._last_error = ""
         self._compact_scope = False
         self._runners_stacked = False
+        self._pending_view_select = False
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="statistics-heading"):
@@ -158,9 +163,12 @@ class StatisticsPane(StatisticsPanePresentationBase):
         yield PanelTabStrip(
             _VIEW_TABS,
             self._view,
+            show_numbers=True,
             uppercase_active=True,
             compact_below=_VIEWS_COMPACT_BELOW_WIDTH,
             compact_separator="│",
+            micro_below=_VIEWS_MICRO_BELOW_WIDTH,
+            micro_separator="│",
             id="statistics-views",
         )
         yield Static(
@@ -268,6 +276,40 @@ class StatisticsPane(StatisticsPanePresentationBase):
         elif self._load_debouncer is not None:
             self._load_debouncer.cancel()
 
+    def on_key(self, event: Key) -> None:
+        """Resolve one armed numbered-view selection before modal bindings."""
+        try:
+            if self.query_one("#statistics-custom-range", Input).has_focus:
+                return
+        except Exception:
+            pass
+        if not self._pending_view_select:
+            return
+
+        if event.key in split_key_alternatives(self._keymaps.select_view):
+            event.prevent_default()
+            event.stop()
+            return
+
+        character = getattr(event, "character", None)
+        digit = (
+            character
+            if isinstance(character, str) and character in "123456789"
+            else event.key
+        )
+        if digit in "123456789":
+            event.prevent_default()
+            event.stop()
+            self._pending_view_select = False
+            view_index = int(digit) - 1
+            if view_index < len(VIEW_ORDER):
+                self._set_view(VIEW_ORDER[view_index])
+            self._update_hints()
+            return
+
+        self._pending_view_select = False
+        self._update_hints()
+
     def action_prev_view(self) -> None:
         """Select the previous Statistics view."""
         self._cycle_view(-1)
@@ -275,6 +317,11 @@ class StatisticsPane(StatisticsPanePresentationBase):
     def action_next_view(self) -> None:
         """Select the next Statistics view."""
         self._cycle_view(1)
+
+    def action_select_view(self) -> None:
+        """Arm one-shot numbered Statistics view selection."""
+        self._pending_view_select = True
+        self._update_hints()
 
     def action_cycle_range(self) -> None:
         """Cycle through Today, 24h, 7d, 30d, 90d, and All."""

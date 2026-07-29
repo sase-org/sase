@@ -755,6 +755,10 @@
                   "type": "string",
                   "description": "Select the next statistics view"
                 },
+                "select_view": {
+                  "type": "string",
+                  "description": "Arm numbered statistics view selection"
+                },
                 "cycle_range": {
                   "type": "string",
                   "description": "Cycle to the next statistics time range"

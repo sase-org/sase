@@ -54,6 +54,17 @@ VIEW_COMPACT_LABELS: dict[StatisticsView, str] = {
     **VIEW_LABELS,
     "plans_questions": "Plans/Q",
 }
+VIEW_MICRO_LABELS: dict[StatisticsView, str] = {
+    "overview": "Ovr",
+    "runs": "Runs",
+    "runners": "Rnrs",
+    "projects": "Proj",
+    "providers": "Prov",
+    "runtime": "Rtm",
+    "activity": "Act",
+    "xprompts": "XP",
+    "plans_questions": "P&Q",
+}
 VIEW_DESCRIPTIONS: dict[StatisticsView, str] = {
     "overview": "Totals and trends across runs, commits, plans, and questions.",
     "runs": "Run outcomes, retries, workspace usage, and activity over time.",
@@ -173,6 +184,7 @@ __all__ = [
     "VIEW_DESCRIPTIONS",
     "VIEW_COMPACT_LABELS",
     "VIEW_LABELS",
+    "VIEW_MICRO_LABELS",
     "VIEW_ORDER",
     "StatisticsView",
     "StatisticsViewData",

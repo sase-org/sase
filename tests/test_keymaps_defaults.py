@@ -399,6 +399,7 @@ def test_default_config_covers_all_statistics_keymaps() -> None:
     assert defaults == {
         "prev_view": "left_square_bracket",
         "next_view": "right_square_bracket",
+        "select_view": "0",
         "cycle_range": "t",
         "cycle_range_reverse": "T",
         "custom_range": "c",

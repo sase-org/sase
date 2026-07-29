@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from rich.text import Text
 from textual.events import Click, Resize
@@ -20,6 +20,10 @@ class PanelTab:
     label: str
     accent_color: str
     compact_label: str | None = None
+    micro_label: str | None = None
+
+
+_PanelTabTier = Literal["full", "compact", "micro"]
 
 
 class PanelTabStrip(Static):
@@ -41,6 +45,8 @@ class PanelTabStrip(Static):
         uppercase_active: bool = False,
         compact_below: int | None = None,
         compact_separator: str = " │ ",
+        micro_below: int | None = None,
+        micro_separator: str = "│",
         **kwargs: Any,
     ) -> None:
         self._tabs = tuple(tabs)
@@ -49,7 +55,9 @@ class PanelTabStrip(Static):
         self._uppercase_active = uppercase_active
         self._compact_below = compact_below
         self._compact_separator = compact_separator
-        self._compact = False
+        self._micro_below = micro_below
+        self._micro_separator = micro_separator
+        self._tier: _PanelTabTier = "full"
         self._tab_ranges: dict[str, tuple[int, int]] = {}
         self._line_width = 0
         super().__init__(self._build_content(), **kwargs)
@@ -76,42 +84,53 @@ class PanelTabStrip(Static):
         self._tab_ranges.clear()
         for index, tab in enumerate(self._tabs):
             if index > 0:
-                separator = self._compact_separator if self._compact else " │ "
+                separator = {
+                    "full": " │ ",
+                    "compact": self._compact_separator,
+                    "micro": self._micro_separator,
+                }[self._tier]
                 text.append(separator, style="#444444")
             is_active = tab.id == self._active_tab
             label_style = f"bold {tab.accent_color}" if is_active else "#888888"
             start = len(text.plain)
             if self._show_numbers:
                 number_style = tab.accent_color if is_active else "#666666"
-                number = f"{index + 1} " if self._compact else f" {index + 1} "
+                number = f" {index + 1} " if self._tier == "full" else f"{index + 1} "
                 text.append(number, style=number_style)
             else:
-                if not self._compact:
+                if self._tier == "full":
                     text.append(" ")
-            source_label = (
-                tab.compact_label
-                if self._compact and tab.compact_label is not None
-                else tab.label
-            )
+            if self._tier == "micro":
+                source_label = tab.micro_label or tab.compact_label or tab.label
+            elif self._tier == "compact":
+                source_label = tab.compact_label or tab.label
+            else:
+                source_label = tab.label
             label = (
                 source_label.upper()
                 if self._uppercase_active and is_active
                 else source_label
             )
-            suffix = "" if self._compact else " "
+            suffix = " " if self._tier == "full" else ""
             text.append(f"{label}{suffix}", style=label_style)
             self._tab_ranges[tab.id] = (start, len(text.plain))
         self._line_width = len(text.plain)
         return text
 
     def on_resize(self, _event: Resize) -> None:
-        """Reflow strips that opt into a compact narrow-width layout."""
-        if self._compact_below is None:
+        """Reflow strips that opt into compact or micro narrow-width layouts."""
+        if self._compact_below is None and self._micro_below is None:
             return
-        compact = 0 < int(_event.size.width) < self._compact_below
-        if compact == self._compact:
+        width = int(_event.size.width)
+        if self._micro_below is not None and 0 < width < self._micro_below:
+            tier: _PanelTabTier = "micro"
+        elif self._compact_below is not None and 0 < width < self._compact_below:
+            tier = "compact"
+        else:
+            tier = "full"
+        if tier == self._tier:
             return
-        self._compact = compact
+        self._tier = tier
         self.update(self._build_content())
 
     def on_click(self, event: Click) -> None:

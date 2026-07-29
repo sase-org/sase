@@ -33,7 +33,8 @@ def test_help_documents_every_statistics_view_and_legend() -> None:
     views = modal._views_text().plain
     glossary = modal._glossary_text().plain
 
-    for view in VIEW_ORDER:
+    for number, view in enumerate(VIEW_ORDER, start=1):
+        assert f"{number} {VIEW_LABELS[view]}" in views
         assert VIEW_LABELS[view] in views
         assert VIEW_DESCRIPTIONS[view] in views
         assert VIEW_LABELS[view] in glossary
@@ -52,6 +53,7 @@ def test_help_documents_every_statistics_binding_and_current_scope() -> None:
         else:
             assert description in controls
     assert "Last 7 days · exact range" in controls
+    assert "0  Select View by Number — press 0 then 1-9" in controls
     assert "next ranked project; current: All projects" in controls
     assert "previous ranked project; current: All projects" in controls
 

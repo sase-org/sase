@@ -65,6 +65,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     _last_error: str
     _compact_scope: bool
     _runners_stacked: bool
+    _pending_view_select: bool
 
     def _paint_loading(self) -> None:
         self._set_tiles_visible(self._view == "overview")
@@ -363,8 +364,16 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
 
     def _hints_text(self) -> Text:
         hints = Text(justify="center")
+        if self._pending_view_select:
+            hints.append(
+                f"{self._effective_key('select_view')}… press 1-9 to select a view",
+                style=f"bold {_ACCENT}",
+            )
+            return hints
         hints.append(
-            f"{self._effective_key('prev_view')} / {self._effective_key('next_view')}",
+            f"{self._effective_key('prev_view')} / "
+            f"{self._effective_key('next_view')} · "
+            f"{self._effective_key('select_view')}N",
             style=f"bold {_ACCENT}",
         )
         hints.append(" views")

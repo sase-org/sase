@@ -95,6 +95,52 @@ async def test_tab_strip_can_uppercase_only_the_active_canonical_label() -> None
         assert strip._build_content().plain == " PRs  │  COMMITS "
 
 
+async def test_micro_tab_tier_is_opt_in_and_uses_numbered_micro_labels() -> None:
+    tabs = (
+        PanelTab("overview", "Overview", "cyan", micro_label="Ovr"),
+        PanelTab(
+            "plans_questions",
+            "Plans & Questions",
+            "magenta",
+            compact_label="Plans/Q",
+            micro_label="P&Q",
+        ),
+    )
+
+    class _TabStripApp(App[None]):
+        def compose(self):  # type: ignore[no-untyped-def]
+            yield PanelTabStrip(
+                tabs,
+                "overview",
+                show_numbers=True,
+                uppercase_active=True,
+                compact_below=40,
+                compact_separator="│",
+                id="compact-only",
+            )
+            yield PanelTabStrip(
+                tabs,
+                "overview",
+                show_numbers=True,
+                uppercase_active=True,
+                compact_below=40,
+                compact_separator="│",
+                micro_below=30,
+                micro_separator="│",
+                id="micro",
+            )
+
+    async with _TabStripApp().run_test(size=(20, 5)) as pilot:
+        await pilot.pause()
+        compact_only = pilot.app.query_one("#compact-only", PanelTabStrip)
+        assert compact_only._tier == "compact"
+        assert compact_only._build_content().plain == "1 OVERVIEW│2 Plans/Q"
+
+        micro = pilot.app.query_one("#micro", PanelTabStrip)
+        assert micro._tier == "micro"
+        assert micro._build_content().plain == "1 OVR│2 P&Q"
+
+
 def test_title_has_no_leading_icon_and_underline_matches() -> None:
     assert _TITLE_TEXT == "SASE Admin Center"
     assert _TITLE_TEXT == _TITLE_LABEL

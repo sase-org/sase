@@ -177,6 +177,7 @@ class StatisticsPaneKeymaps:
 
     prev_view: str = "left_square_bracket"
     next_view: str = "right_square_bracket"
+    select_view: str = "0"
     cycle_range: str = "t"
     cycle_range_reverse: str = "T"
     custom_range: str = "c"

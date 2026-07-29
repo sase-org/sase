@@ -55,6 +55,7 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.gate.submit_branch == "ctrl+s"
     assert reg.statistics.prev_view == "left_square_bracket"
     assert reg.statistics.next_view == "right_square_bracket"
+    assert reg.statistics.select_view == "0"
     assert reg.statistics.cycle_range == "t"
     assert reg.statistics.cycle_range_reverse == "T"
     assert reg.statistics.custom_range == "c"
@@ -89,6 +90,7 @@ def test_statistics_pane_keys_can_be_overridden_independently() -> None:
                 "statistics": {
                     "prev_view": "f12",
                     "next_view": "f11",
+                    "select_view": "f13",
                     "cycle_range": "f10",
                     "cycle_range_reverse": "f9",
                     "custom_range": "f8",
@@ -108,6 +110,7 @@ def test_statistics_pane_keys_can_be_overridden_independently() -> None:
 
     assert reg.statistics.prev_view == "f12"
     assert reg.statistics.next_view == "f11"
+    assert reg.statistics.select_view == "f13"
     assert reg.statistics.cycle_range == "f10"
     assert reg.statistics.cycle_range_reverse == "f9"
     assert reg.statistics.custom_range == "f8"

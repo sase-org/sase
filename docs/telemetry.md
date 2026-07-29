@@ -156,23 +156,24 @@ performs aggregation off the UI thread, refreshes every 30 seconds, and shows lo
 states in place.
 
 The scope header makes the current controls explicit: **Range** shows a friendly summary and, when space permits, its
-absolute span; **Group** appears only in the Projects and Runtime views and names the active dimension; and **Project**
-shows **All projects** or the selected project's display name (falling back to its canonical key), preceded by a
-categorical color swatch. A custom range is labeled **Custom**, and narrow terminals compact the chips without changing
-the selection. Project keys remain canonical internally even when a configured display name is shown.
+absolute span; **Group** appears only in the Projects, Runtime, and XPrompts views and names the active dimension; and
+**Project** shows **All projects** or the selected project's display name (falling back to its canonical key), preceded
+by a categorical color swatch. A custom range is labeled **Custom**, and narrow terminals compact the chips without
+changing the selection. Project keys remain canonical internally even when a configured display name is shown.
 
-The eight views answer different questions:
+The nine numbered views answer different questions:
 
-| View                  | Contents                                                                                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Overview**          | Run volume over time plus top providers, skills, and projects.                                                                                          |
-| **Runs**              | Outcomes, active and waiting work, retry chains, commit attribution, and top target repositories.                                                       |
-| **Projects**          | Project and ChangeSpec run counts, success, commits, wall time, and last activity; `g` cycles project, ChangeSpec, and project-to-ChangeSpec groupings. |
-| **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                               |
-| **Runtime**           | Total, mean, p50, p95, and maximum runtime; `g` cycles tribe, clan, family, agent, provider, model, workflow, project, and ChangeSpec dimensions.       |
-| **Runners**           | Historical runner occupancy and concurrency trends, with today's effective global limit (including a temporary override) as present-day context.        |
-| **Activity**          | Skill, memory, and workspace use.                                                                                                                       |
-| **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                     |
+| #   | View                  | Contents                                                                                                                                                |
+| --- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Overview**          | Run volume over time plus top providers, skills, and projects.                                                                                          |
+| 2   | **Runs**              | Outcomes, active and waiting work, retry chains, commit attribution, and top target repositories.                                                       |
+| 3   | **Runners**           | Historical runner occupancy and concurrency trends, with today's effective global limit (including a temporary override) as present-day context.        |
+| 4   | **Projects**          | Project and ChangeSpec run counts, success, commits, wall time, and last activity; `g` cycles project, ChangeSpec, and project-to-ChangeSpec groupings. |
+| 5   | **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                               |
+| 6   | **Runtime**           | Total, mean, p50, p95, and maximum runtime; `g` cycles tribe, clan, family, agent, provider, model, workflow, project, and ChangeSpec dimensions.       |
+| 7   | **Activity**          | Skill, memory, and workspace use.                                                                                                                       |
+| 8   | **XPrompts**          | XPrompt use by frequency, model, project, and co-usage, with an optional focused XPrompt drill-down.                                                    |
+| 9   | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                     |
 
 Each populated view ends with a compact legend defining its calculated metrics. Press `?` for the complete per-view
 glossary, control list, active range/group/project scope, and freshness notes. On Overview, the Agents Run, Success
@@ -184,9 +185,10 @@ The default focused-pane keys are:
 | Key                 | Action                                                                                   |
 | ------------------- | ---------------------------------------------------------------------------------------- |
 | `[`/`]`             | Cycle statistic views.                                                                   |
+| `0`, then `1`–`9`   | Select the corresponding numbered Statistics view.                                       |
 | `t`/`T`             | Cycle Today, 24h, 7d, 30d, 90d, and All forward / backward.                              |
 | `c`                 | Enter a custom absolute or relative time range.                                          |
-| `g`                 | Cycle grouping in the Projects or Runtime view.                                          |
+| `g`                 | Cycle grouping in the Projects, Runtime, or XPrompts view.                               |
 | `p`                 | Cycle All → each project from the latest unfiltered ranking → All.                       |
 | `P`                 | Cycle the same project order backward, wrapping in either direction.                     |
 | `Ctrl+D` / `Ctrl+U` | Scroll the statistics body down / up by half a page when the range input is not focused. |
@@ -222,6 +224,7 @@ ace:
     statistics:
       prev_view: "["
       next_view: "]"
+      select_view: "0"
       cycle_range: "t"
       cycle_range_reverse: "T"
       custom_range: "c"

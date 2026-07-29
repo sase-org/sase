@@ -319,21 +319,39 @@ def test_project_filter_cycle_is_inert_without_choices_and_handles_stale_selecti
     assert changes == [True, True]
 
 
-def test_compact_nine_view_strip_fits_narrow_statistics_layout() -> None:
+@pytest.mark.parametrize(
+    ("width", "tier"),
+    (
+        (136, "full"),
+        (108, "compact"),
+        (79, "micro"),
+    ),
+)
+def test_numbered_nine_view_strip_fits_each_statistics_layout_tier(
+    width: int,
+    tier: str,
+) -> None:
     strip = PanelTabStrip(
         sp._VIEW_TABS,
         "overview",
+        show_numbers=True,
         uppercase_active=True,
         compact_below=sp._VIEWS_COMPACT_BELOW_WIDTH,
         compact_separator="│",
+        micro_below=sp._VIEWS_MICRO_BELOW_WIDTH,
+        micro_separator="│",
     )
-    strip._compact = True
+    strip._tier = tier  # type: ignore[assignment]
 
     rendered = strip._build_content()
 
     assert strip._line_width == len(rendered.plain)
-    assert strip._line_width < 90
+    assert strip._line_width <= width
     assert len(strip._tab_ranges) == 9
+    assert [
+        rendered.plain[start:end].split(maxsplit=1)[0]
+        for start, end in strip._tab_ranges.values()
+    ] == [str(number) for number in range(1, 10)]
 
 
 async def test_project_filter_label_submits_canonical_key_across_reload_paths(

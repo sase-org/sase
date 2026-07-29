@@ -151,6 +151,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
 _STATISTICS_BINDING_META: tuple[tuple[str, str], ...] = (
     ("prev_view", "Previous View"),
     ("next_view", "Next View"),
+    ("select_view", "Select View by Number"),
     ("cycle_range", "Time Range"),
     ("cycle_range_reverse", "Previous Time Range"),
     ("custom_range", "Custom Range"),

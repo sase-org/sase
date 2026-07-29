@@ -37,7 +37,7 @@ async def test_compact_labels_preserve_active_treatment_and_click_ranges() -> No
 
     async with _TabStripApp().run_test(size=(60, 5)) as pilot:
         strip = pilot.app.query_one("#tabs", PanelTabStrip)
-        assert strip._compact is True
+        assert strip._tier == "compact"
         assert strip._build_content().plain == "OVERVIEW │ Plans/Q"
         start, end = strip._tab_ranges["plans_questions"]
         assert strip._build_content().plain[start:end] == "Plans/Q"
@@ -83,7 +83,7 @@ def test_custom_compact_separator_preserves_width_and_click_ranges() -> None:
         compact_below=100,
         compact_separator="│",
     )
-    strip._compact = True
+    strip._tier = "compact"
 
     assert strip._build_content().plain == "One│Two│Three"
     assert strip._line_width == 13

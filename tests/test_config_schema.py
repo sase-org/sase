@@ -135,6 +135,7 @@ def test_config_schema_accepts_scoped_statistics_keymaps() -> None:
                     "statistics": {
                         "prev_view": "f12",
                         "next_view": "f11",
+                        "select_view": "f13",
                         "cycle_range": "f10",
                         "cycle_range_reverse": "f9",
                         "custom_range": "f8",

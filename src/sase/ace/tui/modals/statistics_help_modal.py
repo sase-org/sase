@@ -130,12 +130,12 @@ class StatisticsHelpModal(ModalScreen[None]):
 
     def _views_text(self) -> Text:
         text = Text()
-        for index, view in enumerate(VIEW_ORDER):
-            if index:
+        for number, view in enumerate(VIEW_ORDER, start=1):
+            if number > 1:
                 text.append("\n")
             marker = "●" if view == self._current_view else "○"
             marker_style = f"bold {_ACCENT}" if view == self._current_view else "dim"
-            text.append(f"{marker} ", style=marker_style)
+            text.append(f"{marker} {number} ", style=marker_style)
             text.append(VIEW_LABELS[view], style="bold")
             text.append(f" — {VIEW_DESCRIPTIONS[view]}", style="dim")
         return text
@@ -167,6 +167,11 @@ class StatisticsHelpModal(ModalScreen[None]):
     def _control_value(self, action: str) -> str:
         if action in {"prev_view", "next_view"}:
             return f"current view: {VIEW_LABELS[self._current_view]}"
+        if action == "select_view":
+            key = key_display_name(self._keymaps.select_view)
+            return (
+                f"press {key} then 1-9; current view: {VIEW_LABELS[self._current_view]}"
+            )
         if action in {"cycle_range", "cycle_range_reverse"}:
             return (
                 f"{self._selected_range.display_label} · {self._selected_range.label}"
