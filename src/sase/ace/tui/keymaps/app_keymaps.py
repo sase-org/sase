@@ -67,6 +67,18 @@ class AppKeymaps:
     chats_open_external: str
     chats_copy_path: str
     chats_refresh: str
+    # Files sub-tab
+    files_next: str
+    files_prev: str
+    files_view_selected: str
+    files_open_viewer: str
+    files_open_external: str
+    files_open_agent: str
+    files_filters: str
+    files_cycle_kind: str
+    files_copy_reference: str
+    files_copy_path: str
+    files_refresh: str
     # Bugs sub-tab
     next_bug: str
     prev_bug: str

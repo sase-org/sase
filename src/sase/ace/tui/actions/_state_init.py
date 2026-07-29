@@ -339,6 +339,7 @@ class StateInitMixin:
             "bugs": set(),
             "plans": set(),
             "chats": set(),
+            "files": set(),
         }
 
         # Cross-tab jump back state (`)

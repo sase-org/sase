@@ -38,6 +38,7 @@ _ARTIFACT_DESCRIPTIONS: dict[ArtifactsSubTab, str] = {
     "bugs": "Track issues and launch fixes.",
     "prs": "Inspect ChangeSpecs and move PRs through review.",
     "chats": "Browse agent chat transcripts and their sync state.",
+    "files": "Browse every artifact file agents have produced.",
 }
 
 
@@ -61,7 +62,7 @@ class ChangeSpecOnboarding(VerticalScroll):
             id="changespec-onboarding-tabs",
             classes="changespec-onboarding-card",
         )
-        tabs.border_title = "The five views"
+        tabs.border_title = "The six views"
         yield tabs
 
         what = Static(
@@ -149,7 +150,7 @@ class ChangeSpecOnboarding(VerticalScroll):
         )
         text.append("  *\n", style="bold #FFD700")
         text.append(
-            "Browse commits, plans, chats, bugs & PRs without leaving Artifacts",
+            "Browse commits, plans, chats, bugs, PRs & files without leaving Artifacts",
             style=f"dim {_ACCENT}",
         )
         return text

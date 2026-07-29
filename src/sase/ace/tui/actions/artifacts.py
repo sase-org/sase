@@ -26,6 +26,7 @@ from .artifacts_commits import (
     ArtifactsCommitsActionsMixin,
 )
 from .artifacts_chats import ArtifactsChatsActionsMixin, CHATS_ARTIFACT_ACTIONS
+from .artifacts_files import ArtifactsFilesActionsMixin, FILES_ARTIFACT_ACTIONS
 from .artifacts_plans import ArtifactsPlansActionsMixin, PLANS_ARTIFACT_ACTIONS
 
 if TYPE_CHECKING:
@@ -42,6 +43,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         *COMMITS_ARTIFACT_ACTIONS,
         *PLANS_ARTIFACT_ACTIONS,
         *CHATS_ARTIFACT_ACTIONS,
+        *FILES_ARTIFACT_ACTIONS,
         "copy_tab_content",
         "toggle_mark",
         "clear_marks",
@@ -173,6 +175,7 @@ class ArtifactsMixin(
     ArtifactsCommitsActionsMixin,
     ArtifactsPlansActionsMixin,
     ArtifactsChatsActionsMixin,
+    ArtifactsFilesActionsMixin,
 ):
     """Actions shared by the Artifacts scaffold and future concrete panes."""
 
@@ -203,6 +206,7 @@ class ArtifactsMixin(
             "bugs",
             "plans",
             "chats",
+            "files",
         }
 
     def _sync_active_artifacts_entry_state(self) -> None:
@@ -225,7 +229,7 @@ class ArtifactsMixin(
         subtab: ArtifactsSubTab | None = None,
     ) -> ArtifactEntryNavigator | None:
         target_subtab = subtab or self.current_artifacts_subtab
-        if target_subtab not in {"commits", "bugs", "plans", "chats"}:
+        if target_subtab not in {"commits", "bugs", "plans", "chats", "files"}:
             return None
         view = self._artifacts_view()
         if view is None:
@@ -278,7 +282,7 @@ class ArtifactsMixin(
 
     def _clear_all_artifacts_marks(self) -> None:
         """Drop every pane's marks after the shared project scope changes."""
-        for subtab in ("commits", "bugs", "plans", "chats"):
+        for subtab in ("commits", "bugs", "plans", "chats", "files"):
             self._clear_artifacts_marks_for_subtab(subtab)
 
     def _clear_artifacts_marks_for_subtab(self, subtab: ArtifactsSubTab) -> None:
@@ -506,6 +510,9 @@ class ArtifactsMixin(
 
     def action_show_artifacts_chats(self) -> None:
         self._switch_artifacts_subtab("chats")
+
+    def action_show_artifacts_files(self) -> None:
+        self._switch_artifacts_subtab("files")
 
     def _resolve_initial_artifacts_scope(self) -> str | None:
         return get_sole_project_filter(self.parsed_query)

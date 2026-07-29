@@ -365,6 +365,7 @@ class AceApp(
         from .actions.artifacts import (
             CHATS_ARTIFACT_ACTIONS,
             COMMITS_ARTIFACT_ACTIONS,
+            FILES_ARTIFACT_ACTIONS,
             NON_PRS_ARTIFACT_ACTIONS,
             PLANS_ARTIFACT_ACTIONS,
         )
@@ -388,10 +389,10 @@ class AceApp(
         if (
             action == "refresh"
             and self.current_tab == ARTIFACTS_TAB
-            and self.current_artifacts_subtab in {"bugs", "commits"}
+            and self.current_artifacts_subtab in {"bugs", "commits", "files"}
         ):
-            # ``y`` copies the selected Bugs/Commits artifact; explicit pane
-            # refresh is registry-backed and defaults to ``R``.
+            # ``y`` copies the selected Bugs/Commits/Files artifact; explicit
+            # pane refresh is registry-backed and defaults to ``R``.
             return False
         if action in {
             "cycle_artifacts_subtab",
@@ -405,6 +406,7 @@ class AceApp(
             "show_artifacts_bugs",
             "show_artifacts_plans",
             "show_artifacts_chats",
+            "show_artifacts_files",
         }:
             if self.current_tab != ARTIFACTS_TAB:
                 return False
@@ -424,6 +426,12 @@ class AceApp(
             if (
                 self.current_tab != ARTIFACTS_TAB
                 or self.current_artifacts_subtab != "chats"
+            ):
+                return False
+        if action in FILES_ARTIFACT_ACTIONS:
+            if (
+                self.current_tab != ARTIFACTS_TAB
+                or self.current_artifacts_subtab != "files"
             ):
                 return False
         if action == "pick_artifacts_project":

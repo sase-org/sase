@@ -15,6 +15,7 @@ from ..panel_tab_strip import PanelTab, PanelTabStrip
 from .bugs import ArtifactsBugsPane
 from .chats_pane import ArtifactsChatsPane
 from .commits import CommitsPane
+from .files_pane import ArtifactsFilesPane
 from sase.vcs_log.filter_query import CommitLogFilterValues
 from .entry_navigation import ArtifactEntryNavigator
 from .lifecycle import ArtifactsPaneLifecycle
@@ -42,6 +43,7 @@ _ARTIFACT_LABELS: dict[ArtifactsSubTab, str] = {
     "bugs": "Bugs",
     "plans": "Plans",
     "chats": "Chats",
+    "files": "Files",
 }
 _ARTIFACT_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(tab, _ARTIFACT_LABELS[tab], ARTIFACTS_ACCENTS[tab])
@@ -52,6 +54,7 @@ _DETAIL_SCROLL_IDS: dict[ArtifactsSubTab, str] = {
     "bugs": "bugs-body-scroll",
     "plans": "plans-detail-scroll",
     "chats": "chats-detail-scroll",
+    "files": "files-detail-scroll",
 }
 
 
@@ -88,6 +91,7 @@ class ArtifactsView(Vertical):
             yield ArtifactsBugsPane(id=ARTIFACTS_PANE_IDS["bugs"])
             yield ArtifactsPlansPane(id=ARTIFACTS_PANE_IDS["plans"])
             yield ArtifactsChatsPane(id=ARTIFACTS_PANE_IDS["chats"])
+            yield ArtifactsFilesPane(id=ARTIFACTS_PANE_IDS["files"])
 
     def on_mount(self) -> None:
         # Pane work stays lazy while Artifacts is hidden. Direct-on-Artifacts
@@ -153,6 +157,8 @@ class ArtifactsView(Vertical):
             plans_pane.set_keymap_registry(registry)
         for chats_pane in self.query(ArtifactsChatsPane):
             chats_pane.set_keymap_registry(registry)
+        for files_pane in self.query(ArtifactsFilesPane):
+            files_pane.set_keymap_registry(registry)
         self.query_one(CommitsPane).set_keymap_registry(registry)
         self.query_one(ArtifactsBugsPane).set_keymap_registry(registry)
 
@@ -177,6 +183,8 @@ class ArtifactsView(Vertical):
             plans_pane.set_project_scope(project, display_name=display_name)
         for chats_pane in self.query(ArtifactsChatsPane):
             chats_pane.set_project_scope(project, display_name=display_name)
+        for files_pane in self.query(ArtifactsFilesPane):
+            files_pane.set_project_scope(project, display_name=display_name)
         self.query_one(ArtifactsBugsPane).set_project_scope(
             project,
             display_name=display_name,

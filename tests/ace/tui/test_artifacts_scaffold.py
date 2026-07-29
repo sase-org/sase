@@ -11,6 +11,7 @@ from textual.widgets import Static
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.artifacts import (
     CHATS_ARTIFACT_ACTIONS,
+    FILES_ARTIFACT_ACTIONS,
     _ArtifactsProjectChoices,
 )
 from sase.ace.tui.commands import (
@@ -26,6 +27,7 @@ from sase.ace.tui.modals.inventory_project_picker import (
 from sase.ace.tui.widgets import (
     ArtifactPlaceholderPane,
     ArtifactsChatsPane,
+    ArtifactsFilesPane,
     ArtifactsPrsPane,
     CommitsPane,
 )
@@ -70,6 +72,7 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         assert page.app.check_action("refresh_bugs", ()) is False
         assert page.app.check_action("plans_refresh", ()) is False
         assert page.app.check_action("chats_refresh", ()) is False
+        assert page.app.check_action("files_refresh", ()) is False
         footer = page.query_one_widget("#keybinding-content", Static)
         assert footer.content.plain == ""
 
@@ -84,6 +87,22 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         await page.press("[")
         await page.expect_state("artifacts_subtab", "commits")
         assert commits.activation_count == 2
+
+        await page.press("[")
+        await page.expect_state("artifacts_subtab", "files")
+        files = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
+        assert files.first_activation_count == 1
+        assert page.app.check_action("refresh", ()) is False
+        assert all(
+            page.app.check_action(action, ()) is True
+            for action in FILES_ARTIFACT_ACTIONS
+        )
+        assert (
+            page.query_one_widget("#files-empty", Static).content
+            == "No artifact files found."
+        )
+        await page.press("R")
+        assert files.refresh_request_count == 1
 
         await page.press("[")
         await page.expect_state("artifacts_subtab", "prs")
@@ -124,9 +143,9 @@ async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
 
         page.app.action_start_agent_from_changespec = record_repeat_agent  # type: ignore[method-assign]
 
-        expected = ("commits", "plans", "chats", "bugs", "prs")
+        expected = ("commits", "plans", "chats", "bugs", "prs", "files")
         for index, (key, subtab) in enumerate(
-            zip(("1", "2", "3", "4", "5"), expected, strict=True),
+            zip(("1", "2", "3", "4", "5", "6"), expected, strict=True),
             start=1,
         ):
             await page.press(key)
@@ -140,12 +159,14 @@ async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
 async def test_number_keys_jump_artifacts_without_entering_from_other_tabs() -> None:
     async with AcePage(initial_tab="changespecs") as page:
         switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)
-        expected = ("commits", "plans", "chats", "bugs", "prs")
+        expected = ("commits", "plans", "chats", "bugs", "prs", "files")
 
-        for start_key in ("1", "2", "3", "4", "5"):
+        for start_key in ("1", "2", "3", "4", "5", "6"):
             await page.press(start_key)
             await page.expect_state("artifacts_subtab", expected[int(start_key) - 1])
-            for key, subtab in zip(("1", "2", "3", "4", "5"), expected, strict=True):
+            for key, subtab in zip(
+                ("1", "2", "3", "4", "5", "6"), expected, strict=True
+            ):
                 await page.press(key)
                 await page.expect_state("artifacts_subtab", subtab)
                 assert switcher.current == ARTIFACTS_PANE_IDS[subtab]
@@ -153,7 +174,7 @@ async def test_number_keys_jump_artifacts_without_entering_from_other_tabs() -> 
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         remembered_subtab = page.app.current_artifacts_subtab
-        for key in ("1", "2", "3", "4", "5", "asterisk"):
+        for key in ("1", "2", "3", "4", "5", "6", "asterisk"):
             await page.press(key)
             await page.pause()
             assert page.app.current_tab == "agents"
@@ -162,7 +183,7 @@ async def test_number_keys_jump_artifacts_without_entering_from_other_tabs() -> 
 
         await page.press("tab", "tab")
         await page.expect_state("tab", "axe")
-        for key in ("1", "2", "3", "4", "5", "asterisk"):
+        for key in ("1", "2", "3", "4", "5", "6", "asterisk"):
             await page.press(key)
             await page.pause()
             assert page.app.current_tab == "axe"
@@ -176,7 +197,7 @@ async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
         commits = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         assert (
             strip._build_content().plain
-            == " 1 COMMITS  │  2 Plans  │  3 Chats  │  4 Bugs  │  5 PRs "
+            == " 1 COMMITS  │  2 Plans  │  3 Chats  │  4 Bugs  │  5 PRs  │  6 Files "
         )
 
         commits.set_class(True, "test-selection-state")
@@ -185,13 +206,13 @@ async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
         await page.expect_state("artifacts_subtab", "bugs")
         assert (
             strip._build_content().plain
-            == " 1 Commits  │  2 Plans  │  3 Chats  │  4 BUGS  │  5 PRs "
+            == " 1 Commits  │  2 Plans  │  3 Chats  │  4 BUGS  │  5 PRs  │  6 Files "
         )
         strip.post_message(PanelTabStrip.TabClicked("commits"))
         await page.expect_state("artifacts_subtab", "commits")
         assert (
             strip._build_content().plain
-            == " 1 COMMITS  │  2 Plans  │  3 Chats  │  4 Bugs  │  5 PRs "
+            == " 1 COMMITS  │  2 Plans  │  3 Chats  │  4 Bugs  │  5 PRs  │  6 Files "
         )
 
         assert commits.first_activation_count == 1
@@ -323,6 +344,7 @@ async def test_scope_inventory_is_lazy_and_picker_updates_all_placeholders(
         assert commits.project_scope == "Alpha"
         assert commits.filters.project == "Alpha"
         assert page.app.query_one(ArtifactsChatsPane).project_scope == "alpha"
+        assert page.app.query_one(ArtifactsFilesPane).project_scope == "alpha"
 
         retained_filters = replace(
             commits.filters,
@@ -360,9 +382,11 @@ async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
             "artifacts.bugs",
             "artifacts.plans",
             "artifacts.chats",
+            "artifacts.files",
         }
         assert expected <= by_id.keys()
         assert {f"app.{action}" for action in CHATS_ARTIFACT_ACTIONS} <= by_id.keys()
+        assert {f"app.{action}" for action in FILES_ARTIFACT_ACTIONS} <= by_id.keys()
         assert [
             by_id[f"artifacts.{subtab}"].key_display
             for subtab in (
@@ -371,8 +395,9 @@ async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
                 "chats",
                 "bugs",
                 "prs",
+                "files",
             )
-        ] == ["1", "2", "3", "4", "5"]
+        ] == ["1", "2", "3", "4", "5", "6"]
 
         execute_command(page.app, by_id["artifacts.bugs"])
         await page.expect_state("tab", "changespecs")
@@ -396,19 +421,39 @@ async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
         assert is_command_available(by_id["app.chats_refresh"], context)
         assert not is_command_available(by_id["app.plans_refresh"], context)
 
+        execute_command(page.app, by_id["artifacts.files"])
+        await page.expect_state("artifacts_subtab", "files")
+        context = extract_command_context(page.app)
+        assert is_command_available(by_id["app.files_refresh"], context)
+        assert not is_command_available(by_id["app.chats_refresh"], context)
+
 
 def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
     view = ArtifactsView(id="changespecs-view")
     # The mounted interaction tests cover rendering; this unit assertion keeps
     # the public pane-id map exhaustive for later feature phases.
-    assert ARTIFACTS_SUBTAB_ORDER[:4] == ("commits", "plans", "chats", "bugs")
-    assert ARTIFACTS_SUBTAB_ORDER == ("commits", "plans", "chats", "bugs", "prs")
+    assert ARTIFACTS_SUBTAB_ORDER[:5] == (
+        "commits",
+        "plans",
+        "chats",
+        "bugs",
+        "prs",
+    )
+    assert ARTIFACTS_SUBTAB_ORDER == (
+        "commits",
+        "plans",
+        "chats",
+        "bugs",
+        "prs",
+        "files",
+    )
     assert tuple(ARTIFACTS_PANE_IDS) == (
         "prs",
         "commits",
         "bugs",
         "plans",
         "chats",
+        "files",
     )
     assert ARTIFACTS_ACCENTS == {
         "prs": "#00D7AF",
@@ -416,5 +461,6 @@ def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
         "bugs": "#FF5F5F",
         "plans": "#AF87FF",
         "chats": "#5FAFFF",
+        "files": "#FFAF5F",
     }
     assert view.current_subtab == "commits"

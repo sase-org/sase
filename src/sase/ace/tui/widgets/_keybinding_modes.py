@@ -408,7 +408,7 @@ class KeybindingModesMixin:
         key_group = (
             f"artifacts_{artifacts_subtab}"
             if tab == "changespecs"
-            and artifacts_subtab in {"commits", "plans", "chats", "bugs"}
+            and artifacts_subtab in {"commits", "plans", "chats", "bugs", "files"}
             else tab
         )
         tab_keys = self._kr().copy_mode.keys.get(key_group, {})
@@ -448,6 +448,12 @@ class KeybindingModesMixin:
                 (k("path"), "path"),
                 (k("agent"), "agent"),
                 (k("transcript"), "transcript"),
+                (k("snapshot"), "snap"),
+            ]
+        elif key_group == "artifacts_files":
+            bindings = [
+                (k("reference"), "@ref"),
+                (k("handoff"), "agent + @ref"),
                 (k("snapshot"), "snap"),
             ]
         elif key_group == "artifacts_bugs":

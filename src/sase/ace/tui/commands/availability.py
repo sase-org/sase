@@ -137,6 +137,22 @@ _CHATS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
+_FILES_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
+    {
+        "app.files_next",
+        "app.files_prev",
+        "app.files_view_selected",
+        "app.files_open_viewer",
+        "app.files_open_external",
+        "app.files_open_agent",
+        "app.files_filters",
+        "app.files_cycle_kind",
+        "app.files_copy_reference",
+        "app.files_copy_path",
+        "app.files_refresh",
+    }
+)
+
 _COMMITS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     {
         "app.commits_next",
@@ -232,6 +248,8 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.artifacts_subtab == "plans"
     if spec.id in _CHATS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "chats"
+    if spec.id in _FILES_ARTIFACT_COMMANDS:
+        return ctx.artifacts_subtab == "files"
     if ctx.artifacts_subtab != "prs":
         return spec.id.startswith("artifacts.") or spec.id in _NON_PRS_ARTIFACT_COMMANDS
     if spec.id == "app.pick_artifacts_project":

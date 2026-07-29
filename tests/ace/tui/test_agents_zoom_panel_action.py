@@ -114,7 +114,8 @@ def test_default_zoom_migrates_to_uppercase_z_and_fold_keeps_lowercase() -> None
         "start_fold_mode"
     ]
     assert [binding.action for binding in bindings if binding.key == "Z"] == [
-        "zoom_panel"
+        "zoom_panel",
+        "files_open_viewer",
     ]
 
 

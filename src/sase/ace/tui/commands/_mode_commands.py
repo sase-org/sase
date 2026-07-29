@@ -82,6 +82,11 @@ _COPY_LABELS: dict[str, dict[str, str]] = {
         "transcript": "Copy chat transcript",
         "snapshot": "Copy Artifacts snapshot",
     },
+    "artifacts_files": {
+        "reference": "Copy artifact reference",
+        "handoff": "Reference in new agent prompt",
+        "snapshot": "Copy Artifacts snapshot",
+    },
     "artifacts_bugs": {
         "reference": "Copy artifact reference",
         "handoff": "Reference in new agent prompt",
@@ -212,6 +217,7 @@ def _iter_copy_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
         "artifacts_commits": "changespecs",
         "artifacts_plans": "changespecs",
         "artifacts_chats": "changespecs",
+        "artifacts_files": "changespecs",
         "artifacts_bugs": "changespecs",
         "agents": "agents",
         "axe": "axe",

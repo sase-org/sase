@@ -37,6 +37,7 @@ class _CopyHarness(ClipboardMixin):
         self.plans_pane: Any = None
         self.chats_pane: Any = None
         self.bugs_pane: Any = None
+        self.files_pane: Any = None
 
     def notify(
         self,
@@ -91,6 +92,9 @@ class _CopyHarness(ClipboardMixin):
     def _bugs_pane(self) -> Any:
         return self.bugs_pane
 
+    def _files_pane(self) -> Any:
+        return self.files_pane
+
     def _selected_bug_copy_context(self) -> Any:
         pane = self.bugs_pane
         if pane is None or pane.selected_issue is None or pane.project_scope is None:
@@ -112,12 +116,13 @@ def test_copy_mode_opens_without_a_hidden_pr_selection_and_restores_subtab() -> 
     assert app.tab_footer_restores == 0
 
 
-async def test_percent_opens_and_escape_restores_copy_footer_on_real_artifacts_app() -> (
-    None
-):
+@pytest.mark.parametrize("subtab", ["chats", "files"])
+async def test_percent_opens_and_escape_restores_copy_footer_on_real_artifacts_app(
+    subtab: str,
+) -> None:
     async with AcePage() as page:
-        page.app.current_artifacts_subtab = "chats"
-        await page.expect_state("artifacts_subtab", "chats")
+        page.app.current_artifacts_subtab = subtab
+        await page.expect_state("artifacts_subtab", subtab)
         footer = page.query_one_widget("#keybinding-footer", KeybindingFooter)
 
         await page.press("%")
@@ -125,6 +130,12 @@ async def test_percent_opens_and_escape_restores_copy_footer_on_real_artifacts_a
         assert page.app._copy_mode_active is True
         assert footer._last_layout_inputs is not None
         assert footer._last_layout_inputs[1] == "COPY"
+        if subtab == "files":
+            assert footer._last_layout_inputs[0] == [
+                ("@", "@ref"),
+                ("!", "agent + @ref"),
+                ("s", "snap"),
+            ]
 
         await page.press("escape")
 
@@ -133,7 +144,7 @@ async def test_percent_opens_and_escape_restores_copy_footer_on_real_artifacts_a
         assert footer._last_layout_inputs[1] is None
 
 
-@pytest.mark.parametrize("subtab", ["commits", "plans", "chats", "bugs"])
+@pytest.mark.parametrize("subtab", ["commits", "plans", "chats", "bugs", "files"])
 def test_each_artifacts_copy_menu_supports_snapshot_and_names_unknown_keys(
     subtab: str,
 ) -> None:
@@ -159,6 +170,30 @@ def test_chats_percent_n_never_copies_a_changespec_name() -> None:
 
     app._copy_cl_name.assert_not_called()
     assert "Chats:" in app.notifications[-1][0]
+
+
+def test_files_percent_unknown_key_never_reaches_changespec_dispatch() -> None:
+    app = _CopyHarness()
+    app.current_artifacts_subtab = "files"
+    app.changespecs = [SimpleNamespace(name="hidden-pr")]
+    app._copy_cl_name = MagicMock()  # type: ignore[method-assign]
+
+    assert app._handle_copy_key("n") is False
+
+    app._copy_cl_name.assert_not_called()
+    assert "Files:" in app.notifications[-1][0]
+
+
+@pytest.mark.parametrize("key", ["at", "exclamation_mark"])
+def test_files_generic_reference_keys_degrade_safely_on_empty_scaffold(
+    key: str,
+) -> None:
+    app = _CopyHarness()
+    app.current_artifacts_subtab = "files"
+
+    assert app._handle_copy_key(key) is True
+
+    assert app.notifications[-1] == ("No files entry selected", "warning")
 
 
 def test_commits_copy_targets_use_the_visible_commit_and_terminal_plan_tag() -> None:

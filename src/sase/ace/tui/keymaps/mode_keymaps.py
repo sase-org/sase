@@ -88,6 +88,11 @@ class CopyModeKeymaps(ModeKeymaps):
                 "transcript": "t",
                 "snapshot": "s",
             },
+            "artifacts_files": {
+                "reference": "at",
+                "handoff": "exclamation_mark",
+                "snapshot": "s",
+            },
             "artifacts_bugs": {
                 "reference": "at",
                 "handoff": "exclamation_mark",

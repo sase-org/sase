@@ -17,8 +17,9 @@ def test_changespec_onboarding_content_includes_docs_lifecycle_and_storage() -> 
     rendered = "\n".join(text.plain for text in sections.values())
 
     assert "Everything your agents produce, in one place" in rendered
-    assert "Browse commits, plans, chats, bugs & PRs" in rendered
+    assert "Browse commits, plans, chats, bugs, PRs & files" in rendered
     assert "Browse agent chat transcripts and their sync state." in rendered
+    assert "Browse every artifact file agents have produced." in rendered
     assert "https://sase.sh/change_spec/" in rendered
     assert "https://sase.sh/vcs/" in rendered
     assert "https://sase.sh/plugins/" in rendered
@@ -49,7 +50,7 @@ def test_changespec_onboarding_uses_active_keymap_registry() -> None:
 
     positions = {
         label: tabs_text.index(label)
-        for label in ("Commits", "Plans", "Chats", "Bugs", "PRs")
+        for label in ("Commits", "Plans", "Chats", "Bugs", "PRs", "Files")
     }
     assert (
         positions["Commits"]
@@ -57,6 +58,7 @@ def test_changespec_onboarding_uses_active_keymap_registry() -> None:
         < positions["Chats"]
         < positions["Bugs"]
         < positions["PRs"]
+        < positions["Files"]
     )
     for key in ("f3", "f4", "f5"):
         assert key in tabs_text

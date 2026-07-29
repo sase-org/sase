@@ -50,6 +50,7 @@ class ClipboardArtifactsMixin(ClipboardBase):
             "plans",
             "chats",
             "bugs",
+            "files",
         }
 
     def _handle_artifacts_copy_key(self, key: str) -> bool:
@@ -94,6 +95,8 @@ class ClipboardArtifactsMixin(ClipboardBase):
                     "transcript"
                 ),
             }
+        elif subtab == "files":
+            handlers = {}
         else:
             handlers = {
                 str(subtab_keys["number"]): lambda: self._copy_bug_target("number"),
@@ -219,6 +222,7 @@ class ClipboardArtifactsMixin(ClipboardBase):
             "plans": self._plans_pane,  # type: ignore[attr-defined]
             "chats": self._chats_pane,  # type: ignore[attr-defined]
             "bugs": self._bugs_pane,  # type: ignore[attr-defined]
+            "files": self._files_pane,  # type: ignore[attr-defined]
         }[subtab]()
         if pane is None:
             self.notify(f"No {subtab} entry selected", severity="warning")  # type: ignore[attr-defined]

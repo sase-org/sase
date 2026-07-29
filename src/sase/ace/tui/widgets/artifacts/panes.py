@@ -63,6 +63,11 @@ _PLACEHOLDER_COPY: dict[ArtifactsSubTab, tuple[str, str, str]] = {
         "Plan proposals, epic progress, and committed plans across enabled projects.",
         "All enabled projects are included by default; pick one to narrow the scope.",
     ),
+    "files": (
+        "Files",
+        "Every indexed artifact file, browsable across agents and projects.",
+        "The Files pane loads only when you open it.",
+    ),
 }
 
 

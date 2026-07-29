@@ -134,6 +134,18 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("o", "chats_open_external", "Open Chat in Editor", show=False),
     Binding("y", "chats_copy_path", "Copy Chat Path", show=False),
     Binding("R", "chats_refresh", "Refresh Chats", show=False),
+    # Files sub-tab actions.
+    Binding("j", "files_next", "Next Artifact File", show=False),
+    Binding("k", "files_prev", "Previous Artifact File", show=False),
+    Binding("enter", "files_view_selected", "View Artifact File", show=False),
+    Binding("Z", "files_open_viewer", "Open in Rich Viewer", show=False),
+    Binding("o", "files_open_external", "Open Externally", show=False),
+    Binding("a", "files_open_agent", "Open Producing Agent", show=False),
+    Binding("f", "files_filters", "Artifact File Filters", show=False),
+    Binding("s", "files_cycle_kind", "Cycle Kind Filter", show=False),
+    Binding("y", "files_copy_reference", "Copy Reference", show=False),
+    Binding("Y", "files_copy_path", "Copy Stored Path", show=False),
+    Binding("R", "files_refresh", "Refresh Artifact Files", show=False),
     # Bugs sub-tab actions (context-gated; keys intentionally overlap PRs).
     Binding("j", "next_bug", "Next Bug", show=False),
     Binding("k", "prev_bug", "Previous Bug", show=False),

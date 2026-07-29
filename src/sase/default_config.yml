@@ -216,6 +216,18 @@ ace:
       chats_open_external: "o"
       chats_copy_path: "y"
       chats_refresh: "R"
+      # Files sub-tab
+      files_next: "j"
+      files_prev: "k"
+      files_view_selected: "enter"
+      files_open_viewer: "Z"
+      files_open_external: "o"
+      files_open_agent: "a"
+      files_filters: "f"
+      files_cycle_kind: "s"
+      files_copy_reference: "y"
+      files_copy_path: "Y"
+      files_refresh: "R"
       # Bugs sub-tab
       next_bug: "j"
       prev_bug: "k"
@@ -394,6 +406,10 @@ ace:
             path: "p"
             agent: "a"
             transcript: "t"
+            snapshot: "s"
+          artifacts_files:
+            reference: "at"
+            handoff: "exclamation_mark"
             snapshot: "s"
           artifacts_bugs:
             reference: "at"

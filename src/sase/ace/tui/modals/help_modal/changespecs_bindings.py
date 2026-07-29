@@ -26,10 +26,12 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
     commits_copy = cm.keys["artifacts_commits"]
     plans_copy = cm.keys["artifacts_plans"]
     chats_copy = cm.keys["artifacts_chats"]
+    files_copy = cm.keys["artifacts_files"]
     bugs_copy = cm.keys["artifacts_bugs"]
     assert isinstance(commits_copy, dict)
     assert isinstance(plans_copy, dict)
     assert isinstance(chats_copy, dict)
+    assert isinstance(files_copy, dict)
     assert isinstance(bugs_copy, dict)
     pr_copy_key = cs_copy.get("pr_number", cs_copy.get("cl_number"))
     assert isinstance(pr_copy_key, str)
@@ -58,12 +60,12 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             "Artifact Sub-tabs",
             [
                 (
-                    "1 / 2 / 3 / 4 / 5",
-                    "Jump all five artifact panes",
+                    "1 / 2 / 3 / 4 / 5 / 6",
+                    "Jump all six artifact panes",
                 ),
                 (
                     f"{d(a.cycle_artifacts_subtab_reverse)} / {d(a.cycle_artifacts_subtab)}",
-                    "Cycle all five artifact panes",
+                    "Cycle all six artifact panes",
                 ),
                 (
                     d(a.pick_artifacts_project),
@@ -169,6 +171,22 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.chats_open_external), "Open chat in editor"),
                 (d(a.chats_copy_path), "Copy chat transcript path"),
                 (d(a.chats_refresh), "Refresh chat transcripts"),
+                *artifact_list_navigation,
+            ],
+        ),
+        (
+            "Files Pane",
+            [
+                (f"{d(a.files_next)} / {d(a.files_prev)}", "Next / previous row"),
+                (d(a.files_view_selected), "View selected artifact file"),
+                (d(a.files_open_viewer), "Open in rich viewer"),
+                (d(a.files_open_external), "Open externally"),
+                (d(a.files_open_agent), "Open producing agent"),
+                (d(a.files_filters), "Open artifact-file filters"),
+                (d(a.files_cycle_kind), "Cycle file kind"),
+                (d(a.files_copy_reference), "Copy artifact-file reference"),
+                (d(a.files_copy_path), "Copy stored path"),
+                (d(a.files_refresh), "Refresh artifact files"),
                 *artifact_list_navigation,
             ],
         ),
@@ -509,6 +527,23 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     key_sequence_display(cm.prefix, chats_copy["snapshot"]),
+                    "Copy sase ace snapshot",
+                ),
+            ],
+        ),
+        (
+            f"Copy Mode · Files ({d(cm.prefix)})",
+            [
+                (
+                    key_sequence_display(cm.prefix, files_copy["reference"]),
+                    "Copy @file reference",
+                ),
+                (
+                    key_sequence_display(cm.prefix, files_copy["handoff"]),
+                    "Reference in new agent prompt",
+                ),
+                (
+                    key_sequence_display(cm.prefix, files_copy["snapshot"]),
                     "Copy sase ace snapshot",
                 ),
             ],

@@ -4,6 +4,7 @@ from .bugs import ArtifactsBugsPane, BugIssueList, BugLinkList
 from .chats_pane import ArtifactsChatsPane
 from .commits import CommitsPane, CommitsTimeline
 from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
+from .files_pane import ArtifactsFilesPane
 from .lifecycle import ArtifactsPaneLifecycle
 from .panes import (
     ArtifactPlaceholderPane,
@@ -28,6 +29,7 @@ __all__ = [
     "ArtifactEntryTarget",
     "ArtifactsBugsPane",
     "ArtifactsChatsPane",
+    "ArtifactsFilesPane",
     "ArtifactsPaneLifecycle",
     "ArtifactsPlansPane",
     "ArtifactsPrsPane",

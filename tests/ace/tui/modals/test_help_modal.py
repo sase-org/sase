@@ -25,15 +25,16 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "Bugs Pane" in right
     assert "Plans Pane" in right
     assert "Chats Pane" in right
+    assert "Files Pane" in right
     assert "Filter kind, status, or tier" in right
     assert "Filter project or creation date" in right
     assert "Title/body/id/metadata (AND)" in right
     assert "PR Actions" in right
     assert "[*1]" in left
     assert "*1-9 / *0" in right
-    assert "1 / 2 / 3 / 4 / 5" in left
-    assert "Jump all five artifact panes" in left
-    assert "Cycle all five artifact panes" in left
+    assert "1 / 2 / 3 / 4 / 5 / 6" in left
+    assert "Jump all six artifact panes" in left
+    assert "Cycle all six artifact panes" in left
     combined = left + right
     assert "Select first / last entry" in combined
     assert "Scroll right detail down / up" in combined
