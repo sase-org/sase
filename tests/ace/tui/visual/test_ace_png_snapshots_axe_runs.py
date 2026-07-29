@@ -7,6 +7,10 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.bgcmd_list import ChopItem
 from tests.ace.tui.visual._ace_axe_png_snapshot_fixtures import (
+    axe_chop_report_absent_120x40,
+    axe_chop_report_error_120x40,
+    axe_chop_report_narrow_70x36,
+    axe_chop_report_rich_120x40,
     axe_lumberjack_error_data,
     axe_lumberjack_tree_data,
     axe_running_chop_data,
@@ -20,6 +24,23 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+async def _select_first_chop(page: AcePage) -> ChopItem:
+    await wait_for_startup(page)
+    await page.press("tab")
+    await page.expect_state("tab", "axe")
+    await page.press("j")
+    assert page.app.current_idx == 1, (
+        f"expected idx 1 (first chop), got {page.app.current_idx}"
+    )
+    selected = page.app._axe_items[page.app.current_idx]
+    assert isinstance(selected, ChopItem), (
+        f"expected ChopItem at idx 1, got {type(selected).__name__}"
+    )
+    page.app._refresh_axe_display()
+    await wait_for_visual_idle(page)
+    return selected
 
 
 async def test_axe_chop_run_info_panel_png_snapshot(
@@ -112,4 +133,81 @@ async def test_axe_chop_run_info_panel_running_png_snapshot(
             page,
             "axe_chop_run_info_panel_running_120x40",
             title="ACE axe chop run info panel (running)",
+        )
+
+
+async def test_axe_chop_report_rich_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rich structured reports render above the OUTPUT tail on the AXE tab."""
+    patch_startup_loaders(monkeypatch, axe_data=axe_chop_report_rich_120x40())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        selected = await _select_first_chop(page)
+        assert (selected.lumberjack_name, selected.chop_name) == ("reports", "ci_watch")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_chop_report_rich_120x40",
+            title="ACE axe chop report rich",
+        )
+
+
+async def test_axe_chop_report_absent_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A run without ``report`` still has a complete RESULT card and OUTPUT."""
+    patch_startup_loaders(monkeypatch, axe_data=axe_chop_report_absent_120x40())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        selected = await _select_first_chop(page)
+        assert (selected.lumberjack_name, selected.chop_name) == ("reports", "cleanup")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_chop_report_absent_120x40",
+            title="ACE axe chop report absent",
+        )
+
+
+async def test_axe_chop_report_error_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A check_error run surfaces reason and error in the RESULT card."""
+    patch_startup_loaders(monkeypatch, axe_data=axe_chop_report_error_120x40())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        selected = await _select_first_chop(page)
+        assert (selected.lumberjack_name, selected.chop_name) == (
+            "reports",
+            "recent_bug_audit",
+        )
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_chop_report_error_120x40",
+            title="ACE axe chop report error",
+        )
+
+
+async def test_axe_chop_report_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Narrow AXE panes stack report rows and kv pairs without mid-value cuts."""
+    patch_startup_loaders(monkeypatch, axe_data=axe_chop_report_narrow_70x36())
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(70, 36)
+    ) as page:
+        selected = await _select_first_chop(page)
+        assert (selected.lumberjack_name, selected.chop_name) == ("reports", "ci_watch")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_chop_report_narrow_70x36",
+            title="ACE axe chop report narrow",
         )

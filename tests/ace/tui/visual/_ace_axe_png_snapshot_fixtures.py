@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from sase.ace.tui.actions.axe_display._data import (
     AxeCollectedData,
     BgCmdSnapshot,
@@ -63,7 +65,18 @@ def make_chop_run(
     *,
     run_id: str,
     status: str,
+    output_tail: str | None = None,
+    result: dict[str, Any] | None = None,
+    proposals: list[dict[str, Any]] | None = None,
+    launches: list[dict[str, Any]] | None = None,
+    dry_run: bool = False,
+    source: str = "scheduled",
+    reason: str | None = None,
+    error: str | None = None,
+    traceback: str | None = None,
 ) -> ChopRunSnapshot:
+    output_bytes = 64 if output_tail is None else len(output_tail.encode())
+    tail = output_tail if output_tail is not None else f"{chop} {status} output\n"
     entry = ChopRunEntry(
         run_id=run_id,
         lumberjack_name=lumberjack,
@@ -73,10 +86,236 @@ def make_chop_run(
         duration_ms=1000,
         status=status,  # type: ignore[arg-type]
         exit_code=0 if status == "success" else 1,
-        output_bytes=64,
+        output_bytes=output_bytes,
         output_log=f"{run_id}.log",
+        source=source,  # type: ignore[arg-type]
+        result=result,
+        proposals=list(proposals or []),
+        launches=list(launches or []),
+        dry_run=dry_run,
+        reason=reason,
+        error=error,
+        traceback=traceback,
     )
-    return ChopRunSnapshot(entry=entry, output_tail=f"{chop} {status} output\n")
+    return ChopRunSnapshot(entry=entry, output_tail=tail)
+
+
+def _single_chop_data(chop: ChopSnapshot) -> AxeCollectedData:
+    """Build a one-lumberjack AXE snapshot focused on a single chop run."""
+    status = make_lumberjack_status(chop.lumberjack_name, chops=[chop.chop_name])
+    metrics = LumberjackMetrics(
+        cycles_run=9, chops_executed=18, total_updates=9, errors_encountered=0
+    )
+    return axe_collected_data(
+        lumberjack_names=[chop.lumberjack_name],
+        lumberjack_statuses={chop.lumberjack_name: status},
+        lumberjack_metrics={chop.lumberjack_name: metrics},
+        lumberjack_log_tails={chop.lumberjack_name: ""},
+        lumberjack_chop_names={chop.lumberjack_name: [chop.chop_name]},
+        chop_snapshots={(chop.lumberjack_name, chop.chop_name): chop},
+        lumberjack_snapshots={
+            chop.lumberjack_name: LumberjackSnapshot(
+                name=chop.lumberjack_name,
+                description="Runs report-oriented chops for visual review",
+                description_summary="Runs report-oriented chops for visual review",
+                description_body="",
+                status=status,
+                metrics=metrics,
+                log_tail="",
+                chops=[chop],
+            ),
+        },
+    )
+
+
+def _rich_report_result() -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "status": "ok",
+        "summary": "ci_watch: repos=4 green=1 red=1 pending=1 no_ci=1",
+        "reason": "one repository still has a red CI streak",
+        "counters": {"repos": 4, "green": 1, "red": 1, "pending": 1},
+        "evidence": ["reports/ci_watch.decisions.json", "logs/ci_watch.log"],
+        "report": {
+            "title": "CI WATCH",
+            "blocks": [
+                {
+                    "kind": "headline",
+                    "text": "1 green · 1 red · 1 pending · 1 fix proposed",
+                    "tone": "warn",
+                },
+                {"kind": "heading", "text": "REPOSITORIES"},
+                {
+                    "kind": "rows",
+                    "columns": ["REPOSITORY", "STATE", "EVIDENCE"],
+                    "rows": [
+                        {
+                            "cells": [
+                                "sase-org/sase",
+                                "red",
+                                "unit · streak 2/2",
+                            ],
+                            "tone": "error",
+                            "glyph": "▲",
+                        },
+                        {
+                            "cells": ["sase-org/sase-core", "green", "a1b2c3d"],
+                            "tone": "ok",
+                            "glyph": "✓",
+                        },
+                        {
+                            "cells": [
+                                "sase-org/docs",
+                                "pending",
+                                "preview workflow queued",
+                            ],
+                            "tone": "warn",
+                            "glyph": "◆",
+                        },
+                    ],
+                },
+                {
+                    "kind": "kv",
+                    "items": [
+                        {"key": "mode", "value": "dry run", "tone": "warn"},
+                        {"key": "agents", "value": "1 launched", "tone": "ok"},
+                        {"key": "cap", "value": "1/3", "tone": "muted"},
+                    ],
+                },
+                {
+                    "kind": "gauge",
+                    "label": "red streak",
+                    "value": 2,
+                    "max": 3,
+                    "tone": "warn",
+                },
+                {"kind": "divider"},
+                {
+                    "kind": "text",
+                    "text": "Fix proposal is ready for review.",
+                    "tone": "info",
+                },
+            ],
+        },
+    }
+
+
+def axe_chop_report_rich_120x40() -> AxeCollectedData:
+    """Report-rich chop run exercising every rendered AXE report section."""
+    run = make_chop_run(
+        "reports",
+        "ci_watch",
+        run_id="20260729T100000_000000",
+        status="success",
+        output_tail=(
+            "ci_watch: scanned 4 repositories\n"
+            "ci_watch: proposed ci_fix.sase for sase-org/sase\n"
+        ),
+        result=_rich_report_result(),
+        launches=[{"agent_name": "ci_fix.sase", "clan": "ci_fix"}],
+        proposals=[{"agent_name": "ci_fix.sase", "outcome": "accepted"}],
+        dry_run=True,
+    )
+    chop = ChopSnapshot(
+        lumberjack_name="reports",
+        chop_name="ci_watch",
+        description="Watch configured repository CI and propose fixes",
+        description_summary="Watch configured repository CI and propose fixes",
+        description_body="",
+        runs=[run],
+        script="bugyi_chop_ci_watch",
+    )
+    return _single_chop_data(chop)
+
+
+def axe_chop_report_absent_120x40() -> AxeCollectedData:
+    """Successful chop run with RESULT card data but no authored report."""
+    result = {
+        "schema_version": 1,
+        "status": "ok",
+        "summary": "builtin cleanup completed",
+        "counters": {"cleaned": 6, "kept": 2},
+        "evidence": ["reports/cleanup.json"],
+    }
+    run = make_chop_run(
+        "reports",
+        "cleanup",
+        run_id="20260729T101500_000000",
+        status="success",
+        output_tail="cleanup: removed 6 stale entries\ncleanup: kept 2 active entries\n",
+        result=result,
+        launches=[{"agent_name": "cleanup.sase", "clan": "maintenance"}],
+    )
+    chop = ChopSnapshot(
+        lumberjack_name="reports",
+        chop_name="cleanup",
+        description="Builtin maintenance chop without an authored report",
+        description_summary="Builtin maintenance chop without an authored report",
+        description_body="",
+        runs=[run],
+        script="sase_chop_cleanup",
+    )
+    return _single_chop_data(chop)
+
+
+def axe_chop_report_error_120x40() -> AxeCollectedData:
+    """check_error run whose reason and error surface in the RESULT card."""
+    result = {
+        "schema_version": 1,
+        "status": "check_error",
+        "summary": "recent_bug_audit result validation failed",
+        "reason": "the chop wrote a malformed result document",
+        "counters": {"checked": 1, "failed": 1},
+    }
+    run = make_chop_run(
+        "reports",
+        "recent_bug_audit",
+        run_id="20260729T103000_000000",
+        status="check_error",
+        output_tail="",
+        result=result,
+        reason="the chop wrote a malformed result document",
+        error="invalid chop result: $.report.blocks[0].text contains a newline",
+    )
+    chop = ChopSnapshot(
+        lumberjack_name="reports",
+        chop_name="recent_bug_audit",
+        description="Audit recent work for user-visible bug regressions",
+        description_summary="Audit recent work for user-visible bug regressions",
+        description_body="",
+        runs=[run],
+        script="bugyi_chop_recent_bug_audit",
+    )
+    return _single_chop_data(chop)
+
+
+def axe_chop_report_narrow_70x36() -> AxeCollectedData:
+    """The rich report in a narrow terminal, proving stacked rows and kv pairs."""
+    result = {
+        "schema_version": 1,
+        "status": "ok",
+        "summary": "ci_watch: narrow report",
+        "counters": {"red": 1},
+        "report": _rich_report_result()["report"],
+    }
+    run = make_chop_run(
+        "reports",
+        "ci_watch",
+        run_id="20260729T100000_000000",
+        status="success",
+        output_tail="ci_watch: proposed ci_fix.sase\n",
+        result=result,
+    )
+    chop = ChopSnapshot(
+        lumberjack_name="reports",
+        chop_name="ci_watch",
+        description="Watch configured repository CI and propose fixes",
+        description_summary="Watch configured repository CI and propose fixes",
+        description_body="",
+        runs=[run],
+        script="bugyi_chop_ci_watch",
+    )
+    return _single_chop_data(chop)
 
 
 def axe_lumberjack_tree_data() -> AxeCollectedData:
