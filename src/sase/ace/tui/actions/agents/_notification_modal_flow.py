@@ -150,6 +150,7 @@ class AgentNotificationModalMixin:
             handle_tmux,
             handle_user_question,
             handle_view_error_report,
+            handle_view_report,
         )
         from ...modals import NotificationModal
 
@@ -206,6 +207,8 @@ class AgentNotificationModalMixin:
                 handle_custom_gate(self, result)
             elif result.action == "ViewErrorReport":
                 handle_view_error_report(self, result)
+            elif result.action == "ViewReport":
+                handle_view_report(self, result)
             elif result.action == "memory_review":
                 handle_memory_review(self, result)
             elif result.action and result.action.strip():

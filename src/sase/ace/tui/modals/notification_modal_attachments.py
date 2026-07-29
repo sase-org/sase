@@ -49,6 +49,18 @@ class NotificationAttachmentMixin:
                 self._reset_file_scroll()
                 return
 
+            report_pane = self._render_report_pane(notification)
+            if report_pane is not None:
+                pane_title, pane_content = report_pane
+                self._set_image_preview_mode(False)
+                title.update(self._detail_title(notification, pane_title))
+                cleanup = self._consume_image_cleanup_segments()
+                content_widget.update(
+                    Group(*cleanup, pane_content) if cleanup else pane_content
+                )
+                self._reset_file_scroll()
+                return
+
         if notification is None or not notification.files:
             self._set_image_preview_mode(False)
             title.update(

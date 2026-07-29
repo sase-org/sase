@@ -429,7 +429,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     d(a.open_config_center),
                     "Admin Center: 1-7 jumps; Statistics [/] t/T/c/g/p/P/r/?",
                 ),
-                (d(a.show_notifications), "Notifications (d debugs row)"),
+                (
+                    d(a.show_notifications),
+                    "Notifications (Enter opens full report; d debugs row)",
+                ),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.stop_axe_and_quit), "Quit / restart menu"),
                 (d(a.refresh), "Refresh"),

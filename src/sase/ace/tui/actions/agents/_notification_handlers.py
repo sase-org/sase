@@ -90,6 +90,25 @@ def handle_view_error_report(app: object, notification: Notification) -> bool:
     return True
 
 
+def handle_view_report(app: object, notification: Notification) -> bool:
+    """Load and open a structured notification report."""
+    from sase.ace.tui.modals.report_modal import ReportModal
+    from sase.notifications import load_notification_report
+
+    report = load_notification_report(notification)
+    if report is None or report.document is None:
+        reason = (
+            report.error
+            if report is not None and report.error
+            else "report could not be loaded"
+        )
+        app.notify(f"Unable to open report: {reason}", severity="warning")  # type: ignore[attr-defined]
+        return False
+
+    app.push_screen(ReportModal(report))  # type: ignore[attr-defined]
+    return True
+
+
 def handle_memory_review(app: object, notification: Notification) -> bool:
     """Open the memory proposal review TUI for the notification proposal."""
     proposal_id = notification.action_data.get("proposal_id")

@@ -29,6 +29,7 @@ from .notification_modal_attachments import NotificationAttachmentMixin
 from .notification_modal_constants import DEFAULT_HINT_TEXT, HEADER_ID_PREFIX
 from .notification_modal_options import NotificationOptionMixin
 from .notification_modal_question import NotificationQuestionMixin
+from .notification_modal_report import NotificationReportMixin
 from .notification_modal_tags import (
     NotificationTagStrip,
     NotificationTagTab,
@@ -38,6 +39,7 @@ from .notification_modal_tags import (
 
 class NotificationModal(
     NotificationQuestionMixin,
+    NotificationReportMixin,
     NotificationAttachmentMixin,
     NotificationOptionMixin,
     NotificationStateActionsMixin,

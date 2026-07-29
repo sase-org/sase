@@ -4278,6 +4278,48 @@ PreviewPanelModal #preview-footer {
     padding-top: 1;
 }
 
+/* ===== Notification Report Modal Styling ===== */
+
+ReportModal {
+    align: center middle;
+}
+
+ReportModal > Container {
+    width: 85%;
+    height: 85%;
+    max-width: 150;
+    max-height: 42;
+    border: thick #D7AF87;
+    background: $surface;
+    padding: 1 2;
+}
+
+ReportModal #report-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+ReportModal #report-scroll {
+    height: 1fr;
+    scrollbar-gutter: stable;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+ReportModal #report-content {
+    width: 100%;
+    height: auto;
+}
+
+ReportModal #report-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 /* ===== Word Definition Modal Styling ===== */
 
 WordDefinitionModal {

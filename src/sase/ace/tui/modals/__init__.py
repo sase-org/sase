@@ -95,6 +95,7 @@ from .jump_action_modal import JumpActionModal, JumpChoice
 from .jump_all_modal import JumpAllModal, JumpAllResult
 from .local_xprompt_name_modal import LocalXPromptNameModal
 from .notification_modal import NotificationModal
+from .report_modal import ReportModal
 from .parent_select_modal import ParentSelectModal
 from .process_select_modal import ProcessSelection, ProcessSelectModal
 from .project_alias_editor_modal import ProjectAliasEditorModal
@@ -309,6 +310,7 @@ __all__ = [
     "RecursiveFileFinderModal",
     "ModelPickerModal",
     "NotificationModal",
+    "ReportModal",
     "ParentSelectModal",
     "PlanApprovalModal",
     "PlanApprovalResult",

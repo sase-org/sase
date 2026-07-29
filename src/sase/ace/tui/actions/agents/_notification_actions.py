@@ -10,6 +10,7 @@ from ._notification_handlers import (
     handle_memory_review as handle_memory_review,
     handle_tmux as handle_tmux,
     handle_view_error_report as handle_view_error_report,
+    handle_view_report as handle_view_report,
 )
 from ._notification_modals import (
     handle_custom_gate as handle_custom_gate,
@@ -41,6 +42,7 @@ __all__ = [
     "handle_tmux",
     "handle_user_question",
     "handle_view_error_report",
+    "handle_view_report",
     "navigate_to_agent_tab",
     "navigate_to_changespec_tab",
     "open_user_question_modal_from_marker",

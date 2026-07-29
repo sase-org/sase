@@ -332,6 +332,31 @@ def test_notification_flow_warns_for_unknown_action(
     assert app.notices == [("Unsupported notification action: FutureGate", "warning")]
 
 
+def test_notification_flow_dispatches_view_report(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    create_gate(_spec())
+    notification = load_notifications()[0]
+    notification.action = "ViewReport"
+    notification.action_data = {
+        "report": '{"title":"Report","blocks":[]}',
+    }
+    app = _NotificationFlowApp(notification)
+    dispatched: list[Any] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_actions.handle_view_report",
+        lambda _app, selected: dispatched.append(selected),
+    )
+
+    app._show_notification_modal()
+
+    assert dispatched == [notification]
+    assert app.pending_reads == 0
+    assert app.refresh_count == 1
+
+
 @pytest.mark.parametrize("action", [None, "", "   "])
 def test_notification_flow_silently_marks_actionless_notification_read(
     gate_home: Path,
