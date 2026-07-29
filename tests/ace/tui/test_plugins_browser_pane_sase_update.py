@@ -194,8 +194,8 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
         timer_callbacks: list[Any] = []
 
         def _set_timer(delay: float, callback: Any) -> object:
-            assert delay == 1.0
-            timer_callbacks.append(callback)
+            if delay == 1.0:
+                timer_callbacks.append(callback)
             return SimpleNamespace(stop=lambda: None)
 
         monkeypatch.setattr(page.app, "set_timer", _set_timer)

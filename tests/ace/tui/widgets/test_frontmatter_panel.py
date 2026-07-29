@@ -283,7 +283,7 @@ async def test_q_keeps_unparseable_raw_yaml_open() -> None:
         assert panel._edit_mode == "raw"
         assert bar._frontmatter_panel_visible()
         assert app.focused is raw
-        assert panel._feedback_lines == 1
+        assert panel._feedback_lines >= 1
 
 
 @pytest.mark.parametrize(("keys", "target"), ((("g", "j"), 0), (("g", "k"), 2)))

@@ -498,6 +498,32 @@ def test_deploy_holds_chezmoi_lock_during_mutating_sequence(
     assert "waiting for exclusive chezmoi deploy lock" in capsys.readouterr().out
 
 
+def test_deploy_lock_path_uses_managed_tmpdir(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Deploy locks stay inside the pytest-sandbox-aware managed temp root."""
+    managed_lock_root = tmp_path / "managed-locks"
+    calls: list[tuple[str, ...]] = []
+
+    def _managed_tmpdir(*parts: str) -> str:
+        calls.append(parts)
+        managed_lock_root.mkdir()
+        return str(managed_lock_root)
+
+    monkeypatch.setattr(
+        _init_chezmoi_deploy,
+        "get_sase_managed_tmpdir",
+        _managed_tmpdir,
+    )
+
+    lock_path = _init_chezmoi_deploy._chezmoi_deploy_lock_path(tmp_path / "repo")
+
+    assert calls == [("chezmoi-deploy-locks",)]
+    assert lock_path.parent == managed_lock_root
+    assert lock_path.suffix == ".lock"
+
+
 def test_deploy_lock_timeout_returns_clear_error(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

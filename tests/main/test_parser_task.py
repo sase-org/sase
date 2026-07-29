@@ -32,8 +32,11 @@ def test_bare_task_defaults_to_list_and_records_delegation() -> None:
     assert getattr(explicit, _DEFAULT_LIST_GROUP_DEST) is None
 
 
-def test_task_list_help_documents_every_filter_and_examples() -> None:
+def test_task_list_help_documents_every_filter_and_examples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Each documented ``list`` filter keeps a short alias and a metavar."""
+    monkeypatch.setenv("COLUMNS", "120")
     list_help = flat_help(parser_for(("sase", "task", "list")).format_help())
 
     assert "usage: sase task list" in list_help
@@ -78,8 +81,11 @@ def test_task_kill_help_documents_prefix_and_json() -> None:
     assert "sase task kill k7m2" in kill_help
 
 
-def test_task_show_help_documents_log_and_follow_options() -> None:
+def test_task_show_help_documents_log_and_follow_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """``sase task show --help`` covers the log tail, format, and follow."""
+    monkeypatch.setenv("COLUMNS", "120")
     show_help = flat_help(parser_for(("sase", "task", "show")).format_help())
 
     assert "usage: sase task show" in show_help

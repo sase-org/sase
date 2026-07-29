@@ -8,13 +8,12 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 import fcntl
 import hashlib
-import os
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 
 from sase.config.core import CHEZMOI_HOME
+from sase.core.paths import get_sase_managed_tmpdir
 from sase.git_lock_retry import run_with_git_lock_retry
 from sase.memory.locks import LockTimeoutError, locked_file
 
@@ -359,11 +358,11 @@ def print_chezmoi_deploy_lock_timeout(
 
 
 def _chezmoi_deploy_lock_path(git_root: Path) -> Path:
-    lock_root = Path(os.environ.get("SASE_TMPDIR") or tempfile.gettempdir())
+    lock_root = Path(get_sase_managed_tmpdir("chezmoi-deploy-locks"))
     digest = hashlib.sha256(
         str(git_root.resolve(strict=False)).encode("utf-8")
     ).hexdigest()[:16]
-    return lock_root / "chezmoi-deploy-locks" / f"{digest}.lock"
+    return lock_root / f"{digest}.lock"
 
 
 @contextmanager
