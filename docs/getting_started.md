@@ -154,9 +154,11 @@ sase bead show <bead-id>  # inspects one bead in detail
 ```
 
 Approving a structured epic plan files its epic and phase beads, wires their dependencies, and automatically invokes the
-same path as `sase bead work <epic-id> --yes`. That path launches one agent per phase in dependency order; each runner
-claims its own bead only after its waits and workspace preparation, and a final land runner claims the epic after the
-phases finish. You can still run `sase bead work <epic-id>` manually to retry remaining work.
+same path as `sase bead work <epic-id> --yes`. Before it spawns anything, that path marks the epic ready, assigns every
+remaining phase bead to its deterministic worker, assigns the epic to the land worker, and commits the complete launch
+checkpoint. It then launches one agent per remaining phase plus the final land agent. Dependency waits require both the
+blocking agent to finish successfully and its bead to close; the land agent waits for every phase bead. You can still
+run `sase bead work <epic-id>` manually to retry remaining work.
 
 **What you just did.** Stepped from one-shot prompts into [Spec-Driven Development](sdd.md) with [Beads](beads.md) as
 dependency-aware work units.

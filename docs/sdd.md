@@ -14,7 +14,7 @@ SDD fixes this by writing prompt snapshots and plans to disk as first-class arti
 - **Epics** record executable multi-phase plans that can be handed to `sase bead work`.
 - **Research** records exploratory findings, prior art, options, critiques, and recommendations that inform later work.
 - **Beads** provide structured issue tracking that links SDD artifacts to execution via plan-like bead tiers and phase
-  IDs in commit messages.
+  IDs in `SASE_BEAD=` commit footers.
 
 Together, these create an audit trail from prompt snapshots to planning artifacts and supporting context. Tales and
 epics can link into the bead hierarchy and phase commits; research notes preserve the longer-lived context those plans
@@ -28,14 +28,16 @@ The workspace provider selects an initial policy; a materialized store record su
 - `local` is the fallback for providerless projects and stores artifacts at the primary workspace's `.sase/sdd/`.
 - `separate_repo` stores artifacts in a workspace-local `.sase/sdd/` clone backed by a provider-materialized sidecar
   repo.
-- `sidecar_repos` stores plans and beads in an auto-cloned `--plans` repo. Research uses the config-declared `research`
-  role, which derives each project's own `--research` repo unless a `repo:` pin says otherwise. Initialization prepares
-  configured sidecars in its current workspace; later workspaces clone research on demand. Monthly directories live
-  directly at each sidecar root; legacy single-root layouts remain readable for compatibility.
+- `sidecar_repos` stores plans in an auto-cloned `--plans` repo and research in the config-declared `--research` role. A
+  schema-3 record stores bead state at the root of its dedicated `--beads` clone; a schema-2 compatibility record keeps
+  `beads/` under `--plans`. Initialization prepares configured sidecars in its current workspace; later workspaces clone
+  research on demand. Monthly directories live directly at the plans and research roots; legacy single-root layouts
+  remain readable for compatibility.
 
-Use `sase repo path plans` to print the plans root, or `sase repo path research --ensure` to materialize and print the
-research root. Launched agents receive `SASE_SDD_DIR` and per-kind `SASE_SDD_*_DIR` variables, so prompts and hooks
-should use those variables or repo resolvers instead of assuming `sdd/` is relative to the checkout.
+Use `sase repo path plans` or `sase repo path beads` to print those resolved roots, or
+`sase repo path research --ensure` to materialize and print the research root. Launched agents receive `SASE_SDD_DIR`
+and per-kind `SASE_SDD_*_DIR` variables, so prompts and hooks should use those variables or repo resolvers instead of
+assuming `sdd/` is relative to the checkout.
 
 Project and user configuration cannot override this selection. See [SDD Storage](sdd_storage.md) for the provider
 contract, sidecar-repo convention, setup guidance, and offline/push behavior.
@@ -136,7 +138,7 @@ empty later note preserves the earlier value.
 
 Prompt snapshots and plan-like artifacts link to each other through ordinary Markdown bullets, so GitHub renders the
 counterpart as a clickable link. A plan opens with a **header block**: a contiguous run of those bullets, in the fixed
-order `PROMPT`, `PARENT`, `AGENTS`, `COMMITS`, that carries the plan's full provenance.
+order `PROMPT`, `PARENT`, `BEAD`, `AGENTS`, `COMMITS`, that carries the plan's full provenance.
 
 ```markdown
 ---
@@ -147,6 +149,7 @@ goal: Demonstrate the plan-side layout.
 
 - **PROMPT:** [sdd/plans/202605/prompts/example.md](prompts/example.md)
 - **PARENT:** [202605/parent_epic.md](https://github.com/sase-org/sase--plans/blob/main/202605/parent_epic.md)
+- **BEAD:** [sase-ai.8](https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/sase-ai.8.md)
 - **AGENTS:**
   - [bbugyi200.athena.sase-8k.6](https://github.com/sase-org/sase--agents/blob/main/agents/bbugyi200.athena.sase-8k.6/README.md)
 - **COMMITS:**
@@ -185,6 +188,7 @@ are `- **PLAN:** [../202605/example.md](../example.md)` in the prompt and
 | `PLAN`    | one link (prompts)  | file-relative href inside the plans store                            |
 | `PROMPT`  | one link (plans)    | file-relative href inside the plans store                            |
 | `PARENT`  | one link            | hosted plan URL in the plans sidecar, else a file-relative href      |
+| `BEAD`    | one link or label   | hosted bead page when the bead exists and its sidecar is addressable |
 | `AGENTS`  | ordered sub-bullets | hosted agent README URL in the agents sidecar, else an unlinked name |
 | `COMMITS` | ordered sub-bullets | hosted commit URL in the primary repository, else an unlinked SHA    |
 
@@ -195,12 +199,14 @@ shared render cap ends with a visible `… and N more` sub-bullet instead of bei
 are wrap-tolerant: prettier may fold a long commit sub-bullet onto continuation lines, and parsing joins those lines
 back into one logical bullet.
 
-`AGENTS` and `COMMITS` are a projection of durable state, never an accumulator. They are re-derived from `SASE_PLAN=` /
-`SASE_AGENT=` commit footers and agent artifact metadata on every refresh, so a stale or wrong entry disappears once its
-source is corrected. An epic plan's sections roll up its own associations with those of every descendant plan reachable
-through `PARENT`. `sase plan links refresh` reconciles the whole tree (dry run by default; `--write` to apply,
-`--plan <ref>` to scope to one plan), and each primary commit refreshes the plan it names on a best-effort basis — a
-plans-store failure never blocks the code commit.
+`BEAD`, `AGENTS`, and `COMMITS` are projections of durable state, never accumulators. `BEAD` comes from the plan's
+managed `bead_id` (or historical `bead`) frontmatter. It links only when that bead exists in the resolved store and a
+hosted page URL is available; otherwise it remains an unlinked label, so historical plan IDs do not become dead links.
+The association sections are re-derived from `SASE_PLAN=` / `SASE_AGENT=` commit footers and agent artifact metadata on
+every refresh, so a stale or wrong entry disappears once its source is corrected. An epic plan's sections roll up its
+own associations with those of every descendant plan reachable through `PARENT`. `sase plan links refresh` reconciles
+the whole tree (dry run by default; `--write` to apply, `--plan <ref>` to scope to one plan), and each primary commit
+refreshes the plan it names on a best-effort basis — a plans-store failure never blocks the code commit.
 
 A plan's parent is recorded in the `PARENT` bullet. The historical `parent:` frontmatter property is deprecated: it
 remains accepted so already-committed plans still validate, but it emits a deprecation warning and
@@ -407,7 +413,8 @@ not have one yet:
 - **In-tree mode**: Beads are stored in `sdd/beads/` at the project root.
 - **Local mode**: Beads are stored in `.sase/sdd/beads/`; `.sase/sdd/` is a standalone git repo.
 - **Separate-repo mode**: Beads are stored in `.sase/sdd/beads/` inside the sidecar checkout.
-- **Split sidecar mode**: Beads are stored at `beads/` in the active workspace's auto-cloned `--plans` repository.
+- **Split sidecar mode**: Schema-3 projects store beads at the root of the active workspace's auto-cloned `--beads`
+  repository. Schema-2 projects retain `beads/` in the `--plans` clone.
 
 Plan-like beads carry a `tier` value:
 
@@ -416,9 +423,9 @@ Plan-like beads carry a `tier` value:
 
 For larger efforts, epic files carry `bead_id` and `tier: epic` in their frontmatter. The command validates the epic,
 archives it into the resolved plans store, creates the epic and phase beads, wires the authored dependencies, commits
-the `bead_id` link, and launches the shared bead-work schedule. Each phase bead's ID appears in commit messages,
-creating a traceable chain from epic to phase to commit. A stale `bead_id` whose bead is missing is reported with a
-remedy instead of silently creating a second epic.
+the `bead_id` link, and launches the shared bead-work schedule. Each phase bead's ID is written as a structured
+`SASE_BEAD=<id>` commit footer, creating a traceable chain from epic to phase to commit and its generated bead page. A
+stale `bead_id` whose bead is missing is reported with a remedy instead of silently creating a second epic.
 
 For smaller plans, commit messages include a `SASE_PLAN=<path>` tag pointing back to the plan file. The path is relative
 to the repository that owns the plan: `sdd/plans/<YYYYMM>/<name>.md` for in-tree storage and `plans/<YYYYMM>/<name>.md`
@@ -454,8 +461,9 @@ mode behavior.
 
 SDD artifact placement follows provider policy. With `in_tree`, bead commands use the current checkout's `sdd/beads/`
 store. With `separate_repo`, commands first require a usable provider sidecar and then use the active workspace's
-`.sase/sdd/` clone. With `sidecar_repos`, each workspace auto-clones `--plans` at `sase/repos/plans` for plans and
-beads. Initialization also prepares a configured `research` sidecar at `sase/repos/research` in its current workspace;
-other workspaces clone it when explicitly ensured. Providerless local storage uses the primary workspace. Numbered
-sibling stores are not merged; coordinate shared state through the normal VCS sync path. Prefer `sase repo path plans`,
-`sase repo path research`, or the `SASE_SDD_*_DIR` variables over hard-coded relative paths.
+`.sase/sdd/` clone. With `sidecar_repos`, each workspace auto-clones `--plans` at `sase/repos/plans`; schema-3 records
+also auto-clone `--beads` at `sase/repos/beads`, while schema-2 records keep bead state under `sase/repos/plans/beads`.
+Initialization also prepares a configured `research` sidecar at `sase/repos/research` in its current workspace; other
+workspaces clone it when explicitly ensured. Providerless local storage uses the primary workspace. Numbered sibling
+stores are not merged; coordinate shared state through the normal VCS sync path. Prefer `sase repo path plans`,
+`sase repo path beads`, `sase repo path research`, or the `SASE_SDD_*_DIR` variables over hard-coded relative paths.

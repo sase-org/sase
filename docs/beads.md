@@ -90,12 +90,12 @@ sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.m
 
 ### Status Lifecycle
 
-| Status        | Icon | Description                                        |
-| ------------- | ---- | -------------------------------------------------- |
-| `open`        | `○`  | Not started                                        |
-| `claimed`     | `◎`  | Reserved by a live agent that has not started work |
-| `in_progress` | `◐`  | Currently being worked on                          |
-| `closed`      | `✓`  | Completed or abandoned                             |
+| Status        | Icon | Description                                                  |
+| ------------- | ---- | ------------------------------------------------------------ |
+| `open`        | `○`  | Not started                                                  |
+| `claimed`     | `◎`  | Reserved by a live agent that has not started work           |
+| `in_progress` | `◐`  | Being worked on, or preassigned in an epic launch checkpoint |
+| `closed`      | `✓`  | Completed or abandoned                                       |
 
 Status can transition between values via `sase bead update --status=<status>`, with one completion guard: moving a bead
 to `closed` is rejected while any descendant remains open, claimed, or in progress. Close those descendants deliberately
@@ -151,9 +151,11 @@ Claim and release are compare-and-swap operations: a claim succeeds only from `o
 no-op), and a release succeeds only when the bead is still `claimed` by the releasing agent. Both decline silently
 rather than overwriting someone else's state, so all three layers are safe to run concurrently.
 
-`sase bead work` ignores bead status entirely and decides from agent liveness (artifacts and PID checks), so a `claimed`
-phase is still scheduled and relaunching an epic over its own claimed phases is safe — the relaunched agent reuses the
-same name and re-claims its own claim.
+The diagram above describes an ordinary bead-carrying agent. `sase bead work` uses a stronger batch checkpoint: before
+spawning any epic worker, it sets every scheduled phase to `in_progress` with its deterministic worker as assignee and
+does the same for the epic and land worker. The later runner-side wait claim and launch promotion become idempotent
+no-ops. Scheduling still ignores bead status and decides from agent liveness (artifacts and PID checks), so a retry can
+schedule preassigned work without creating a duplicate name.
 
 ### Dependencies
 
@@ -556,11 +558,11 @@ Plan-file mode is the canonical epic-approval entry point. It:
 6. Invokes the existing bead-ID launch path.
 
 A missing phase description becomes a deterministic pointer to the plan and phase ID. A linked `bead_id` that no longer
-exists fails with instructions to remove the stale link or restore the bead store. Failures before any runner is spawned
-remove the newly-created epic and children and restore the plan link. Once a runner has spawned, the linked epic and its
-readiness state are preserved for recovery; partial runners are terminated, while a failure committing bead state after
-all agents started leaves them running. Every plan-file failure after archiving prints the exact
-`sase bead work ... --yes` command to resume.
+exists fails with instructions to remove the stale link or restore the bead store. Failures before the launch checkpoint
+is committed remove the newly-created epic and children and restore the plan link. Once that checkpoint exists, a
+publication failure preserves the linked, preassigned epic as the safe retry point even though no runner spawned. Once a
+runner has spawned, the linked epic and readiness state are likewise preserved for recovery and partial runners are
+terminated. Every plan-file failure after archiving prints the exact `sase bead work ... --yes` command to resume.
 
 When an epic-tier plan is proposed from bead work, `sase plan propose` automatically stamps `parent_bead` from the phase
 agent's `SASE_PHASE_BEAD_ID`, or from the land agent's `SASE_EPIC_BEAD_ID`. Plan-file mode resolves that bead and
@@ -591,41 +593,40 @@ Once an epic bead exists, the shared launch path:
    launched and remains parked behind the phase beads.
 5. Associates each rendered worker with exactly one bead in its `%id`: the first phase uses its full agent name plus
    `bead=<phase-id>` beside the separate clan declaration, later phases combine their suffix, `clan=<epic-id>`, and
-   `bead=<phase-id>`, and the land agent combines `land`, the clan, and `bead=<epic-id>`. Rendering and launch approval
-   do not change phase or epic status.
-6. Hands a single `---`-separated multi-prompt to the agent launcher. Each per-phase agent is spawned with name
-   `<epic_id>.<N>` and references the [`work_phase_bead`](xprompt.md#available-tags) xprompt; a final land agent named
-   `<epic_id>.land` references the [`land_epic`](xprompt.md#available-tags) xprompt. Every segment joins clan
-   `<epic_id>` and assigns that whole clan to tribe `@epic` with the single `%clan(<epic_id>, tribe=epic)` directive.
-   Each phase dependency becomes both a `%w` wait on the blocker phase-agent name and a `%w(bead=<blocker-phase-id>)`
-   closure wait. The land agent likewise waits on every launched phase agent and on every authored phase bead, including
-   already-closed or currently delegated phases. Requiring both conditions prevents a phase that delegated to a child
-   epic from releasing dependents merely because its original agent finished; the child epic must land and close the
-   parent phase first. A failed or killed phase keeps dependents and the land agent parked until its agent name is
-   retried successfully and its bead closes. `xsmall`, `small`, and `medium` phases implement directly with
-   `%model:@xsmall_phase_worker`, `%model:@small_phase_worker`, and `%model:@medium_phase_worker`, respectively. Only
-   `large` and `xlarge` phases append `#plan` after their work reference and use `%model:@large_phase_worker` and
-   `%model:@xlarge_phase_worker`. A stored phase `model` always wins over the size-derived alias without changing
-   whether the phase receives `#plan`, and a missing legacy size behaves as `small`. The land agent emits
-   `%model:<value>` when the epic plan bead has a stored `model`. Without one, it emits `%model:@epic_lander` below
-   `bead.big_epic_phase_threshold` and `%model:@big_epic_lander` at or above the threshold (default `5`), using the
-   total authored phase count even when resumed work has already-closed phases. Normal landers fall through
-   `@epic_lander` to `@default`, while landers selected by the threshold fall through `@big_epic_lander` to
-   provider-aware `@smartest`. `xsmall` phases fall through `@xsmall_phase_worker` to the load-balanced `@cheaper` pool,
-   `small` phases through `@small_phase_worker` to the `@cheap` pool, `medium` phases through `@medium_phase_worker` to
-   `@default@high`, `large` phases through `@large_phase_worker` to `@smart`, and `xlarge` phases through
-   `@xlarge_phase_worker` to `@smartest`. The independent `@cheapest` provider fallback is available for explicit use
-   but has no automatic consumer. Builtin aliases can be configured under `llm_provider.model_aliases.builtin`. Each
-   phase segment and the final land-epic segment carries bare `%auto`, so submitted implementation and landing plans are
-   auto-approved. An agent may author a tale or an epic as needed; the plan's authored `tier` selects the corresponding
-   automatic follow-up path. Each runner reserves its associated bead as `claimed` before it starts waiting, waits for
-   its agent and bead dependencies, prepares its workspace, then atomically promotes that claim immediately before model
-   execution. The promotion sets `status=in_progress` and assigns the runner name; parallel workers claim and promote
-   independently, and the land runner claims the epic only after all phase waits. A runner that dies before promoting
-   releases its bead back to `open` (see [Bead Claim Lifecycle](#bead-claim-lifecycle)). Scheduling itself is
-   status-blind — it depends only on agent liveness — so claimed phases are still scheduled on a relaunch. Each segment
-   uses a force-reuse `%id(!<agent_name>, bead=<bead-id>)` form (with `clan=` on join segments), so re-running
-   `sase bead work` after a killed or failed run wipes stale name owners before relaunch — the command is safe to retry.
+   `bead=<phase-id>`, and the land agent combines `land`, the clan, and `bead=<epic-id>`.
+6. Renders a single `---`-separated multi-prompt. Each per-phase agent is named `<epic_id>.<N>` and references the
+   [`work_phase_bead`](xprompt.md#available-tags) xprompt; a final land agent named `<epic_id>.land` references the
+   [`land_epic`](xprompt.md#available-tags) xprompt. Every segment joins clan `<epic_id>` and assigns that whole clan to
+   tribe `@epic` with the single `%clan(<epic_id>, tribe=epic)` directive. Each phase dependency becomes both a `%w`
+   wait on the blocker phase-agent name and a `%w(bead=<blocker-phase-id>)` closure wait. The land agent likewise waits
+   on every launched phase agent and on every authored phase bead, including already-closed or currently delegated
+   phases. Requiring both conditions prevents a phase that delegated to a child epic from releasing dependents merely
+   because its original agent finished; the child epic must land and close the parent phase first. A failed or killed
+   phase keeps dependents and the land agent parked until its agent name is retried successfully and its bead closes.
+   `xsmall`, `small`, and `medium` phases implement directly with `%model:@xsmall_phase_worker`,
+   `%model:@small_phase_worker`, and `%model:@medium_phase_worker`, respectively. Only `large` and `xlarge` phases
+   append `#plan` after their work reference and use `%model:@large_phase_worker` and `%model:@xlarge_phase_worker`. A
+   stored phase `model` always wins over the size-derived alias without changing whether the phase receives `#plan`, and
+   a missing legacy size behaves as `small`. The land agent emits `%model:<value>` when the epic plan bead has a stored
+   `model`. Without one, it emits `%model:@epic_lander` below `bead.big_epic_phase_threshold` and
+   `%model:@big_epic_lander` at or above the threshold (default `5`), using the total authored phase count even when
+   resumed work has already-closed phases. Normal landers fall through `@epic_lander` to `@default`, while landers
+   selected by the threshold fall through `@big_epic_lander` to provider-aware `@smartest`. `xsmall` phases fall through
+   `@xsmall_phase_worker` to the load-balanced `@cheaper` pool, `small` phases through `@small_phase_worker` to the
+   `@cheap` pool, `medium` phases through `@medium_phase_worker` to `@default@high`, `large` phases through
+   `@large_phase_worker` to `@smart`, and `xlarge` phases through `@xlarge_phase_worker` to `@smartest`. The independent
+   `@cheapest` provider fallback is available for explicit use but has no automatic consumer. Builtin aliases can be
+   configured under `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic segment carries
+   bare `%auto`, so submitted implementation and landing plans are auto-approved. An agent may author a tale or an epic
+   as needed; the plan's authored `tier` selects the corresponding automatic follow-up path.
+7. Before spawning any runner, batch-preassigns every scheduled phase bead to its rendered worker and the epic bead to
+   `<epic_id>.land`, setting all of them to `in_progress`. It commits readiness, assignments, and the complete graph as
+   one `chore(beads): checkpoint approved epic graph <id>` checkpoint. A detached sidecar launch synchronously
+   integrates and pushes that checkpoint so workers in new workspaces cannot start from an unpublished graph.
+8. Dispatches the rendered multi-prompt. Runner-side waiting claims and launch promotions see their preassignment and
+   become no-ops. Each segment uses a force-reuse `%id(!<agent_name>, bead=<bead-id>)` form (with `clan=` on join
+   segments), so re-running `sase bead work` after a killed or failed run wipes stale name owners before relaunch. The
+   schedule is status-blind and uses agent liveness, which makes the checkpoint safe to retry.
 
 When a phase agent auto-approves an epic-tier implementation plan, that child epic is created beneath the phase and the
 phase remains open while delegated work runs. Landing the child epic triggers the upward close cascade described above,
@@ -633,16 +634,16 @@ which closes the phase and lets its bead-gated dependents proceed. Until then, p
 phase. The land agent now genuinely requires every phase bead to close; if a phase crashes before closure, retry or
 close that phase explicitly rather than expecting landing to sweep it up.
 
-| Flag                  | Description                                                                                   |
-| --------------------- | --------------------------------------------------------------------------------------------- |
-| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch                        |
-| `-c, --cl-name`       | ChangeSpec name for the approved epic completion notification                                 |
-| `-n, --dry-run`       | Validate and preview plan archiving, bead creation, model routing, and waves without mutation |
-| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                         |
-| `-P, --no-push`       | Commit plan and bead state locally but skip post-commit pushes                                |
-| `-p, --parent`        | Override a plan file's `parent_bead`; pass `top-level` to force an unparented epic            |
-| `-y, --yes`           | Skip only the launch confirmation prompt                                                      |
-| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                             |
+| Flag                  | Description                                                                                        |
+| --------------------- | -------------------------------------------------------------------------------------------------- |
+| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch                             |
+| `-c, --cl-name`       | ChangeSpec name for the approved epic completion notification                                      |
+| `-n, --dry-run`       | Validate and preview plan archiving, bead creation, model routing, and waves without mutation      |
+| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                              |
+| `-P, --no-push`       | Skip publication; detached sidecar stores stop before spawning because workers need the checkpoint |
+| `-p, --parent`        | Override a plan file's `parent_bead`; pass `top-level` to force an unparented epic                 |
+| `-y, --yes`           | Skip only the launch confirmation prompt                                                           |
+| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                                  |
 
 The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
 matching tag overrides the built-in. For epic-tier work, every phase and land segment carries bare `%auto`, so spawned
@@ -656,32 +657,18 @@ non-ChangeSpec epics launched from a known SASE workspace, each segment is still
 and project name (for example `#git:sase` or `#gh:sase-org/sase`). If the current directory is not associated with a
 SASE project, the prompts are left unprefixed and run in the caller's normal launch context.
 
-If launching fails before any runner is spawned, the command restores `is_ready_to_work` only when this attempt set it
-and commits that recovery using the selected push policy. If launching fails partway through, it SIGTERMs spawned
-children through identity-aware cleanup, keeps readiness and any durable runner-owned claims, and commits the
-recoverable state. An epic that was already ready remains ready in either case.
+If checkpoint creation fails before it commits, the command restores every phase/epic status and assignee it changed,
+and restores `is_ready_to_work` only when this attempt set it. A detached-store publication failure after the local
+checkpoint commit stops before spawning and preserves that checkpoint as the safe retry point; rerun without `--no-push`
+after fixing the remote. If agent dispatch fails before any runner spawns, SASE restores the prior assignments and
+commits the recovery. A partial-spawn failure SIGTERMs the children it did start and preserves the preassigned
+checkpoint for recovery. An epic that was already ready remains ready.
 
-After the agents launch successfully, `sase bead work` commits readiness and other launch-owned bead metadata when the
-beads directory belongs to a git repository and canonical/projection files changed. Runner-owned claims are committed by
-the runners instead. This commit does not include code produced later by the spawned agents. Epic launches use the
-subject `chore: mark bead work launched for <id>`. If the git commit fails, the command reports that agents were already
-launched and exits non-zero so the operator can commit or repair the bead state explicitly. Dry runs and stores outside
-git do not create a commit.
-
-When that commit succeeds and `bead.push_after_commit` is `true` (the default), `sase bead work` follows it with
-`git push` so the launched-work record reaches the remote without a manual follow-up step. The push inherits the
-caller's stdin/stdout/stderr, so interactive credential prompts still work. If the repository has no remote configured,
-the push is skipped silently — the local commit stands on its own. If `git push` fails (for example because the remote
-rejected the update), the failure is reported as a warning only: the bead-launch commit is preserved on the local branch
-and the warning text includes the manual `git push` invocation to retry.
-
-Set `bead.push_after_commit: false` in `~/.config/sase/sase.yml` to disable the auto-push — useful for local-only
-checkouts, or when you would rather batch the bead-launch commit with later commits before pushing. Set it to `async` to
-keep auto-pushing but move the push off the critical path: `sase bead work` launches a detached background `git push`
-and returns immediately, printing the log file where the background push records its result. The background push is
-non-interactive (its stdin is closed), so it cannot prompt for credentials; failures are written to that log instead of
-warning inline. Pass `--no-push` (`-P`) to `sase bead work` to skip the push for a single invocation regardless of the
-configured mode.
+Successful launches do not add a post-launch bead commit: the pre-spawn graph checkpoint is the complete launch-owned
+state. The accepted `bead.push_after_commit` configuration field is not consulted by this current path. Publication is
+instead a safety barrier: detached bead stores synchronize and push the checkpoint before dispatch, while in-tree,
+local, and other shared launch contexts need no remote barrier. `--no-push` works only where workers can see the local
+checkpoint directly; for a detached sidecar it exits nonzero with no agents spawned.
 
 ## Rust Backend
 

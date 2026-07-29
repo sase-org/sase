@@ -54,9 +54,11 @@ hatch for a genuine exception. SASE preserves pytest's isolation marker when it 
 These guards are not a substitute for isolation: tests that exercise persistence should point `SASE_HOME` at a per-test
 temporary directory and create bead stores under `tmp_path` or another path inside the published sandbox. Run
 `just test-bead-store-soak` when changing bead resolution or mutation paths; it runs the default suite and verifies the
-production plans sidecar's `beads/issues.jsonl` digest, bead-state git status, and git HEAD are unchanged. If an older
-test run already polluted the telemetry store, preview the exact-label cleanup with
-`sase telemetry cleanup-test-data --dry-run` before deciding whether to rerun it with `--yes`.
+legacy production plans sidecar's `beads/issues.jsonl` digest, bead-state git status, and git HEAD are unchanged. The
+current guard still targets `SASE_SDD_PLANS_DIR/beads`; on a schema-3 project whose bead state has moved to a dedicated
+`--beads` sidecar, it exits with a missing-file error instead of guarding that store. If an older test run already
+polluted the telemetry store, preview the exact-label cleanup with `sase telemetry cleanup-test-data --dry-run` before
+deciding whether to rerun it with `--yes`.
 
 `just test`, `just test-slow`, `just test-visual`, and `just test-cov` share a host-global pytest-xdist worker-token
 pool with every other checkout owned by the same UID. An automatic run waits until it can lease a small floor, then

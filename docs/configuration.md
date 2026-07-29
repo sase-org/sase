@@ -1991,17 +1991,19 @@ sdd:
 
 The workspace provider owns storage selection. Built-in bare-git projects store SDD under `sdd/`. Managed GitHub
 projects use a `--plans` sidecar cloned at `sase/repos/plans`; the project-local research sidecar resolves at
-`sase/repos/research` and defaults to `<owner>/<project>--research`. Unmigrated GitHub projects retain their
-provider-backed `.sase/sdd/` clone. Materialized layouts record metadata in the primary workspace's
-`.sase/sdd-store.json`. Providerless projects fall back to a primary-workspace `.sase/sdd/` store. The retired
-`sdd.storage` and `sdd.version_controlled` keys are ignored, stripped before validation, and reported by `sase doctor`
-for cleanup. See [SDD Storage](sdd_storage.md) and [Beads](beads.md).
+`sase/repos/research` and defaults to `<owner>/<project>--research`. Current managed initialization also records a
+`--beads` sidecar at `sase/repos/beads`. Unmigrated GitHub projects retain their provider-backed `.sase/sdd/` clone.
+Materialized layouts record metadata in the primary workspace's `.sase/sdd-store.json`. Providerless projects fall back
+to a primary-workspace `.sase/sdd/` store. The retired `sdd.storage` and `sdd.version_controlled` keys are ignored,
+stripped before validation, and reported by `sase doctor` for cleanup. See [SDD Storage](sdd_storage.md) and
+[Beads](beads.md).
 
-Initialized managed GitHub projects and migrated projects have a schema-version 2 `sidecar_repos` record. Their plans
-and beads resolve into the auto-cloned `--plans` repository, while research resolves through the configured `research`
-role. Initialization writes an unpinned per-project research entry, prepares configured sidecars in its current
-workspace, and re-records stale compatibility metadata with the derived repository. Later workspaces clone research on
-demand. The legacy single-sidecar shape continues to resolve byte-for-byte as before.
+The default current layout has a schema-version 3 `sidecar_repos` record: plans, research, and beads resolve to their
+role-specific clones, and bead state lives at the root of `--beads`. A record without a beads role remains schema
+version 2 and resolves bead state to `beads/` in `--plans`; initialization preserves that compatibility shape until the
+project adopts the dedicated sidecar. Initialization prepares configured sidecars in its current workspace and
+re-records stale compatibility metadata with the derived repository. Later workspaces clone research on demand. The
+legacy single-sidecar shape continues to resolve byte-for-byte as before.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during first-use `#git:<project>`
 initialization, existing bare-repo registration, `#git`/workspace materialization, and the first in-tree SDD write.
@@ -2032,20 +2034,18 @@ Configuration for the bead issue tracker.
 ```yaml
 bead:
   big_epic_phase_threshold: 5 # minimum authored phase count for @big_epic_lander
-  push_after_commit: true # default: true (also accepts false or async)
+  push_after_commit: true # compatibility field; current bead-work launches do not consult it
 ```
 
-| Field                           | Type        | Default | Description                                                                                                                                                                                                                                                                                        |
-| ------------------------------- | ----------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bead.big_epic_phase_threshold` | int         | `5`     | Minimum total authored phase count that selects `@big_epic_lander` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                                                                                        |
-| `bead.push_after_commit`        | bool or str | `true`  | Controls the post-commit `git push` after `sase bead work`. `true` pushes synchronously (failures only warn); `false` skips the push; `async` launches a detached background push and returns immediately, logging the result to a file. `sase bead work --no-push` overrides this per-invocation. |
+| Field                           | Type        | Default | Description                                                                                                                                                                                                                    |
+| ------------------------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bead.big_epic_phase_threshold` | int         | `5`     | Minimum total authored phase count that selects `@big_epic_lander` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                    |
+| `bead.push_after_commit`        | bool or str | `true`  | Retained in the accepted configuration shape, but the current `sase bead work` path does not read it. A detached bead store requires a synchronous pre-spawn checkpoint publication; `--no-push` stops before launching there. |
 
 Below the threshold, `@epic_lander` inherits `@default`. At or above it, `@big_epic_lander` instead inherits the
 provider-aware `@smartest` fallback. An explicit land model or a direct alias override remains authoritative.
 
-Set to `false` for local-only checkouts, or when you would rather batch the bead-launch commit with later commits before
-pushing. Set to `async` to keep auto-pushing without blocking the command on remote network/credential latency. See
-[`docs/beads.md`](beads.md#sase-bead-work-target) for the full `sase bead work` flow.
+See [`docs/beads.md`](beads.md#sase-bead-work-target) for the current pre-spawn checkpoint and publication flow.
 
 Source: `src/sase/default_config.yml`
 
@@ -2895,7 +2895,7 @@ overlapping or repeated selections remove each issue only once. Removal is irrev
 | `target`        | bead ID or plan path   | (required) | Existing epic bead to launch, or validated epic plan file to create/launch. |
 | `-n, --dry-run` | flag                   | -          | Print the wave plan and rendered multi-prompt without mutating state.       |
 | `-j, --json`    | flag                   | -          | Print one machine-readable result object.                                   |
-| `-P, --no-push` | flag                   | -          | Commit launched bead state locally but skip the post-commit `git push`.     |
+| `-P, --no-push` | flag                   | -          | Skip checkpoint publication; detached sidecar stores stop before spawning.  |
 | `-p, --parent`  | bead ID or `top-level` | -          | Override a plan file's `parent_bead`, including forcing an unparented epic. |
 | `-y, --yes`     | flag                   | -          | Skip the launch confirmation prompt when launching phase or epic agents.    |
 
@@ -3187,17 +3187,17 @@ can open it with `A`, even after the agent has been dismissed and revived. `-k/-
 
 `sase agent` provides cross-project visibility into running agents and synchronizes shared agent history. Subcommands:
 
-| Subcommand  | Flags                                                                                                                        | Description                                                                                                                                                                                                                                                                                  |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list`      | `-a/--all`, `-j/--json`, `-p/--project`                                                                                      | List running agents. `-a` includes DONE/FAILED agents (capped at 50 per project). `-j` emits a JSON array with a stable schema. `-p` limits output to a single project.                                                                                                                      |
-| `show`      | `-n/--name`                                                                                                                  | Render a full detail panel (prompt, reply, metadata) for a single agent by name.                                                                                                                                                                                                             |
-| `kill`      | `-n/--name`                                                                                                                  | SIGTERM a running agent by name.                                                                                                                                                                                                                                                             |
-| `tribe`     | `set` / `unset` / `list`                                                                                                     | Manage the user-defined tribe on an agent (used by the Agents tab tribe side panels). `tribe set -n <agent> -t <tribe>` replaces any prior tribe; `tribe unset -n <agent>` clears it; `tribe list [-n <agent>]` prints tribes as JSON (filtered when given).                                 |
-| `archive`   | `rebuild-index` / `verify`                                                                                                   | Maintain the dismissed-agent bundle summary index under `~/.sase/dismissed_bundles/`. `verify` exits non-zero if rows are stale or missing.                                                                                                                                                  |
-| `artifacts` | `layout status` / `migrate` / `verify` / `rollback`, `-P/--project`, `-p/--projects-root`, `-i/--index-path`, `-j/--json`    | Inspect and migrate the physical `ace-run` artifact directory layout. `status` reports flat and sharded directory counts, `migrate` moves flat timestamp directories into day shards, `verify` checks current or manifest-backed state, and `rollback` reverses a manifest-backed migration. |
-| `index`     | `status` / `rebuild` / `verify` / `gc` / `repair`, `-i/--index-path`, `-p/--projects-root`, `-j/--json`; `repair -a/--apply` | Maintain the persistent artifact index. `status` is a lightweight check, `verify` compares source artifacts, `gc` rebuilds the index and dismissed projection, and `repair` handles invalid future-dated import state.                                                                       |
-| `names`     | `migrate-auto`, `-f/--force`, `-j/--json`                                                                                    | Maintain the permanent agent-name registry. `migrate-auto` runs the historical generated-name namespace migration; `--force` reruns it after the completion marker exists and `--json` emits a machine-readable summary.                                                                     |
-| `sync`      | `-c/--check`, `-j/--json`, repeatable `-p/--project`, `-r/--refresh`                                                         | Import shared agent history and publish locally commit-eligible hoods through enabled agents sidecars. Plain `--check` uses cached status without Git or artifact scans; `--check --refresh` fetches and recomputes status. See [Agent Hood Synchronization](agents_sidecar.md).             |
+| Subcommand  | Flags                                                                                                                        | Description                                                                                                                                                                                                                                                                                                                                    |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list`      | `-a/--all`, `-j/--json`, `-p/--project`                                                                                      | List running agents. `-a` includes DONE/FAILED agents (capped at 50 per project). `-j` emits a JSON array with a stable schema. `-p` limits output to a single project.                                                                                                                                                                        |
+| `show`      | `-n/--name`                                                                                                                  | Render a full detail panel (prompt, reply, metadata) for a single agent by name.                                                                                                                                                                                                                                                               |
+| `kill`      | `-n/--name`                                                                                                                  | SIGTERM a running agent by name.                                                                                                                                                                                                                                                                                                               |
+| `tribe`     | `set` / `unset` / `list`                                                                                                     | Manage the user-defined tribe on an agent (used by the Agents tab tribe side panels). `tribe set -n <agent> -t <tribe>` replaces any prior tribe; `tribe unset -n <agent>` clears it; `tribe list [-n <agent>]` prints tribes as JSON (filtered when given).                                                                                   |
+| `archive`   | `rebuild-index` / `verify`                                                                                                   | Maintain the dismissed-agent bundle summary index under `~/.sase/dismissed_bundles/`. `verify` exits non-zero if rows are stale or missing.                                                                                                                                                                                                    |
+| `artifacts` | `layout status` / `migrate` / `verify` / `rollback`, `-P/--project`, `-p/--projects-root`, `-i/--index-path`, `-j/--json`    | Inspect and migrate the physical `ace-run` artifact directory layout. `status` reports flat and sharded directory counts, `migrate` moves flat timestamp directories into day shards, `verify` checks current or manifest-backed state, and `rollback` reverses a manifest-backed migration.                                                   |
+| `index`     | `status` / `rebuild` / `verify` / `gc` / `repair`, `-i/--index-path`, `-p/--projects-root`, `-j/--json`; `repair -a/--apply` | Maintain the persistent artifact index. `status` is a lightweight check, `verify` compares source artifacts, `gc` rebuilds the index and dismissed projection, and `repair` handles invalid future-dated import state.                                                                                                                         |
+| `names`     | `migrate-auto`, `-f/--force`, `-j/--json`                                                                                    | Maintain the permanent agent-name registry. `migrate-auto` runs the historical generated-name namespace migration; `--force` reruns it after the completion marker exists and `--json` emits a machine-readable summary.                                                                                                                       |
+| `sync`      | `-c/--check`, `-d/--drop-retired`, `-j/--json`, repeatable `-p/--project`, `-q/--retry-quarantined`, `-r/--refresh`          | Import shared agent history and publish locally commit-eligible hoods through enabled agents sidecars. Plain `--check` uses cached status without Git or artifact scans; `--check --refresh` fetches and recomputes status. Mutating sync can retry quarantined or drop retired requests. See [Agent Hood Synchronization](agents_sidecar.md). |
 
 Agent-index paths default to `~/.sase/agent_artifact_index.sqlite` and `~/.sase/projects`. `sase agent index repair` is
 a dry run unless `-a`/`--apply` is supplied. It selects future-dated agent artifacts and dismissed bundles only when

@@ -83,21 +83,22 @@ reading it from a queue that was already correct.
 The most useful single command in this layer turns an epic-tier plan into actual work. Given an `<epic-id>`, it:
 
 1. Validates the bead resolves to a `plan` issue with `tier=epic`.
-2. Scans the live agent registry for name collisions (`<epic-id>.1`, `<epic-id>.2`, `<epic-id>` for the land agent) and
-   refuses to launch when one exists, listing the offending artifact directories so you can wipe them first. `-n` /
-   `--dry-run` downgrades this to a warning.
+2. Previews deterministic-name reuse for `<epic-id>.1`, `<epic-id>.2`, and `<epic-id>.land`; after confirmation, it
+   removes prior owners (including live ones) or aborts before changing bead state if cleanup cannot finish.
 3. Flips the epic plan bead's `is_ready_to_work` flag to `True`.
 4. Builds a **Kahn-wave schedule** from the epic's open phase children, respecting dependencies.
-5. Pre-claims each phase bead — `status=in_progress`, `assignee=<phase_bead_id>`.
-6. Hands a single `---`-separated multi-prompt to the agent launcher: one segment per phase, plus a final segment for
-   the land agent. Phase dependencies become `%wait` directives on blocker phase-agent names; the land agent waits on
-   every launched phase agent.
+5. Preassigns each scheduled phase bead and the epic itself — `status=in_progress`, with deterministic phase and land
+   agent assignees — then commits the complete graph as one pre-spawn checkpoint. Detached bead stores synchronously
+   publish that checkpoint before work can start.
+6. Hands a single `---`-separated multi-prompt to the agent launcher: one segment per phase, plus a final land segment.
+   Each phase dependency becomes both an agent-success wait and a bead-closure wait; the land agent waits for every
+   authored phase bead.
 
-Because every segment uses `%id:!<agent_name>` (force-reuse) and bare `%auto`, `sase bead work` is safe to retry after a
-killed or failed run while still auto-approving submitted phase and landing plans. Those agents may author a tale or an
-epic as needed; the plan's authored `tier` selects the automatic follow-up path. AXE's `wait_checks` chop is what
-unblocks each phase the moment its blockers have `done.json` outcomes of `completed`. Failed or killed phases keep the
-land agent parked until that phase name retries successfully — there is no fail-open.
+Because every segment uses `%id(!<agent_name>, bead=<bead-id>)` (force-reuse) and bare `%auto`, `sase bead work` is safe
+to retry after a killed or failed run while still auto-approving submitted phase and landing plans. Those agents may
+author a tale or an epic as needed; the plan's authored `tier` selects the automatic follow-up path. AXE's `wait_checks`
+chop is what unblocks each phase only after its blocker has both a successful `done.json` and a closed bead. Failed,
+killed, or finished-but-unclosed phases keep dependents and the land agent parked — there is no fail-open.
 
 ## The Promote-From-Chat Discipline
 
@@ -118,7 +119,8 @@ deliberately checkout-local: `sase bead` reads and mutates the `sdd/beads/` even
 command runs. An agent running in `myproject_3` sees `myproject_3/sdd/beads/`, not a merged view of `myproject/`,
 `myproject_2/`, and `myproject_3/`. Providerless local storage resolves numbered checkouts back to the primary
 workspace's `.sase/sdd/beads/` store. With a legacy single companion, each numbered checkout uses its own `.sase/sdd/`
-clone; with split storage, it instead uses `beads/` in its auto-cloned `--plans` repository.
+clone. With schema-3 split storage, it uses the root of its auto-cloned `--beads` repository; schema-2 records retain
+`beads/` in the `--plans` clone.
 
 That keeps the source of truth inspectable and unsurprising. For in-tree work, bead state moves between checkouts
 through the same VCS sync path as code and SDD files, and ID allocation uses the active checkout's local `config.json`

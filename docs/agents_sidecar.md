@@ -193,17 +193,19 @@ or refreshes v2 history can be summarized there as `current`; use the CLI's `--j
 
 Commit-triggered publications use a durable outbox at `~/.sase/projects/<project-key>/agents-publication-outbox.json`.
 Each request records its agent, primary revision, top-level hood, attempt count, most recent attributable error, and
-quarantine state. A hood-specific preparation failure increments only requests for that hood; repository-wide failures
-such as lock contention, pull failure, or push failure remain retryable without consuming the per-item quarantine
-budget. Successful requests are acknowledged only after the sidecar commit is safely pushed (or the prepared payload is
-already current) and the requested agent page exists in the sidecar.
+quarantine or retirement state. A hood-specific preparation failure increments only requests for that hood;
+repository-wide failures such as lock contention, pull failure, or push failure remain retryable without consuming the
+per-item quarantine budget. A repeatable failure that proves the requested hood can never be published retires that
+request after one confirming retry instead of quarantining it. Successful requests are acknowledged only after the
+sidecar commit is safely pushed (or the prepared payload is already current) and the requested agent page exists in the
+sidecar.
 
 ### Chats provenance versus publication
 
 Chats calls a local transcript `shared` only when its `agents/<global-name>/chat.md` path exists in the agents sidecar's
 committed tree. Dirty or partially prepared worktree files do not count. Publication state is a separate dimension: an
 outstanding outbox request means related work has not completed, even when the chat is already committed locally but the
-sidecar commit has not been pushed, or when a later revision is queued or quarantined.
+sidecar commit has not been pushed, or when a later revision is queued, quarantined, or retired as unpublishable.
 
 Repeated hood-specific failures are quarantined after a bounded number of attempts. Quarantined requests remain in the
 outbox, appear in sync/status `diagnostics` and `quarantine_diagnostics`, and are skipped by ordinary drains. After
@@ -215,6 +217,16 @@ sase agent sync --retry-quarantined -p project-alias
 
 Do not delete or hand-edit the outbox. `--retry-quarantined` clears the quarantine flag and gives those requests a fresh
 retry budget before running the normal full reconciliation.
+
+A retired request cannot succeed on retry. After reviewing the diagnostic and accepting that its missing or invalid
+source cannot be reconstructed, drop only retired entries with:
+
+```bash
+sase agent sync --drop-retired -p project-alias
+```
+
+The command reports every removed request and its terminal reason, then continues the normal full sync for the selected
+projects. Both `--drop-retired` and `--retry-quarantined` mutate the outbox and are rejected with `--check`.
 
 Periodic detection and the equivalent CLI status checks maintain `~/.sase/agents_sync/status_snapshot.json` and
 validated incoming-hood cache objects:
@@ -280,6 +292,8 @@ All Git, validation, cache import, and full-sync work runs outside the Textual e
 - If an ordinary retry reports a quarantined publication request, fix the item-specific cause and run
   `sase agent sync --retry-quarantined -p <project>`. Rerun `sase agent sync --check --json` afterward and confirm that
   no publication quarantine diagnostic remains.
+- If a request is reported as retired and its source truly cannot be reconstructed, review the terminal reason and run
+  `sase agent sync --drop-retired -p <project>`. Retired requests are not reset by `--retry-quarantined`.
 - A general push or fetch failure leaves local agent history intact. Fix credentials/connectivity and retry.
 - A rebase conflict is aborted before the command returns. Resolve unexpected state in the hidden clone, then rerun
   `sase agent sync`.

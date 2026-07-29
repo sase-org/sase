@@ -227,6 +227,12 @@ exists, it becomes `myapp/deploy` and is referenced as `#myapp/deploy`. A projec
 instead be launched as `#!myapp/deploy`. This prevents name collisions between project-local xprompts and global or
 built-in ones.
 
+An explicit namespaced reference also works when the caller is outside that project's checkout. For an enabled
+registered project, `#myapp/deploy` resolves checkout-backed files and local config from the project's primary
+workspace. The namespace accepts the configured project name, directory key, or alias and canonicalizes it before
+lookup. If the caller is already inside another checkout of that same project, the current checkout wins over the
+registry copy so local edits are visible. Disabled projects are not loaded through this registry fallback.
+
 ## File Format
 
 An xprompt file is a Markdown file with optional YAML front matter delimited by `---` lines. Everything after the
