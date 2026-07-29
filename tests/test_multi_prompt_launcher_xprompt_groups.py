@@ -204,6 +204,87 @@ def test_launch_agents_from_cwd_segment_extra_env_shares_xprompt_group_counter(
     ]
 
 
+@patch("sase.history.prompt.add_or_update_prompt")
+@patch(
+    "sase.main.utils.ensure_project_file_and_get_workspace_num",
+    return_value=(None, None, None),
+)
+def test_launcher_qualifies_research_swarm_per_dispatch(
+    mock_project: MagicMock,
+    mock_history: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A later keyed swarm gets a new hood without changing prior prompt text."""
+    from sase.agent.launcher import launch_agents_from_cwd
+    from sase.agent.names import _registry
+
+    del mock_project, mock_history
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    _registry._CACHE_PATH = None
+    _registry._CACHE_SIGNATURE = None
+    _registry._CACHE_DATA = None
+    marker = tmp_path / ".sase" / "agent_name_auto_migration.json"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(
+        '{"schema_version": 1, "completed": true, "migrated_count": 0}\n',
+        encoding="utf-8",
+    )
+    catalog = {
+        "research_swarm": XPrompt(
+            name="research_swarm",
+            content=(
+                "%clan(research.{@1}, description=Research) "
+                "%id:research.{@1}.cdx\n"
+                "CDX\n"
+                "---\n"
+                "%id(cld, clan=research.{@1})\n"
+                "CLD\n"
+                "---\n"
+                "%id(final, clan=research.{@1}) "
+                "%wait:research.{@1}.cdx\n"
+                "Read `research.{@1}.cdx`; #fork:research.{@1}.cld\n"
+                "---\n"
+                "%id(image, clan=research.{@1}) "
+                "%wait:research.{@1}.final\n"
+                "Image"
+            ),
+        )
+    }
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch("sase.agent.xprompt_swarm.get_all_xprompts", return_value=catalog),
+        patch(
+            "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
+            return_value=None,
+        ),
+        patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+            return_value=[],
+        ) as launch_multi,
+        patch("sase.core.time.generate_timestamp", return_value="260729_093000"),
+    ):
+        launch_agents_from_cwd("#!research_swarm")
+        first_segments = list(launch_multi.call_args.kwargs["segments"])
+
+        make_agent(tmp_path, "proj", "first", "research.0.cdx", done=True)
+        _registry._CACHE_PATH = None
+        _registry._CACHE_SIGNATURE = None
+        _registry._CACHE_DATA = None
+
+        launch_agents_from_cwd("#!research_swarm")
+        second_segments = list(launch_multi.call_args.kwargs["segments"])
+
+    assert len(first_segments) == len(second_segments) == 4
+    assert all("research.0" in segment for segment in first_segments)
+    assert all("research.1" in segment for segment in second_segments)
+    assert all("{@" not in segment for segment in [*first_segments, *second_segments])
+    assert "research.0.cdx" in first_segments[2]
+    assert "#fork:research.0.cld" in first_segments[2]
+    assert "%wait:research.0.final" in first_segments[3]
+
+
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")

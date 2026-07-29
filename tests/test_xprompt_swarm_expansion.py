@@ -558,12 +558,17 @@ def test_shared_group_counter_keeps_invocations_distinct_across_calls() -> None:
 
     catalog = {"two": xp("two", "phase A\n---\nphase B")}
     shared_counter = count()
+    shared_qualification_counter = count()
     with patch_catalog(catalog):
         first = expand_xprompt_swarms_with_metadata(
-            ["#!two"], group_counter=shared_counter
+            ["#!two"],
+            group_counter=shared_counter,
+            qualification_counter=shared_qualification_counter,
         )
         second = expand_xprompt_swarms_with_metadata(
-            ["#!two"], group_counter=shared_counter
+            ["#!two"],
+            group_counter=shared_counter,
+            qualification_counter=shared_qualification_counter,
         )
 
     assert [record.template_group for record in first] == [
@@ -573,4 +578,111 @@ def test_shared_group_counter_keeps_invocations_distinct_across_calls() -> None:
     assert [record.template_group for record in second] == [
         "xprompt:two:1",
         "xprompt:two:1",
+    ]
+
+
+def test_swarm_qualifies_one_key_consistently_across_segments() -> None:
+    catalog = {
+        "swarm": xp(
+            "swarm",
+            (
+                "%id:research.{@1}.cdx\n"
+                "Prose `research.{@1}.cdx`\n"
+                "---\n"
+                "%clan:research.{@1}\n"
+                "Lead research.{@1}.cdx"
+            ),
+        )
+    }
+
+    with (
+        patch_catalog(catalog),
+        patch("sase.core.time.generate_timestamp", return_value="260729_093000"),
+    ):
+        out = expand_xprompt_swarms(["#!swarm"])
+
+    marker = "{@swarm.260729.093000.0.1!}"
+    assert out == [
+        f"%id:research.{marker}.cdx\nProse `research.{marker}.cdx`",
+        f"%clan:research.{marker}\nLead research.{marker}.cdx",
+    ]
+
+
+def test_two_swarm_invocations_get_distinct_qualified_keys() -> None:
+    catalog = {"swarm": xp("swarm", "%id:r.{@1}.a\n---\n%id:r.{@1}.b")}
+
+    with (
+        patch_catalog(catalog),
+        patch("sase.core.time.generate_timestamp", return_value="260729_093000"),
+    ):
+        out = expand_xprompt_swarms(["#!swarm", "#!swarm"])
+
+    assert out == [
+        "%id:r.{@swarm.260729.093000.0.1!}.a",
+        "%id:r.{@swarm.260729.093000.0.1!}.b",
+        "%id:r.{@swarm.260729.093000.1.1!}.a",
+        "%id:r.{@swarm.260729.093000.1.1!}.b",
+    ]
+
+
+def test_swarm_leaves_qualified_bare_and_protected_markers_untouched() -> None:
+    catalog = {
+        "swarm": xp(
+            "swarm",
+            (
+                "%id:r.{@x!}.a\n"
+                "Bare r.@.a\n"
+                "```\n"
+                "%id:r.{@fenced}.a\n"
+                "```\n"
+                "---\n"
+                "%xprompts_enabled:false\n"
+                "%id:r.{@disabled}.a\n"
+                "%xprompts_enabled:true\n"
+                "%id:r.{@active}.a"
+            ),
+        )
+    }
+
+    with (
+        patch_catalog(catalog),
+        patch("sase.core.time.generate_timestamp", return_value="260729_093000"),
+    ):
+        out = expand_xprompt_swarms(["#!swarm"])
+
+    assert out == [
+        ("%id:r.{@x!}.a\nBare r.@.a\n```\n%id:r.{@fenced}.a\n```"),
+        (
+            "%xprompts_enabled:false\n"
+            "%id:r.{@disabled}.a\n"
+            "%xprompts_enabled:true\n"
+            "%id:r.{@swarm.260729.093000.0.active!}.a"
+        ),
+    ]
+
+
+def test_nested_swarms_use_distinct_keys_unless_already_qualified() -> None:
+    catalog = {
+        "outer": xp(
+            "outer",
+            "%id:outer.{@1}\nCaller {@shared!}\n---\n#!inner",
+        ),
+        "inner": xp(
+            "inner",
+            "%id:inner.{@1}\nInner {@shared!}\n---\nDone {@1} {@shared!}",
+        ),
+    }
+
+    with (
+        patch_catalog(catalog),
+        patch("sase.core.time.generate_timestamp", return_value="260729_093000"),
+    ):
+        out = expand_xprompt_swarms(["#!outer"])
+
+    outer = "{@outer.260729.093000.0.1!}"
+    inner = "{@inner.260729.093000.1.1!}"
+    assert out == [
+        f"%id:outer.{outer}\nCaller {{@shared!}}",
+        f"%id:inner.{inner}\nInner {{@shared!}}",
+        f"Done {inner} {{@shared!}}",
     ]

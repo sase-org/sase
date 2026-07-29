@@ -13,15 +13,21 @@ references fan out independently in document order.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from itertools import count
-from collections.abc import Iterator
 
+from sase.agent.names import iter_agent_name_key_markers
 from sase.agent.multi_prompt import split_segments_protecting_fences
 from sase.xprompt._disabled_regions import (
     protect_disabled_regions,
+    unprotect_disabled_regions,
 )
-from sase.xprompt._fenced_blocks import protect_fenced_blocks
+from sase.xprompt._fenced_blocks import (
+    protect_fenced_blocks,
+    protect_fenced_blocks_only,
+    unprotect_fenced_blocks,
+)
 from sase.xprompt._literal_zones import literal_zone_ranges
 from sase.xprompt._parsing import (
     _DIRECTIVE_PREFIX_RE,
@@ -383,6 +389,7 @@ def _render_xprompt_swarm(
     xprompt: XPrompt,
     positional_args: list[str],
     named_args: dict[str, str],
+    qualification_counter: Iterator[int],
 ) -> list[str]:
     substituted = expand_single_xprompt(
         xprompt,
@@ -390,7 +397,52 @@ def _render_xprompt_swarm(
         named_args,
         preserve_segment_separators=True,
     )
-    return split_segments_protecting_fences(substituted)
+    qualification_prefix = _next_key_qualification_prefix(
+        xprompt.name, qualification_counter
+    )
+    return [
+        _qualify_agent_name_key_markers(segment, qualification_prefix)
+        for segment in split_segments_protecting_fences(substituted)
+    ]
+
+
+def _next_key_qualification_prefix(
+    xprompt_name: str, qualification_counter: Iterator[int]
+) -> str:
+    from sase.core.time import generate_timestamp
+
+    name = re.sub(r"[^A-Za-z0-9]+", ".", xprompt_name).strip(".") or "xprompt"
+    timestamp = generate_timestamp().replace("_", ".")
+    return f"{name}.{timestamp}.{next(qualification_counter)}"
+
+
+def _qualify_agent_name_key_markers(text: str, prefix: str) -> str:
+    """Namespace unqualified keyed markers for one xprompt invocation."""
+    if "{@" not in text:
+        return text
+
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks_only(text, fenced_blocks)
+    disabled_regions: list[str] = []
+    protected = protect_disabled_regions(protected, disabled_regions)
+
+    markers = [
+        marker
+        for marker in iter_agent_name_key_markers(protected)
+        if marker.braced and marker.id is not None and not marker.qualified
+    ]
+    for marker in reversed(markers):
+        start = _character_index(protected, marker.start)
+        end = _character_index(protected, marker.end)
+        protected = protected[:start] + f"{{@{prefix}.{marker.id}!}}" + protected[end:]
+
+    protected = unprotect_disabled_regions(protected, disabled_regions)
+    return unprotect_fenced_blocks(protected, fenced_blocks)
+
+
+def _character_index(text: str, byte_offset: int) -> int:
+    """Translate a Rust scanner byte offset into a Python string index."""
+    return len(text.encode("utf-8")[:byte_offset].decode("utf-8"))
 
 
 def _expand_embedded_xprompt_swarm_reference(
@@ -401,6 +453,7 @@ def _expand_embedded_xprompt_swarm_reference(
     max_depth: int,
     template_group: str | None,
     group_counter: Iterator[int],
+    qualification_counter: Iterator[int],
 ) -> list[_ExpandedXpromptSwarmSegment]:
     if max_depth <= 0:
         raise _XpromptSwarmDepthError(
@@ -411,7 +464,10 @@ def _expand_embedded_xprompt_swarm_reference(
     call = _build_xprompt_call(ref, [])
     group = template_group or _next_template_group(call.name, group_counter)
     sub_segments = _render_xprompt_swarm(
-        catalog[call.name], call.positional_args, call.named_args
+        catalog[call.name],
+        call.positional_args,
+        call.named_args,
+        qualification_counter,
     )
     if not sub_segments:
         reconstructed = segment[: ref.start] + segment[ref.end :]
@@ -431,6 +487,7 @@ def _expand_embedded_xprompt_swarm_reference(
         max_depth=max_depth - 1,
         template_group=group,
         group_counter=group_counter,
+        qualification_counter=qualification_counter,
     )
 
 
@@ -442,6 +499,7 @@ def _expand_multiple_embedded_xprompt_swarm_references(
     max_depth: int,
     strict_segment_check: bool,
     group_counter: Iterator[int],
+    qualification_counter: Iterator[int],
 ) -> list[_ExpandedXpromptSwarmSegment]:
     """Expand multiple embedded xprompt swarm refs in document order.
 
@@ -462,7 +520,10 @@ def _expand_multiple_embedded_xprompt_swarm_references(
         call = _build_xprompt_call(ref, [])
         group = _next_template_group(call.name, group_counter)
         sub_segments = _render_xprompt_swarm(
-            catalog[call.name], call.positional_args, call.named_args
+            catalog[call.name],
+            call.positional_args,
+            call.named_args,
+            qualification_counter,
         )
         if not sub_segments:
             continue
@@ -482,6 +543,7 @@ def _expand_multiple_embedded_xprompt_swarm_references(
                 strict_segment_check=strict_segment_check,
                 template_group=group,
                 group_counter=group_counter,
+                qualification_counter=qualification_counter,
             )
         )
     return expanded
@@ -494,6 +556,7 @@ def expand_xprompt_swarms_with_metadata(
     max_depth: int = 8,
     _strict_segment_check: bool = True,
     group_counter: Iterator[int] | None = None,
+    qualification_counter: Iterator[int] | None = None,
 ) -> list[_ExpandedXpromptSwarmSegment]:
     """Expand any xprompt swarm references in *segments* into sub-segments.
 
@@ -520,10 +583,11 @@ def expand_xprompt_swarms_with_metadata(
             an ordinary embeddable xprompt.
         ValueError: Recursive expansion exceeded *max_depth*.
 
-    ``group_counter`` lets callers that expand segments one call at a time
-    (e.g. per-segment ``segment_extra_env`` launches) share one invocation
-    counter so distinct invocations of the same xprompt never collide on a
-    template group.
+    ``group_counter`` and ``qualification_counter`` let callers that expand
+    segments one call at a time (e.g. per-segment ``segment_extra_env``
+    launches) share independent invocation counters. Distinct invocations of
+    the same xprompt then collide on neither template groups nor keyed-marker
+    namespaces.
     """
     return _expand_xprompt_swarms_with_metadata(
         segments,
@@ -531,6 +595,9 @@ def expand_xprompt_swarms_with_metadata(
         max_depth=max_depth,
         strict_segment_check=_strict_segment_check,
         group_counter=group_counter if group_counter is not None else count(),
+        qualification_counter=(
+            qualification_counter if qualification_counter is not None else count()
+        ),
     )
 
 
@@ -542,6 +609,7 @@ def _expand_xprompt_swarms_with_metadata(
     strict_segment_check: bool = True,
     template_group: str | None = None,
     group_counter: Iterator[int],
+    qualification_counter: Iterator[int],
 ) -> list[_ExpandedXpromptSwarmSegment]:
     # Fast path: if no segment contains '#', no xprompt reference is possible.
     if not any("#" in seg for seg in segments):
@@ -568,7 +636,10 @@ def _expand_xprompt_swarms_with_metadata(
             group = template_group or _next_template_group(call.name, group_counter)
             xp = catalog[call.name]
             sub_segments = _render_xprompt_swarm(
-                xp, call.positional_args, call.named_args
+                xp,
+                call.positional_args,
+                call.named_args,
+                qualification_counter,
             )
             if not sub_segments:
                 # An xprompt body that had separators but produces no content
@@ -586,6 +657,7 @@ def _expand_xprompt_swarms_with_metadata(
                 strict_segment_check=strict_segment_check,
                 template_group=group,
                 group_counter=group_counter,
+                qualification_counter=qualification_counter,
             )
             expanded.extend(recursively_expanded)
         elif call is not None and call.marker is XPromptReferenceMarker.STANDALONE:
@@ -621,6 +693,7 @@ def _expand_xprompt_swarms_with_metadata(
                             max_depth,
                             template_group,
                             group_counter,
+                            qualification_counter,
                         )
                     )
                     continue
@@ -634,6 +707,7 @@ def _expand_xprompt_swarms_with_metadata(
                             max_depth,
                             strict_segment_check,
                             group_counter,
+                            qualification_counter,
                         )
                     )
                     continue

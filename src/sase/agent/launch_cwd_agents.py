@@ -125,11 +125,13 @@ def launch_agents_from_cwd_impl(
         # invocations of the same xprompt swarm get distinct template
         # groups, exactly as the single-call branch below allocates them.
         xprompt_group_counter = count()
+        xprompt_qualification_counter = count()
         for segment, env in zip(multi.segments, segment_extra_env, strict=True):
             segment_expansions = expand_xprompt_swarms_with_metadata(
                 [segment],
                 multi.local_xprompts,
                 group_counter=xprompt_group_counter,
+                qualification_counter=xprompt_qualification_counter,
             )
             expanded_segments.extend(record.prompt for record in segment_expansions)
             expanded_segment_extra_env.extend([env] * len(segment_expansions))
