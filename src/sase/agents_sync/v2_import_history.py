@@ -282,19 +282,16 @@ def reserve_timestamp(
     preferred: str,
     reserved: set[str],
 ) -> str:
-    current = datetime.strptime(preferred, "%Y%m%d%H%M%S").replace(tzinfo=UTC)
+    preferred_at = datetime.strptime(preferred, "%Y%m%d%H%M%S").replace(tzinfo=UTC)
     latest = datetime.now(UTC).replace(microsecond=0)
-    if current > latest:
+    if preferred_at > latest:
         raise ValueError(
             f"future imported artifact timestamp {preferred} exceeds current UTC "
             f"time {latest.strftime('%Y%m%d%H%M%S')}"
         )
-    for _ in range(86_400):
-        if current > latest:
-            raise RuntimeError(
-                "could not allocate a free imported artifact timestamp without "
-                "exceeding the current UTC time"
-            )
+    attempts = 0
+    current = preferred_at
+    while attempts < 86_400 and current <= latest:
         value = current.strftime("%Y%m%d%H%M%S")
         destination = canonical_agent_artifact_path(
             target.project_key,
@@ -303,7 +300,24 @@ def reserve_timestamp(
         )
         if value not in reserved and not destination.exists():
             return value
+        attempts += 1
         current += timedelta(seconds=1)
+
+    # Future-dated source runs all clamp to ``latest``. Once that slot is
+    # reserved, probe backward so another run can still receive a legal
+    # timestamp instead of failing merely because forward probing hit now.
+    current = preferred_at - timedelta(seconds=1)
+    while attempts < 86_400:
+        value = current.strftime("%Y%m%d%H%M%S")
+        destination = canonical_agent_artifact_path(
+            target.project_key,
+            ACE_RUN_WORKFLOW_DIR,
+            value,
+        )
+        if value not in reserved and not destination.exists():
+            return value
+        attempts += 1
+        current -= timedelta(seconds=1)
     raise RuntimeError("could not allocate a free imported artifact timestamp")
 
 

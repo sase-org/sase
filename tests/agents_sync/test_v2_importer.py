@@ -51,6 +51,35 @@ def test_reserve_timestamp_rejects_a_future_preferred_value(tmp_path: Path) -> N
         v2_import_history.reserve_timestamp(make_target(tmp_path), future, set())
 
 
+def test_reserve_timestamp_probes_backward_at_current_time_ceiling(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=UTC)
+
+    class _FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz: object | None = None) -> datetime:
+            assert tz is UTC
+            return now
+
+    monkeypatch.setattr(v2_import_history, "datetime", _FrozenDatetime)
+    monkeypatch.setattr(
+        v2_import_history,
+        "canonical_agent_artifact_path",
+        lambda _project, _workflow, timestamp: tmp_path / timestamp,
+    )
+    preferred = now.strftime("%Y%m%d%H%M%S")
+
+    reserved = v2_import_history.reserve_timestamp(
+        make_target(tmp_path),
+        preferred,
+        {preferred},
+    )
+
+    assert reserved == (now - timedelta(seconds=1)).strftime("%Y%m%d%H%M%S")
+
+
 def test_exact_current_owner_commit_evidence_observes_without_duplicate(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
