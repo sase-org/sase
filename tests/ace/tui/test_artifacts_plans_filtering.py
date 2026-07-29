@@ -24,6 +24,10 @@ from sase.ace.tui.widgets.artifacts.plans_deep_archive import (
     merge_archive_matches,
 )
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
+from sase.ace.tui.widgets.artifacts.plans_filtering import (
+    build_plan_filter_index,
+    compile_plan_matcher,
+)
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.plan_search.filter_query import parse_plan_filter_query
 
@@ -52,6 +56,41 @@ def _deep_archive(
         preview.project,
         replace(preview.match, plan=plan),
     )
+
+
+def test_document_kind_facet_matches_role_and_archive_category(
+    tmp_path: Path,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    designs_archive = replace(
+        snapshot.archive[0],
+        role="designs",
+        match=replace(
+            snapshot.archive[0].match,
+            plan=replace(
+                snapshot.archive[0].match.plan,
+                kind="designs",
+                path=str(tmp_path / "designs" / "202607" / "document.md"),
+            ),
+        ),
+    )
+    snapshot = replace(
+        snapshot,
+        plans_roots={
+            "alpha": {
+                "plans": str(tmp_path / "plans"),
+                "designs": str(tmp_path / "designs"),
+            }
+        },
+        archive=(*snapshot.archive, designs_archive),
+    )
+    index = build_plan_filter_index(snapshot)
+
+    designs = compile_plan_matcher(parse_plan_filter_query("kind:designs"))
+    all_archive = compile_plan_matcher(parse_plan_filter_query("kind:archive"))
+
+    assert [record.kind for record in index if designs(record)] == ["archive"]
+    assert sum(all_archive(record) for record in index) == 2
 
 
 async def test_plans_filter_bar_live_filters_tree_commits_and_survives_refresh(
@@ -458,7 +497,8 @@ async def test_deep_archive_typing_burst_fetches_final_query_once_and_becomes_ex
         assert "1/2 archived" in pane.query_one("#plans-status", Static).content.plain
         assert requests.count(final_request) == 1
         assert all(
-            request.project_roots == (("alpha", str(tmp_path)),) for request in requests
+            request.project_roots == (("alpha", "plans", str(tmp_path)),)
+            for request in requests
         )
 
 

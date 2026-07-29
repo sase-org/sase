@@ -141,6 +141,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Open inline plans filter bar",
                 ),
                 ("kind: / status: / tier:", "Filter kind, status, or tier"),
+                ("kind:<sidecar role>", "Filter archived document kind"),
                 ("project: / since: / until:", "Filter project or creation date"),
                 ("bare text", "Title/body/id/metadata (AND)"),
                 (

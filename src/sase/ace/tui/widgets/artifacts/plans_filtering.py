@@ -30,6 +30,7 @@ class _PlanFilterRecord:
     haystack: tuple[str, ...]
     identity: str
     option_id: str
+    kind_labels: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -111,9 +112,10 @@ def compile_plan_matcher(
     until = values.until
 
     def matches(record: _PlanFilterRecord) -> bool:
-        if wanted_kinds and record.kind not in wanted_kinds:
+        kind_labels = record.kind_labels or frozenset((record.kind,))
+        if wanted_kinds and kind_labels.isdisjoint(wanted_kinds):
             return False
-        if record.kind in excluded_kinds:
+        if excluded_kinds and not kind_labels.isdisjoint(excluded_kinds):
             return False
         if wanted_statuses and record.status_labels.isdisjoint(wanted_statuses):
             return False
@@ -153,6 +155,7 @@ def _proposal_record(
     return _record(
         snapshot,
         kind="proposal",
+        kind_labels=frozenset(("proposal",)),
         project=proposal.project,
         status_labels=frozenset(("proposed",)),
         tier_labels=tiers,
@@ -203,6 +206,7 @@ def _issue_record(
     return _record(
         snapshot,
         kind=kind,
+        kind_labels=frozenset((kind,)),
         project=project,
         status_labels=frozenset(status_labels),
         tier_labels=tier_labels,
@@ -237,6 +241,7 @@ def _archive_record(
     return _record(
         snapshot,
         kind="archive",
+        kind_labels=_fold_labels(("archive", project_archive.role)),
         project=project,
         status_labels=status_labels,
         tier_labels=tier_labels,
@@ -259,6 +264,7 @@ def _record(
     snapshot: PlansSnapshot,
     *,
     kind: _PlanFilterRecordKind,
+    kind_labels: frozenset[str],
     project: str,
     status_labels: frozenset[str],
     tier_labels: frozenset[str],
@@ -275,10 +281,12 @@ def _record(
             display_name,
             *status_labels,
             *tier_labels,
+            *kind_labels,
         )
     )
     return _PlanFilterRecord(
         kind=kind,
+        kind_labels=kind_labels,
         project=project,
         project_display_name=display_name,
         project_labels=project_labels,

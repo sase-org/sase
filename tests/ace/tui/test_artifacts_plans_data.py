@@ -18,12 +18,18 @@ from sase.notifications.models import Notification
 from sase.plan_search.model import Plan, PlanSearchMatch
 
 
-def _archive(root: Path, *, title: str, created_at: str) -> PlanSearchMatch:
+def _archive(
+    root: Path,
+    *,
+    title: str,
+    created_at: str,
+    kind: str = "epic",
+) -> PlanSearchMatch:
     path = root / "202607" / f"{title.casefold()}.md"
     return PlanSearchMatch(
         plan=Plan(
             source="repo",
-            kind="epic",
+            kind=kind,
             path=str(path),
             relpath=f"202607/{path.name}",
             name=path.stem,
@@ -122,8 +128,8 @@ def test_all_projects_snapshot_attributes_each_entry_and_merges_archive(
     )
     monkeypatch.setattr(
         plans_data,
-        "_project_plans_root",
-        lambda project: roots[project.project],
+        "_project_document_roots",
+        lambda project: {"plans": roots[project.project]},
     )
     monkeypatch.setattr(
         plans_data,
@@ -133,7 +139,7 @@ def test_all_projects_snapshot_attributes_each_entry_and_merges_archive(
     monkeypatch.setattr(
         plans_data,
         "_load_project_archive",
-        lambda root: (
+        lambda _role, root: (
             _archive(
                 root,
                 title=root.name.title(),
@@ -163,6 +169,68 @@ def test_all_projects_snapshot_attributes_each_entry_and_merges_archive(
     }
 
 
+def test_snapshot_merges_every_document_role_and_isolates_role_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots = {
+        "plans": tmp_path / "alpha--plans",
+        "designs": tmp_path / "alpha--designs",
+        "research": tmp_path / "alpha--research",
+    }
+    monkeypatch.setattr(
+        plans_data,
+        "_resolve_projects",
+        lambda _scope: (_project("alpha"),),
+    )
+    monkeypatch.setattr(
+        plans_data,
+        "_project_beads_dir",
+        lambda _project: tmp_path / "beads",
+    )
+    monkeypatch.setattr(
+        plans_data,
+        "_project_document_roots",
+        lambda _project: roots,
+    )
+    monkeypatch.setattr(plans_data, "_load_proposals", lambda _scope, _enabled: ())
+    monkeypatch.setattr(
+        plans_data,
+        "_load_project_beads",
+        lambda _root: ([], frozenset(), frozenset()),
+    )
+
+    def load_archive(role: str, root: Path) -> tuple[PlanSearchMatch, ...]:
+        if role == "research":
+            raise OSError("damaged research checkout")
+        return (
+            _archive(
+                root,
+                title=role.title(),
+                kind="epic" if role == "plans" else role,
+                created_at=(
+                    "2026-07-16 12:00:00"
+                    if role == "designs"
+                    else "2026-07-15 12:00:00"
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(plans_data, "_load_project_archive", load_archive)
+
+    snapshot = load_plans_snapshot("alpha", force=True)
+
+    assert [entry.match.plan.kind for entry in snapshot.archive] == [
+        "designs",
+        "epic",
+    ]
+    assert snapshot.plans_roots == {
+        "alpha": {role: str(root) for role, root in roots.items()}
+    }
+    assert "research" in snapshot.errors["alpha"]
+    assert "damaged research checkout" in snapshot.errors["alpha"]
+
+
 def test_all_projects_snapshot_isolates_one_project_store_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -186,8 +254,8 @@ def test_all_projects_snapshot_isolates_one_project_store_error(
     )
     monkeypatch.setattr(
         plans_data,
-        "_project_plans_root",
-        lambda project: roots[project.project],
+        "_project_document_roots",
+        lambda project: {"plans": roots[project.project]},
     )
     monkeypatch.setattr(
         plans_data,
@@ -201,7 +269,7 @@ def test_all_projects_snapshot_isolates_one_project_store_error(
         return [alpha_epic], frozenset({alpha_epic.id}), frozenset()
 
     monkeypatch.setattr(plans_data, "_load_project_beads", load_beads)
-    monkeypatch.setattr(plans_data, "_load_project_archive", lambda _root: ())
+    monkeypatch.setattr(plans_data, "_load_project_archive", lambda _role, _root: ())
 
     snapshot = load_plans_snapshot(None, force=True)
 
@@ -228,19 +296,25 @@ def test_snapshot_degrades_when_plans_root_is_unavailable(
     )
     monkeypatch.setattr(
         plans_data,
-        "_project_plans_root",
-        lambda _project: None,
+        "_project_document_roots",
+        lambda _project: {},
     )
     monkeypatch.setattr(plans_data, "_load_proposals", lambda _scope, _enabled: ())
-    monkeypatch.setattr(plans_data, "_load_project_beads", pytest.fail)
+    monkeypatch.setattr(
+        plans_data,
+        "_load_project_beads",
+        lambda _root: ([], frozenset(), frozenset()),
+    )
     monkeypatch.setattr(plans_data, "_load_project_archive", pytest.fail)
 
     snapshot = load_plans_snapshot("alpha", force=True)
 
     assert snapshot.epics == ()
     assert snapshot.archive == ()
-    assert snapshot.plans_roots == {"alpha": None}
-    assert snapshot.errors == {"alpha": "No bead store is available for this project."}
+    assert snapshot.plans_roots == {"alpha": {}}
+    assert snapshot.errors == {
+        "alpha": "No document sidecar is available for this project."
+    }
 
 
 def test_source_key_reuses_cache_and_invalidates_when_enabled_set_changes(
@@ -261,8 +335,8 @@ def test_source_key_reuses_cache_and_invalidates_when_enabled_set_changes(
     )
     monkeypatch.setattr(
         plans_data,
-        "_project_plans_root",
-        lambda project: tmp_path / project.project,
+        "_project_document_roots",
+        lambda project: {"plans": tmp_path / project.project},
     )
     monkeypatch.setattr(
         plans_data,
@@ -275,7 +349,7 @@ def test_source_key_reuses_cache_and_invalidates_when_enabled_set_changes(
         return [], frozenset(), frozenset()
 
     monkeypatch.setattr(plans_data, "_load_project_beads", load_beads)
-    monkeypatch.setattr(plans_data, "_load_project_archive", lambda _root: ())
+    monkeypatch.setattr(plans_data, "_load_project_archive", lambda _role, _root: ())
 
     first = load_plans_snapshot(None, force=True)
     unchanged = load_plans_snapshot(None, previous=first)
@@ -306,8 +380,8 @@ def test_all_projects_archive_is_capped_after_recent_merge(
     )
     monkeypatch.setattr(
         plans_data,
-        "_project_plans_root",
-        lambda project: tmp_path / project.project,
+        "_project_document_roots",
+        lambda project: {"plans": tmp_path / project.project},
     )
     monkeypatch.setattr(
         plans_data,
@@ -320,7 +394,7 @@ def test_all_projects_archive_is_capped_after_recent_merge(
         lambda _root: ([], frozenset(), frozenset()),
     )
 
-    def load_archive(root: Path) -> tuple[PlanSearchMatch, ...]:
+    def load_archive(_role: str, root: Path) -> tuple[PlanSearchMatch, ...]:
         day = {"alpha": 14, "beta": 15, "gamma": 16}[root.name]
         return tuple(
             _archive(
@@ -356,8 +430,8 @@ def test_project_archive_preview_detects_per_project_truncation(
     )
     monkeypatch.setattr(
         plans_data,
-        "_project_plans_root",
-        lambda _project: tmp_path / "alpha",
+        "_project_document_roots",
+        lambda _project: {"plans": tmp_path / "alpha"},
     )
     monkeypatch.setattr(plans_data, "_load_proposals", lambda _scope, _enabled: ())
     monkeypatch.setattr(
@@ -368,7 +442,7 @@ def test_project_archive_preview_detects_per_project_truncation(
     monkeypatch.setattr(
         plans_data,
         "_load_project_archive",
-        lambda root: tuple(
+        lambda _role, root: tuple(
             _archive(
                 root,
                 title=f"plan-{index:02d}",
@@ -412,15 +486,19 @@ def test_deep_archive_browse_is_bounded_deduped_and_recent(
         source: str,
         sort: str,
         limit: int,
-        repo_root: str,
+        repo_root: Path,
+        document_corpora: tuple[tuple[Path, str], ...],
     ) -> tuple[PlanSearchMatch, ...]:
-        calls.append((query, kinds, source, sort, limit, repo_root))
-        return (shared, alpha) if repo_root.endswith("alpha") else (beta, shared)
+        calls.append((query, kinds, source, sort, limit, repo_root, document_corpora))
+        return (shared, alpha) if repo_root.name == "alpha" else (beta, shared)
 
     monkeypatch.setattr("sase.plan_search.facade.search", search)
 
     result = plans_data.load_deep_plan_archive(
-        (("alpha", "/plans/alpha"), ("beta", "/plans/beta")),
+        (
+            ("alpha", "plans", "/plans/alpha"),
+            ("beta", "plans", "/plans/beta"),
+        ),
         limit=2,
     )
 
@@ -430,11 +508,27 @@ def test_deep_archive_browse_is_bounded_deduped_and_recent(
         "alpha",
     ]
     assert result.scanned_count == 3
-    assert result.capped is True
+    assert result.capped is False
     assert result.errors == {}
     assert calls == [
-        (None, ("tale", "epic"), "repo", "recent", 2, "/plans/alpha"),
-        (None, ("tale", "epic"), "repo", "recent", 2, "/plans/beta"),
+        (
+            None,
+            ("tale", "epic"),
+            "repo",
+            "recent",
+            3,
+            Path("/plans/alpha"),
+            ((Path("/plans/alpha"), "plans"),),
+        ),
+        (
+            None,
+            ("tale", "epic"),
+            "repo",
+            "recent",
+            3,
+            Path("/plans/beta"),
+            ((Path("/plans/beta"), "plans"),),
+        ),
     ]
 
 
@@ -482,7 +576,11 @@ def test_snapshot_sorts_proposals_and_epics_newest_first(
     monkeypatch.setattr(
         plans_data, "_project_beads_dir", lambda _project: root / "beads"
     )
-    monkeypatch.setattr(plans_data, "_project_plans_root", lambda _project: root)
+    monkeypatch.setattr(
+        plans_data,
+        "_project_document_roots",
+        lambda _project: {"plans": root},
+    )
     monkeypatch.setattr(
         plans_data,
         "_load_proposals",
@@ -507,7 +605,7 @@ def test_snapshot_sorts_proposals_and_epics_newest_first(
             frozenset(),
         ),
     )
-    monkeypatch.setattr(plans_data, "_load_project_archive", lambda _root: ())
+    monkeypatch.setattr(plans_data, "_load_project_archive", lambda _role, _root: ())
 
     snapshot = load_plans_snapshot("alpha", force=True)
 

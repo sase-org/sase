@@ -37,8 +37,8 @@ def _patch_project_loaders(
     )
     monkeypatch.setattr(
         plans_data,
-        "_project_plans_root",
-        lambda _project: sdd_root,
+        "_project_document_roots",
+        lambda _project: {"plans": sdd_root},
     )
     monkeypatch.setattr(
         plans_data,
@@ -52,7 +52,7 @@ def _patch_project_loaders(
         ),
     )
     monkeypatch.setattr(plans_data, "_load_proposals", lambda _project, _enabled: ())
-    monkeypatch.setattr(plans_data, "_load_project_archive", lambda _root: ())
+    monkeypatch.setattr(plans_data, "_load_project_archive", lambda _role, _root: ())
 
 
 @pytest.mark.parametrize(
@@ -67,6 +67,8 @@ def test_snapshot_resolves_plans_root_through_store(
 ) -> None:
     workspace = tmp_path / "workspace"
     plans_root = workspace / "sase" / "repos" / "plans"
+    research_root = workspace / "sase" / "repos" / "research"
+    designs_root = workspace / "sase" / "repos" / "designs"
     beads_dir = (
         workspace / "sase" / "repos" / "beads" if split_beads else plans_root / "beads"
     )
@@ -84,6 +86,10 @@ def test_snapshot_resolves_plans_root_through_store(
         "research": {
             "repo": "owner/project--research",
             "remote_url": "git@github.com:owner/project--research.git",
+        },
+        "designs": {
+            "repo": "owner/project--designs",
+            "remote_url": "git@github.com:owner/project--designs.git",
         },
     }
     if split_beads:
@@ -104,6 +110,8 @@ def test_snapshot_resolves_plans_root_through_store(
     init_root = beads_dir if split_beads else plans_root
     beads_dirname = BEADS_DIRNAME_ROOT if split_beads else "beads"
     init_root.mkdir(parents=True, exist_ok=True)
+    research_root.mkdir(parents=True)
+    designs_root.mkdir(parents=True)
     with BeadProject.init(init_root, beads_dirname=beads_dirname) as bead_project:
         epic = bead_project.create(
             "Store-routed epic",
@@ -113,7 +121,11 @@ def test_snapshot_resolves_plans_root_through_store(
         )
 
     project = PlansProject("alpha", "Alpha", str(workspace))
-    assert plans_data_sources.project_plans_root(project) == plans_root
+    assert plans_data_sources.project_document_roots(project) == {
+        "plans": plans_root,
+        "research": research_root,
+        "designs": designs_root,
+    }
     monkeypatch.setattr(
         plans_data,
         "_resolve_projects",
@@ -125,12 +137,18 @@ def test_snapshot_resolves_plans_root_through_store(
         lambda _project: beads_dir,
     )
     monkeypatch.setattr(plans_data, "_load_proposals", lambda _project, _enabled: ())
-    monkeypatch.setattr(plans_data, "_load_project_archive", lambda _root: ())
+    monkeypatch.setattr(plans_data, "_load_project_archive", lambda _role, _root: ())
 
     snapshot = load_plans_snapshot("alpha", force=True)
     document = snapshot.linked_plan_documents[("alpha", epic.id)]
 
-    assert snapshot.plans_roots == {"alpha": str(plans_root)}
+    assert snapshot.plans_roots == {
+        "alpha": {
+            "plans": str(plans_root),
+            "research": str(research_root),
+            "designs": str(designs_root),
+        }
+    }
     assert document.available is True
     assert document.path == str(plan_path.resolve())
     assert document.frontmatter["title"] == "Store-routed plan"

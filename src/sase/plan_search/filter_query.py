@@ -39,7 +39,6 @@ PlanCompletionKind = Literal[
 _FILTER_KEYS = ("kind", "status", "tier", "project", "since", "until")
 _REPEATABLE_KEYS = frozenset(("kind", "status", "tier", "project"))
 _NEGATABLE_KEYS = _REPEATABLE_KEYS
-_ROW_KINDS = frozenset(("proposal", "epic", "phase", "archive"))
 
 
 @dataclass(frozen=True)
@@ -130,17 +129,6 @@ def parse_plan_filter_query(
             parts = split_unquoted(value, value_quoted, ",")
             if any(not part for part in parts):
                 raise _error(f"{key}: contains an empty value", token)
-            if key == "kind":
-                invalid = next(
-                    (part for part in parts if part.casefold() not in _ROW_KINDS),
-                    None,
-                )
-                if invalid is not None:
-                    allowed = ", ".join(sorted(_ROW_KINDS))
-                    raise _error(
-                        f"kind: value {invalid!r} must be one of {allowed}",
-                        token,
-                    )
             (excluded_repeated if token.negated else repeated)[key].extend(parts)
             continue
 

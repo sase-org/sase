@@ -91,9 +91,12 @@ class PlanFilterBar(FilterBar):
         self,
         statuses: Iterable[str],
         projects: Iterable[str],
+        kinds: Iterable[str] = (),
     ) -> None:
-        """Replace observed archive-status and project completion sources."""
-        self._set_completion_sources({"status": statuses, "project": projects})
+        """Replace observed document-kind, status, and project sources."""
+        self._set_completion_sources(
+            {"kind": kinds, "status": statuses, "project": projects}
+        )
 
     def _completion_context(
         self,

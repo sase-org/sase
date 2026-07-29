@@ -203,7 +203,7 @@ class PlansFilterSessionMixin(_MixinBase):
         snapshot = self._snapshot
         index = self._ensure_filter_index(needed=True)
         if snapshot is None or index is None:
-            self.query_one(PlanFilterBar).set_completion_sources((), ())
+            self.query_one(PlanFilterBar).set_completion_sources((), (), ())
             return
         archive_statuses = tuple(
             status
@@ -230,9 +230,20 @@ class PlansFilterSessionMixin(_MixinBase):
             for project in snapshot.projects
             for value in (project, snapshot.display_names.get(project, project))
         )
+        document_kinds = tuple(
+            role
+            for project in snapshot.projects
+            for role in snapshot.plans_roots.get(project, {})
+        )
+        if deep_result is not None:
+            document_kinds = (
+                *document_kinds,
+                *(item.role for item in deep_result.archive),
+            )
         self.query_one(PlanFilterBar).set_completion_sources(
             archive_statuses,
             projects,
+            document_kinds,
         )
 
     def _filter_coverage(

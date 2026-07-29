@@ -41,6 +41,7 @@ class ProjectArchive:
 
     project: str
     match: PlanSearchMatch
+    role: str = "plans"
 
 
 @dataclass(frozen=True)
@@ -69,7 +70,7 @@ class PlansSnapshot:
     projects: tuple[str, ...]
     display_names: dict[str, str]
     beads_dirs: dict[str, str | None]
-    plans_roots: dict[str, str | None]
+    plans_roots: dict[str, dict[str, str]]
     workspace_dirs: dict[str, str | None]
     proposals: tuple[PlanProposal, ...]
     epics: tuple[ProjectIssue, ...]

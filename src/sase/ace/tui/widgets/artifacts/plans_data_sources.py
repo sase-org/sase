@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
@@ -68,17 +69,31 @@ def project_beads_dir(project: str) -> Path | None:
     return directories[0]
 
 
-def project_plans_root(project: PlansProject) -> Path | None:
-    """Resolve one project's plans root through its configured SDD store."""
+def project_document_roots(project: PlansProject) -> dict[str, Path]:
+    """Resolve one project's configured document-sidecar roots."""
     if project.workspace_dir is None:
-        return None
+        return {}
 
-    from sase.sdd.store import resolve_sdd_kind_dir
+    from sase.sdd.store import (
+        document_sidecar_roles,
+        resolve_sdd_store,
+    )
 
     try:
-        return resolve_sdd_kind_dir(project.workspace_dir, 1, "plans")
+        store = resolve_sdd_store(project.workspace_dir, 1)
     except Exception:
-        return None
+        return {}
+    roles = document_sidecar_roles(
+        store.split_sidecar_roles(),
+        include_plans=True,
+    )
+    roots: dict[str, Path] = {}
+    for role in roles:
+        try:
+            roots[role] = store.kind_root(role)
+        except (OSError, ValueError):
+            continue
+    return roots
 
 
 def load_proposals(
@@ -167,23 +182,31 @@ def load_project_beads(
     return issues, ready_ids, blocked_ids
 
 
-def load_project_archive(plans_root: Path) -> tuple[PlanSearchMatch, ...]:
+def load_project_archive(
+    role: str,
+    root: Path,
+    *,
+    limit: int = _ARCHIVE_PER_PROJECT_LIMIT + 1,
+) -> tuple[PlanSearchMatch, ...]:
+    """Load one bounded document-sidecar archive."""
     from sase.plan_search.facade import SOURCE_REPO, search
 
+    kinds = ("tale", "epic") if role == "plans" else (role,)
     return tuple(
         search(
             None,
-            kinds=("tale", "epic"),
+            kinds=kinds,
             source=SOURCE_REPO,
             sort="recent",
-            limit=_ARCHIVE_PER_PROJECT_LIMIT + 1,
-            repo_root=plans_root,
+            limit=limit,
+            repo_root=root,
+            document_corpora=((root, role),),
         )
     )
 
 
 def load_deep_plan_archive(
-    project_roots: tuple[tuple[str, str], ...],
+    project_roots: tuple[tuple[str, str, str], ...],
     *,
     limit: int = DEEP_ARCHIVE_PER_PROJECT_LIMIT,
 ) -> DeepArchiveFetch:
@@ -194,36 +217,41 @@ def load_deep_plan_archive(
     is deliberately left to the pane's Python matcher so preview and deep
     reconciliation cannot drift.
     """
-    from sase.plan_search.facade import SOURCE_REPO, search
-
-    archive: list[ProjectArchive] = []
+    archive_by_project: dict[str, list[ProjectArchive]] = {}
     errors: dict[str, str] = {}
     capped = False
-    for project, plans_root in project_roots:
+    for project, role, root in project_roots:
         try:
-            matches = tuple(
-                search(
-                    None,
-                    kinds=("tale", "epic"),
-                    source=SOURCE_REPO,
-                    sort="recent",
-                    limit=limit,
-                    repo_root=plans_root,
-                )
+            matches = load_project_archive(
+                role,
+                Path(root),
+                limit=limit + 1,
             )
         except Exception as exc:
-            errors[project] = str(exc)
+            errors[f"{project}/{role}"] = str(exc)
             continue
-        capped = capped or len(matches) >= limit
-        archive.extend(ProjectArchive(project, match) for match in matches)
+        archive_by_project.setdefault(project, []).extend(
+            ProjectArchive(project, match, role) for match in matches
+        )
 
-    deduped: dict[str, ProjectArchive] = {}
-    for project_archive in archive:
-        deduped.setdefault(project_archive.match.plan.path, project_archive)
-    ordered = tuple(sorted(deduped.values(), key=archive_recency_key, reverse=True))
+    bounded: list[ProjectArchive] = []
+    for project_archive in archive_by_project.values():
+        deduped = _dedupe_archive(project_archive)
+        ordered = sorted(deduped, key=archive_recency_key, reverse=True)
+        if len(ordered) > limit:
+            capped = True
+            del ordered[limit:]
+        bounded.extend(ordered)
+    final_ordered = tuple(
+        sorted(
+            _dedupe_archive(bounded),
+            key=archive_recency_key,
+            reverse=True,
+        )
+    )
     return DeepArchiveFetch(
-        archive=ordered,
-        scanned_count=len(ordered),
+        archive=final_ordered,
+        scanned_count=len(final_ordered),
         capped=capped,
         errors=errors,
     )
@@ -235,6 +263,13 @@ def archive_recency_key(item: ProjectArchive) -> tuple[str, str, str]:
         item.match.plan.path,
         item.project,
     )
+
+
+def _dedupe_archive(archive: list[ProjectArchive]) -> list[ProjectArchive]:
+    deduped: dict[str, ProjectArchive] = {}
+    for item in archive:
+        deduped.setdefault(item.match.plan.path, item)
+    return list(deduped.values())
 
 
 def plan_title(path: Path, content: str) -> str:
@@ -274,21 +309,22 @@ def proposal_key(
 
 
 def store_mtime_key(
-    beads_dir: Path,
-    plans_root: Path,
+    beads_dir: Path | None,
+    document_roots: Mapping[str, Path],
 ) -> tuple[tuple[str, int, int], ...]:
     paths: list[Path] = []
-    for name in ("issues.jsonl", "config.json"):
-        paths.append(beads_dir / name)
-    events_dir = beads_dir / "events"
-    if events_dir.is_dir():
-        paths.extend(path for path in events_dir.rglob("*") if path.is_file())
+    if beads_dir is not None:
+        for name in ("issues.jsonl", "config.json"):
+            paths.append(beads_dir / name)
+        events_dir = beads_dir / "events"
+        if events_dir.is_dir():
+            paths.extend(path for path in events_dir.rglob("*") if path.is_file())
 
     month_pattern = "[0-9][0-9][0-9][0-9][0-9][0-9]"
-    plan_roots = (plans_root, plans_root / "plans")
-    for root in plan_roots:
+    for root in document_roots.values():
         if not root.is_dir():
             continue
+        paths.extend(path for path in root.glob("*.md") if path.is_file())
         for month in root.glob(month_pattern):
             if month.is_dir():
                 paths.extend(path for path in month.glob("*.md") if path.is_file())

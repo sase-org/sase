@@ -36,7 +36,7 @@ from .plans_data_sources import (
     parse_proposal_document as _parse_proposal_document,
     plan_title as _plan_title,
     project_beads_dir as _project_beads_dir,
-    project_plans_root as _project_plans_root,
+    project_document_roots as _project_document_roots,
     proposal_key as _proposal_key,
     read_text as _read_text,
     resolve_projects as _resolve_projects,
@@ -78,19 +78,19 @@ def load_plans_snapshot(
         )
     )
     beads_by_project: dict[str, Path | None] = {}
-    plans_by_project: dict[str, Path | None] = {}
+    plans_by_project: dict[str, dict[str, Path]] = {}
     store_keys: list[tuple[str, object]] = []
     for item in resolved:
         beads_dir = _project_beads_dir(item.project)
-        plans_root = _project_plans_root(item)
+        plans_roots = _project_document_roots(item)
         beads_by_project[item.project] = beads_dir
-        plans_by_project[item.project] = plans_root
+        plans_by_project[item.project] = plans_roots
         store_keys.append(
             (
                 item.project,
                 "missing"
-                if beads_dir is None or plans_root is None
-                else _store_mtime_key(beads_dir, plans_root),
+                if beads_dir is None and not plans_roots
+                else _store_mtime_key(beads_dir, plans_roots),
             )
         )
 
@@ -120,63 +120,90 @@ def load_plans_snapshot(
     for item in resolved:
         project_name = item.project
         beads_dir = beads_by_project[project_name]
-        plans_root = plans_by_project[project_name]
-        if beads_dir is None or plans_root is None:
+        plans_roots = plans_by_project[project_name]
+        plans_root = plans_roots.get("plans")
+        if beads_dir is None:
             if project is not None:
                 errors[project_name] = "No bead store is available for this project."
+        else:
+            try:
+                issues, project_ready_ids, project_blocked_ids = _load_project_beads(
+                    beads_dir
+                )
+            except Exception as exc:
+                _add_project_error(errors, project_name, f"Unable to read beads: {exc}")
+            else:
+                project_epics = tuple(
+                    issue
+                    for issue in issues
+                    if issue.issue_type == IssueType.PLAN
+                    and issue.tier == BeadTier.EPIC
+                )
+                epics.extend(
+                    ProjectIssue(project_name, issue) for issue in project_epics
+                )
+                for epic in project_epics:
+                    phases = tuple(
+                        ProjectIssue(project_name, issue)
+                        for issue in sorted(
+                            (issue for issue in issues if issue.parent_id == epic.id),
+                            key=lambda issue: _hierarchical_id_key(issue.id),
+                        )
+                    )
+                    phases_by_epic[(project_name, epic.id)] = phases
+                    if plans_root is not None:
+                        linked_plan_documents.update(
+                            _load_epic_linked_plan_documents(
+                                project_name,
+                                epic,
+                                phases,
+                                workspace_dir=item.workspace_dir,
+                                plans_root=plans_root,
+                            )
+                        )
+                ready_ids.update(
+                    (project_name, issue_id) for issue_id in project_ready_ids
+                )
+                blocked_ids.update(
+                    (project_name, issue_id) for issue_id in project_blocked_ids
+                )
+
+        if not plans_roots:
+            if project is not None:
+                _add_project_error(
+                    errors,
+                    project_name,
+                    "No document sidecar is available for this project.",
+                )
             continue
 
-        try:
-            issues, project_ready_ids, project_blocked_ids = _load_project_beads(
-                beads_dir
-            )
-        except Exception as exc:
-            _add_project_error(errors, project_name, f"Unable to read beads: {exc}")
-        else:
-            project_epics = tuple(
-                issue
-                for issue in issues
-                if issue.issue_type == IssueType.PLAN and issue.tier == BeadTier.EPIC
-            )
-            epics.extend(ProjectIssue(project_name, issue) for issue in project_epics)
-            for epic in project_epics:
-                phases = tuple(
-                    ProjectIssue(project_name, issue)
-                    for issue in sorted(
-                        (issue for issue in issues if issue.parent_id == epic.id),
-                        key=lambda issue: _hierarchical_id_key(issue.id),
-                    )
+        project_archive: list[ProjectArchive] = []
+        for role, root in plans_roots.items():
+            try:
+                role_archive = _load_project_archive(role, root)
+            except Exception as exc:
+                _add_project_error(
+                    errors,
+                    project_name,
+                    f"Unable to read {role} archive: {exc}",
                 )
-                phases_by_epic[(project_name, epic.id)] = phases
-                linked_plan_documents.update(
-                    _load_epic_linked_plan_documents(
-                        project_name,
-                        epic,
-                        phases,
-                        workspace_dir=item.workspace_dir,
-                        plans_root=plans_root,
-                    )
-                )
-            ready_ids.update((project_name, issue_id) for issue_id in project_ready_ids)
-            blocked_ids.update(
-                (project_name, issue_id) for issue_id in project_blocked_ids
+                continue
+            project_archive.extend(
+                ProjectArchive(project_name, match, role) for match in role_archive
             )
-
-        try:
-            project_archive = _load_project_archive(plans_root)
-            archive_truncated = (
-                archive_truncated or len(project_archive) > _ARCHIVE_PER_PROJECT_LIMIT
-            )
-            archive.extend(
-                ProjectArchive(project_name, match)
-                for match in project_archive[:_ARCHIVE_PER_PROJECT_LIMIT]
-            )
-        except Exception as exc:
-            _add_project_error(
-                errors,
-                project_name,
-                f"Unable to read plan archive: {exc}",
-            )
+        deduped_project_archive: dict[str, ProjectArchive] = {}
+        for entry in project_archive:
+            deduped_project_archive.setdefault(entry.match.plan.path, entry)
+        ordered_project_archive = sorted(
+            deduped_project_archive.values(),
+            key=_archive_recency_key,
+            reverse=True,
+        )
+        archive_truncated = (
+            archive_truncated
+            or len(ordered_project_archive) > _ARCHIVE_PER_PROJECT_LIMIT
+        )
+        archive.extend(ordered_project_archive[:_ARCHIVE_PER_PROJECT_LIMIT])
 
     epics.sort(
         key=lambda item: (
@@ -205,8 +232,8 @@ def load_plans_snapshot(
             for name, path in beads_by_project.items()
         },
         plans_roots={
-            name: None if path is None else str(path)
-            for name, path in plans_by_project.items()
+            name: {role: str(path) for role, path in roots.items()}
+            for name, roots in plans_by_project.items()
         },
         workspace_dirs={item.project: item.workspace_dir for item in resolved},
         proposals=proposals,

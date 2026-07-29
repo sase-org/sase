@@ -161,8 +161,11 @@ remains an accepted synonym for the unlimited state, but canonical query text om
 metadata can still mark a count as capped without inventing an active query limit.
 
 Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, and `until:` plus free text matched across plan and
-bead metadata. Kinds are `proposal`, `epic`, `phase`, and `archive`. For example,
-`kind:epic,phase status:open project:sase filter` shows open SASE epics or phases containing `filter`.
+bead metadata. The pane browses every configured document sidecar, and each archived row shows its document kind. Kinds
+include the row categories `proposal`, `epic`, `phase`, and `archive` plus the document-sidecar roles present in the
+current scope, such as `plans`, `research`, or `designs`. `kind:archive` matches every committed document, while
+`kind:designs` narrows archives to that sidecar. For example, `kind:epic,phase status:open project:sase filter` shows
+open SASE epic or phase rows containing `filter`.
 
 A leading unquoted `-` excludes a match. Commits can exclude repositories, authors, and subject text; Plans can exclude
 kinds, statuses, tiers, projects, and text. Exclusion wins when positive and negative constraints overlap:

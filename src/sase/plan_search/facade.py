@@ -143,6 +143,7 @@ def search(
     repo_root: Path | str | None = None,
     local_dir: Path | str | None = None,
     cwd: Path | None = None,
+    document_corpora: Sequence[tuple[Path | str, str]] | None = None,
 ) -> list[PlanSearchMatch]:
     """Search plans across the repo and local corpora and return ranked matches.
 
@@ -152,6 +153,9 @@ def search(
     the ``created_at`` date; ``sort`` is ``relevance``/``recent``/``title``;
     ``limit`` caps results (``0``/``None`` = unlimited). ``repo_root``/
     ``local_dir`` override root resolution (primarily for tests).
+    ``document_corpora`` optionally supplies explicit ``(root, kind)`` repo
+    corpora for callers that already resolved individual document-sidecar
+    roles.
     """
     if source not in SOURCES:
         raise ValueError(
@@ -162,13 +166,25 @@ def search(
 
     repo_path: Path | None = None
     repo_arg: str | None = None
-    document_corpora: list[DocumentCorpus] | None = None
+    resolved_document_corpora: list[DocumentCorpus] | None = None
     local_arg: str | None = None
     if source in (SOURCE_ALL, SOURCE_REPO):
-        repo_path, document_corpora = _repo_document_corpora(
-            repo_root,
-            cwd=cwd,
-        )
+        if document_corpora is None:
+            repo_path, resolved_document_corpora = _repo_document_corpora(
+                repo_root,
+                cwd=cwd,
+            )
+        else:
+            resolved_document_corpora = [
+                (str(Path(root).expanduser().resolve()), kind)
+                for root, kind in document_corpora
+            ]
+            if repo_root is not None:
+                repo_path = Path(repo_root).expanduser().resolve()
+            elif resolved_document_corpora:
+                repo_path = Path(resolved_document_corpora[0][0])
+            else:
+                repo_path = _repo_sdd_root(cwd=cwd)
         repo_arg = str(repo_path)
     if source in (SOURCE_ALL, SOURCE_LOCAL):
         local_arg = str(_local_plans_dir(local_dir))
@@ -187,7 +203,7 @@ def search(
         until,
         sort,
         binding_limit,
-        document_corpora,
+        resolved_document_corpora,
     )
     if include_prompts:
         assert repo_path is not None

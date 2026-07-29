@@ -215,12 +215,18 @@ def test_parse_mixed_positive_and_negative_terms() -> None:
     assert values.excluded_text == ("generated", "rollout bot")
 
 
+def test_parse_accepts_dynamic_document_sidecar_kind() -> None:
+    values = parse_plan_filter_query("kind:designs -kind:research")
+
+    assert values.kinds == ("designs",)
+    assert values.excluded_kinds == ("research",)
+
+
 @pytest.mark.parametrize(
     ("query", "message", "token", "span"),
     (
         ("kind:", "requires a value", "kind:", (0, 5)),
         ("status:a,,b", "empty value", "status:a,,b", (0, 11)),
-        ("kind:commit", "must be one of", "kind:commit", (0, 11)),
         ("since:not-a-date", "Invalid DATE", "since:not-a-date", (0, 16)),
         ("since:2026-07-18 since:7d", "only appear once", "since:7d", (17, 25)),
         ('project:"SASE Core', "Unterminated", 'project:"SASE Core', (0, 18)),

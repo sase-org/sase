@@ -188,6 +188,22 @@ async def test_completion_sources_are_trimmed_sorted_and_deduplicated() -> None:
         ]
 
 
+async def test_kind_completion_includes_observed_document_roles() -> None:
+    app = _PlanFilterBarApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PlanFilterBar)
+        bar.set_completion_sources(
+            statuses=(),
+            projects=(),
+            kinds=("designs", "research"),
+        )
+        bar.open("kind:d")
+        await pilot.pause()
+
+        labels = _option_labels(app.query_one("#plan-filter-completion", OptionList))
+        assert labels[0].startswith("designs")
+
+
 async def test_typing_emits_changed_before_submitted() -> None:
     app = _PlanFilterBarApp()
     async with app.run_test() as pilot:

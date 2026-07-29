@@ -175,7 +175,7 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
         projects=("alpha",),
         display_names={"alpha": "Alpha"},
         beads_dirs={"alpha": str(tmp_path / "beads")},
-        plans_roots={"alpha": str(tmp_path)},
+        plans_roots={"alpha": {"plans": str(tmp_path)}},
         workspace_dirs={"alpha": str(tmp_path / "workspace")},
         proposals=(proposal,),
         epics=(ProjectIssue("alpha", epic),),
@@ -213,8 +213,8 @@ def _all_projects_snapshot(tmp_path: Path) -> PlansSnapshot:
             "beta": str(tmp_path / "beta" / "beads"),
         },
         plans_roots={
-            "alpha": str(tmp_path / "alpha"),
-            "beta": str(tmp_path / "beta"),
+            "alpha": {"plans": str(tmp_path / "alpha")},
+            "beta": {"plans": str(tmp_path / "beta")},
         },
         workspace_dirs={
             "alpha": str(tmp_path / "alpha-workspace"),

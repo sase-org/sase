@@ -28,7 +28,7 @@ class DeepArchiveRequest:
     project_scope: str | None
     values: PlanFilterValues
     snapshot_identity: int
-    project_roots: tuple[tuple[str, str], ...]
+    project_roots: tuple[tuple[str, str, str], ...]
 
 
 @dataclass(frozen=True)
@@ -49,7 +49,7 @@ class DeepArchiveResult:
 def _query_can_reach_archive(values: PlanFilterValues) -> bool:
     """Return whether *values* permits archive rows."""
     includes_archive = not values.kinds or any(
-        kind.casefold() == "archive" for kind in values.kinds
+        kind.casefold() not in {"proposal", "phase"} for kind in values.kinds
     )
     excludes_archive = any(
         kind.casefold() == "archive" for kind in values.excluded_kinds
@@ -74,9 +74,9 @@ def make_deep_archive_request(
     ):
         return None
     project_roots = tuple(
-        (project, plans_root)
+        (project, role, root)
         for project in snapshot.projects
-        if (plans_root := snapshot.plans_roots.get(project)) is not None
+        for role, root in snapshot.plans_roots.get(project, {}).items()
     )
     if not project_roots:
         return None
