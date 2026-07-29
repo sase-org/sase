@@ -31,6 +31,28 @@ def validate_chop_result(result: Mapping[str, Any]) -> dict[str, Any]:
     return dict(binding(dict(result)))
 
 
+def validate_chop_report(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Fail-closed validate a standalone chop report document.
+
+    The result envelope is an implementation detail that lets standalone
+    reports reuse the single Rust-owned chop-result schema authority.
+    """
+
+    envelope = validate_chop_result(
+        {
+            "schema_version": CHOP_RESULT_SCHEMA_VERSION,
+            "status": "ok",
+            "counters": {},
+            "proposed_launches": [],
+            "report": dict(report),
+        }
+    )
+    validated = envelope.get("report")
+    if not isinstance(validated, dict):
+        raise ValueError("report document is empty")
+    return validated
+
+
 def validate_chop_proposal(
     proposal: Mapping[str, Any],
     *,

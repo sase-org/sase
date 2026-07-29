@@ -15,6 +15,7 @@ ACTION_BADGES: dict[str | None, str] = {
     "UserQuestion": "[question]",
     "CustomGate": "[custom]",
     "ViewErrorReport": "[error]",
+    "ViewReport": "[report]",
     "memory_review": "[memory]",
 }
 
@@ -34,6 +35,7 @@ ACTION_ICONS: dict[str | None, str] = {
     "UserQuestion": "❓",
     "CustomGate": "✨",
     "ViewErrorReport": "🚨",
+    "ViewReport": "📊",
     "memory_review": "🧠",
 }
 

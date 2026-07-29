@@ -22,6 +22,12 @@ from sase.notifications.question_summary import (
     is_question_notification,
     question_answer_state,
 )
+from sase.notifications.report import (
+    REPORT_ACTION,
+    NotificationReport,
+    is_report_notification,
+    load_notification_report,
+)
 from sase.notifications.senders import (
     notify_axe_error_digest,
     notify_axe_healed,
@@ -51,6 +57,8 @@ from sase.notifications.store import (
 __all__ = [
     "Notification",
     "NotificationInfo",
+    "NotificationReport",
+    "REPORT_ACTION",
     "AnswerState",
     "QuestionEntry",
     "QuestionOption",
@@ -64,8 +72,10 @@ __all__ = [
     "is_error",
     "is_priority",
     "is_question_notification",
+    "is_report_notification",
     "list_notification_infos",
     "load_notifications",
+    "load_notification_report",
     "mark_all_read",
     "mark_dismissed",
     "mark_many_dismissed",

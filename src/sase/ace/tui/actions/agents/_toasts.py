@@ -96,6 +96,9 @@ def _format_notification_toast(n: Notification) -> tuple[str, Severity]:
     if action == "ViewErrorReport":
         return (f"Axe: {note}" if note else "Axe errors", "error")
 
+    if action == "ViewReport":
+        return (note or "Report available", "information")
+
     if action == "JumpToChangeSpec":
         severity: Severity = "information"
         if note.lower().startswith("sync fail"):
@@ -173,6 +176,7 @@ _ACTION_LABELS: dict[str | None, tuple[str, str]] = {
     "HITL": ("HITL", "HITLs"),
     "LaunchApproval": ("launch approval", "launch approvals"),
     "ViewErrorReport": ("axe error", "axe errors"),
+    "ViewReport": ("report", "reports"),
     "JumpToChangeSpec": ("sync", "syncs"),
     "JumpToMentorReview": ("mentor review", "mentor reviews"),
     "JumpToAgent": ("agent update", "agent updates"),

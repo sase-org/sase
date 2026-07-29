@@ -208,9 +208,9 @@ class AgentNotificationModalMixin:
                 handle_view_error_report(self, result)
             elif result.action == "memory_review":
                 handle_memory_review(self, result)
-            else:
+            elif result.action and result.action.strip():
                 self.notify(  # type: ignore[attr-defined]
-                    f"Unsupported notification action: {result.action or '(none)'}",
+                    f"Unsupported notification action: {result.action}",
                     severity="warning",
                 )
 

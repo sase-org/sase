@@ -16,6 +16,7 @@ from .sdk import (
     parse_chop_arguments,
     parse_summary,
     resolve_chop_result_file,
+    validate_chop_report,
     write_chop_result,
 )
 
@@ -35,5 +36,6 @@ __all__ = [
     "parse_chop_arguments",
     "parse_summary",
     "resolve_chop_result_file",
+    "validate_chop_report",
     "write_chop_result",
 ]

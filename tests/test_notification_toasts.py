@@ -143,6 +143,18 @@ class TestFormatNotificationToast:
         assert msg == "Axe errors"
         assert sev == "error"
 
+    def test_view_report(self) -> None:
+        n = _make(action="ViewReport", notes=["Release report updated"])
+        msg, sev = _format_notification_toast(n)
+        assert msg == "Release report updated"
+        assert sev == "information"
+
+    def test_view_report_no_notes(self) -> None:
+        n = _make(action="ViewReport")
+        msg, sev = _format_notification_toast(n)
+        assert msg == "Report available"
+        assert sev == "information"
+
     def test_jump_to_changespec_success(self) -> None:
         n = _make(action="JumpToChangeSpec", notes=["Sync success for bar"])
         msg, sev = _format_notification_toast(n)
@@ -242,6 +254,11 @@ class TestFormatBatchToasts:
         # Error bucket: one axe error.
         error_msg = next(msg for msg, sev in toasts if sev == "error")
         assert error_msg.startswith("1 errors")
+
+    def test_groups_view_reports_with_report_label(self) -> None:
+        notifs = [_make(action="ViewReport") for _ in range(4)]
+
+        assert format_batch_toasts(notifs) == [("4 updates: 4 reports", "information")]
 
     def test_exactly_three_emits_per_notification(self) -> None:
         notifs = [

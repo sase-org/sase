@@ -332,6 +332,30 @@ def test_notification_flow_warns_for_unknown_action(
     assert app.notices == [("Unsupported notification action: FutureGate", "warning")]
 
 
+@pytest.mark.parametrize("action", [None, "", "   "])
+def test_notification_flow_silently_marks_actionless_notification_read(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    action: str | None,
+) -> None:
+    del gate_home
+    create_gate(_spec())
+    notification = load_notifications()[0]
+    notification.action = action
+    app = _NotificationFlowApp(notification)
+    marked_read: list[str] = []
+    monkeypatch.setattr(
+        "sase.notifications.mark_read",
+        lambda notification_id: marked_read.append(notification_id),
+    )
+
+    app._show_notification_modal()
+
+    assert marked_read == [notification.id]
+    assert app.notices == []
+    assert app.refresh_count == 1
+
+
 def test_unread_page_repairs_terminal_gate_notification(gate_home: Path) -> None:
     del gate_home
     created = create_gate(_spec())

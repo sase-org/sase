@@ -20,6 +20,7 @@ from typing import Any, Literal, TextIO
 from sase.axe.chop_script_context import ChopScriptContext, read_chop_context
 from sase.core.axe_chop_facade import (
     CHOP_RESULT_SCHEMA_VERSION,
+    validate_chop_report,
     validate_chop_result,
 )
 
@@ -465,5 +466,6 @@ __all__ = [
     "parse_chop_arguments",
     "parse_summary",
     "resolve_chop_result_file",
+    "validate_chop_report",
     "write_chop_result",
 ]

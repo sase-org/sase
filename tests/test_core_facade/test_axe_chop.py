@@ -21,6 +21,7 @@ from sase.core.axe_chop_facade import (
     split_axe_description,
     validate_axe_config,
     validate_chop_proposal,
+    validate_chop_report,
 )
 from sase.core.rust import require_rust_binding
 
@@ -48,6 +49,25 @@ def test_result_contract_round_trips_through_rust() -> None:
     assert result["status"] == "ok"
     assert result["proposed_launches"][0]["id"] == "fix"
     assert result["proposed_launches"][0]["env"] == {}
+
+
+def test_standalone_report_contract_round_trips_through_rust() -> None:
+    report = validate_chop_report(
+        {
+            "title": "RELEASES",
+            "blocks": [{"kind": "headline", "text": "2 merged", "tone": "ok"}],
+        }
+    )
+
+    assert report == {
+        "title": "RELEASES",
+        "blocks": [{"kind": "headline", "text": "2 merged", "tone": "ok"}],
+    }
+
+
+def test_standalone_report_contract_rejects_empty_report() -> None:
+    with pytest.raises(ValueError, match="missing field `blocks`"):
+        validate_chop_report({})
 
 
 def test_proposal_validation_rejects_standalone_workflow_reference() -> None:
