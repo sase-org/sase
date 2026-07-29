@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
-import os
 from pathlib import Path
 import sys
 from typing import Any, cast
@@ -144,102 +143,18 @@ def artifact_ref_lsp_catalog_payload(
     projects from contributing editor context.
     """
 
-    try:
-        project_records = list_project_records(
-            sase_projects_dir(),
-            ("enabled",),
-            include_home=False,
-            projects_only=True,
-        )
-    except Exception:
-        project_records = []
+    from sase.artifact_ref_lsp import build_artifact_ref_lsp_catalog_payload
 
-    projects: list[dict[str, object]] = []
-    workspace_identities: list[tuple[Path, set[str]]] = []
-    seen_keys: set[str] = set()
-    ordered_records = sorted(
-        (
-            record
-            for record in project_records
-            if not record.system_managed and record.workspace_dir
-        ),
-        key=lambda record: (
-            effective_project_name(record).casefold(),
-            record.project_name.casefold(),
-        ),
+    return build_artifact_ref_lsp_catalog_payload(
+        launch_workspace,
+        artifact_ref_context_fn=artifact_ref_context,
+        effective_project_name_fn=effective_project_name,
+        list_project_records_fn=list_project_records,
+        projects_root=sase_projects_dir(),
+        schema_version=ARTIFACT_REF_LSP_CATALOG_SCHEMA_VERSION,
+        workspace_context_fn=workspace_context_for_plan_resolution,
+        workspace_project_ref_fn=_workspace_project_ref,
     )
-    for record in ordered_records:
-        if record.project_name in seen_keys:
-            continue
-        primary_workspace = record.workspace_dir
-        if primary_workspace is None:
-            continue
-        try:
-            workspace_dir, workspace_num = workspace_context_for_plan_resolution(
-                Path(primary_workspace)
-            )
-            if not workspace_dir.is_dir():
-                continue
-            context = artifact_ref_context(
-                workspace_dir,
-                workspace_num,
-                project=record.project_name,
-            )
-            identity = next(
-                (
-                    project
-                    for project in context.projects
-                    if project.key == record.project_name
-                ),
-                None,
-            )
-            display_name = (
-                identity.name
-                if identity is not None
-                else effective_project_name(record)
-            )
-            aliases = tuple(
-                dict.fromkeys(
-                    identity.aliases if identity is not None else record.aliases
-                )
-            )
-            projects.append(
-                {
-                    "name": display_name,
-                    "key": record.project_name,
-                    "aliases": list(aliases),
-                    "context": context.to_wire(),
-                }
-            )
-            identities = _artifact_ref_project_identities(
-                display_name,
-                record.project_name,
-                aliases,
-            )
-            workspace_identities.append((workspace_dir, identities))
-            seen_keys.add(record.project_name)
-        except Exception:
-            continue
-
-    launch = Path(launch_workspace or Path.cwd()).expanduser().resolve(strict=False)
-    launch_ref = _workspace_project_ref(launch)
-    default_project: str | None = None
-    for (workspace_dir, identities), project in zip(
-        workspace_identities,
-        projects,
-        strict=True,
-    ):
-        if (
-            launch_ref is not None and launch_ref.casefold() in identities
-        ) or launch == workspace_dir:
-            default_project = str(project["key"])
-            break
-
-    return {
-        "schema_version": ARTIFACT_REF_LSP_CATALOG_SCHEMA_VERSION,
-        "default_project": default_project,
-        "projects": projects,
-    }
 
 
 def parse_artifact_ref(value: str) -> ArtifactRef:
@@ -261,7 +176,7 @@ def _canonicalize_artifact_ref(
     return None if result is None else str(result)
 
 
-def _resolve_artifact_ref(
+def resolve_artifact_ref(
     reference: str | ArtifactRef,
     *,
     context: ArtifactRefContext,
@@ -351,7 +266,7 @@ def _expand_artifact_references(
     if not candidates:
         return prompt
     if context is None:
-        context = _launch_artifact_ref_context(is_home_mode=is_home_mode)
+        context = launch_artifact_ref_context(is_home_mode=is_home_mode)
 
     from sase.xprompt._literal_zones import literal_zone_ranges
 
@@ -409,7 +324,7 @@ def _resolve_for_launch(
     *,
     context: ArtifactRefContext,
 ) -> ArtifactRefResolution:
-    resolution = _resolve_artifact_ref(reference, context=context)
+    resolution = resolve_artifact_ref(reference, context=context)
     if reference.kind_type != "commit" or resolution.status != "missing":
         return resolution
 
@@ -426,7 +341,7 @@ def _resolve_for_launch(
         replace(candidate, shas=(full_sha,)) if candidate is repository else candidate
         for candidate in context.repositories
     )
-    return _resolve_artifact_ref(
+    return resolve_artifact_ref(
         reference,
         context=replace(context, repositories=repositories),
     )
@@ -514,43 +429,19 @@ def _repository_for_ref(
     )
 
 
-def _launch_artifact_ref_context(
+def launch_artifact_ref_context(
     *,
     is_home_mode: bool,
 ) -> ArtifactRefContext:
-    workspace = Path.cwd()
-    workspace_num = _workspace_num_from_environment()
-    project = _workspace_project_ref(workspace)
-    if workspace_num is None:
-        try:
-            from sase.main.utils import ensure_project_file_and_get_workspace_num
+    """Build the same local resolution context used for prompt launches."""
 
-            _project_file, detected_num, detected_project = (
-                ensure_project_file_and_get_workspace_num(create_missing=False)
-            )
-            workspace_num = detected_num
-            project = detected_project or project
-        except Exception:
-            pass
-    if workspace_num is None:
-        workspace_num = 0 if is_home_mode else 1
-    return artifact_ref_context(workspace, workspace_num, project=project)
+    from sase.artifact_ref_launch_context import build_launch_artifact_ref_context
 
-
-def _workspace_num_from_environment() -> int | None:
-    for name in (
-        "SASE_AGENT_WORKSPACE_NUM",
-        "SASE_GIT_WORKSPACE_NUM",
-        "SASE_GH_WORKSPACE_NUM",
-    ):
-        raw = os.environ.get(name)
-        if raw is None:
-            continue
-        try:
-            return int(raw)
-        except ValueError:
-            continue
-    return None
+    return build_launch_artifact_ref_context(
+        artifact_ref_context_fn=artifact_ref_context,
+        is_home_mode=is_home_mode,
+        workspace_project_ref_fn=_workspace_project_ref,
+    )
 
 
 def _repository_checkout_path(record: object, workspace_num: int) -> Path | None:
@@ -757,21 +648,6 @@ def _project_display_name(
     return project_ref
 
 
-def _artifact_ref_project_identities(
-    display_name: str,
-    project_key: str,
-    aliases: tuple[str, ...],
-) -> set[str]:
-    identities = {
-        value.casefold() for value in (display_name, project_key, *aliases) if value
-    }
-    if project_key.startswith("gh_") and "__" in project_key:
-        owner, repository = project_key.removeprefix("gh_").split("__", 1)
-        if owner and repository:
-            identities.add(f"{owner}/{repository}".casefold())
-    return identities
-
-
 __all__ = [
     "ARTIFACT_REF_LSP_CATALOG_SCHEMA_VERSION",
     "ARTIFACT_REF_WIRE_SCHEMA_VERSION",
@@ -790,9 +666,11 @@ __all__ = [
     "ParsedArtifactRef",
     "artifact_ref_context",
     "artifact_ref_lsp_catalog_payload",
+    "launch_artifact_ref_context",
     "parse_artifact_ref",
     "process_artifact_references",
     "reference_for_entry_target",
+    "resolve_artifact_ref",
     "scan_artifact_ref_prompt",
     "scan_artifact_refs",
     "validate_artifact_references",

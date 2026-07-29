@@ -42,11 +42,16 @@ from sase.core.artifact_file_types import (
     infer_artifact_file_kind,
 )
 from sase.core.artifact_file_helpers import artifact_file_mime_type
+from sase.core.artifact_file_query_facade import (
+    ARTIFACT_FILE_QUERY_WIRE_SCHEMA_VERSION,
+    query_artifact_files,
+)
 
 __all__ = [
     "ARTIFACT_FILE_INDEX_SCHEMA_VERSION",
     "ARTIFACT_FILE_INDEX_SUPPORTED_SCHEMA_VERSIONS",
     "ARTIFACT_FILE_KINDS",
+    "ARTIFACT_FILE_QUERY_WIRE_SCHEMA_VERSION",
     "ArtifactFileBackfillReport",
     "ArtifactFileDigestMismatch",
     "ArtifactFileIndexInspection",
@@ -67,6 +72,7 @@ __all__ = [
     "list_explicit_artifact_files",
     "list_indexed_artifact_files",
     "persist_default_artifact_files",
+    "query_artifact_files",
     "read_artifact_file_index",
     "store_default_artifact_file",
     "store_explicit_artifact_file",

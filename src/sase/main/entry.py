@@ -55,11 +55,11 @@ def main() -> NoReturn:
 
         handle_agent_cli_command(args)
 
-    # --- artifact-file ---
-    if args.command == "artifact-file":
-        from .artifact_file_handler import handle_artifact_file_command
+    # --- artifact ---
+    if args.command in {"artifact", "artifact-file"}:
+        from .artifact_handler import handle_artifact_command
 
-        handle_artifact_file_command(args)
+        handle_artifact_command(args)
 
     # --- axe ---
     if args.command == "axe":

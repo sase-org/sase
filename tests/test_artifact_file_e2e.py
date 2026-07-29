@@ -13,8 +13,8 @@ import pytest
 
 from sase.ace.tui.actions.agents._panels import AgentPanelsMixin
 from sase.ace.tui.graphics import ArtifactFileViewerResult
+from sase.artifact_cli.create import handle_create
 from sase.core.artifact_file_facade import ArtifactFile, list_artifact_files
-from sase.main.artifact_file_handler import handle_artifact_file_command
 
 
 def _agent_dir(home: Path, timestamp: str) -> Path:
@@ -62,7 +62,6 @@ def _artifact_create_args(
     path: Path, *, label: str | None = None
 ) -> argparse.Namespace:
     return argparse.Namespace(
-        artifact_file_subcommand="create",
         path=str(path),
         label=label,
         kind=None,
@@ -95,21 +94,15 @@ def test_done_artifact_file_fixture_matrix(
 
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(explicit_dir))
-    with pytest.raises(SystemExit) as explicit_exit:
-        handle_artifact_file_command(
-            _artifact_create_args(explicit_source, label="Report")
-        )
-    assert explicit_exit.value.code == 0
-    assert "id: explicit:" in capsys.readouterr().out
+    assert handle_create(_artifact_create_args(explicit_source, label="Report")) == 0
+    explicit_output = capsys.readouterr().out
+    assert "id: explicit:" in explicit_output
+    assert "ref: file:explicit:" in explicit_output
 
     revived_dir = _write_done_agent(home, "20260508010105", chat_name="revived.md")
     revive_source = _write_text(tmp_path / "revived.txt", "revived artifact\n")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(revived_dir))
-    with pytest.raises(SystemExit) as revived_exit:
-        handle_artifact_file_command(
-            _artifact_create_args(revive_source, label="Revived")
-        )
-    assert revived_exit.value.code == 0
+    assert handle_create(_artifact_create_args(revive_source, label="Revived")) == 0
     capsys.readouterr()
     shutil.rmtree(revived_dir)
     revived_while_dismissed = list_artifact_files(revived_dir)

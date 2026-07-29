@@ -24,6 +24,10 @@ def test_list_renders_a_row_and_glyph_for_every_status(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Each lifecycle state gets its own glyph in the newest-first table."""
+    # Give Rich enough deterministic width for every full label under xdist;
+    # otherwise the live-duration column can squeeze "Task pending" to an
+    # ellipsis depending on the wall clock when the worker renders the table.
+    monkeypatch.setenv("COLUMNS", "120")
     monkeypatch.setattr(
         "sase.tasks.runner._supervisor_process_matches", lambda _task: True
     )
