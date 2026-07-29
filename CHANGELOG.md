@@ -1,41 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### ⚠ BREAKING CHANGES
-
-- **axe:** every lumberjack and chop now requires a non-blank `description`; replace bare-string chop lists with map or
-  object entries and add descriptions to resolve `required_missing` diagnostics.
-- **axe:** lumberjack and chop `description` values now follow a summary/body grammar. Line 1 must be a non-blank
-  summary of at most 100 characters, a multi-line description must leave line 2 blank to separate the summary from the
-  body, and the whole description must be at most 2000 characters. Single-line descriptions remain valid. Violations
-  fail config loading with `description_summary_blank`, `description_summary_too_long`,
-  `description_body_separator_required`, or `description_too_long`. See
-  [docs/axe.md — Description Grammar](docs/axe.md#description-grammar).
-- **agent-tribes:** rename current agent-tribe contracts from tag to tribe. Standalone assignments now use
-  `~/.sase/agent_tribes.json` and `tribe`; agent metadata, archives, cleanup and scan wires, and CLI JSON emit only
-  tribe-shaped fields; the Agents query uses `tribe:` instead of `tag:`; and ACE keymap/config actions use tribe names.
-  Existing tag-shaped persisted state remains readable through explicit legacy migration paths.
-- **llm-provider:** configured `llm_provider.model_aliases.builtin.epic_creator` entries are no longer accepted as
-  builtin overrides and should be deleted.
-
-### Features
-
-- **ace:** add Chats artifact visual snapshots and document the five-pane Artifacts flow.
-- **ace:** render the Axe description as a two-state accent-gutter panel; `d` expands or collapses it for the session
-  and `ace.axe_description_expanded` sets the startup state. `show_diff` is now scoped to the PRs sub-tab.
-- **axe:** keep `sase axe chop list` and `sase axe lumberjack list` on one summary line per entry, and add
-  `-v/--verbose` full-description output to both.
-- **tui:** add in-place schema-driven xprompt property editing, bound definition write-back, conflict detection, and a unified save-as screen.
-
-### Bug Fixes
-
-- **ace:** keep Agents-tab view hints responsive on long transcripts by capping annotated scans and guarding the cached
-  hint-render path.
-- **ace:** keep prompt `Ctrl+J` from clearing a lone empty `- ` marker; it now adds a sibling bullet and exits on the next press.
-- **ace:** remove clan and family identity icons while retaining their grouping colors.
-- **xprompt:** preserve unknown frontmatter keys during parse/edit/serialize round trips and warn before comment loss.
-
 ## [0.13.3](https://github.com/sase-org/sase/compare/v0.13.2...v0.13.3) (2026-07-29)
 
 
@@ -225,8 +189,10 @@
 
 * **bead:** Closing a bead with unfinished descendants now requires --force, a reason, and a canceled or superseded resolution.
 * **axe:** AXE lumberjacks and chops must provide a non-blank description, and bare-string chop list entries must be replaced with map or object entries.
+* **axe:** Lumberjack and chop `description` values require a non-blank line 1 summary of at most 100 characters, a blank line 2 before any multi-line body, and at most 2000 characters overall; violations fail config loading with `description_summary_blank`, `description_summary_too_long`, `description_body_separator_required`, or `description_too_long`.
 * Epic approvals no longer support foreground, TUI-tracked, or agent-side subprocess launch modes; callers must follow the detached task.
 * **llm-provider:** llm_provider.model_aliases.builtin.epic_creator is no longer accepted as a builtin override; remove the stale entry from SASE configuration.
+* **agents:** Current agent APIs, wires, metadata, queries, and display terminology use tribe instead of tag; standalone assignments live in `~/.sase/agent_tribes.json` under `tribe`; the Agents query uses `tribe:` instead of `tag:`; legacy persisted tag data remains readable.
 * **agents:** Agents sync status schema v4 removes the unexported_agents field and the CLI UNEXPORTED column.
 * New commits no longer emit SASE_MACHINE; consumers should use the global SASE_AGENT identity instead.
 * **identity:** Agent launches and new commit provenance now require id.username and id.machine_name in the selected overlay. Run `sase config init` to migrate legacy configuration.
@@ -301,6 +267,7 @@
 * Admin Center Tasks tab over the durable store (sase-95.6) ([8eafb2a](https://github.com/sase-org/sase/commit/8eafb2aa587005f2499ada614e9542346bd4a066))
 * **agent:** persist local names relative to owner (sase-8v.3) ([5bf430b](https://github.com/sase-org/sase/commit/5bf430b67eb42f61e5472f689e0cba4a0d276669))
 * **agents:** add completed agent sync engine (sase-8k.6) ([58d1ca2](https://github.com/sase-org/sase/commit/58d1ca2da51df1bcd9bdc2464503985de59a416c))
+* **agents:** complete tribe terminology cutover (sase-7j.4) ([0138849](https://github.com/sase-org/sase/commit/0138849d919e0136b6eedadbcfb28e603f2b58bb))
 * **agents:** publish owner-sharded v2 hood snapshots (sase-8v.4) ([2464be5](https://github.com/sase-org/sase/commit/2464be5462bd99580d0a91b2802abea3560e9064))
 * **agents:** retire legacy v1 sync payloads (sase-92.5) ([712a6b1](https://github.com/sase-org/sase/commit/712a6b1f3bb1c209e07919f4794acd4f4a0fc211))
 * **axe:** add config management workflows (sase-8m.3) ([058cd64](https://github.com/sase-org/sase/commit/058cd646fb1d3113fe28186473f252dc4f488d13))
@@ -427,6 +394,7 @@
 * **ace:** prevent quit hangs on in-flight workers ([c0f1c6e](https://github.com/sase-org/sase/commit/c0f1c6e5a3c775ee314a6ca14c16ca5913b83d05))
 * **ace:** prioritize queued clan status ([30f3a22](https://github.com/sase-org/sase/commit/30f3a22c86d445f7be5560bc7e9a966286c1bd60))
 * **ace:** reconcile cross-surface plan approval status ([9f11060](https://github.com/sase-org/sase/commit/9f1106068caa951039966938424ade137a01e5a0))
+* **ace:** remove clan and family identity icons ([605b7ba](https://github.com/sase-org/sase/commit/605b7baa1d4a9a95b4188f32fb69a05d23031eab))
 * **ace:** report capped commit results truthfully (sase-8h.3) ([54e8736](https://github.com/sase-org/sase/commit/54e8736ea7ed487b3f600ad71939316764957b43))
 * **ace:** respect Markdown structure in TODO highlighting ([da207ba](https://github.com/sase-org/sase/commit/da207ba769eba6a058c408c04162adda0d3556dd))
 * **ace:** restore arrival bell for plan reviews ([679a41b](https://github.com/sase-org/sase/commit/679a41b42eaed4821cfa699139d3088f804cbd77))
