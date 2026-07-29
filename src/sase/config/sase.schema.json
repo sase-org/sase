@@ -672,7 +672,7 @@
               "type": "integer",
               "description": "Maximum unique recent prompt-history words retained for manual completion; 0 disables the fallback",
               "minimum": 0,
-              "default": 1000
+              "default": 10000
             },
             "common_placeholder_count": {
               "type": "integer",

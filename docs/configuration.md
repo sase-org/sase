@@ -764,7 +764,7 @@ ace:
     auto_xprompt_menu: true
     auto_directive_menu: true
     max_auto_rows: 1
-    history_word_count: 1000
+    history_word_count: 10000
     common_placeholder_count: 100
     word_min_length: 5
 ```
@@ -777,7 +777,7 @@ ace:
 | `auto_xprompt_menu`        | bool        | `true`  | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens.  |
 | `auto_directive_menu`      | bool        | `true`  | Automatically open directive completion while typing `%id` tokens and fixed values such as `%model:`.              |
 | `max_auto_rows`            | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                         |
-| `history_word_count`       | int         | `1000`  | Maximum unique recent prompt-history words retained for manual completion; `0` disables the history fallback.      |
+| `history_word_count`       | int         | `10000` | Maximum unique recent prompt-history words retained for manual completion; `0` disables the history fallback.      |
 | `common_placeholder_count` | int         | `100`   | Maximum saved `<placeholder>` tags retained and offered after prompt-local placeholder matches; `0` disables them. |
 | `word_min_length`          | int         | `5`     | Shared minimum length for prompt-local and prompt-history word candidates; values below `1` clamp to `1`.          |
 

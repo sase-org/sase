@@ -42,7 +42,7 @@ class PromptCompletionSettings:
     auto_xprompt_menu: bool = True
     auto_directive_menu: bool = True
     max_auto_rows: int = 1
-    history_word_count: int = 1000
+    history_word_count: int = 10000
     common_placeholder_count: int = 100
     word_min_length: int = 5
 

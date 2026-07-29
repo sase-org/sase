@@ -129,7 +129,7 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
             "word_min_length": None,
         }
     )
-    assert garbage.history_word_count == 1000
+    assert garbage.history_word_count == 10000
     assert garbage.common_placeholder_count == 100
     assert garbage.word_min_length == 5
     assert (

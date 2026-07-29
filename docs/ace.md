@@ -2996,7 +2996,7 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
 - **History-word completion**: When prompt-local words have no match, `Ctrl+T` filters recently used words derived from
   recorded prompt history. Matching remains case-insensitive and keeps exact spelling, while rows are ordered by most
   recent use. ACE retains up to `ace.prompt_completion.history_word_count` unique words that meet the shared
-  `ace.prompt_completion.word_min_length` (defaults: `1000` and `5`); set `history_word_count: 0` to disable only this
+  `ace.prompt_completion.word_min_length` (defaults: `10000` and `5`); set `history_word_count: 0` to disable only this
   final fallback. History is loaded off-thread, so a cold cache briefly shows `loading history words…` without blocking
   input. The former `history_word_min_length` configuration key has been replaced by `word_min_length`.
 

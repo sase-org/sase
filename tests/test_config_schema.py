@@ -43,6 +43,21 @@ def test_default_config_matches_public_schema() -> None:
     assert errors == [], "\n".join(format_schema_error(error) for error in errors)
 
 
+def test_prompt_completion_history_word_count_default_contract() -> None:
+    public_schema = schema()
+    default_config = yaml.safe_load(
+        (REPO_ROOT / "src/sase/default_config.yml").read_text(encoding="utf-8")
+    )
+    prompt_completion_schema = public_schema["properties"]["ace"]["properties"][
+        "prompt_completion"
+    ]
+
+    assert default_config["ace"]["prompt_completion"]["history_word_count"] == 10000
+    assert (
+        prompt_completion_schema["properties"]["history_word_count"]["default"] == 10000
+    )
+
+
 def test_config_schema_validates_ace_agents_sync_settings() -> None:
     validator = Draft7Validator(schema())
     validator.validate(
