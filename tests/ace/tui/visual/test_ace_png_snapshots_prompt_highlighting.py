@@ -14,6 +14,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import (
+    ARTIFACT_REF_HIGHLIGHT,
     BULLET_HIGHLIGHT_SOLO,
     CODEBLOCK_HIGHLIGHT_SOLO,
     CODEBLOCK_HIGHLIGHT_STACK,
@@ -23,6 +24,7 @@ from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import (
     XPROMPT_HIGHLIGHT_SOLO,
     XPROMPT_HIGHLIGHT_STACK,
     mount_prompt_bar,
+    patch_visual_artifact_ref_kinds,
     patch_visual_skill_catalog,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -229,6 +231,27 @@ async def test_prompt_xprompt_highlight_stack_png_snapshot(
             page,
             "prompt_xprompt_highlight_stack_120x40",
             title="ACE prompt stack — xprompt highlighting",
+        )
+
+
+async def test_prompt_artifact_ref_highlight_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    patch_visual_artifact_ref_kinds(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+        await mount_prompt_bar(page, ARTIFACT_REF_HIGHLIGHT)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_artifact_ref_highlight_120x40",
+            title="ACE prompt input — artifact-reference highlighting",
         )
 
 

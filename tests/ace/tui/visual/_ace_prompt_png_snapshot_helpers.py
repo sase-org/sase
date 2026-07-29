@@ -66,6 +66,10 @@ XPROMPT_HIGHLIGHT_STACK = (
     "---\n"
     "%{%m:opus | %m:sonnet} #git:home summarize the fix use /sase_plan"
 )
+ARTIFACT_REF_HIGHLIGHT = (
+    "Compare @plans:202607/design.md @commit:sase@abcdef1 @user:handle\n"
+    "Known references stay vivid while unknown-kind prose stays subdued."
+)
 
 CODEBLOCK_HIGHLIGHT_SOLO = (
     "#gh:sase %auto inspect `foo`/`bar`; keep `/sase_gate` literal\n"
@@ -161,6 +165,26 @@ def patch_visual_skill_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
         return _VISUAL_SKILL_ENTRIES
 
     monkeypatch.setattr(AceApp, "get_prompt_catalog_assist_entries", _entries)
+
+
+def patch_visual_artifact_ref_kinds(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sase.ace.tui.widgets import _artifact_ref_highlight
+
+    def _known(
+        project: str | None,
+        _workspace_dir: str | None,
+        _workspace_num: int,
+    ) -> _artifact_ref_highlight._KnownKindsResult:
+        return _artifact_ref_highlight._KnownKindsResult(
+            project,
+            frozenset({"commit", "chat", "bug", "file", "plans", "designs"}),
+        )
+
+    monkeypatch.setattr(
+        _artifact_ref_highlight,
+        "_load_known_artifact_ref_kinds",
+        _known,
+    )
 
 
 async def mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar:

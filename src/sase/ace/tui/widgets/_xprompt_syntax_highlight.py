@@ -25,7 +25,7 @@ else:
     _MixinBase = object
 
 
-def _derive_argument_color(
+def derive_argument_color(
     base: str | None,
     *,
     foreground: str | None,
@@ -150,7 +150,7 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
                     bold=True,
                 ),
                 "xprompt.invocation_arg": Style(
-                    color=_derive_argument_color(
+                    color=derive_argument_color(
                         app_theme.success,
                         foreground=app_theme.foreground,
                         background=background,
@@ -161,7 +161,7 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
                     bold=True,
                 ),
                 "xprompt.directive_arg": Style(
-                    color=_derive_argument_color(
+                    color=derive_argument_color(
                         app_theme.warning,
                         foreground=app_theme.foreground,
                         background=background,
@@ -173,7 +173,7 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
                     bold=True,
                 ),
                 "xprompt.skill": Style(
-                    color=_derive_argument_color(
+                    color=derive_argument_color(
                         app_theme.accent,
                         foreground=app_theme.foreground,
                         background=background,

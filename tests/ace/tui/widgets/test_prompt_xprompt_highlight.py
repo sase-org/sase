@@ -9,7 +9,7 @@ from rich.style import Style
 
 from sase.ace.tui.widgets._jinja_highlight import _MAX_OVERLAY_LINES
 from sase.ace.tui.widgets._vim_search import find_search_matches
-from sase.ace.tui.widgets._xprompt_syntax_highlight import _derive_argument_color
+from sase.ace.tui.widgets._xprompt_syntax_highlight import derive_argument_color
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
 
@@ -84,7 +84,7 @@ async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles() -> N
 
 def test_derive_argument_color_is_theme_adaptive() -> None:
     assert (
-        _derive_argument_color(
+        derive_argument_color(
             "#66800B",
             foreground="#FFFCF0",
             background="#100F0F",
@@ -92,7 +92,7 @@ def test_derive_argument_color_is_theme_adaptive() -> None:
         == "#A3B166"
     )
     assert (
-        _derive_argument_color(
+        derive_argument_color(
             "#66800B",
             foreground=None,
             background="#FFFCF0",
@@ -103,7 +103,7 @@ def test_derive_argument_color_is_theme_adaptive() -> None:
 
 def test_derive_argument_color_preserves_missing_base() -> None:
     assert (
-        _derive_argument_color(
+        derive_argument_color(
             "",
             foreground="#FFFCF0",
             background="#100F0F",
@@ -111,7 +111,7 @@ def test_derive_argument_color_preserves_missing_base() -> None:
         == ""
     )
     assert (
-        _derive_argument_color(
+        derive_argument_color(
             None,
             foreground="#FFFCF0",
             background="#100F0F",
@@ -122,7 +122,7 @@ def test_derive_argument_color_preserves_missing_base() -> None:
 
 def test_skill_accent_color_is_pinned_for_flexoki() -> None:
     assert (
-        _derive_argument_color(
+        derive_argument_color(
             "#9B76C8",
             foreground="#FFFCF0",
             background="#100F0F",
