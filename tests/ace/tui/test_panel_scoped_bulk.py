@@ -113,6 +113,7 @@ def test_dismiss_all_is_scoped_to_focused_panel() -> None:
     app._dismiss_all_done_agents()
 
     assert len(app._pushed) == 1
+    assert app._pushed[-1][0].agent_description.startswith("Dismiss: 1 lane\n")
     assert _names_in_modal(app) == ["f1"]
 
 
@@ -130,6 +131,9 @@ def test_kill_and_dismiss_all_is_scoped_to_focused_panel() -> None:
     app._kill_and_dismiss_all_agents()
 
     assert len(app._pushed) == 1
+    description = app._pushed[-1][0].agent_description
+    assert "Kill: 1 lane" in description
+    assert "Dismiss: 1 lane" in description
     names = _names_in_modal(app)
     assert "f_run" in names
     assert "f_done" in names
@@ -157,6 +161,9 @@ def test_workflow_child_inherits_parent_panel_for_bulk_dismiss() -> None:
 
     app_focus_fix = _FakeApp([parent, child], focused_key="fix")
     app_focus_fix._dismiss_all_done_agents()
+    assert (
+        "Dismiss: 1 lane · 2 agents" in app_focus_fix._pushed[-1][0].agent_description
+    )
     assert _names_in_modal(app_focus_fix) == ["parent"]
 
     app_default_focus = _FakeApp([parent, child], focused_key=None)

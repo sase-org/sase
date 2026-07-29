@@ -259,7 +259,8 @@ async def test_agents_collapsed_panel_png_snapshot(
         await page.expect_modal("ConfirmDismissAllModal")
         modal = page.app.screen
         assert isinstance(modal, ConfirmDismissAllModal)
-        assert "Panel: @chop (2 agents)" in modal.agent_description
+        assert "Panel: @chop" in modal.agent_description
+        assert "Dismiss: 2 lanes" in modal.agent_description
         assert (
             "visual.collapse.primary.with.a.deliberately.wide.row"
             in modal.agent_description

@@ -89,7 +89,7 @@ async def test_confirm_dialog_dismiss_all_png_snapshot(
 
         page.app.push_screen(
             ConfirmDismissAllModal(
-                "Dismiss: 2 agents\n  sase @research.0s.cld\n  sase @research.0s.cdx"
+                "Dismiss: 2 lanes\n  sase @research.0s.cld\n  sase @research.0s.cdx"
             )
         )
         await page.expect_modal("ConfirmDismissAllModal")

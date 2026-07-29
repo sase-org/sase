@@ -48,33 +48,23 @@ class AgentKillAllActionsMixin:
 
         # Build description showing both groups.
         desc_parts: list[str] = []
-        from ._confirmation_lanes import (
-            confirmation_lane_entries,
-            format_confirmation_entries,
-        )
+        from ._confirmation_lanes import confirmation_lane_summary
 
         loaded_agents = self._agents_with_children  # type: ignore[attr-defined]
         if killable:
-            k_count = len(killable)
-            k_s = "s" if k_count != 1 else ""
-            desc_parts.append(f"Kill: {k_count} running agent{k_s}")
             desc_parts.extend(
-                format_confirmation_entries(
-                    confirmation_lane_entries(
-                        killable,
-                        loaded_agents,
-                        include_running_family_members=True,
-                    )
-                )
+                confirmation_lane_summary(
+                    killable,
+                    loaded_agents,
+                    include_running_family_members=True,
+                ).subject_lines("Kill")
             )
         if dismissable:
-            d_count = len(dismissable)
-            d_s = "s" if d_count != 1 else ""
-            desc_parts.append(f"Dismiss: {d_count} completed agent{d_s}")
             desc_parts.extend(
-                format_confirmation_entries(
-                    confirmation_lane_entries(dismissable, loaded_agents)
-                )
+                confirmation_lane_summary(
+                    dismissable,
+                    loaded_agents,
+                ).subject_lines("Dismiss")
             )
         agent_description = "\n".join(desc_parts)
 

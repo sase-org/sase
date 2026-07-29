@@ -150,6 +150,7 @@ async def test_agent_lane_cleanup_confirmation_png_snapshot(
         modal = page.app.screen
         assert isinstance(modal, ConfirmDismissAllModal)
         description = modal.agent_description
+        assert "Dismiss: 3 lanes · 9 agents" in description
         assert "lane.cleanup.standalone" in description
         assert "lane.cleanup.workflow" in description
         assert "lane.cleanup.family" in description

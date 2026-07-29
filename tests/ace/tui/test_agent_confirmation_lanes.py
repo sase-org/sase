@@ -6,8 +6,10 @@ from datetime import datetime
 from typing import Any
 
 from sase.ace.tui.actions.agents._confirmation_lanes import (
+    AgentConfirmationSummary,
     _AgentConfirmationEntry,
     confirmation_lane_entries,
+    confirmation_lane_summary,
     format_confirmation_entries,
 )
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
@@ -240,6 +242,143 @@ def test_missing_parent_uses_concrete_legacy_row_as_defensive_fallback() -> None
     )
 
 
+def test_summary_counts_family_lane_and_unique_concrete_agents() -> None:
+    root = _agent(
+        "release--plan",
+        "root",
+        agent_family="release",
+        agent_family_role="root",
+        role_suffix="--plan",
+    )
+    members = [
+        _agent(
+            f"release--phase-{index}",
+            f"member-{index}",
+            parent_timestamp=root.raw_suffix,
+            agent_family="release",
+            role_suffix=f"--phase-{index}",
+        )
+        for index in range(1, 4)
+    ]
+    targets = [root, *members, root]
+
+    summary = confirmation_lane_summary(targets, targets)
+
+    assert summary.agent_count == 4
+    assert summary.lane_count == 1
+    assert summary.subject_lines("Dismiss") == [
+        "Dismiss: 1 lane · 4 agents",
+        "  release",
+    ]
+
+
+def test_summary_counts_workflow_with_hidden_steps_as_one_lane() -> None:
+    workflow = _agent(
+        None,
+        "workflow",
+        agent_type=AgentType.WORKFLOW,
+        workflow="release-flow",
+    )
+    hidden_steps = [
+        _agent(
+            f"internal-step-{index}",
+            f"step-{index}",
+            parent_timestamp=workflow.raw_suffix,
+            parent_workflow="release-flow",
+        )
+        for index in range(2)
+    ]
+    targets = [workflow, *hidden_steps]
+
+    summary = confirmation_lane_summary(targets, targets)
+
+    assert summary.subject_lines("Dismiss") == [
+        "Dismiss: 1 lane · 3 agents",
+        "  release-flow",
+    ]
+
+
+def test_summary_omits_agent_detail_for_standalone_lanes() -> None:
+    first = _agent("first", "first")
+    second = _agent("second", "second")
+
+    summary = confirmation_lane_summary([first, second], [first, second])
+
+    assert summary.subject_lines("Kill") == [
+        "Kill: 2 lanes",
+        "  first",
+        "  second",
+    ]
+
+
+def test_summary_subject_lines_use_singular_lane_and_agent_units() -> None:
+    assert AgentConfirmationSummary(
+        entries=(_AgentConfirmationEntry("first"),),
+        agent_count=1,
+    ).subject_lines("Kill") == ["Kill: 1 lane", "  first"]
+    assert AgentConfirmationSummary(
+        entries=(
+            _AgentConfirmationEntry("first"),
+            _AgentConfirmationEntry("second"),
+        ),
+        agent_count=1,
+    ).subject_lines("Dismiss") == [
+        "Dismiss: 2 lanes · 1 agent",
+        "  first",
+        "  second",
+    ]
+
+
+def test_summary_deduplicates_repeated_concrete_identity() -> None:
+    first = _agent("standalone", "same-suffix")
+    repeated_identity = _agent("standalone", "same-suffix")
+
+    summary = confirmation_lane_summary(
+        [first, repeated_identity, first],
+        [first, repeated_identity],
+    )
+
+    assert summary.agent_count == 1
+    assert summary.subject_lines("Dismiss") == [
+        "Dismiss: 1 lane",
+        "  standalone",
+    ]
+
+
+def test_empty_summary_emits_no_subject_lines() -> None:
+    summary = confirmation_lane_summary([], [])
+
+    assert summary.lane_count == 0
+    assert summary.agent_count == 0
+    assert summary.subject_lines("Dismiss") == []
+
+
+def test_summary_headline_lane_count_equals_roster_length() -> None:
+    root = _agent(
+        "family--plan",
+        "root",
+        agent_family="family",
+        agent_family_role="root",
+        role_suffix="--plan",
+    )
+    member = _agent(
+        "family--code",
+        "member",
+        parent_timestamp=root.raw_suffix,
+        agent_family="family",
+        role_suffix="--code",
+    )
+    standalone = _agent("standalone", "standalone")
+
+    lines = confirmation_lane_summary(
+        [root, member, standalone],
+        [root, member, standalone],
+    ).subject_lines("Dismiss")
+    headline_count = int(lines[0].partition(": ")[2].partition(" ")[0])
+
+    assert headline_count == len(lines[1:])
+
+
 class _BulkConfirmationApp(AgentMarkingMixin):
     def __init__(self, agents: list[Agent]) -> None:
         self._agents = list(agents)
@@ -282,5 +421,5 @@ def test_bulk_subject_can_show_same_family_lane_in_kill_and_dismiss_sections() -
 
     description = app.pushed[0][0].agent_description
     assert description == (
-        "Kill: 1 running agent\n  release @release--code\nDismiss: 1 agent\n  release"
+        "Kill: 1 lane\n  release @release--code\nDismiss: 1 lane\n  release"
     )

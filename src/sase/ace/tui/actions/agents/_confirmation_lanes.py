@@ -18,10 +18,67 @@ class _AgentConfirmationEntry:
     running_member_names: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class AgentConfirmationSummary:
+    """Counted lane roster for one cleanup-confirmation section."""
+
+    entries: tuple[_AgentConfirmationEntry, ...]
+    agent_count: int
+
+    @property
+    def lane_count(self) -> int:
+        """Return the number of projected agent lanes."""
+        return len(self.entries)
+
+    def subject_lines(self, label: str) -> list[str]:
+        """Format a counted section followed by its projected lane roster."""
+        if not self.entries:
+            return []
+
+        lane_suffix = "" if self.lane_count == 1 else "s"
+        phrase = f"{self.lane_count} lane{lane_suffix}"
+        if self.agent_count != self.lane_count:
+            agent_suffix = "" if self.agent_count == 1 else "s"
+            phrase += f" · {self.agent_count} agent{agent_suffix}"
+        return [
+            f"{label}: {phrase}",
+            *format_confirmation_entries(self.entries),
+        ]
+
+
 @dataclass(slots=True)
 class _PendingEntry:
     lane_name: str
     running_member_names: list[str]
+
+
+def confirmation_lane_summary(
+    targets: Sequence[Agent],
+    loaded_agents: Sequence[Agent],
+    *,
+    include_running_family_members: bool = False,
+) -> AgentConfirmationSummary:
+    """Return the lane projection and unique concrete-target count."""
+    entries = confirmation_lane_entries(
+        targets,
+        loaded_agents,
+        include_running_family_members=include_running_family_members,
+    )
+    concrete_target_keys: set[Hashable] = set()
+    for target in targets:
+        try:
+            identity = getattr(target, "identity", None)
+            hash(identity)
+        except (AttributeError, TypeError):
+            identity = None
+        key: Hashable = (
+            ("agent", identity) if identity is not None else ("fallback", id(target))
+        )
+        concrete_target_keys.add(key)
+    return AgentConfirmationSummary(
+        entries=entries,
+        agent_count=len(concrete_target_keys),
+    )
 
 
 def confirmation_lane_entries(
@@ -282,6 +339,8 @@ def _presented_concrete_name(agent: Agent, lane_name: str) -> str | None:
 
 
 __all__ = [
+    "AgentConfirmationSummary",
     "confirmation_lane_entries",
+    "confirmation_lane_summary",
     "format_confirmation_entries",
 ]

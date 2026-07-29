@@ -185,11 +185,14 @@ def test_action_kill_on_clan_container_cascades_to_real_members() -> None:
 
     mock_bulk.assert_called_once_with([running], [done])
     assert container not in mock_bulk.call_args.args[0]
-    assert "Clan: research (2 agents)" in app.pushed_modals[0].agent_description
+    description = app.pushed_modals[0].agent_description
+    assert "Clan: research" in description
+    assert "Kill: 1 lane" in description
+    assert "Dismiss: 1 lane" in description
 
 
-def test_group_kill_modal_header_includes_group_label_and_count() -> None:
-    """The pushed modal description includes the group banner label."""
+def test_group_kill_modal_header_includes_label_and_section_count() -> None:
+    """The scope stays label-only while the section carries its lane count."""
     a1 = _make_agent(
         cl_name="release-fix",
         project_file="/tmp/projects/proj_a/proj_a.sase",
@@ -207,8 +210,9 @@ def test_group_kill_modal_header_includes_group_label_and_count() -> None:
 
     assert app.pushed_modals, "Expected a confirmation modal"
     description = app.pushed_modals[0].agent_description
-    assert "release-fix" in description
-    assert "2 agent" in description
+    assert "Group: release-fix" in description
+    assert "Group: release-fix (" not in description
+    assert "Kill: 2 lanes" in description
 
 
 def test_group_kill_partitions_killable_and_dismissable() -> None:

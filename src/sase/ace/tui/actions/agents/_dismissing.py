@@ -119,19 +119,12 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
             self.notify(empty_message, severity="warning")  # type: ignore[attr-defined]
             return
 
-        count = len(dismissable)
-        s = "s" if count != 1 else ""
-        desc_parts = [f"Count: {count} agent{s}"]
-        from ._confirmation_lanes import (
-            confirmation_lane_entries,
-            format_confirmation_entries,
-        )
+        from ._confirmation_lanes import confirmation_lane_summary
 
-        desc_parts.extend(
-            format_confirmation_entries(
-                confirmation_lane_entries(dismissable, self._agents_with_children)
-            )
-        )
+        desc_parts = confirmation_lane_summary(
+            dismissable,
+            self._agents_with_children,
+        ).subject_lines("Dismiss")
         agent_description = "\n".join(desc_parts)
 
         from ...modals import ConfirmDismissAllModal

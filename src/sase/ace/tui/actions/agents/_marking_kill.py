@@ -10,6 +10,7 @@ from ._marking_navigation import AgentMarkNavigationMixin
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
+    from ._confirmation_lanes import AgentConfirmationSummary
 
 
 class AgentMarkedKillMixin(AgentMarkNavigationMixin):
@@ -189,34 +190,22 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
         desc_parts: list[str] = []
         if header:
             desc_parts.append(header)
-        from ._confirmation_lanes import (
-            confirmation_lane_entries,
-            format_confirmation_entries,
-        )
+        from ._confirmation_lanes import confirmation_lane_summary
 
         loaded_agents = self._agents_with_children
         if killable:
-            k_count = len(killable)
-            k_s = "s" if k_count != 1 else ""
-            desc_parts.append(f"Kill: {k_count} running agent{k_s}")
-            desc_parts.extend(
-                format_confirmation_entries(
-                    confirmation_lane_entries(
-                        killable,
-                        loaded_agents,
-                        include_running_family_members=True,
-                    )
-                )
+            kill_summary: AgentConfirmationSummary = confirmation_lane_summary(
+                killable,
+                loaded_agents,
+                include_running_family_members=True,
             )
+            desc_parts.extend(kill_summary.subject_lines("Kill"))
         if dismissable:
-            d_count = len(dismissable)
-            d_s = "s" if d_count != 1 else ""
-            desc_parts.append(f"Dismiss: {d_count} agent{d_s}")
-            desc_parts.extend(
-                format_confirmation_entries(
-                    confirmation_lane_entries(dismissable, loaded_agents)
-                )
+            dismiss_summary: AgentConfirmationSummary = confirmation_lane_summary(
+                dismissable,
+                loaded_agents,
             )
+            desc_parts.extend(dismiss_summary.subject_lines("Dismiss"))
         agent_description = "\n".join(desc_parts)
 
         from ...modals import ConfirmDismissAllModal, ConfirmKillAllModal

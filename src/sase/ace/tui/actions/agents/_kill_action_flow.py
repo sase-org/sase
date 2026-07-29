@@ -73,11 +73,9 @@ class AgentKillActionFlowMixin:
             if not members:
                 self.notify("No agents remain in clan", severity="warning")  # type: ignore[attr-defined]
                 return
-            count = len(members)
-            plural = "s" if count != 1 else ""
             self._present_bulk_kill_modal(  # type: ignore[attr-defined]
                 members,
-                header=f"Clan: {agent.agent_clan} ({count} agent{plural})",
+                header=f"Clan: {agent.agent_clan}",
             )
             return
 
@@ -175,11 +173,9 @@ class AgentKillActionFlowMixin:
         from ...models.agent_panels import agent_panel_label
 
         label = agent_panel_label(focus.panel_key)
-        count = len(targets)
-        plural = "s" if count != 1 else ""
         self._present_bulk_kill_modal(  # type: ignore[attr-defined]
             targets,
-            header=f"Panel: {label} ({count} agent{plural})",
+            header=f"Panel: {label}",
         )
 
     def _bulk_kill_collapsed_panel_agents(
@@ -207,7 +203,5 @@ class AgentKillActionFlowMixin:
         from ...models.agent_groups import banner_label
 
         label = banner_label(group)
-        count = len(agents)
-        plural = "s" if count != 1 else ""
-        header = f"Group: {label} ({count} agent{plural})"
+        header = f"Group: {label}"
         self._present_bulk_kill_modal(agents, header=header)  # type: ignore[attr-defined]
