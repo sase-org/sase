@@ -76,6 +76,27 @@ class TestExtractRecordableFileRefs:
     def test_keeps_at_prefixed_tilde_baseline(self) -> None:
         assert extract_recordable_file_refs("@~/notes.md") == ["~/notes.md"]
 
+    def test_records_artifact_references_verbatim_without_truncation(self) -> None:
+        text = (
+            "read @plans:202607/plan.md#L2-L4 and "
+            "@commit:sase@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        )
+        assert extract_recordable_file_refs(text) == [
+            "@plans:202607/plan.md#L2-L4",
+            "@commit:sase@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ]
+
+    def test_artifact_and_file_references_preserve_prompt_order(self) -> None:
+        text = "@docs/x.md then @plans:202607/plan.md then @src/y.py"
+        assert extract_recordable_file_refs(text) == [
+            "docs/x.md",
+            "@plans:202607/plan.md",
+            "src/y.py",
+        ]
+
+    def test_literal_artifact_reference_is_not_recorded(self) -> None:
+        assert extract_recordable_file_refs("`@plans:202607/plan.md`") == []
+
 
 class TestFileReferenceStore:
     def test_load_missing_file_returns_empty(self, tmp_path: Path) -> None:

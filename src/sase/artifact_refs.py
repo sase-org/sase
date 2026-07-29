@@ -8,8 +8,10 @@ operations and projects their wire records into typed Python values.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import os
 from pathlib import Path
+import sys
 from typing import Any, Literal, cast
 
 from sase.core.artifact_file_facade import default_artifact_files_index_path
@@ -205,6 +207,7 @@ class ArtifactRefRepository:
     name: str
     aliases: tuple[str, ...] = ()
     shas: tuple[str, ...] = ()
+    checkout_path: Path | None = None
 
     def to_wire(self) -> dict[str, object]:
         return {
@@ -380,6 +383,7 @@ def artifact_ref_context(
                     value for value in (record.slug,) if value and value != record.name
                 )
             ),
+            checkout_path=_repository_checkout_path(record, workspace_num),
         )
         for record in repository_records
     )
@@ -472,6 +476,319 @@ def scan_artifact_refs(text: str) -> tuple[ArtifactRefPromptCandidate, ...]:
 
 
 scan_artifact_ref_prompt = scan_artifact_refs
+
+
+@dataclass(frozen=True, slots=True)
+class _ArtifactRefFailure:
+    reference: str
+    status: str
+    detail: str | None = None
+
+
+def process_artifact_references(
+    prompt: str,
+    *,
+    is_home_mode: bool = False,
+    context: ArtifactRefContext | None = None,
+) -> str:
+    """Resolve and expand live artifact references in a launch prompt."""
+
+    return _expand_artifact_references(
+        prompt,
+        is_home_mode=is_home_mode,
+        context=context,
+        rewrite=True,
+    )
+
+
+def validate_artifact_references(
+    prompt: str,
+    *,
+    is_home_mode: bool = False,
+    context: ArtifactRefContext | None = None,
+) -> None:
+    """Validate live artifact references without rewriting the prompt."""
+
+    _expand_artifact_references(
+        prompt,
+        is_home_mode=is_home_mode,
+        context=context,
+        rewrite=False,
+    )
+
+
+def _expand_artifact_references(
+    prompt: str,
+    *,
+    is_home_mode: bool,
+    context: ArtifactRefContext | None,
+    rewrite: bool,
+) -> str:
+    if "@" not in prompt:
+        return prompt
+
+    candidates = scan_artifact_refs(prompt)
+    if not candidates:
+        return prompt
+    if context is None:
+        context = _launch_artifact_ref_context(is_home_mode=is_home_mode)
+
+    from sase.xprompt._literal_zones import literal_zone_ranges
+
+    literal_ranges = literal_zone_ranges(prompt)
+    byte_to_char = _byte_to_character_offsets(prompt)
+    replacements: list[tuple[int, int, str]] = []
+    failures: list[_ArtifactRefFailure] = []
+    known_kinds = set(context.known_kinds)
+    for candidate in candidates:
+        start, end = _character_span(
+            candidate.candidate_span,
+            byte_to_char=byte_to_char,
+        )
+        if _overlaps_any(start, end, literal_ranges):
+            continue
+        if candidate.kind not in known_kinds:
+            continue
+        if not candidate.well_formed:
+            failures.append(_ArtifactRefFailure(candidate.text, "malformed"))
+            continue
+        try:
+            parsed = parse_artifact_ref(candidate.reference)
+            resolution = _resolve_for_launch(parsed, context=context)
+        except (RuntimeError, ValueError) as exc:
+            failures.append(_ArtifactRefFailure(candidate.text, "malformed", str(exc)))
+            continue
+        if resolution.status not in {"exact", "drifted"}:
+            failures.append(_ArtifactRefFailure(candidate.text, resolution.status))
+            continue
+        try:
+            replacement_text = _artifact_ref_replacement(
+                parsed,
+                resolution,
+                context=context,
+            )
+        except (RuntimeError, ValueError) as exc:
+            failures.append(_ArtifactRefFailure(candidate.text, "missing", str(exc)))
+            continue
+        replacements.append((start, end, replacement_text))
+
+    if failures:
+        _print_artifact_ref_failures(failures)
+        sys.exit(1)
+    if not rewrite or not replacements:
+        return prompt
+
+    expanded = prompt
+    for start, end, replacement_text in reversed(replacements):
+        expanded = f"{expanded[:start]}{replacement_text}{expanded[end:]}"
+    return expanded
+
+
+def _resolve_for_launch(
+    reference: ArtifactRef,
+    *,
+    context: ArtifactRefContext,
+) -> ArtifactRefResolution:
+    resolution = resolve_artifact_ref(reference, context=context)
+    if reference.kind_type != "commit" or resolution.status != "missing":
+        return resolution
+
+    repository = _repository_for_ref(reference.payload.repo or "", context)
+    if repository is None or repository.checkout_path is None:
+        return resolution
+    full_sha = _resolve_checkout_commit(
+        repository.checkout_path,
+        reference.payload.sha or "",
+    )
+    if full_sha is None:
+        return resolution
+    repositories = tuple(
+        replace(candidate, shas=(full_sha,)) if candidate is repository else candidate
+        for candidate in context.repositories
+    )
+    return resolve_artifact_ref(
+        reference,
+        context=replace(context, repositories=repositories),
+    )
+
+
+def _artifact_ref_replacement(
+    reference: ArtifactRef,
+    resolution: ArtifactRefResolution,
+    *,
+    context: ArtifactRefContext,
+) -> str:
+    if reference.kind_type in {"document", "chat", "file"}:
+        if resolution.resolved_path is None:
+            raise RuntimeError("resolver returned no artifact path")
+        return f"@{resolution.resolved_path}{_fragment_annotation(reference.fragment)}"
+    if reference.kind_type == "commit":
+        if resolution.locator is None:
+            raise RuntimeError("resolver returned no commit locator")
+        repository = _repository_for_ref(reference.payload.repo or "", context)
+        if repository is None or repository.checkout_path is None:
+            raise RuntimeError("repository checkout is unavailable")
+        return f"{resolution.locator} (checkout: {repository.checkout_path})"
+    if reference.kind_type == "bug":
+        if resolution.locator is None or reference.payload.number is None:
+            raise RuntimeError("resolver returned no bug locator")
+        project = resolution.locator.rsplit("#", 1)[0]
+        return (
+            f"#{reference.payload.number} "
+            f"{_resolved_bug_url(project, reference.payload.number)}"
+        )
+    raise RuntimeError(f"unsupported artifact reference kind: {reference.kind}")
+
+
+def _fragment_annotation(fragment: ArtifactRefFragment | None) -> str:
+    if fragment is None:
+        return ""
+    if fragment.type == "lines":
+        assert fragment.start is not None
+        assert fragment.end is not None
+        if fragment.start == fragment.end:
+            return f" (line {fragment.start})"
+        return f" (lines {fragment.start}-{fragment.end})"
+    if fragment.type == "page":
+        assert fragment.page is not None
+        return f" (page {fragment.page})"
+    assert fragment.seconds is not None
+    return f" (time {fragment.seconds}s)"
+
+
+def _resolved_bug_url(project: str, number: int) -> str:
+    from sase.ace.tui.artifacts_bugs import issue_url_for_number
+
+    return issue_url_for_number(project, number)
+
+
+def _resolve_checkout_commit(checkout_path: Path, sha: str) -> str | None:
+    try:
+        from sase.vcs_provider import get_vcs_provider
+
+        resolved = get_vcs_provider(str(checkout_path)).revision_id(
+            f"{sha}^{{commit}}",
+            str(checkout_path),
+        )
+    except Exception:
+        return None
+    normalized = resolved.strip().lower()
+    if len(normalized) != 40 or any(
+        character not in "0123456789abcdef" for character in normalized
+    ):
+        return None
+    return normalized
+
+
+def _repository_for_ref(
+    repo: str,
+    context: ArtifactRefContext,
+) -> ArtifactRefRepository | None:
+    return next(
+        (
+            repository
+            for repository in context.repositories
+            if repository.name == repo or repo in repository.aliases
+        ),
+        None,
+    )
+
+
+def _launch_artifact_ref_context(
+    *,
+    is_home_mode: bool,
+) -> ArtifactRefContext:
+    workspace = Path.cwd()
+    workspace_num = _workspace_num_from_environment()
+    project = _workspace_project_ref(workspace)
+    if workspace_num is None:
+        try:
+            from sase.main.utils import ensure_project_file_and_get_workspace_num
+
+            _project_file, detected_num, detected_project = (
+                ensure_project_file_and_get_workspace_num(create_missing=False)
+            )
+            workspace_num = detected_num
+            project = detected_project or project
+        except Exception:
+            pass
+    if workspace_num is None:
+        workspace_num = 0 if is_home_mode else 1
+    return artifact_ref_context(workspace, workspace_num, project=project)
+
+
+def _workspace_num_from_environment() -> int | None:
+    for name in (
+        "SASE_AGENT_WORKSPACE_NUM",
+        "SASE_GIT_WORKSPACE_NUM",
+        "SASE_GH_WORKSPACE_NUM",
+    ):
+        raw = os.environ.get(name)
+        if raw is None:
+            continue
+        try:
+            return int(raw)
+        except ValueError:
+            continue
+    return None
+
+
+def _repository_checkout_path(record: object, workspace_num: int) -> Path | None:
+    clone_for_workspace = getattr(record, "clone_for_workspace", None)
+    clone = (
+        clone_for_workspace(workspace_num) if callable(clone_for_workspace) else None
+    )
+    raw_path = getattr(clone, "path", None)
+    exists = bool(getattr(clone, "exists", False))
+    if raw_path is None and workspace_num in {0, 1}:
+        raw_path = getattr(record, "path", None)
+        exists = bool(getattr(record, "exists", False))
+    if not raw_path or not exists:
+        return None
+    return Path(str(raw_path)).expanduser().resolve(strict=False)
+
+
+def _byte_to_character_offsets(text: str) -> dict[int, int]:
+    offsets = {0: 0}
+    byte_offset = 0
+    for character_offset, character in enumerate(text, start=1):
+        byte_offset += len(character.encode("utf-8"))
+        offsets[byte_offset] = character_offset
+    return offsets
+
+
+def _character_span(
+    span: ArtifactRefSpan,
+    *,
+    byte_to_char: Mapping[int, int],
+) -> tuple[int, int]:
+    try:
+        return byte_to_char[span.start], byte_to_char[span.end]
+    except KeyError as exc:
+        raise RuntimeError(
+            "sase_core_rs returned an artifact-reference span outside UTF-8 "
+            "character boundaries"
+        ) from exc
+
+
+def _overlaps_any(
+    start: int,
+    end: int,
+    ranges: list[tuple[int, int]],
+) -> bool:
+    return any(
+        start < range_end and end > range_start for range_start, range_end in ranges
+    )
+
+
+def _print_artifact_ref_failures(
+    failures: list[_ArtifactRefFailure],
+) -> None:
+    print("\n❌ ERROR: The following artifact reference(s) could not be resolved:")
+    for failure in failures:
+        detail = f": {failure.detail}" if failure.detail else ""
+        print(f"  - {failure.reference} ({failure.status}{detail})")
+    print("\n⚠️ Artifact reference validation failed. Terminating workflow.\n")
 
 
 def reference_for_entry_target(
@@ -661,9 +978,11 @@ __all__ = [
     "artifact_ref_context",
     "canonicalize_artifact_ref",
     "parse_artifact_ref",
+    "process_artifact_references",
     "reference_for_entry_target",
     "render_artifact_ref",
     "resolve_artifact_ref",
     "scan_artifact_ref_prompt",
     "scan_artifact_refs",
+    "validate_artifact_references",
 ]

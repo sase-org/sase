@@ -286,7 +286,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-av(reference_for_entry_target)' \
         --epic-symbol 'sase-av(render_artifact_ref)' \
         --epic-symbol 'sase-av(resolve_artifact_ref)' \
-        --epic-symbol 'sase-av(scan_artifact_refs)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

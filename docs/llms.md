@@ -1417,6 +1417,7 @@ file, template, and formatting work.
 | Early | Prompt directives          | `%model`, `%m`, other `%...` directives    | Extract directives after xprompt expansion               |
 | Late  | Disabled/fenced protection | `%xprompts_enabled:false`, fenced code     | Protect regions that should not be rewritten             |
 | Late  | Command substitution       | `$(cmd)`                                   | Execute shell commands and inline their output           |
+| Late  | Artifact references        | `@kind:payload`                            | Resolve known artifact kinds into launch-ready locators  |
 | Late  | File references            | `@path`                                    | Process, validate, or skip file references               |
 | Late  | Top-level Jinja2           | `{{ var }}`                                | Render remaining top-level Jinja2 templates              |
 | Late  | Prettier formatting        | -                                          | Format with prettier for consistent markdown             |
@@ -1426,8 +1427,10 @@ file, template, and formatting work.
 ### Order Matters
 
 The pipeline runs in strict order. Prompt directives are extracted after xprompt expansion, so directives embedded in
-xprompts are honored. Late-phase command substitution and file-reference processing run with fenced blocks protected, so
-examples inside code fences are not executed or rewritten.
+xprompts are honored. Late-phase command substitution and reference processing run with fenced blocks protected, so
+examples inside code fences are not executed or rewritten. Artifact references are expanded before file references:
+document-role, chat, and artifact-file references become `@path` tokens; commit and bug references become local
+locators. Unknown kinds remain unchanged as prose. Inline-code references also remain literal.
 
 ### Home Mode
 
@@ -1440,6 +1443,7 @@ The preprocessing steps delegate to functions from two libraries:
 
 - **`xprompt`**: `process_xprompt_references()`, `extract_prompt_directives()`, `is_jinja2_template()`,
   `render_toplevel_jinja2()`
+- **`artifact_refs`**: `process_artifact_references()`, `validate_artifact_references()`
 - **`file_references`**: `process_command_substitution()`, `process_file_references()`, `validate_file_references()`,
   `format_with_prettier()`, `strip_html_comments()`
 

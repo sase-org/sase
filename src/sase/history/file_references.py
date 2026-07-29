@@ -68,8 +68,23 @@ def extract_recordable_file_refs(text: str) -> list[str]:
     if not text:
         return []
 
-    results: list[str] = []
+    from sase.artifact_refs import scan_artifact_refs
+    from sase.xprompt._literal_zones import literal_zone_ranges
+
+    byte_to_char = _byte_to_character_offsets(text)
+    literal_ranges = literal_zone_ranges(text)
+    artifact_spans: list[tuple[int, int]] = []
+    results_with_positions: list[tuple[int, str]] = []
+    for candidate in scan_artifact_refs(text):
+        start = byte_to_char[candidate.candidate_span.start]
+        end = byte_to_char[candidate.candidate_span.end]
+        artifact_spans.append((start, end))
+        if candidate.well_formed and not _overlaps_any(start, end, literal_ranges):
+            results_with_positions.append((start, candidate.text))
+
     for match in _FILE_REF_RE.finditer(text):
+        if _overlaps_any(match.start(), match.end(), artifact_spans):
+            continue
         at_prefix = match.group(1)
         path = match.group(2)
         if _is_local_sase_path(path):
@@ -77,10 +92,30 @@ def extract_recordable_file_refs(text: str) -> list[str]:
         if path.startswith("/"):
             continue
         if at_prefix:
-            results.append(path)
+            results_with_positions.append((match.start(), path))
         elif path.startswith("~/"):
-            results.append(path)
-    return results
+            results_with_positions.append((match.start(), path))
+    results_with_positions.sort(key=lambda item: item[0])
+    return [value for _position, value in results_with_positions]
+
+
+def _byte_to_character_offsets(text: str) -> dict[int, int]:
+    offsets = {0: 0}
+    byte_offset = 0
+    for character_offset, character in enumerate(text, start=1):
+        byte_offset += len(character.encode("utf-8"))
+        offsets[byte_offset] = character_offset
+    return offsets
+
+
+def _overlaps_any(
+    start: int,
+    end: int,
+    ranges: list[tuple[int, int]],
+) -> bool:
+    return any(
+        start < range_end and end > range_start for range_start, range_end in ranges
+    )
 
 
 def load_file_references() -> list[str]:

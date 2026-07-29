@@ -116,16 +116,17 @@ def preprocess_prompt_late(
     file_ref_mode: FileRefMode = "process",
     is_home_mode: bool = False,
 ) -> str:
-    """Late preprocessing phase: command sub, file refs, Jinja2, prettier, HTML strip.
+    """Late preprocessing phase: command sub, artifact/file refs, Jinja2, formatting.
 
     Steps:
         1. Protect fenced code blocks.
         2. ``$(cmd)`` command substitution.
-        3. ``@path`` file reference processing or validation.
-        4. Top-level Jinja2 rendering.
-        5. Prettier formatting.
-        6. HTML comment stripping.
-        7. Restore fenced code blocks.
+        3. ``@kind:payload`` artifact reference expansion or validation.
+        4. ``@path`` file reference processing or validation.
+        5. Top-level Jinja2 rendering.
+        6. Prettier formatting.
+        7. HTML comment stripping.
+        8. Restore fenced code blocks.
 
     Args:
         prompt: The prompt text (output of early phase or embedded-workflow
@@ -143,6 +144,10 @@ def preprocess_prompt_late(
         strip_html_comments,
         validate_file_references,
     )
+    from sase.artifact_refs import (
+        process_artifact_references,
+        validate_artifact_references,
+    )
     from sase.xprompt import is_jinja2_template, render_toplevel_jinja2
 
     # 0. Protect disabled regions (%xprompts_enabled:false/true pairs)
@@ -156,26 +161,32 @@ def preprocess_prompt_late(
     # 2. Command substitution
     prompt = process_command_substitution(prompt)
 
-    # 3. File references
+    # 3. Artifact references, before file refs consume their resolved paths.
+    if file_ref_mode == "process":
+        prompt = process_artifact_references(prompt, is_home_mode=is_home_mode)
+    elif file_ref_mode == "validate":
+        validate_artifact_references(prompt, is_home_mode=is_home_mode)
+
+    # 4. File references
     if file_ref_mode == "process":
         prompt = process_file_references(prompt, is_home_mode=is_home_mode)
     elif file_ref_mode == "validate":
         validate_file_references(prompt)
 
-    # 4. Top-level Jinja2
+    # 5. Top-level Jinja2
     if is_jinja2_template(prompt):
         prompt = render_toplevel_jinja2(prompt)
 
-    # 5. Prettier formatting (agent prompts wrap narrower than saved artifacts)
+    # 6. Prettier formatting (agent prompts wrap narrower than saved artifacts)
     prompt = format_agent_prompt_markdown(prompt)
 
-    # 6. HTML comment stripping
+    # 7. HTML comment stripping
     prompt = strip_html_comments(prompt)
 
-    # 7. Restore fenced code blocks
+    # 8. Restore fenced code blocks
     prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
 
-    # 8. Restore disabled regions and strip markers
+    # 9. Restore disabled regions and strip markers
     prompt = unprotect_disabled_regions(prompt, disabled_regions)
     prompt = strip_disabled_region_markers(prompt)
 

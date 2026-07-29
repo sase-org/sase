@@ -225,8 +225,13 @@ def issue_url(project: str, issue: IssueWire) -> str:
     """Return a cached URL or ask the provider for its non-fetching URL."""
     if issue.url:
         return issue.url
+    return issue_url_for_number(project, issue.number)
+
+
+def issue_url_for_number(project: str, number: int) -> str:
+    """Resolve an issue URL without fetching the issue from its tracker."""
     scope = _supported_scope(project)
-    return scope.provider.get_issue_url(issue.number, scope.cwd)
+    return scope.provider.get_issue_url(number, scope.cwd)
 
 
 def _supported_scope(project: str) -> _BugScope:
@@ -259,5 +264,6 @@ __all__ = [
     "collect_bug_snapshot",
     "create_project_issue",
     "issue_url",
+    "issue_url_for_number",
     "update_project_issue",
 ]

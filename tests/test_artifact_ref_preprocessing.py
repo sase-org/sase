@@ -1,0 +1,219 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from sase import artifact_refs
+from sase.artifact_refs import (
+    ArtifactRefContext,
+    ArtifactRefDocumentRoot,
+    ArtifactRefProject,
+    ArtifactRefRepository,
+    process_artifact_references,
+    validate_artifact_references,
+)
+from sase.llm_provider.preprocessing import preprocess_prompt_late
+
+
+def _context(tmp_path: Path) -> ArtifactRefContext:
+    return ArtifactRefContext(
+        document_roots=(
+            ArtifactRefDocumentRoot("plans", tmp_path / "plans"),
+            ArtifactRefDocumentRoot("designs", tmp_path / "designs"),
+        ),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifacts" / "index.jsonl",
+        repositories=(
+            ArtifactRefRepository(
+                "sase",
+                aliases=("sase-org/sase",),
+                checkout_path=tmp_path / "workspace",
+            ),
+        ),
+        projects=(
+            ArtifactRefProject(
+                name="sase",
+                key="gh_sase-org__sase",
+            ),
+        ),
+    )
+
+
+def test_expands_document_chat_file_and_fragments(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "202607" / "plan.md"
+    chat = tmp_path / "chats" / "202607" / "agent.md"
+    artifact = tmp_path / "figure.png"
+    plan.parent.mkdir(parents=True)
+    chat.parent.mkdir(parents=True)
+    context.artifact_index_path.parent.mkdir(parents=True)
+    plan.write_text("# Plan\n", encoding="utf-8")
+    chat.write_text("# Chat\n", encoding="utf-8")
+    artifact.write_bytes(b"png")
+    artifact_id = "default:52895d68931185056fd0e49f"
+    context.artifact_index_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact": {"id": artifact_id, "path": str(artifact)},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    prompt = (
+        "Read @plans:202607/plan.md#L2-L4, "
+        "@chat:202607/agent.md#t=30, and "
+        f"@file:{artifact_id}#page=2."
+    )
+
+    assert process_artifact_references(prompt, context=context) == (
+        f"Read @{plan} (lines 2-4), @{chat} (time 30s), and @{artifact} (page 2)."
+    )
+
+
+def test_unknown_bare_and_literal_references_survive_byte_identically(
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    prompt = (
+        "@user:handle and @plans stay\n"
+        "`@plans:missing.md`\n"
+        "```\n@plans:also-missing.md\n```\n"
+    )
+
+    assert process_artifact_references(prompt, context=context) == prompt
+
+
+def test_unicode_before_reference_preserves_replacement_boundaries(
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "plan.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Plan\n", encoding="utf-8")
+
+    assert (
+        process_artifact_references(
+            "é @plans:plan.md done",
+            context=context,
+        )
+        == f"é @{plan} done"
+    )
+
+
+@pytest.mark.parametrize(
+    ("reference", "status"),
+    (
+        ("@plans:missing.md", "missing"),
+        ("@commit:unknown@abcdef0", "unknown_repo"),
+        ("@plans:../escape.md", "malformed"),
+    ),
+)
+def test_known_reference_failure_exits_clearly(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    reference: str,
+    status: str,
+) -> None:
+    with pytest.raises(SystemExit, match="1"):
+        validate_artifact_references(reference, context=_context(tmp_path))
+
+    output = capsys.readouterr().out
+    assert reference in output
+    assert status in output
+
+
+def test_ambiguous_document_drift_fails_with_status(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context = _context(tmp_path)
+    for month in ("202606", "202607"):
+        path = tmp_path / "plans" / month / "plan.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# Plan\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="1"):
+        process_artifact_references(
+            "@plans:202605/plan.md",
+            context=context,
+        )
+
+    assert "ambiguous" in capsys.readouterr().out
+
+
+def test_commit_expands_to_full_locator_and_checkout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    full_sha = "a" * 40
+    monkeypatch.setattr(
+        artifact_refs,
+        "_resolve_checkout_commit",
+        lambda _path, _sha: full_sha,
+    )
+
+    assert (
+        process_artifact_references(
+            "@commit:sase@aaaaaaa",
+            context=context,
+        )
+        == f"sase@{full_sha} (checkout: {tmp_path / 'workspace'})"
+    )
+
+
+def test_bug_expands_to_number_and_resolved_url(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        artifact_refs,
+        "_resolved_bug_url",
+        lambda project, number: f"https://bugs.test/{project}/{number}",
+    )
+
+    assert (
+        process_artifact_references(
+            "@bug:gh_sase-org__sase#42",
+            context=_context(tmp_path),
+        )
+        == "#42 https://bugs.test/sase/42"
+    )
+
+
+def test_late_preprocessing_expands_artifacts_before_file_refs(
+    tmp_path: Path,
+) -> None:
+    seen: list[tuple[str, bool]] = []
+
+    def expand(prompt: str, *, is_home_mode: bool) -> str:
+        seen.append(("artifact", is_home_mode))
+        return prompt.replace("@plans:x.md", "@/resolved/x.md")
+
+    def process(prompt: str, *, is_home_mode: bool) -> str:
+        seen.append(("file", is_home_mode))
+        assert "@/resolved/x.md" in prompt
+        return prompt
+
+    with (
+        patch(
+            "sase.artifact_refs.process_artifact_references",
+            side_effect=expand,
+        ),
+        patch(
+            "sase.file_references.process_file_references",
+            side_effect=process,
+        ),
+    ):
+        preprocess_prompt_late(
+            "@plans:x.md",
+            is_home_mode=True,
+        )
+
+    assert seen == [("artifact", True), ("file", True)]
