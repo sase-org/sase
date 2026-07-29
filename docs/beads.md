@@ -559,10 +559,12 @@ Plan-file mode is the canonical epic-approval entry point. It:
 
 A missing phase description becomes a deterministic pointer to the plan and phase ID. A linked `bead_id` that no longer
 exists fails with instructions to remove the stale link or restore the bead store. Failures before the launch checkpoint
-is committed remove the newly-created epic and children and restore the plan link. Once that checkpoint exists, a
-publication failure preserves the linked, preassigned epic as the safe retry point even though no runner spawned. Once a
-runner has spawned, the linked epic and readiness state are likewise preserved for recovery and partial runners are
-terminated. Every plan-file failure after archiving prints the exact `sase bead work ... --yes` command to resume.
+is committed remove the newly-created epic and children and restore the plan link. A publication failure after the
+checkpoint preserves the linked, preassigned epic as the safe retry point even though no runner spawned. If dispatch
+fails with no runner spawned, plan-file mode removes a newly created graph and restores the plan link; for an epic that
+already existed, it instead restores that epic's prior readiness, assignments, and statuses. Once a runner has spawned,
+the linked epic and checkpoint are preserved for recovery and partial runners are terminated. Every plan-file failure
+after archiving prints the exact `sase bead work ... --yes` command to resume.
 
 When an epic-tier plan is proposed from bead work, `sase plan propose` automatically stamps `parent_bead` from the phase
 agent's `SASE_PHASE_BEAD_ID`, or from the land agent's `SASE_EPIC_BEAD_ID`. Plan-file mode resolves that bead and
@@ -621,8 +623,8 @@ Once an epic bead exists, the shared launch path:
    as needed; the plan's authored `tier` selects the corresponding automatic follow-up path.
 7. Before spawning any runner, batch-preassigns every scheduled phase bead to its rendered worker and the epic bead to
    `<epic_id>.land`, setting all of them to `in_progress`. It commits readiness, assignments, and the complete graph as
-   one `chore(beads): checkpoint approved epic graph <id>` checkpoint. A detached sidecar launch synchronously
-   integrates and pushes that checkpoint so workers in new workspaces cannot start from an unpublished graph.
+   one `chore(beads): checkpoint approved epic graph <id>` checkpoint. A retry whose graph is already committed may have
+   no new checkpoint commit. Before dispatch, SASE applies the target-specific synchronization rules below.
 8. Dispatches the rendered multi-prompt. Runner-side waiting claims and launch promotions see their preassignment and
    become no-ops. Each segment uses a force-reuse `%id(!<agent_name>, bead=<bead-id>)` form (with `clan=` on join
    segments), so re-running `sase bead work` after a killed or failed run wipes stale name owners before relaunch. The
@@ -634,16 +636,16 @@ which closes the phase and lets its bead-gated dependents proceed. Until then, p
 phase. The land agent now genuinely requires every phase bead to close; if a phase crashes before closure, retry or
 close that phase explicitly rather than expecting landing to sweep it up.
 
-| Flag                  | Description                                                                                        |
-| --------------------- | -------------------------------------------------------------------------------------------------- |
-| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch                             |
-| `-c, --cl-name`       | ChangeSpec name for the approved epic completion notification                                      |
-| `-n, --dry-run`       | Validate and preview plan archiving, bead creation, model routing, and waves without mutation      |
-| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                              |
-| `-P, --no-push`       | Skip publication; detached sidecar stores stop before spawning because workers need the checkpoint |
-| `-p, --parent`        | Override a plan file's `parent_bead`; pass `top-level` to force an unparented epic                 |
-| `-y, --yes`           | Skip only the launch confirmation prompt                                                           |
-| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                                  |
+| Flag                  | Description                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch                        |
+| `-c, --cl-name`       | ChangeSpec name for the approved epic completion notification                                 |
+| `-n, --dry-run`       | Validate and preview plan archiving, bead creation, model routing, and waves without mutation |
+| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                         |
+| `-P, --no-push`       | Skip checkpoint synchronization; a remote-backed detached store stops before spawning         |
+| `-p, --parent`        | Override a plan file's `parent_bead`; pass `top-level` to force an unparented epic            |
+| `-y, --yes`           | Skip only the launch confirmation prompt                                                      |
+| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                             |
 
 The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
 matching tag overrides the built-in. For epic-tier work, every phase and land segment carries bare `%auto`, so spawned
@@ -660,15 +662,24 @@ SASE project, the prompts are left unprefixed and run in the caller's normal lau
 If checkpoint creation fails before it commits, the command restores every phase/epic status and assignee it changed,
 and restores `is_ready_to_work` only when this attempt set it. A detached-store publication failure after the local
 checkpoint commit stops before spawning and preserves that checkpoint as the safe retry point; rerun without `--no-push`
-after fixing the remote. If agent dispatch fails before any runner spawns, SASE restores the prior assignments and
-commits the recovery. A partial-spawn failure SIGTERMs the children it did start and preserves the preassigned
+after fixing the remote. For an existing epic, an agent-dispatch failure before any runner spawns restores the prior
+assignments and commits the recovery. Plan-file mode additionally removes a graph created by that invocation and
+restores its plan link. A partial-spawn failure SIGTERMs the children it did start and preserves the preassigned
 checkpoint for recovery. An epic that was already ready remains ready.
 
 Successful launches do not add a post-launch bead commit: the pre-spawn graph checkpoint is the complete launch-owned
-state. The accepted `bead.push_after_commit` configuration field is not consulted by this current path. Publication is
-instead a safety barrier: detached bead stores synchronize and push the checkpoint before dispatch, while in-tree,
-local, and other shared launch contexts need no remote barrier. `--no-push` works only where workers can see the local
-checkpoint directly; for a detached sidecar it exits nonzero with no agents spawned.
+state. The accepted `bead.push_after_commit` configuration field is not consulted by this current path. The exact
+synchronization sequence depends on the target:
+
+- For a bead-ID target, SASE runs the managed sync worker synchronously after the checkpoint unless `--no-push` was
+  passed. A store with no Git remote makes that sync a local no-op. Any reported sync or push error stops the launch
+  before dispatch, including for an in-tree Git store. A remote-backed detached store has the additional requirement
+  that the checkpoint was actually pushed.
+- For a plan-file target, SASE synchronously publishes a remote-backed detached bead graph before dispatch. After a
+  successful dispatch it makes a best-effort synchronous push of the plans store, which publishes the archived plan and
+  its `bead_id` link. A failure in this later plans-store push is a warning, not a launch failure.
+- `--no-push` skips these synchronization steps. It is usable only when workers can see the local checkpoint directly; a
+  remote-backed detached bead store exits nonzero before any agent is spawned.
 
 ## Rust Backend
 

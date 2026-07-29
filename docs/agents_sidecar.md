@@ -203,9 +203,11 @@ sidecar.
 ### Chats provenance versus publication
 
 Chats calls a local transcript `shared` only when its `agents/<global-name>/chat.md` path exists in the agents sidecar's
-committed tree. Dirty or partially prepared worktree files do not count. Publication state is a separate dimension: an
-outstanding outbox request means related work has not completed, even when the chat is already committed locally but the
-sidecar commit has not been pushed, or when a later revision is queued, quarantined, or retired as unpublishable.
+committed tree. Dirty or partially prepared worktree files do not count. Publication state is a separate dimension.
+Chats reports the outbox disposition alongside provenance: a queued request is pending publication, a quarantined
+request is paused but retryable, and a retired request is terminally unpublishable. A chat can therefore be `shared`
+while a later revision is still queued or quarantined. Retired requests remain in the outbox for review until they are
+explicitly dropped, but they are neither pending nor quarantined.
 
 Repeated hood-specific failures are quarantined after a bounded number of attempts. Quarantined requests remain in the
 outbox, appear in sync/status `diagnostics` and `quarantine_diagnostics`, and are skipped by ordinary drains. After

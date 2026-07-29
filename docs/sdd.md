@@ -14,7 +14,7 @@ SDD fixes this by writing prompt snapshots and plans to disk as first-class arti
 - **Epics** record executable multi-phase plans that can be handed to `sase bead work`.
 - **Research** records exploratory findings, prior art, options, critiques, and recommendations that inform later work.
 - **Beads** provide structured issue tracking that links SDD artifacts to execution via plan-like bead tiers and phase
-  IDs in `SASE_BEAD=` commit footers.
+  or epic IDs in `SASE_BEAD=` commit footers.
 
 Together, these create an audit trail from prompt snapshots to planning artifacts and supporting context. Tales and
 epics can link into the bead hierarchy and phase commits; research notes preserve the longer-lived context those plans
@@ -183,14 +183,14 @@ are `- **PLAN:** [../202605/example.md](../example.md)` in the prompt and
 
 #### Header Block Sections
 
-| Section   | Shape               | Destination                                                          |
-| --------- | ------------------- | -------------------------------------------------------------------- |
-| `PLAN`    | one link (prompts)  | file-relative href inside the plans store                            |
-| `PROMPT`  | one link (plans)    | file-relative href inside the plans store                            |
-| `PARENT`  | one link            | hosted plan URL in the plans sidecar, else a file-relative href      |
-| `BEAD`    | one link or label   | hosted bead page when the bead exists and its sidecar is addressable |
-| `AGENTS`  | ordered sub-bullets | hosted agent README URL in the agents sidecar, else an unlinked name |
-| `COMMITS` | ordered sub-bullets | hosted commit URL in the primary repository, else an unlinked SHA    |
+| Section   | Shape               | Destination                                                           |
+| --------- | ------------------- | --------------------------------------------------------------------- |
+| `PLAN`    | one link (prompts)  | file-relative href inside the plans store                             |
+| `PROMPT`  | one link (plans)    | file-relative href inside the plans store                             |
+| `PARENT`  | one link            | hosted plan URL in the plans sidecar, else a file-relative href       |
+| `BEAD`    | one link or label   | hosted bead page when available and not disproved by a readable store |
+| `AGENTS`  | ordered sub-bullets | hosted agent README URL in the agents sidecar, else an unlinked name  |
+| `COMMITS` | ordered sub-bullets | hosted commit URL in the primary repository, else an unlinked SHA     |
 
 Sub-bullets are indented exactly two spaces and deterministically ordered: agents by global name, commits by commit time
 then SHA. Commit sub-bullets show the seven-character short SHA as link text and append `— <subject>`. A section with
@@ -200,13 +200,16 @@ are wrap-tolerant: prettier may fold a long commit sub-bullet onto continuation 
 back into one logical bullet.
 
 `BEAD`, `AGENTS`, and `COMMITS` are projections of durable state, never accumulators. `BEAD` comes from the plan's
-managed `bead_id` (or historical `bead`) frontmatter. It links only when that bead exists in the resolved store and a
-hosted page URL is available; otherwise it remains an unlinked label, so historical plan IDs do not become dead links.
-The association sections are re-derived from `SASE_PLAN=` / `SASE_AGENT=` commit footers and agent artifact metadata on
-every refresh, so a stale or wrong entry disappears once its source is corrected. An epic plan's sections roll up its
-own associations with those of every descendant plan reachable through `PARENT`. `sase plan links refresh` reconciles
-the whole tree (dry run by default; `--write` to apply, `--plan <ref>` to scope to one plan), and each primary commit
-refreshes the plan it names on a best-effort basis — a plans-store failure never blocks the code commit.
+managed `bead_id` (or historical `bead`) frontmatter. It links when a hosted page URL can be formed and a readable bead
+store does not show the ID to be missing. If the resolved store is readable and confirms that the bead is absent, or if
+no hosted page URL is available, it remains an unlinked label so historical IDs do not become dead links. If the store
+cannot be read, refresh preserves a candidate hosted link rather than stripping potentially valid links during a
+transient failure. The association sections are re-derived from `SASE_PLAN=` / `SASE_AGENT=` commit footers and agent
+artifact metadata on every refresh, so a stale or wrong entry disappears once its source is corrected. An epic plan's
+sections roll up its own associations with those of every descendant plan reachable through `PARENT`.
+`sase plan links refresh` reconciles the whole tree (dry run by default; `--write` to apply, `--plan <ref>` to scope to
+one plan), and each primary commit refreshes the plan it names on a best-effort basis — a plans-store failure never
+blocks the code commit.
 
 A plan's parent is recorded in the `PARENT` bullet. The historical `parent:` frontmatter property is deprecated: it
 remains accepted so already-committed plans still validate, but it emits a deprecation warning and

@@ -55,8 +55,9 @@ These guards are not a substitute for isolation: tests that exercise persistence
 temporary directory and create bead stores under `tmp_path` or another path inside the published sandbox. Run
 `just test-bead-store-soak` when changing bead resolution or mutation paths; it runs the default suite and verifies the
 legacy production plans sidecar's `beads/issues.jsonl` digest, bead-state git status, and git HEAD are unchanged. The
-current guard still targets `SASE_SDD_PLANS_DIR/beads`; on a schema-3 project whose bead state has moved to a dedicated
-`--beads` sidecar, it exits with a missing-file error instead of guarding that store. If an older test run already
+current guard still targets `SASE_SDD_PLANS_DIR/beads` and never resolves the dedicated beads role. On a cleaned
+schema-3 project it exits with a missing-file error instead of running the suite; if a legacy `beads/` copy remains
+under `--plans`, the helper guards that stale copy rather than the active `--beads` store. If an older test run already
 polluted the telemetry store, preview the exact-label cleanup with `sase telemetry cleanup-test-data --dry-run` before
 deciding whether to rerun it with `--yes`.
 

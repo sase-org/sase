@@ -2000,10 +2000,12 @@ stripped before validation, and reported by `sase doctor` for cleanup. See [SDD 
 
 The default current layout has a schema-version 3 `sidecar_repos` record: plans, research, and beads resolve to their
 role-specific clones, and bead state lives at the root of `--beads`. A record without a beads role remains schema
-version 2 and resolves bead state to `beads/` in `--plans`; initialization preserves that compatibility shape until the
-project adopts the dedicated sidecar. Initialization prepares configured sidecars in its current workspace and
-re-records stale compatibility metadata with the derived repository. Later workspaces clone research on demand. The
-legacy single-sidecar shape continues to resolve byte-for-byte as before.
+version 2 and resolves bead state to `beads/` in `--plans`. Ordinary resolution preserves that compatibility shape.
+Running managed `sase repo init` with the beads role enabled is the adoption step: it prepares the dedicated sidecar and
+writes a schema-version 3 record. A project that disables or otherwise omits the beads role stays on schema version 2.
+Initialization prepares configured sidecars in its current workspace and re-records stale compatibility metadata with
+the derived repository. Later workspaces clone research on demand. The legacy single-sidecar shape continues to resolve
+byte-for-byte as before.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during first-use `#git:<project>`
 initialization, existing bare-repo registration, `#git`/workspace materialization, and the first in-tree SDD write.
@@ -2011,13 +2013,13 @@ Setup/materialization flows commit and push only those generated init paths with
 needed.
 
 For a repository whose own `sase/sase.yml` sets `is_sase_managed: true`, running `sase repo init` or its
-`sase init repo` alias writes the managed plans and research entries, initializes configured sidecars, then refreshes
-generated guides and the directory map. On GitHub it derives the remotes as `<owner>/<repo>--plans` and
-`<owner>/<repo>--research`, while honoring optional explicit `repo` pins. It initializes and pushes every enabled entry,
-then maintains the split store record. Existing legacy `--sdd` files remain untouched locally and in their remote, while
-normal SDD routing uses the configured sidecars. `--check` previews provider and generated-file work without writing.
-Missing or false management markers make both forms successful no-ops; invalid local marker configuration fails before
-provider calls or writes.
+`sase init repo` alias writes managed entries for plans, beads, research, and agents, initializes configured sidecars,
+then refreshes generated guides and the directory map. On GitHub it derives the remotes as `<owner>/<repo>--<role>` for
+those four roles while honoring optional explicit `repo` pins. It initializes and pushes every enabled entry, then
+maintains the split store record; the agents role is not part of the SDD store record. Existing legacy `--sdd` files
+remain untouched locally and in their remote, while normal SDD routing uses the configured sidecars. `--check` previews
+provider and generated-file work without writing. Missing or false management markers make both forms successful no-ops;
+invalid local marker configuration fails before provider calls or writes.
 
 Explicit initialization first performs authoritative provider discovery for every enabled sidecar. Each missing GitHub
 repository triggers a separate prompt naming its role and resolved repository; only `y` or `yes` authorizes that
@@ -2037,10 +2039,10 @@ bead:
   push_after_commit: true # compatibility field; current bead-work launches do not consult it
 ```
 
-| Field                           | Type        | Default | Description                                                                                                                                                                                                                    |
-| ------------------------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bead.big_epic_phase_threshold` | int         | `5`     | Minimum total authored phase count that selects `@big_epic_lander` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                    |
-| `bead.push_after_commit`        | bool or str | `true`  | Retained in the accepted configuration shape, but the current `sase bead work` path does not read it. A detached bead store requires a synchronous pre-spawn checkpoint publication; `--no-push` stops before launching there. |
+| Field                           | Type        | Default | Description                                                                                                                                                                                                                                                                              |
+| ------------------------------- | ----------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bead.big_epic_phase_threshold` | int         | `5`     | Minimum total authored phase count that selects `@big_epic_lander` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                                                                              |
+| `bead.push_after_commit`        | bool or str | `true`  | Retained in the accepted configuration shape, but the current `sase bead work` path does not read it. Without `--no-push`, bead-ID launches synchronously run managed sync even for an in-tree Git store; a remote-backed detached store additionally requires an actual pre-spawn push. |
 
 Below the threshold, `@epic_lander` inherits `@default`. At or above it, `@big_epic_lander` instead inherits the
 provider-aware `@smartest` fallback. An explicit land model or a direct alias override remains authoritative.

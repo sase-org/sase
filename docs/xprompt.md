@@ -229,9 +229,12 @@ built-in ones.
 
 An explicit namespaced reference also works when the caller is outside that project's checkout. For an enabled
 registered project, `#myapp/deploy` resolves checkout-backed files and local config from the project's primary
-workspace. The namespace accepts the configured project name, directory key, or alias and canonicalizes it before
-lookup. If the caller is already inside another checkout of that same project, the current checkout wins over the
-registry copy so local edits are visible. Disabled projects are not loaded through this registry fallback.
+workspace. Write the literal reference with the configured project name shown by the xprompt catalog or completion.
+Loader-facing project selection accepts the directory key or an alias too, but catalog entries are still exposed under
+the configured name; those alternate identifiers are not literal xprompt namespaces. If the caller is already inside
+another checkout of that same project, the current checkout wins over the registry copy so local edits are visible.
+Disabled projects are not loaded through this registry fallback. When one inline prompt mentions registered project
+namespaces, the first such namespace selects the checkout-backed project catalog for that prompt.
 
 ## File Format
 
