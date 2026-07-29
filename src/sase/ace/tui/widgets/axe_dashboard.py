@@ -9,7 +9,7 @@ from textual.widgets import Static
 
 from sase.axe.state import AxeStatus, LumberjackStatus
 
-from ..util.axe_log_renderer import SourceType, render_axe_output
+from ..util.axe_log_renderer import render_axe_output
 from ..util.trace import tui_trace
 from ._axe_dashboard_output import (
     AxeOutputSection,
@@ -342,32 +342,13 @@ class AxeDashboard(Static):
                 )
                 return
 
-            source_id = (
-                f"chop:{snapshot.lumberjack_name}:{snapshot.chop_name}"
-                f":{run.entry.run_id}"
+            output_section.update_chop_run(
+                snapshot.lumberjack_name,
+                snapshot.chop_name,
+                run.entry,
+                run.output_tail,
+                width=_section_width(output_section),
             )
-            # Chop script output is arbitrary, so retain ANSI rendering.
-            chop_source_type: SourceType = "ansi"
-            if run.output_tail:
-                output_section.update_display(
-                    run.output_tail,
-                    source_id=source_id,
-                    source_type=chop_source_type,
-                )
-            else:
-                empty = Text()
-                if run.entry.status in {"running", "launched"}:
-                    empty.append("Waiting for output…", style="dim italic")
-                elif run.entry.error:
-                    empty.append(run.entry.error, style="bold red")
-                    if run.entry.traceback:
-                        empty.append("\n\n")
-                        empty.append(run.entry.traceback, style="dim red")
-                elif run.entry.reason:
-                    empty.append(run.entry.reason, style="yellow")
-                else:
-                    empty.append("Run captured no output.", style="dim italic")
-                output_section.update(empty)
 
     def update_countdown(self, countdown: int) -> None:
         """Update just the countdown display.

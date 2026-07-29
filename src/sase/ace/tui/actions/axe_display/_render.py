@@ -15,6 +15,15 @@ from ._loaders import AxeDisplayLoadersMixin
 
 if TYPE_CHECKING:
     from ...keymaps import KeymapRegistry
+    from ._data import ChopSnapshot
+
+
+def _chop_allows_auto_scroll(snapshot: ChopSnapshot | None, run_idx: int) -> bool:
+    """Return whether a selected chop run should keep following its tail."""
+    if snapshot is None or not snapshot.runs:
+        return False
+    selected = snapshot.runs[max(0, min(run_idx, len(snapshot.runs) - 1))]
+    return selected.entry.status in {"running", "launched"}
 
 
 class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
@@ -270,8 +279,18 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             except Exception:
                 pass
 
-            # Auto-scroll to bottom if pinned and on axe view
-            if self._axe_pinned_to_bottom and self._axe_current_view == "axe":
+            # Keep following live output, but leave terminal chop runs at the
+            # RESULT card instead of immediately scrolling it off screen.
+            selected_chop_active = True
+            if self._axe_chop_selection is not None:
+                chop_snap = self._axe_chop_snapshots.get(self._axe_chop_selection)
+                run_idx = self._axe_resolve_chop_run_offset(self._axe_chop_selection)
+                selected_chop_active = _chop_allows_auto_scroll(chop_snap, run_idx)
+            if (
+                self._axe_pinned_to_bottom
+                and self._axe_current_view == "axe"
+                and selected_chop_active
+            ):
                 scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
                 scroll_container.scroll_end(animate=False)
         except Exception:

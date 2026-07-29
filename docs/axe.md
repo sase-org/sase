@@ -694,15 +694,22 @@ as never run. Selection drives three distinct dashboard views:
   per-chop table with each chop's last-run status, relative timestamp, and duration. For a chop whose newest run is
   still active, the duration column shows live elapsed runtime rather than the stale `0ms` you would otherwise see
   before the run finalizes.
-- **Chop detail** — selecting a chop row renders the latest run's metadata (`● running` status with live elapsed
-  runtime, PID, and a `Source:` chip for non-scheduled runs — i.e. `manual` or `oneshot`) and tails the run's `.log`
-  file. Until the log has accumulated any bytes, the panel shows a `Waiting for output…` placeholder; the exit code is
-  suppressed until the run finalizes.
+- **Chop detail** — selecting a chop row renders one width-responsive document. A universal **RESULT** card summarizes
+  status, counters, reason, dry-run/source markers, proposals, launches, evidence, and failures from the cached run
+  entry. A chop-authored structured report follows when the result document provides one, then **OUTPUT** preserves the
+  run's ANSI-rendered `.log` tail. Until the log has accumulated any bytes, the output section shows a
+  `Waiting for output…` placeholder; the exit code is suppressed until the run finalizes. Active `running` and
+  `launched` runs continue following the output tail, while selecting a terminal run leaves the RESULT card at the top
+  of the scroll region.
 - **Background command output** — the existing live output stream for the focused `!!` row.
 
 `Ctrl+N` / `Ctrl+P` on the Axe tab page through the focused chop's run history (newer / older). The viewer pins to the
 run you selected so that a fresh tick prepending a new run does not bump you forward; the pin is cleared automatically
 if the pinned run is pruned or itself becomes the newest run.
+
+The same structured report renderer is used by `sase axe chop run` when that command prints a structured result (dry run
+or chop-verbose mode), so semantic tones, rows, gauges, and literal-text safety do not drift between the CLI and the ACE
+AXE tab.
 
 ### Chop-Agent Registry
 

@@ -63,13 +63,17 @@ def test_update_chop_run_display_renders_newest_run_by_default() -> None:
     status_calls: list[tuple[tuple, dict]] = []
 
     class _OutputSection:
-        def update_display(
+        def update_chop_run(
             self,
+            lumberjack_name: str,
+            chop_name: str,
+            entry: object,
             output: str,
-            source_id: str = "axe-output",
-            source_type: str = "ansi",
+            **_: object,
         ) -> None:
-            output_calls.append((output, source_id))
+            output_calls.append(
+                (output, f"chop:{lumberjack_name}:{chop_name}:{entry.run_id}")
+            )  # type: ignore[attr-defined]
 
         def update(self, *_: object, **__: object) -> None:
             output_calls.append(("__update__", "__update__"))
@@ -113,13 +117,17 @@ def test_update_chop_run_display_clamps_out_of_range_idx() -> None:
     output_payloads: list[str] = []
 
     class _OutputSection:
-        def update_display(
+        def update_chop_run(
             self,
+            lumberjack_name: str,
+            chop_name: str,
+            entry: object,
             output: str,
-            source_id: str = "axe-output",
-            source_type: str = "ansi",
+            **_: object,
         ) -> None:
-            output_payloads.append(source_id)
+            output_payloads.append(
+                f"chop:{lumberjack_name}:{chop_name}:{entry.run_id}"  # type: ignore[attr-defined]
+            )
 
         def update(self, *_: object, **__: object) -> None:
             pass
@@ -186,8 +194,8 @@ def test_chop_status_running_label_style() -> None:
     assert "green" in style
 
 
-def test_update_chop_run_display_script_run_stays_on_ansi() -> None:
-    """Script chop runs keep the ANSI fallback — their output is arbitrary."""
+def test_update_chop_run_display_passes_script_output_to_composed_renderer() -> None:
+    """Script chop output is passed intact to the composed run renderer."""
     script_run = ChopRunSnapshot(
         entry=_entry("run-script", status="success"),
         output_tail="\x1b[32mall good\x1b[0m\n",
@@ -197,13 +205,15 @@ def test_update_chop_run_display_script_run_stays_on_ansi() -> None:
     captured: dict[str, object] = {}
 
     class _OutputSection:
-        def update_display(
+        def update_chop_run(
             self,
+            lumberjack_name: str,
+            chop_name: str,
+            entry: object,
             output: str,
-            source_id: str = "axe-output",
-            source_type: str = "ansi",
+            **_: object,
         ) -> None:
-            captured["source_type"] = source_type
+            captured["output"] = output
 
         def update(self, *_: object, **__: object) -> None:
             pass
@@ -222,7 +232,7 @@ def test_update_chop_run_display_script_run_stays_on_ansi() -> None:
     dashboard.query_one = _query_one  # type: ignore[assignment]
     dashboard.update_chop_run_display(snapshot=snap, run_idx=0, countdown=0)
 
-    assert captured["source_type"] == "ansi"
+    assert captured["output"] == "\x1b[32mall good\x1b[0m\n"
 
 
 def test_render_chop_display_running_with_no_output_shows_waiting() -> None:
@@ -242,8 +252,24 @@ def test_render_chop_display_running_with_no_output_shows_waiting() -> None:
     captured: dict[str, object] = {}
 
     class _OutputSection:
-        def update_display(self, *args: object, **kwargs: object) -> None:
-            captured.setdefault("display", (args, kwargs))
+        def update_chop_run(
+            self,
+            lumberjack_name: str,
+            chop_name: str,
+            entry: object,
+            output: str,
+            **kwargs: object,
+        ) -> None:
+            from sase.ace.tui.widgets._axe_dashboard_output import AxeOutputSection
+
+            AxeOutputSection.update_chop_run(
+                self,  # type: ignore[arg-type]
+                lumberjack_name,
+                chop_name,
+                entry,  # type: ignore[arg-type]
+                output,
+                **kwargs,  # type: ignore[arg-type]
+            )
 
         def update(self, content: object) -> None:
             captured["update"] = content
@@ -261,5 +287,3 @@ def test_render_chop_display_running_with_no_output_shows_waiting() -> None:
     rendered = captured["update"]
     assert isinstance(rendered, Text)
     assert "waiting" in rendered.plain.lower()
-    # Output section's update_display path (for non-empty output) is unused.
-    assert "display" not in captured

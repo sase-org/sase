@@ -13,6 +13,7 @@ from sase.ace.tui.actions.axe_display import (
     ChopSnapshot,
     LumberjackSnapshot,
 )
+from sase.ace.tui.actions.axe_display._render import _chop_allows_auto_scroll
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.widgets.bgcmd_list import (
     BgCmdItem,
@@ -115,6 +116,27 @@ class _Fake(AxeDisplayMixin, AgentPanelDetailMixin):
 def test_default_offset_is_newest() -> None:
     app = _Fake(_make_runs("r3", "r2", "r1"))
     assert app._axe_resolve_chop_run_offset(("hooks", "fast")) == 0
+
+
+def test_only_active_selected_chop_runs_allow_auto_scroll() -> None:
+    terminal = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="fast",
+        description="",
+        runs=_make_runs("terminal"),
+    )
+    active_runs = _make_runs("live")
+    active_runs[0].entry.status = "running"
+    active_runs[0].entry.finished_at = None
+    active = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="fast",
+        description="",
+        runs=active_runs,
+    )
+
+    assert not _chop_allows_auto_scroll(terminal, 0)
+    assert _chop_allows_auto_scroll(active, 0)
 
 
 def test_ctrl_n_advances_to_next_older_run() -> None:

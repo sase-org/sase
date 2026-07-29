@@ -5,9 +5,11 @@ from typing import TYPE_CHECKING
 from rich.text import Text
 from textual.widgets import Static
 
+from sase.axe.chop_report_render import render_section_rule
 from sase.axe.state import LumberjackStatus
 
 from ..util.axe_log_renderer import SourceType, render_axe_output
+from ._axe_chop_result_card import render_cached_chop_card_and_report
 from ._axe_dashboard_render import (
     LJ_NAME_STYLE as _LJ_NAME_STYLE,
     format_relative_time as _format_relative_time,
@@ -19,6 +21,7 @@ from ._axe_dashboard_render import (
 
 if TYPE_CHECKING:
     from ..actions.axe_display._data import LumberjackSnapshot
+    from sase.axe.state import ChopRunEntry
 
 # Type alias for lumberjack summary tuple: (name, status, chops_executed)
 LumberjackSummary = tuple[str, LumberjackStatus | None, int]
@@ -36,6 +39,46 @@ _OVERVIEW_LOG_TAIL_LINES = 6
 
 class AxeOutputSection(Static):
     """Section showing live axe output log."""
+
+    def update_chop_run(
+        self,
+        lumberjack_name: str,
+        chop_name: str,
+        entry: "ChopRunEntry",
+        output: str,
+        *,
+        width: int | None = None,
+    ) -> None:
+        """Render a cached RESULT card, optional REPORT, and ANSI OUTPUT."""
+        text = render_cached_chop_card_and_report(
+            lumberjack_name,
+            chop_name,
+            entry,
+            width=width,
+        )
+        line_count = len(output.splitlines()) if output else 0
+        text.append("\n\n")
+        line_label = "line" if line_count == 1 else "lines"
+        text.append_text(
+            render_section_rule(f"OUTPUT · {line_count} {line_label}", width=width)
+        )
+        text.append("\n")
+
+        if output:
+            source_id = f"chop:{lumberjack_name}:{chop_name}:{entry.run_id}"
+            text.append_text(render_axe_output(source_id, output, "ansi"))
+        elif entry.status in {"running", "launched"}:
+            text.append("  Waiting for output…", style="dim italic")
+        elif entry.error:
+            text.append(f"  {entry.error}", style="bold red")
+            if entry.traceback:
+                text.append("\n\n")
+                text.append(entry.traceback, style="dim red")
+        elif entry.reason:
+            text.append(f"  {entry.reason}", style="yellow")
+        else:
+            text.append("  Run captured no output.", style="dim italic")
+        self.update(text)
 
     def update_display(
         self,

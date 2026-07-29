@@ -12,6 +12,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
+from sase.axe.chop_report_render import render_chop_report
 from sase.axe.chop_doctor import ChopCheck, ChopDoctorReport
 from sase.axe.chop_inventory import ChopInventory, ConfiguredChopRecord
 from sase.diagnostics import CheckStatus
@@ -91,6 +92,11 @@ def render_chop_run_result(
             border_style="cyan",
         )
     ]
+    report = result.get("report")
+    if isinstance(report, Mapping):
+        rendered_report = render_chop_report(report, width=target.size.width)
+        if rendered_report:
+            renderables.append(rendered_report)
 
     if proposals:
         table = Table(

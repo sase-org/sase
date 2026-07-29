@@ -1370,6 +1370,24 @@ back to ANSI rendering for everything else:
 Render cache slots are keyed on `(source_id, source_type)` so the semantic and ANSI paths cannot collide for the same
 numerical identity.
 
+### Chop Result Documents
+
+Selecting a recorded chop run composes three sections inside the existing scroll region:
+
+1. **RESULT** is always present and is derived entirely from the cached run entry. It includes the status, structured
+   summary and reason, counters, proposal and launch rosters, evidence, dry-run/source markers, and any error or
+   traceback.
+2. A chop-authored structured **report** follows when the result document supplies one. Semantic tones map to the AXE
+   palette, tables elide cells at wide widths and stack at widths below 60 cells, and all chop strings are rendered
+   literally rather than parsed as Rich markup or ANSI.
+3. **OUTPUT** contains the existing ANSI-rendered log tail and retains the waiting, failure, reason, and no-output
+   fallbacks for runs with an empty log.
+
+The card and report are cached by run identity, lifecycle state, completion timestamp, and rendered width. They paint
+only from the in-memory chop snapshot; navigation does not read, stat, or glob the run files. Auto-scroll continues to
+follow active `running` and `launched` output, but terminal runs open at the RESULT card so the report is not scrolled
+off screen on selection.
+
 ### Navigation
 
 | Key                       | Action                                                                        |

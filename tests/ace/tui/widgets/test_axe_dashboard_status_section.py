@@ -38,7 +38,7 @@ def test_render_chop_display_running_run_shows_elapsed_and_pid() -> None:
     captured: dict[str, object] = {}
 
     class _OutputSection:
-        def update_display(self, *args: object, **kwargs: object) -> None:
+        def update_chop_run(self, *args: object, **kwargs: object) -> None:
             captured["display"] = (args, kwargs)
 
         def update(self, content: object) -> None:
@@ -101,7 +101,7 @@ def test_render_chop_display_scheduled_run_hides_source_marker() -> None:
     section.update = lambda content: rendered.__setitem__("content", content)  # type: ignore[assignment]
 
     class _OutputSection:
-        def update_display(self, *_a: object, **_kw: object) -> None:
+        def update_chop_run(self, *_a: object, **_kw: object) -> None:
             pass
 
         def update(self, *_a: object, **_kw: object) -> None:
@@ -275,7 +275,7 @@ def test_chop_status_header_colors_names_with_sidebar_taxonomy() -> None:
     section.update = lambda content: rendered.__setitem__("content", content)  # type: ignore[assignment]
 
     class _OutputSection:
-        def update_display(self, *_a: object, **_kw: object) -> None:
+        def update_chop_run(self, *_a: object, **_kw: object) -> None:
             pass
 
         def update(self, *_a: object, **_kw: object) -> None:
