@@ -14,6 +14,7 @@ from pathlib import Path
 from sase.core.artifact_file_helpers import (
     artifact_file_association_from_metadata,
     artifact_file_id,
+    artifact_file_mime_type,
     file_created_at,
     hash_file,
     hash_text,
@@ -23,6 +24,7 @@ from sase.core.artifact_file_helpers import (
 )
 from sase.core.artifact_file_types import (
     ARTIFACT_FILE_INDEX_SCHEMA_VERSION,
+    ARTIFACT_FILE_INDEX_SUPPORTED_SCHEMA_VERSIONS,
     ArtifactFile,
     ArtifactFileAssociation,
     ArtifactFileKind,
@@ -71,7 +73,7 @@ def store_explicit_artifact_file(
         if kind is not None
         else infer_artifact_file_kind(source)
     )
-    stored_path = _store_file(source, root, association, move=move)
+    stored_path, sha256 = _store_file(source, root, association, move=move)
     artifact_file = ArtifactFile(
         id=artifact_file_id("explicit", association, stored_path, label or source.name),
         label=label or source.name,
@@ -85,6 +87,9 @@ def store_explicit_artifact_file(
         raw_timestamp=association.raw_timestamp,
         agent_name=association.agent_name,
         explicit=True,
+        sha256=sha256,
+        size_bytes=stored_path.stat().st_size,
+        mime_type=artifact_file_mime_type(stored_path),
     )
     _upsert_index_row(idx, artifact_file)
     return artifact_file
@@ -123,7 +128,7 @@ def store_default_artifact_file(
         if kind is not None
         else infer_artifact_file_kind(source)
     )
-    stored_path = _store_file(source, root, association, move=False)
+    stored_path, sha256 = _store_file(source, root, association, move=False)
     artifact_file = ArtifactFile(
         id=artifact_file_id("default", association, stored_path, label or source.name),
         label=label or source.name,
@@ -138,6 +143,9 @@ def store_default_artifact_file(
         raw_timestamp=association.raw_timestamp,
         agent_name=association.agent_name,
         explicit=False,
+        sha256=sha256,
+        size_bytes=stored_path.stat().st_size,
+        mime_type=artifact_file_mime_type(stored_path),
     )
     _upsert_index_row(idx, artifact_file)
     return artifact_file
@@ -155,7 +163,7 @@ def read_artifact_file_index(
     )
     if not idx.exists():
         return []
-    with _index_lock(idx, exclusive=False):
+    with artifact_file_index_lock(idx, exclusive=False):
         return _read_index_unlocked(idx)
 
 
@@ -193,7 +201,7 @@ def _store_file(
     association: ArtifactFileAssociation,
     *,
     move: bool,
-) -> Path:
+) -> tuple[Path, str]:
     target_dir = (
         artifact_files_root
         / "agents"
@@ -205,12 +213,12 @@ def _store_file(
     target_dir.mkdir(parents=True, exist_ok=True)
     suffix = source.suffix
     stem = safe_segment(source.stem) or "artifact"
-    digest = hash_file(source)[:12]
-    target = target_dir / f"{stem}-{digest}{suffix}"
+    digest = hash_file(source)
+    target = target_dir / f"{stem}-{digest[:12]}{suffix}"
     if target.exists():
         if move and source.resolve(strict=False) != target.resolve(strict=False):
             source.unlink()
-        return target
+        return target, digest
 
     fd, tmp_name = tempfile.mkstemp(
         prefix=f".{target.name}.",
@@ -227,37 +235,76 @@ def _store_file(
     except Exception:
         tmp_path.unlink(missing_ok=True)
         raise
-    return target
+    return target, digest
 
 
 def _upsert_index_row(index_path: Path, artifact_file: ArtifactFile) -> None:
     index_path.parent.mkdir(parents=True, exist_ok=True)
-    with _index_lock(index_path, exclusive=True):
-        rows = _read_index_unlocked(index_path)
+    with artifact_file_index_lock(index_path, exclusive=True):
+        rows, preserved_lines = read_artifact_file_index_document_unlocked(index_path)
         rows_by_id = {row.id: row for row in rows}
         rows_by_id[artifact_file.id] = artifact_file
-        _write_index_unlocked(index_path, list(rows_by_id.values()))
+        write_artifact_file_index_unlocked(
+            index_path,
+            list(rows_by_id.values()),
+            preserved_lines=preserved_lines,
+        )
 
 
 def _read_index_unlocked(index_path: Path) -> list[ArtifactFile]:
+    rows, _preserved_lines = read_artifact_file_index_document_unlocked(index_path)
+    return rows
+
+
+def read_artifact_file_index_document_unlocked(
+    index_path: Path,
+) -> tuple[list[ArtifactFile], list[str]]:
+    """Read supported rows and verbatim preserved lines with the lock held."""
+
     if not index_path.exists():
-        return []
+        return [], []
     rows: list[ArtifactFile] = []
+    preserved_lines: list[str] = []
     with index_path.open(encoding="utf-8") as handle:
         for line in handle:
             stripped = line.strip()
             if not stripped:
                 continue
-            data = json.loads(stripped)
-            if int(data.get("schema_version", 0)) != ARTIFACT_FILE_INDEX_SCHEMA_VERSION:
+            try:
+                data = json.loads(stripped)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                preserved_lines.append(line)
+                continue
+            if not isinstance(data, dict):
+                preserved_lines.append(line)
+                continue
+            try:
+                schema_version = int(data.get("schema_version", 0))
+            except (TypeError, ValueError):
+                preserved_lines.append(line)
+                continue
+            if schema_version not in ARTIFACT_FILE_INDEX_SUPPORTED_SCHEMA_VERSIONS:
+                preserved_lines.append(line)
                 continue
             artifact_data = data.get("artifact")
             if isinstance(artifact_data, dict):
-                rows.append(artifact_file_from_dict(artifact_data))
-    return rows
+                try:
+                    rows.append(artifact_file_from_dict(artifact_data))
+                except (KeyError, TypeError, ValueError):
+                    preserved_lines.append(line)
+            else:
+                preserved_lines.append(line)
+    return rows, preserved_lines
 
 
-def _write_index_unlocked(index_path: Path, rows: list[ArtifactFile]) -> None:
+def write_artifact_file_index_unlocked(
+    index_path: Path,
+    rows: list[ArtifactFile],
+    *,
+    preserved_lines: list[str] | None = None,
+) -> None:
+    """Atomically write supported rows and preserved lines with the lock held."""
+
     tmp_fd, tmp_name = tempfile.mkstemp(
         prefix=f".{index_path.name}.",
         suffix=".tmp",
@@ -277,6 +324,8 @@ def _write_index_unlocked(index_path: Path, rows: list[ArtifactFile]) -> None:
                     )
                 )
                 handle.write("\n")
+            for line in preserved_lines or []:
+                handle.write(line)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(tmp_name, index_path)
@@ -286,7 +335,13 @@ def _write_index_unlocked(index_path: Path, rows: list[ArtifactFile]) -> None:
 
 
 @contextmanager
-def _index_lock(index_path: Path, *, exclusive: bool) -> Iterator[None]:
+def artifact_file_index_lock(
+    index_path: Path,
+    *,
+    exclusive: bool,
+) -> Iterator[None]:
+    """Hold the shared artifact-file index lock."""
+
     index_path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = index_path.parent / _LOCK_NAME
     with lock_path.open("a+", encoding="utf-8") as handle:

@@ -1,4 +1,5 @@
 import json
+import hashlib
 import shutil
 from pathlib import Path
 
@@ -149,12 +150,18 @@ def test_store_explicit_artifact_file_preserves_jsonl_wire_format(
         "path",
         "project",
         "raw_timestamp",
+        "sha256",
+        "size_bytes",
         "source_path",
+        "mime_type",
         "workflow",
         "workspace_dir",
     }
     assert row["artifact"]["agent_artifacts_dir"] == str(artifacts_dir)
     assert row["artifact"]["path"] == stored.path
+    assert stored.sha256 == hashlib.sha256(b"# Report\n").hexdigest()
+    assert stored.size_bytes == len(b"# Report\n")
+    assert stored.mime_type == "text/markdown"
 
 
 def test_explicit_artifact_association_survives_removed_and_restored_run_dir(
@@ -205,6 +212,9 @@ def test_store_default_artifact_file_writes_index_row_with_source_path(
     assert stored.explicit is False
     assert stored.source_path == str(image)
     assert stored.workspace_dir == str(workspace)
+    assert stored.sha256 == hashlib.sha256(b"png-bytes").hexdigest()
+    assert stored.size_bytes == len(b"png-bytes")
+    assert stored.mime_type == "image/png"
     assert Path(stored.path).is_file()
     assert Path(stored.path).is_relative_to(tmp_path / ".sase" / "artifacts")
 

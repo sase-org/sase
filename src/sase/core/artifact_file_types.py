@@ -11,7 +11,11 @@ from sase.core.paths import sase_home as _sase_home
 
 ArtifactFileKind = Literal["chat", "plan", "image", "markdown", "pdf", "file"]
 
+# The version written by this package. Keep this at v1 while older SASE
+# installations may still rewrite the shared index.
 ARTIFACT_FILE_INDEX_SCHEMA_VERSION = 1
+# Versions this package can safely deserialize and rewrite.
+ARTIFACT_FILE_INDEX_SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2})
 ARTIFACT_FILE_KINDS: tuple[ArtifactFileKind, ...] = (
     "chat",
     "plan",
@@ -64,6 +68,9 @@ class ArtifactFile:
     raw_timestamp: str | None = None
     agent_name: str | None = None
     explicit: bool = False
+    sha256: str | None = None
+    size_bytes: int | None = None
+    mime_type: str | None = None
 
 
 def default_artifact_files_root(sase_home: Path | str | None = None) -> Path:
@@ -103,6 +110,9 @@ def artifact_file_from_dict(data: dict[str, Any]) -> ArtifactFile:
         raw_timestamp=_optional_str(data.get("raw_timestamp")),
         agent_name=_optional_str(data.get("agent_name")),
         explicit=bool(data.get("explicit", False)),
+        sha256=_optional_str(data.get("sha256")),
+        size_bytes=_optional_int(data.get("size_bytes")),
+        mime_type=_optional_str(data.get("mime_type")),
     )
 
 
@@ -161,3 +171,7 @@ def coerce_artifact_file_kind(kind: Any) -> ArtifactFileKind:
 
 def _optional_str(value: Any) -> str | None:
     return value if isinstance(value, str) else None
+
+
+def _optional_int(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None

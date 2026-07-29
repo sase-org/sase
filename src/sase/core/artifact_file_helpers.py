@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import mimetypes
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,6 +15,48 @@ from sase.core.artifact_file_types import (
     ArtifactFileAssociation,
     artifact_file_association_from_dir,
 )
+
+_KNOWN_MIME_TYPES = {
+    ".bmp": "image/bmp",
+    ".css": "text/css",
+    ".gif": "image/gif",
+    ".htm": "text/html",
+    ".html": "text/html",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".json": "application/json",
+    ".jsonl": "application/x-ndjson",
+    ".markdown": "text/markdown",
+    ".md": "text/markdown",
+    ".mdown": "text/markdown",
+    ".mkd": "text/markdown",
+    ".mov": "video/quicktime",
+    ".mp4": "video/mp4",
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".text": "text/plain",
+    ".tif": "image/tiff",
+    ".tiff": "image/tiff",
+    ".toml": "application/toml",
+    ".tsv": "text/tab-separated-values",
+    ".txt": "text/plain",
+    ".webm": "video/webm",
+    ".webp": "image/webp",
+    ".yaml": "application/yaml",
+    ".yml": "application/yaml",
+}
+
+
+def artifact_file_mime_type(path: Path | str) -> str:
+    """Return a deterministic MIME type for an artifact file."""
+
+    suffix = Path(path).suffix.lower()
+    known = _KNOWN_MIME_TYPES.get(suffix)
+    if known is not None:
+        return known
+    guessed, _encoding = mimetypes.guess_type(str(path))
+    return guessed or "application/octet-stream"
 
 
 def artifact_file_association_from_metadata(
