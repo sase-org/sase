@@ -25,9 +25,26 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
 
     # sase bead close
     bead_close_parser = bead_subparsers.add_parser(
-        "close", help="Close one or more issues"
+        "close",
+        help="Close one or more issues",
+        description=(
+            "Close one or more issues atomically. With --phases, the single "
+            "target is an epic whose numbered phase beads are closed instead."
+        ),
+        epilog=(
+            "Examples:\n"
+            '  sase bead close sase-at.1 --note "verified with just check"\n'
+            "  sase bead close sase-at -p 1,2,3\n"
+            "  sase bead close sase-at -p 1-3\n"
+            '  sase bead close sase-at -p 1-3,5 --reason "phases landed together"'
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    bead_close_parser.add_argument("ids", nargs="+", help="Issue IDs to close")
+    bead_close_parser.add_argument(
+        "ids",
+        nargs="+",
+        help="Issue IDs to close (exactly one epic ID when --phases is used)",
+    )
     bead_close_parser.add_argument(
         "-f",
         "--force",
@@ -41,6 +58,16 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         "-n",
         "--note",
         help="Append this attributed note to each issue before closing it",
+    )
+    bead_close_parser.add_argument(
+        "-p",
+        "--phases",
+        action="append",
+        metavar="SPEC",
+        help=(
+            "Close these phase beads of the target epic; comma-separated "
+            "numbers and ranges (e.g. 1,3,5-7)"
+        ),
     )
     bead_close_parser.add_argument("-r", "--reason", help="Close reason")
     bead_close_parser.add_argument(

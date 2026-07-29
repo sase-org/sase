@@ -296,3 +296,31 @@ def test_fast_path_defers_search_help_to_argparse(monkeypatch) -> None:
     monkeypatch.setattr(bead_fast_path, "_resolve_fast_path_context", fail_context)
 
     assert try_handle_bead_fast_path(["search", "--help"]) is None
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["close", "beads-1", "-p", "1"],
+        ["close", "beads-1", "--phases=1-2"],
+    ],
+)
+def test_rust_fast_path_defers_close_phase_selectors(
+    argv: list[str],
+    tmp_path: Path,
+) -> None:
+    from sase.core.rust import require_rust_binding
+
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    outcome = dict(
+        require_rust_binding("bead_cli_execute")(
+            argv,
+            [str(beads_dir)],
+            str(beads_dir),
+            str(tmp_path),
+            False,
+        )
+    )
+
+    assert outcome["handled"] is False

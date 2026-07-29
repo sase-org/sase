@@ -363,6 +363,19 @@ def _run_cli(
             stdout=_read_expected("close.stdout"),
         ),
         CliCase(
+            "close_phases",
+            ["bead", "close", "beads-1", "-p", "1-2"],
+            "current",
+            stdout=_read_expected("close_phases.stdout"),
+        ),
+        CliCase(
+            "close_phases_not_epic",
+            ["bead", "close", "beads-3", "-p", "1"],
+            "current",
+            code=1,
+            stderr=_read_expected("close_phases_not_epic.stderr"),
+        ),
+        CliCase(
             "rm",
             ["bead", "rm", "beads-1.2"],
             "current",

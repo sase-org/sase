@@ -286,6 +286,11 @@ Close one or more issues. Every requested bead is checked before the first write
 leaves the store untouched. A bead with any non-closed descendant is rejected and names the unfinished work; phase
 agents should continue to close only their assigned phase bead, not the parent epic.
 
+For an epic plan bead, `--phases` (`-p`) closes phase beads by their numeric bead-ID suffix: for example,
+`sase bead close sase-at -p 1-3,5` closes `sase-at.1`, `sase-at.2`, `sase-at.3`, and `sase-at.5`. The option accepts
+comma-separated numbers and inclusive ranges, may be repeated, and requires exactly one epic ID. It never closes the
+epic itself. A plan-tier, untiered, or phase target is rejected without writing to the store.
+
 `--force` is the explicit exception for canceling or superseding an unfinished tree. It requires a non-empty reason and
 an explicit `canceled` or `superseded` resolution; `--force --resolution done` is rejected. A forced close recursively
 closes the unfinished descendants with the same non-done resolution, gives each one a close reason naming the forcing
@@ -305,6 +310,7 @@ scheduled again on retry.
 | ------------------ | ----------------------------------------------------------------------------------- |
 | `-f, --force`      | Sweep unfinished descendants; requires a reason and `canceled` or `superseded`      |
 | `-n, --note`       | Append this attributed note to each listed issue before closing it                  |
+| `-p, --phases`     | Close numbered phases of one epic; accepts comma-separated numbers and ranges       |
 | `-r, --reason`     | Optional close reason text; required with `--force`                                 |
 | `-R, --resolution` | `canceled`, `done`, or `superseded`; defaults to `done`, which force does not allow |
 

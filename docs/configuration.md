@@ -2878,13 +2878,14 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead close`
 
-| Flag               | Values                           | Default    | Description                                    |
-| ------------------ | -------------------------------- | ---------- | ---------------------------------------------- |
-| `ids`              | string                           | (required) | One or more issue IDs                          |
-| `-f, --force`      | flag                             | -          | Sweep unfinished descendants; needs both below |
-| `-n, --note`       | string                           | -          | Attributed note appended to each listed issue  |
-| `-r, --reason`     | string                           | -          | Optional close reason text                     |
-| `-R, --resolution` | `canceled`, `done`, `superseded` | `done`     | How this bead was resolved                     |
+| Flag               | Values                           | Default    | Description                                          |
+| ------------------ | -------------------------------- | ---------- | ---------------------------------------------------- |
+| `ids`              | string                           | (required) | One or more IDs; exactly one epic ID with `--phases` |
+| `-f, --force`      | flag                             | -          | Sweep unfinished descendants; needs both below       |
+| `-n, --note`       | string                           | -          | Attributed note appended to each listed issue        |
+| `-p, --phases`     | number/range list                | -          | Close numbered phase beads of the target epic        |
+| `-r, --reason`     | string                           | -          | Optional close reason text                           |
+| `-R, --resolution` | `canceled`, `done`, `superseded` | `done`     | How this bead was resolved                           |
 
 #### `sase bead rm`
 

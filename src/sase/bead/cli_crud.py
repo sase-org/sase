@@ -17,6 +17,12 @@ from sase.bead.cli_common import (
 )
 from sase.bead.model import BeadTier, IssueType
 from sase.bead.mutation_commit import require_mutation_commit_message
+from sase.bead.phase_selector import (
+    PhaseSelectorError,
+    parse_phase_selectors,
+    resolve_epic_phase_ids,
+)
+from sase.bead.project import BeadProject
 
 
 def handle_bead_init(args: argparse.Namespace) -> None:
@@ -201,9 +207,23 @@ def handle_bead_open(args: argparse.Namespace) -> None:
         print(f"○ Reopened ancestor: {ancestor.id} — {ancestor.title}")
 
 
+def _resolve_close_ids(args: argparse.Namespace, project: BeadProject) -> list[str]:
+    phases = getattr(args, "phases", None)
+    if phases is None:
+        return args.ids
+    if len(args.ids) != 1:
+        targets = ", ".join(args.ids)
+        raise PhaseSelectorError(
+            f"--phases takes exactly one epic bead ID (got {len(args.ids)}: {targets})"
+        )
+    phase_numbers = parse_phase_selectors(phases)
+    return resolve_epic_phase_ids(project, args.ids[0], phase_numbers)
+
+
 def handle_bead_close(args: argparse.Namespace) -> None:
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         try:
+            resolved_ids = _resolve_close_ids(args, mutation.project)
             note = getattr(args, "note", None)
             author = None
             if note is not None:
@@ -212,20 +232,25 @@ def handle_bead_close(args: argparse.Namespace) -> None:
                     identity.name if identity is not None else mutation.project.owner
                 )
             closed = mutation.project.close(
-                args.ids,
+                resolved_ids,
                 reason=args.reason,
                 resolution=getattr(args, "resolution", "done"),
                 force=getattr(args, "force", False),
                 note=note,
                 author=author,
             )
-        except KeyError as e:
-            print(f"Error: {e}", file=sys.stderr)
+        except KeyError as exc:
+            message = str(exc.args[0]) if exc.args else ""
+            missing_id = message.rsplit("Issue not found:", 1)[-1].strip()
+            print(f"Error: issue not found: {missing_id}", file=sys.stderr)
+            sys.exit(1)
+        except PhaseSelectorError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        mutation.commit(require_mutation_commit_message("close", args.ids))
+        mutation.commit(require_mutation_commit_message("close", resolved_ids))
     for issue in closed:
         print(f"✓ Closed: {issue.id} — {issue.title}")
 
