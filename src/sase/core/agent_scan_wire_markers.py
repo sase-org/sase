@@ -304,6 +304,22 @@ class PlanPathMarkerWire:
     plan_path: str | None = None
 
 
+@dataclass(frozen=True)
+class UsedXPromptWire:
+    """Compact projection of one launch-boundary ``xprompts.json`` entry.
+
+    The scanner collapses entries by ``name``, so ``references`` counts how
+    many argument variants of that name the launch prompt referenced. The
+    XPrompt statistics rollup aggregates these in Rust; Python mirrors the
+    field so scan records round-trip without dropping it.
+    """
+
+    name: str
+    kind: str = "unknown"
+    tags: list[str] = field(default_factory=list)
+    references: int = 0
+
+
 __all__ = [
     "AgentMetaWire",
     "DoneMarkerWire",
@@ -311,6 +327,7 @@ __all__ = [
     "PlanPathMarkerWire",
     "PromptStepMarkerWire",
     "RunningMarkerWire",
+    "UsedXPromptWire",
     "WaitingMarkerWire",
     "WorkflowStateWire",
     "WorkflowStepStateWire",

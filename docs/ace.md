@@ -1699,8 +1699,10 @@ markers. It does not delete workspace checkouts, and system-managed projects suc
 
 Open the SASE Admin Center with `#`, then press `4` or switch to **Statistics**. Its nine sub-tabs summarize runs,
 runners, projects, providers, runtime, agent activity, xprompt usage, and plan/question activity for the selected time
-range and optional project filter. Use `[` / `]` to move between views, `t` / `T` to cycle time ranges, `p` / `P` to
-cycle project scope, and `r` to refresh.
+range and optional project filter. The strip is numbered **1 Overview · 2 Runs · 3 Runners · 4 Projects · 5 Providers ·
+6 Runtime · 7 Activity · 8 XPrompts · 9 Plans & Questions**; press `0` and then that digit to jump straight to a view.
+Use `[` / `]` to move between views, `t` / `T` to cycle time ranges, `p` / `P` to cycle project scope, and `r` to
+refresh.
 
 The Statistics **XPrompts** sub-tab reports xprompts referenced by agent launch prompts:
 

@@ -19,6 +19,7 @@ from sase.core.agent_scan_wire_markers import (
     PlanPathMarkerWire,
     PromptStepMarkerWire,
     RunningMarkerWire,
+    UsedXPromptWire,
     WaitingMarkerWire,
     WorkflowStateWire,
 )
@@ -229,6 +230,9 @@ class AgentArtifactRecordWire:
         raw_prompt_snippet: Up to ``max_prompt_snippet_bytes`` of
             ``raw_xprompt.md`` content (stripped). ``None`` when the file
             is missing or the option was disabled.
+        used_xprompts: Launch-boundary ``xprompts.json`` entries collapsed
+            by name and sorted by name. Empty when the file is missing,
+            unreadable, or carried no usable entry.
         has_done_marker: ``True`` iff ``done.json`` exists in the dir
             (set even when JSON decoding fails — mirrors current
             ``done_path.exists()`` checks that don't require parseable
@@ -250,6 +254,7 @@ class AgentArtifactRecordWire:
     plan_path: PlanPathMarkerWire | None = None
     prompt_steps: list[PromptStepMarkerWire] = field(default_factory=list)
     raw_prompt_snippet: str | None = None
+    used_xprompts: list[UsedXPromptWire] = field(default_factory=list)
     has_done_marker: bool = False
 
 

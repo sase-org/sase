@@ -18,6 +18,7 @@ from sase.core.agent_scan_wire_markers import (
     PlanPathMarkerWire,
     PromptStepMarkerWire,
     RunningMarkerWire,
+    UsedXPromptWire,
     WaitingMarkerWire,
     WorkflowStateWire,
     WorkflowStepStateWire,
@@ -168,6 +169,11 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
             for step in data.get("prompt_steps") or []
         ],
         raw_prompt_snippet=data.get("raw_prompt_snippet"),
+        used_xprompts=[
+            UsedXPromptWire(**known_field_kwargs(UsedXPromptWire, used))
+            for used in data.get("used_xprompts") or []
+            if isinstance(used, dict)
+        ],
         has_done_marker=bool(data.get("has_done_marker", False)),
     )
 
