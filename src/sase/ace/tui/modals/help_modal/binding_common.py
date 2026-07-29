@@ -27,6 +27,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("Ctrl+L in panel", "Keep placeholder literal"),
         ("#name / #!name", "Auto-open xprompt menu"),
         ("%model: / %auto: / %effort:", "Auto-open directive values"),
+        ("%model:@", "Model aliases only"),
         ("%wait: / #fork:", "Complete agents, real @tribes"),
         ("#@ Ctrl+I", "Inline-expand xprompt"),
         ("K", "Preview xprompt/skill/file/word"),

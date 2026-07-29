@@ -664,6 +664,12 @@ providers are reported as informational notes; for an ordered fallback the note 
 ACE, the Models panel shows descriptions from config; a user alias without one shows the
 `llm_provider.model_aliases.custom.<name>.description` path to fix.
 
+The same alias vocabulary appears in the `%model:` / `%m:` completion menu in ACE and in editors through the xprompt
+LSP: alias rows sit beneath the concrete model names with their kind, resolved `PROVIDER(model)` target, and provenance,
+and typing `@` right after the colon narrows the menu to aliases only. See [xprompt directive syntax](xprompt.md#syntax)
+for the row anatomy. The completion menu is read-only; the ACE Models panel (`,m`) remains the authoritative place to
+edit alias targets and to set or clear temporary overrides.
+
 The ACE Models panel supplies two built-in buckets without changing resolution, completion, launch routing, or config
 paths. `coders` folds together `@coder` and all registered `@<provider>_coder` aliases; `phase_worker` folds together
 the five `@<size>_phase_worker` aliases. A collapsed bucket summarizes its effective-model mix and active overrides;

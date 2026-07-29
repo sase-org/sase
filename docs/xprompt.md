@@ -1201,6 +1201,14 @@ The `%model` directive also supports automatic provider resolution: known model 
 the xprompt LSP complete `%model:` / `%m:` values from the same model catalog used for provider resolution. The inserted
 value is a canonical model name or configured alias; provider short aliases are only filter/display hints.
 
+Model aliases are listed beneath the concrete model names. Each alias row shows its kind (`default`, `role`, `coder`, or
+`custom`), the `PROVIDER(model)` target it currently resolves to — with an ` @ <effort>` suffix when the alias carries
+one — and its provenance (`configured`, `implicit → @fallback`, `override`, plus a `· pool 2/3` chip for round-robin
+selectors). Typing `@` right after the colon (`%m:@`) narrows the menu to aliases only; a bare partial such as `de`
+still matches `@default` through its bare name, but always after the model rows. The ACE menu reflects active temporary
+alias overrides, while the LSP's catalog is a launch-time snapshot that does not — restart the LSP to pick up config
+changes, and use the ACE [Models panel](ace.md#models-panel) (`,m`) to inspect live override state.
+
 ### Launch-Scoped Model Alias Overrides
 
 The parenthesized `%model` form accepts keyword arguments that temporarily replace model aliases for one launch lineage:
