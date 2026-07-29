@@ -6,6 +6,7 @@ from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
+from sase.artifact_refs import parse_artifact_ref
 from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
 from sase.bead_status_presentation import bead_status_presentation
 from sase.phase_size_presentation import (
@@ -123,6 +124,7 @@ def archive_properties_header(
     match: PlanSearchMatch,
     *,
     project_name: str,
+    role: str = "plans",
 ) -> RenderableType:
     """Build an archived-plan title and complete property grid."""
     plan = match.plan
@@ -133,6 +135,7 @@ def archive_properties_header(
         [
             ("Source", plan.source),
             ("Project", project_name),
+            ("Reference", _archive_reference(match, role=role)),
             ("Path", plan.path),
         ]
     )
@@ -235,7 +238,11 @@ def linked_plan_for_issue(
     return None
 
 
-def archive_preview_markdown(match: PlanSearchMatch) -> str:
+def archive_preview_markdown(
+    match: PlanSearchMatch,
+    *,
+    role: str = "plans",
+) -> str:
     """Preserve the full-screen archive preview content."""
     plan = match.plan
     lines = [
@@ -244,6 +251,7 @@ def archive_preview_markdown(match: PlanSearchMatch) -> str:
         f"**Tier:** {plan.kind}  ",
         f"**Status:** {plan.status or 'unknown'}  ",
         f"**Created:** {plan.created_at or '—'}  ",
+        f"**Reference:** {_archive_reference(match, role=role)}  ",
         f"**Path:** {plan.path}",
         "",
     ]
@@ -251,6 +259,12 @@ def archive_preview_markdown(match: PlanSearchMatch) -> str:
         lines.extend(["> " + plan.summary.replace("\n", "\n> "), ""])
     lines.append(plan.body or "_No plan body._")
     return "\n".join(lines)
+
+
+def _archive_reference(match: PlanSearchMatch, *, role: str) -> str:
+    """Render the logical document reference for an archive search row."""
+
+    return parse_artifact_ref(f"{role}:{match.plan.relpath}").rendered
 
 
 def bead_preview_markdown(

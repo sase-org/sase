@@ -425,6 +425,8 @@ class KeybindingModesMixin:
         if key_group == "artifacts_commits":
             bindings = [
                 (k("sha"), "SHA"),
+                (k("reference"), "@ref"),
+                (k("handoff"), "agent + @ref"),
                 (k("message"), "message"),
                 (k("repo_sha"), "repo@SHA"),
                 (k("plan"), "plan ref"),
@@ -432,6 +434,8 @@ class KeybindingModesMixin:
             ]
         elif key_group == "artifacts_plans":
             bindings = [
+                (k("reference"), "@ref"),
+                (k("handoff"), "agent + @ref"),
                 (k("path"), "path"),
                 (k("title"), "title"),
                 (k("body"), "body"),
@@ -439,6 +443,8 @@ class KeybindingModesMixin:
             ]
         elif key_group == "artifacts_chats":
             bindings = [
+                (k("reference"), "@ref"),
+                (k("handoff"), "agent + @ref"),
                 (k("path"), "path"),
                 (k("agent"), "agent"),
                 (k("transcript"), "transcript"),
@@ -446,6 +452,8 @@ class KeybindingModesMixin:
             ]
         elif key_group == "artifacts_bugs":
             bindings = [
+                (k("reference"), "@ref"),
+                (k("handoff"), "agent + @ref"),
                 (k("number"), "issue #"),
                 (k("url"), "url"),
                 (k("title"), "title"),

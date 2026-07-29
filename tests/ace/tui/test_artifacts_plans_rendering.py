@@ -345,6 +345,7 @@ def test_detail_properties_render_all_frontmatter_in_stable_order(
         assert value in archive_detail
     assert "Source" in archive_detail
     assert "Project" in archive_detail
+    assert f"Reference plans:{archive.plan.relpath}" in " ".join(archive_detail.split())
     assert "archive.md" in "".join(archive_detail.split())
     assert proposal_detail.count("Phases") == 1
     assert archive_detail.count("Phases") == 1

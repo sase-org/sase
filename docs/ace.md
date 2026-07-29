@@ -99,16 +99,18 @@ open; the second completes the jump. Hints remain case-sensitive.
 Press `%` on any non-PR Artifacts sub-tab to open that pane's copy menu. The next key copies from the visible entry;
 `Esc` cancels, and `%s` captures the current `sase ace` tmux pane on every sub-tab.
 
-| Sub-tab | Keys                                                                                        |
-| ------- | ------------------------------------------------------------------------------------------- |
-| Commits | `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` linked plan reference · `%s` snapshot |
-| Plans   | `%p` path · `%t` title · `%b` body · `%s` snapshot                                          |
-| Chats   | `%p` path · `%a` agent name · `%t` transcript contents · `%s` snapshot                      |
-| Bugs    | `%b` `#N` · `%u` URL · `%t` title · `%p` agent-ready prompt · `%s` snapshot                 |
+| Sub-tab | Keys                                                                                                                      |
+| ------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Commits | `%@` artifact ref · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan · `%s` snapshot |
+| Plans   | `%@` artifact ref · `%!` ref in agent prompt · `%p` path · `%t` title · `%b` body · `%s` snapshot                         |
+| Chats   | `%@` artifact ref · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript · `%s` snapshot                   |
+| Bugs    | `%@` artifact ref · `%!` ref in agent prompt · `%b` `#N` · `%u` URL · `%t` title · `%p` agent prompt · `%s` snapshot      |
 
 The menu and copied value follow the active sub-tab, even though Artifacts uses the internal `changespecs` tab id. Thus,
 for example, `%n` on Chats reports the Chats key set instead of copying the hidden PR's name. After a copy, cancel, or
 invalid key, the footer returns to the active pane's normal bindings.
+
+When entries are marked, `%@` copies all visible marked references and `%!` seeds one prompt with the marked set.
 
 ### Marks in Commits, Plans, Chats, and Bugs
 

@@ -229,7 +229,10 @@ class PlansNavigationMixin(_MixinBase):
         if row.archive is not None:
             plan = row.archive.plan
             return PreviewPayload(
-                content=archive_preview_markdown(row.archive),
+                content=archive_preview_markdown(
+                    row.archive,
+                    role=row.archive_role or "plans",
+                ),
                 lexer="markdown",
                 title=plan.title or plan.name,
                 kind_label=f"{plan.kind} plan",
@@ -301,6 +304,7 @@ class PlansNavigationMixin(_MixinBase):
                 archive_properties_header(
                     row.archive,
                     project_name=self._project_name(row.project),
+                    role=row.archive_role or "plans",
                 )
             )
             body.update(row.archive.plan.body or "_No plan body._")

@@ -414,6 +414,14 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             f"Copy Mode · Commits ({d(cm.prefix)})",
             [
                 (
+                    key_sequence_display(cm.prefix, commits_copy["reference"]),
+                    "Copy @commit reference",
+                ),
+                (
+                    key_sequence_display(cm.prefix, commits_copy["handoff"]),
+                    "Reference in new agent prompt",
+                ),
+                (
                     key_sequence_display(cm.prefix, commits_copy["sha"]),
                     "Copy full SHA",
                 ),
@@ -439,6 +447,14 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             f"Copy Mode · Plans ({d(cm.prefix)})",
             [
                 (
+                    key_sequence_display(cm.prefix, plans_copy["reference"]),
+                    "Copy @document reference",
+                ),
+                (
+                    key_sequence_display(cm.prefix, plans_copy["handoff"]),
+                    "Reference in new agent prompt",
+                ),
+                (
                     key_sequence_display(cm.prefix, plans_copy["path"]),
                     "Copy plan path",
                 ),
@@ -460,6 +476,14 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             f"Copy Mode · Chats ({d(cm.prefix)})",
             [
                 (
+                    key_sequence_display(cm.prefix, chats_copy["reference"]),
+                    "Copy @chat reference",
+                ),
+                (
+                    key_sequence_display(cm.prefix, chats_copy["handoff"]),
+                    "Reference in new agent prompt",
+                ),
+                (
                     key_sequence_display(cm.prefix, chats_copy["path"]),
                     "Copy transcript path",
                 ),
@@ -480,6 +504,14 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
         (
             f"Copy Mode · Bugs ({d(cm.prefix)})",
             [
+                (
+                    key_sequence_display(cm.prefix, bugs_copy["reference"]),
+                    "Copy @bug reference",
+                ),
+                (
+                    key_sequence_display(cm.prefix, bugs_copy["handoff"]),
+                    "Reference in new agent prompt",
+                ),
                 (
                     key_sequence_display(cm.prefix, bugs_copy["number"]),
                     "Copy issue number",

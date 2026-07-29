@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.widgets.artifacts import chats_pane
+from sase.ace.tui.widgets.artifacts import chats_detail, chats_pane
+from sase.ace.tui.widgets.artifacts.chats_detail import ChatDetailData
 from sase.ace.tui.widgets.artifacts.chats_pane import ArtifactsChatsPane
 from sase.ace.tui.widgets.artifacts.chats_rendering import CHAT_PROVENANCE_COLORS
 from sase.history.chat_catalog_provenance import ChatCatalogSnapshot
@@ -30,14 +31,12 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-def _chat_fixture_catalog(tmp_path: Path) -> ChatCatalogSnapshot:
+_VISUAL_CHATS_ROOT = Path("/visual/chats")
+
+
+def _chat_fixture_catalog() -> ChatCatalogSnapshot:
     def path_for(name: str) -> str:
-        path = tmp_path / f"{name}.md"
-        path.write_text(
-            f"# {name}\n\nPrompt and response body for {name}.\n",
-            encoding="utf-8",
-        )
-        return str(path)
+        return str(_VISUAL_CHATS_ROOT / "202607" / f"{name}.md")
 
     return catalog(
         (
@@ -96,10 +95,26 @@ def _chat_fixture_catalog(tmp_path: Path) -> ChatCatalogSnapshot:
 async def test_artifacts_chats_populated_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    catalog_snapshot = _chat_fixture_catalog(tmp_path)
+    catalog_snapshot = _chat_fixture_catalog()
+    monkeypatch.setattr(
+        chats_detail,
+        "sase_subdir",
+        lambda _name: _VISUAL_CHATS_ROOT,
+    )
+    monkeypatch.setattr(
+        chats_pane,
+        "load_chat_detail",
+        lambda entry: ChatDetailData(
+            absolute_path=entry.absolute_path,
+            transcript_preview=(
+                f"# {entry.basename}\n\nPrompt and response body for {entry.basename}."
+            ),
+            transcript_truncated=False,
+            reference=chats_detail._chat_reference(entry.absolute_path),
+        ),
+    )
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
         _choices,

@@ -9,7 +9,9 @@ from pathlib import Path
 
 from rich.text import Text
 
+from sase.artifact_refs import ArtifactRefContext, reference_for_entry_target
 from sase.core.agent_identity_facade import present_agent_name
+from sase.core.paths import sase_subdir
 from sase.history.chat_catalog_provenance import ChatCatalogEntry
 
 from .chats_rendering import CHAT_PROVENANCE_COLORS, CHAT_PROVENANCE_GLYPHS
@@ -25,6 +27,7 @@ class ChatDetailData:
     absolute_path: str
     transcript_preview: str
     transcript_truncated: bool
+    reference: str | None = None
     model: str | None = None
     provider: str | None = None
     agent_status: str | None = None
@@ -59,6 +62,7 @@ def load_chat_detail(entry: ChatCatalogEntry) -> ChatDetailData:
         absolute_path=entry.absolute_path,
         transcript_preview=preview,
         transcript_truncated=truncated,
+        reference=_chat_reference(entry.absolute_path),
         model=model,
         provider=provider,
         agent_status=status,
@@ -105,6 +109,9 @@ def build_chat_detail(
     _field(text, "Timestamp", entry.mtime)
     _field(text, "Size", _format_size(entry.size_bytes))
     _field(text, "Project", entry.project_key)
+    if detail is not None:
+        _field(text, "Reference", detail.reference)
+    _field(text, "Path", entry.absolute_path)
 
     _heading(text, "AGENT")
     if entry.agent_artifact_dir is None:
@@ -280,6 +287,23 @@ def _field(text: Text, label: str, value: object | None) -> None:
         return
     text.append(f"{label}: ", style="bold #87AFFF")
     text.append(f"{value}\n")
+
+
+def _chat_reference(path: str) -> str | None:
+    """Canonicalize a transcript path without loading unrelated project context."""
+
+    context = ArtifactRefContext(
+        document_roots=(),
+        chats_root=sase_subdir("chats").expanduser().resolve(strict=False),
+        artifact_index_path=Path(),
+        repositories=(),
+        projects=(),
+    )
+    return reference_for_entry_target(
+        "chats",
+        ("chat", path),
+        context=context,
+    )
 
 
 def _read_transcript_preview(path: Path) -> tuple[str, bool]:

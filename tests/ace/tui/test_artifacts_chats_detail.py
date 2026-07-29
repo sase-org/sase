@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 
+import pytest
+
+from sase.ace.tui.widgets.artifacts import chats_detail
 from sase.ace.tui.widgets.artifacts.chats_detail import (
     ChatDetailData,
     build_chat_detail,
@@ -199,3 +203,31 @@ def test_detail_loader_bounds_transcript_to_200_lines(tmp_path) -> None:
     assert len(detail.transcript_preview.splitlines()) == 200
     assert "line 199" in detail.transcript_preview
     assert "line 200" not in detail.transcript_preview
+
+
+def test_detail_shows_logical_reference_before_resolved_path() -> None:
+    entry = chat_entry("reference")
+    detail = replace(
+        _detail(entry.absolute_path),
+        reference="chat:202607/reference.md",
+    )
+
+    rendered = build_chat_detail(entry, detail).plain
+
+    assert "Reference: chat:202607/reference.md" in rendered
+    assert f"Path: {entry.absolute_path}" in rendered
+    assert rendered.index("Reference:") < rendered.index("Path:")
+
+
+def test_chat_reference_rejects_imports_outside_the_chats_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    chats_root = tmp_path / "chats"
+    transcript = chats_root / "202607" / "agent.md"
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text("# Chat")
+    monkeypatch.setattr(chats_detail, "sase_subdir", lambda _name: chats_root)
+
+    assert chats_detail._chat_reference(str(transcript)) == "chat:202607/agent.md"
+    assert chats_detail._chat_reference(str(tmp_path / "imported.md")) is None

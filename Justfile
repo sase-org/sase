@@ -271,7 +271,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-av(ArtifactRef)' \
-        --epic-symbol 'sase-av(ArtifactRefContext)' \
         --epic-symbol 'sase-av(ArtifactRefDocumentRoot)' \
         --epic-symbol 'sase-av(ArtifactRefFragment)' \
         --epic-symbol 'sase-av(ArtifactRefPayload)' \
@@ -279,8 +278,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-av(ArtifactRefRepository)' \
         --epic-symbol 'sase-av(ArtifactRefResolution)' \
         --epic-symbol 'sase-av(canonicalize_artifact_ref)' \
-        --epic-symbol 'sase-av(parse_artifact_ref)' \
-        --epic-symbol 'sase-av(reference_for_entry_target)' \
         --epic-symbol 'sase-av(render_artifact_ref)' \
         --epic-symbol 'sase-av(resolve_artifact_ref)' \
         {{ args }}
