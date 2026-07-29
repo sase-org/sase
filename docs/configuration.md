@@ -3197,16 +3197,41 @@ without one); `--since`/`--until` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or r
 while `--quiet` suppresses only the successful human summary. See
 [Plan Frontmatter Schema and Validation](sdd.md#plan-frontmatter-schema-and-validation) for diagnostics and exit codes.
 
-### `sase artifact-file`
+### `sase artifact`
 
-`sase artifact-file create` is intended for code agents running with `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR` set. It
-moves a generated file into persistent SASE artifact storage and associates it with the current agent so the Agents tab
-can open it with `A`, even after the agent has been dismissed and revived. `-k/--kind` accepts `chat`, `plan`, `image`,
-`markdown`, `pdf`, or `file` and defaults to a kind inferred from the file extension.
+`sase artifact` creates, discovers, inspects, resolves, opens, and repairs indexed artifacts. Bare `sase artifact`
+delegates to `sase artifact list`, and `sase artifact-file` remains a compatibility alias for the whole group.
 
-| Form                        | Flags                                  | Description                                       |
-| --------------------------- | -------------------------------------- | ------------------------------------------------- |
-| `sase artifact-file create` | `-p/--path`, `-n/--label`, `-k/--kind` | Store one explicit artifact for the current agent |
+`sase artifact create` is intended for code agents running with `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR` set. It moves a
+generated file into persistent SASE artifact storage and associates it with the current agent so the Agents tab can open
+it with `A`, even after the agent has been dismissed and revived. `-k/--kind` accepts `chat`, `plan`, `image`,
+`markdown`, `pdf`, or `file` and defaults to a kind inferred from the file extension. On success it prints the
+artifact's `id:`, stored `path:`, and durable `ref:` (`file:<id>`). The read subcommands (`doctor`, `list`, `open`,
+`path`, `show`) are not agent-gated.
+
+| Form                   | Flags                                                                                                             | Description                                                    |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `sase artifact create` | `-k/--kind`, `-l/--label`, `-p/--path`                                                                            | Store one explicit artifact for the current agent              |
+| `sase artifact doctor` | `-f/--fix`, `-v/--verify`                                                                                         | Report index health, backfill enrichment fields, verify hashes |
+| `sase artifact list`   | `-a/--agent`, `-e/--explicit`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-p/--project`, `-q/--query`, `-s/--since` | List indexed artifacts newest-first                            |
+| `sase artifact open`   | (positional `reference`)                                                                                          | Open a resolved reference with a kind-appropriate viewer       |
+| `sase artifact path`   | (positional `reference`)                                                                                          | Print the one absolute path a reference resolves to            |
+| `sase artifact show`   | `-j/--json`, (positional `reference`)                                                                             | Show metadata plus a reference-resolution report               |
+
+`list` filters: `-k/--kind` is repeatable and accepts the artifact kinds above; `-l/--limit` defaults to `50` and `0`
+means unlimited; `-p/--project` accepts a display name, alias, or canonical key and exits 2 for an unknown project;
+`-q/--query` is a case-insensitive substring match over label and paths; `-s/--since` accepts the same DATE forms as
+`sase plan search` (`YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or relative `14d` / `3w` / `2m`). Pretty output is a Rich panel
+with KIND, REF, LABEL, PROJECT (display name), AGENT, SIZE, and CREATED columns; `-j/--json` emits every record field —
+including `sha256`, `size_bytes`, and `mime_type` — plus the rendered `ref`.
+
+`show`, `path`, and `open` accept any artifact reference (`file:`, `chat:`, `bug:`, `commit:`, and document roles such
+as `plans:`, `research:`, `designs:`), with `#L`, `#page=`, and `#t=` fragments preserved. A bare `default:<hash>` or
+`explicit:<hash>` index id is accepted as sugar for `file:<id>`. `path` exits 0 on success, 1 when the reference is
+malformed, missing, or ambiguous (status and candidates go to stderr), and 2 for kinds with no filesystem identity
+(`commit:`, `bug:`), pointing at `show` instead. `open` refuses `commit:` refs the same way and opens `bug:` refs in a
+browser. `doctor` exits 1 when it finds missing enrichment fields, missing stored files, duplicate ids, unsupported
+schema versions, malformed rows, or digest mismatches, and 0 on a clean bill of health.
 
 ### `sase questions`
 

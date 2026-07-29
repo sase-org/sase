@@ -338,7 +338,7 @@ def test_document_chat_and_indexed_file_resolve_through_fixture_roots(
     ):
         reference = artifact_refs._canonicalize_artifact_ref(path, context=context)
         assert reference == expected
-        resolution = artifact_refs._resolve_artifact_ref(
+        resolution = artifact_refs.resolve_artifact_ref(
             reference,
             context=context,
         )
@@ -349,7 +349,7 @@ def test_document_chat_and_indexed_file_resolve_through_fixture_roots(
 def test_bug_resolution_accepts_key_and_renders_display_name(tmp_path: Path) -> None:
     context = _context(tmp_path)
 
-    resolution = artifact_refs._resolve_artifact_ref(
+    resolution = artifact_refs.resolve_artifact_ref(
         "bug:gh_sase-org__sase#42",
         context=context,
     )

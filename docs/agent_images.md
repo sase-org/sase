@@ -6,9 +6,9 @@ SASE treats files produced by agents as first-class completion artifacts. When a
 supported image or video file, the completion path records the media in `done.json` and appends it to the notification
 file list after the standard chat and diff artifacts, and after any generated Markdown PDFs. When a successful agent
 adds or modifies up to 10 Markdown files, core SASE renders PDF artifacts and attaches those PDFs to the same completion
-notification. Explicit artifacts saved with `sase artifact-file create` are appended after generated media when the
-agent completion notification is sent. Notification plugins can then deliver those files from `Notification.files`
-without re-scanning the workspace.
+notification. Explicit artifacts saved with `sase artifact create` are appended after generated media when the agent
+completion notification is sent. Notification plugins can then deliver those files from `Notification.files` without
+re-scanning the workspace.
 
 ACE is SASE's terminal UI. It has two image surfaces: lightweight in-panel previews for notification and file-panel
 attachments, and the separate `a` artifact viewer for opening completed agent artifacts.
@@ -19,7 +19,7 @@ copied into persistent SASE artifact storage with the other default generated-me
 picker can still open them after a workspace is cleaned up. Legacy runs without persisted default artifacts fall back to
 prompt-file discovery at view time. Prompt-referenced media are not notification delivery attachments unless they also
 appear in `done.json.image_paths`, appear in `done.json.video_paths`, or were saved explicitly with
-`sase artifact-file create`.
+`sase artifact create`.
 
 Supported image extensions are:
 
@@ -134,12 +134,22 @@ Sources:
 Agents can save a generated file explicitly with:
 
 ```bash
-sase artifact-file create -p <path> [-n <label>] [-k <kind>]
+sase artifact create -p <path> [-l <label>] [-k <kind>]
 ```
 
-`-p/--path` is required. `-n/--label` sets the display label and defaults to the source file name. `-k/--kind` is one of
+`sase artifact create` remains a compatibility alias for the same command.
+
+`-p/--path` is required. `-l/--label` sets the display label and defaults to the source file name. `-k/--kind` is one of
 `chat`, `plan`, `image`, `markdown`, `pdf`, or `file`, and defaults to a kind inferred from the file extension. On
-success the command prints the new artifact's `id:` and stored `path:`.
+success the command prints the new artifact's `id:`, stored `path:`, and durable `ref:` (`file:<id>`), which is the
+copyable name to hand to a user or another agent.
+
+Every new index row also records `sha256` (the full digest of the stored file), `size_bytes`, and `mime_type`. All three
+are optional at index schema version 1, so rows written before they existed simply carry `null`; `sase artifact doctor`
+reports those gaps, `sase artifact doctor -f` backfills them for every row whose stored file is still present, and
+`sase artifact doctor -v` re-hashes live stored files to verify the recorded digests. The reader accepts index schema
+versions 1 and 2 and the writer preserves rows with any other schema version verbatim, so a mixed-age fleet cannot lose
+rows on rewrite.
 
 The CLI command is intended for agent processes: it requires `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR` so SASE knows which
 run owns the artifact, and it exits non-zero with an explanatory message when either is missing or the source path is
@@ -169,11 +179,10 @@ See [`notifications.md`](notifications.md) for the notification model and modal 
 
 The Agents tab exposes completed agent artifacts through the `a` key. When artifacts exist, ACE opens the artifact panel
 for selection. Chat transcripts, plan files, generated Markdown PDFs, generated images, generated videos,
-prompt-referenced media, and explicit artifacts created with
-`sase artifact-file create -p <path> [-n <label>] [-k <kind>]` all use the same list. Generated videos are stored as
-ordinary `file` artifacts, but the picker labels supported video suffixes as `[video]` and the viewer opens them with
-terminal video playback. The panel is shown even for a single artifact so users can confirm the artifact label, kind,
-and path before opening it.
+prompt-referenced media, and explicit artifacts created with `sase artifact create -p <path> [-l <label>] [-k <kind>]`
+all use the same list. Generated videos are stored as ordinary `file` artifacts, but the picker labels supported video
+suffixes as `[video]` and the viewer opens them with terminal video playback. The panel is shown even for a single
+artifact so users can confirm the artifact label, kind, and path before opening it.
 
 The selected agent's prompt/detail header also includes non-chat artifacts in the plan-adjacent `SASE CONTEXT`
 `ARTIFACTS` lane. The complete lane order is `PLAN`, `ARTIFACTS`, `MEMORY`, `SKILLS`, then `WORKSPACES`; within

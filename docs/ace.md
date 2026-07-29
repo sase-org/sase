@@ -824,8 +824,8 @@ launch.
 Press `a` on a focused agent to open the artifact panel whenever artifacts are associated with that agent. The list can
 include chat transcripts, plan files, generated Markdown PDFs, generated images, generated videos, prompt-referenced
 media from saved prompt artifacts, and explicit files saved with
-`sase artifact-file create -p <path> [-n <label>] [-k <kind>]`. ACE always opens the panel, even for a single artifact,
-so the label, kind, and path are visible before launching the terminal viewer.
+`sase artifact create -p <path> [-l <label>] [-k <kind>]`. ACE always opens the panel, even for a single artifact, so
+the label, kind, and path are visible before launching the terminal viewer.
 
 The prompt/detail header includes those non-chat entries in the plan-adjacent `SASE CONTEXT` `ARTIFACTS` lane. Within
 that lane, `Commits`, `Deltas`, and `Artifacts` stay in that order when present. Paths are made workspace-relative when

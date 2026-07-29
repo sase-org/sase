@@ -129,7 +129,18 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
 @pytest.mark.parametrize(
     ("skill_name", "expected_phrases"),
     [
-        ("sase_artifact_file", ("sase artifact-file create -p", "--kind")),
+        (
+            "sase_artifact_file",
+            (
+                "sase artifact create -p",
+                "--kind",
+                "sase artifact list",
+                "sase artifact show",
+                "sase artifact path",
+                "sase artifact open",
+                "sase artifact doctor",
+            ),
+        ),
         (
             "sase_agents_status",
             (

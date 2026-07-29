@@ -126,10 +126,9 @@ error report and output log when those files exist. When a successful agent adde
 files, SASE renders best-effort PDF artifacts and appends those PDFs after the standard artifacts. When the run added or
 modified image files, SASE appends those generated images after any Markdown PDFs. When the run added or modified video
 files, SASE appends those generated videos after generated images. Explicit artifacts created during the run with
-`sase artifact-file create -p <path> [-n <label>] [-k <kind>]` are read from the persistent artifact index and appended
-last when their stored files still exist. Supported Markdown extensions are `.md` and `.markdown`; supported image
-extensions are `.png`, `.jpg`, `.jpeg`, `.webp`, and `.gif`; supported video extensions are `.mp4`, `.m4v`, `.mov`, and
-`.webm`.
+`sase artifact create -p <path> [-l <label>] [-k <kind>]` are read from the persistent artifact index and appended last
+when their stored files still exist. Supported Markdown extensions are `.md` and `.markdown`; supported image extensions
+are `.png`, `.jpg`, `.jpeg`, `.webp`, and `.gif`; supported video extensions are `.mp4`, `.m4v`, `.mov`, and `.webm`.
 
 Attachment paths are discovered from local git changes, untracked files, saved proposal/commit diffs, and the latest
 commit when the agent committed or opened a PR. Missing, deleted, unsupported, and duplicate paths are ignored. If more
@@ -145,7 +144,7 @@ explicit artifacts use one selection workflow. Generated videos are included as 
 include image and video files referenced by saved prompt artifacts in that picker. Those prompt-referenced media are
 persisted or synthesized as ACE artifact-list entries, but they are not appended to notification delivery payloads
 unless they also appear in `done.json.image_paths` / `done.json.video_paths` or were saved explicitly with
-`sase artifact-file create`.
+`sase artifact create`.
 
 When an agent sets output variables with `sase var set`, non-reserved variables are snapshotted into the completion
 notification and rendered in Telegram agent-completion messages. The reserved repeat-control variable `STOP` is omitted
