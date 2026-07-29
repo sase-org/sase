@@ -35,6 +35,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
     assert isinstance(pr_copy_key, str)
     artifact_list_navigation = [
         (
+            f"{d(a.toggle_mark)} / {d(a.clear_marks)}",
+            "Mark current / clear pane marks",
+        ),
+        (
             f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
             "Select first / last entry",
         ),

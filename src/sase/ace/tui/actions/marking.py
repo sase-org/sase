@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from ...status import get_available_statuses
+from ..tab_order import ARTIFACTS_TAB
 from ..modals import StatusModal
 
 if TYPE_CHECKING:
@@ -25,6 +26,12 @@ class MarkingMixin:
 
     def action_toggle_mark(self) -> None:
         """Toggle mark on the current ChangeSpec or agent."""
+        if (
+            self.current_tab == ARTIFACTS_TAB
+            and getattr(self, "current_artifacts_subtab", "prs") != "prs"
+        ):
+            self._toggle_artifacts_entry_mark()  # type: ignore[attr-defined]
+            return
         if self.current_tab == "changespecs":
             self._toggle_mark_changespec()
             return
@@ -68,6 +75,12 @@ class MarkingMixin:
 
     def action_clear_marks(self) -> None:
         """Clear all marks on the active tab."""
+        if (
+            self.current_tab == ARTIFACTS_TAB
+            and getattr(self, "current_artifacts_subtab", "prs") != "prs"
+        ):
+            self._clear_artifacts_marks()  # type: ignore[attr-defined]
+            return
         if self.current_tab == "changespecs":
             self._clear_changespec_marks()
             return

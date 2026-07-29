@@ -96,9 +96,12 @@ class KeybindingModesMixin:
         bindings.append((self._kd("edit_query"), "edit query"))
         self._update_display(bindings)
 
-    def show_artifacts_pane(self) -> None:
+    def show_artifacts_pane(self, *, mark_count: int = 0) -> None:
         """Clear PR-only conditional bindings on non-PR Artifacts panes."""
-        self._update_display([])
+        bindings: list[tuple[str, str]] = []
+        if mark_count:
+            bindings.append((self._kd("clear_marks"), f"unmark ({mark_count})"))
+        self._update_display(bindings)
 
     def update_agent_bindings(
         self,

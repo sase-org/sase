@@ -32,6 +32,12 @@ class ArtifactEntryNavigator(Protocol):
     def clear_entry_jump_hints(self) -> None:
         """Remove transient jump hints while preserving selection."""
 
+    def apply_entry_marks(
+        self,
+        marks: set[ArtifactEntryTarget],
+    ) -> None:
+        """Repaint rows using the app-owned stable-target mark set."""
+
 
 def select_relative_entry(
     navigator: ArtifactEntryNavigator,
@@ -76,9 +82,20 @@ def prepend_jump_hint(prompt: Text, hint: str | None) -> Text:
     return text
 
 
+def prepend_mark_glyph(prompt: Text, marked: bool) -> Text:
+    """Return a row prompt with the standard mark glyph when marked."""
+    if not marked:
+        return prompt
+    text = Text()
+    text.append("[✓] ", style="bold #00D700")
+    text.append_text(prompt.copy())
+    return text
+
+
 __all__ = [
     "ArtifactEntryNavigator",
     "ArtifactEntryTarget",
     "prepend_jump_hint",
+    "prepend_mark_glyph",
     "select_relative_entry",
 ]

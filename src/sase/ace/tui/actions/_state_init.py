@@ -332,6 +332,14 @@ class StateInitMixin:
         self._artifacts_jump_hint_to_target: dict[str, ArtifactEntryTarget] = {}
         self._artifacts_jump_target_to_hint: dict[ArtifactEntryTarget, str] = {}
         self._artifacts_jump_history: dict[ArtifactsSubTab, ArtifactEntryTarget] = {}
+        self._artifacts_marked_targets: dict[
+            ArtifactsSubTab, set[ArtifactEntryTarget]
+        ] = {
+            "commits": set(),
+            "bugs": set(),
+            "plans": set(),
+            "chats": set(),
+        }
 
         # Cross-tab jump back state (`)
         self._jump_all_last_position: JumpAllResult | None = None

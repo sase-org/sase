@@ -77,6 +77,7 @@ class PlansNavigationMixin(_MixinBase):
     _detail_debouncer: DetailPanelDebouncer | None
     _syncing_options: bool
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
+    _entry_marks: set[ArtifactEntryTarget]
 
     if TYPE_CHECKING:
 
@@ -95,6 +96,7 @@ class PlansNavigationMixin(_MixinBase):
         self._detail_debouncer = None
         self._syncing_options = False
         self._entry_jump_hints = {}
+        self._entry_marks = set()
 
     def selected_row(self) -> PlanRow | None:
         option_list = self._option_list()
@@ -169,6 +171,10 @@ class PlansNavigationMixin(_MixinBase):
         self._entry_jump_hints = {}
         self._refresh_options(update_detail=False)
 
+    def apply_entry_marks(self, marks: set[ArtifactEntryTarget]) -> None:
+        self._entry_marks = set(marks)
+        self._refresh_options(update_detail=False)
+
     def _option_index_for_target(self, target: ArtifactEntryTarget) -> int | None:
         option_list = self._option_list()
         if option_list is None:
@@ -209,10 +215,8 @@ class PlansNavigationMixin(_MixinBase):
         )
         self._refresh_options(preferred_id=preferred_id)
 
-    def selected_preview(self) -> PreviewPayload | None:
-        row = self.selected_row()
-        if row is None:
-            return None
+    def preview_for_row(self, row: PlanRow) -> PreviewPayload | None:
+        """Build the same preview payload used by selection-based actions."""
         if row.proposal is not None:
             return PreviewPayload(
                 content=row.proposal.content,
@@ -252,6 +256,10 @@ class PlansNavigationMixin(_MixinBase):
                 ),
             )
         return None
+
+    def selected_preview(self) -> PreviewPayload | None:
+        row = self.selected_row()
+        return None if row is None else self.preview_for_row(row)
 
     def _update_detail(self) -> None:
         try:

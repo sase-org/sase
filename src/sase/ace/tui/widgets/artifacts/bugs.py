@@ -126,6 +126,7 @@ class ArtifactsBugsPane(ArtifactsPaneLifecycle, Vertical):
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._link_targets: list[tuple[BugLinkKind, str]] = []
         self._entry_jump_hints: dict[ArtifactEntryTarget, str] = {}
+        self._entry_marks: set[ArtifactEntryTarget] = set()
         self._init_artifacts_lifecycle()
 
     def compose(self) -> ComposeResult:
@@ -379,6 +380,10 @@ class ArtifactsBugsPane(ArtifactsPaneLifecycle, Vertical):
         self._entry_jump_hints = {}
         self._paint_issue_options()
 
+    def apply_entry_marks(self, marks: set[ArtifactEntryTarget]) -> None:
+        self._entry_marks = set(marks)
+        self._paint_issue_options()
+
     def _issue_target(self, issue: IssueWire) -> ArtifactEntryTarget:
         scope = self.snapshot.project_key or self.project_scope or ""
         return ("bug", scope, str(issue.number))
@@ -439,6 +444,7 @@ class ArtifactsBugsPane(ArtifactsPaneLifecycle, Vertical):
                     issue_row(
                         issue,
                         jump_hint=self._entry_jump_hints.get(self._issue_target(issue)),
+                        marked=self._issue_target(issue) in self._entry_marks,
                     ),
                     id=f"bug-{issue.number}",
                 )

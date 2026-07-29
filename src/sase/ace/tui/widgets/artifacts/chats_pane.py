@@ -315,6 +315,7 @@ class ArtifactsChatsPane(
             loading=self._loading,
             now=local_now(),
             jump_hints=self._entry_jump_hints,
+            marks=self._entry_marks,
         )
         self._rows = rows
         highlighted = self._option_index_for_target(preferred_target)

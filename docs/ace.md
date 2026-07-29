@@ -110,6 +110,16 @@ The menu and copied value follow the active sub-tab, even though Artifacts uses 
 for example, `%n` on Chats reports the Chats key set instead of copying the hidden PR's name. After a copy, cancel, or
 invalid key, the footer returns to the active pane's normal bindings.
 
+### Marks in Commits, Plans, Chats, and Bugs
+
+Press `m` to mark or unmark the selected entry and `u` to clear the active pane's marks. Each non-PR sub-tab keeps an
+independent stable-target mark set, so marks survive refreshes and switching panes without affecting marked PRs.
+Changing the shared Artifacts project scope clears the non-PR marks.
+
+When marks exist, the pane's `%` copy targets operate on marked entries in visible order instead of only the selected
+entry. The clipboard text uses a labeled section for each entry, and the completion toast reports the copied count. The
+footer shows the active pane's mark count only while that count is nonzero.
+
 ### Filtering Commits and Plans
 
 Commits keeps its effective canonical query visible above the timeline. Press `/` or the local `f` shortcut to focus

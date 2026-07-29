@@ -100,6 +100,13 @@ class CommitsDetailMixin(_MixinBase):
             self.result
         )
 
+    def apply_entry_marks(self, marks: set[ArtifactEntryTarget]) -> None:
+        if self.result is None:
+            return
+        self.query_one("#commits-timeline", CommitsTimeline).apply_marks(
+            marks, self.result
+        )
+
     def _display_result(
         self,
         result: VcsLogResult,

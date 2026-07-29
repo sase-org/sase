@@ -355,9 +355,18 @@ class CommitsFilteringMixin(_MixinBase):
         close_session: bool,
     ) -> None:
         """Commit validated values and reconcile their authoritative result."""
+        old_project = self.filters.project
         project = self._project_ref_display.label_for_ref(values.project)
         if project != values.project:
             values = replace(values, project=project)
+        if values.project != old_project:
+            clear_marks = getattr(
+                self.app,
+                "_clear_artifacts_marks_for_subtab",
+                None,
+            )
+            if callable(clear_marks):
+                clear_marks("commits")
         if values != self._live_filter_values:
             self._generation += 1
         self._live_filter_values = values

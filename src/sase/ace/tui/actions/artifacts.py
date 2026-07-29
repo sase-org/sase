@@ -43,6 +43,8 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         *PLANS_ARTIFACT_ACTIONS,
         *CHATS_ARTIFACT_ACTIONS,
         "copy_tab_content",
+        "toggle_mark",
+        "clear_marks",
         "cycle_artifacts_subtab",
         "cycle_artifacts_subtab_reverse",
         *{f"show_artifacts_{subtab}" for subtab in ARTIFACTS_SUBTAB_ORDER},
@@ -187,6 +189,7 @@ class ArtifactsMixin(
     _artifacts_jump_hint_to_target: dict[str, ArtifactEntryTarget]
     _artifacts_jump_target_to_hint: dict[ArtifactEntryTarget, str]
     _artifacts_jump_history: dict[ArtifactsSubTab, ArtifactEntryTarget]
+    _artifacts_marked_targets: dict[ArtifactsSubTab, set[ArtifactEntryTarget]]
 
     def _artifacts_view(self) -> ArtifactsView | None:
         try:
@@ -215,7 +218,7 @@ class ArtifactsMixin(
 
         self.query_one(  # type: ignore[attr-defined]
             "#keybinding-footer", KeybindingFooter
-        ).show_artifacts_pane()
+        ).show_artifacts_pane(mark_count=len(self._active_artifacts_marks()))
 
     def _artifacts_entry_navigator(
         self,
@@ -232,6 +235,66 @@ class ArtifactsMixin(
         except Exception:
             return None
         return cast(ArtifactEntryNavigator, pane)
+
+    def _active_artifacts_marks(self) -> set[ArtifactEntryTarget]:
+        """Return the app-owned mark set for the visible non-PR pane."""
+        return self._artifacts_marked_targets.setdefault(
+            self.current_artifacts_subtab,
+            set(),
+        )
+
+    def _toggle_artifacts_entry_mark(self) -> None:
+        """Toggle the selected stable entry identity on the active pane."""
+        pane = self._artifacts_entry_navigator()
+        target = pane.selected_entry_target() if pane is not None else None
+        if pane is None or target is None:
+            self.notify(  # type: ignore[attr-defined]
+                f"No {self.current_artifacts_subtab.title()} entry to mark",
+                severity="warning",
+            )
+            return
+        marks = set(self._active_artifacts_marks())
+        if target in marks:
+            marks.remove(target)
+        else:
+            marks.add(target)
+        self._artifacts_marked_targets[self.current_artifacts_subtab] = marks
+        pane.apply_entry_marks(marks)
+        self._sync_active_artifacts_entry_state()
+
+    def _clear_artifacts_marks(self) -> None:
+        """Clear marks only from the active non-PR Artifacts pane."""
+        marks = self._active_artifacts_marks()
+        if not marks:
+            self.notify("No marks to clear", severity="warning")  # type: ignore[attr-defined]
+            return
+        count = len(marks)
+        self._artifacts_marked_targets[self.current_artifacts_subtab] = set()
+        pane = self._artifacts_entry_navigator()
+        if pane is not None:
+            pane.apply_entry_marks(set())
+        self._sync_active_artifacts_entry_state()
+        self.notify(f"Cleared {count} mark(s)")  # type: ignore[attr-defined]
+
+    def _clear_all_artifacts_marks(self) -> None:
+        """Drop every pane's marks after the shared project scope changes."""
+        for subtab in ("commits", "bugs", "plans", "chats"):
+            self._clear_artifacts_marks_for_subtab(subtab)
+
+    def _clear_artifacts_marks_for_subtab(self, subtab: ArtifactsSubTab) -> None:
+        """Clear one pane's marks when its effective project scope changes."""
+        had_marks = bool(self._artifacts_marked_targets.get(subtab))
+        self._artifacts_marked_targets[subtab] = set()
+        if not had_marks:
+            return
+        pane = self._artifacts_entry_navigator(subtab)
+        if pane is not None:
+            pane.apply_entry_marks(set())
+        if (
+            self.current_tab == ARTIFACTS_TAB
+            and self.current_artifacts_subtab == subtab
+        ):
+            self._sync_active_artifacts_entry_state()
 
     def _navigate_non_pr_artifacts(
         self,
@@ -376,7 +439,7 @@ class ArtifactsMixin(
             try:
                 self.query_one(  # type: ignore[attr-defined]
                     "#keybinding-footer", KeybindingFooter
-                ).show_artifacts_pane()
+                ).show_artifacts_pane(mark_count=len(self._active_artifacts_marks()))
             except Exception:
                 pass
 
@@ -454,6 +517,8 @@ class ArtifactsMixin(
         picked: bool,
     ) -> None:
         self._cancel_non_pr_artifacts_jump_mode()
+        if project != self.artifacts_project_scope:
+            self._clear_all_artifacts_marks()
         self.artifacts_project_scope = project
         if picked:
             self._artifacts_scope_was_picked = True

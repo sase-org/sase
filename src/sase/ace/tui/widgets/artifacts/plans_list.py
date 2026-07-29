@@ -12,7 +12,11 @@ from sase.bead.model import Issue
 from sase.plan_search.model import PlanSearchMatch
 
 from .plans_data import PlanProposal, PlansSnapshot, ProjectArchive, ProjectIssue
-from .entry_navigation import ArtifactEntryTarget, prepend_jump_hint
+from .entry_navigation import (
+    ArtifactEntryTarget,
+    prepend_jump_hint,
+    prepend_mark_glyph,
+)
 from .plans_rendering import (
     BLOCKED_STATE_GLYPH,
     LAUNCHED_STATE_GLYPH,
@@ -70,6 +74,7 @@ def build_plan_options(
     loading: bool,
     expanded_epics: set[tuple[str, str]],
     jump_hints: Mapping[ArtifactEntryTarget, str] | None = None,
+    marks: set[ArtifactEntryTarget] | None = None,
     matched_option_ids: frozenset[str] | None = None,
     archive_entries: tuple[ProjectArchive, ...] | None = None,
     archive_total: int | None = None,
@@ -77,6 +82,7 @@ def build_plan_options(
     """Build the grouped plan options and their identity-preserving row map."""
     options: list[Option] = []
     rows: dict[str, PlanRow] = {}
+    active_marks = marks or set()
     if snapshot is None or snapshot.project != project_scope:
         label = "Loading plans…" if loading else "Plans have not loaded yet."
         options.append(Option(single_line_text(label), disabled=True))
@@ -118,9 +124,12 @@ def build_plan_options(
         options.append(
             Option(
                 prepend_jump_hint(
-                    proposal_text(
-                        proposal,
-                        project_badge=project_badge(snapshot, proposal.project),
+                    prepend_mark_glyph(
+                        proposal_text(
+                            proposal,
+                            project_badge=project_badge(snapshot, proposal.project),
+                        ),
+                        plan_row_target(row) in active_marks,
                     ),
                     (jump_hints or {}).get(plan_row_target(row)),
                 ),
@@ -174,14 +183,17 @@ def build_plan_options(
         epic_options.append(
             Option(
                 prepend_jump_hint(
-                    epic_text(
-                        epic,
-                        tuple(item.issue for item in phases),
-                        expanded=effectively_expanded,
-                        project=project,
-                        ready_ids=snapshot.ready_ids,
-                        blocked_ids=snapshot.blocked_ids,
-                        project_badge=project_badge(snapshot, project),
+                    prepend_mark_glyph(
+                        epic_text(
+                            epic,
+                            tuple(item.issue for item in phases),
+                            expanded=effectively_expanded,
+                            project=project,
+                            ready_ids=snapshot.ready_ids,
+                            blocked_ids=snapshot.blocked_ids,
+                            project_badge=project_badge(snapshot, project),
+                        ),
+                        plan_row_target(row) in active_marks,
                     ),
                     (jump_hints or {}).get(plan_row_target(row)),
                 ),
@@ -209,11 +221,14 @@ def build_plan_options(
             epic_options.append(
                 Option(
                     prepend_jump_hint(
-                        phase_text(
-                            phase,
-                            project=project,
-                            ready_ids=snapshot.ready_ids,
-                            blocked_ids=snapshot.blocked_ids,
+                        prepend_mark_glyph(
+                            phase_text(
+                                phase,
+                                project=project,
+                                ready_ids=snapshot.ready_ids,
+                                blocked_ids=snapshot.blocked_ids,
+                            ),
+                            plan_row_target(row) in active_marks,
                         ),
                         (jump_hints or {}).get(plan_row_target(row)),
                     ),
@@ -280,9 +295,12 @@ def build_plan_options(
         options.append(
             Option(
                 prepend_jump_hint(
-                    archive_text(
-                        match,
-                        project_badge=project_badge(snapshot, project),
+                    prepend_mark_glyph(
+                        archive_text(
+                            match,
+                            project_badge=project_badge(snapshot, project),
+                        ),
+                        plan_row_target(row) in active_marks,
                     ),
                     (jump_hints or {}).get(plan_row_target(row)),
                 ),

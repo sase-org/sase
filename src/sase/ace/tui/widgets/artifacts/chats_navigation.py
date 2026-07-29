@@ -61,6 +61,7 @@ class ChatsNavigationMixin(_MixinBase):
     _rows: dict[str, ChatRow]
     _syncing_options: bool
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
+    _entry_marks: set[ArtifactEntryTarget]
 
     if TYPE_CHECKING:
 
@@ -68,12 +69,14 @@ class ChatsNavigationMixin(_MixinBase):
             self,
             *,
             preferred_target: ArtifactEntryTarget | None = None,
+            update_detail: bool = True,
         ) -> None: ...
 
     def _init_chats_navigation(self) -> None:
         self._rows = {}
         self._syncing_options = False
         self._entry_jump_hints = {}
+        self._entry_marks = set()
 
     def selected_row(self) -> ChatRow | None:
         option_list = self._option_list()
@@ -145,6 +148,11 @@ class ChatsNavigationMixin(_MixinBase):
         preferred = self.selected_entry_target()
         self._entry_jump_hints = {}
         self._refresh_options(preferred_target=preferred)
+
+    def apply_entry_marks(self, marks: set[ArtifactEntryTarget]) -> None:
+        preferred = self.selected_entry_target()
+        self._entry_marks = set(marks)
+        self._refresh_options(preferred_target=preferred, update_detail=False)
 
     def _option_list(self) -> ChatsOptionList | None:
         try:

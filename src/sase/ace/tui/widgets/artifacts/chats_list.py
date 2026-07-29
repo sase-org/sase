@@ -17,7 +17,11 @@ from .chats_rendering import (
     chat_group_label,
     chat_row_text,
 )
-from .entry_navigation import ArtifactEntryTarget, prepend_jump_hint
+from .entry_navigation import (
+    ArtifactEntryTarget,
+    prepend_jump_hint,
+    prepend_mark_glyph,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,9 +45,11 @@ def build_chat_options(
     loading: bool,
     now: datetime,
     jump_hints: Mapping[ArtifactEntryTarget, str] | None = None,
+    marks: set[ArtifactEntryTarget] | None = None,
 ) -> tuple[list[Option], dict[str, ChatRow]]:
     """Build newest-first date groups and their selectable row map."""
 
+    active_marks = marks or set()
     if snapshot is None or snapshot.project != project_scope:
         label = "Loading chats…" if loading else "Chats have not loaded yet."
         return [Option(label, disabled=True)], {}
@@ -70,7 +76,10 @@ def build_chat_options(
         options.append(
             Option(
                 prepend_jump_hint(
-                    chat_row_text(entry),
+                    prepend_mark_glyph(
+                        chat_row_text(entry),
+                        chat_row_target(row) in active_marks,
+                    ),
                     (jump_hints or {}).get(chat_row_target(row)),
                 ),
                 id=option_id,

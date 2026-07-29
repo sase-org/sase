@@ -52,6 +52,7 @@ class PlansOptionsMixin(_MixinBase):
     _load_error: str | None
     _rows: dict[str, PlanRow]
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
+    _entry_marks: set[ArtifactEntryTarget]
     _detail_debouncer: DetailPanelDebouncer | None
     _syncing_options: bool
     _display_matched_counts: dict[str, int] | None
@@ -194,6 +195,7 @@ class PlansOptionsMixin(_MixinBase):
             loading=self._loading,
             expanded_epics=self._expanded_epics,
             jump_hints=self._entry_jump_hints,
+            marks=self._entry_marks,
             matched_option_ids=matched_option_ids,
             archive_entries=archive_entries,
             archive_total=self._display_archive_total,
