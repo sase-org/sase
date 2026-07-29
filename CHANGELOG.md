@@ -36,6 +36,21 @@
 - **ace:** remove clan and family identity icons while retaining their grouping colors.
 - **xprompt:** preserve unknown frontmatter keys during parse/edit/serialize round trips and warn before comment loss.
 
+## [0.13.1](https://github.com/sase-org/sase/compare/v0.13.0...v0.13.1) (2026-07-29)
+
+
+### Features
+
+* **beads:** preassign epic work before launch ([1943e18](https://github.com/sase-org/sase/commit/1943e18a74f5f2ca3731dd051e68837574ea1c1e))
+
+
+### Bug Fixes
+
+* **ace:** finish tribe wait integration ([0b3d16c](https://github.com/sase-org/sase/commit/0b3d16ce40b7b0d20aa504d748c4147d3dfc9967))
+* **ace:** render explicit waits for queued agents ([212472e](https://github.com/sase-org/sase/commit/212472e3acc6c84d639c269c8110000bf1cfa49a))
+* **beads:** land the sidecar commit-consolidation epic ([4f08f4f](https://github.com/sase-org/sase/commit/4f08f4f1b1cbbc9221017ac14f67cad5bf938446))
+* **ci:** stabilize full matrix isolation ([887999f](https://github.com/sase-org/sase/commit/887999fb5d0c7acd0ca0a232e9a98f33d1fcc182))
+
 ## [0.13.0](https://github.com/sase-org/sase/compare/v0.12.0...v0.13.0) (2026-07-28)
 
 
