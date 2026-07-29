@@ -19,6 +19,7 @@ from sase.ace.tui.widgets.artifacts.plans_data import (
     ProjectIssue,
 )
 from sase.ace.tui.widgets.artifacts.plans_deep_archive import (
+    DeepArchiveRequest,
     DeepArchiveResult,
     merge_archive_matches,
 )
@@ -390,7 +391,7 @@ def test_deep_archive_merge_deduplicates_and_preserves_recency(
     ]
 
 
-async def test_deep_archive_typing_burst_fetches_once_and_becomes_exact(
+async def test_deep_archive_typing_burst_fetches_final_query_once_and_becomes_exact(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -402,7 +403,7 @@ async def test_deep_archive_typing_burst_fetches_once_and_becomes_exact(
         title="Needle in the deep archive",
         created_at="2026-06-01 10:00:00",
     )
-    calls: list[tuple[tuple[str, str], ...]] = []
+    requests: list[DeepArchiveRequest] = []
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
         _choices,
@@ -413,18 +414,20 @@ async def test_deep_archive_typing_burst_fetches_once_and_becomes_exact(
     )
 
     def load_deep(
-        roots: tuple[tuple[str, str], ...],
-    ) -> plans_data._DeepArchiveFetch:
-        calls.append(roots)
-        return plans_data._DeepArchiveFetch(
-            archive=(*snapshot.archive, older_match),
+        _snapshot: PlansSnapshot,
+        request: DeepArchiveRequest,
+    ) -> DeepArchiveResult:
+        requests.append(request)
+        return DeepArchiveResult(
+            request=request,
+            archive=(older_match,),
             scanned_count=2,
             capped=False,
-            errors={},
+            errors=(),
         )
 
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.artifacts.plans_deep_archive.load_deep_plan_archive",
+        "sase.ace.tui.widgets.artifacts.plans_filter_session.load_deep_archive_result",
         load_deep,
     )
 
@@ -435,7 +438,10 @@ async def test_deep_archive_typing_burst_fetches_once_and_becomes_exact(
         bar = pane.query_one(PlanFilterBar)
 
         await page.press("slash", "n", "e", "e", "d", "l", "e")
-        await page.wait_for(lambda _state: len(calls) == 1)
+        final_values = parse_plan_filter_query("needle")
+        final_request = pane._deep_archive_request_for(final_values)
+        assert final_request is not None
+        await page.wait_for(lambda _state: final_request in requests)
 
         def option_ids() -> set[str]:
             options = pane.query_one("#plans-list", OptionList)
@@ -450,7 +456,10 @@ async def test_deep_archive_typing_burst_fetches_once_and_becomes_exact(
         assert "1 match" in status
         assert "exact" in status
         assert "1/2 archived" in pane.query_one("#plans-status", Static).content.plain
-        assert calls == [(("alpha", str(tmp_path)),)]
+        assert requests.count(final_request) == 1
+        assert all(
+            request.project_roots == (("alpha", str(tmp_path)),) for request in requests
+        )
 
 
 async def test_escape_discards_in_flight_deep_archive_result(
