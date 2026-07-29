@@ -145,7 +145,11 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         if (
             self._vim_mode == "insert"
             and not self._file_completion_active
-            and (settings.auto_xprompt_menu or settings.auto_directive_menu)
+            and (
+                settings.auto_xprompt_menu
+                or settings.auto_directive_menu
+                or settings.auto_artifact_menu
+            )
             and _is_auto_xprompt_menu_character(character)
         ):
             self._try_auto_prompt_reference_completion()

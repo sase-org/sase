@@ -13,6 +13,9 @@ from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
     is_directive_like_token,
 )
+from sase.ace.tui.widgets.artifact_ref_completion import (
+    ARTIFACT_REF_COMPLETION_KIND,
+)
 from sase.ace.tui.widgets.file_completion import (
     build_file_history_completion_candidates,
 )
@@ -217,9 +220,49 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         if settings.auto_xprompt_menu:
             if self._try_auto_xprompt_arg_completion():
                 return True
+        if settings.auto_artifact_menu and self._try_artifact_ref_completion():
+            return True
+        if settings.auto_xprompt_menu:
             if self._try_auto_xprompt_completion():
                 return True
         return False
+
+    def _try_artifact_ref_completion(self, *, force: bool = False) -> bool:
+        """Open artifact kind/payload rows from the current warm catalog."""
+        bar = self._find_prompt_bar()
+        if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
+            return False
+        context = self._get_artifact_ref_completion_context()
+        if context is None:
+            return False
+        # A bare @ retains the ordinary file/reference behavior. Automatic
+        # menus wait for two kind characters, while a complete kind followed
+        # by ':' opens its payload provider immediately.
+        if context.stage == "kind":
+            if not context.partial_kind:
+                return False
+            if not force and len(context.partial_kind) < 2:
+                return False
+
+        result = self._artifact_ref_completion_result()
+        if result is None:
+            self._warm_current_artifact_ref_completion_catalog()
+            if (
+                self._file_completion_active
+                and self._completion_kind == ARTIFACT_REF_COMPLETION_KIND
+            ):
+                self._clear_file_completion()
+            return True
+        if not result.candidates:
+            self._clear_file_completion()
+            return True
+
+        self._completion_kind = ARTIFACT_REF_COMPLETION_KIND
+        self._file_completion_active = True
+        self._file_completion_candidates = result.candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(context.prefix)
+        return True
 
     def _try_auto_directive_arg_completion(self) -> bool:
         """Open fixed-value directive argument completion after ``:``."""

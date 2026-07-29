@@ -11,6 +11,9 @@ from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
     is_directive_like_token,
 )
+from sase.ace.tui.widgets.artifact_ref_completion import (
+    ARTIFACT_REF_COMPLETION_KIND,
+)
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
     build_completion_candidates,
@@ -53,6 +56,23 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
     def _refresh_file_completion_from_cursor(self) -> None:
         """Recompute active completions after edits or cursor movement."""
         if not self._file_completion_active:
+            return
+
+        if self._completion_kind == ARTIFACT_REF_COMPLETION_KIND:
+            context = self._get_artifact_ref_completion_context()
+            if context is None:
+                self._clear_file_completion()
+                return
+            result = self._artifact_ref_completion_result()
+            if result is None:
+                self._warm_current_artifact_ref_completion_catalog()
+                self._clear_file_completion()
+                return
+            if not result.candidates:
+                self._clear_file_completion()
+                return
+            self._replace_completion_candidates_preserving_selection(result.candidates)
+            self._update_file_completion_panel(context.prefix)
             return
 
         if self._completion_kind == PROMPT_WORD_COMPLETION_KIND:
@@ -446,6 +466,11 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
         if self._get_vcs_repo_trigger() is not None:
             return True
         if self._get_vcs_ref_trigger() is not None:
+            return True
+        artifact_ctx = self._get_artifact_ref_completion_context()
+        if artifact_ctx is not None and (
+            artifact_ctx.stage == "payload" or bool(artifact_ctx.partial_kind)
+        ):
             return True
 
         cursor_offset = self._absolute_offset(self.cursor_location)

@@ -24,6 +24,10 @@ from sase.ace.tui.widgets.directive_completion import (
     DirectiveCompletionMetadata,
     ModelCompletionMetadata,
 )
+from sase.ace.tui.widgets.artifact_ref_completion import (
+    ArtifactRefKindCompletionMetadata,
+    ArtifactRefPayloadCompletionMetadata,
+)
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.jinja_completion import JinjaCompletionMetadata
 from sase.ace.tui.widgets.placeholder_completion import PlaceholderCompletionMetadata
@@ -48,6 +52,14 @@ _COMMON_PLACEHOLDER_STYLE = "#D7AF5F"
 _MODEL_NAME_CELL_MAX = 30
 _MODEL_KIND_CELL = 7
 _MODEL_TARGET_CELL_MAX = 34
+
+_ARTIFACT_SOURCE_BADGES = {
+    "document": ("[D] ", "bold #87D7FF"),
+    "file": ("[F] ", "bold #D7AF5F"),
+    "chat": ("[C] ", "bold #5FD7AF"),
+    "commit": ("[G] ", "bold #AF87FF"),
+    "bug": ("[B] ", "bold #FF875F"),
+}
 
 
 def vcs_project_label_width(candidate: CompletionCandidate) -> int:
@@ -161,6 +173,40 @@ def append_directive_completion_row(
         details.append(metadata.description)
     if details:
         content.append(f"  {'  '.join(details)}", style="dim")
+
+
+def append_artifact_ref_completion_row(
+    content: Text,
+    candidate: CompletionCandidate,
+    is_selected: bool,
+) -> None:
+    """Append one kind or provider-specific artifact payload row."""
+    metadata = candidate.metadata
+    if isinstance(metadata, ArtifactRefKindCompletionMetadata):
+        content.append("@ ", style="bold #5FD7AF")
+        content.append(
+            metadata.kind,
+            style="bold green" if is_selected else "green",
+        )
+        content.append(f"  {metadata.source_label}", style="dim")
+        return
+    if not isinstance(metadata, ArtifactRefPayloadCompletionMetadata):
+        content.append(candidate.display, style="bold" if is_selected else "")
+        return
+
+    badge, badge_style = _ARTIFACT_SOURCE_BADGES[metadata.source]
+    content.append(badge, style=badge_style)
+    content.append(
+        candidate.display,
+        style="bold" if is_selected else "",
+    )
+    details = [
+        value
+        for value in (metadata.label, metadata.detail, metadata.age)
+        if value and value != candidate.display
+    ]
+    if details:
+        content.append(f"  {'  ·  '.join(details)}", style="dim")
 
 
 def append_directive_arg_completion_row(

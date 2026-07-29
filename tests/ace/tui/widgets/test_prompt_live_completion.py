@@ -98,6 +98,7 @@ def _compute_soft_now(ta: PromptTextArea) -> None:
 def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
     assert parse_prompt_completion_settings({}) == PromptCompletionSettings()
     assert parse_prompt_completion_settings({}).auto_directive_menu is True
+    assert parse_prompt_completion_settings({}).auto_artifact_menu is True
     assert parse_prompt_completion_settings({"auto": False}).auto == "off"
     assert parse_prompt_completion_settings({"auto": "soft"}).auto == "soft"
     parsed = parse_prompt_completion_settings(
@@ -106,6 +107,7 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
             "auto_file_paths": True,
             "auto_xprompt_menu": False,
             "auto_directive_menu": False,
+            "auto_artifact_menu": False,
             "max_auto_rows": "0",
             "history_word_count": "25",
             "common_placeholder_count": "-5",
@@ -116,6 +118,7 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
     assert parsed.auto_file_paths is True
     assert parsed.auto_xprompt_menu is False
     assert parsed.auto_directive_menu is False
+    assert parsed.auto_artifact_menu is False
     assert parsed.max_auto_rows == 1
     assert parsed.history_word_count == 25
     # A negative cap clamps to the ``0`` disable rather than going negative.

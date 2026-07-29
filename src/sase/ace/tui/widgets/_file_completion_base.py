@@ -8,6 +8,14 @@ from typing import TYPE_CHECKING, Any
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.widgets._file_completion_context import FileCompletionContextMixin
+from sase.ace.tui.widgets.artifact_ref_completion import (
+    ARTIFACT_REF_COMPLETION_KIND,
+    ArtifactRefBugCandidate,
+    ArtifactRefCommitCandidate,
+    ArtifactRefCompletionCatalog,
+    ArtifactRefCompletionResult,
+    build_artifact_ref_completion_result,
+)
 from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
 from sase.ace.tui.widgets.prompt_word_completion import (
     WordCompletionResult,
@@ -101,6 +109,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         def _get_warm_xprompt_arg_assist_entries(
             self,
         ) -> list[XPromptAssistEntry] | None: ...
+        def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
         def _build_warm_xprompt_completion_candidates(
             self,
             token: str,
@@ -112,6 +121,10 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             self,
             words: list[str] | None = None,
         ) -> None: ...
+        def _get_warm_artifact_ref_completion_catalog(
+            self,
+        ) -> ArtifactRefCompletionCatalog | None: ...
+        def _warm_current_artifact_ref_completion_catalog(self) -> None: ...
         def _expand_snippet_template_at_range(
             self,
             template: str,
@@ -165,6 +178,10 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
                     workflow=repo_trigger.workflow,
                     namespace=repo_trigger.namespace,
                 )
+        elif self._completion_kind == ARTIFACT_REF_COMPLETION_KIND:
+            artifact_ctx = self._get_artifact_ref_completion_context()
+            if artifact_ctx is not None:
+                display_token = artifact_ctx.panel_title
 
         bar.show_file_completions(
             display_token,
@@ -293,6 +310,98 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         except Exception:
             self._agent_completion_candidates = []
         return self._agent_completion_candidates
+
+    def _artifact_ref_completion_result(
+        self,
+    ) -> ArtifactRefCompletionResult | None:
+        """Build artifact candidates solely from warm immutable snapshots."""
+        context = self._get_artifact_ref_completion_context()
+        if context is None:
+            return None
+        catalog = self._get_warm_artifact_ref_completion_catalog()
+        if catalog is None:
+            return None
+        return build_artifact_ref_completion_result(
+            context,
+            catalog,
+            commits=self._snapshot_artifact_ref_commit_candidates(),
+            bugs=self._snapshot_artifact_ref_bug_candidates(),
+        )
+
+    def _snapshot_artifact_ref_commit_candidates(
+        self,
+    ) -> tuple[ArtifactRefCommitCandidate, ...]:
+        """Project the mounted Commits pane's current in-memory result."""
+        try:
+            pane = self.app.query_one("#artifacts-commits-pane")
+        except Exception:
+            return ()
+        result = getattr(pane, "result", None)
+        if result is None:
+            preview = getattr(pane, "_preview_base", None)
+            result = getattr(preview, "result", None)
+        commits = getattr(result, "commits", ())
+        rows: list[ArtifactRefCommitCandidate] = []
+        for entry in commits:
+            commit = getattr(entry, "commit", None)
+            repo = getattr(entry, "repo", None)
+            sha = getattr(commit, "full_id", None)
+            if not isinstance(repo, str) or not isinstance(sha, str):
+                continue
+            rows.append(
+                ArtifactRefCommitCandidate(
+                    repo=repo,
+                    sha=sha,
+                    subject=str(getattr(commit, "subject", "") or ""),
+                    timestamp=int(getattr(commit, "timestamp", 0) or 0),
+                )
+            )
+        return tuple(rows)
+
+    def _snapshot_artifact_ref_bug_candidates(
+        self,
+    ) -> tuple[ArtifactRefBugCandidate, ...]:
+        """Project the mounted Bugs pane's current immutable tracker snapshot."""
+        try:
+            pane = self.app.query_one("#artifacts-bugs-pane")
+        except Exception:
+            return ()
+        snapshot = getattr(pane, "snapshot", None)
+        if snapshot is None:
+            return ()
+        project = str(
+            getattr(snapshot, "display_name", "")
+            or getattr(snapshot, "project_key", "")
+            or ""
+        )
+        if not project:
+            return ()
+        target_project = self._xprompt_arg_assist_project_from_text()
+        if target_project is not None:
+            accepted = {
+                project.casefold(),
+                str(getattr(snapshot, "project_key", "") or "").casefold(),
+            }
+            if target_project.casefold() not in accepted:
+                return ()
+        rows: list[ArtifactRefBugCandidate] = []
+        for issue in getattr(snapshot, "issues", ()):
+            number = getattr(issue, "number", None)
+            if not isinstance(number, int):
+                continue
+            rows.append(
+                ArtifactRefBugCandidate(
+                    project=project,
+                    number=number,
+                    title=str(getattr(issue, "title", "") or ""),
+                    updated_at=str(
+                        getattr(issue, "updated_at", "")
+                        or getattr(issue, "created_at", "")
+                        or ""
+                    ),
+                )
+            )
+        return tuple(rows)
 
     def _history_prompt_words(self) -> list[str] | None:
         """Return the app's warm history-word list without touching disk."""

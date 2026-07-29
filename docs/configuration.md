@@ -777,6 +777,7 @@ ace:
     auto_file_paths: false
     auto_xprompt_menu: true
     auto_directive_menu: true
+    auto_artifact_menu: true
     max_auto_rows: 1
     history_word_count: 10000
     common_placeholder_count: 100
@@ -790,6 +791,7 @@ ace:
 | `auto_file_paths`          | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.       |
 | `auto_xprompt_menu`        | bool        | `true`  | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens.  |
 | `auto_directive_menu`      | bool        | `true`  | Automatically open directive completion while typing `%id` tokens and fixed values such as `%model:`.              |
+| `auto_artifact_menu`       | bool        | `true`  | Automatically open warm artifact-reference completion after two kind characters or a valid `@kind:` prefix.        |
 | `max_auto_rows`            | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                         |
 | `history_word_count`       | int         | `10000` | Maximum unique recent prompt-history words retained for manual completion; `0` disables the history fallback.      |
 | `common_placeholder_count` | int         | `100`   | Maximum saved `<placeholder>` tags retained and offered after prompt-local placeholder matches; `0` disables them. |
@@ -814,6 +816,11 @@ to keep controlling word completion.
 The `+query` project/ChangeSpec picker uses the same completion panel and opens when the plus is at absolute prompt
 offset zero or immediately follows a literal ASCII space. It is not disabled by `auto_xprompt_menu`. Manual `Ctrl+T`
 project/ChangeSpec completion uses the same token rule and works regardless of these automatic-completion settings.
+
+Artifact-reference completion uses a project-scoped catalog warmed off-thread. `auto_artifact_menu` controls only
+automatic opening; manual `Ctrl+T` remains available. A bare `@` and path-shaped `@~/...`, `@/...`, `@./...`, and
+`@../...` tokens keep ordinary file behavior. Commit and bug candidates are projected only from already-loaded
+Artifacts-pane snapshots.
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists inline-typable model names,
 implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_lander`, `@big_epic_lander`,

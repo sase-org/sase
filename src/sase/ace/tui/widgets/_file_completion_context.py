@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sase.ace.tui.widgets.artifact_ref_completion import (
+    ARTIFACT_REF_COMPLETION_KIND,
+    ArtifactRefCompletionCatalog,
+    ArtifactRefCompletionContext,
+    detect_artifact_ref_completion_context,
+)
 from sase.ace.tui.widgets._file_completion_xprompt_args import (
     cursor_prefix_may_contain_xprompt_args,
     effective_xprompt_arg_token,
@@ -89,6 +95,10 @@ class FileCompletionContextMixin(_MixinBase):
         ) -> list[XPromptAssistEntry] | None: ...
         def _local_xprompt_assist_entries(self) -> list[XPromptAssistEntry]: ...
         def _warm_current_xprompt_assist_entries(self) -> None: ...
+        def _get_warm_artifact_ref_known_kinds(self) -> frozenset[str] | None: ...
+        def _get_warm_artifact_ref_completion_catalog(
+            self,
+        ) -> ArtifactRefCompletionCatalog | None: ...
 
     def _extract_token_around_cursor(self) -> tuple[int, int, str] | None:
         """Extract token bounds around the cursor in the current line."""
@@ -107,6 +117,18 @@ class FileCompletionContextMixin(_MixinBase):
             return None
         row, _ = self.cursor_location
         return row, start, end, token
+
+    def _get_artifact_ref_completion_context(
+        self,
+    ) -> ArtifactRefCompletionContext | None:
+        """Return the grammar-aware artifact context around the cursor."""
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        known_kinds = self._get_warm_artifact_ref_known_kinds() or ()
+        return detect_artifact_ref_completion_context(
+            self.text,
+            cursor_offset,
+            known_kinds,
+        )
 
     def _get_xprompt_token_context(
         self,
@@ -230,6 +252,15 @@ class FileCompletionContextMixin(_MixinBase):
 
     def _get_token_context(self) -> tuple[int, int, int, str] | None:
         """Return token context using the appropriate getter for the active kind."""
+        if self._completion_kind == ARTIFACT_REF_COMPLETION_KIND:
+            artifact_ctx = self._get_artifact_ref_completion_context()
+            if artifact_ctx is None:
+                return None
+            row, start = self._location_from_absolute(artifact_ctx.replacement_start)
+            end_row, end = self._location_from_absolute(artifact_ctx.replacement_end)
+            if row != end_row:
+                return None
+            return row, start, end, artifact_ctx.prefix
         if self._completion_kind == "directive_arg":
             ctx = self._get_directive_arg_token_context()
             if ctx is None:

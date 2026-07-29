@@ -5,6 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets._file_completion_base import FileCompletionBaseMixin
+from sase.ace.tui.widgets.artifact_ref_completion import (
+    ARTIFACT_REF_COMPLETION_KIND,
+    ArtifactRefKindCompletionMetadata,
+    ArtifactRefPayloadCompletionMetadata,
+)
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
@@ -44,6 +49,7 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
 
         def _try_file_completion_tab(self) -> bool: ...
         def _try_vcs_repo_completion(self) -> bool: ...
+        def _try_artifact_ref_completion(self, *, force: bool = False) -> bool: ...
 
     def _accept_vcs_project_completion(self, selected: CompletionCandidate) -> bool:
         """Apply the canonical expansion for the selected project candidate."""
@@ -246,6 +252,12 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
                 "" if repo_trigger is None else repo_trigger.query
             )
             return True
+        if self._completion_kind == ARTIFACT_REF_COMPLETION_KIND:
+            artifact_ctx = self._get_artifact_ref_completion_context()
+            self._update_file_completion_panel(
+                "" if artifact_ctx is None else artifact_ctx.prefix
+            )
+            return True
         ctx = self._get_token_context()
         self._update_file_completion_panel("" if ctx is None else ctx[3])
         return True
@@ -261,6 +273,8 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             return self._accept_vcs_ref_completion(selected)
         if self._completion_kind == VCS_REPO_COMPLETION_KIND:
             return self._accept_vcs_repo_completion(selected)
+        if self._completion_kind == ARTIFACT_REF_COMPLETION_KIND:
+            return self._accept_artifact_ref_completion(selected)
         if self._completion_kind == "jinja":
             jinja_result = build_jinja_completion_result(
                 self.text,
@@ -376,6 +390,47 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
                 self._refresh_xprompt_arg_hint_from_cursor()
             else:
                 self._clear_xprompt_arg_hint()
+        return True
+
+    def _accept_artifact_ref_completion(
+        self,
+        selected: CompletionCandidate,
+    ) -> bool:
+        """Accept a kind boundary or replace one complete payload context."""
+        context = self._get_artifact_ref_completion_context()
+        if context is None:
+            self._clear_file_completion()
+            return False
+        if context.stage == "kind":
+            metadata = selected.metadata
+            if not isinstance(metadata, ArtifactRefKindCompletionMetadata):
+                self._clear_file_completion()
+                return False
+            self._replace_absolute_range(
+                context.replacement_start,
+                context.replacement_end,
+                selected.insertion,
+            )
+            self._clear_file_completion()
+            self._try_artifact_ref_completion(force=True)
+            return True
+
+        metadata = selected.metadata
+        if not isinstance(metadata, ArtifactRefPayloadCompletionMetadata):
+            self._clear_file_completion()
+            return False
+        result = self._artifact_ref_completion_result()
+        if result is None or selected.insertion not in {
+            candidate.insertion for candidate in result.candidates
+        }:
+            self._clear_file_completion()
+            return False
+        self._replace_absolute_range(
+            context.replacement_start,
+            context.replacement_end,
+            selected.insertion,
+        )
+        self._clear_file_completion()
         return True
 
     def _delete_selected_file_completion(self) -> bool:

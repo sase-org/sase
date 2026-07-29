@@ -112,6 +112,16 @@ class TestFileReferenceStore:
             # Last in refs ends up at index 0 (most recent).
             assert load_file_references() == ["~/a.md", "/etc/hosts"]
 
+    def test_artifact_reference_roundtrip_and_deletion(self, tmp_path: Path) -> None:
+        store = tmp_path / "hist.json"
+        reference = "@plans:202607/artifact_ref_prompt_completion.md"
+        with patch("sase.history.file_references._HISTORY_FILE", store):
+            record_file_references([reference])
+            assert load_file_references() == [reference]
+
+            remove_file_reference(reference)
+            assert load_file_references() == []
+
     def test_record_dedups_across_calls_keeping_most_recent(
         self, tmp_path: Path
     ) -> None:

@@ -12,6 +12,7 @@ from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.models.tribe_display import named_tribe_identity_colors
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_agent_completion_row,
+    append_artifact_ref_completion_row,
     append_directive_arg_completion_row,
     append_directive_completion_row,
     append_jinja_completion_row,
@@ -27,6 +28,9 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     vcs_project_label_width,
     vcs_ref_label_width,
     vcs_repo_label_width,
+)
+from sase.ace.tui.widgets.artifact_ref_completion import (
+    ARTIFACT_REF_COMPLETION_KIND,
 )
 from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
@@ -186,6 +190,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         is_vcs_project = completion_kind == VCS_PROJECT_COMPLETION_KIND
         is_vcs_ref = completion_kind == VCS_REF_COMPLETION_KIND
         is_vcs_repo = completion_kind == VCS_REPO_COMPLETION_KIND
+        is_artifact_ref = completion_kind == ARTIFACT_REF_COMPLETION_KIND
         tribe_colors: dict[str, str] | None = None
         if is_directive_arg_agent or is_xprompt_arg_agent:
             tribe_colors = named_tribe_identity_colors(
@@ -285,6 +290,12 @@ class PromptInputBarCompletionMixin(_MixinBase):
                     is_selected,
                     vcs_repo_width,
                 )
+            elif is_artifact_ref:
+                append_artifact_ref_completion_row(
+                    content,
+                    candidate,
+                    is_selected,
+                )
             elif is_arg_completion:
                 content.append(
                     candidate.display,
@@ -338,6 +349,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
         elif is_vcs_ref:
             panel.border_title = token
         elif is_vcs_repo:
+            panel.border_title = token
+        elif is_artifact_ref:
             panel.border_title = token
         elif is_xprompt_arg_agent:
             panel.border_title = "fork targets"

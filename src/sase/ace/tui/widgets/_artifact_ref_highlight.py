@@ -27,6 +27,11 @@ from ._jinja_highlight import (
     _MAX_OVERLAY_LINES,
 )
 from ._xprompt_syntax_highlight import derive_argument_color
+from .artifact_ref_completion import (
+    ARTIFACT_REF_COMPLETION_KIND,
+    ArtifactRefCompletionCatalog,
+    load_artifact_ref_completion_catalog,
+)
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -41,6 +46,7 @@ _ARTIFACT_REF_WORKER_GROUP = "prompt-artifact-ref-kinds"
 class _KnownKindsResult:
     project: str | None
     kinds: frozenset[str]
+    catalog: ArtifactRefCompletionCatalog | None = None
 
 
 def _load_known_artifact_ref_kinds(
@@ -53,7 +59,12 @@ def _load_known_artifact_ref_kinds(
     if workspace is None:
         workspace = known_project_namespaces().get(project) if project else Path.cwd()
     if workspace is None:
-        return _KnownKindsResult(project, frozenset(BUILTIN_ARTIFACT_REF_KINDS))
+        kinds = frozenset(BUILTIN_ARTIFACT_REF_KINDS)
+        return _KnownKindsResult(
+            project,
+            kinds,
+            ArtifactRefCompletionCatalog(project, tuple(BUILTIN_ARTIFACT_REF_KINDS)),
+        )
 
     try:
         context = artifact_ref_context(
@@ -62,8 +73,17 @@ def _load_known_artifact_ref_kinds(
             project=project,
         )
     except Exception:
-        return _KnownKindsResult(project, frozenset(BUILTIN_ARTIFACT_REF_KINDS))
-    return _KnownKindsResult(project, frozenset(context.known_kinds))
+        kinds = frozenset(BUILTIN_ARTIFACT_REF_KINDS)
+        return _KnownKindsResult(
+            project,
+            kinds,
+            ArtifactRefCompletionCatalog(project, tuple(BUILTIN_ARTIFACT_REF_KINDS)),
+        )
+    return _KnownKindsResult(
+        project,
+        frozenset(context.known_kinds),
+        load_artifact_ref_completion_catalog(project, context),
+    )
 
 
 class ArtifactRefHighlightMixin(_MixinBase):
@@ -71,6 +91,9 @@ class ArtifactRefHighlightMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _artifact_ref_known_kinds_by_project: dict[str | None, frozenset[str]]
+        _artifact_ref_completion_catalogs_by_project: dict[
+            str | None, ArtifactRefCompletionCatalog
+        ]
         _artifact_ref_kind_worker_projects: dict[str, str | None]
         _artifact_ref_kinds_warming: set[str | None]
 
@@ -87,6 +110,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
         # TextArea builds its first highlight map inside its constructor, so
         # this cache must exist before delegating to the base widget.
         self._artifact_ref_known_kinds_by_project = {}
+        self._artifact_ref_completion_catalogs_by_project = {}
         self._artifact_ref_kinds_warming = set()
         self._artifact_ref_kind_worker_projects = {}
         super().__init__(*args, **kwargs)
@@ -183,13 +207,23 @@ class ArtifactRefHighlightMixin(_MixinBase):
             project = None
         return self._artifact_ref_known_kinds_by_project.get(project)
 
+    def _get_warm_artifact_ref_completion_catalog(
+        self,
+    ) -> ArtifactRefCompletionCatalog | None:
+        """Return the current target project's immutable warm payload catalog."""
+        try:
+            project = self._xprompt_arg_assist_project_from_text()
+        except Exception:
+            project = None
+        return self._artifact_ref_completion_catalogs_by_project.get(project)
+
     def _warm_current_artifact_ref_known_kinds(self) -> None:
-        """Warm project roles in a worker for disk-free prompt highlighting."""
+        """Warm project kinds and payloads for disk-free prompt interaction."""
         if not callable(getattr(self.app, "get_prompt_completion_settings", None)):
             return
         project = self._xprompt_arg_assist_project_from_text()
         if (
-            project in self._artifact_ref_known_kinds_by_project
+            project in self._artifact_ref_completion_catalogs_by_project
             or project in self._artifact_ref_kinds_warming
         ):
             return
@@ -222,6 +256,10 @@ class ArtifactRefHighlightMixin(_MixinBase):
             thread=True,
         )
 
+    def _warm_current_artifact_ref_completion_catalog(self) -> None:
+        """Warm the catalog through the highlighter's shared lifecycle."""
+        self._warm_current_artifact_ref_known_kinds()
+
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Apply warmed role sets and preserve other prompt worker handlers."""
         if event.worker.group != _ARTIFACT_REF_WORKER_GROUP:
@@ -234,10 +272,28 @@ class ArtifactRefHighlightMixin(_MixinBase):
             result = event.worker.result
             if isinstance(result, _KnownKindsResult):
                 self._artifact_ref_known_kinds_by_project[result.project] = result.kinds
+                if result.catalog is not None:
+                    self._artifact_ref_completion_catalogs_by_project[
+                        result.project
+                    ] = result.catalog
                 self._artifact_ref_kinds_warming.discard(result.project)
                 self._artifact_ref_kind_worker_projects.pop(event.worker.name, None)
                 self._build_highlight_map()
                 self.refresh()
+                if (
+                    result.catalog is not None
+                    and getattr(self, "_file_completion_active", False)
+                    and getattr(self, "_completion_kind", "")
+                    == ARTIFACT_REF_COMPLETION_KIND
+                    and self._xprompt_arg_assist_project_from_text() == result.project
+                ):
+                    refresh_completion = getattr(
+                        self,
+                        "_refresh_file_completion_from_cursor",
+                        None,
+                    )
+                    if callable(refresh_completion):
+                        refresh_completion()
                 return
         elif event.state in (WorkerState.ERROR, WorkerState.CANCELLED):
             project = self._artifact_ref_kind_worker_projects.pop(

@@ -3053,6 +3053,13 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   and `%w` completes to `%wait`. Inside `%wait`, completion keeps `time=` and `runners=` first, followed by matching
   tribes, clans, families, and agents. The panel shows each directive's aliases and whether it takes an argument or is a
   flag.
+- **Artifact-reference completion**: Kind-tagged references complete in two stages. Typing a kind prefix such as `@pl`
+  filters the four builtin kinds plus document roles configured for the prompt's target project; accepting `plans`
+  inserts `@plans:` and immediately opens its payload rows. Documents, explicit artifact files, and chats come from a
+  bounded project-scoped catalog warmed off-thread. Commit and bug rows appear only from snapshots the mounted Artifacts
+  panes have already loaded, so typing never launches Git, contacts a tracker, or scans the filesystem. Payload
+  acceptance replaces the complete `@kind:payload` context, including when the cursor is in the middle of it. A bare `@`
+  and path-shaped tokens such as `@~/notes.md` continue to use ordinary file completion.
 - **Placeholder completion**: When the cursor is inside an incomplete `<foobar>` tag, completion suggests matching
   placeholders from the current prompt first, then saved common placeholders learned from tags you have written before.
   Within the current-prompt group, live tags keep document order and literal-zone tags follow in document order.
@@ -3073,9 +3080,10 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   directory: registered workspace-provider refs and known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>`
   can root completion in that project checkout. If no prompt workspace ref resolves, ACE uses the TUI process directory.
 - **File-history completion**: When the cursor is in whitespace (or at an empty prompt prefix), `Ctrl+T` opens a list of
-  recently referenced files drawn from prompt history, ranked by recency. Project-local `.sase/` paths are filtered out
-  so internal bead/plan artifacts don't pollute the suggestions. Press `Ctrl+D` in the completion panel to delete the
-  highlighted entry from the on-disk history.
+  recently referenced files and well-formed `@kind:payload` artifact references drawn from prompt history, ranked by
+  recency. Project-local `.sase/` paths are filtered out so internal bead/plan artifacts don't pollute the suggestions.
+  Artifact references retain their leading `@`. Press `Ctrl+D` in the completion panel to delete the highlighted entry
+  from the on-disk history.
 - **Prompt-local word completion**: As the first fallback for a plain prose token, `Ctrl+T` filters words already in the
   active prompt by the word prefix immediately left of the cursor. Matching is case-insensitive, but each candidate
   keeps its original spelling. Accepting a candidate replaces the complete word under the cursor, including any suffix
@@ -3136,17 +3144,19 @@ completion is disabled by default because it can scan the filesystem while typin
 `ace.prompt_completion.auto_xprompt_menu: false`. The directive menu likewise opens automatically while typing matching
 `%id` tokens; disable it with `ace.prompt_completion.auto_directive_menu: false`. Both auto-menus open only once at
 least one identifier character follows the marker (bare `#`, `/`, and `%` stay quiet) and never auto-accept a single
-match. The project/ChangeSpec picker opens when `+` completes a token at prompt offset zero or immediately after a
-literal ASCII space and is also available through manual `Ctrl+T`. The VCS ref-root menu opens when `:` or `(` completes
-a known workflow ref trigger such as `#gh:` and local candidates exist. The VCS repository menu opens when `/` completes
-a known workflow ref trigger such as `#gh:owner/`; cached rows appear immediately and uncached namespaces fetch in a
-background worker. Placeholder auto-completion opens only for an incomplete `<...` context; saved common placeholders
-join automatic results after the prefix is non-empty, while manual `Ctrl+T` can show them from a bare `<`. Manual
-`Ctrl+T` inserts a lone match in the highest-priority placeholder source group outright; automatic completion only opens
-the menu, even for one match. Manual `Ctrl+T` completion still supports file paths, xprompt names, directives, skills,
-project/ChangeSpec tags, VCS ref roots, VCS repository refs, prompt-local prose words, placeholders, and enabled history
-words regardless of the automatic settings. Live suggestions pause while the manual completion panel is open, while
-snippet tabstops are active, in NORMAL mode, and during feedback prompts.
+match. Artifact-reference menus open after two kind characters or as soon as a syntactically valid `@kind:` reaches the
+payload stage; disable them with `ace.prompt_completion.auto_artifact_menu: false`. A bare `@` stays quiet. The
+project/ChangeSpec picker opens when `+` completes a token at prompt offset zero or immediately after a literal ASCII
+space and is also available through manual `Ctrl+T`. The VCS ref-root menu opens when `:` or `(` completes a known
+workflow ref trigger such as `#gh:` and local candidates exist. The VCS repository menu opens when `/` completes a known
+workflow ref trigger such as `#gh:owner/`; cached rows appear immediately and uncached namespaces fetch in a background
+worker. Placeholder auto-completion opens only for an incomplete `<...` context; saved common placeholders join
+automatic results after the prefix is non-empty, while manual `Ctrl+T` can show them from a bare `<`. Manual `Ctrl+T`
+inserts a lone match in the highest-priority placeholder source group outright; automatic completion only opens the
+menu, even for one match. Manual `Ctrl+T` completion still supports file paths, xprompt names, directives, skills,
+artifact references, project/ChangeSpec tags, VCS ref roots, VCS repository refs, prompt-local prose words,
+placeholders, and enabled history words regardless of the automatic settings. Live suggestions pause while the manual
+completion panel is open, while snippet tabstops are active, in NORMAL mode, and during feedback prompts.
 
 For file completion, directories appear before files in the candidate list. Dotfiles are hidden unless the partial
 prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The

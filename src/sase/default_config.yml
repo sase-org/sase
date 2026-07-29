@@ -128,6 +128,7 @@ ace:
     auto_file_paths: false
     auto_xprompt_menu: true
     auto_directive_menu: true
+    auto_artifact_menu: true
     max_auto_rows: 1
     history_word_count: 10000
     common_placeholder_count: 100

@@ -662,6 +662,11 @@
               "description": "Whether matching %id tokens automatically open the directive completion menu while typing",
               "default": true
             },
+            "auto_artifact_menu": {
+              "type": "boolean",
+              "description": "Whether matching @kind and @kind:payload tokens automatically open artifact-reference completion while typing",
+              "default": true
+            },
             "max_auto_rows": {
               "type": "integer",
               "description": "Maximum automatic completion rows reserved for future popup modes",

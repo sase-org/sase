@@ -58,6 +58,21 @@ def test_prompt_completion_history_word_count_default_contract() -> None:
     )
 
 
+def test_prompt_completion_artifact_menu_default_contract() -> None:
+    public_schema = schema()
+    default_config = yaml.safe_load(
+        (REPO_ROOT / "src/sase/default_config.yml").read_text(encoding="utf-8")
+    )
+    prompt_completion_schema = public_schema["properties"]["ace"]["properties"][
+        "prompt_completion"
+    ]
+
+    assert default_config["ace"]["prompt_completion"]["auto_artifact_menu"] is True
+    assert (
+        prompt_completion_schema["properties"]["auto_artifact_menu"]["default"] is True
+    )
+
+
 def test_config_schema_validates_ace_agents_sync_settings() -> None:
     validator = Draft7Validator(schema())
     validator.validate(
