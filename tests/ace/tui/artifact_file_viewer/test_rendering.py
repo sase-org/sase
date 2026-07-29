@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 from rich.console import Console
@@ -453,7 +454,7 @@ def test_artifact_text_viewer_command_prefers_bat(tmp_path: Path, monkeypatch) -
     ]
 
 
-def test_artifact_text_viewer_command_falls_back_to_cat(
+def test_artifact_text_viewer_command_falls_back_to_safe_dump(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -462,12 +463,15 @@ def test_artifact_text_viewer_command_falls_back_to_cat(
     monkeypatch.setattr("sase.ace.tui.graphics.viewer.shutil.which", lambda _tool: None)
 
     assert artifact_text_viewer_command(artifact) == [
-        "cat",
+        sys.executable,
+        "-m",
+        "sase.ace.tui.graphics.artifact_text_dump",
+        "--",
         str(artifact.resolve(strict=False)),
     ]
 
 
-def test_artifact_text_viewer_cat_waits_for_quit_key(
+def test_artifact_text_viewer_safe_dump_waits_for_quit_key(
     tmp_path: Path,
     monkeypatch,
     capsys,
@@ -491,7 +495,13 @@ def test_artifact_text_viewer_cat_waits_for_quit_key(
     assert result.returncode == 0
     assert commands == [
         ["clear"],
-        ["cat", str(artifact.resolve(strict=False))],
+        [
+            sys.executable,
+            "-m",
+            "sase.ace.tui.graphics.artifact_text_dump",
+            "--",
+            str(artifact.resolve(strict=False)),
+        ],
         ["clear"],
     ]
     assert "q: quit" in capsys.readouterr().out

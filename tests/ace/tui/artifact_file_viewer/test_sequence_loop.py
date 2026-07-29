@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 from sase.ace.tui.graphics.viewer import (
@@ -177,7 +178,13 @@ def test_run_artifact_sequence_loop_routes_raw_file_through_text_viewer(
     assert render_calls == [image]
     assert commands == [
         ["clear"],
-        ["cat", str(raw.resolve(strict=False))],
+        [
+            sys.executable,
+            "-m",
+            "sase.ace.tui.graphics.artifact_text_dump",
+            "--",
+            str(raw.resolve(strict=False)),
+        ],
         ["clear"],
         _test_icat_command(page),
         ["clear"],

@@ -5,6 +5,7 @@ from __future__ import annotations
 import shlex
 import shutil
 import subprocess
+import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,8 @@ from ._viewer_types import (
     ArtifactFileViewSpec,
 )
 
+_ARTIFACT_TEXT_DUMP_MODULE = "sase.ace.tui.graphics.artifact_text_dump"
+
 
 def artifact_text_viewer_command(path: str | Path) -> list[str]:
     """Build the terminal command for displaying a raw artifact file."""
@@ -40,7 +43,7 @@ def artifact_text_viewer_command(path: str | Path) -> list[str]:
             "--",
             str(expanded),
         ]
-    return ["cat", str(expanded)]
+    return [sys.executable, "-m", _ARTIFACT_TEXT_DUMP_MODULE, "--", str(expanded)]
 
 
 def artifact_video_player_command(
@@ -225,4 +228,8 @@ def display_video_artifact(
 
 
 def text_viewer_command_needs_quit_key(command: Sequence[str]) -> bool:
-    return bool(command) and Path(command[0]).name == "cat"
+    if not command:
+        return False
+    if Path(command[0]).name == "cat":
+        return True
+    return list(command[1:3]) == ["-m", _ARTIFACT_TEXT_DUMP_MODULE]
