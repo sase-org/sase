@@ -18,7 +18,6 @@ from sase._linked_repo_config import (
     DEFAULT_AGENTS_DESCRIPTION,
     DEFAULT_BEADS_DESCRIPTION,
     DEFAULT_PLANS_DESCRIPTION,
-    DEFAULT_RESEARCH_DESCRIPTION,
     HIDDEN_SIDECAR_ROLES,
     _DEFAULT_LINKED_REPO_MARKER,
     _SIDECAR_REMOTE_URL_KEY,
@@ -201,10 +200,7 @@ def _collect_project_repos(
 
     if store_record is not None and store_record.discovery != "not_found":
         if store_record.is_sidecar_storage:
-            for kind in ("plans", "research", "beads"):
-                sidecar = store_record.sidecar_for_kind(kind)
-                if sidecar is None:
-                    continue
+            for kind, sidecar in store_record.sidecars.items():
                 store_slug = _repo_basename(sidecar.repo)
                 if kind in disabled_sidecars or store_slug in disabled_sidecars:
                     continue
@@ -221,9 +217,8 @@ def _collect_project_repos(
                 ) or sidecar_repo_clone_dir(primary, kind)
                 default_description = {
                     "plans": DEFAULT_PLANS_DESCRIPTION,
-                    "research": DEFAULT_RESEARCH_DESCRIPTION,
                     "beads": DEFAULT_BEADS_DESCRIPTION,
-                }[kind]
+                }.get(kind)
                 records.append(
                     RepoRecord(
                         name=role,
@@ -235,8 +230,10 @@ def _collect_project_repos(
                         auto_clone=bool(
                             metadata.get("auto_clone", kind in {"plans", "beads"})
                         ),
-                        description=_optional_text(metadata.get("description"))
-                        or default_description,
+                        description=(
+                            _optional_text(metadata.get("description"))
+                            or default_description
+                        ),
                         source=(
                             "repos.sidecar config"
                             if metadata.get("is_configured_sidecar") is True

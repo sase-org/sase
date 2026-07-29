@@ -86,9 +86,11 @@ def handle_path_command(
                     workspace_num=workspace_num,
                     expected_remote_url=repo.remote_url,
                 )
-        elif requested in {"plans", "research", "beads"} and not sidecar_role_disabled(
+        elif _sdd_role_available(
             requested,
             primary_workspace_dir=host_ctx.primary_workspace_dir,
+        ) and not sidecar_role_disabled(
+            requested, primary_workspace_dir=host_ctx.primary_workspace_dir
         ):
             path = resolve_legacy_sdd_repo_path(
                 requested,
@@ -177,3 +179,39 @@ def sidecar_role_disabled(
     return any(
         entry.get("name") == role and entry.get("disabled") is True for entry in entries
     )
+
+
+def _sdd_role_available(
+    role: str,
+    *,
+    primary_workspace_dir: str,
+) -> bool:
+    from sase._linked_repo_config import (
+        configured_sidecar_roles,
+        resolution_config,
+    )
+    from sase.sdd.store import (
+        AGENTS_SIDECAR_ROLE,
+        BEADS_SIDECAR_ROLE,
+        PLANS_SIDECAR_ROLE,
+        read_sdd_store_record,
+    )
+
+    if role in {PLANS_SIDECAR_ROLE, BEADS_SIDECAR_ROLE}:
+        return True
+    if role == AGENTS_SIDECAR_ROLE:
+        return False
+    try:
+        record = read_sdd_store_record(primary_workspace_dir)
+    except (OSError, RuntimeError, ValueError):
+        record = None
+    if record is not None and record.sidecar_for_kind(role) is not None:
+        return True
+    try:
+        config = resolution_config(primary_workspace_dir, None)
+        return role in configured_sidecar_roles(
+            config,
+            primary_workspace_dir=primary_workspace_dir,
+        )
+    except (OSError, RuntimeError, ValueError):
+        return False

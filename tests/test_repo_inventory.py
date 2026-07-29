@@ -151,9 +151,9 @@ def test_inventory_surfaces_configured_sidecar_role_and_slug(
         "repos": {
             "sidecar": [
                 {
-                    "name": "research",
-                    "repo": "acme/shared-research",
-                    "description": "Shared reports",
+                    "name": "designs",
+                    "repo": "acme/shared-designs",
+                    "description": "Shared design documents",
                     "visibility": "private",
                 }
             ]
@@ -171,14 +171,14 @@ def test_inventory_surfaces_configured_sidecar_role_and_slug(
     inventory = collect_repo_inventory(tmp_path / "projects")
 
     sidecar = next(record for record in inventory.records if record.kind == "sidecar")
-    assert sidecar.name == "research"
-    assert sidecar.slug == "shared-research"
+    assert sidecar.name == "designs"
+    assert sidecar.slug == "shared-designs"
     assert sidecar.path == str(
-        (Path(project.workspace_dir or "") / "sase" / "repos" / "research").resolve()
+        (Path(project.workspace_dir or "") / "sase" / "repos" / "designs").resolve()
     )
     assert sidecar.exists is False
     assert sidecar.source == "repos.sidecar config"
-    assert sidecar.remote_url == "git@github.com:acme/shared-research.git"
+    assert sidecar.remote_url == "git@github.com:acme/shared-designs.git"
 
 
 @pytest.mark.parametrize(

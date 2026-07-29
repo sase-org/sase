@@ -506,7 +506,7 @@ def test_sidecar_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
     primary.mkdir()
 
     assert sdd_sidecar_clone_dirname(primary, "main--plans", config={}) == "plans"
-    assert sdd_sidecar_clone_dirname(primary, "main--research", config={}) == "research"
+    assert sdd_sidecar_clone_dirname(primary, "main--research", config={}) is None
     assert sdd_sidecar_clone_dirname(primary, "main--beads", config={}) == "beads"
     assert sdd_sidecar_clone_dirname(primary, "core", config={}) is None
 
@@ -524,6 +524,10 @@ def test_sidecar_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
                     "repo": "custom-research",
                     "remote_url": "git@example.com:owner/custom-research.git",
                 },
+                "designs": {
+                    "repo": "owner/custom-designs",
+                    "remote_url": "git@example.com:owner/custom-designs.git",
+                },
             },
         },
     )
@@ -532,6 +536,7 @@ def test_sidecar_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
     assert (
         sdd_sidecar_clone_dirname(primary, "custom-research", config={}) == "research"
     )
+    assert sdd_sidecar_clone_dirname(primary, "custom-designs", config={}) == "designs"
     assert sdd_sidecar_clone_dirname(primary, "main--plans", config={}) is None
 
     pinned_config = {

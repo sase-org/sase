@@ -125,9 +125,8 @@ def _sdd_sidecar_repo_dirnames(
     if record is not None:
         store_mapping = {
             _repo_basename(sidecar.repo): kind
-            for kind in ("plans", "research", "beads")
-            if (sidecar := record.sidecar_for_kind(kind)) is not None
-            and kind not in configured_roles
+            for kind, sidecar in record.sidecars.items()
+            if kind not in configured_roles
             and kind not in disabled
             and kind not in hidden
             and _repo_basename(sidecar.repo) not in disabled
@@ -142,9 +141,11 @@ def _sdd_sidecar_repo_dirnames(
     project_name = primary.name
     if not project_name:
         return configured
+    from sase.sdd.store import BEADS_SIDECAR_ROLE, PLANS_SIDECAR_ROLE
+
     fallbacks = {
         slug: kind
-        for kind in ("plans", "research", "beads")
+        for kind in (PLANS_SIDECAR_ROLE, BEADS_SIDECAR_ROLE)
         if kind not in configured_roles
         if kind not in disabled
         if kind not in hidden

@@ -4,14 +4,26 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 import re
 
+from sase.sdd._store_types import (
+    BEADS_SIDECAR_ROLE,
+    PLANS_SIDECAR_ROLE,
+    document_sidecar_roles,
+)
+
 _SDD_PROMPT_KINDS = {"prompts", "specs"}
 SDD_CANONICAL_DIRS = (
-    "beads",
-    "plans",
-    "research",
+    BEADS_SIDECAR_ROLE,
+    PLANS_SIDECAR_ROLE,
 )
-_SDD_ROOT_DIRS = {*SDD_CANONICAL_DIRS, "prompts"}
-_SDD_SCAFFOLD_KIND_ROOTS = {*SDD_CANONICAL_DIRS, *_SDD_PROMPT_KINDS}
+# Shipped presentation presets remain name-keyed. These names are not part of
+# the behavioral role registry.
+_SDD_SHIPPED_PRESET_ROLES = {"research"}
+_SDD_ROOT_DIRS = {*SDD_CANONICAL_DIRS, *_SDD_SHIPPED_PRESET_ROLES, "prompts"}
+_SDD_SCAFFOLD_KIND_ROOTS = {
+    *SDD_CANONICAL_DIRS,
+    *_SDD_SHIPPED_PRESET_ROLES,
+    *_SDD_PROMPT_KINDS,
+}
 _MONTH_DIR_RE = re.compile(r"^\d{6}$")
 
 
@@ -83,7 +95,11 @@ def sdd_kind_roots(base_dir: Path, kind: str) -> list[Path]:
             if root not in seen:
                 roots.append(root)
                 seen.add(root)
-    if kind in {"plans", "research"} and has_month_dirs(base_dir):
+    is_document_role = (
+        bool(document_sidecar_roles((kind,), include_plans=True))
+        and kind not in _SDD_PROMPT_KINDS
+    )
+    if is_document_role and has_month_dirs(base_dir):
         if base_dir not in seen:
             roots.append(base_dir)
     return roots

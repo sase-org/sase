@@ -425,16 +425,16 @@ new file mode 100644
         tmp_path: Path,
     ) -> None:
         workspace = tmp_path / "sase_18"
-        sidecar = workspace / "sase" / "repos" / "beads"
+        sidecar = workspace / "sase" / "repos" / "designs"
         agent = make_agent(
             workspace_dir=str(workspace),
             step_output={
                 "meta_commits": [
                     {
-                        "message": "chore(beads): update state",
+                        "message": "docs(designs): update system notes",
                         "sha": "abcdef123456",
                         "cwd": str(sidecar),
-                        "diff_path": str(tmp_path / "beads.diff"),
+                        "diff_path": str(tmp_path / "designs.diff"),
                     }
                 ],
             },
@@ -443,9 +443,9 @@ new file mode 100644
         header, _ = build_header_text(agent, summary=DetailHeaderSummary())
         commit_diffs = agent_commit_diffs(agent)
 
-        assert "    ▣ beads\n" in header.plain
+        assert "    ▣ designs\n" in header.plain
         assert [(diff.repo_name, diff.is_primary) for diff in commit_diffs] == [
-            ("beads", False)
+            ("designs", False)
         ]
 
 

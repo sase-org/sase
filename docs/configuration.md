@@ -1049,6 +1049,13 @@ also appear by repository slug in generated agent instruction files, where their
 them with `/sase_repo`. Set `disabled: true` in a later config layer to suppress a matching global entry or implicit
 fallback; disabled and auto-cloned sidecars are omitted from generated instructions.
 
+The roles `plans`, `beads`, and `agents` are reserved. `plans` owns canonical plans and prompt snapshots, `beads` owns
+the event store, and `agents` is the hidden machine-level publication store. Every other enabled role is a document
+sidecar: a `<YYYYMM>/*.md` corpus whose kind label is the role name. Document roles receive clone/store resolution,
+`sase repo path <role>`, doctor validation, commit routing, `SASE_SDD_<ROLE>_DIR`, plan-search visibility, and an ACE
+Plans kind. `research` is simply the default-seeded document role; only its illustrated README/directory-map preset is
+name-specific.
+
 The `agents` role is intrinsically hidden from agent workflows. It never appears in generated memory, launch metadata,
 linked-repository environment variables, or a workspace's `sase/repos/` tree, even if an override sets
 `auto_clone: true`. It remains visible to users as a `sidecar` row in `sase repo list`, and `sase repo path agents` or
@@ -1095,20 +1102,20 @@ repos:
       visibility: private
 ```
 
-| Field                         | Type           | Default  | Description                                                                         |
-| ----------------------------- | -------------- | -------- | ----------------------------------------------------------------------------------- |
-| `github_orgs`                 | string or list | -        | GitHub user/org namespaces available to provider completion and PR workflows.       |
-| `default_linked_repos`        | boolean        | `true`   | Inject managed-project `--plans` and hidden `--agents` sidecars.                    |
-| `repos.linked[].auto_clone`   | boolean        | `false`  | Materialize and prepare the repository automatically before each agent launch.      |
-| `repos.linked[].name`         | string         | required | Stable alias used in generated environment variable names and memory summaries.     |
-| `repos.linked[].path`         | string         | required | Primary checkout path. Relative paths resolve from the project's primary workspace. |
-| `repos.linked[].description`  | string         | required | Human-readable purpose used when generating agent memory for the linked repository. |
-| `repos.sidecar[].name`        | string         | required | Role and CLI key; `agents` uses the stable machine-level clone path.                |
-| `repos.sidecar[].repo`        | string         | derived  | Optional bare slug or `owner/repo` pin.                                             |
-| `repos.sidecar[].description` | string         | -        | Purpose shown in inventory; required in generated instructions for lazy entries.    |
-| `repos.sidecar[].auto_clone`  | boolean        | `false`  | Materialize before agent launch; intrinsically ignored for `agents`.                |
-| `repos.sidecar[].visibility`  | public/private | `public` | Remote visibility; project-local `private` overrides the `agents` default.          |
-| `repos.sidecar[].disabled`    | boolean        | `false`  | Disable the entry and suppress matching implicit sidecars, including `agents`.      |
+| Field                         | Type           | Default  | Description                                                                          |
+| ----------------------------- | -------------- | -------- | ------------------------------------------------------------------------------------ |
+| `github_orgs`                 | string or list | -        | GitHub user/org namespaces available to provider completion and PR workflows.        |
+| `default_linked_repos`        | boolean        | `true`   | Inject managed-project `--plans` and hidden `--agents` sidecars.                     |
+| `repos.linked[].auto_clone`   | boolean        | `false`  | Materialize and prepare the repository automatically before each agent launch.       |
+| `repos.linked[].name`         | string         | required | Stable alias used in generated environment variable names and memory summaries.      |
+| `repos.linked[].path`         | string         | required | Primary checkout path. Relative paths resolve from the project's primary workspace.  |
+| `repos.linked[].description`  | string         | required | Human-readable purpose used when generating agent memory for the linked repository.  |
+| `repos.sidecar[].name`        | string         | required | Role and CLI key; non-reserved names are document corpora, while `agents` is hidden. |
+| `repos.sidecar[].repo`        | string         | derived  | Optional bare slug or `owner/repo` pin.                                              |
+| `repos.sidecar[].description` | string         | -        | Purpose shown in inventory; required in generated instructions for lazy entries.     |
+| `repos.sidecar[].auto_clone`  | boolean        | `false`  | Materialize before agent launch; intrinsically ignored for `agents`.                 |
+| `repos.sidecar[].visibility`  | public/private | `public` | Remote visibility; project-local `private` overrides the `agents` default.           |
+| `repos.sidecar[].disabled`    | boolean        | `false`  | Disable the entry and suppress matching implicit sidecars, including `agents`.       |
 
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace numbers use
 `<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by host project and workspace number. Agent and
@@ -2001,22 +2008,22 @@ sdd:
 | `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in sidecar repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                                                                                               |
 
 The workspace provider owns storage selection. Built-in bare-git projects store SDD under `sdd/`. Managed GitHub
-projects use a `--plans` sidecar cloned at `sase/repos/plans`; the project-local research sidecar resolves at
-`sase/repos/research` and defaults to `<owner>/<project>--research`. Current managed initialization also records a
-`--beads` sidecar at `sase/repos/beads`. Unmigrated GitHub projects retain their provider-backed `.sase/sdd/` clone.
-Materialized layouts record metadata in the primary workspace's `.sase/sdd-store.json`. Providerless projects fall back
-to a primary-workspace `.sase/sdd/` store. The retired `sdd.storage` and `sdd.version_controlled` keys are ignored,
-stripped before validation, and reported by `sase doctor` for cleanup. See [SDD Storage](sdd_storage.md) and
-[Beads](beads.md).
+projects use a `--plans` sidecar cloned at `sase/repos/plans`; every configured document role resolves at
+`sase/repos/<role>`. The default-seeded `research` role derives `<owner>/<project>--research`. Current managed
+initialization also records a `--beads` sidecar at `sase/repos/beads`. Unmigrated GitHub projects retain their
+provider-backed `.sase/sdd/` clone. Materialized layouts record metadata in the primary workspace's
+`.sase/sdd-store.json`. Providerless projects fall back to a primary-workspace `.sase/sdd/` store. The retired
+`sdd.storage` and `sdd.version_controlled` keys are ignored, stripped before validation, and reported by `sase doctor`
+for cleanup. See [SDD Storage](sdd_storage.md) and [Beads](beads.md).
 
-The default current layout has a schema-version 3 `sidecar_repos` record: plans, research, and beads resolve to their
-role-specific clones, and bead state lives at the root of `--beads`. A record without a beads role remains schema
-version 2 and resolves bead state to `beads/` in `--plans`. Ordinary resolution preserves that compatibility shape.
-Running managed `sase repo init` with the beads role enabled is the adoption step: it prepares the dedicated sidecar and
-writes a schema-version 3 record. A project that disables or otherwise omits the beads role stays on schema version 2.
+The default current layout has a schema-version 3 `sidecar_repos` record: every recorded role resolves to its
+role-specific clone, and bead state lives at the root of `--beads`. A record without a beads role remains schema version
+2 and resolves bead state to `beads/` in `--plans`. Ordinary resolution preserves that compatibility shape. Running
+managed `sase repo init` with the beads role enabled is the adoption step: it prepares the dedicated sidecar and writes
+a schema-version 3 record. A project that disables or otherwise omits the beads role stays on schema version 2.
 Initialization prepares configured sidecars in its current workspace and re-records stale compatibility metadata with
-the derived repository. Later workspaces clone research on demand. The legacy single-sidecar shape continues to resolve
-byte-for-byte as before.
+the derived repository. Later workspaces clone lazy document roles on demand. The legacy single-sidecar shape continues
+to resolve byte-for-byte as before.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during first-use `#git:<project>`
 initialization, existing bare-repo registration, `#git`/workspace materialization, and the first in-tree SDD write.
@@ -2761,11 +2768,11 @@ compatibility alias for `sase skill init`.
 
 ### `sase repo init`
 
-`sase repo init` declares the managed plans and research sidecars, initializes enabled configured sidecars, and ensures
-the project root `.gitignore` contains `/sase/repos/`, protecting host-scoped repository clones durably. `-c, --check`
-reports drift without writing, `-d, --diff` renders proposed full-file diffs, and `-C, --no-commit` writes project
-config and ignore changes without the normal project commit/pull/push sequence. `sase init repo` is an alias; bare
-`sase init` and `sase validate` include the same check for Git projects.
+`sase repo init` declares the managed plans, beads, and default `research` document sidecar, initializes every enabled
+configured sidecar, and ensures the project root `.gitignore` contains `/sase/repos/`, protecting host-scoped repository
+clones durably. `-c, --check` reports drift without writing, `-d, --diff` renders proposed full-file diffs, and
+`-C, --no-commit` writes project config and ignore changes without the normal project commit/pull/push sequence.
+`sase init repo` is an alias; bare `sase init` and `sase validate` include the same check for Git projects.
 
 ### `sase workspace`
 

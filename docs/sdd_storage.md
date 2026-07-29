@@ -5,14 +5,16 @@ The workspace provider owns SDD placement. Resolve project-owned storage through
 ```bash
 sase repo path plans
 sase repo path research
+sase repo path designs
 sase repo path beads
-sase repo path research --ensure
+sase repo path designs --ensure
 ```
 
 `sase repo path` is read-only unless `-e/--ensure` is passed. `--ensure` clones or synchronizes the selected sidecar.
-Launched agents receive `SASE_SDD_DIR` plus `SASE_SDD_PLANS_DIR`, `SASE_SDD_RESEARCH_DIR`, and `SASE_SDD_BEADS_DIR`. In
-split layouts, `SASE_SDD_BEADS_DIR` is the dedicated beads sidecar root once a project records one, and
-`${SASE_SDD_PLANS_DIR}/beads` for a project that has not been migrated yet.
+Launched agents receive `SASE_SDD_DIR`, `SASE_SDD_PLANS_DIR`, `SASE_SDD_BEADS_DIR`, and one `SASE_SDD_<ROLE>_DIR`
+variable for every configured document sidecar (role punctuation becomes `_`). Thus `SASE_SDD_RESEARCH_DIR` exists only
+when the `research` role exists. In split layouts, `SASE_SDD_BEADS_DIR` is the dedicated beads sidecar root once a
+project records one, and `${SASE_SDD_PLANS_DIR}/beads` for a project that has not been migrated yet.
 
 ## Resolved Layouts
 
@@ -31,12 +33,19 @@ GitHub still resolves as `separate_repo`.
 A positive materialized-store record at `{primary}/.sase/sdd-store.json` is authoritative, including while offline. Old
 negative records are not policy and are retried at the next materialization attempt.
 
-## Split Plans, Research, and Beads Sidecars
+## Sidecar roles
 
 Initialized managed GitHub projects use a store record with `storage: sidecar_repos`. For compatibility, the record
-identifies the plans and research roles and their resolved remotes; an explicit `repo:` pin can point the research role
-at any repository. That record—not clone or remote existence—is the layout authority. Legacy records continue to use the
-single-root layout unchanged.
+contains a role-keyed `sidecars` map and resolved remotes. That record—not clone or remote existence—is the layout
+authority. Legacy records continue to use the single-root layout unchanged.
+
+Three role names are reserved: `plans` is the canonical plan and prompt-snapshot corpus, `beads` is the bead event
+store, and `agents` is hidden machine-level agent data that is never exposed to launched agents. Every other enabled
+`repos.sidecar` role is a document sidecar: a month-sharded Markdown corpus labeled by its role name. A document role
+such as `designs` receives its own clone and store root, `sase repo path` resolution, doctor checks, commit routing,
+agent environment variable, plan-search kind, and ACE Plans kind. `research` is only the document role seeded by
+default; it has no storage-level privilege. The shipped `research` README and directory map remain an optional
+presentation preset, while other document roles receive the generic README.
 
 The record also carries an **optional** `beads` sidecar, and its presence selects the schema version:
 
@@ -50,16 +59,16 @@ writing a schema-2 record and resolving bead state inside the plans clone exactl
 below schema version 3, and a schema-3 record is rejected by an older `sase` install with the usual "upgrade sase"
 error—so the new build must be installed on every machine that touches a project before that project is migrated.
 
-The plans sidecar keeps monthly directories at its root (`<YYYYMM>/*.md` and `<YYYYMM>/prompts/*.md`). The research
-sidecar likewise keeps `<YYYYMM>/` directories at its root. The beads sidecar keeps bead state at its **repository
-root**—`config.json`, `metadata.json`, `issues.jsonl`, and `events/`—plus generated bead pages under `pages/`, so its
-clone root is itself the bead directory. Kind resolution is therefore:
+The plans sidecar keeps monthly directories at its root (`<YYYYMM>/*.md` and `<YYYYMM>/prompts/*.md`). Every other
+document sidecar likewise keeps `<YYYYMM>/` directories at its root. The beads sidecar keeps bead state at its
+**repository root**—`config.json`, `metadata.json`, `issues.jsonl`, and `events/`—plus generated bead pages under
+`pages/`, so its clone root is itself the bead directory. Kind resolution is therefore:
 
-| Kind       | Resolved path                                                      |
-| ---------- | ------------------------------------------------------------------ |
-| `plans`    | `<workspace>/sase/repos/plans`                                     |
-| `research` | `<workspace>/sase/repos/research`                                  |
-| `beads`    | `<workspace>/sase/repos/beads` (schema 2: `.../repos/plans/beads`) |
+| Kind              | Resolved path                                                      |
+| ----------------- | ------------------------------------------------------------------ |
+| `plans`           | `<workspace>/sase/repos/plans`                                     |
+| `<document-role>` | `<workspace>/sase/repos/<document-role>`                           |
+| `beads`           | `<workspace>/sase/repos/beads` (schema 2: `.../repos/plans/beads`) |
 
 Once a project is migrated, the plans clone no longer owns bead state; its bead history stays behind only as an archive.
 Because the cooperative write lock and repository-health preflight are keyed on the repository root, bead writes and
@@ -74,8 +83,8 @@ it is inventory-visible but never materialized.
 
 Initialization clones, initializes, and pushes every configured sidecar in the workspace where it runs. After that,
 normal numbered-workspace preparation evicts the complete `sase/repos/` tree and clones plans—and, for a migrated
-project, beads—directly from their recorded remotes. A newly prepared workspace does not clone research until a consumer
-runs `sase repo path research --ensure` (or another operation explicitly ensures that kind). GitHub HTTPS values in
+project, beads—directly from their recorded remotes. A newly prepared workspace leaves ordinary document sidecars lazy
+unless `auto_clone: true`; a consumer can materialize one with `sase repo path <role> --ensure`. GitHub HTTPS values in
 legacy records resolve in memory to canonical SSH (`git@host:owner/repo.git`, or `ssh://git@host:port/owner/repo.git`)
 before inventory, launch, retained-clone synchronization, or on-demand materialization consumes them. Each clone's
 `origin` is that resolved SSH or local remote; a retained matching HTTPS clone is rewritten in place without losing
@@ -90,12 +99,13 @@ loadable without allowing project or user config to override provider policy.
 
 ## GitHub Sidecar Repositories
 
-Managed GitHub projects initialize public `<owner>/<repo>--plans`, `<owner>/<repo>--research`, and
-`<owner>/<repo>--beads` sidecars by default, writing their project-local `repos.sidecar` declarations when absent.
-Additional sidecars are declared under `repos.sidecar`, and any entry can pin `repo:` to override the derived
-`<owner>/<repo>--<name>` convention. Configured sidecars are prepared by initialization in the current workspace. In
-later workspaces, the plans and recorded beads clones are automatic, while research materializes on demand. The provider
-still supports `<owner>/<repo>--sdd` discovery and `sdd.repo.name` overrides for unmigrated legacy stores.
+Managed GitHub projects seed public `<owner>/<repo>--plans`, `<owner>/<repo>--research`, and `<owner>/<repo>--beads`
+sidecars by default, writing their project-local `repos.sidecar` declarations when absent. Additional sidecars are
+declared under `repos.sidecar`, and any entry can pin `repo:` to override the derived `<owner>/<repo>--<name>`
+convention. Configured sidecars are prepared by initialization in the current workspace. In later workspaces, the plans
+and recorded beads clones are automatic, while ordinary document roles materialize according to `auto_clone` or on
+demand. The provider still supports `<owner>/<repo>--sdd` discovery and `sdd.repo.name` overrides for unmigrated legacy
+stores.
 
 Set `is_sase_managed: true` in the repository's own `sase/sase.yml`, then run `sase repo init` to create or connect the
 provider store and refresh generated SDD guides. Without that local marker, explicit init and `--check` skip before

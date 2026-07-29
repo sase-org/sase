@@ -465,7 +465,7 @@ def _separate_sdd_store_repo_may_exist(project_dir: str) -> bool:
             record = read_sdd_store_record(primary)
             if record is None or not record.is_sidecar_storage:
                 continue
-            for kind in ("plans", "research", "beads"):
+            for kind in record.sidecars:
                 clone = Path(sidecar_repo_clone_dir(project_path, kind))
                 if (clone / ".git").exists():
                     return True

@@ -151,7 +151,7 @@ def _eligible_linked_workspace_candidates(
     for metadata_agent in _linked_metadata_agents(agent):
         if not metadata_agent.workspace_dir:
             continue
-        for kind in ("plans", "research", "beads"):
+        for kind in _workspace_sidecar_roles(metadata_agent.workspace_dir):
             workspace_dir = sidecar_repo_clone_dir(
                 metadata_agent.workspace_dir,
                 kind,
@@ -174,6 +174,18 @@ def _eligible_linked_workspace_candidates(
         add(event.name, event.workspace_dir, event.kind)
 
     return tuple(sorted(candidates, key=lambda candidate: candidate.kind == "external"))
+
+
+def _workspace_sidecar_roles(workspace_dir: str) -> tuple[str, ...]:
+    from sase.sdd.store import BEADS_SIDECAR_ROLE, PLANS_SIDECAR_ROLE
+
+    try:
+        from sase.sdd.store import resolve_sdd_store
+
+        store_roles = resolve_sdd_store(workspace_dir, 1).split_sidecar_roles()
+    except (OSError, RuntimeError, ValueError):
+        store_roles = ()
+    return tuple(dict.fromkeys((PLANS_SIDECAR_ROLE, BEADS_SIDECAR_ROLE, *store_roles)))
 
 
 def should_refresh_linked_delta_groups(agent: Agent) -> bool:

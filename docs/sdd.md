@@ -28,11 +28,11 @@ The workspace provider selects an initial policy; a materialized store record su
 - `local` is the fallback for providerless projects and stores artifacts at the primary workspace's `.sase/sdd/`.
 - `separate_repo` stores artifacts in a workspace-local `.sase/sdd/` clone backed by a provider-materialized sidecar
   repo.
-- `sidecar_repos` stores plans in an auto-cloned `--plans` repo and research in the config-declared `--research` role. A
+- `sidecar_repos` stores plans in an auto-cloned `--plans` repo and every configured document role in its own sidecar. A
   schema-3 record stores bead state at the root of its dedicated `--beads` clone; a schema-2 compatibility record keeps
   `beads/` under `--plans`. Initialization prepares configured sidecars in its current workspace; later workspaces clone
-  research on demand. Monthly directories live directly at the plans and research roots; legacy single-root layouts
-  remain readable for compatibility.
+  lazy document roles on demand. Monthly directories live directly at document roots; legacy single-root layouts remain
+  readable for compatibility.
 
 Use `sase repo path plans` or `sase repo path beads` to print those resolved roots, or
 `sase repo path research --ensure` to materialize and print the research root. Launched agents receive `SASE_SDD_DIR`
@@ -400,9 +400,9 @@ connects without this creation prompt. `--check` remains offline and non-interac
 nor its generic initializer approval authorizes repository creation.
 
 Keep conceptual details here in `docs/sdd.md`; generated guides are safe to overwrite, so do not put hand-maintained
-conceptual prose in those README files. Built-in plans, research, beads, and agents roles pair their generated README
-with an illustrated directory map, while generic custom sidecars receive only their deterministic description-based
-README.
+conceptual prose in those README files. Reserved roles and the shipped `research` presentation preset pair their
+generated README with an illustrated directory map, while other document sidecars receive only their deterministic
+description-based README.
 
 Bare-git projects normally do not need a manual `sase repo init`: SASE runs the same generated-file refresh during
 repository setup, workspace materialization, and the first in-tree SDD write. The explicit command remains useful for
@@ -466,7 +466,8 @@ SDD artifact placement follows provider policy. With `in_tree`, bead commands us
 store. With `separate_repo`, commands first require a usable provider sidecar and then use the active workspace's
 `.sase/sdd/` clone. With `sidecar_repos`, each workspace auto-clones `--plans` at `sase/repos/plans`; schema-3 records
 also auto-clone `--beads` at `sase/repos/beads`, while schema-2 records keep bead state under `sase/repos/plans/beads`.
-Initialization also prepares a configured `research` sidecar at `sase/repos/research` in its current workspace; other
-workspaces clone it when explicitly ensured. Providerless local storage uses the primary workspace. Numbered sibling
-stores are not merged; coordinate shared state through the normal VCS sync path. Prefer `sase repo path plans`,
-`sase repo path beads`, `sase repo path research`, or the `SASE_SDD_*_DIR` variables over hard-coded relative paths.
+Initialization also prepares every configured document sidecar at `sase/repos/<role>` in its current workspace; other
+workspaces clone lazy roles when explicitly ensured. Providerless local storage uses the primary workspace. Numbered
+sibling stores are not merged; coordinate shared state through the normal VCS sync path. Prefer `sase repo path plans`,
+`sase repo path beads`, `sase repo path <document-role>`, or the `SASE_SDD_*_DIR` variables over hard-coded relative
+paths.

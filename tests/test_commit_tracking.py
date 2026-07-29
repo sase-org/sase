@@ -5,7 +5,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sase.workflows.commit.commit_tracking import append_commits_entry
+from sase.workflows.commit.commit_tracking import (
+    _sdd_repo_name_for_commit_cwd,
+    append_commits_entry,
+)
 
 
 def test_append_commits_entry_idempotent_with_expected_entry_id(
@@ -57,3 +60,10 @@ def test_append_commits_entry_appends_when_expected_entry_id_missing(
 
     assert result == "1"
     assert "first commit" in project_file.read_text()
+
+
+def test_custom_sidecar_commit_cwd_uses_role_name(tmp_path: Path) -> None:
+    workspace = tmp_path / "sase_17"
+    designs = workspace / "sase" / "repos" / "designs" / "202607"
+
+    assert _sdd_repo_name_for_commit_cwd(str(designs), str(workspace)) == "designs"

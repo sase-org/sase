@@ -15,7 +15,6 @@ from sase.linked_repos import EXTERNAL_REPO_CLONES_SUBDIR
 from sase.plan_documents import PlanWorkspace
 from sase.project_display_names import project_display_name_for
 from sase.repo_inventory import RepoKind
-from sase.sdd._paths import SDD_CANONICAL_DIRS
 
 from ...models.agent import Agent
 from ._agent_context_common import (
@@ -298,11 +297,14 @@ def _sidecar_repo_attribution_for_cwd(
     workspace = _norm_path(agent.workspace_dir)
     if workspace is None:
         return None
-    for kind in SDD_CANONICAL_DIRS:
-        sidecar = _norm_path(os.path.join(workspace, "sase", "repos", kind))
-        if _path_is_same_or_inside(cwd, sidecar):
-            assert sidecar is not None
-            return _RepoAttribution(kind, "sidecar", sidecar)
+    sidecars_root = _norm_path(os.path.join(workspace, "sase", "repos"))
+    if _path_is_same_or_inside(cwd, sidecars_root):
+        assert cwd is not None and sidecars_root is not None
+        relative = os.path.relpath(cwd, sidecars_root)
+        parts = tuple(part for part in relative.split(os.sep) if part not in {"", "."})
+        if parts and parts[0] not in {"external", "linked"}:
+            sidecar = os.path.join(sidecars_root, parts[0])
+            return _RepoAttribution(parts[0], "sidecar", sidecar)
     legacy = _norm_path(os.path.join(workspace, ".sase", "sdd"))
     if _path_is_same_or_inside(cwd, legacy):
         assert legacy is not None
@@ -365,7 +367,7 @@ def _repo_attribution_for_commit_record(
     legacy_sidecar_placeholder = (
         explicit_name == "sdd"
         and attribution.kind == "sidecar"
-        and attribution.name in SDD_CANONICAL_DIRS
+        and attribution.name != "sdd"
     )
     repo_name = (
         attribution.name

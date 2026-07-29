@@ -327,7 +327,7 @@ def _sdd_store_record_label(store: "SddStore") -> str | None:
         from sase.linked_repos import sidecar_repo_clone_dir
 
         store_root = store.repo_root.expanduser().resolve(strict=False)
-        for kind in ("plans", "research", "beads"):
+        for kind, sidecar in record.sidecars.items():
             sidecar_root = (
                 Path(sidecar_repo_clone_dir(workspace_dir, kind))
                 .expanduser()
@@ -335,8 +335,7 @@ def _sdd_store_record_label(store: "SddStore") -> str | None:
             )
             if store_root != sidecar_root:
                 continue
-            sidecar = record.sidecar_for_kind(kind)
-            if sidecar is not None and sidecar.repo:
+            if sidecar.repo:
                 return sidecar.repo
     if record is not None and record.repo:
         return record.repo

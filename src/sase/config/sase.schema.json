@@ -1673,7 +1673,7 @@
         },
         "sidecar": {
           "type": "array",
-          "description": "Project-owned sidecar repositories, including the plans, research, and beads roles. Ordinary roles clone below sase/repos/<name>; the hidden agents role is explicitly accessible only at ~/.sase/projects/<project_key>/repos/agents.",
+          "description": "Project-owned sidecar repositories. The plans, beads, and agents roles are reserved; every other role is a document sidecar. Ordinary roles clone below sase/repos/<name>; the hidden agents role is explicitly accessible only at ~/.sase/projects/<project_key>/repos/agents.",
           "items": {
             "$ref": "#/definitions/sidecarRepo"
           },

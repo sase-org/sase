@@ -187,6 +187,28 @@ def merged_sidecar_entries_from_config(
     return normalized
 
 
+def configured_sidecar_roles(
+    config: Mapping[str, Any],
+    *,
+    primary_workspace_dir: str,
+    include_hidden: bool = False,
+) -> tuple[str, ...]:
+    """Return enabled configured sidecar roles in declaration order."""
+
+    roles: list[str] = []
+    for entry in merged_sidecar_entries_from_config(
+        config,
+        primary_workspace_dir=primary_workspace_dir,
+    ):
+        if entry.get("disabled") is True:
+            continue
+        role = _optional_entry_text(entry, _SIDECAR_ROLE_KEY)
+        if role is None or (not include_hidden and role in HIDDEN_SIDECAR_ROLES):
+            continue
+        roles.append(role)
+    return tuple(dict.fromkeys(roles))
+
+
 def merged_repo_entries_from_config(
     config: Mapping[str, Any],
     *,

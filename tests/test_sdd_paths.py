@@ -259,16 +259,18 @@ def test_agent_env_exports_all_sidecar_kind_roots(
 ) -> None:
     plans = tmp_path / "sase" / "repos" / "plans"
     research = tmp_path / "sase" / "repos" / "research"
+    design_notes = tmp_path / "sase" / "repos" / "design-notes"
     beads = tmp_path / "sase" / "repos" / "beads"
     store = SddStore(
         "sidecar_repos",
         plans,
         plans,
-        sidecar_dirs={"research": research},
+        sidecar_dirs={"research": research, "design-notes": design_notes},
         beads_dir=beads if split_beads else None,
     )
     monkeypatch.setattr("sase.sdd.store.resolve_sdd_dir", lambda *_args: plans)
     monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_args: store)
+    monkeypatch.setattr("sase.sdd.env._configured_document_roles", lambda *_args: ())
     env: dict[str, str] = {}
 
     set_sdd_dir_env(env, workspace_dir=str(tmp_path), workspace_num=1)
@@ -278,7 +280,41 @@ def test_agent_env_exports_all_sidecar_kind_roots(
         "SASE_SDD_PLANS_DIR": str(plans),
         "SASE_SDD_BEADS_DIR": str(beads if split_beads else plans / "beads"),
         "SASE_SDD_RESEARCH_DIR": str(research),
+        "SASE_SDD_DESIGN_NOTES_DIR": str(design_notes),
     }
+
+
+def test_agent_env_omits_research_when_role_is_not_configured(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plans = tmp_path / "sase" / "repos" / "plans"
+    designs = tmp_path / "sase" / "repos" / "designs"
+    store = SddStore(
+        "sidecar_repos",
+        plans,
+        plans,
+        sidecar_dirs={"designs": designs},
+    )
+    monkeypatch.setattr("sase.sdd.store.resolve_sdd_dir", lambda *_args: plans)
+    monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_args: store)
+    monkeypatch.setattr("sase.sdd.env._configured_document_roles", lambda *_args: ())
+    env: dict[str, str] = {}
+
+    set_sdd_dir_env(env, workspace_dir=str(tmp_path), workspace_num=1)
+
+    assert env["SASE_SDD_DESIGNS_DIR"] == str(designs)
+    assert "SASE_SDD_RESEARCH_DIR" not in env
+
+
+def test_custom_document_role_accepts_flat_sidecar_month_root(
+    tmp_path: Path,
+) -> None:
+    from sase.sdd._paths import sdd_kind_roots
+
+    (tmp_path / "202607").mkdir()
+
+    assert sdd_kind_roots(tmp_path, "designs")[-1] == tmp_path
 
 
 # ---------------------------------------------------------------------------

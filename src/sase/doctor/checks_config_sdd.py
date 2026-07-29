@@ -219,13 +219,13 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
     ):
         regressed = _regressed_split_sidecar_paths(primary)
         if regressed is not None:
-            plans, research = regressed
             issues.append(
                 _StorageIssue(
                     "error",
                     "sdd-record-regressed",
                     "the SDD store record is missing or legacy while split sidecar "
-                    f"clones exist ({plans}, {research}); the record may have been "
+                    f"clones exist ({', '.join(map(str, regressed))}); "
+                    "the record may have been "
                     "clobbered by an older sase process. Run `sase repo init` to "
                     "restore sidecar routing",
                 )
@@ -305,17 +305,41 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
     return issues
 
 
-def _regressed_split_sidecar_paths(primary: Path) -> tuple[Path, Path] | None:
+def _regressed_split_sidecar_paths(primary: Path) -> tuple[Path, ...] | None:
     """Return split clone paths when they contradict the effective record."""
 
     from sase.linked_repos import sidecar_repo_clone_dir
+    from sase.sdd.store import BEADS_SIDECAR_ROLE, PLANS_SIDECAR_ROLE
 
-    plans = Path(sidecar_repo_clone_dir(primary, "plans"))
-    research = Path(sidecar_repo_clone_dir(primary, "research"))
-    beads = Path(sidecar_repo_clone_dir(primary, "beads"))
-    if ((plans / "beads").is_dir() or beads.is_dir()) and research.is_dir():
-        return plans, research
-    return None
+    plans = Path(sidecar_repo_clone_dir(primary, PLANS_SIDECAR_ROLE))
+    beads = Path(sidecar_repo_clone_dir(primary, BEADS_SIDECAR_ROLE))
+    if not plans.is_dir() or not ((plans / "beads").is_dir() or beads.is_dir()):
+        return None
+
+    roles: tuple[str, ...] = ()
+    try:
+        from sase._linked_repo_config import (
+            configured_sidecar_roles,
+            resolution_config,
+        )
+
+        config = resolution_config(str(primary), None)
+        roles = configured_sidecar_roles(
+            config,
+            primary_workspace_dir=str(primary),
+        )
+    except (OSError, RuntimeError, ValueError):
+        pass
+    paths = [plans]
+    paths.extend(
+        path
+        for role in roles
+        if role not in {PLANS_SIDECAR_ROLE, BEADS_SIDECAR_ROLE}
+        if (path := Path(sidecar_repo_clone_dir(primary, role))).is_dir()
+    )
+    if beads.is_dir():
+        paths.append(beads)
+    return tuple(dict.fromkeys(paths))
 
 
 def _provider_sdd_policy(project_root: Path) -> str | None:
@@ -427,16 +451,13 @@ def _duplicate_remote_issues(
 def _record_remote_urls(record: object) -> set[str]:
     if record is None:
         return set()
-    urls = {
-        value
-        for value in (
-            getattr(record, "remote_url", None),
-            getattr(getattr(record, "plans", None), "remote_url", None),
-            getattr(getattr(record, "research", None), "remote_url", None),
+    values = [getattr(record, "remote_url", None)]
+    sidecars = getattr(record, "sidecars", {})
+    if isinstance(sidecars, dict) or hasattr(sidecars, "values"):
+        values.extend(
+            getattr(sidecar, "remote_url", None) for sidecar in sidecars.values()
         )
-        if isinstance(value, str) and value
-    }
-    return urls
+    return {value for value in values if isinstance(value, str) and value}
 
 
 def _git_stdout(cwd: Path, args: list[str]) -> str | None:

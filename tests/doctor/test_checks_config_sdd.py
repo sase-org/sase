@@ -132,6 +132,47 @@ def test_config_sdd_errors_when_split_sidecar_clone_is_missing(
     )
 
 
+def test_config_sdd_checks_custom_role_without_requiring_research(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.sdd.store import write_sdd_store_record
+
+    write_sdd_store_record(
+        tmp_path,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "git@github.com:acme/widget--plans.git",
+                },
+                "designs": {
+                    "repo": "acme/widget--designs",
+                    "remote_url": "git@github.com:acme/widget--designs.git",
+                },
+            },
+        },
+    )
+    plans = tmp_path / "sase" / "repos" / "plans"
+    (plans / ".git").mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.doctor.checks_config_sdd._git_stdout", lambda *_args: None
+    )
+
+    missing = check_config_sdd(_doctor_context(tmp_path))
+
+    assert missing.status == "ERROR"
+    assert any(
+        issue["code"] == "missing-designs-sidecar-clone"
+        for issue in missing.data["storage_issues"]
+    )
+    assert not any(
+        "research" in issue["code"] for issue in missing.data["storage_issues"]
+    )
+
+
 def test_config_sdd_warns_when_legacy_clone_lingers_after_split(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

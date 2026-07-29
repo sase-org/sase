@@ -118,11 +118,7 @@ def _parse_frontmatter_strict(
 def _looks_like_project_root(path: Path) -> bool:
     if path.name == "sdd" and path.parent.name == ".sase":
         return False
-    if (
-        path.name in {"plans", "research", "beads"}
-        and path.parent.name == "repos"
-        and path.parent.parent.name == "sase"
-    ):
+    if path.parent.name == "repos" and path.parent.parent.name == "sase":
         return False
     if (path / "beads").is_dir():
         return False

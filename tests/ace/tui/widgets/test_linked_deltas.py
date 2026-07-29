@@ -352,6 +352,48 @@ new file mode 100644
     assert provider.has_changes_calls == [str(beads)]
 
 
+def test_compute_linked_delta_groups_includes_custom_sidecar_role(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.sdd.store import SddStore
+
+    workspace = tmp_path / "sase_9"
+    plans = workspace / "sase" / "repos" / "plans"
+    designs = workspace / "sase" / "repos" / "designs"
+    (designs / ".git").mkdir(parents=True)
+    store = SddStore(
+        "sidecar_repos",
+        plans,
+        plans,
+        sidecar_dirs={"designs": designs},
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.resolve_sdd_store",
+        lambda *_args: store,
+    )
+    provider = _FakeLinkedDiffProvider(
+        changes_by_workspace={str(designs): "?? 202607/system.md"},
+        diff_by_workspace={
+            str(designs): """diff --git a/202607/system.md b/202607/system.md
+new file mode 100644
+--- /dev/null
++++ b/202607/system.md
+@@ -0,0 +1 @@
++# System design
+"""
+        },
+    )
+    _patch_provider(monkeypatch, provider)
+    agent = _agent()
+    agent.workspace_dir = str(workspace)
+
+    groups = linked_deltas_mod.compute_linked_delta_groups(agent)
+
+    assert [group.repo_name for group in groups] == ["designs"]
+    assert provider.has_changes_calls == [str(designs)]
+
+
 def test_opened_workspace_uses_recorded_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

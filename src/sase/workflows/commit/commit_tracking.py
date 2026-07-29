@@ -400,19 +400,19 @@ def _sdd_repo_name_for_commit_cwd(
     if not workspace_dir:
         return None
     try:
-        from sase.linked_repos import sidecar_repo_clone_dir
-        from sase.sdd._paths import SDD_CANONICAL_DIRS
         from sase.sdd.store import get_primary_workspace_dir, read_sdd_store_record
 
         cwd = Path(commit_cwd).expanduser().resolve(strict=False)
         workspace = Path(workspace_dir).expanduser().resolve(strict=False)
-        for kind in SDD_CANONICAL_DIRS:
-            root = Path(sidecar_repo_clone_dir(workspace, kind))
-            try:
-                cwd.relative_to(root)
-            except ValueError:
-                continue
-            return kind
+        sidecars_root = workspace / "sase" / "repos"
+        try:
+            relative = cwd.relative_to(sidecars_root)
+        except ValueError:
+            relative = None
+        if relative is not None and relative.parts:
+            role = relative.parts[0]
+            if role not in {"external", "linked"}:
+                return role
 
         legacy_root = workspace / ".sase" / "sdd"
         try:

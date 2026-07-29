@@ -5,6 +5,11 @@ from pathlib import Path
 from sase.directory_map_assets import read_directory_map_asset
 from sase.mdtemplates import packaged_markdown_text
 from sase.sdd._paths import resolve_sdd_asset_path, resolve_sdd_readme_path
+from sase.sdd._store_types import (
+    AGENTS_SIDECAR_ROLE,
+    BEADS_SIDECAR_ROLE,
+    PLANS_SIDECAR_ROLE,
+)
 from sase.sdd._types import (
     SddExpectedBytesFile,
     SddExpectedTextFile,
@@ -14,14 +19,24 @@ from sase.sdd._types import (
 
 SDD_DIRECTORY_MAP_FILENAME = "sdd-directory-map.png"
 SDD_DIRECTORY_MAP_RELATIVE_PATH = f"assets/{SDD_DIRECTORY_MAP_FILENAME}"
-SDD_SIDECAR_KINDS = ("plans", "research")
-SDD_SIDECAR_GUIDE_KINDS = ("plans", "research", "beads", "agents")
 SDD_SIDECAR_DIRECTORY_MAP_FILENAMES = {
-    "plans": "plans-directory-map.png",
+    PLANS_SIDECAR_ROLE: "plans-directory-map.png",
     "research": "research-directory-map.png",
-    "beads": "beads-directory-map.png",
-    "agents": "agents-directory-map.png",
+    BEADS_SIDECAR_ROLE: "beads-directory-map.png",
+    AGENTS_SIDECAR_ROLE: "agents-directory-map.png",
 }
+SDD_SIDECAR_GUIDE_KINDS = tuple(
+    dict.fromkeys(
+        (
+            PLANS_SIDECAR_ROLE,
+            BEADS_SIDECAR_ROLE,
+            AGENTS_SIDECAR_ROLE,
+            *SDD_SIDECAR_DIRECTORY_MAP_FILENAMES,
+        )
+    )
+)
+SDD_SIDECAR_KINDS = SDD_SIDECAR_GUIDE_KINDS
+_LEGACY_DIRECTORY_GUIDE_KINDS = (PLANS_SIDECAR_ROLE, "research")
 AGENTS_SIDECAR_SCHEMA = (
     '{"authority":"owner-sharded","format":"sase-agents-sidecar",'
     '"relationship_schema_version":2,"schema_version":2}\n'
@@ -52,7 +67,7 @@ def expected_sdd_directory_readmes(
             path=sdd_root / dirname / "README.md",
             content=_read_sdd_markdown(f"{dirname}-README.md"),
         )
-        for dirname in SDD_SIDECAR_KINDS
+        for dirname in _LEGACY_DIRECTORY_GUIDE_KINDS
     )
 
 
@@ -84,10 +99,11 @@ def expected_sdd_sidecar_files(
 ) -> tuple[SddExpectedTextFile | SddExpectedBytesFile, ...]:
     """Return deterministic generated files for one sidecar root.
 
-    The plans, research, beads, and agents roles use illustrated guide
-    templates. Agents also receives its privacy-forward bundle scaffold.
-    Custom roles receive a small deterministic README so repo init can seed
-    arbitrary configured sidecars without inventing role-specific layouts.
+    Reserved roles and roles with a shipped presentation preset use
+    illustrated guide templates. Agents also receives its privacy-forward
+    bundle scaffold. Custom roles receive a small deterministic README so
+    repo init can seed arbitrary configured sidecars without inventing
+    role-specific layouts.
     """
 
     sidecar_root = Path(root)

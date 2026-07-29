@@ -292,9 +292,7 @@ def materialized_compatibility_roles(project_root: Path) -> frozenset[str]:
         return frozenset()
     if record is None or not record.is_sidecar_storage:
         return frozenset()
-    return frozenset(
-        role for role in ("plans", "research", "beads") if record.sidecar_for_kind(role)
-    )
+    return frozenset(record.sidecars)
 
 
 __all__ = [

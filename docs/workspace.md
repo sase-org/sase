@@ -12,7 +12,7 @@ SASE keeps three related concepts distinct:
 
 - A **project** is a named unit of work with a ProjectSpec at `~/.sase/projects/<name>/<name>.sase`; it is enabled
   unless explicitly disabled.
-- A **repo** is a primary project repository, a configured sidecar (such as `plans` or `research`), or a configured
+- A **repo** is a primary project repository, a configured sidecar (such as `plans` or `designs`), or a configured
   linked repo.
 - A **workspace** is a numbered clone of a project's primary repo, tracked in that project's workspace `registry.json`.
 
@@ -60,9 +60,9 @@ Built-in metadata includes `SASE_GIT` for `#git`. Plugin packages can add prefix
 SASE treats `sdd_storage_policy` as authoritative. `in_tree` takes effect immediately, as it does for the built-in
 bare-git provider. `separate_repo` requires the provider to materialize a sidecar before SDD writes or workflow setup
 can continue. A positive `.sase/sdd-store.json` record preserves that materialized selection for offline use. Managed
-GitHub initialization can record the resolved store as `sidecar_repos`, routing plans, research, and (in schema 3) beads
-to role-specific linked clones. Schema-2 records keep beads under the plans clone. This is a materialized-store layout,
-not an additional provider policy value.
+GitHub initialization can record the resolved store as `sidecar_repos`, routing every configured role and (in schema 3)
+beads to role-specific linked clones. Schema-2 records keep beads under the plans clone. This is a materialized-store
+layout, not an additional provider policy value.
 
 ### ResolvedRef
 
@@ -270,8 +270,8 @@ checkout's entire `sase/repos/` tree and deletes it in the background. Sidecars 
 (normally `plans`) are then cloned directly from their recorded authoritative remotes. Legacy GitHub HTTPS records are
 resolved to canonical SSH before the clone command runs; already-valid SSH and local remotes are preserved, while any
 remaining HTTP(S) metadata fails launch preparation before Git executes. The normalization is read-only, so rerunning
-`sase repo init` persists the migrated record but is not required for a safe launch. Other linked repositories and the
-`research` sidecar remain lazy unless configured for automatic cloning and can be materialized on demand through
+`sase repo init` persists the migrated record but is not required for a safe launch. Other linked repositories and
+ordinary document sidecars remain lazy unless configured for automatic cloning and can be materialized on demand through
 `/sase_repo`. External repos are also cloned on demand below `sase/repos/external/projects/` or
 `sase/repos/external/<scheme>/`. SASE protects the whole tree immediately with the per-clone `/sase/repos/` exclude
 rule; run `sase repo init` to add the same rule durably to the tracked root `.gitignore`. Use `--check` to report drift,
