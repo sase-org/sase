@@ -176,6 +176,170 @@ def test_apply_status_overrides_answered_question_only_family_is_done() -> None:
     assert asker.stop_time == question_time
 
 
+def _rename_on_attach_root_step(
+    *,
+    question_response_path: str | None,
+) -> tuple[Agent, Agent]:
+    root_start = datetime(2026, 7, 29, 6, 22, 53)
+    question_time = datetime(2026, 7, 29, 6, 27, 18, 856220)
+    root = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=root_start,
+        run_start_time=root_start,
+        raw_suffix="20260729062253",
+        role_suffix="--0",
+        agent_name="nr--0",
+        agent_family="nr",
+        agent_family_role="root",
+        plan_chain_root=False,
+        questions_times=[question_time],
+        question_response_path=question_response_path,
+    )
+    root_step = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="main",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=root_start,
+        run_start_time=datetime(2026, 7, 29, 6, 23, 20),
+        raw_suffix=root.raw_suffix,
+        parent_workflow="ace-run",
+        parent_timestamp=root.raw_suffix,
+        step_name="main",
+        step_type="agent",
+        parent_step_index=None,
+        role_suffix="--0",
+        agent_name="nr--0",
+        agent_family="nr",
+        agent_family_role="q",
+        questions_times=[question_time],
+        question_response_path=question_response_path,
+    )
+    return root, root_step
+
+
+def test_apply_status_overrides_rename_on_attach_root_step_is_answered() -> None:
+    """A handed-off rename-on-attach root step shows ANSWERED."""
+    root, root_step = _rename_on_attach_root_step(
+        question_response_path="/tmp/question-response.json"
+    )
+    continuation = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 29, 6, 30, 58),
+        run_start_time=datetime(2026, 7, 29, 6, 30, 58),
+        raw_suffix="20260729063058",
+        parent_timestamp=root.raw_suffix,
+        role_suffix="--1",
+        agent_name="nr--1",
+        agent_family="nr",
+        agent_family_role="q",
+    )
+
+    _apply_status_overrides([root, continuation], [root_step])
+
+    assert root_step.status == "ANSWERED"
+    assert root_step.stop_time == max(root_step.questions_times)
+    assert root.status == "RUNNING"
+    assert continuation.status == "RUNNING"
+
+
+def test_apply_status_overrides_rename_on_attach_root_step_without_response_is_question() -> (
+    None
+):
+    """An unanswered rename-on-attach root step remains QUESTION."""
+    root, root_step = _rename_on_attach_root_step(question_response_path=None)
+
+    _apply_status_overrides([root], [root_step])
+
+    assert root_step.status == "QUESTION"
+
+
+def test_apply_status_overrides_rename_on_attach_root_step_without_continuation_stays_done() -> (
+    None
+):
+    """An answered root step stays DONE until work is handed off."""
+    root, root_step = _rename_on_attach_root_step(
+        question_response_path="/tmp/question-response.json"
+    )
+
+    _apply_status_overrides([root], [root_step])
+
+    assert root_step.status == "DONE"
+
+
+def test_apply_status_overrides_plan_chain_root_step_projection_unchanged() -> None:
+    """Plan-chain root steps retain their planner projection."""
+    question_time = datetime(2026, 7, 29, 6, 27, 18, 856220)
+    plan_time = datetime(2026, 7, 29, 6, 29, 30)
+    root_start = datetime(2026, 7, 29, 6, 22, 53)
+    root = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=root_start,
+        run_start_time=root_start,
+        raw_suffix="20260729062253",
+        role_suffix="--plan",
+        agent_name="nr--plan",
+        agent_family="nr",
+        agent_family_role="root",
+        plan_chain_root=True,
+        questions_times=[question_time],
+        question_response_path="/tmp/question-response.json",
+        plan_times=[plan_time],
+        plan_action="tale",
+    )
+    root_step = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="main",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=root_start,
+        run_start_time=datetime(2026, 7, 29, 6, 23, 20),
+        raw_suffix=root.raw_suffix,
+        parent_workflow="ace-run",
+        parent_timestamp=root.raw_suffix,
+        step_name="main",
+        step_type="agent",
+        parent_step_index=None,
+        role_suffix="--plan",
+        agent_name="nr--plan",
+        agent_family="nr",
+        agent_family_role="plan",
+        questions_times=[question_time],
+        question_response_path="/tmp/question-response.json",
+    )
+    continuation = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 29, 6, 30, 58),
+        run_start_time=datetime(2026, 7, 29, 6, 30, 58),
+        raw_suffix="20260729063058",
+        parent_timestamp=root.raw_suffix,
+        role_suffix="--code",
+        agent_name="nr--code",
+        agent_family="nr",
+        agent_family_role="code",
+        plan_times=[plan_time],
+        plan_action="tale",
+    )
+
+    _apply_status_overrides([root, continuation], [root_step])
+
+    assert root_step.status == "TALE APPROVED"
+    assert continuation.status == "WORKING TALE"
+    assert root.status == "WORKING TALE"
+
+
 def _question_continuation_family_root() -> tuple[Agent, Agent]:
     root_start = datetime(2026, 6, 30, 0, 0, 0)
     first_question_time = datetime(2026, 6, 30, 0, 3, 0)

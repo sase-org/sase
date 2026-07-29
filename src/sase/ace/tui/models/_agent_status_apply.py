@@ -26,6 +26,7 @@ from ._agent_status_family import (
     has_unanswered_completed_question,
     has_unreviewed_submitted_plan,
     is_answered_continuation_asker,
+    is_answered_root_asker_step,
     is_awaiting_plan_review,
     is_completed_epic_followup_child,
     is_completed_plan_handoff_child,
@@ -266,7 +267,9 @@ def apply_status_overrides(
     # A completed question continuation with a persisted response and a newer
     # sibling already handed off to the next continuation.
     for agent in all_agents:
-        if is_answered_continuation_asker(agent, children_by_parent):
+        if is_answered_continuation_asker(
+            agent, children_by_parent
+        ) or is_answered_root_asker_step(agent, parent_by_suffix, children_by_parent):
             agent.status = "ANSWERED"
             agent.stop_time = max(agent.questions_times)
 
