@@ -41,31 +41,31 @@ xprompts:
       surveys, papers with readable HTML, or long-form posts over short announcements.
 ---
 
-%id:reads.@.agy
+%id:reads.{@1}.agy
 %model("agy/Gemini 3.5 Flash (High)")
 %g:read
 #_article_search_agent
 
 ---
 
-%id:reads.@.cld
+%id:reads.{@1}.cld
 %model:claude/opus
 %g:read
 #_article_search_agent
 
 ---
 
-%id:reads.@.cdx
+%id:reads.{@1}.cdx
 %model:codex/gpt-5.6-sol
 %g:read
 #_article_search_agent
 
 ---
 
-%id:reads.@.final
-%wait:reads.@.agy
-%wait:reads.@.cld
-%wait:reads.@.cdx
+%id:reads.{@1}.final
+%wait:reads.{@1}.agy
+%wait:reads.{@1}.cld
+%wait:reads.{@1}.cdx
 %g:read
 
 The three article-search agents have finished. Their chat transcript paths are available here:
