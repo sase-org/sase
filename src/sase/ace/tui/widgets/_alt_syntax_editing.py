@@ -21,6 +21,11 @@ from sase.ace.tui.widgets._paired_text_editing import TextEdit
 # -- mirrors the directive-valid contexts used by ``_ALT_DIRECTIVE_RE``.
 _DIRECTIVE_OPENING_CONTEXTS = frozenset(":([{\"'")
 _PAIR_SAFE_CLOSE_CHARS = frozenset(")]}>")
+# Trailing punctuation can never begin a token, so a padded ``%{  }`` inserted
+# directly before it is unambiguous -- this is how a fan-out question is
+# normally authored (``Which is better %{ A | B }?``).
+_PAIR_SAFE_PUNCTUATION_CHARS = frozenset(".,;:!?")
+_PAIR_SAFE_FOLLOW_CHARS = _PAIR_SAFE_CLOSE_CHARS | _PAIR_SAFE_PUNCTUATION_CHARS
 
 
 def _is_directive_valid_brace_opening(text: str, percent_index: int) -> bool:
@@ -36,11 +41,11 @@ def _is_directive_valid_brace_opening(text: str, percent_index: int) -> bool:
 
 
 def _next_char_allows_alt_brace_pair(text: str, offset: int) -> bool:
-    """Return True when padding a ``%{`` opener will not run into a token."""
+    """Return True before whitespace, a safe closer, or trailing punctuation."""
     if offset >= len(text):
         return True
     following = text[offset]
-    return following.isspace() or following in _PAIR_SAFE_CLOSE_CHARS
+    return following.isspace() or following in _PAIR_SAFE_FOLLOW_CHARS
 
 
 def plan_alt_brace_pair(text: str, offset: int) -> TextEdit | None:

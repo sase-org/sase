@@ -3222,8 +3222,10 @@ same size guards, so highlighting stays responsive on large prompts.
 
 Editing help in the ACE prompt input mirrors the Jinja auto-pair behavior and only fires for the `%{...}` shorthand:
 
-- **Auto-pair** — typing `{` immediately after a directive-valid `%` inserts the matching `}` and leaves the cursor
-  between the braces (`%{|}`).
+- **Auto-pair** — typing `{` immediately after a directive-valid `%` inserts `%{  }` and parks the cursor between the
+  two padding spaces. The expansion fires at end of line, before whitespace, before a bracket closer (`)`, `]`, `}`,
+  `>`), and before trailing punctuation (`.`, `,`, `;`, `:`, `!`, `?`), so a fan-out can be inserted before the existing
+  `?` in `Which is better %{ A | B }?`. It remains suppressed before word characters and other token-opening characters.
 - **Paired delete** — backspacing the `{` in `%{|}` also removes the auto-inserted `}`; a forward delete on `%|{}`
   removes both braces.
 - **`|` separator normalization** — typing `|` inside a live `%{...}` span inserts a padded `|` separator, keeps the

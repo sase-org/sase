@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from textual.app import App, ComposeResult
 from textual.widgets.text_area import Selection
 
@@ -116,8 +117,23 @@ def test_plan_alt_brace_pair_requires_directive_valid_percent() -> None:
     assert plan_alt_brace_pair("word%", 5) is None
 
 
+@pytest.mark.parametrize("punctuation", ".,;:!?")
+def test_plan_alt_brace_pair_before_trailing_punctuation(
+    punctuation: str,
+) -> None:
+    assert plan_alt_brace_pair(f"%{punctuation}", 1) == TextEdit(
+        start=1,
+        end=1,
+        text="{  }",
+        cursor=3,
+    )
+
+
 def test_plan_alt_brace_pair_requires_safe_following_character() -> None:
     assert plan_alt_brace_pair("%word", 1) is None
+    assert plan_alt_brace_pair('%"', 1) is None
+    assert plan_alt_brace_pair("%*", 1) is None
+    assert plan_alt_brace_pair("%-", 1) is None
 
 
 # --------------------------------------------------------------------------- #
@@ -187,6 +203,39 @@ async def test_alt_brace_padding_composes_with_separator() -> None:
         await pilot.press("%", "{", "A", "|", "B")
         assert ta.text == "%{ A | B }"
         assert ta.cursor_location == (0, 8)
+
+
+async def test_alt_auto_pair_before_trailing_punctuation() -> None:
+    app = AltEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Which is better ?")
+        ta.cursor_location = (0, 16)
+        await pilot.press("%", "{")
+        assert ta.text == "Which is better %{  }?"
+        assert ta.cursor_location == (0, 19)
+
+
+async def test_alt_brace_padding_before_punctuation_composes_with_separator() -> None:
+    app = AltEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Which is better ?")
+        ta.cursor_location = (0, 16)
+        await pilot.press("%", "{", "A", "|", "B")
+        assert ta.text == "Which is better %{ A | B }?"
+        assert ta.cursor_location == (0, 24)
+
+
+async def test_generic_brace_pair_rejects_trailing_punctuation() -> None:
+    app = AltEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("word?")
+        ta.cursor_location = (0, 4)
+        await pilot.press("{")
+        assert ta.text == "word{?"
+        assert ta.cursor_location == (0, 5)
 
 
 async def test_alt_separator_acceptance_example() -> None:
