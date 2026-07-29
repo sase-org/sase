@@ -57,6 +57,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     _projects_group_by: ProjectsGroupBy
     _xprompts_group_by: XPromptsGroupBy
     _project_filter: str | None
+    _xprompt_focus: str | None
     _preset_key: PresetKey | None
     _range: StatsRange
     _loading: bool
@@ -97,7 +98,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 self._runners_unavailable_renderable(result),
             )
             return
-        if result.views.empty and self._view != "runners":
+        if result.views.empty and self._view not in {"runners", "xprompts"}:
             self._set_tiles_visible(False)
             self._update_static(
                 "#statistics-body",
@@ -347,6 +348,19 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         scope.append(project_label, style=f"bold {_GOLD}")
         return scope
 
+    def _xprompt_scope_text(self) -> Text:
+        scope = self._scope_text(
+            self._effective_xprompt_keys(),
+            "XPrompt",
+            accent=_ACCENT,
+        )
+        if self._xprompt_focus is None:
+            scope.append("All xprompts", style=f"bold {_ACCENT}")
+        else:
+            scope.append("■ ", style=categorical_color(self._xprompt_focus))
+            scope.append(f"#{self._xprompt_focus}", style=f"bold {_ACCENT}")
+        return scope
+
     def _hints_text(self) -> Text:
         hints = Text(justify="center")
         hints.append(
@@ -366,6 +380,13 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 key = self._effective_scroll_keys()
             hints.append(key, style=f"bold {color}")
             hints.append(f" {description}")
+        if self._view == "xprompts":
+            hints.append("   ")
+            hints.append(
+                self._effective_key("focus_xprompt"),
+                style=f"bold {_ACCENT}",
+            )
+            hints.append(" focus")
         return hints
 
     def _effective_scroll_keys(self) -> str:
@@ -383,6 +404,15 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             (
                 self._effective_key("cycle_project_filter"),
                 self._effective_key("cycle_project_filter_reverse"),
+            )
+        )
+
+    def _effective_xprompt_keys(self) -> str:
+        """Combine the configured focus and clear-focus keys."""
+        return "/".join(
+            (
+                self._effective_key("focus_xprompt"),
+                self._effective_key("clear_xprompt_focus"),
             )
         )
 
@@ -408,6 +438,12 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         except Exception:
             pass
         self._update_static("#statistics-scope-project", self._project_scope_text())
+        try:
+            xprompt_scope = self.query_one("#statistics-scope-xprompt", Static)
+            xprompt_scope.set_class(self._view != "xprompts", "hidden")
+            xprompt_scope.update(self._xprompt_scope_text())
+        except Exception:
+            pass
 
     def _update_hints(self) -> None:
         self._update_static("#statistics-hints", self._hints_text())

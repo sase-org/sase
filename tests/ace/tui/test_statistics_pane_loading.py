@@ -88,6 +88,31 @@ def test_stale_project_filter_result_is_discarded_and_rescheduled(
     assert pane._last_result is None
 
 
+def test_stale_xprompt_focus_result_is_discarded_and_rescheduled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pane = StatisticsPane(auto_load=False)
+    pane._view = "xprompts"
+    pane._xprompt_focus = "split_file"
+    result = _result(
+        pane._view,
+        pane._range,
+        pane._runtime_group_by,
+        xprompt_focus="gh",
+    )
+    worker = SimpleNamespace(result=result, error=None)
+    pane._worker = worker  # type: ignore[assignment]
+    scheduled: list[bool] = []
+    monkeypatch.setattr(pane, "_schedule_load", lambda: scheduled.append(True))
+
+    pane.on_worker_state_changed(
+        SimpleNamespace(worker=worker, state=WorkerState.SUCCESS)  # type: ignore[arg-type]
+    )
+
+    assert scheduled == [True]
+    assert pane._last_result is None
+
+
 async def test_refresh_preserves_selection_and_hidden_tick_is_inert(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -141,6 +141,8 @@ def test_config_schema_accepts_scoped_statistics_keymaps() -> None:
                         "cycle_group": "f7",
                         "cycle_project_filter": "f6",
                         "cycle_project_filter_reverse": "f1",
+                        "focus_xprompt": "home",
+                        "clear_xprompt_focus": "end",
                         "scroll_down": "f5",
                         "scroll_up": "f4",
                         "refresh": "f3",

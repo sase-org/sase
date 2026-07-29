@@ -405,6 +405,8 @@ def test_default_config_covers_all_statistics_keymaps() -> None:
         "cycle_group": "g",
         "cycle_project_filter": "p",
         "cycle_project_filter_reverse": "P",
+        "focus_xprompt": "x",
+        "clear_xprompt_focus": "X",
         "scroll_down": "ctrl+d",
         "scroll_up": "ctrl+u",
         "refresh": "r",

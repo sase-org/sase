@@ -157,6 +157,8 @@ _STATISTICS_BINDING_META: tuple[tuple[str, str], ...] = (
     ("cycle_group", "Group By"),
     ("cycle_project_filter", "Project Filter"),
     ("cycle_project_filter_reverse", "Previous Project Filter"),
+    ("focus_xprompt", "Focus XPrompt"),
+    ("clear_xprompt_focus", "Clear XPrompt Focus"),
     ("scroll_down", "Scroll Down"),
     ("scroll_up", "Scroll Up"),
     ("refresh", "Refresh"),

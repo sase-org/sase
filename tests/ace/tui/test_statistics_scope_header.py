@@ -49,6 +49,9 @@ def test_scope_renderables_cover_range_group_project_and_status(
     assert pane._group_scope_text().plain == " g  Group Projects · By Project"
     pane._view = "xprompts"
     assert pane._group_scope_text().plain == " g  Group XPrompts · By Usage"
+    assert pane._xprompt_scope_text().plain == " x/X  XPrompt All xprompts"
+    pane._xprompt_focus = "split_file"
+    assert pane._xprompt_scope_text().plain == " x/X  XPrompt ■ #split_file"
 
     assert pane._project_scope_text().plain == " p/P  Project All projects"
     project_key = "gh_acme__widgets"

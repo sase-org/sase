@@ -13,6 +13,9 @@ from sase.ace.tui.modals.statistics_pane_data import (
     VIEW_DESCRIPTIONS,
     VIEW_ORDER,
 )
+from sase.ace.tui.modals.statistics_xprompt_picker_modal import (
+    StatisticsXPromptPickerModal,
+)
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from sase.project_display_names import ProjectDisplaySnapshot
 from sase.stats.query import RuntimeGroupBy
@@ -256,6 +259,7 @@ async def test_empty_project_filter_clears_to_all_projects_in_either_direction(
         selected_range: StatsRange,
         group_by: RuntimeGroupBy,
         project_filter: str | None = None,
+        xprompt_focus: str | None = None,
     ) -> StatisticsViewData:
         calls.append((view, selected_range, group_by, project_filter))
         return _result(
@@ -265,6 +269,7 @@ async def test_empty_project_filter_clears_to_all_projects_in_either_direction(
             empty=project_filter is not None,
             project_filter=project_filter,
             project_display_snapshot=snapshot,
+            xprompt_focus=xprompt_focus,
         )
 
     monkeypatch.setattr(sp, "load_statistics_view", load)
@@ -346,6 +351,7 @@ async def test_project_filter_label_submits_canonical_key_across_reload_paths(
         selected_range: StatsRange,
         group_by: RuntimeGroupBy,
         project_filter: str | None = None,
+        xprompt_focus: str | None = None,
     ) -> StatisticsViewData:
         calls.append((view, selected_range, group_by, project_filter))
         payload = _run_payload(selected_range, group_by)
@@ -363,6 +369,7 @@ async def test_project_filter_label_submits_canonical_key_across_reload_paths(
                 project_display_snapshot=snapshot,
             ),
             project_filter=project_filter,
+            xprompt_focus=xprompt_focus,
             project_display_snapshot=snapshot,
         )
 
@@ -476,3 +483,100 @@ async def test_custom_range_accepts_valid_input_and_rejects_invalid_input(
         assert len(calls) == 2
         assert custom_input.display is True
         _assert_range_scope_matches_selection(pane)
+
+
+async def test_xprompt_focus_picker_all_clear_key_and_cancel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple] = []
+    _patch_center(monkeypatch, calls)
+
+    async with AcePage() as page:
+        _, pane = await _open_statistics(page)
+        pane.action_focus_xprompt()
+        await page.pause()
+        assert not isinstance(page.app.screen, StatisticsXPromptPickerModal)
+
+        pane._set_view("xprompts")
+        await page.pause()
+        xprompt_scope = pane.query_one("#statistics-scope-xprompt", Static)
+        assert xprompt_scope.display is True
+        assert "x focus" in pane.query_one("#statistics-hints", Static).render().plain
+
+        await page.press("x")
+        await page.expect_modal("StatisticsXPromptPickerModal")
+        await page.press("down", "enter")
+        await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
+
+        assert pane._xprompt_focus == "split_file"
+        assert calls[-1][4] == "split_file"
+        assert "■ #split_file" in _scope_plain(pane, "xprompt")
+
+        await page.press("x")
+        await page.expect_modal("StatisticsXPromptPickerModal")
+        await page.press("up", "enter")
+        await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
+        assert pane._xprompt_focus is None
+        assert calls[-1][4] is None
+
+        await page.press("x")
+        await page.expect_modal("StatisticsXPromptPickerModal")
+        await page.press("down", "enter")
+        await page.wait_for(lambda _state: len(calls) == 4 and not pane._loading)
+        await page.press("X")
+        await page.wait_for(lambda _state: len(calls) == 5 and not pane._loading)
+        assert pane._xprompt_focus is None
+        assert calls[-1][4] is None
+
+        await page.press("x")
+        await page.expect_modal("StatisticsXPromptPickerModal")
+        await page.press("q")
+        await page.expect_modal("ConfigCenterModal")
+        assert pane._xprompt_focus is None
+        assert len(calls) == 5
+
+        pane._set_view("runs")
+        await page.pause()
+        assert xprompt_scope.display is False
+
+
+def test_focused_xprompt_body_renders_every_group_and_not_found() -> None:
+    pane = sp.StatisticsPane(auto_load=False)
+    pane._view = "xprompts"
+    pane._xprompt_focus = "split_file"
+    result = _result(
+        "xprompts",
+        pane._range,
+        pane._runtime_group_by,
+        xprompt_focus="split_file",
+    )
+
+    expected = {
+        "usage": ("Runs over time", "Top models", "Top projects", "Used with"),
+        "model": ("By Model", "gpt-5.6"),
+        "project": ("By Project", "sase"),
+        "pairing": ("Used With", "#gh"),
+    }
+    for group, phrases in expected.items():
+        pane._xprompts_group_by = group  # type: ignore[assignment]
+        rendered = _render_plain(pane._xprompts_renderable(result))
+        assert "#split_file" in rendered
+        assert "Runs  3" in rendered
+        assert "Providers" in rendered
+        assert "Tribes" in rendered
+        assert "Press X to return to All xprompts." in rendered
+        for phrase in phrases:
+            assert phrase in rendered
+
+    pane._xprompt_focus = "missing"
+    missing = _result(
+        "xprompts",
+        pane._range,
+        pane._runtime_group_by,
+        xprompt_focus="missing",
+    )
+    rendered = _render_plain(pane._xprompts_renderable(missing))
+    assert "#missing has no runs in" in rendered
+    assert "Press t to choose another range, or X to return to All xprompts." in (
+        rendered
+    )

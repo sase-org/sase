@@ -779,6 +779,14 @@
                   "type": "string",
                   "description": "Cycle the global statistics project filter backward"
                 },
+                "focus_xprompt": {
+                  "type": "string",
+                  "description": "Open the Statistics xprompt focus picker"
+                },
+                "clear_xprompt_focus": {
+                  "type": "string",
+                  "description": "Clear the active Statistics xprompt focus"
+                },
                 "scroll_down": {
                   "type": "string",
                   "description": "Scroll the statistics body down by half a page"

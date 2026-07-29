@@ -88,6 +88,10 @@ from .confirm_rerun_modal import ConfirmRerunModal
 from .confirm_revert_agent_modal import ConfirmRevertAgentModal
 from .help_modal import HelpModal, TabName
 from .statistics_help_modal import StatisticsHelpModal
+from .statistics_xprompt_picker_modal import (
+    StatisticsXPromptPickerModal,
+    XPromptFocusChoice,
+)
 from .hook_history_modal import HookHistoryAction, HookHistoryModal, HookHistoryResult
 from .input_item_modal import InputItemModal
 from .issue_edit_modal import IssueEditModal, IssueEditResult
@@ -298,6 +302,8 @@ __all__ = [
     "DismissedAgentSelectModal",
     "HelpModal",
     "StatisticsHelpModal",
+    "StatisticsXPromptPickerModal",
+    "XPromptFocusChoice",
     "HookHistoryAction",
     "HookHistoryModal",
     "HookHistoryResult",

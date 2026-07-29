@@ -138,6 +138,8 @@ class StatisticsPane(StatisticsPanePresentationBase):
         self._xprompts_group_by: XPromptsGroupBy = "usage"
         self._project_filter: str | None = None
         self._project_filter_options: tuple[str, ...] = ()
+        self._xprompt_focus: str | None = None
+        self._xprompt_focus_options: tuple[str, ...] = ()
         self._auto_load = auto_load
         self._loading = False
         self._loaded_once = False
@@ -187,6 +189,16 @@ class StatisticsPane(StatisticsPanePresentationBase):
                 self._project_scope_text(),
                 id="statistics-scope-project",
                 classes="statistics-scope-part",
+                markup=False,
+            )
+            yield Static(
+                self._xprompt_scope_text(),
+                id="statistics-scope-xprompt",
+                classes=(
+                    "statistics-scope-part"
+                    if self._view == "xprompts"
+                    else "statistics-scope-part hidden"
+                ),
                 markup=False,
             )
         yield _CustomRangeInput(
@@ -323,6 +335,44 @@ class StatisticsPane(StatisticsPanePresentationBase):
         """Cycle backward through All and cached ranked projects."""
         self._cycle_project_filter(-1)
 
+    def action_focus_xprompt(self) -> None:
+        """Open the cached xprompt picker while viewing loaded XPrompts data."""
+        if self._view != "xprompts" or self._last_result is None:
+            return
+        from .statistics_xprompt_picker_modal import (
+            StatisticsXPromptPickerModal,
+            XPromptFocusChoice,
+        )
+
+        rows = self._last_result.views.xprompts.rows
+        if self._xprompt_focus_options:
+            by_name = {row.name: row for row in rows}
+            rows = tuple(
+                by_name[name] for name in self._xprompt_focus_options if name in by_name
+            )
+
+        def on_picked(choice: XPromptFocusChoice | None) -> None:
+            if choice is None:
+                return
+            self._xprompt_focus = choice.name
+            self._selection_changed(reload=True)
+            self.focus()
+
+        self.app.push_screen(
+            StatisticsXPromptPickerModal(
+                rows,
+                current_focus=self._xprompt_focus,
+            ),
+            on_picked,
+        )
+
+    def action_clear_xprompt_focus(self) -> None:
+        """Return to all xprompts when a focus is active."""
+        if self._xprompt_focus is None:
+            return
+        self._xprompt_focus = None
+        self._selection_changed(reload=True)
+
     def _cycle_project_filter(self, delta: int) -> None:
         """Cycle projects in ``delta`` direction or escape an empty filter."""
         if (
@@ -392,6 +442,11 @@ class StatisticsPane(StatisticsPanePresentationBase):
                 projects_group_by=self._projects_group_by,
                 xprompts_group_by=self._xprompts_group_by,
                 project_label=project_label,
+                xprompt_focus_label=(
+                    "All xprompts"
+                    if self._xprompt_focus is None
+                    else f"#{self._xprompt_focus}"
+                ),
                 generated_at=result.generated_at if result is not None else None,
                 keymaps=self._keymaps,
             )
@@ -482,6 +537,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
         selected_range = self._range
         runtime_group_by = self._runtime_group_by
         project_filter = self._project_filter
+        xprompt_focus = self._xprompt_focus
         self._loading = True
         self._last_error = ""
         self._update_heading()
@@ -494,6 +550,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
                 selected_range,
                 runtime_group_by,
                 project_filter,
+                xprompt_focus,
             )
 
         self._worker = self.run_worker(
@@ -518,6 +575,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
                 or result.selected_range != self._range
                 or result.runtime_group_by != self._runtime_group_by
                 or result.project_filter != self._project_filter
+                or result.xprompt_focus != self._xprompt_focus
             ):
                 self._schedule_load()
                 return
@@ -525,6 +583,10 @@ class StatisticsPane(StatisticsPanePresentationBase):
             if result.project_filter is None:
                 self._project_filter_options = tuple(
                     row.project_key for row in result.views.projects.projects
+                )
+            if result.xprompt_focus is None:
+                self._xprompt_focus_options = tuple(
+                    row.name for row in result.views.xprompts.rows
                 )
             self._paint_current_view()
             # A newly lazy-mounted pane can finish a fast worker before its

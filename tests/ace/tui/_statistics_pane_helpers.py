@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from rich.console import Console
 from textual.widgets import Static
@@ -267,8 +269,36 @@ def _result(
     project_filter: str | None = None,
     project_display_snapshot: ProjectDisplaySnapshot | None = None,
     project_display_case: ProjectDisplayCase | None = None,
+    xprompt_focus: str | None = None,
 ) -> StatisticsViewData:
     run_payload = {} if empty else _run_payload(selected_range, group_by)
+    if run_payload and xprompt_focus is not None:
+        found = xprompt_focus == "split_file"
+        run_payload["xprompts"]["focus"] = {
+            "name": xprompt_focus,
+            "found": found,
+            "kind": "part" if found else "unknown",
+            "tags": ["files"] if found else [],
+            "runs": 3 if found else 0,
+            "references": 4 if found else 0,
+            "distinct_agents": 2 if found else 0,
+            "completed": 2 if found else 0,
+            "failed": 1 if found else 0,
+            "success_rate": 2 / 3 if found else 0.0,
+            "total_runtime_seconds": 360.0 if found else 0.0,
+            "mean_runtime_seconds": 120.0 if found else None,
+            "first_run_ts": _NOW - 3_600 if found else 0.0,
+            "last_run_ts": _NOW if found else 0.0,
+            "models": [{"name": "gpt-5.6", "count": 2}],
+            "projects": [{"name": "sase", "count": 2}],
+            "partners": [{"name": "gh", "count": 2}],
+            "providers": [{"name": "codex", "count": 2}],
+            "tribes": [{"name": "tui", "count": 2}],
+            "buckets": [
+                {"start_ts": selected_range.start_ts, "runs": 1},
+                {"start_ts": selected_range.start_ts + 86_400, "runs": 2},
+            ],
+        }
     if project_display_case is not None and run_payload:
         run_payload["workspaces"][0]["project"] = project_display_case.project_key
         run_payload["work"]["projects"][0]["project"] = project_display_case.project_key
@@ -306,13 +336,14 @@ def _result(
             current_runner_limit=2,
         ),
         project_filter=project_filter,
+        xprompt_focus=xprompt_focus,
         project_display_snapshot=display_snapshot,
     )
 
 
 def _patch_center(
     monkeypatch: pytest.MonkeyPatch,
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]],
+    calls: list[Any],
     *,
     project_display_case: ProjectDisplayCase | None = None,
 ) -> None:
@@ -324,14 +355,16 @@ def _patch_center(
         selected_range: StatsRange,
         group_by: RuntimeGroupBy,
         project_filter: str | None = None,
+        xprompt_focus: str | None = None,
     ) -> StatisticsViewData:
-        calls.append((view, selected_range, group_by, project_filter))
+        calls.append((view, selected_range, group_by, project_filter, xprompt_focus))
         return _result(
             view,
             selected_range,
             group_by,
             project_filter=project_filter,
             project_display_case=project_display_case,
+            xprompt_focus=xprompt_focus,
         )
 
     monkeypatch.setattr(sp, "load_statistics_view", load)

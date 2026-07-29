@@ -2696,6 +2696,8 @@ ace:
       cycle_group: "g"
       cycle_project_filter: "p"
       cycle_project_filter_reverse: "P"
+      focus_xprompt: "x"
+      clear_xprompt_focus: "X"
       scroll_down: "ctrl+d"
       scroll_up: "ctrl+u"
       refresh: "f10"
@@ -2704,9 +2706,10 @@ ace:
 
 These keys dispatch only while the Admin Center Statistics pane is focused. They may overlap app-level bindings without
 creating a global conflict, and the pane's hint bar always shows the effective keys. The group control is visible and
-active only in Projects and Runtime. Project filtering cycles through **All projects** and the latest cached unfiltered
-ranking: the configured forward key moves toward the first ranked project, the reverse key moves toward the last, and
-both wrap. Either key clears an active project filter directly when its loaded result is empty.
+active only in Projects, Runtime, and XPrompts. On the XPrompts view, the focus key opens a filterable picker and the
+clear-focus key restores **All xprompts**. Project filtering cycles through **All projects** and the latest cached
+unfiltered ranking: the configured forward key moves toward the first ranked project, the reverse key moves toward the
+last, and both wrap. Either key clears an active project filter directly when its loaded result is empty.
 
 ### Remapping Gate Modal Keys
 

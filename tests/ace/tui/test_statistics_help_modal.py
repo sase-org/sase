@@ -47,7 +47,7 @@ def test_help_documents_every_statistics_binding_and_current_scope() -> None:
     controls = modal._controls_text().plain
 
     for action, description in _STATISTICS_BINDING_META:
-        if action == "cycle_group":
+        if action in {"cycle_group", "focus_xprompt", "clear_xprompt_focus"}:
             assert description not in controls
         else:
             assert description in controls
@@ -69,6 +69,17 @@ def test_help_group_control_is_visible_only_for_grouping_views() -> None:
             assert "Group By" not in controls
 
 
+def test_help_xprompt_controls_are_visible_only_on_xprompts() -> None:
+    for view in VIEW_ORDER:
+        controls = _modal(view)._controls_text().plain
+        if view == "xprompts":
+            assert "Focus XPrompt — choose from loaded xprompts" in controls
+            assert "Clear XPrompt Focus — return to All xprompts" in controls
+        else:
+            assert "Focus XPrompt" not in controls
+            assert "Clear XPrompt Focus" not in controls
+
+
 def test_help_explains_runner_eligibility_windows_and_capacity_caveats() -> None:
     methodology = _modal()._runner_methodology_text().plain
 
@@ -84,5 +95,21 @@ def test_help_explains_runner_eligibility_windows_and_capacity_caveats() -> None
         "today's effective global reference",
         "including a live temporary override",
         "not a historical limit or project-specific capacity",
+    ):
+        assert phrase in methodology
+
+
+def test_help_explains_xprompt_counting_methodology() -> None:
+    methodology = _modal()._xprompt_methodology_text().plain
+
+    for phrase in (
+        "launch-boundary xprompts.json",
+        "before prompt expansion",
+        "Workflow step-template references are excluded",
+        "A run counts once per xprompt name",
+        "Refs counts argument variants separately",
+        "other xprompts referenced in the same run",
+        "project filter is applied before aggregation",
+        "artifact index has been rebuilt at its current schema",
     ):
         assert phrase in methodology

@@ -62,6 +62,7 @@ class StatisticsHelpModal(ModalScreen[None]):
         projects_group_by: ProjectsGroupBy,
         xprompts_group_by: XPromptsGroupBy,
         project_label: str,
+        xprompt_focus_label: str = "All xprompts",
         generated_at: float | None,
         keymaps: StatisticsPaneKeymaps,
     ) -> None:
@@ -72,6 +73,7 @@ class StatisticsHelpModal(ModalScreen[None]):
         self._projects_group_by = projects_group_by
         self._xprompts_group_by = xprompts_group_by
         self._project_label = project_label
+        self._xprompt_focus_label = xprompt_focus_label
         self._generated_at = generated_at
         self._keymaps = keymaps
         self._bindings = BindingsMap(
@@ -114,6 +116,11 @@ class StatisticsHelpModal(ModalScreen[None]):
             Text(""),
             self._section("Runner methodology", self._runner_methodology_text()),
             Text(""),
+            self._section(
+                "XPrompt methodology",
+                self._xprompt_methodology_text(),
+            ),
+            Text(""),
             self._section("Data & freshness", self._freshness_text()),
         )
 
@@ -144,6 +151,11 @@ class StatisticsHelpModal(ModalScreen[None]):
                 self._current_view
             ):
                 continue
+            if (
+                action in {"focus_xprompt", "clear_xprompt_focus"}
+                and self._current_view != "xprompts"
+            ):
+                continue
             if visible_count:
                 text.append("\n")
             text.append(f" {key} ", style=f"bold reverse {_ACCENT}")
@@ -171,6 +183,10 @@ class StatisticsHelpModal(ModalScreen[None]):
             return f"next ranked project; current: {self._project_label}"
         if action == "cycle_project_filter_reverse":
             return f"previous ranked project; current: {self._project_label}"
+        if action == "focus_xprompt":
+            return f"choose from loaded xprompts; current: {self._xprompt_focus_label}"
+        if action == "clear_xprompt_focus":
+            return f"return to All xprompts; current: {self._xprompt_focus_label}"
         if action in {"scroll_down", "scroll_up"}:
             return "move the Statistics body by half of its visible height"
         if action == "refresh":
@@ -283,6 +299,46 @@ class StatisticsHelpModal(ModalScreen[None]):
                 "The displayed max_running_agents value is today's effective global "
                 "reference (including a live temporary override), not a historical "
                 "limit or project-specific capacity.",
+            ),
+        )
+        text = Text()
+        for index, (term, meaning) in enumerate(rows):
+            if index:
+                text.append("\n")
+            text.append(f"{term} — ", style=f"bold {_CYAN}")
+            text.append(meaning, style="dim")
+        return text
+
+    def _xprompt_methodology_text(self) -> Text:
+        """Explain the launch-boundary xprompt counting contract."""
+        rows = (
+            (
+                "Source",
+                "Counts come from the launch-boundary xprompts.json written before "
+                "prompt expansion.",
+            ),
+            (
+                "Excluded",
+                "Workflow step-template references are excluded.",
+            ),
+            (
+                "Runs vs Refs",
+                "A run counts once per xprompt name; Refs counts argument variants "
+                "separately.",
+            ),
+            (
+                "Partners",
+                "Partners are other xprompts referenced in the same run.",
+            ),
+            (
+                "Project scope",
+                f"{self._project_label}; the project filter is applied before "
+                "aggregation.",
+            ),
+            (
+                "History",
+                "Historical rows appear after the artifact index has been rebuilt "
+                "at its current schema.",
             ),
         )
         text = Text()
