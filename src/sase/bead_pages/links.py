@@ -94,6 +94,34 @@ def resolve_bead_page_target(
     return destination
 
 
+def resolve_bead_page_url_from_cwd(
+    bead_id: str,
+    *,
+    cwd: str | os.PathLike[str] | None = None,
+) -> str | None:
+    """Return *bead_id*'s hosted page URL for the checkout at *cwd*, or ``None``.
+
+    Unlike :func:`sase.bead.cli_detail.resolve_bead_page_url`, which
+    deliberately skips the bead-existence check for ``sase bead show``, this
+    helper delegates to :func:`resolve_bead_page_target` so it does not return
+    a URL for a page that cannot be published.
+    """
+
+    label = str(bead_id).strip()
+    if not label:
+        return None
+    try:
+        primary_root = Path(cwd or os.getcwd()).expanduser().resolve(strict=False)
+        store = _resolve_store(primary_root)
+        return resolve_bead_page_target(
+            label,
+            store=store,
+            primary_root=primary_root,
+        )
+    except Exception:
+        return None
+
+
 def _resolve_store(primary_root: Path) -> SddStore:
     """Resolve the local SDD store for *primary_root* without materializing it."""
 
@@ -108,4 +136,5 @@ __all__ = [
     "known_bead_ids_for_store",
     "resolve_bead_commit_tag",
     "resolve_bead_page_target",
+    "resolve_bead_page_url_from_cwd",
 ]

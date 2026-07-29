@@ -7,7 +7,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sase.bead_pages.links import resolve_bead_commit_tag
+from sase.bead_pages.links import (
+    resolve_bead_commit_tag,
+    resolve_bead_page_url_from_cwd,
+)
 from sase.core.commit_footer_facade import LinkedCommitTagValue
 from sase.sdd.store import SddStore
 from sase.workflows.commit.commit_hooks import apply_bead_commit_tag
@@ -70,6 +73,43 @@ def test_resolve_bead_commit_tag_never_raises(
     )
 
     assert resolve_bead_commit_tag("sase-ai.2", cwd=tmp_path) == "sase-ai.2"
+
+
+def test_resolve_bead_page_url_from_cwd_checks_the_resolved_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    destination = (
+        "https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/sase-ai.2.md"
+    )
+    store = _in_tree_store(tmp_path)
+    store_resolver = MagicMock(return_value=store)
+    page_resolver = MagicMock(return_value=destination)
+    monkeypatch.setattr("sase.bead_pages.links._resolve_store", store_resolver)
+    monkeypatch.setattr(
+        "sase.bead_pages.links.resolve_bead_page_target",
+        page_resolver,
+    )
+
+    assert resolve_bead_page_url_from_cwd(" sase-ai.2 ", cwd=tmp_path) == destination
+    store_resolver.assert_called_once_with(tmp_path)
+    page_resolver.assert_called_once_with(
+        "sase-ai.2",
+        store=store,
+        primary_root=tmp_path,
+    )
+
+
+def test_resolve_bead_page_url_from_cwd_never_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.bead_pages.links._resolve_store",
+        MagicMock(side_effect=RuntimeError("not configured")),
+    )
+
+    assert resolve_bead_page_url_from_cwd("sase-ai.2", cwd=tmp_path) is None
 
 
 def test_apply_bead_commit_tag_leaves_subject_byte_identical(tmp_path: Path) -> None:

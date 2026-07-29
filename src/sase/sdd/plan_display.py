@@ -20,7 +20,10 @@ from ._plan_display_models import (
     PlanPhaseAvailability,
 )
 from ._plan_display_rendering import (
+    BEAD_PAGE_ROW_LABEL,
     COLOR_PLAN_EMPTY,
+    COLOR_PLAN_PATH,
+    COLOR_PLAN_PATH_BASENAME,
     COLOR_PLAN_PRIMARY,
     COLOR_PLAN_REASON,
     COLOR_PLAN_SUBHEADER,
@@ -34,6 +37,8 @@ from ._plan_display_rendering import (
     PLAN_PROVENANCE_ENTRY_LIMIT,
     PLAN_SECTION_LABEL,
     PLAN_SECTION_MAX_WIDTH,
+    bead_page_url_text,
+    bead_page_wrap_hint,
     plan_field_rows,
     plan_lane_details,
     plan_lane_header,
@@ -47,7 +52,10 @@ from ._plan_display_rendering import (
 
 __all__ = [
     "AuthoredPlanTier",
+    "BEAD_PAGE_ROW_LABEL",
     "COLOR_PLAN_EMPTY",
+    "COLOR_PLAN_PATH",
+    "COLOR_PLAN_PATH_BASENAME",
     "COLOR_PLAN_PRIMARY",
     "COLOR_PLAN_REASON",
     "COLOR_PLAN_SUBHEADER",
@@ -66,6 +74,8 @@ __all__ = [
     "PlanDisplayTier",
     "PlanFileMetadata",
     "PlanPhaseAvailability",
+    "bead_page_url_text",
+    "bead_page_wrap_hint",
     "load_plan_display",
     "plan_field_rows",
     "plan_file_metadata_from_content",

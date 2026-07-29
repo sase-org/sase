@@ -24,6 +24,7 @@ from ._plan_display_models import (
 PLAN_SECTION_LABEL = "PLAN"
 PLAN_SECTION_MAX_WIDTH = 80
 PLAN_FIELD_LABEL_WIDTH = cell_len("  Title: ")
+BEAD_PAGE_ROW_LABEL = "   Page: "
 
 COLOR_PLAN_SUBHEADER = "bold #AF87FF"
 COLOR_PLAN_PRIMARY = "bold #D7AFFF"
@@ -140,6 +141,26 @@ def _provenance_value(section: PlanProvenanceSection) -> Text:
     return text
 
 
+def bead_page_url_text(url: str) -> Text:
+    """Style a hosted bead-page URL like the canonical plan path row."""
+    dirname, separator, basename = url.rpartition("/")
+    text = Text()
+    if separator:
+        text.append(dirname + separator, style=COLOR_PLAN_PATH)
+        text.append(basename, style=COLOR_PLAN_PATH_BASENAME)
+    else:
+        text.append(url, style=COLOR_PLAN_PATH_BASENAME)
+    return text
+
+
+def bead_page_wrap_hint(url: str) -> tuple[int, int]:
+    """Return the final URL segment's character offset and terminal width."""
+    dirname, separator, basename = url.rpartition("/")
+    if not separator:
+        return 0, cell_len(url)
+    return len(dirname) + len(separator), cell_len(basename)
+
+
 def plan_phase_metadata(phase: PlanDisplayPhase) -> Text:
     """Build one phase's id/dependency/model metadata."""
     text = Text(phase.id, style=PLAN_PHASE_ID_STYLE)
@@ -203,6 +224,7 @@ def render_plan_document(
     *,
     width: int,
     hint_number: int | None = None,
+    bead_page_url: str | None = None,
 ) -> _RenderedPlanDocument:
     """Render complete Rich lines at ``width`` without filesystem access."""
     width = max(width, PLAN_FIELD_LABEL_WIDTH + 1)
@@ -226,8 +248,40 @@ def render_plan_document(
                 preferred_segment_width=preferred_segment_width,
             )
         )
-    for label, value in plan_provenance_rows(summary):
+    page_rendered = False
+    for section in summary.provenance:
+        if section.kind not in _PROVENANCE_ROW_LABELS:
+            continue
+        label = _PROVENANCE_ROW_LABELS[section.kind]
+        value = _provenance_value(section)
         intro.extend(_render_field_lines(label, value, width=width))
+        if bead_page_url is not None and section.kind is PlanHeaderSectionKind.BEAD:
+            preferred_break_before, preferred_segment_width = bead_page_wrap_hint(
+                bead_page_url
+            )
+            intro.extend(
+                _render_field_lines(
+                    BEAD_PAGE_ROW_LABEL,
+                    bead_page_url_text(bead_page_url),
+                    width=width,
+                    preferred_break_before=preferred_break_before,
+                    preferred_segment_width=preferred_segment_width,
+                )
+            )
+            page_rendered = True
+    if bead_page_url is not None and not page_rendered:
+        preferred_break_before, preferred_segment_width = bead_page_wrap_hint(
+            bead_page_url
+        )
+        intro.extend(
+            _render_field_lines(
+                BEAD_PAGE_ROW_LABEL,
+                bead_page_url_text(bead_page_url),
+                width=width,
+                preferred_break_before=preferred_break_before,
+                preferred_segment_width=preferred_segment_width,
+            )
+        )
 
     phase_blocks: list[tuple[Text, ...]] = []
     if summary.phase_availability == "available":
@@ -419,7 +473,10 @@ def _count_phrase(count: int, singular: str) -> str:
 
 
 __all__ = [
+    "BEAD_PAGE_ROW_LABEL",
     "COLOR_PLAN_EMPTY",
+    "COLOR_PLAN_PATH",
+    "COLOR_PLAN_PATH_BASENAME",
     "COLOR_PLAN_PRIMARY",
     "COLOR_PLAN_REASON",
     "COLOR_PLAN_SUBHEADER",
@@ -433,6 +490,8 @@ __all__ = [
     "PLAN_PROVENANCE_ENTRY_LIMIT",
     "PLAN_SECTION_LABEL",
     "PLAN_SECTION_MAX_WIDTH",
+    "bead_page_url_text",
+    "bead_page_wrap_hint",
     "plan_field_rows",
     "plan_lane_details",
     "plan_lane_header",

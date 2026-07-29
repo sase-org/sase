@@ -222,14 +222,17 @@ def _plan_provenance_sections(content: str) -> tuple[PlanProvenanceSection, ...]
     for section in document.sections:
         if section.entries:
             entries = tuple(entry.label for entry in section.entries)
+            targets = tuple(entry.target for entry in section.entries)
         elif section.label:
             entries = (section.label,)
+            targets = (section.target,)
         else:
             continue
         sections.append(
             PlanProvenanceSection(
                 kind=section.kind,
                 entries=entries,
+                targets=targets,
                 omitted=max(section.omitted, 0),
             )
         )

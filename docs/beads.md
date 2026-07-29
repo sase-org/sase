@@ -264,7 +264,9 @@ sase bead pages url beads-1.2           # print the hosted URL for one bead
 Per-commit publication refreshes the committed bead's lineage after a `create_commit` or `create_pull_request` workflow
 that carries `SASE_BEAD=`. The shared `pages/README.md` roster is owned by `sase bead pages refresh`, so regular commits
 avoid rewriting a file every active agent could touch. `sase bead show <id>` prints a `PAGE` section when the local
-sidecar remote and branch resolve to a hosted URL; `--format json` includes `page_url` in the same case.
+sidecar remote and branch resolve to a hosted URL; `--format json` includes `page_url` in the same case. An epic agent
+clan's summary panel also shows its epic bead's hosted page URL when one resolves; run `sase plan links refresh` to
+repair a plan whose `BEAD` bullet predates hosted links.
 
 ## CLI Commands
 

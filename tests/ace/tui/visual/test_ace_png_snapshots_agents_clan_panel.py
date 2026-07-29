@@ -9,7 +9,9 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent_associated_plan import _AgentPlanEnrichment
 from sase.scripts.sase_clan_summary_epic import _render_plan_summary
+from sase.sdd._plan_display_models import PlanProvenanceSection
 from sase.sdd.plan_display import PlanDisplay, PlanDisplayPhase
+from sase.sdd.plan_header_block import PlanHeaderSectionKind
 from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
     clan_tree_agents,
     decorate_clan_panel_sections,
@@ -33,6 +35,10 @@ _RESEARCH_CLAN_SUMMARY = (
     "[bold #FFD75F]RESEARCH PROMPT:[/bold #FFD75F]\n"
     "[italic #D7D7FF]How do clan summaries stay fast, safe, and beautiful\n"
     "across every fold level?[/italic #D7D7FF]"
+)
+
+_EPIC_BEAD_PAGE_URL = (
+    "https://github.com/sase-org/sase--beads/blob/main/pages/sase-6n/README.md"
 )
 
 _EPIC_CLAN_SUMMARY = _render_plan_summary(
@@ -85,7 +91,15 @@ _EPIC_CLAN_SUMMARY = _render_plan_summary(
             ),
         ),
         validation_ok=True,
+        provenance=(
+            PlanProvenanceSection(
+                kind=PlanHeaderSectionKind.BEAD,
+                entries=("sase-6n",),
+                targets=(_EPIC_BEAD_PAGE_URL,),
+            ),
+        ),
     ),
+    page_url=_EPIC_BEAD_PAGE_URL,
 )
 
 
@@ -128,6 +142,7 @@ async def test_epic_clan_panel_png_snapshots(
         assert_page_svg_contains(page, ".phase-runtime")
         assert_page_svg_contains(page, "Title:")
         assert_page_svg_contains(page, "Rich clan summaries")
+        assert_page_svg_contains(page, "Page:")
         assert_page_svg_contains(page, "3 agents")
         ace_png_visual.assert_page_png(
             page,

@@ -31,10 +31,16 @@ class PlanDisplayPhase:
 
 @dataclass(frozen=True, slots=True)
 class PlanProvenanceSection:
-    """One plan-header block section reduced to display labels."""
+    """One plan-header block section reduced to display labels and targets.
+
+    ``targets`` is empty when target information is unavailable; otherwise it
+    is positionally parallel to ``entries`` and uses ``None`` for an entry with
+    no hosted destination.
+    """
 
     kind: PlanHeaderSectionKind
     entries: tuple[str, ...]
+    targets: tuple[str | None, ...] = ()
     omitted: int = 0
 
 

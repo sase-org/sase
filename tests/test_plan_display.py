@@ -10,10 +10,16 @@ from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
     ResponsivePlanSection,
 )
 from sase.sdd.plan_display import (
+    BEAD_PAGE_ROW_LABEL,
+    COLOR_PLAN_PATH,
+    COLOR_PLAN_PATH_BASENAME,
     PLAN_FIELD_LABEL_WIDTH,
     PLAN_PROVENANCE_ENTRY_LIMIT,
+    bead_page_url_text,
+    bead_page_wrap_hint,
     load_plan_display,
     plan_logical_text,
+    render_plan_document,
     render_plan_lines,
 )
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
@@ -100,6 +106,20 @@ def test_provenance_rows_follow_fields_and_match_tui_section(
         "BEAD",
         "AGENTS",
         "COMMITS",
+    ]
+    assert [section.targets for section in loaded.provenance] == [
+        ("prompts/tale.md",),
+        ("https://example.invalid/plans/blob/main/202607/epic.md",),
+        ("https://example.invalid/beads/blob/main/pages/sase-ai/sase-ai.8.md",),
+        (
+            "https://example.invalid/agents/blob/main/agents/"
+            "user.host.sase-1a.1/README.md",
+            None,
+        ),
+        (
+            "https://example.invalid/repo/commit/"
+            "1a67048fbac199943e9798dd65f8af8901b2986b",
+        ),
     ]
     assert rows[3:] == [
         " Prompt: 202607/prompts/tale.md",
@@ -207,3 +227,99 @@ def test_shared_renderer_folds_overlong_basename_without_loss(
 
     assert "".join(path_fragments) == display_path
     assert all(cell_len(line.plain) <= width for line in lines)
+
+
+def test_render_plan_document_omits_page_row_by_default(tmp_path: Path) -> None:
+    plan = tmp_path / "tale.md"
+    plan.write_text(_plan_with_header(_PROVENANCE_HEADER), encoding="utf-8")
+    loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
+
+    rendered = render_plan_document(loaded, width=76)
+
+    assert rendered.lines == render_plan_lines(loaded, width=76)
+    assert all(BEAD_PAGE_ROW_LABEL not in line.plain for line in rendered.lines)
+
+
+def test_render_plan_document_places_page_after_bead_row(tmp_path: Path) -> None:
+    plan = tmp_path / "tale.md"
+    plan.write_text(_plan_with_header(_PROVENANCE_HEADER), encoding="utf-8")
+    loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
+    page_url = (
+        "https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/sase-ai.8.md"
+    )
+
+    lines = render_plan_document(
+        loaded,
+        width=76,
+        bead_page_url=page_url,
+    ).lines
+    bead_index = next(
+        index for index, line in enumerate(lines) if line.plain.startswith("   Bead: ")
+    )
+
+    assert lines[bead_index + 1].plain.startswith(BEAD_PAGE_ROW_LABEL)
+    page_lines = lines[bead_index + 1 : bead_index + 3]
+    assert "".join(line.plain[PLAN_FIELD_LABEL_WIDTH:] for line in page_lines) == (
+        page_url
+    )
+    assert page_lines[0].plain.endswith("/")
+    assert page_lines[1].plain.strip() == "sase-ai.8.md"
+    assert all(cell_len(line.plain) <= 76 for line in lines)
+
+
+def test_render_plan_document_places_page_after_final_non_bead_provenance(
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "tale.md"
+    plan.write_text(
+        _plan_with_header(
+            "- **PROMPT:** [202607/prompts/tale.md](prompts/tale.md)\n"
+            "- **AGENTS:**\n"
+            "  - user.host.sase-1a.1\n"
+        ),
+        encoding="utf-8",
+    )
+    loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
+
+    lines = render_plan_document(
+        loaded,
+        width=76,
+        bead_page_url="https://example.invalid/pages/sase-ai/README.md",
+    ).lines
+
+    assert lines[-1].plain.startswith(BEAD_PAGE_ROW_LABEL)
+    assert lines[-2].plain.startswith(" Agents: ")
+
+
+def test_bead_page_url_helpers_handle_url_shapes_and_cell_widths() -> None:
+    trailing = "https://example.invalid/pages/sase-ai/"
+    bare = "README.md"
+    multibyte = "https://example.invalid/pages/sase-ai/界.md"
+
+    trailing_text = bead_page_url_text(trailing)
+    bare_text = bead_page_url_text(bare)
+    multibyte_text = bead_page_url_text(multibyte)
+
+    assert trailing_text.plain == trailing
+    assert len(trailing_text.spans) == 1
+    assert (
+        trailing_text.spans[0].start,
+        trailing_text.spans[0].end,
+        str(trailing_text.spans[0].style),
+    ) == (0, len(trailing), COLOR_PLAN_PATH)
+    assert bead_page_wrap_hint(trailing) == (len(trailing), 0)
+
+    assert bare_text.plain == bare
+    assert str(bare_text.spans[0].style) == COLOR_PLAN_PATH_BASENAME
+    assert bead_page_wrap_hint(bare) == (0, cell_len(bare))
+
+    prefix, basename = multibyte.rsplit("/", 1)
+    assert multibyte_text.plain == multibyte
+    assert [str(span.style) for span in multibyte_text.spans] == [
+        COLOR_PLAN_PATH,
+        COLOR_PLAN_PATH_BASENAME,
+    ]
+    assert bead_page_wrap_hint(multibyte) == (
+        len(prefix) + 1,
+        cell_len(basename),
+    )

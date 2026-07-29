@@ -10,6 +10,8 @@ from collections.abc import Iterable
 from collections import Counter
 from dataclasses import dataclass
 
+from rich.cells import cell_len
+from rich.console import Console
 from rich.markup import escape
 from rich.text import Text
 
@@ -27,9 +29,12 @@ from sase.scripts._rich_summary import (
 from sase.sdd.plan_display import (
     COLOR_PLAN_SUMMARY,
     PlanDisplay,
+    bead_page_url_text,
+    bead_page_wrap_hint,
     load_plan_display,
     render_plan_document,
 )
+from sase.sdd.plan_header_block import PlanHeaderSectionKind
 from sase.sdd.plan_ref_display import PlanReferenceDisplay
 
 _SUMMARY_WIDTH = 76
@@ -76,7 +81,11 @@ def main() -> int:
     if plan_ref:
         try:
             plan = _load_plan_reference(plan_ref)
-            rendered = _render_plan_summary(epic_id, plan)
+            rendered = _render_plan_summary(
+                epic_id,
+                plan,
+                page_url=_plan_bead_page_url(plan),
+            )
         except Exception as exc:
             plan_error = exc
         else:
@@ -105,6 +114,7 @@ def main() -> int:
             snapshot.epic,
             snapshot.phases,
             snapshot.child_epics,
+            page_url=_resolve_bead_page_url(snapshot.epic.id),
         )
     )
     return 0
@@ -189,8 +199,17 @@ def _plan_availability_detail(summary: PlanDisplay) -> str:
     return "; ".join(summary.validation_diagnostics) or "plan validation failed"
 
 
-def _render_plan_summary(epic_id: str, summary: PlanDisplay) -> str:
-    document = render_plan_document(summary, width=_SUMMARY_WIDTH)
+def _render_plan_summary(
+    epic_id: str,
+    summary: PlanDisplay,
+    *,
+    page_url: str | None = None,
+) -> str:
+    document = render_plan_document(
+        summary,
+        width=_SUMMARY_WIDTH,
+        bead_page_url=page_url,
+    )
     intro = (
         _plan_header_line(epic_id),
         *document.intro_lines[1:],
@@ -234,6 +253,37 @@ def _plan_omission_line(omitted: int) -> Text:
     )
 
 
+def _plan_bead_page_url(summary: PlanDisplay) -> str | None:
+    """Return the recorded bead target, resolving an older bare label live."""
+    bead_section = next(
+        (
+            section
+            for section in summary.provenance
+            if section.kind is PlanHeaderSectionKind.BEAD
+        ),
+        None,
+    )
+    if bead_section is None:
+        return None
+    for target in bead_section.targets:
+        if target and (normalized := target.strip()):
+            return normalized
+    for entry in bead_section.entries:
+        if normalized := entry.strip():
+            return _resolve_bead_page_url(normalized)
+    return None
+
+
+def _resolve_bead_page_url(bead_id: str) -> str | None:
+    """Resolve a hosted bead page without making summary rendering fail."""
+    try:
+        from sase.bead_pages.links import resolve_bead_page_url_from_cwd
+
+        return resolve_bead_page_url_from_cwd(bead_id)
+    except Exception:
+        return None
+
+
 def _load_epic_with_refresh(epic_id: str) -> _EpicSnapshot:
     try:
         return _load_epic(epic_id)
@@ -275,6 +325,8 @@ def _render_epic_summary(
     epic: Issue,
     phases: tuple[Issue, ...],
     child_epics: tuple[Issue, ...] = (),
+    *,
+    page_url: str | None = None,
 ) -> str:
     intro = [_header_line(epic)]
     goal = render_markdown_lines(epic.description, width=_SUMMARY_WIDTH).cap(
@@ -315,7 +367,9 @@ def _render_epic_summary(
         child_lines.append(_child_epic_line(child))
         blocks.append(_DocumentBlock(tuple(child_lines), omission_kind="child_epic"))
 
+    has_plan_block = False
     if reference := epic.design.strip():
+        has_plan_block = True
         plan_lines = [Text()]
         display = _describe_epic_plan_reference(reference)
         plan = shorten_text(
@@ -330,7 +384,72 @@ def _render_epic_summary(
             plan_lines.append(resolved)
         blocks.append(_DocumentBlock(tuple(plan_lines), omission_kind="plan"))
 
+    if page_url is not None:
+        blocks.append(
+            _DocumentBlock(
+                _bead_page_block_lines(
+                    page_url,
+                    leading_blank=not has_plan_block,
+                ),
+                omission_kind="page",
+            )
+        )
+
     return _fit_document(tuple(intro), tuple(blocks))
+
+
+def _bead_page_block_lines(
+    page_url: str,
+    *,
+    leading_blank: bool,
+) -> tuple[Text, ...]:
+    """Render the trailing bead-page reference region."""
+    label = "Page: "
+    value_width = max(_SUMMARY_WIDTH - cell_len(label), 1)
+    wrapped = _wrap_bead_page_url(page_url, width=value_width)
+    lines: list[Text] = [Text()] if leading_blank else []
+    for index, value_line in enumerate(wrapped or (Text(),)):
+        line = Text()
+        if index == 0:
+            line.append("Page:", style="bold dim")
+            line.append(" ")
+        else:
+            line.append(" " * cell_len(label))
+        line.append_text(value_line)
+        lines.append(line)
+    return tuple(lines)
+
+
+def _wrap_bead_page_url(page_url: str, *, width: int) -> tuple[Text, ...]:
+    """Fold one styled URL, preferring a break before its final segment."""
+    value = bead_page_url_text(page_url)
+    preferred_break_before, preferred_segment_width = bead_page_wrap_hint(page_url)
+    if (
+        0 < preferred_break_before < len(value)
+        and preferred_segment_width <= width
+        and cell_len(value.plain) > width
+    ):
+        return (
+            *_fold_text(value[:preferred_break_before], width=width),
+            *_fold_text(value[preferred_break_before:], width=width),
+        )
+    return _fold_text(value, width=width)
+
+
+def _fold_text(value: Text, *, width: int) -> tuple[Text, ...]:
+    copied = value.copy()
+    copied.overflow = "fold"
+    copied.no_wrap = False
+    console = Console(
+        width=max(width, 1),
+        color_system=None,
+        force_terminal=False,
+        force_interactive=False,
+        highlight=False,
+        markup=False,
+        emoji=False,
+    )
+    return tuple(copied.wrap(console, max(width, 1), overflow="fold"))
 
 
 def _describe_epic_plan_reference(reference: str) -> PlanReferenceDisplay:
@@ -440,6 +559,8 @@ def _omission_line(remaining: Counter[str]) -> Text:
         )
     if remaining["plan"]:
         labels.append("plan reference")
+    if remaining["page"]:
+        labels.append("bead page link")
     detail = _join_labels(labels) or "trailing content"
     return shorten_text(
         Text(f"… {detail} omitted to fit summary size", style=_MUTED_STYLE),

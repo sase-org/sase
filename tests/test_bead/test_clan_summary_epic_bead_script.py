@@ -190,6 +190,59 @@ def test_epic_summary_omits_absent_optional_sections() -> None:
     ]
     assert "CHILD EPICS" not in plain
     assert "Plan:" not in plain
+    assert "Page:" not in plain
+
+
+def test_epic_summary_places_bead_page_after_plan_reference() -> None:
+    page_url = (
+        "https://github.com/sase-org/sase--beads/blob/main/pages/sase-page/README.md"
+    )
+    epic = Issue(
+        id="sase-page",
+        title="Hosted bead page",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+        design="plans:202607/hosted.md",
+    )
+
+    rendered = Text.from_markup(_render_epic_summary(epic, (), page_url=page_url))
+    lines = rendered.plain.splitlines()
+    plan_index = next(
+        index for index, line in enumerate(lines) if line.startswith("Plan: ")
+    )
+    page_index = next(
+        index for index, line in enumerate(lines) if line.startswith("Page: ")
+    )
+
+    assert page_index > plan_index
+    assert lines[page_index - 1]
+    assert lines[page_index].endswith("/")
+    assert lines[page_index + 1] == "      README.md"
+    assert all(cell_len(line) <= 76 for line in lines)
+
+
+def test_epic_summary_separates_page_region_without_plan_reference() -> None:
+    page_url = (
+        "https://github.com/sase-org/sase--beads/blob/main/pages/sase-page/README.md"
+    )
+    epic = Issue(
+        id="sase-page",
+        title="Hosted bead page",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+    )
+
+    rendered = Text.from_markup(_render_epic_summary(epic, (), page_url=page_url))
+    lines = rendered.plain.splitlines()
+    page_index = next(
+        index for index, line in enumerate(lines) if line.startswith("Page: ")
+    )
+
+    assert lines[page_index - 1] == ""
+    assert lines[page_index].endswith("/")
+    assert lines[page_index + 1] == "      README.md"
+    assert "Plan:" not in rendered.plain
+    assert all(cell_len(line) <= 76 for line in lines)
 
 
 def test_epic_summary_many_phases_stays_parseable_and_below_internal_budget() -> None:
@@ -213,10 +266,19 @@ def test_epic_summary_many_phases_stays_parseable_and_below_internal_budget() ->
         for index in range(1, 1001)
     )
 
-    markup = _render_epic_summary(epic, phases)
+    markup = _render_epic_summary(
+        epic,
+        phases,
+        page_url=(
+            "https://github.com/sase-org/sase--beads/blob/main/pages/"
+            "sase-many/README.md"
+        ),
+    )
     rendered = Text.from_markup(markup)
     assert len(markup.encode("utf-8")) < _SUMMARY_MAX_UTF8_BYTES
-    assert "phase entries omitted to fit summary size" in rendered.plain
+    assert "phase entries" in rendered.plain
+    assert "bead page link" in rendered.plain
+    assert "omitted to fit summary size" in rendered.plain
     assert all(cell_len(line) <= 76 for line in rendered.plain.splitlines())
 
 

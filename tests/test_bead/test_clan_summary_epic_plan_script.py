@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 from rich.cells import cell_len
+from rich.console import Console
+from rich.style import Style
 from rich.text import Text
 
 from sase.bead.config import load_config
@@ -14,18 +16,38 @@ from sase.bead.model import BeadTier, IssueType, PhaseSize
 from sase.bead.project import BeadProject
 from sase.scripts.sase_clan_summary_epic import (
     _SUMMARY_MAX_UTF8_BYTES,
+    _plan_bead_page_url,
     _plan_reference_candidates,
     _render_plan_summary,
     main,
 )
-from sase.sdd.plan_display import PlanDisplay, PlanDisplayPhase
+from sase.sdd._plan_display_models import PlanProvenanceSection
+from sase.sdd.plan_display import (
+    COLOR_PLAN_PATH,
+    COLOR_PLAN_PATH_BASENAME,
+    PlanDisplay,
+    PlanDisplayPhase,
+)
+from sase.sdd.plan_header_block import PlanHeaderSectionKind
 from tests.plan_validation_helpers import VALID_EPIC_PLAN
 
 
-def _write_epic_plan(path: Path, *, title: str) -> Path:
+def _write_epic_plan(
+    path: Path,
+    *,
+    title: str,
+    header: str | None = None,
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
+    content = VALID_EPIC_PLAN.replace("Approved implementation", title)
+    if header is not None:
+        content = content.replace(
+            "---\n# Plan",
+            f"---\n\n{header}\n\n# Plan",
+            1,
+        )
     path.write_text(
-        VALID_EPIC_PLAN.replace("Approved implementation", title),
+        content,
         encoding="utf-8",
     )
     return path
@@ -52,6 +74,12 @@ def test_epic_summary_renders_valid_environment_plan_before_bead_store(
     monkeypatch.setenv("SASE_CLAN_NAME", "sase-[epic]")
     monkeypatch.setenv("SASE_EPIC_PLAN_REF", plan_ref)
     _patch_unexpected_bead_load(monkeypatch)
+    monkeypatch.setattr(
+        "sase.scripts.sase_clan_summary_epic._resolve_bead_page_url",
+        lambda _bead_id: (_ for _ in ()).throw(
+            AssertionError("a plan without BEAD provenance must not resolve a page")
+        ),
+    )
 
     assert main() == 0
 
@@ -71,11 +99,128 @@ def test_epic_summary_renders_valid_environment_plan_before_bead_store(
         in rendered.plain
     )
     assert "PHASES ·" not in rendered.plain
+    assert "Page:" not in rendered.plain
     assert str(plan) not in rendered.plain
     assert "\\[epic]" in markup
     assert "\\[safe]" in markup
     assert all(cell_len(line) <= 76 for line in rendered.plain.splitlines())
     assert len(markup.encode("utf-8")) <= _SUMMARY_MAX_UTF8_BYTES
+    assert captured.err == ""
+
+
+def test_plan_summary_renders_recorded_bead_page_after_bead_row() -> None:
+    page_url = (
+        "https://github.com/sase-org/sase--beads/blob/main/pages/sase-ao/README.md"
+    )
+    summary = PlanDisplay(
+        title="Hosted epic",
+        goal="Open the durable bead page from the clan panel.",
+        authored_tier="epic",
+        effective_tier="epic",
+        actual_path="/tmp/hosted.md",
+        display_path="plans:202607/hosted.md",
+        committed=True,
+        exists=True,
+        readable=True,
+        frontmatter_readable=True,
+        phase_availability="available",
+        phases=(),
+        validation_ok=True,
+        provenance=(
+            PlanProvenanceSection(
+                kind=PlanHeaderSectionKind.BEAD,
+                entries=("sase-ao",),
+                targets=(page_url,),
+            ),
+        ),
+    )
+
+    markup = _render_plan_summary(
+        "sase-ao",
+        summary,
+        page_url=_plan_bead_page_url(summary),
+    )
+    rendered = Text.from_markup(markup)
+    lines = rendered.plain.splitlines()
+    bead_index = lines.index("   Bead: sase-ao")
+
+    assert lines[bead_index + 1].startswith("   Page: https://")
+    assert lines[bead_index + 1].endswith("/")
+    assert lines[bead_index + 2] == "         README.md"
+    assert all(cell_len(line) <= 76 for line in lines)
+
+    console = Console()
+    prefix_style = rendered.get_style_at_offset(
+        console,
+        rendered.plain.index("https://"),
+    )
+    basename_style = rendered.get_style_at_offset(
+        console,
+        rendered.plain.index("README.md"),
+    )
+    assert prefix_style == Style.parse(COLOR_PLAN_PATH)
+    assert basename_style == Style.parse(COLOR_PLAN_PATH_BASENAME)
+
+
+def test_plan_summary_resolves_bare_bead_provenance_live(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plan_ref = "plans/older-epic.md"
+    _write_epic_plan(
+        tmp_path / plan_ref,
+        title="Older epic plan",
+        header="- **BEAD:** sase-older",
+    )
+    page_url = (
+        "https://github.com/sase-org/sase--beads/blob/main/pages/sase-older/README.md"
+    )
+    resolved_ids: list[str] = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_CLAN_NAME", "sase-older")
+    monkeypatch.setenv("SASE_EPIC_PLAN_REF", plan_ref)
+    monkeypatch.setattr(
+        "sase.scripts.sase_clan_summary_epic._resolve_bead_page_url",
+        lambda bead_id: resolved_ids.append(bead_id) or page_url,
+    )
+    _patch_unexpected_bead_load(monkeypatch)
+
+    assert main() == 0
+
+    captured = capsys.readouterr()
+    assert resolved_ids == ["sase-older"]
+    assert "   Bead: sase-older" in Text.from_markup(captured.out).plain
+    assert "   Page: https://" in Text.from_markup(captured.out).plain
+    assert captured.err == ""
+
+
+def test_plan_summary_ignores_live_page_resolution_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plan_ref = "plans/older-epic.md"
+    _write_epic_plan(
+        tmp_path / plan_ref,
+        title="Older epic plan",
+        header="- **BEAD:** sase-older",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_CLAN_NAME", "sase-older")
+    monkeypatch.setenv("SASE_EPIC_PLAN_REF", plan_ref)
+    monkeypatch.setattr(
+        "sase.bead_pages.links.resolve_bead_page_url_from_cwd",
+        lambda _bead_id: (_ for _ in ()).throw(RuntimeError("store unavailable")),
+    )
+    _patch_unexpected_bead_load(monkeypatch)
+
+    assert main() == 0
+
+    captured = capsys.readouterr()
+    rendered = Text.from_markup(captured.out)
+    assert "   Bead: sase-older" in rendered.plain
+    assert "Page:" not in rendered.plain
     assert captured.err == ""
 
 
