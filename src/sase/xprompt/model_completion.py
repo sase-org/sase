@@ -2,13 +2,19 @@
 
 The Python LLM registry owns model/provider metadata. This module builds the
 JSON-serializable catalog shared by the ACE prompt input and the Rust xprompt
-LSP launcher materialization.
+LSP launcher materialization. The static catalog deliberately excludes
+temporary alias overrides: ACE can apply a cheap live overlay, while the LSP
+payload remains a launch-time configuration snapshot.
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
+
+from sase.config.core import current_config_token
+from sase.llm_provider.alias_view import AliasView, build_alias_views
 
 from sase.llm_provider.config import (
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
@@ -27,11 +33,13 @@ from sase.llm_provider.config import (
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     coder_model_alias_for_provider,
     get_model_aliases,
-    model_alias_config_source,
-    model_alias_description,
 )
 from sase.llm_provider.registry import get_llm_metadata_payload
+from sase.llm_provider.temporary_override import TemporaryLLMOverride
 
+#: Wire schema understood by existing Rust LSP versions. Alias metadata is
+#: additive under v1 so old readers ignore it and new readers can still load
+#: stale v1 catalogs that omit it.
 MODEL_COMPLETION_CATALOG_SCHEMA_VERSION = 1
 
 _INLINE_MODEL_VALUE_RE = re.compile(r"^[A-Za-z0-9_\-=./@]+$")
@@ -41,29 +49,23 @@ _INLINE_MODEL_VALUE_RE = re.compile(r"^[A-Za-z0-9_\-=./@]+$")
 # in between ``@coder`` and the epic/phase roles (see the catalog builder). These
 # are the migration replacements for the retired reserved ``@worker``/``@other``
 # aliases (epic sase-5d phase 2).
-_LEADING_IMPLICIT_ALIASES: tuple[tuple[str, str], ...] = (
-    (DEFAULT_MODEL_ALIAS_NAME, "default model when a prompt has no %model"),
-    (CODER_MODEL_ALIAS_NAME, "coder follow-up model"),
+_LEADING_IMPLICIT_ALIASES: tuple[str, ...] = (
+    DEFAULT_MODEL_ALIAS_NAME,
+    CODER_MODEL_ALIAS_NAME,
 )
-_TRAILING_IMPLICIT_ALIASES: tuple[tuple[str, str], ...] = (
-    (EPIC_LANDER_MODEL_ALIAS_NAME, "epic land follow-up model"),
-    (
-        BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-        "threshold-selected large-epic land follow-up model",
-    ),
-    (XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME, "extra-small bead phase agent model"),
-    (SMALL_PHASE_WORKER_MODEL_ALIAS_NAME, "small bead phase agent model"),
-    (MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME, "medium bead phase agent model"),
-    (LARGE_PHASE_WORKER_MODEL_ALIAS_NAME, "large bead phase agent model"),
-    (XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME, "extra-large bead phase agent model"),
-    (
-        SMARTEST_MODEL_ALIAS_NAME,
-        "highest-capability model for extra-large phase agents",
-    ),
-    (SMART_MODEL_ALIAS_NAME, "high-capability model for large phase agents"),
-    (CHEAP_MODEL_ALIAS_NAME, "load-balanced small phase agent pool"),
-    (CHEAPER_MODEL_ALIAS_NAME, "lower-cost extra-small phase agent pool"),
-    (CHEAPEST_MODEL_ALIAS_NAME, "lowest-cost explicit-use provider fallback"),
+_TRAILING_IMPLICIT_ALIASES: tuple[str, ...] = (
+    EPIC_LANDER_MODEL_ALIAS_NAME,
+    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
+    XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
+    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+    XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+    SMARTEST_MODEL_ALIAS_NAME,
+    SMART_MODEL_ALIAS_NAME,
+    CHEAP_MODEL_ALIAS_NAME,
+    CHEAPER_MODEL_ALIAS_NAME,
+    CHEAPEST_MODEL_ALIAS_NAME,
 )
 
 
@@ -77,13 +79,28 @@ class _ModelCompletionEntry:
     kind: str = "model"
     provider: str = ""
     aliases: tuple[str, ...] = field(default_factory=tuple)
+    alias_kind: str = ""
+    target_provider: str = ""
+    target_model: str = ""
+    target_effort: str = ""
+    provenance: str = ""
+    reference: str = ""
+    reference_effort: str = ""
+    selector_mode: str = ""
+    pool_available: int = 0
+    pool_total: int = 0
+    config_source: str = ""
+    bucket: str = ""
 
 
-_CATALOG_CACHE: tuple[_ModelCompletionEntry, ...] | None = None
+_CatalogCache = tuple[tuple[object, ...], tuple[_ModelCompletionEntry, ...]]
+_CATALOG_CACHE: _CatalogCache | None = None
 
 
 def build_model_completion_catalog(
-    *, use_cache: bool = True
+    *,
+    use_cache: bool = True,
+    overrides: Mapping[str, TemporaryLLMOverride] | None = None,
 ) -> list[_ModelCompletionEntry]:
     """Return ordered inline-completable ``%model`` values.
 
@@ -99,17 +116,21 @@ def build_model_completion_catalog(
     """
     global _CATALOG_CACHE  # noqa: PLW0603
 
-    if use_cache and _CATALOG_CACHE is not None:
-        return list(_CATALOG_CACHE)
-
-    entries = _build_model_completion_catalog()
-    if use_cache:
-        _CATALOG_CACHE = tuple(entries)
-    return entries
+    token = current_config_token() if use_cache else None
+    if use_cache and _CATALOG_CACHE is not None and _CATALOG_CACHE[0] == token:
+        entries = list(_CATALOG_CACHE[1])
+    else:
+        entries = _build_static_catalog()
+        if use_cache:
+            assert token is not None
+            _CATALOG_CACHE = (token, tuple(entries))
+    if overrides is None:
+        return entries
+    return _apply_alias_overrides(entries, overrides)
 
 
 def model_completion_catalog_payload() -> dict[str, object]:
-    """Return the JSON payload materialized for the Rust xprompt LSP."""
+    """Return the launch-time JSON snapshot materialized for the Rust LSP."""
     return {
         "schema_version": MODEL_COMPLETION_CATALOG_SCHEMA_VERSION,
         "entries": [
@@ -120,8 +141,20 @@ def model_completion_catalog_payload() -> dict[str, object]:
                 "kind": entry.kind,
                 "provider": entry.provider,
                 "aliases": list(entry.aliases),
+                "alias_kind": entry.alias_kind,
+                "target_provider": entry.target_provider,
+                "target_model": entry.target_model,
+                "target_effort": entry.target_effort,
+                "provenance": entry.provenance,
+                "reference": entry.reference,
+                "reference_effort": entry.reference_effort,
+                "selector_mode": entry.selector_mode,
+                "pool_available": entry.pool_available,
+                "pool_total": entry.pool_total,
+                "config_source": entry.config_source,
+                "bucket": entry.bucket,
             }
-            for entry in build_model_completion_catalog()
+            for entry in build_model_completion_catalog(overrides={})
         ],
     }
 
@@ -130,10 +163,28 @@ def filter_model_completion_entries(
     entries: list[_ModelCompletionEntry],
     partial: str,
 ) -> list[_ModelCompletionEntry]:
-    """Return entries whose value or alias hint prefix-matches ``partial``."""
+    """Return entries whose value or alias hint prefix-matches ``partial``.
+
+    A leading ``@`` is an explicit alias-only gate. Bare partials retain the
+    established behavior where alias hints match without ``@`` while catalog
+    order keeps concrete models before aliases.
+    """
     needle = partial.lower()
     if not needle:
         return list(entries)
+    if needle.startswith("@"):
+        return [
+            entry
+            for entry in entries
+            if entry.kind in {"implicit_alias", "user_alias"}
+            and (
+                entry.value.lower().startswith(needle)
+                or any(
+                    f"@{alias.lstrip('@')}".lower().startswith(needle)
+                    for alias in entry.aliases
+                )
+            )
+        ]
     return [
         entry
         for entry in entries
@@ -142,12 +193,49 @@ def filter_model_completion_entries(
     ]
 
 
-def _build_model_completion_catalog() -> list[_ModelCompletionEntry]:
+def _apply_alias_overrides(
+    entries: list[_ModelCompletionEntry],
+    overrides: Mapping[str, TemporaryLLMOverride],
+) -> list[_ModelCompletionEntry]:
+    """Return *entries* with temporary targets overlaid on matching aliases."""
+    if not overrides:
+        return list(entries)
+
+    positions = {
+        entry.value.lstrip("@"): index
+        for index, entry in enumerate(entries)
+        if entry.kind in {"implicit_alias", "user_alias"}
+    }
+    overlaid = list(entries)
+    for raw_alias, override in overrides.items():
+        index = positions.get(raw_alias.lstrip("@"))
+        if index is None:
+            continue
+        overlaid[index] = replace(
+            overlaid[index],
+            target_provider=override.provider,
+            target_model=override.model,
+            target_effort=override.effort or "",
+            provenance="override",
+            reference="",
+            reference_effort="",
+            selector_mode="",
+            pool_available=0,
+            pool_total=0,
+        )
+    return overlaid
+
+
+def _build_static_catalog() -> list[_ModelCompletionEntry]:
     payload = get_llm_metadata_payload()
     providers = _dict(payload.get("providers"))
     model_to_provider = _str_dict(payload.get("model_to_provider"))
     short_aliases = _str_dict(payload.get("model_short_aliases"))
     provider_order = _provider_order(payload, providers)
+    try:
+        alias_views = {view.name: view for view in build_alias_views(overrides={})}
+    except Exception:  # noqa: BLE001 - plain aliases are the safe fallback.
+        alias_views = {}
 
     entries: list[_ModelCompletionEntry] = []
     seen: set[str] = set()
@@ -190,21 +278,17 @@ def _build_model_completion_catalog() -> list[_ModelCompletionEntry]:
         provider_order=provider_order,
         providers=providers,
         user_aliases=user_aliases,
+        alias_views=alias_views,
     )
 
-    for alias, target in sorted(user_aliases.items()):
+    for alias in sorted(user_aliases):
         if alias in seen:
             continue
-        description = f"alias for {target}"
-        if model_alias_config_source(alias) == "custom":
-            configured_description = model_alias_description(alias)
-            if configured_description:
-                description = f"{configured_description} (alias for {target})"
         _append_alias_entry(
             entries,
             seen,
             value=alias,
-            description=description,
+            view=alias_views.get(alias),
             kind="user_alias",
         )
 
@@ -218,6 +302,7 @@ def _append_implicit_alias_entries(
     provider_order: list[str],
     providers: dict[str, object],
     user_aliases: dict[str, str],
+    alias_views: dict[str, AliasView],
 ) -> None:
     """Append the implicit role aliases (``@default``, ``@coder``, etc.).
 
@@ -227,24 +312,27 @@ def _append_implicit_alias_entries(
     so the user-configured target is surfaced once, with its real
     description, by the caller's user-alias loop.
     """
-    implicit: list[tuple[str, str]] = [*_LEADING_IMPLICIT_ALIASES]
+    implicit: list[str] = [*_LEADING_IMPLICIT_ALIASES]
     for provider in provider_order:
-        provider_display = _provider_display(provider, _dict(providers.get(provider)))
-        implicit.append(
-            (
-                coder_model_alias_for_provider(provider),
-                f"{provider_display} coder follow-up model",
-            )
-        )
+        implicit.append(coder_model_alias_for_provider(provider))
     implicit.extend(_TRAILING_IMPLICIT_ALIASES)
 
-    for value, description in implicit:
+    for value in implicit:
         if value in user_aliases:
             continue
+        view = alias_views.get(value)
+        description = ""
+        if view is not None and view.kind == "provider_coder":
+            provider = value.removesuffix("_coder")
+            provider_display = _provider_display(
+                provider, _dict(providers.get(provider))
+            )
+            description = f"{provider_display} coder follow-up model."
         _append_alias_entry(
             entries,
             seen,
             value=value,
+            view=view,
             description=description,
             kind="implicit_alias",
         )
@@ -283,15 +371,40 @@ def _append_alias_entry(
     seen: set[str],
     *,
     value: str,
-    description: str,
+    view: AliasView | None,
     kind: str,
+    description: str = "",
 ) -> None:
     display_value = f"@{value}" if not value.startswith("@") else value
     bare_alias = display_value[1:] if display_value.startswith("@") else display_value
     if display_value in seen or not _is_inline_completable(display_value):
         return
-    entries.append(
-        _ModelCompletionEntry(
+    if view is not None:
+        description = description or view.description or ""
+        reference = view.references or view.implicit_fallback or ""
+        selector_members = view.selector_members
+        entry = _ModelCompletionEntry(
+            value=display_value,
+            display=display_value,
+            description=description,
+            kind=kind,
+            provider="",
+            aliases=(bare_alias,),
+            alias_kind=view.kind,
+            target_provider=view.provider or "",
+            target_model=view.model,
+            target_effort=view.effort or "",
+            provenance="configured" if view.configured else "implicit",
+            reference=reference,
+            reference_effort=view.reference_effort or "",
+            selector_mode=view.selector_mode or "",
+            pool_available=sum(member.available for member in selector_members),
+            pool_total=len(selector_members),
+            config_source=view.configured_source or "",
+            bucket=view.bucket or "",
+        )
+    else:
+        entry = _ModelCompletionEntry(
             value=display_value,
             display=display_value,
             description=description,
@@ -299,7 +412,7 @@ def _append_alias_entry(
             provider="",
             aliases=(bare_alias,),
         )
-    )
+    entries.append(entry)
     seen.add(display_value)
 
 

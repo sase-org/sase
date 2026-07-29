@@ -19,6 +19,7 @@ from sase.llm_provider import (
     split_bucket_members,
     split_models_panel_rows,
 )
+from sase.llm_provider.temporary_override import TemporaryLLMOverride
 from tests.llm_provider._provider_config_helpers import (
     mock_provider_config,
     patch_available_providers,
@@ -116,6 +117,45 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert myalias.kind == "user"
     assert myalias.configured is True
     assert myalias.configured_value == "claude/opus"
+
+
+def test_explicit_empty_overrides_skips_authoritative_override_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    patch_available_providers(monkeypatch)
+    monkeypatch.setattr(
+        "sase.llm_provider.alias_view.get_active_alias_overrides",
+        lambda _now=None: (_ for _ in ()).throw(AssertionError("must not load")),
+    )
+
+    views = build_alias_views(overrides={})
+
+    assert views
+    assert all(view.override is None for view in views)
+
+
+def test_injected_override_mapping_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    patch_available_providers(monkeypatch)
+    override = TemporaryLLMOverride(
+        provider="codex",
+        model="o3",
+        raw_model="codex/o3@medium",
+        created_at=1.0,
+        expires_at=None,
+        source="test",
+        effort="medium",
+    )
+
+    coder = {
+        view.name: view for view in build_alias_views(overrides={"coder": override})
+    }["coder"]
+
+    assert coder.override is override
+    assert (coder.provider, coder.model, coder.effort) == ("codex", "o3", "medium")
 
 
 def test_default_is_first_and_groups_are_ordered(

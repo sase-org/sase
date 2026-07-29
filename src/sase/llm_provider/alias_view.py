@@ -18,7 +18,7 @@ wins), and the active override itself when present.
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from functools import partial
 from typing import Literal, cast
@@ -411,7 +411,11 @@ def _selector_member_provider_model_effort(
     return member.provider, model, member.effort
 
 
-def build_alias_views(now: float | None = None) -> list[AliasView]:
+def build_alias_views(
+    now: float | None = None,
+    *,
+    overrides: Mapping[str, TemporaryLLMOverride] | None = None,
+) -> list[AliasView]:
     """Aggregate every model alias into ordered, display-ready rows.
 
     Combines the alias policy (:func:`model_alias_names`,
@@ -424,14 +428,19 @@ def build_alias_views(now: float | None = None) -> list[AliasView]:
     Args:
         now: Optional fixed timestamp forwarded to the override loader (lets
             tests pin expiry); ``None`` uses the wall clock.
+        overrides: Optional already-loaded temporary overrides. ``None`` keeps
+            the authoritative self-cleaning load used by the Models panel;
+            an explicit mapping, including ``{}``, is consumed verbatim.
     """
     names = model_alias_names()
     configured = get_model_aliases()
-    overrides = get_active_alias_overrides(now)
+    active_overrides = (
+        get_active_alias_overrides(now) if overrides is None else overrides
+    )
 
     views: list[AliasView] = []
     for name in names:
-        override = overrides.get(name)
+        override = active_overrides.get(name)
         selector = model_alias_selector_details(name)
         selected_member = (
             next((member for member in selector.members if member.selected), None)

@@ -27,6 +27,7 @@ import math
 import os
 import re
 import tempfile
+import threading
 import time
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -46,6 +47,14 @@ _LOCK_FILENAME = "llm_override.lock"
 
 #: On-disk schema version for the per-alias override state file.
 _STATE_VERSION = 2
+
+#: Minimum interval between filesystem metadata checks on display-only reads.
+_PEEK_STAT_FLOOR_SECONDS = 0.5
+
+_peek_cache_lock = threading.Lock()
+_peek_cache_path: Path | None = None
+_peek_cache_token: tuple[int, int] | None = None
+_peek_cache_deadline = 0.0
 
 
 def _state_path() -> Path:
@@ -80,6 +89,9 @@ class TemporaryLLMOverride:
     expires_at: float | None
     source: str
     effort: str | None = None
+
+
+_peek_cache_entries: dict[str, TemporaryLLMOverride] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -338,6 +350,72 @@ def get_active_alias_overrides(
     observe stale overrides.
     """
     return _load_active_overrides(now)
+
+
+def peek_active_alias_overrides(
+    now: float | None = None,
+) -> dict[str, TemporaryLLMOverride]:
+    """Return active overrides through a read-only, time-gated display cache.
+
+    This is the display read for keystroke paths: it never takes the shared
+    state lock and never rewrites, prunes, or deletes the state file. The
+    authoritative, self-cleaning read for Models-panel and launch paths remains
+    :func:`get_active_alias_overrides`.
+
+    Filesystem metadata is checked at most once per short monotonic floor. A
+    changed ``(mtime_ns, size)`` token reparses the file, while expiry is
+    filtered against the requested clock on every call. Missing, unreadable,
+    corrupt, or structurally invalid state degrades to an empty mapping.
+    """
+    global _peek_cache_deadline, _peek_cache_entries  # noqa: PLW0603
+    global _peek_cache_path, _peek_cache_token  # noqa: PLW0603
+
+    current_monotonic = time.monotonic()
+    with _peek_cache_lock:
+        if current_monotonic < _peek_cache_deadline:
+            cached = dict(_peek_cache_entries)
+        else:
+            path = _state_path()
+            _peek_cache_deadline = current_monotonic + _PEEK_STAT_FLOOR_SECONDS
+            try:
+                stat = path.stat()
+            except OSError:
+                _peek_cache_path = path
+                _peek_cache_token = None
+                _peek_cache_entries = {}
+                cached = {}
+            else:
+                token = (stat.st_mtime_ns, stat.st_size)
+                if path != _peek_cache_path or token != _peek_cache_token:
+                    _peek_cache_entries = _read_peek_entries(path)
+                    _peek_cache_path = path
+                    _peek_cache_token = token
+                cached = dict(_peek_cache_entries)
+
+    current = time.time() if now is None else now
+    return {
+        alias: override
+        for alias, override in cached.items()
+        if override.expires_at is None or current < override.expires_at
+    }
+
+
+def _read_peek_entries(path: Path) -> dict[str, TemporaryLLMOverride]:
+    """Parse override state for :func:`peek_active_alias_overrides`."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {}
+        raw_entries, _ = _extract_raw_entries(data)
+        if raw_entries is None:
+            return {}
+        return {
+            alias: override
+            for alias, entry in raw_entries.items()
+            if (override := _entry_from_dict(entry)) is not None
+        }
+    except Exception:  # noqa: BLE001 - display reads always degrade to empty.
+        return {}
 
 
 def get_active_alias_override(
