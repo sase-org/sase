@@ -523,13 +523,6 @@ def _load_artifact_file_candidates(
             or str(getattr(row, "project", "")).casefold() in accepted_projects
         )
     ]
-    filtered.sort(
-        key=lambda row: (
-            str(getattr(row, "created_at", "")),
-            str(getattr(row, "id", "")).casefold(),
-        ),
-        reverse=True,
-    )
     return tuple(
         _ArtifactRefFileCandidate(
             payload=str(getattr(row, "id", "")),
@@ -555,9 +548,9 @@ def _read_cached_artifact_index(index_path: Path) -> tuple[object, ...]:
         rows: tuple[object, ...] = ()
     else:
         try:
-            from sase.core.artifact_file_facade import read_artifact_file_index
+            from sase.core.artifact_file_query_facade import query_artifact_files
 
-            rows = tuple(read_artifact_file_index(resolved))
+            rows = tuple(query_artifact_files(resolved))
         except Exception:
             rows = ()
     _ARTIFACT_INDEX_CACHE[resolved] = _ArtifactIndexCacheEntry(token, rows)

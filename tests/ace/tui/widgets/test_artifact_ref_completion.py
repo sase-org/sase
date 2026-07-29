@@ -19,21 +19,25 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     _ArtifactRefChatCandidate,
     ArtifactRefCommitCandidate,
     ArtifactRefCompletionCatalog,
+    _ARTIFACT_INDEX_CACHE,
     _ArtifactRefDocumentCandidate,
     _ArtifactRefFileCandidate,
     ArtifactRefKindCompletionMetadata,
     ArtifactRefPayloadCompletionMetadata,
+    _load_artifact_file_candidates,
+    _read_cached_artifact_index,
     build_artifact_ref_completion_result,
     detect_artifact_ref_completion_context,
     load_artifact_ref_completion_catalog,
 )
-from sase.artifact_refs import ArtifactRefContext
+from sase.artifact_refs import ArtifactRefContext, ArtifactRefProject
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_path_inventory import (
     PromptPathRow,
     PromptPathSnapshot,
 )
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.core.artifact_file_types import ArtifactFile
 
 from ._completion_helpers import CompletionTestApp
 
@@ -540,7 +544,7 @@ async def test_warm_keystroke_paths_do_not_touch_discovery_providers() -> None:
         with (
             patch("sase.plan_search.facade.search", side_effect=fail),
             patch(
-                "sase.core.artifact_file_facade.read_artifact_file_index",
+                "sase.core.artifact_file_query_facade.query_artifact_files",
                 side_effect=fail,
             ),
             patch("sase.history.chat_storage.iter_chat_files", side_effect=fail),
@@ -576,3 +580,77 @@ def test_chat_catalog_scan_is_bounded(tmp_path) -> None:
         load_artifact_ref_completion_catalog(None, context)
 
     assert yielded == 1000
+
+
+def test_artifact_index_cache_miss_queries_rust_and_reuses_unchanged_token(
+    tmp_path,
+) -> None:
+    index = tmp_path / "index.jsonl"
+    index.write_text("{}\n", encoding="utf-8")
+    row = ArtifactFile(
+        id="explicit:abc123",
+        label="Diagram",
+        kind="image",
+        path="/stored/diagram.png",
+    )
+    resolved = index.resolve()
+    _ARTIFACT_INDEX_CACHE.pop(resolved, None)
+
+    with patch(
+        "sase.core.artifact_file_query_facade.query_artifact_files",
+        return_value=[row],
+    ) as query:
+        first = _read_cached_artifact_index(index)
+        second = _read_cached_artifact_index(index)
+
+    assert first == second == (row,)
+    query.assert_called_once_with(resolved)
+
+
+def test_artifact_file_catalog_preserves_rust_order_and_project_alias_filtering(
+    tmp_path,
+) -> None:
+    def row(
+        artifact_id: str,
+        project: str | None,
+    ) -> ArtifactFile:
+        return ArtifactFile(
+            id=artifact_id,
+            label=artifact_id,
+            kind="image",
+            path=f"/stored/{artifact_id}.png",
+            created_at="2026-07-29T12:00:00Z",
+            project=project,
+        )
+
+    rust_ordered_rows = (
+        row("explicit:aaa", None),
+        row("explicit:bbb", "ss"),
+        row("explicit:ignored", "other"),
+        row("explicit:ccc", "gh_sase-org__sase"),
+    )
+    context = ArtifactRefContext(
+        document_roots=(),
+        chats_root=tmp_path,
+        artifact_index_path=tmp_path / "index.jsonl",
+        repositories=(),
+        projects=(
+            ArtifactRefProject(
+                name="sase",
+                key="gh_sase-org__sase",
+                aliases=("ss",),
+            ),
+        ),
+    )
+
+    with patch(
+        "sase.ace.tui.widgets.artifact_ref_completion._read_cached_artifact_index",
+        return_value=rust_ordered_rows,
+    ):
+        candidates = _load_artifact_file_candidates("sase", context)
+
+    assert [candidate.payload for candidate in candidates] == [
+        "explicit:aaa",
+        "explicit:bbb",
+        "explicit:ccc",
+    ]
