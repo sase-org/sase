@@ -25,6 +25,7 @@ SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV = "SASE_XPROMPT_PLUGIN_DIRS_JSON"
 SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV = "SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON"
 SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV = "SASE_XPROMPT_VCS_PROJECT_CATALOG"
 SASE_XPROMPT_MODEL_CATALOG_ENV = "SASE_XPROMPT_MODEL_CATALOG"
+SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV = "SASE_XPROMPT_ARTIFACT_REF_CATALOG"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 
 
@@ -238,6 +239,7 @@ def _prepare_xprompt_lsp_environment(
         )
     _materialize_vcs_project_catalog(environ)
     _materialize_model_catalog(environ)
+    _materialize_artifact_ref_catalog(environ)
 
 
 def _default_vcs_project_catalog_path() -> Path:
@@ -296,6 +298,37 @@ def _materialize_model_catalog(environ: MutableMapping[str, str]) -> None:
     except Exception as exc:  # noqa: BLE001 - never block LSP startup on catalog errors.
         print(
             f"Warning: failed to materialize model completion catalog: {exc}",
+            file=sys.stderr,
+        )
+
+
+def _default_artifact_ref_catalog_path() -> Path:
+    """Return the default on-disk location for the artifact-reference catalog."""
+    return sase_subdir("xprompt_lsp") / "artifact_ref_catalog.json"
+
+
+def _materialize_artifact_ref_catalog(
+    environ: MutableMapping[str, str],
+) -> None:
+    """Write the local artifact-reference catalog and expose its path.
+
+    The Rust server re-reads this file for every request. Materialization is
+    best-effort, and the path remains exported after failures so a later
+    refresh or external rewrite can recover without restarting the editor.
+    """
+
+    existing = environ.get(SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV)
+    path = Path(existing) if existing else _default_artifact_ref_catalog_path()
+    environ[SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV] = str(path)
+    try:
+        from sase.artifact_refs import artifact_ref_lsp_catalog_payload
+
+        payload = artifact_ref_lsp_catalog_payload()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001 - never block LSP startup on catalog errors.
+        print(
+            f"Warning: failed to materialize artifact-reference catalog: {exc}",
             file=sys.stderr,
         )
 

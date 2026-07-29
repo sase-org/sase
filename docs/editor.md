@@ -34,10 +34,16 @@ server into the uv-tool venv when pulled `sase-core` commits change. The `Justfi
 `SASE_LINKED_REPO_SASE_CORE_DIR` (with the legacy `SASE_SIBLING_REPO_*` variables as fallbacks) for local `sase-core`
 build/install targets, but `sase lsp` itself does not read those variables.
 
+The xprompt LSP binary is built and installed from the local `sase-core` checkout (`just rust-lsp-install` for
+development/editor validation). It is separate from the `sase-core-rs` Python wheel; installing or rebuilding that wheel
+alone does not install the language server.
+
 The wrapper also exports installed package xprompt locations, bundled default config, plugin xprompt directories, and
-plugin config paths to the Rust server. The server refreshes its catalog when the LSP session starts, keeps a short
+plugin config paths to the Rust server. It also materializes a local artifact-reference catalog under
+`~/.sase/xprompt_lsp/` by default. The server refreshes its xprompt catalog when the LSP session starts, keeps a short
 cache for completion requests, and exposes a `sase.xpromptLsp.refreshCatalog` command for clients that surface LSP
-commands.
+commands. Artifact-reference completion and diagnostics re-read their catalog on each request, so a launcher refresh or
+external rewrite is visible on the next completion or diagnostic pass.
 
 ## LSP Features
 
@@ -51,16 +57,22 @@ The xprompt language server is focused on prompt and xprompt editing:
 | VCS repositories        | Completes repository names after namespace slashes such as `#gh:owner/` through the owning workspace provider.                                                     |
 | Argument assistance     | Completes named arguments, path inputs, and bool values for typed xprompt inputs where the catalog exposes input metadata.                                         |
 | Directive completion    | Completes SASE prompt directives and fixed directive values, including `%model:` values from the live model catalog.                                               |
+| Artifact references     | Completes known kinds after `@` and local document, chat, and indexed-file payloads after `@kind:` for the active project.                                         |
 | File completion         | Completes path-like tokens and recent file-history entries for prompt references.                                                                                  |
 | Snippets                | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                                                      |
 | Hover                   | Shows xprompt metadata, descriptions, previews, source display paths, tags, and active input hints.                                                                |
-| Diagnostics             | Reports unknown xprompts, unknown slash skills, unknown directives, malformed xprompt arguments, and argument type/arity issues.                                   |
+| Diagnostics             | Reports xprompt/directive issues plus malformed or unresolved known artifact references outside prompt literal zones.                                              |
 | Definition              | Jumps from xprompt and slash-skill references to real source files when the catalog provides a resolvable path.                                                    |
 
 Snippet completions come from the same registry ACE uses: xprompts with `snippet` front matter plus user-defined
 `ace.snippets`, with `ace.snippets` winning on trigger collisions. The server asks the host helper bridge for that
 authoritative registry and falls back to native Rust loading only for simple xprompt snippets and configured
 `ace.snippets` when the helper is unavailable.
+
+Artifact assistance is local-only. Document-role kinds (including dynamic sidecar roles), chats, and indexed artifact
+files are enumerated or resolved from the selected project's catalog roots. `commit` and `bug` references receive shape
+validation but no completion enumeration or resolution request, and the LSP never contacts git hosts, issue trackers, or
+other network providers. Unknown `@kind:` text remains ordinary prose.
 
 ## Helper Bridge
 
@@ -134,13 +146,13 @@ and `#[trigger:value]` fill the referenced snippet's tabstops before the compose
 
 ## Troubleshooting
 
-| Symptom                        | Check                                                                                                                         |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `sase lsp` cannot start        | Run `sase lsp --version`; run a full editable SASE update, build `../sase-core`, or set `SASE_XPROMPT_LSP_CMD`.               |
-| Snippets do not appear         | Confirm the editor advertises LSP `completionItem.snippetSupport`; inspect `sase editor helper-bridge snippet-catalog`.       |
-| Completion catalog looks stale | Restart the LSP session after changing installed plugin resources or package xprompts.                                        |
-| Jump-to-definition is missing  | Check whether the catalog entry has a real `definition_path`; plugin or built-in virtual entries may only have display paths. |
-| A user snippet is ignored      | Trigger names must contain only ASCII letters, digits, or `_`.                                                                |
+| Symptom                        | Check                                                                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `sase lsp` cannot start        | Run `sase lsp --version`; run a full editable SASE update, build `../sase-core`, or set `SASE_XPROMPT_LSP_CMD`.                      |
+| Snippets do not appear         | Confirm the editor advertises LSP `completionItem.snippetSupport`; inspect `sase editor helper-bridge snippet-catalog`.              |
+| Completion catalog looks stale | Restart the LSP session after changing installed plugin resources; for rewritten artifact catalogs, retry completion or diagnostics. |
+| Jump-to-definition is missing  | Check whether the catalog entry has a real `definition_path`; plugin or built-in virtual entries may only have display paths.        |
+| A user snippet is ignored      | Trigger names must contain only ASCII letters, digits, or `_`.                                                                       |
 
 ## Related Pages
 
