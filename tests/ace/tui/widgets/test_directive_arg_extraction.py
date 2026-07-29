@@ -154,23 +154,40 @@ def test_wait_arg_extraction_keeps_valid_comma_fragments() -> None:
 
 
 def test_directive_arg_extraction_redirects_model_at_suffix_to_effort() -> None:
-    assert extract_directive_arg_token_around_cursor(
-        "%model:opus@",
-        len("%model:opus@"),
-    ) == (
-        len("%model:opus@"),
-        len("%model:opus@"),
+    for line, expected_partial in (
+        ("%model:opus@", ""),
+        ("%model:opus@xh", "xh"),
+    ):
+        assert extract_directive_arg_token_around_cursor(line, len(line)) == (
+            len("%model:opus@"),
+            len(line),
+            "effort",
+            expected_partial,
+        )
+
+
+def test_directive_arg_extraction_keeps_leading_at_model_alias_context() -> None:
+    for line, expected_start, expected_partial in (
+        ("%m:@", len("%m:"), "@"),
+        ("%m:@def", len("%m:"), "@def"),
+        ("%model:@claude_coder", len("%model:"), "@claude_coder"),
+    ):
+        assert extract_directive_arg_token_around_cursor(line, len(line)) == (
+            expected_start,
+            len(line),
+            "model",
+            expected_partial,
+        )
+
+
+def test_directive_arg_extraction_redirects_alias_effort_suffix_to_effort() -> None:
+    line = "%model:@default@hi"
+
+    assert extract_directive_arg_token_around_cursor(line, len(line)) == (
+        len("%model:@default@"),
+        len(line),
         "effort",
-        "",
-    )
-    assert extract_directive_arg_token_around_cursor(
-        "%model:opus@xh",
-        len("%model:opus@xh"),
-    ) == (
-        len("%model:opus@"),
-        len("%model:opus@xh"),
-        "effort",
-        "xh",
+        "hi",
     )
 
 

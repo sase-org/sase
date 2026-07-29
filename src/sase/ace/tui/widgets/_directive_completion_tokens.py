@@ -109,7 +109,9 @@ def extract_directive_arg_token_around_cursor(
     if directive_name == "model":
         prefix = line[arg_start:col]
         at_index = prefix.rfind("@")
-        if at_index >= 0:
+        # A leading `@` marks a model alias. Only a non-leading `@` opens
+        # reasoning-effort completion for a `%model:<model>@<effort>` suffix.
+        if at_index > 0:
             suffix_start = arg_start + at_index + 1
             suffix_end = col
             while suffix_end < len(line) and _is_directive_argument_identifier(

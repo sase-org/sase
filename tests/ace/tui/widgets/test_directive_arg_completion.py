@@ -12,6 +12,7 @@ from sase.ace.tui.widgets.directive_completion import (
 from sase.xprompt._directive_types import AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS
 from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+from sase.xprompt.model_completion import _ModelCompletionEntry
 
 from ._directive_completion_helpers import (
     MODEL_CATALOG_PATCH,
@@ -240,6 +241,27 @@ def test_directive_arg_completion_filters_model_candidates_by_short_alias() -> N
         candidates, shared = build_directive_arg_completion_candidates("model", "fa")
 
     assert [candidate.insertion for candidate in candidates] == ["claude-fable-5"]
+    assert shared == ""
+
+
+def test_directive_arg_completion_filters_leading_at_to_model_aliases() -> None:
+    catalog = [
+        *model_entries(),
+        _ModelCompletionEntry(
+            value="@default",
+            display="@default",
+            description="default model when a prompt has no %model",
+            provider="claude",
+            aliases=(),
+            kind="implicit_alias",
+        ),
+    ]
+
+    with patch(MODEL_CATALOG_PATCH, return_value=catalog):
+        candidates, shared = build_directive_arg_completion_candidates("model", "@")
+
+    assert [candidate.insertion for candidate in candidates] == ["@default"]
+    assert all(candidate.insertion.startswith("@") for candidate in candidates)
     assert shared == ""
 
 
