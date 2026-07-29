@@ -256,7 +256,14 @@ def _configured_pytest_tmpdir() -> Path:
     scratch_root = Path(override).expanduser()
     if not scratch_root.is_absolute():
         scratch_root = REPO_ROOT / scratch_root
-    return scratch_root.resolve()
+    resolved = scratch_root.resolve()
+    broad_roots = {Path("/"), Path("/tmp"), Path("/var/tmp")}
+    if resolved in broad_roots or resolved == REPO_ROOT or resolved in REPO_ROOT.parents:
+        raise pytest.UsageError(
+            f"{PYTEST_TMPDIR_ENV} must name a dedicated scratch directory, "
+            f"not broad target {resolved}"
+        )
+    return resolved
 
 
 def _is_pytest_run_directory(path: Path) -> bool:

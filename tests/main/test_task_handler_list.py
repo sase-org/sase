@@ -20,9 +20,13 @@ __all__ = ["task_home"]
 
 
 def test_list_renders_a_row_and_glyph_for_every_status(
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Each lifecycle state gets its own glyph in the newest-first table."""
+    monkeypatch.setattr(
+        "sase.tasks.runner._supervisor_process_matches", lambda _task: True
+    )
     statuses = ("pending", "running", "success", "error", "killed")
     for index, status in enumerate(statuses):
         active = status in ("pending", "running")
@@ -208,9 +212,13 @@ def test_list_filters_by_repeated_kind_and_detached_shorthand(
 
 
 def test_list_running_filter_matches_pending_and_running(
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """``--running`` covers both active states and nothing terminal."""
+    monkeypatch.setattr(
+        "sase.tasks.runner._supervisor_process_matches", lambda _task: True
+    )
     stored(
         "aaaaaaaaaaaa",
         label="Waiting",

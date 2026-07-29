@@ -21,6 +21,7 @@ from .models import (
     COMMAND_TASK_KIND,
     DETACHED_TASK_KIND,
     TERMINAL_TASK_STATUSES,
+    TUI_TASK_KIND,
     BackgroundTask,
 )
 from .store import append_task, get_task, read_tasks, update_task
@@ -222,12 +223,24 @@ def kill_task(task_id: str) -> BackgroundTask:
         raise TaskControlError(f"no task with id {task_id!r}")
     if task.status in TERMINAL_TASK_STATUSES:
         return task
+    if task.kind == TUI_TASK_KIND:
+        raise TaskControlError(
+            "TUI-owned tasks can only be killed from their owning ACE session"
+        )
+    if task.pid is not None and not _supervisor_process_matches(task):
+        update_task(
+            task_id,
+            status="error",
+            message="supervisor exited without reporting",
+            finished_at=_utc_timestamp(),
+        )
+        raise TaskControlError(
+            f"task {task_id} no longer belongs to its recorded supervisor"
+        )
 
     errors: list[OSError] = []
     if task.pid is not None:
         _signal_target(os.kill, task.pid, errors)
-    if task.pgid is not None:
-        _signal_target(os.killpg, task.pgid, errors)
     if errors:
         error = errors[0]
         if isinstance(error, PermissionError):
@@ -270,6 +283,8 @@ def reconcile_running_tasks() -> list[BackgroundTask]:
 def _is_orphaned(task: BackgroundTask) -> bool:
     """Return whether an active row's owner is gone without a terminal write."""
     if task.pid is not None:
+        if task.kind in _SUPERVISOR_OWNED_KINDS:
+            return not _supervisor_process_matches(task)
         return not is_process_running(task.pid)
     # No supervisor pid yet. A submit stamps one within milliseconds of
     # appending the row, and mirrored in-TUI tasks are owned by their own
@@ -279,6 +294,34 @@ def _is_orphaned(task: BackgroundTask) -> bool:
     if task.kind not in _SUPERVISOR_OWNED_KINDS:
         return False
     return _age_seconds(task.created_at) >= _UNCLAIMED_GRACE_SECONDS
+
+
+def _supervisor_process_matches(task: BackgroundTask) -> bool:
+    """Reject dead or PID-reused supervisors before trusting their PID."""
+    pid = task.pid
+    if pid is None or not is_process_running(pid):
+        return False
+    try:
+        argv = [
+            value.decode("utf-8", errors="replace")
+            for value in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+            if value
+        ]
+    except OSError:
+        # Non-Linux and restricted /proc environments retain the existing
+        # liveness-only behavior.
+        return True
+    try:
+        module_index = argv.index("-m")
+        task_id_index = argv.index("--task-id")
+    except ValueError:
+        return False
+    return (
+        module_index + 1 < len(argv)
+        and argv[module_index + 1] == "sase.tasks.supervisor"
+        and task_id_index + 1 < len(argv)
+        and argv[task_id_index + 1] == task.task_id
+    )
 
 
 def _age_seconds(timestamp: str) -> float:

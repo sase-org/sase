@@ -18,6 +18,7 @@ from sase.sessions import SessionIdentity
 from sase.tasks import (
     DETACHED_TASK_KIND,
     BackgroundTask,
+    TaskControlError,
     TaskSubmitError,
     append_task,
     get_task,
@@ -290,14 +291,14 @@ def test_reconcile_leaves_a_just_submitted_row_alone(
     assert current.status == "pending"
 
 
-def test_reconcile_leaves_mirrored_tui_rows_alone(
+def test_reconcile_leaves_live_mirrored_tui_rows_alone(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
-    """In-TUI tasks record no supervisor pid; their own process owns them."""
+    """In-TUI tasks remain active while their owning process is alive."""
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
     mirrored = _recorded_task(
         "mirrored-tui",
-        pid=None,
+        pid=os.getpid(),
         status="running",
         tmp_path=tmp_path,
         kind="tui",
@@ -309,6 +310,62 @@ def test_reconcile_leaves_mirrored_tui_rows_alone(
     current = get_task(mirrored.task_id)
     assert current is not None
     assert current.status == "running"
+
+
+def test_reconcile_terminalizes_mirrored_tui_rows_after_owner_exit(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    mirrored = _recorded_task(
+        "orphaned-tui",
+        pid=999_999_999,
+        status="running",
+        tmp_path=tmp_path,
+        kind="tui",
+    )
+    append_task(mirrored)
+
+    reconciled = reconcile_running_tasks()
+
+    assert [task.task_id for task in reconciled] == [mirrored.task_id]
+    assert reconciled[0].status == "error"
+
+
+def test_store_kill_rejects_tui_owned_tasks(monkeypatch: Any, tmp_path: Path) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    mirrored = _recorded_task(
+        "mirrored-tui",
+        pid=os.getpid(),
+        status="running",
+        tmp_path=tmp_path,
+        kind="tui",
+    )
+    append_task(mirrored)
+
+    with pytest.raises(TaskControlError, match="owning ACE session"):
+        kill_task(mirrored.task_id)
+
+    assert get_task(mirrored.task_id) == mirrored
+
+
+def test_store_kill_rejects_a_reused_supervisor_pid(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    reused = _recorded_task(
+        "reused-pid01",
+        pid=os.getpid(),
+        status="running",
+        tmp_path=tmp_path,
+    )
+    append_task(reused)
+
+    with pytest.raises(TaskControlError, match="recorded supervisor"):
+        kill_task(reused.task_id)
+
+    current = get_task(reused.task_id)
+    assert current is not None
+    assert current.status == "error"
 
 
 def test_reconcile_owns_stale_pidless_detached_rows(
