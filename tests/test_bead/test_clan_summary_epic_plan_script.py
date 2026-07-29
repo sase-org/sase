@@ -110,7 +110,8 @@ def test_epic_summary_renders_valid_environment_plan_before_bead_store(
 
 def test_plan_summary_renders_recorded_bead_page_after_bead_row() -> None:
     page_url = (
-        "https://github.com/sase-org/sase--beads/blob/main/pages/sase-ao/README.md"
+        "https://github.com/sase-org/sase--beads-with-a-long-repository-name/"
+        "blob/main/pages/sase-ao/README.md"
     )
     summary = PlanDisplay(
         title="Hosted epic",
@@ -144,10 +145,12 @@ def test_plan_summary_renders_recorded_bead_page_after_bead_row() -> None:
     lines = rendered.plain.splitlines()
     bead_index = lines.index("   Bead: sase-ao")
 
-    assert lines[bead_index + 1].startswith("   Page: https://")
-    assert lines[bead_index + 1].endswith("/")
-    assert lines[bead_index + 2] == "         README.md"
-    assert all(cell_len(line) <= 76 for line in lines)
+    assert lines[bead_index + 1 : bead_index + 3] == ["   Page:", page_url]
+    assert lines[bead_index + 2].startswith("https://")
+    assert not lines[bead_index + 2][0].isspace()
+    assert rendered.plain.count(page_url) == 1
+    assert cell_len(page_url) > 76
+    assert all(cell_len(line) <= 76 for line in lines if line != page_url)
 
     console = Console()
     prefix_style = rendered.get_style_at_offset(
@@ -190,8 +193,10 @@ def test_plan_summary_resolves_bare_bead_provenance_live(
 
     captured = capsys.readouterr()
     assert resolved_ids == ["sase-older"]
-    assert "   Bead: sase-older" in Text.from_markup(captured.out).plain
-    assert "   Page: https://" in Text.from_markup(captured.out).plain
+    rendered = Text.from_markup(captured.out)
+    lines = rendered.plain.splitlines()
+    bead_index = lines.index("   Bead: sase-older")
+    assert lines[bead_index + 1 : bead_index + 3] == ["   Page:", page_url]
     assert captured.err == ""
 
 

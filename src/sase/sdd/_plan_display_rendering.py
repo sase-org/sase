@@ -24,7 +24,7 @@ from ._plan_display_models import (
 PLAN_SECTION_LABEL = "PLAN"
 PLAN_SECTION_MAX_WIDTH = 80
 PLAN_FIELD_LABEL_WIDTH = cell_len("  Title: ")
-BEAD_PAGE_ROW_LABEL = "   Page: "
+BEAD_PAGE_ROW_LABEL = "   Page:"
 
 COLOR_PLAN_SUBHEADER = "bold #AF87FF"
 COLOR_PLAN_PRIMARY = "bold #D7AFFF"
@@ -144,21 +144,13 @@ def _provenance_value(section: PlanProvenanceSection) -> Text:
 def bead_page_url_text(url: str) -> Text:
     """Style a hosted bead-page URL like the canonical plan path row."""
     dirname, separator, basename = url.rpartition("/")
-    text = Text()
+    text = Text(overflow="ignore", no_wrap=True)
     if separator:
         text.append(dirname + separator, style=COLOR_PLAN_PATH)
         text.append(basename, style=COLOR_PLAN_PATH_BASENAME)
     else:
         text.append(url, style=COLOR_PLAN_PATH_BASENAME)
     return text
-
-
-def bead_page_wrap_hint(url: str) -> tuple[int, int]:
-    """Return the final URL segment's character offset and terminal width."""
-    dirname, separator, basename = url.rpartition("/")
-    if not separator:
-        return 0, cell_len(url)
-    return len(dirname) + len(separator), cell_len(basename)
 
 
 def plan_phase_metadata(phase: PlanDisplayPhase) -> Text:
@@ -256,30 +248,18 @@ def render_plan_document(
         value = _provenance_value(section)
         intro.extend(_render_field_lines(label, value, width=width))
         if bead_page_url is not None and section.kind is PlanHeaderSectionKind.BEAD:
-            preferred_break_before, preferred_segment_width = bead_page_wrap_hint(
-                bead_page_url
-            )
             intro.extend(
-                _render_field_lines(
-                    BEAD_PAGE_ROW_LABEL,
+                (
+                    Text(BEAD_PAGE_ROW_LABEL, style=COLOR_PLAN_SUMMARY),
                     bead_page_url_text(bead_page_url),
-                    width=width,
-                    preferred_break_before=preferred_break_before,
-                    preferred_segment_width=preferred_segment_width,
                 )
             )
             page_rendered = True
     if bead_page_url is not None and not page_rendered:
-        preferred_break_before, preferred_segment_width = bead_page_wrap_hint(
-            bead_page_url
-        )
         intro.extend(
-            _render_field_lines(
-                BEAD_PAGE_ROW_LABEL,
+            (
+                Text(BEAD_PAGE_ROW_LABEL, style=COLOR_PLAN_SUMMARY),
                 bead_page_url_text(bead_page_url),
-                width=width,
-                preferred_break_before=preferred_break_before,
-                preferred_segment_width=preferred_segment_width,
             )
         )
 
@@ -491,7 +471,6 @@ __all__ = [
     "PLAN_SECTION_LABEL",
     "PLAN_SECTION_MAX_WIDTH",
     "bead_page_url_text",
-    "bead_page_wrap_hint",
     "plan_field_rows",
     "plan_lane_details",
     "plan_lane_header",

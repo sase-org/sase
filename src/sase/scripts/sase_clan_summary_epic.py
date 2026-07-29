@@ -11,7 +11,6 @@ from collections import Counter
 from dataclasses import dataclass
 
 from rich.cells import cell_len
-from rich.console import Console
 from rich.markup import escape
 from rich.text import Text
 
@@ -30,7 +29,6 @@ from sase.sdd.plan_display import (
     COLOR_PLAN_SUMMARY,
     PlanDisplay,
     bead_page_url_text,
-    bead_page_wrap_hint,
     load_plan_display,
     render_plan_document,
 )
@@ -404,52 +402,14 @@ def _bead_page_block_lines(
     leading_blank: bool,
 ) -> tuple[Text, ...]:
     """Render the trailing bead-page reference region."""
-    label = "Page: "
-    value_width = max(_SUMMARY_WIDTH - cell_len(label), 1)
-    wrapped = _wrap_bead_page_url(page_url, width=value_width)
     lines: list[Text] = [Text()] if leading_blank else []
-    for index, value_line in enumerate(wrapped or (Text(),)):
-        line = Text()
-        if index == 0:
-            line.append("Page:", style="bold dim")
-            line.append(" ")
-        else:
-            line.append(" " * cell_len(label))
-        line.append_text(value_line)
-        lines.append(line)
-    return tuple(lines)
-
-
-def _wrap_bead_page_url(page_url: str, *, width: int) -> tuple[Text, ...]:
-    """Fold one styled URL, preferring a break before its final segment."""
-    value = bead_page_url_text(page_url)
-    preferred_break_before, preferred_segment_width = bead_page_wrap_hint(page_url)
-    if (
-        0 < preferred_break_before < len(value)
-        and preferred_segment_width <= width
-        and cell_len(value.plain) > width
-    ):
-        return (
-            *_fold_text(value[:preferred_break_before], width=width),
-            *_fold_text(value[preferred_break_before:], width=width),
+    lines.extend(
+        (
+            Text("Page:", style="bold dim"),
+            bead_page_url_text(page_url),
         )
-    return _fold_text(value, width=width)
-
-
-def _fold_text(value: Text, *, width: int) -> tuple[Text, ...]:
-    copied = value.copy()
-    copied.overflow = "fold"
-    copied.no_wrap = False
-    console = Console(
-        width=max(width, 1),
-        color_system=None,
-        force_terminal=False,
-        force_interactive=False,
-        highlight=False,
-        markup=False,
-        emoji=False,
     )
-    return tuple(copied.wrap(console, max(width, 1), overflow="fold"))
+    return tuple(lines)
 
 
 def _describe_epic_plan_reference(reference: str) -> PlanReferenceDisplay:

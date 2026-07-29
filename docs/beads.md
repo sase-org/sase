@@ -266,7 +266,9 @@ that carries `SASE_BEAD=`. The shared `pages/README.md` roster is owned by `sase
 avoid rewriting a file every active agent could touch. `sase bead show <id>` prints a `PAGE` section when the local
 sidecar remote and branch resolve to a hosted URL; `--format json` includes `page_url` in the same case. An epic agent
 clan's summary panel also shows its epic bead's hosted page URL when one resolves; run `sase plan links refresh` to
-repair a plan whose `BEAD` bullet predates hosted links.
+repair a plan whose `BEAD` bullet predates hosted links. Epic clan summaries keep the literal URL on one uninterrupted
+logical line, with no SASE-authored break or whitespace inside it, so terminal URL matchers and copy/paste can consume
+the complete target even when a narrow viewport visually reflows the line.
 
 ## CLI Commands
 

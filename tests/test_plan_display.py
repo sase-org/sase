@@ -16,7 +16,6 @@ from sase.sdd.plan_display import (
     PLAN_FIELD_LABEL_WIDTH,
     PLAN_PROVENANCE_ENTRY_LIMIT,
     bead_page_url_text,
-    bead_page_wrap_hint,
     load_plan_display,
     plan_logical_text,
     render_plan_document,
@@ -250,21 +249,21 @@ def test_render_plan_document_places_page_after_bead_row(tmp_path: Path) -> None
 
     lines = render_plan_document(
         loaded,
-        width=76,
+        width=48,
         bead_page_url=page_url,
     ).lines
     bead_index = next(
         index for index, line in enumerate(lines) if line.plain.startswith("   Bead: ")
     )
+    page_value = lines[bead_index + 2]
 
-    assert lines[bead_index + 1].plain.startswith(BEAD_PAGE_ROW_LABEL)
-    page_lines = lines[bead_index + 1 : bead_index + 3]
-    assert "".join(line.plain[PLAN_FIELD_LABEL_WIDTH:] for line in page_lines) == (
-        page_url
-    )
-    assert page_lines[0].plain.endswith("/")
-    assert page_lines[1].plain.strip() == "sase-ai.8.md"
-    assert all(cell_len(line.plain) <= 76 for line in lines)
+    assert lines[bead_index + 1].plain == BEAD_PAGE_ROW_LABEL
+    assert page_value.plain == page_url
+    assert page_value.plain.startswith("https://")
+    assert not page_value.plain[0].isspace()
+    assert sum(line.plain == page_url for line in lines) == 1
+    assert cell_len(page_value.plain) > 48
+    assert all(cell_len(line.plain) <= 48 for line in lines if line is not page_value)
 
 
 def test_render_plan_document_places_page_after_final_non_bead_provenance(
@@ -280,18 +279,20 @@ def test_render_plan_document_places_page_after_final_non_bead_provenance(
         encoding="utf-8",
     )
     loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
+    page_url = "https://example.invalid/pages/sase-ai/README.md"
 
     lines = render_plan_document(
         loaded,
         width=76,
-        bead_page_url="https://example.invalid/pages/sase-ai/README.md",
+        bead_page_url=page_url,
     ).lines
 
-    assert lines[-1].plain.startswith(BEAD_PAGE_ROW_LABEL)
-    assert lines[-2].plain.startswith(" Agents: ")
+    assert lines[-3].plain.startswith(" Agents: ")
+    assert lines[-2].plain == BEAD_PAGE_ROW_LABEL
+    assert lines[-1].plain == page_url
 
 
-def test_bead_page_url_helpers_handle_url_shapes_and_cell_widths() -> None:
+def test_bead_page_url_text_handles_url_shapes_and_preserves_overflow() -> None:
     trailing = "https://example.invalid/pages/sase-ai/"
     bare = "README.md"
     multibyte = "https://example.invalid/pages/sase-ai/界.md"
@@ -307,19 +308,16 @@ def test_bead_page_url_helpers_handle_url_shapes_and_cell_widths() -> None:
         trailing_text.spans[0].end,
         str(trailing_text.spans[0].style),
     ) == (0, len(trailing), COLOR_PLAN_PATH)
-    assert bead_page_wrap_hint(trailing) == (len(trailing), 0)
 
     assert bare_text.plain == bare
     assert str(bare_text.spans[0].style) == COLOR_PLAN_PATH_BASENAME
-    assert bead_page_wrap_hint(bare) == (0, cell_len(bare))
 
-    prefix, basename = multibyte.rsplit("/", 1)
     assert multibyte_text.plain == multibyte
     assert [str(span.style) for span in multibyte_text.spans] == [
         COLOR_PLAN_PATH,
         COLOR_PLAN_PATH_BASENAME,
     ]
-    assert bead_page_wrap_hint(multibyte) == (
-        len(prefix) + 1,
-        cell_len(basename),
+    assert all(
+        text.overflow == "ignore" and text.no_wrap is True
+        for text in (trailing_text, bare_text, multibyte_text)
     )

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from rich.cells import cell_len
+from rich.console import Console
 from rich.text import Text
 
 from sase.bead.config import load_config
@@ -17,6 +18,7 @@ from sase.scripts.sase_clan_summary_epic import (
     _render_epic_summary,
     main,
 )
+from sase.sdd.plan_display import bead_page_url_text
 
 
 def test_markdown_helper_renders_semantic_styles_and_safe_markup() -> None:
@@ -210,15 +212,15 @@ def test_epic_summary_places_bead_page_after_plan_reference() -> None:
     plan_index = next(
         index for index, line in enumerate(lines) if line.startswith("Plan: ")
     )
-    page_index = next(
-        index for index, line in enumerate(lines) if line.startswith("Page: ")
-    )
+    page_index = lines.index("Page:")
 
     assert page_index > plan_index
     assert lines[page_index - 1]
-    assert lines[page_index].endswith("/")
-    assert lines[page_index + 1] == "      README.md"
-    assert all(cell_len(line) <= 76 for line in lines)
+    assert lines[page_index + 1] == page_url
+    assert lines[page_index + 1].startswith("https://")
+    assert not lines[page_index + 1][0].isspace()
+    assert rendered.plain.count(page_url) == 1
+    assert all(cell_len(line) <= 76 for line in lines if line != page_url)
 
 
 def test_epic_summary_separates_page_region_without_plan_reference() -> None:
@@ -234,15 +236,45 @@ def test_epic_summary_separates_page_region_without_plan_reference() -> None:
 
     rendered = Text.from_markup(_render_epic_summary(epic, (), page_url=page_url))
     lines = rendered.plain.splitlines()
-    page_index = next(
-        index for index, line in enumerate(lines) if line.startswith("Page: ")
-    )
+    page_index = lines.index("Page:")
 
     assert lines[page_index - 1] == ""
-    assert lines[page_index].endswith("/")
-    assert lines[page_index + 1] == "      README.md"
+    assert lines[page_index + 1] == page_url
+    assert lines[page_index + 1].startswith("https://")
+    assert not lines[page_index + 1][0].isspace()
+    assert rendered.plain.count(page_url) == 1
     assert "Plan:" not in rendered.plain
-    assert all(cell_len(line) <= 76 for line in lines)
+    assert all(cell_len(line) <= 76 for line in lines if line != page_url)
+
+
+def test_bead_page_url_reflows_without_inserting_whitespace() -> None:
+    page_url = (
+        "https://github.com/sase-org/sase--beads/blob/main/pages/sase-page/README.md"
+    )
+    width = 24
+    console = Console(
+        width=width,
+        color_system=None,
+        force_terminal=False,
+        force_interactive=False,
+        highlight=False,
+        markup=False,
+        emoji=False,
+    )
+
+    fragments = [
+        line.plain
+        for line in bead_page_url_text(page_url).wrap(
+            console,
+            width,
+            overflow="fold",
+            no_wrap=False,
+        )
+    ]
+
+    assert len(fragments) > 1
+    assert all(fragment and not fragment[0].isspace() for fragment in fragments)
+    assert "".join(fragments) == page_url
 
 
 def test_epic_summary_many_phases_stays_parseable_and_below_internal_budget() -> None:
