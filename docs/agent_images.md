@@ -276,6 +276,125 @@ Sources:
 - `src/sase/artifact_cli/reclaim.py`
 - `src/sase/axe/run_agent_exec_finalize.py`
 
+## Store Lifecycle
+
+The artifact-file store is measured, drained, and bounded through one deliberately staged progression: **report → dry
+run → opt-in retention**. Nothing in it removes anything by surprise, and nothing it removes is gone immediately.
+
+| Stage              | Command                                    | Writes                                                       |
+| ------------------ | ------------------------------------------ | ------------------------------------------------------------ |
+| Report             | `sase artifact stats`                      | Never                                                        |
+| Reclaim (lossless) | `sase artifact reclaim`                    | Only with `-a/--apply`                                       |
+| Prune (lossy)      | `sase artifact prune`                      | Only with `-a/--apply`                                       |
+| Undo / finalize    | `sase artifact trash {list,restore,purge}` | `restore` and `purge` write; `purge` is the only hard delete |
+| Ongoing            | `artifacts.retention`                      | Only when explicitly enabled                                 |
+
+### The protection contract
+
+These rules hold on every surface above — manual and automatic, dry run and apply:
+
+- **Declaration is permanent.** A row created by `sase artifact create` (`explicit=true`) is never removed, converted,
+  or rewritten by any lifecycle command.
+- **Referenced artifacts are protected.** An artifact ID appearing in a ProjectSpec, plan, bead, bead page, or research
+  document is excluded, in both its bare `default:`/`explicit:` and `file:`-prefixed forms.
+- **Consumed artifacts are protected.** Any canonical, fragment-free `file:` ID in
+  [the consumption ledger](#consumption-ledger) is excluded.
+- **The newest generation always survives.** Whatever the predicates say, the newest capture of every `(project, label)`
+  pair is never selected. A label's history can shrink to one; it cannot vanish.
+- **Unreadable protection sources block removal, never permit it.** If a required source cannot be read, `--apply`
+  refuses with the source named and the automatic pass skips entirely. The dry run still renders and reports the gap.
+- **Nothing hard-deletes except `trash purge`.** Every other removal is restorable.
+
+### Report first: `sase artifact stats`
+
+`stats` is read-only. It panels totals split explicit / automatic / VCS-backed, the observed window and growth rate,
+per-kind and per-project and top-agent groups (with the truncated remainder shown rather than hidden), duplicate-digest
+redundancy, per-label generation projections, an upper bound on reclaimable rows, protection counts (referenced,
+consumed, overlap, total, plus any unavailable source as a warning), trash occupancy, and — last — exactly what the
+configured default policy would select. `-j/--json` emits the same content as one envelope.
+
+Read the reclaimable figure as an _upper bound_, not a result: it counts automatic byte-backed rows whose `source_path`
+lives inside their `workspace_dir`. Reproducibility is only ever established by the digest verification `reclaim` does.
+
+### Reclaim before pruning
+
+`sase artifact reclaim` is lossless, so run it first: it keeps every row, label, and provenance field and deletes only a
+copy of content version control already stores. For each eligible automatic row it resolves the owning repo and relative
+path from `workspace_dir` + `source_path` (mapping a `sase/repos/...` prefix to the matching sidecar, linked, or
+external repo), walks that path's durable remote-tracking history within `-d/--max-history-scan` commits (default 100),
+and converts the row only when a blob's SHA-256 equals the row's recorded digest. Because the dry run compares digests
+rather than materializing content, it touches nothing at all — not even `vcs-cache/`.
+
+**Reclaim changes a row's ID.** A reference row's ID derives from its VCS identity rather than its stored path, so the
+converted row gets a new ID; the old row is removed and the new one written. Both IDs appear in the plan's OLD REF / NEW
+REF columns and in each `Reclaimed file:<old> -> file:<new>` apply line, so anyone holding the old ID can follow it.
+Preserving the old ID is not an option — it would collide with the ID a re-capture of the same content computes, and
+idempotent capture depends on that. This is also why reclaim honors the reference and consumption protections: changing
+an ID that something already names would break the reference.
+
+Rows reclaim cannot verify are never touched. They are reported in the **Rows Left Untouched** panel, grouped by a
+stable reason:
+
+| Reason                                                     | What to do                                                                                                                                           |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `explicit`, `referenced`                                   | Working as intended; the row is protected.                                                                                                           |
+| `already_vcs_backed`                                       | Nothing to do; the row is already byte-free.                                                                                                         |
+| `missing_sha256`, `missing_size`                           | Run `sase artifact doctor -f` to backfill enrichment fields, then retry.                                                                             |
+| `missing_workspace_dir`, `missing_source_path`             | The row predates provenance capture; only pruning can address it.                                                                                    |
+| `source_outside_workspace`                                 | The file was never inside a repo checkout, so no relpath is derivable.                                                                               |
+| `unknown_project`, `unknown_repo`, `inventory_unavailable` | Check `sase repo list`; the repo the row names is not in the inventory.                                                                              |
+| `missing_checkout`                                         | No live clone of that repo exists right now. Open one and retry.                                                                                     |
+| `vcs_probe_failed`                                         | A git call failed or timed out; the row is left alone by design.                                                                                     |
+| `digest_not_found`                                         | The exact content is not in durable history within the scan bound. Raise `-d`, or accept that the bytes are genuinely unique and let pruning decide. |
+
+### Prune what remains
+
+`sase artifact prune` is the lossy step, and the only one that removes information. It plans from the same protection
+set with `-g/--keep-generations` (defaulting to `artifacts.retention.keep_per_label`), `-b/--before`, `-k/--kind`,
+`-m/--min-size`, `-p/--project`, and `-l/--limit`, renders the identical table in both modes, and changes nothing
+without `-a/--apply`. Selecting a byte-free row is legitimate and reclaims no bytes — it removes index noise — so the
+plan counts byte-backed and byte-free selections separately and only ever sums byte-backed rows into reclaimable bytes.
+
+### The trash
+
+Every removal — from `prune`, from `reclaim`, and from automatic retention — moves the stored bytes _and_ the complete
+index row into `~/.sase/artifacts/trash/`. One entry is one directory containing `entry.json` (schema version, entry ID,
+artifact ID, `trashed_at`, `reason`, `size_bytes`, stored filename, and the verbatim original index row) plus the moved
+payload file when the row had bytes. Bytes are moved before the index row is dropped, so an interrupted batch leaves a
+restorable entry rather than an orphaned row.
+
+```bash
+sase artifact trash                       # newest-first listing, grace-period flag per entry
+sase artifact trash restore <entry-or-ref>  # payload back in place, index row re-inserted
+sase artifact trash purge                 # permanent, and only past the grace period
+sase artifact trash purge -a              # permanent, ignoring the grace period
+```
+
+`artifacts.retention.trash_grace_days` (default 14) is the cutoff `purge` honors and the one `trash list` marks entries
+against. Until a purge runs, trashed bytes still occupy disk: a full reclaim pass moves its recovered bytes into the
+trash, so `du` does not drop at apply time. `reclaim --apply` says this outright in its summary.
+
+### Ongoing enforcement
+
+`artifacts.retention` is disabled by default and removes nothing until enabled. Once enabled, one bounded pass runs
+after automatic capture at each agent finalization: it plans with the configured policy plus the protection scan,
+trashes what it selects, and purges trash entries past the grace period, printing one `[artifacts] retention:` line with
+rows trashed, bytes reclaimed, and entries purged. The pass is wrapped defensively and never fails a run; when a
+protection source is unavailable it prints `[artifacts] retention skipped:` and touches nothing. See
+[configuration](configuration.md#artifacts) for the fields.
+
+Sources:
+
+- `src/sase/artifact_cli/stats.py`
+- `src/sase/artifact_cli/prune.py`
+- `src/sase/artifact_cli/reclaim.py`
+- `src/sase/artifact_cli/trash.py`
+- `src/sase/core/artifact_file_retention.py`
+- `src/sase/core/artifact_file_reclaim.py`
+- `src/sase/core/artifact_file_trash.py`
+- `src/sase/core/artifact_file_protection.py`
+- `src/sase/axe/run_agent_exec_finalize.py`
+
 ## Markdown PDF Attachment Contract
 
 Markdown discovery runs on successful agent finalization with the same candidate ordering as image discovery. Supported

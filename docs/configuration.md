@@ -872,10 +872,12 @@ Source: `src/sase/agent/prompt_placeholder_inputs.py`, `src/sase/ace/tui/actions
 
 ### artifacts
 
-Bounds on automatic artifact capture at agent finalization. Capture keeps bytes only for files a run authored that
-version control cannot reproduce; content already reachable from a durable commit becomes a byte-free reference row. See
+Bounds on automatic artifact capture at agent finalization, and the opt-in retention policy that bounds the store
+afterwards. Capture keeps bytes only for files a run authored that version control cannot reproduce; content already
+reachable from a durable commit becomes a byte-free reference row. See
 [VCS-Backed Artifact Files](agent_images.md#vcs-backed-artifact-files) for the decision matrix and the `vcs-cache`
-directory.
+directory, and [Store Lifecycle](agent_images.md#store-lifecycle) for the report → dry run → opt-in retention
+progression that `artifacts.retention` completes.
 
 ```yaml
 artifacts:
@@ -895,7 +897,41 @@ finalization reports `cap_fired=true` on its `[artifacts] default capture:` summ
 widens the bounded search that recovers content whose recorded commit was squash-rewritten, at the cost of a longer walk
 per file.
 
-Source: `src/sase/config/core.py`, `src/sase/core/artifact_capture_policy.py`
+`artifacts.retention` is the opt-in policy that runs once after each agent finalization, immediately after automatic
+capture. It ships disabled with generous values pre-filled, so enabling it later is a flag flip rather than a policy
+design exercise.
+
+```yaml
+artifacts:
+  retention:
+    enabled: false
+    keep_per_label: 3
+    max_age_days: 90
+    trash_grace_days: 14
+```
+
+| Field                                  | Type | Default | Minimum | Description                                                                                                |
+| -------------------------------------- | ---- | ------- | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `artifacts.retention.enabled`          | bool | `false` | -       | Run the retention pass after agent finalization. While `false`, retention removes nothing at all.          |
+| `artifacts.retention.keep_per_label`   | int  | `3`     | `0`     | Newest automatic captures kept per label; older generations are trashed first. `0` disables the predicate. |
+| `artifacts.retention.max_age_days`     | int  | `90`    | `0`     | Trash automatic captures created more than this many days ago. `0` disables the predicate.                 |
+| `artifacts.retention.trash_grace_days` | int  | `14`    | `0`     | Days a trashed artifact stays restorable before a purge removes it.                                        |
+
+These fields are read fail-open the same way the capture fields are. The pass is bounded and defensive: it never fails a
+run, and it removes nothing that retention's protection contract keeps — explicit artifacts, artifacts referenced by a
+ProjectSpec, plan, bead, or research document, artifacts recorded in the consumption ledger, and the newest capture of
+every label. If any required protection source cannot be read, the whole pass is skipped rather than under-protecting,
+and finalization prints `[artifacts] retention skipped: protection sources unavailable: <sources>`. Otherwise it prints
+one `[artifacts] retention:` line with rows trashed, bytes reclaimed, and trash entries purged.
+
+The same values drive the manual surfaces, so a dry run previews exactly what enabling retention would do:
+`keep_per_label` is what `sase artifact prune` plans with when `-g` is omitted, both predicates define the
+default-policy selection `sase artifact stats` reports last, and `trash_grace_days` is the cutoff
+`sase artifact trash purge` honors without `-a/--all` and the one `trash list` marks entries against. Setting both
+predicates to `0` leaves a policy that selects nothing.
+
+Source: `src/sase/config/core.py`, `src/sase/core/artifact_capture_policy.py`,
+`src/sase/core/artifact_file_retention.py`, `src/sase/axe/run_agent_exec_finalize.py`
 
 ### llm_provider
 
@@ -3294,18 +3330,20 @@ it with `A`, even after the agent has been dismissed and revived. `-k/--kind` ac
 source after it is stored. On success the command prints the artifact's `id:`, absolute `source:`, stored `path:`, and
 durable `ref:` (`file:<id>`). Only `create` is agent-gated; every other artifact subcommand works outside an agent run.
 
-| Form                    | Flags                                                                                                                            | Description                                                                                       |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `sase artifact create`  | `-k/--kind`, `-l/--label`, `-m/--move`, `-p/--path`                                                                              | Store one explicit artifact for the current agent                                                 |
-| `sase artifact doctor`  | `-f/--fix`, `-v/--verify`                                                                                                        | Report index health (including VCS reference counts), backfill enrichment fields, verify hashes   |
-| `sase artifact list`    | `-a/--agent`, `-e/--explicit`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-p/--project`, `-q/--query`, `-s/--since`, `-u/--unused` | List indexed artifacts newest-first                                                               |
-| `sase artifact open`    | (positional `reference`)                                                                                                         | Open a resolved reference with a kind-appropriate viewer                                          |
-| `sase artifact path`    | (positional `reference`)                                                                                                         | Print the one absolute path a reference resolves to                                               |
-| `sase artifact prune`   | `-a/--apply`, `-b/--before`, `-g/--keep-generations`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-m/--min-size`, `-p/--project`    | Plan retention, then move selected automatic rows to restorable trash only with `--apply`         |
-| `sase artifact reclaim` | `-a/--apply`, `-d/--max-history-scan`, `-j/--json`, `-l/--limit`, `-p/--project`                                                 | Convert eligible stored automatic rows to verified VCS-backed rows only with `--apply`            |
-| `sase artifact show`    | `-j/--json`, (positional `reference`)                                                                                            | Show metadata, resolution, and consumption                                                        |
-| `sase artifact stats`   | `-j/--json`, `-p/--project`, `-t/--top`                                                                                          | Report store economics, protection-source evidence, trash occupancy, and default-policy selection |
-| `sase artifact trash`   | `list`, `purge`, `restore`                                                                                                       | Inspect, permanently purge, or restore artifact trash                                             |
+| Form                                 | Flags                                                                                                                            | Description                                                                                       |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `sase artifact create`               | `-b/--bead`, `-k/--kind`, `-l/--label`, `-m/--move`, `-p/--path`                                                                 | Store one explicit artifact for the current agent                                                 |
+| `sase artifact doctor`               | `-f/--fix`, `-v/--verify`                                                                                                        | Report index health (including VCS reference counts), backfill enrichment fields, verify hashes   |
+| `sase artifact list`                 | `-a/--agent`, `-e/--explicit`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-p/--project`, `-q/--query`, `-s/--since`, `-u/--unused` | List indexed artifacts newest-first                                                               |
+| `sase artifact open`                 | (positional `reference`)                                                                                                         | Open a resolved reference with a kind-appropriate viewer                                          |
+| `sase artifact path`                 | (positional `reference`)                                                                                                         | Print the one absolute path a reference resolves to                                               |
+| `sase artifact prune`                | `-a/--apply`, `-b/--before`, `-g/--keep-generations`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-m/--min-size`, `-p/--project`    | Plan retention, then move selected automatic rows to restorable trash only with `--apply`         |
+| `sase artifact reclaim`              | `-a/--apply`, `-d/--max-history-scan`, `-j/--json`, `-l/--limit`, `-p/--project`                                                 | Convert eligible stored automatic rows to verified VCS-backed rows only with `--apply`            |
+| `sase artifact show`                 | `-j/--json`, (positional `reference`)                                                                                            | Show metadata, resolution, and consumption                                                        |
+| `sase artifact stats`                | `-j/--json`, `-p/--project`, `-t/--top`                                                                                          | Report store economics, protection-source evidence, trash occupancy, and default-policy selection |
+| `sase artifact trash` / `trash list` | `-j/--json`, `-l/--limit`                                                                                                        | List trash entries newest-first, flagging entries past the grace period                           |
+| `sase artifact trash purge`          | `-a/--all`, `-j/--json`                                                                                                          | Permanently delete entries past the grace period, or every entry with `-a`                        |
+| `sase artifact trash restore`        | `-j/--json`, (positional `reference`)                                                                                            | Restore one entry's payload and complete index row by entry id or artifact ref                    |
 
 `list` filters: `-k/--kind` is repeatable and accepts the artifact kinds above; `-l/--limit` defaults to `50` and `0`
 means unlimited; `-p/--project` accepts a display name, alias, or canonical key and exits 2 for an unknown project;
@@ -3340,6 +3378,14 @@ counts distinct. Prune and reclaim are dry runs unless `--apply` is passed and n
 automatic retention enforces the same union after agent finalization when `artifacts.retention.enabled` is true. A
 missing consumption ledger contributes no IDs; a present ledger that cannot be queried appears in protection-source
 evidence and blocks destructive apply or skips automatic enforcement.
+
+Every removal `prune`, `reclaim`, and automatic retention perform routes through the restorable trash under
+`~/.sase/artifacts/trash/`: one directory per entry holding `entry.json` (the complete original index row plus
+`trashed_at`, `reason`, and `size_bytes`) and, for a byte-backed row, the moved payload file. Nothing else hard-deletes.
+`trash restore` puts the payload back and re-inserts the index row; only `trash purge` deletes permanently, and without
+`-a/--all` it deletes only entries older than `artifacts.retention.trash_grace_days`. Because trashed bytes still occupy
+disk, `du` does not drop until a purge runs; both apply summaries print the trash root, and `reclaim --apply` says so
+outright. See [Store Lifecycle](agent_images.md#store-lifecycle) for the end-to-end workflow.
 
 ### `sase questions`
 

@@ -12,7 +12,9 @@ need to find, inspect, resolve, or open an already indexed artifact.
 
 The canonical command group is `sase artifact`. `sase artifact-file` remains a compatibility alias, and bare
 `sase artifact` defaults to `sase artifact list`. Only `create` requires an agent run (`SASE_AGENT=1` and
-`SASE_ARTIFACTS_DIR`); the read subcommands (`doctor`, `list`, `open`, `path`, `show`) work anywhere.
+`SASE_ARTIFACTS_DIR`); the read subcommands (`doctor`, `list`, `open`, `path`, `show`, `stats`) work anywhere. The
+lifecycle subcommands (`prune`, `reclaim`, `trash`) are operator tools — see
+[Retention](#retention-what-survives-and-what-does-not) before touching them.
 
 ## Create an Artifact
 
@@ -97,6 +99,32 @@ collector protects its ID from `sase artifact prune`, `sase artifact reclaim`, a
 no ProjectSpec, plan, bead, or research document persistently names it. A missing ledger is harmless; if the ledger
 exists but cannot be queried, destructive apply is refused and automatic enforcement is skipped rather than risking the
 artifact.
+
+## Retention: What Survives and What Does Not
+
+The store has a lifecycle, so not every row lives forever. Two rules decide what you can rely on:
+
+- **Anything you declared with `sase artifact create` is permanent.** Explicit artifacts are never removed, converted,
+  or rewritten by `sase artifact prune`, `sase artifact reclaim`, or automatic retention. If a file matters — a report,
+  a diagram, a deliverable someone will open later — declare it rather than trusting that automatic capture caught it.
+- **Automatic captures are subject to retention.** Rows SASE captured for you at finalization can be trashed once they
+  are no longer the newest capture of their label, or once they age past the configured limit. Retention ships disabled,
+  but `sase artifact prune` can be run manually at any time, so do not treat an automatic row as durable.
+
+A `file:` ref becomes protected the moment it is durably recorded: an ID that appears in a ProjectSpec, plan, bead, bead
+page, or research document is excluded from every removal, as is any ref an agent consumed through an `@file:` prompt
+reference. So when you hand a `file:` ref to the user or write it into a bead, plan, or ChangeSpec, you have also pinned
+it. Handing a ref out only in your chat reply does not pin it.
+
+`sase artifact reclaim` may convert a stored automatic row into a byte-free VCS-backed row, and that **changes the row's
+ID** because a reference row's ID derives from its VCS identity. Never assume an ID you saw earlier is still resolvable;
+re-run `sase artifact list` or `sase artifact show` instead of caching IDs across runs. Explicit and protected rows are
+exempt from this exact hazard — reclaim skips them precisely so existing references keep resolving.
+
+Removals are restorable: they move the bytes and the complete index row into `~/.sase/artifacts/trash/`, and
+`sase artifact trash restore <entry-or-ref>` puts one back. Only `sase artifact trash purge` deletes permanently. Both
+`prune` and `reclaim` are dry runs unless `-a/--apply` is passed, so it is safe to run them without flags to see what a
+policy would do. Do not run either with `--apply`, or run `trash purge`, unless the user asked for it.
 
 ## Resolve a Reference You Were Handed
 

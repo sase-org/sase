@@ -224,7 +224,10 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         type=plan_date_arg,
         default=None,
         metavar="DATE",
-        help="Require selected rows to be older than DATE",
+        help=(
+            "Require selected rows to be older than DATE "
+            "(YYYY-MM-DD, YYYY-MM, YYYYMM, or relative 14d / 3w / 2m)"
+        ),
     )
     prune_parser.add_argument(
         "-g",
@@ -404,6 +407,12 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
     trash_purge_parser = trash_subparsers.add_parser(
         "purge",
         help="Permanently delete trash entries past the grace period",
+        description=(
+            "Permanently delete trash entries. This is the only irreversible "
+            "artifact operation: purged entries cannot be restored. Without "
+            "--all, only entries older than "
+            "artifacts.retention.trash_grace_days are deleted."
+        ),
     )
     trash_purge_parser.add_argument(
         "-a",
