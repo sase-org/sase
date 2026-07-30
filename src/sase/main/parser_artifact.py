@@ -9,6 +9,13 @@ from sase.main.parser_bead import nonnegative_int
 from sase.main.plan_search_handler import plan_date_arg
 
 
+def _positive_int(value: str) -> int:
+    parsed = nonnegative_int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("value must be at least 1")
+    return parsed
+
+
 def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register canonical ``artifact`` and compatibility ``artifact-file``."""
 
@@ -26,6 +33,7 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase artifact\n"
             "  sase artifact list --kind image --project sase\n"
             "  sase artifact prune --keep-generations 3\n"
+            "  sase artifact reclaim\n"
             "  sase artifact show file:explicit:0123456789abcdef01234567\n"
             "  sase artifact trash\n"
             "  sase artifact path plans:202607/example.md\n"
@@ -264,6 +272,51 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         "--project",
         default=None,
         help="Only prune a project by display name, alias, or canonical key",
+    )
+
+    reclaim_parser = artifact_subparsers.add_parser(
+        "reclaim",
+        help="Replace stored automatic rows with verified VCS references",
+        description=(
+            "Find automatic artifact rows whose exact bytes are reproducible "
+            "from durable remote-tracking history. This command is a dry run "
+            "unless --apply is passed. Applied bytes move to restorable trash "
+            "and consume disk space until that trash is purged."
+        ),
+    )
+    reclaim_parser.add_argument(
+        "-a",
+        "--apply",
+        action="store_true",
+        help="Write VCS-backed rows and move redundant stored bytes to trash",
+    )
+    reclaim_parser.add_argument(
+        "-d",
+        "--max-history-scan",
+        type=_positive_int,
+        default=100,
+        metavar="N",
+        help="Maximum durable commits to inspect per path (default: 100)",
+    )
+    reclaim_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one machine-readable plan and execution envelope",
+    )
+    reclaim_parser.add_argument(
+        "-l",
+        "--limit",
+        type=nonnegative_int,
+        default=None,
+        metavar="N",
+        help="Maximum verified rows to convert (0 means unlimited)",
+    )
+    reclaim_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Only reclaim a project by display name, alias, or canonical key",
     )
 
     show_parser = artifact_subparsers.add_parser(

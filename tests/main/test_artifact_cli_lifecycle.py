@@ -7,14 +7,17 @@ from pathlib import Path
 import pytest
 
 from sase.artifact_cli.prune import handle_prune
+from sase.artifact_cli.reclaim import handle_reclaim
 from sase.artifact_cli.trash import handle_trash
 from sase.core.artifact_file_explicit import (
     read_artifact_file_index,
     write_artifact_file_index_unlocked,
 )
+from sase.core.artifact_file_helpers import artifact_file_id
 from sase.core.artifact_file_protection import ProtectedArtifactIds
+from sase.core.artifact_file_reclaim import ReclaimPlan, _ReclaimItem
 from sase.core.artifact_file_trash import list_trashed_artifact_files
-from sase.core.artifact_file_types import ArtifactFile
+from sase.core.artifact_file_types import ArtifactFile, ArtifactFileAssociation
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
 
@@ -27,6 +30,18 @@ def _prune_args(**overrides: object) -> argparse.Namespace:
         "kind": None,
         "limit": None,
         "min_size": None,
+        "project": None,
+    }
+    values.update(overrides)
+    return argparse.Namespace(**values)
+
+
+def _reclaim_args(**overrides: object) -> argparse.Namespace:
+    values: dict[str, object] = {
+        "apply": False,
+        "max_history_scan": 100,
+        "json": False,
+        "limit": None,
         "project": None,
     }
     values.update(overrides)
@@ -189,6 +204,127 @@ def test_prune_json_contains_plan_and_apply_execution(
     assert payload["mode"] == "apply"
     assert payload["plan"]["counts"]["selected"] == 1
     assert payload["execution"]["rows_trashed"] == 1
+
+
+def test_reclaim_dry_run_writes_nothing_and_apply_reports_old_and_new_ids(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    source = workspace / "report.txt"
+    source.write_text("durable", encoding="utf-8")
+    stored = root / "stored.txt"
+    stored.write_text("durable", encoding="utf-8")
+    row = ArtifactFile(
+        id="default:444444444444444444444444",
+        label="report",
+        kind="file",
+        path=str(stored),
+        source_path=str(source),
+        workspace_dir=str(workspace),
+        created_at="2026-07-01T00:00:00Z",
+        agent_artifacts_dir=str(tmp_path / "agents" / "run"),
+        project="proj",
+        explicit=False,
+        sha256="a" * 64,
+        size_bytes=7,
+        mime_type="text/plain",
+    )
+    index = root / "index.jsonl"
+    write_artifact_file_index_unlocked(index, [row])
+    new_id = artifact_file_id(
+        "default",
+        ArtifactFileAssociation(
+            agent_artifacts_dir=row.agent_artifacts_dir or "",
+            project=row.project,
+        ),
+        None,
+        row.label,
+        vcs_repo="proj",
+        vcs_relpath="report.txt",
+        sha256=row.sha256,
+    )
+    plan = ReclaimPlan(
+        verified=(
+            _ReclaimItem(
+                old_id=row.id,
+                new_id=new_id,
+                label=row.label,
+                kind=row.kind,
+                project=row.project,
+                size_bytes=7,
+                vcs_repo="proj",
+                vcs_sha="b" * 40,
+                vcs_relpath="report.txt",
+                checkout_path=str(workspace),
+                row=row,
+            ),
+        ),
+        unresolved=(),
+        reclaimable_bytes=7,
+        truncated=0,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.reclaim.collect_protected_artifact_ids",
+        lambda: ProtectedArtifactIds(frozenset(), ("projects",), ()),
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.reclaim.plan_artifact_file_reclaim",
+        lambda **_kwargs: plan,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.reclaim.load_project_ref_display_snapshot",
+        ProjectRefDisplaySnapshot,
+    )
+    before = index.read_bytes()
+
+    assert handle_reclaim(_reclaim_args(json=True)) == 0
+    dry_run = json.loads(capsys.readouterr().out)
+    assert dry_run["mode"] == "dry_run"
+    assert dry_run["execution"] is None
+    assert index.read_bytes() == before
+    assert stored.exists()
+
+    assert handle_reclaim(_reclaim_args(apply=True, json=True)) == 0
+    applied = json.loads(capsys.readouterr().out)
+    assert applied["execution"]["rows_reclaimed"] == 1
+    [mapping] = applied["execution"]["reclaimed"]
+    assert mapping["old_id"] == row.id
+    assert mapping["new_id"] != row.id
+    [replacement] = read_artifact_file_index(index)
+    assert replacement.id == mapping["new_id"]
+    assert replacement.path is None
+    assert not stored.exists()
+
+
+def test_reclaim_unavailable_protection_source_blocks_apply(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        "sase.artifact_cli.reclaim.collect_protected_artifact_ids",
+        lambda: ProtectedArtifactIds(
+            frozenset(),
+            ("projects",),
+            ("proj:plans",),
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.reclaim.plan_artifact_file_reclaim",
+        lambda **_kwargs: ReclaimPlan((), (), 0, 0),
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.reclaim.load_project_ref_display_snapshot",
+        ProjectRefDisplaySnapshot,
+    )
+
+    assert handle_reclaim(_reclaim_args(apply=True, json=True)) == 1
+    assert json.loads(capsys.readouterr().out)["blocked"] is True
 
 
 def test_trash_cli_lists_and_restores_by_artifact_reference(

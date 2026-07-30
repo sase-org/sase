@@ -111,15 +111,22 @@ def store_default_artifact_file(
     sha256: str | None = None,
     size_bytes: int | None = None,
     mime_type: str | None = None,
+    artifact_association: ArtifactFileAssociation | None = None,
 ) -> ArtifactFile | None:
     """Persist an auto-discovered (default) artifact file to the global store.
 
-    Mirrors :func:`store_explicit_artifact_file` but writes ``explicit=False``
-    and silently skips when ``source_path`` is missing.
+    Mirrors :func:`store_explicit_artifact_file` but writes ``explicit=False``.
+    Byte-backed storage silently skips a missing ``source_path``; reference mode
+    accepts one because durable VCS bytes may outlive the original workspace.
     """
 
     source = Path(source_path).expanduser()
-    if not source.is_file():
+    reference_mode = all((vcs_repo, vcs_sha, vcs_relpath))
+    if any((vcs_repo, vcs_sha, vcs_relpath)) and not reference_mode:
+        raise ValueError("reference mode requires complete VCS provenance")
+    if reference_mode and (sha256 is None or size_bytes is None):
+        raise ValueError("reference mode requires precomputed digest and size")
+    if not reference_mode and not source.is_file():
         return None
 
     root = (
@@ -128,17 +135,14 @@ def store_default_artifact_file(
         else default_artifact_files_root()
     )
     idx = Path(index_path).expanduser() if index_path else root / _JSONL_INDEX_NAME
-    association = artifact_file_association_from_metadata(agent_artifacts_dir)
+    association = artifact_association or artifact_file_association_from_metadata(
+        agent_artifacts_dir
+    )
     artifact_file_kind = (
         coerce_artifact_file_kind(kind)
         if kind is not None
         else infer_artifact_file_kind(source)
     )
-    reference_mode = all((vcs_repo, vcs_sha, vcs_relpath))
-    if any((vcs_repo, vcs_sha, vcs_relpath)) and not reference_mode:
-        raise ValueError("reference mode requires complete VCS provenance")
-    if reference_mode and (sha256 is None or size_bytes is None):
-        raise ValueError("reference mode requires precomputed digest and size")
     stored_path: Path | None
     if reference_mode:
         stored_path = None

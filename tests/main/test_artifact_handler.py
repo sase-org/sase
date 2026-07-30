@@ -39,7 +39,7 @@ def test_parser_registers_canonical_group_alias_and_all_subcommands() -> None:
     assert canonical.artifact_subcommand == alias.artifact_subcommand == "create"
     assert canonical.move is False
     assert move.move is True
-    assert "{create,doctor,list,open,path,prune,show,stats,trash}" in help_text
+    assert "{create,doctor,list,open,path,prune,reclaim,show,stats,trash}" in help_text
     assert "Bare `sase artifact` defaults to `sase artifact list`." in help_text
 
 
@@ -107,6 +107,7 @@ def test_parser_list_filters_and_repeated_kinds() -> None:
         ["artifact", "list", "--limit", "-1"],
         ["artifact", "list", "--limit", "nope"],
         ["artifact", "list", "--since", "yesterday"],
+        ["artifact", "reclaim", "--max-history-scan", "0"],
     ],
 )
 def test_parser_rejects_malformed_list_values(argv: list[str]) -> None:
@@ -148,6 +149,13 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
         "--kind",
         "--limit",
         "--min-size",
+        "--project",
+    ]
+    assert _long_options(subcommands.choices["reclaim"]) == [
+        "--apply",
+        "--max-history-scan",
+        "--json",
+        "--limit",
         "--project",
     ]
     assert _long_options(subcommands.choices["show"]) == ["--json"]
