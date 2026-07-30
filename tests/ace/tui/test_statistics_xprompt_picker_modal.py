@@ -10,8 +10,13 @@ from sase.ace.tui.modals.statistics_xprompt_picker_modal import (
     XPromptFocusChoice,
 )
 from sase.stats.ranges import resolve_preset
+from sase.stats.views import build_statistics_views
 
-from tests.ace.tui._statistics_pane_helpers import _result
+from tests.ace.tui._statistics_pane_helpers import (
+    _activity_payload,
+    _result,
+    _run_payload,
+)
 
 
 async def test_picker_filters_cached_rows_highlights_focus_and_selects() -> None:
@@ -61,3 +66,18 @@ async def test_picker_cancel_is_distinct_from_all_xprompts() -> None:
         await page.wait_for(lambda _state: bool(choices))
 
     assert choices == [None]
+
+
+def test_picker_rows_share_the_statistics_kind_labels() -> None:
+    selected_range = resolve_preset("7d")
+    payload = _run_payload(selected_range, "tribe")
+    payload["xprompts"]["rows"][0].update(
+        {"name": "research_swarm", "kind": "swarm", "tags": []}
+    )
+    rows = build_statistics_views(payload, _activity_payload()).xprompts.rows
+
+    labels = [StatisticsXPromptPickerModal._row_label(row).plain for row in rows]
+
+    assert any(label.startswith("#research_swarm") for label in labels)
+    swarm_label = next(label for label in labels if label.startswith("#research_swarm"))
+    assert "swarm" in swarm_label

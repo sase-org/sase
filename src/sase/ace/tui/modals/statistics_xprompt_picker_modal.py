@@ -15,6 +15,7 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from .base import FilterInput, OptionListNavigationMixin
+from .statistics_pane_xprompts import KIND_LABELS
 
 
 class _StatisticsXPromptFilterInput(FilterInput):
@@ -115,7 +116,7 @@ class StatisticsXPromptPickerModal(
     def _row_label(row: Any) -> Text:
         text = Text()
         text.append(f"#{row.name:<28.28}", style="bold #87D7FF")
-        kind = {"workflow": "wf", "part": "part"}.get(row.kind, row.kind)
+        kind = KIND_LABELS.get(row.kind, row.kind)
         text.append(f"{kind:<8.8}", style="#C6A0F6")
         text.append(f"{row.runs:>5} runs", style="#5FD75F")
         if row.tags:
