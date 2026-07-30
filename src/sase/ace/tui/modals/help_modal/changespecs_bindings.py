@@ -571,6 +571,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Copy @file reference",
                 ),
                 (
+                    key_sequence_display(cm.prefix, files_copy["link"]),
+                    "Copy Markdown link",
+                ),
+                (
                     key_sequence_display(cm.prefix, files_copy["handoff"]),
                     "Reference in new agent prompt",
                 ),

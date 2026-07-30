@@ -323,6 +323,15 @@ def test_help_copy_sections_advertise_copy_as_palette() -> None:
         assert len(copy_sections) == expected_count
         assert all(("%", "Open Copy as… palette") in rows for rows in copy_sections)
 
+    files_rows = next(
+        bindings
+        for title, bindings in cls_bindings(reg)
+        if title.startswith("Copy Mode · Files")
+    )
+    assert ("%L", "Copy Markdown link") in files_rows
+    assert ("%l", "Copy artifact-file label") in files_rows
+    assert ("%j", "Copy metadata JSON") in files_rows
+
 
 def test_help_modal_lists_configured_leader_prompt_stash_panel() -> None:
     """All main tabs resolve the stash-panel sequence from the registry."""

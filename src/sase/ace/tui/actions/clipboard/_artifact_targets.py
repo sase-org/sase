@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import partial
-import json
 from typing import Any
 
-from sase.artifact_cli.references import artifact_file_json_dict
 from sase.core.agent_identity_facade import present_agent_name
 from sase.core.commit_footer_facade import parse_commit_footer
 
@@ -178,12 +176,6 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
             self._schedule_artifacts_copy(
                 entry.label,
                 copied_message="Copied artifact file label",
-            )
-            return
-        if target == "json":
-            self._schedule_artifacts_copy(
-                json.dumps(artifact_file_json_dict(entry), indent=2),
-                copied_message="Copied artifact file metadata JSON",
             )
             return
 
@@ -398,15 +390,6 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
                 copied_message=f"Copied {len(entries)} artifact file labels",
             )
             return
-        if target == "json":
-            self._schedule_artifacts_copy(
-                json.dumps(
-                    [artifact_file_json_dict(entry) for entry in entries],
-                    indent=2,
-                ),
-                copied_message=f"Copied {len(entries)} metadata JSON records",
-            )
-            return
 
         state = {"successes": 0, "failures": 0, "missing": 0}
 
@@ -466,6 +449,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
             contents,
             plural_label="artifact-file contents",
             task_name="sase-file-copy-marked-contents",
+            unavailable_count=len(binary_modes),
         )
 
     def _copy_marked_bug_targets(
@@ -512,6 +496,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
         *,
         plural_label: str,
         task_name: str = "sase-artifacts-copy-marked",
+        unavailable_count: int = 0,
     ) -> None:
         """Resolve a marked set off-thread and format it consistently."""
         if not contents:
@@ -535,7 +520,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
             capped = format_multi_copy_content_capped(values)
             state.update(
                 successes=len(values),
-                failures=len(errors),
+                failures=unavailable_count + len(errors),
                 truncated=capped.truncated,
             )
             return capped.value

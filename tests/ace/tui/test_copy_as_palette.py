@@ -101,6 +101,59 @@ def _commit_pane(
     )
 
 
+def _file_entry(
+    artifact_id: str,
+    *,
+    label: str,
+    kind: str,
+    path: str,
+    source_path: str | None,
+    size_bytes: int,
+) -> Any:
+    return SimpleNamespace(
+        id=artifact_id,
+        label=label,
+        kind=kind,
+        path=path,
+        source_path=source_path,
+        size_bytes=size_bytes,
+        project="sase",
+        workspace_dir="/workspace",
+    )
+
+
+def _file_pane(
+    entries: tuple[Any, ...],
+    *,
+    view_modes: dict[str, str],
+    target_order: tuple[tuple[str, ...], ...] | None = None,
+) -> Any:
+    ordered = target_order or tuple(("file", entry.id) for entry in entries)
+    by_target = {("file", entry.id): entry for entry in entries}
+    selected = by_target[ordered[0]]
+    rows = {
+        entry.id: SimpleNamespace(option_id=entry.id, entry=entry) for entry in entries
+    }
+    snapshot = SimpleNamespace(
+        display_name="SASE",
+        view_modes=view_modes,
+        view_mode_for=lambda entry: view_modes[entry.id],
+    )
+    return SimpleNamespace(
+        _rows=rows,
+        snapshot=snapshot,
+        selected_entry=selected,
+        selected_view_mode=view_modes[selected.id],
+        entry_targets=lambda: ordered,
+        selected_entry_target=lambda: ordered[0],
+        entries_for_targets=lambda targets: tuple(
+            by_target[target] for target in targets if target in by_target
+        ),
+        project_scope="sase",
+        project_file="/workspace/sase.sase",
+    )
+
+
 def test_commit_rows_join_registry_keys_availability_and_warm_previews() -> None:
     app = _PaletteHarness()
     entry = _commit_entry(
@@ -130,6 +183,190 @@ def test_commit_rows_join_registry_keys_availability_and_warm_previews() -> None
     assert previews["sha"] == "a" * 40
     assert previews["message"] == "Add the Copy as palette"
     assert previews["plan"] == "plans:202607/copy_as_palette.md"
+
+
+def test_files_rows_cover_every_default_target_with_warm_previews() -> None:
+    app = _PaletteHarness()
+    app.current_artifacts_subtab = "files"
+    entry = _file_entry(
+        "default:0123456789abcdef01234567",
+        label="Copy notes",
+        kind="markdown",
+        path="/workspace/artifacts/copy.md",
+        source_path="/workspace/notes/copy.md",
+        size_bytes=2048,
+    )
+    app.files_pane = _file_pane(
+        (entry,),
+        view_modes={entry.id: "markdown"},
+    )
+
+    context = build_copy_as_context(app)
+
+    assert context is not None
+    assert context.group == "artifacts_files"
+    assert context.subtitle == "SASE · Copy notes"
+    assert [(row.target, row.key_display) for row in context.rows] == [
+        ("contents", "%"),
+        ("reference", "@"),
+        ("link", "L"),
+        ("path", "p"),
+        ("source", "o"),
+        ("label", "l"),
+        ("json", "j"),
+        ("handoff", "!"),
+        ("snapshot", "s"),
+    ]
+    assert {row.target: row.preview for row in context.rows} == {
+        "contents": "markdown · 2.0 KiB",
+        "reference": f"@file:{entry.id}",
+        "link": f"[Copy notes](file:{entry.id})",
+        "path": "/workspace/artifacts/copy.md",
+        "source": "/workspace/notes/copy.md",
+        "label": "Copy notes",
+        "json": "markdown · 2.0 KiB · metadata",
+        "handoff": f"@file:{entry.id} · new agent prompt",
+        "snapshot": "current Artifacts pane",
+    }
+
+
+def test_files_rows_filter_binary_contents_and_missing_source_from_warm_state() -> None:
+    app = _PaletteHarness()
+    app.current_artifacts_subtab = "files"
+    entry = _file_entry(
+        "default:fedcba987654321001234567",
+        label="Copy image",
+        kind="image",
+        path="/workspace/artifacts/copy.png",
+        source_path=None,
+        size_bytes=4096,
+    )
+    app.files_pane = _file_pane(
+        (entry,),
+        view_modes={entry.id: "image"},
+    )
+
+    context = build_copy_as_context(app)
+
+    assert context is not None
+    targets = {row.target for row in context.rows}
+    assert "contents" not in targets
+    assert "source" not in targets
+    assert targets == {
+        "reference",
+        "link",
+        "path",
+        "label",
+        "json",
+        "handoff",
+        "snapshot",
+    }
+
+
+def test_marked_files_keep_partially_representable_targets_with_warm_counts() -> None:
+    app = _PaletteHarness()
+    app.current_artifacts_subtab = "files"
+    text = _file_entry(
+        "default:111111111111111111111111",
+        label="Copy text",
+        kind="file",
+        path="/workspace/artifacts/copy.txt",
+        source_path="/workspace/source/copy.txt",
+        size_bytes=1024,
+    )
+    image = _file_entry(
+        "default:222222222222222222222222",
+        label="Copy image",
+        kind="image",
+        path="/workspace/artifacts/copy.png",
+        source_path=None,
+        size_bytes=4096,
+    )
+    visible_order = (("file", image.id), ("file", text.id))
+    app.files_pane = _file_pane(
+        (text, image),
+        view_modes={text.id: "text", image.id: "image"},
+        target_order=visible_order,
+    )
+    app._artifacts_marked_targets = {"files": set(visible_order)}
+
+    context = build_copy_as_context(app)
+
+    assert context is not None
+    previews = {row.target: row.preview for row in context.rows}
+    assert previews["contents"] == "1/2 marked · copyable contents"
+    assert previews["source"] == "1/2 marked · source paths"
+    assert previews["link"] == "2 marked · Markdown links"
+
+
+@pytest.mark.parametrize(
+    ("winner", "loser"),
+    tuple(
+        zip(
+            (
+                "snapshot",
+                "reference",
+                "handoff",
+                "link",
+                "json",
+                "contents",
+                "path",
+                "source",
+            ),
+            (
+                "reference",
+                "handoff",
+                "link",
+                "json",
+                "contents",
+                "path",
+                "source",
+                "label",
+            ),
+            strict=True,
+        )
+    ),
+)
+def test_files_collision_winners_match_dispatch_precedence(
+    winner: str,
+    loser: str,
+) -> None:
+    app = _PaletteHarness()
+    app.current_artifacts_subtab = "files"
+    entry = _file_entry(
+        "default:0123456789abcdef01234567",
+        label="Copy notes",
+        kind="markdown",
+        path="/workspace/artifacts/copy.md",
+        source_path="/workspace/notes/copy.md",
+        size_bytes=2048,
+    )
+    app.files_pane = _file_pane(
+        (entry,),
+        view_modes={entry.id: "markdown"},
+    )
+    app._keymap_registry = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "copy_mode": {
+                        "keys": {
+                            "artifacts_files": {
+                                winner: "x",
+                                loser: "x",
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+
+    context = build_copy_as_context(app)
+
+    assert context is not None
+    assert next(row for row in context.rows if row.key == "x").target == winner
+    assert loser not in {row.target for row in context.rows}
 
 
 def test_commit_plan_target_is_filtered_when_warm_row_has_no_plan() -> None:

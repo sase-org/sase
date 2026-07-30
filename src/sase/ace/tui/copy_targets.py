@@ -350,6 +350,15 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
     ),
     _target(
         "artifacts_files",
+        "link",
+        "link",
+        "Copy Markdown link",
+        "Location",
+        "Markdown links",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_files",
         "path",
         "path",
         "Copy stored path",

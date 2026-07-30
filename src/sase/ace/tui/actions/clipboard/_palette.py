@@ -64,7 +64,17 @@ _DISPATCH_ORDER: dict[str, tuple[str, ...]] = {
         "agent",
         "transcript",
     ),
-    "artifacts_files": ("snapshot", "reference", "handoff"),
+    "artifacts_files": (
+        "snapshot",
+        "reference",
+        "handoff",
+        "link",
+        "json",
+        "contents",
+        "path",
+        "source",
+        "label",
+    ),
     "artifacts_bugs": (
         "snapshot",
         "reference",
@@ -424,18 +434,27 @@ def _artifact_target_state(
             "prompt": getattr(first, "body", "") or getattr(first, "title", ""),
         }
     else:
-        values = {}
-        file_hint = " · ".join(
-            part
-            for part in (
-                str(getattr(first, "kind", "") or ""),
-                _size_hint(getattr(first, "size_bytes", None)),
-                str(getattr(first, "label", "") or ""),
-            )
-            if part
-        )
-        previews["reference"] = file_hint or previews["reference"]
-        previews["handoff"] = file_hint or previews["handoff"]
+        values = {} if marked else _file_target_values(pane, first)
+        counts = _file_target_counts(pane, objects)
+        labels = {
+            "contents": "copyable contents",
+            "reference": "artifact references",
+            "link": "Markdown links",
+            "path": "stored paths",
+            "source": "source paths",
+            "label": "artifact-file labels",
+            "json": "metadata records",
+            "handoff": "prompt references",
+        }
+        for target, representable_count in counts.items():
+            if not representable_count:
+                available.discard(target)
+            elif marked:
+                previews[target] = _marked_count_hint(
+                    representable_count,
+                    count,
+                    labels[target],
+                )
 
     for target, value in values.items():
         if value:
@@ -618,6 +637,90 @@ def _plan_values(pane: Any, row: Any | None) -> dict[str, str]:
     }
 
 
+def _file_target_values(pane: Any, entry: Any | None) -> dict[str, str]:
+    if entry is None:
+        return {
+            "contents": "",
+            "reference": "",
+            "link": "",
+            "path": "",
+            "source": "",
+            "label": "",
+            "json": "",
+            "handoff": "",
+        }
+
+    artifact_id = str(getattr(entry, "id", "") or "")
+    label = str(getattr(entry, "label", "") or "")
+    kind = str(getattr(entry, "kind", "") or "")
+    size = _size_hint(getattr(entry, "size_bytes", None))
+    view_mode = _warm_file_view_mode(pane, entry, selected=True)
+    reference = f"file:{artifact_id}" if artifact_id else ""
+    metadata_hint = " · ".join(part for part in (kind, size, "metadata") if part)
+    return {
+        "contents": " · ".join(part for part in (view_mode, size) if part),
+        "reference": f"@{reference}" if reference else "",
+        "link": f"[{label}]({reference})" if label and reference else "",
+        "path": str(getattr(entry, "path", "") or ""),
+        "source": str(getattr(entry, "source_path", "") or ""),
+        "label": label,
+        "json": metadata_hint,
+        "handoff": f"@{reference} · new agent prompt" if reference else "",
+    }
+
+
+def _file_target_counts(pane: Any, entries: tuple[Any, ...]) -> dict[str, int]:
+    reference_count = sum(bool(getattr(entry, "id", None)) for entry in entries)
+    return {
+        "contents": sum(
+            _warm_file_view_mode(pane, entry, selected=len(entries) == 1)
+            in {"markdown", "text"}
+            for entry in entries
+        ),
+        "reference": reference_count,
+        "link": sum(
+            bool(getattr(entry, "id", None) and getattr(entry, "label", None))
+            for entry in entries
+        ),
+        "path": sum(bool(getattr(entry, "path", None)) for entry in entries),
+        "source": sum(bool(getattr(entry, "source_path", None)) for entry in entries),
+        "label": sum(bool(getattr(entry, "label", None)) for entry in entries),
+        "json": len(entries),
+        "handoff": reference_count,
+    }
+
+
+def _warm_file_view_mode(
+    pane: Any,
+    entry: Any,
+    *,
+    selected: bool,
+) -> str:
+    """Return an already-classified file view mode without filesystem work."""
+
+    if selected:
+        selected_mode = getattr(pane, "selected_view_mode", None)
+        if isinstance(selected_mode, str):
+            return selected_mode
+
+    snapshot = getattr(pane, "snapshot", None) or getattr(pane, "_snapshot", None)
+    view_mode_for = getattr(snapshot, "view_mode_for", None)
+    if callable(view_mode_for):
+        try:
+            mode = view_mode_for(entry)
+        except Exception:
+            mode = None
+        if isinstance(mode, str):
+            return mode
+
+    view_modes = getattr(snapshot, "view_modes", None)
+    if isinstance(view_modes, Mapping):
+        mode = view_modes.get(getattr(entry, "id", None))
+        if isinstance(mode, str):
+            return mode
+    return ""
+
+
 def _commit_message(entry: Any | None) -> str:
     commit = getattr(entry, "commit", None)
     if commit is None:
@@ -690,6 +793,12 @@ def _size_hint(size: Any) -> str:
 
 def _marked_hint(count: int, label: str) -> str:
     return f"{count} marked · {label}"
+
+
+def _marked_count_hint(representable: int, total: int, label: str) -> str:
+    if representable == total:
+        return _marked_hint(total, label)
+    return f"{representable}/{total} marked · {label}"
 
 
 def _short(value: str, *, limit: int = 58) -> str:

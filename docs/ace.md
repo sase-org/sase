@@ -111,13 +111,13 @@ grouped by representation, show their configured accelerator and a warm preview,
 arrow keys or `j`/`k` plus `Enter`, or the accelerator directly. `q`/`Esc` cancels. If an accelerator is configured as
 `j`, `k`, or `q`, the configured copy target wins over navigation or cancellation.
 
-| Sub-tab | Keys                                                                                                                                                |
-| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Commits | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan |
-| Plans   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%t` title · `%b` body                         |
-| Chats   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript                   |
-| Files   | `%@` artifact ref · `%!` ref in agent prompt · `%%` contents · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON                |
-| Bugs    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%b` `#N` · `%u` URL · `%t` title · `%p` agent prompt      |
+| Sub-tab | Keys                                                                                                                                                      |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Commits | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan       |
+| Plans   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%t` title · `%b` body                               |
+| Chats   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript                         |
+| Files   | `%%` contents · `%@` artifact ref · `%L` Markdown link · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON · `%!` ref in agent prompt |
+| Bugs    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%b` `#N` · `%u` URL · `%t` title · `%p` agent prompt            |
 
 `%s` captures the current `sase ace` tmux pane on every sub-tab.
 
@@ -952,12 +952,14 @@ Artifact panel controls:
 | `A`         | Open all artifacts in list order, ignoring marks                        |
 | `q` / `Esc` | Close the panel                                                         |
 
-The file palette offers `@` prompt-form references, `l` Markdown links, `c` Markdown contents, `p` stored paths, `P`
-source paths, `J` metadata JSON, and `s` snapshots. Stored and source paths are separate, anchored answers; an absent
-source is labeled “not recorded,” and copying a stale source keeps the “no longer exists” warning. With marks, the
-palette copies rows in visible order: references and paths are newline-separated, links form a Markdown list, metadata
-is a JSON array, and Markdown contents use bounded fenced sections. Unavailable rows are skipped with an explicit count.
-The legacy `y` and `Y` accelerators remain available and apply to the same marked set.
+The modal-local file palette offers `@` prompt-form references, `l` Markdown links, `c` Markdown contents, `p` stored
+paths, `P` source paths, `J` metadata JSON, and `s` snapshots. Stored and source paths are separate, anchored answers;
+an absent source is labeled “not recorded,” and copying a stale source keeps the “no longer exists” warning. With marks,
+the palette copies rows in visible order: references and paths are newline-separated, links form a Markdown list,
+metadata is a JSON array, and Markdown contents use bounded fenced sections. Unavailable rows are skipped with an
+explicit count. These modal-local `l`/`J` accelerators are distinct from the Artifacts Files sub-tab's
+compatibility-preserving `%L`/`%j` keys. The legacy `y` and `Y` accelerators remain available and apply to the same
+marked set.
 
 `Y` shares one helper with the [Files sub-tab](#files-pane), so both copy the same anchored path: the stored path,
 except that PDF rows yield the live Markdown source they were rendered from when the index recorded one. Relative index

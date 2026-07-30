@@ -13,6 +13,7 @@ from sase.ace.tui.actions.clipboard import _artifacts
 from sase.ace.tui.actions.clipboard import (
     _artifact_reference_resolution as _resolution,
 )
+from sase.core.artifact_file_types import ArtifactFile
 from tests.ace.tui._artifacts_copy_helpers import CopyHarness
 
 
@@ -150,6 +151,67 @@ async def test_marked_reference_copy_uses_paste_ready_lines_and_count(
     )
     assert app.notifications[-1] == (
         "Copied 2 references",
+        "information",
+    )
+
+
+@pytest.mark.parametrize("marked", [False, True])
+async def test_files_markdown_link_dispatch_preserves_visible_order(
+    marked: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = ArtifactFile(
+        id="default:111111111111111111111111",
+        label="First file",
+        kind="markdown",
+        path="/workspace/first.md",
+        project="sase",
+    )
+    second = ArtifactFile(
+        id="default:222222222222222222222222",
+        label="Second file",
+        kind="markdown",
+        path="/workspace/second.md",
+        project="sase",
+    )
+    entries = (second, first) if marked else (first,)
+    targets = tuple(("file", entry.id) for entry in entries)
+    by_target = dict(zip(targets, entries, strict=True))
+    app = CopyHarness()
+    app.current_artifacts_subtab = "files"
+    app.files_pane = SimpleNamespace(
+        selected_entry_target=lambda: targets[0],
+        entry_targets=lambda: targets,
+        entries_for_targets=lambda requested: tuple(
+            by_target[target] for target in requested if target in by_target
+        ),
+        snapshot=SimpleNamespace(display_name="SASE"),
+        project_file="/workspace/sase.sase",
+    )
+    if marked:
+        app._artifacts_marked_targets = {"files": set(targets)}
+
+    copied: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
+        lambda content: copied.append(content) or True,
+    )
+    pending: list[Any] = []
+    monkeypatch.setattr(
+        _artifacts,
+        "spawn_pump_free_task",
+        lambda _owner, coroutine, **_kwargs: pending.append(coroutine),
+    )
+
+    assert app._handle_copy_key("L") is True
+    await pending.pop()
+
+    expected = [f"[{entry.label}](file:{entry.id})" for entry in entries]
+    assert copied == [
+        "\n".join(f"- {value}" for value in expected) if marked else expected[0]
+    ]
+    assert app.notifications[-1] == (
+        "Copied 2 Markdown links" if marked else "Copied artifact file Markdown link",
         "information",
     )
 

@@ -98,6 +98,7 @@ class CopyModeKeymaps(ModeKeymaps):
             "artifacts_files": {
                 "contents": "percent_sign",
                 "reference": "at",
+                "link": "L",
                 "handoff": "exclamation_mark",
                 "path": "p",
                 "source": "o",

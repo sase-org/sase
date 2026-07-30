@@ -406,6 +406,7 @@ def test_bugs_copy_targets_include_an_agent_ready_prompt(
             [
                 ("%", "contents"),
                 ("@", "@ref"),
+                ("L", "link"),
                 ("p", "path"),
                 ("o", "source"),
                 ("l", "label"),
@@ -446,16 +447,27 @@ def test_reference_keys_dispatch_uniformly_across_artifacts_subtabs(
     ]
 
 
-@pytest.mark.parametrize("subtab", ["commits", "plans", "chats", "bugs"])
+@pytest.mark.parametrize(
+    ("subtab", "link_key", "json_key"),
+    [
+        ("commits", "l", "J"),
+        ("plans", "l", "J"),
+        ("chats", "l", "J"),
+        ("bugs", "l", "J"),
+        ("files", "L", "j"),
+    ],
+)
 def test_link_and_json_keys_dispatch_uniformly_across_artifacts_subtabs(
     subtab: str,
+    link_key: str,
+    json_key: str,
 ) -> None:
     app = CopyHarness()
     app.current_artifacts_subtab = subtab
     app._run_artifact_representation_action = MagicMock()  # type: ignore[method-assign]
 
-    assert app._handle_copy_key("l") is True
-    assert app._handle_copy_key("J") is True
+    assert app._handle_copy_key(link_key) is True
+    assert app._handle_copy_key(json_key) is True
 
     assert app._run_artifact_representation_action.call_args_list == [
         call("link"),

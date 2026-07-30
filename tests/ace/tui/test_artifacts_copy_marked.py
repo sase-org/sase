@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 from sase.ace.tui.widgets.artifacts.chats_list import ChatRow, chat_row_target
 from sase.ace.tui.widgets.artifacts.plans_list import PlanRow, plan_row_target
 from tests.ace.tui._artifacts_copy_helpers import CopyHarness
+from tests.ace.tui._artifacts_files_helpers import artifact_file
 
 
 def test_marked_commits_copy_in_visual_order_with_labeled_sections() -> None:
@@ -133,3 +135,41 @@ def test_marked_bugs_copy_the_marked_set() -> None:
     assert "### #41\n```\n#41\n```" in copied
     assert "### #42\n```\n#42\n```" in copied
     assert message == "Copied 2 issue numbers"
+
+
+def test_marked_files_contents_report_pre_filtered_binary_rows(
+    tmp_path: Path,
+) -> None:
+    text_path = tmp_path / "notes.md"
+    text_path.write_text("# Copy notes", encoding="utf-8")
+    text = artifact_file(
+        "notes",
+        artifact_id="default:111111111111111111111111",
+        kind="markdown",
+        path=str(text_path),
+    )
+    image = artifact_file(
+        "image",
+        artifact_id="default:222222222222222222222222",
+        kind="image",
+        path=str(tmp_path / "image.png"),
+    )
+    targets = (("file", text.id), ("file", image.id))
+    by_target = dict(zip(targets, (text, image), strict=True))
+    app = CopyHarness()
+    app.current_artifacts_subtab = "files"
+    app._artifacts_marked_targets = {"files": set(targets)}
+    app.files_pane = SimpleNamespace(
+        entry_targets=lambda: targets,
+        entries_for_targets=lambda requested: tuple(
+            by_target[target] for target in requested if target in by_target
+        ),
+    )
+
+    assert app._handle_copy_key("percent_sign") is True
+
+    copied, message = app.copies[0]
+    assert "### notes artifact\n```" in copied
+    assert "# Copy notes" in copied
+    assert "image artifact" not in copied
+    assert message == "Copied 1 artifact-file contents — 1 entry unavailable"

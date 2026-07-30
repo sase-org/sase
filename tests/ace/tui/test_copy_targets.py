@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import yaml
 
 from sase.ace.tui.actions.clipboard import (
     _artifact_reference_resolution as _resolution,
@@ -16,14 +18,21 @@ from sase.ace.tui.actions.clipboard._helpers import (
     cap_copy_content,
     format_multi_copy_content_capped,
 )
+from sase.ace.tui.commands import build_command_catalog
 from sase.ace.tui.copy_targets import COPY_TARGETS, copy_targets_for
+from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.keymaps.mode_keymaps import CopyModeKeymaps
 from tests.ace.tui._artifacts_copy_helpers import CopyHarness as _CopyHarness
 
 
 def test_copy_target_registry_exactly_covers_default_keymap_targets() -> None:
     defaults = CopyModeKeymaps().keys
+    config = yaml.safe_load(
+        Path("src/sase/default_config.yml").read_text(encoding="utf-8")
+    )
+    configured = config["ace"]["keymaps"]["modes"]["copy_mode"]
 
+    assert configured == {"prefix": CopyModeKeymaps().prefix, "keys": defaults}
     assert {target.group for target in COPY_TARGETS} == set(defaults)
     for group, configured in defaults.items():
         assert isinstance(configured, dict)
@@ -32,6 +41,18 @@ def test_copy_target_registry_exactly_covers_default_keymap_targets() -> None:
             assert target.footer_label
             assert target.palette_label
             assert target.plural_label
+
+    catalog_ids = {
+        spec.id
+        for spec in build_command_catalog(load_keymap_registry({}))
+        if spec.executor.kind == "copy_mode_key"
+    }
+    assert catalog_ids == {
+        f"copy.{group}.{target}"
+        for group, targets in defaults.items()
+        if isinstance(targets, dict)
+        for target in targets
+    }
 
 
 @pytest.mark.parametrize(
