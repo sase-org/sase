@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
+from sase.core.output_variable_values import coerce_var_map
 from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
 from sase.sdd.plan_tiers import cached_plan_tier
 
@@ -23,7 +24,6 @@ from ._meta_enrichment_common import (
     pending_question_status_from_marker,
     plan_enrichment_status,
     refresh_agent_plan_path,
-    string_output_variables,
     valid_meta_tribe,
 )
 from ..agent import Agent
@@ -108,7 +108,7 @@ def enrich_agent_from_meta(
     if meta_tribe:
         agent.tribe = meta_tribe
     if "output_variables" in data:
-        agent.output_variables = string_output_variables(data.get("output_variables"))
+        agent.output_variables = coerce_var_map(data.get("output_variables"))
     if data.get("wait_for"):
         agent.waiting_for = data["wait_for"]
     if data.get("wait_for_beads"):

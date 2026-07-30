@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 
 from sase.agent.status_buckets import status_bucket_for_values
+from sase.core.output_variable_values import VarValue, encode_var_value
 
 from ._agent_clan import clan_members
 from .agent import Agent
@@ -90,7 +91,17 @@ class ClanVariableEntry:
     member_identity: ClanAgentIdentity
     member_label: str
     name: str
-    value: str
+    value: VarValue
+
+    def __hash__(self) -> int:
+        """Hash structured values through their canonical JSON encoding."""
+        return hash(
+            (
+                self.member_identity,
+                self.name,
+                encode_var_value(self.value),
+            )
+        )
 
 
 @dataclass(frozen=True, slots=True)

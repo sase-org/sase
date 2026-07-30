@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from rich.text import Text
+
 from sase.ace.tui.models._loaders._meta_enrichment import (
     enrich_agent_from_meta,
     enrich_agent_from_meta_wire,
@@ -16,6 +18,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_header_text,
 )
 from sase.core.agent_scan_wire import AgentMetaWire
+from sase.core.output_variable_values import VarValue
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import (
     assert_dim_divider_before,
@@ -44,7 +47,7 @@ def _family_child(
     *,
     role_suffix: str,
     agent_family_role: str,
-    output_variables: dict[str, str],
+    output_variables: dict[str, VarValue],
 ) -> Agent:
     artifacts_dir = tmp_path / name
     artifacts_dir.mkdir()
@@ -59,6 +62,14 @@ def _family_child(
         role_suffix=role_suffix,
         output_variables=output_variables,
     )
+
+
+def _style_at(text: Text, needle: str, *, start: int = 0) -> str | None:
+    position = text.plain.index(needle, start)
+    for span in reversed(text.spans):
+        if span.start <= position < span.end:
+            return str(span.style)
+    return str(text.style) if text.style else None
 
 
 def test_output_variables_section_absent_when_empty() -> None:
@@ -92,7 +103,7 @@ def test_output_variables_section_orders_before_artifacts_and_workflow_variables
     plain = header.plain
 
     assert "OUTPUT VARIABLES\n" in plain
-    assert "a_notes:\n  line one\n  line two\n" in plain
+    assert "a_notes: |\n  line one\n  line two\n" in plain
     assert "z_status: ok\n" in plain
     assert plain.index("a_notes:") < plain.index("z_status:")
     assert plain.index("OUTPUT VARIABLES\n") < plain.index("Files:\n")
@@ -107,17 +118,23 @@ def test_output_variables_section_orders_before_artifacts_and_workflow_variables
 def test_filesystem_and_wire_output_variables_render_identically(
     tmp_path: Path,
 ) -> None:
-    variables = {
+    variables: dict[str, VarValue] = {
+        "config": {
+            "enabled": True,
+            "limits": [3, None],
+        },
+        "empty": [],
         "report_path": "/tmp/report.md",
         "summary": "first line\nsecond line",
+    }
+    stored: dict[str, object] = {
+        **variables,
+        "invalid_number": float("nan"),
     }
     (tmp_path / "agent_meta.json").write_text(
         json.dumps(
             {
-                "output_variables": {
-                    **variables,
-                    "ignored_count": 2,
-                }
+                "output_variables": stored,
             }
         ),
         encoding="utf-8",
@@ -128,7 +145,7 @@ def test_filesystem_and_wire_output_variables_render_identically(
     enrich_agent_from_meta(filesystem_agent, str(tmp_path))
     enrich_agent_from_meta_wire(
         wire_agent,
-        AgentMetaWire(output_variables=variables),
+        AgentMetaWire(output_variables=stored),
         None,
         None,
     )
@@ -137,7 +154,54 @@ def test_filesystem_and_wire_output_variables_render_identically(
     wire_header, _ = build_header_text(wire_agent, cheap=True)
 
     assert filesystem_agent.output_variables == variables
+    assert wire_agent.output_variables == variables
     assert filesystem_header.plain == wire_header.plain
+
+
+def test_structured_output_variables_render_canonical_lines_and_kind_styles() -> None:
+    agent = make_agent(
+        output_variables={
+            "cfg": {
+                "enabled": True,
+                "limits": [3, None],
+                "targets": [
+                    {"file": "src/a.py", "severity": "high"},
+                    {"file": "src/b.py", "severity": "low"},
+                ],
+            },
+            "empty_list": [],
+            "empty_map": {},
+            "ratio": 2.5,
+            "status": "ok",
+        }
+    )
+
+    header, _ = build_header_text(agent, cheap=True)
+    plain = header.plain
+    section_start = plain.index("OUTPUT VARIABLES")
+
+    assert (
+        "cfg:\n"
+        "  enabled: true\n"
+        "  limits:\n"
+        "    - 3\n"
+        "    - null\n"
+        "  targets:\n"
+        "    - file: src/a.py\n"
+        "      severity: high\n"
+        "    - file: src/b.py\n"
+        "      severity: low\n"
+        "empty_list: []\n"
+        "empty_map: {}\n"
+        "ratio: 2.5\n"
+        "status: ok\n"
+    ) in plain
+    assert _style_at(header, "enabled", start=section_start) == "bold #87D7FF"
+    assert _style_at(header, "true", start=section_start) == "italic #AFAFAF"
+    assert _style_at(header, "3", start=section_start) == "#FFAF5F"
+    assert _style_at(header, "null", start=section_start) == "italic #AFAFAF"
+    assert _style_at(header, "-", start=section_start) == "dim"
+    assert _style_at(header, "ok", start=section_start) == "#5FD75F"
 
 
 def test_output_variables_aggregate_two_children_distinct_keys(
@@ -291,7 +355,45 @@ def test_output_variables_multiline_value_aligns_under_role_gutter(
 
     header, _ = build_header_text(root, cheap=True)
 
-    assert "coder  notes:\n         line one\n         line two\n" in header.plain
+    assert "coder  notes: |\n         line one\n         line two\n" in header.plain
+
+
+def test_attributed_structured_variables_keep_role_gutter_at_every_depth(
+    tmp_path: Path,
+) -> None:
+    root = _family_root()
+    coder = _family_child(
+        tmp_path,
+        "coder",
+        role_suffix="--code",
+        agent_family_role="code",
+        output_variables={
+            "cfg": {
+                "flags": [True, False],
+                "targets": [{"file": "a"}, {"file": "b"}],
+            }
+        },
+    )
+    question = _family_child(
+        tmp_path,
+        "question-structured",
+        role_suffix="--q",
+        agent_family_role="q",
+        output_variables={"answer": "ready"},
+    )
+    root.followup_agents = [coder, question]
+
+    header, _ = build_header_text(root, cheap=True)
+
+    assert (
+        "coder  cfg:\n"
+        "         flags:\n"
+        "           - true\n"
+        "           - false\n"
+        "         targets:\n"
+        "           - file: a\n"
+        "           - file: b\n"
+    ) in header.plain
 
 
 def test_output_variables_order_root_then_followups_and_sorted_keys(

@@ -7,6 +7,7 @@ from sase.core.agent_scan_wire import (
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
 )
+from sase.core.output_variable_values import coerce_var_map
 from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
 from sase.sdd.plan_tiers import cached_plan_tier
 
@@ -77,7 +78,7 @@ def enrich_agent_from_meta_wire(
         agent.agent_name = meta.name
     if meta.tribe:
         agent.tribe = meta.tribe
-    agent.output_variables = dict(meta.output_variables)
+    agent.output_variables = coerce_var_map(meta.output_variables)
     if meta.wait_for:
         agent.waiting_for = list(meta.wait_for)
     if meta.wait_for_beads:

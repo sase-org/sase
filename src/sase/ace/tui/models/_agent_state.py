@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from sase.core.output_variable_values import VarValue
+
 from .agent_attempt import AttemptRecord
 from .agent_types import AgentType, LinkedRepoMetadata
 
@@ -319,7 +321,7 @@ class AgentState:
     tribe: str | None = None
 
     # Agent-scoped output variables written by ``sase var set``.
-    output_variables: dict[str, str] = field(default_factory=dict)
+    output_variables: dict[str, VarValue] = field(default_factory=dict)
 
     # Follow-up agents linked to this parent (populated at load time, not serialized)
     followup_agents: list[Agent] = field(default_factory=list)

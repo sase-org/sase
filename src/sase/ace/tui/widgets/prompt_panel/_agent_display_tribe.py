@@ -10,6 +10,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from sase.ace.tui.tools.slow import format_long_duration
+from sase.core.output_variable_display import var_value_preview
 from sase.telemetry.render import format_duration
 
 from ...agent_count_chip import format_agent_count_chip
@@ -52,6 +53,7 @@ from ._member_roster import (
     MemberRosterStatusCounts,
     append_member_roster,
 )
+from ._output_variable_rich import append_var_value_lines, var_value_style
 
 TRIBE_IDENTITY_COLOR = TRIBE_IDENTITY_FALLBACK_COLOR
 
@@ -352,12 +354,13 @@ def _append_variables(
         return
     if level is FoldLevel.EXPANDED:
         for entry in entries[:_TRIAGE_LIMIT]:
-            preview = first_meaningful_line(entry.value, max_chars=96) or "—"
+            preview = var_value_preview(entry.value, max_chars=96) or "—"
             _append_triage_line(
                 text,
                 f"{entry.member_label}.{entry.name}",
                 preview,
                 separator=" = ",
+                body_style=var_value_style(entry.value),
             )
         _append_more_tail(text, len(entries), _TRIAGE_LIMIT)
         return
@@ -369,7 +372,12 @@ def _append_variables(
         text.append(f"{member_label}\n", style="bold #D75FFF")
         for entry in member_entries:
             text.append(f"  {entry.name}\n", style="bold #87D7FF")
-            _append_full_body(text, entry.value, indent="    ")
+            append_var_value_lines(
+                text,
+                entry.value,
+                first_prefix=Text("    ", style="dim"),
+                continuation_prefix="    ",
+            )
     _append_more_tail(text, len(entries), len(shown))
 
 
@@ -545,11 +553,12 @@ def _append_triage_line(
     body: str,
     *,
     separator: str = " · ",
+    body_style: str = _BODY_STYLE,
 ) -> None:
     text.append("• ", style="dim #D75FFF")
     text.append(label, style=f"bold {TRIBE_IDENTITY_COLOR}")
     text.append(separator, style="dim")
-    text.append(first_meaningful_line(body) or "—", style=_BODY_STYLE)
+    text.append(first_meaningful_line(body) or "—", style=body_style)
     text.append("\n")
 
 

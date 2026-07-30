@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models._agent_clan_sections import (
+    ClanVariableEntry,
     aggregate_clan_in_memory,
     first_meaningful_line,
 )
@@ -64,7 +65,12 @@ def test_in_memory_aggregate_includes_family_rows_and_all_section_facts() -> Non
         minute=1,
         family=family,
         parent_timestamp=planner.raw_suffix,
-        output_variables={"result": "ready"},
+        output_variables={
+            "result": {
+                "passed": True,
+                "files": ["a.py", "b.py"],
+            }
+        },
         step_output={
             "meta_result": "ok",
             "meta_workspace": 7,
@@ -108,6 +114,10 @@ def test_in_memory_aggregate_includes_family_rows_and_all_section_facts() -> Non
         (".writer--plan", "z_path"),
         (".writer--code", "result"),
     ]
+    assert snapshot.output_variables[2].value == {
+        "passed": True,
+        "files": ["a.py", "b.py"],
+    }
     assert [
         (entry.member_label, entry.name, entry.value)
         for entry in snapshot.workflow_variables
@@ -131,3 +141,22 @@ def test_first_meaningful_line_normalizes_and_enforces_exact_bound() -> None:
     assert len(first_meaningful_line("abcdefgh", max_chars=5)) == 5
     assert first_meaningful_line("\n \t", max_chars=5) == ""
     assert first_meaningful_line("abc", max_chars=0) == ""
+
+
+def test_structured_variable_entries_preserve_values_and_hash_canonically() -> None:
+    identity = (AgentType.RUNNING, "demo", "suffix")
+    left = ClanVariableEntry(
+        member_identity=identity,
+        member_label=".demo",
+        name="report",
+        value={"passed": True, "files": ["a.py", "b.py"]},
+    )
+    right = ClanVariableEntry(
+        member_identity=identity,
+        member_label=".demo",
+        name="report",
+        value={"files": ["a.py", "b.py"], "passed": True},
+    )
+
+    assert left == right
+    assert hash(left) == hash(right)

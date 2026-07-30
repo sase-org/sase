@@ -89,7 +89,14 @@ def _snapshot():  # type: ignore[no-untyped-def]
     failed = _agent("failed", "FAILED", suffix="failed")
     failed.error_message = "Build failed\nSecond error detail"
     failed.error_traceback = "Traceback line one\nValueError: broken"
-    failed.output_variables = {"report": "summary line\nfull report detail"}
+    failed.output_variables = {
+        "report": {
+            "findings": [{"file": "src/a.py", "severity": "high"}],
+            "passed": True,
+            "ratio": 2.5,
+            "summary": "summary line",
+        }
+    }
     failed.step_output = {"meta_release_notes": "ready\nrelease detail"}
     return build_agent_tribe_summary_snapshot(
         "epic",
@@ -186,13 +193,34 @@ def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -
     assert "ws 8" not in members
     assert "Second error detail" in members
     assert "ValueError: broken" not in members
-    assert "full report detail" in members
+    assert "    findings:\n      - file: src/a.py\n        severity: high\n" in members
+    assert "    passed: true\n" in members
+    assert "    ratio: 2.5\n" in members
+    assert "    summary: summary line\n" in members
     assert "release detail" in members
 
     assert "Fold: 4/4\n" in forensics
     assert "ws 8" in forensics
     assert "ValueError: broken" in forensics
     assert pulse != roster != members != forensics
+
+
+def test_tribe_structured_variable_lines_have_per_kind_styles() -> None:
+    detail = build_tribe_detail_text(
+        _snapshot(),
+        fold_level=FoldLevel.FULLY_EXPANDED,
+    )
+
+    def style_at(needle: str) -> str | None:
+        position = detail.plain.index(needle)
+        for span in reversed(detail.spans):
+            if span.start <= position < span.end:
+                return str(span.style)
+        return str(detail.style) if detail.style else None
+
+    assert style_at("true") == "italic #AFAFAF"
+    assert style_at("2.5") == "#FFAF5F"
+    assert style_at("summary line") == "#5FD75F"
 
 
 def test_expanded_panel_roster_has_fixed_gutter_and_one_target_row() -> None:

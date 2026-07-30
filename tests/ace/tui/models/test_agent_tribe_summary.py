@@ -61,7 +61,12 @@ def _mixed_roots() -> tuple[list[Agent], dict[str, Agent]]:
         generation="gen-1",
     )
     clan_member.error_message = "Build failed\nfull diagnostic"
-    clan_member.output_variables = {"report": "summary\nfull report"}
+    clan_member.output_variables = {
+        "report": {
+            "passed": True,
+            "files": ["a.py", "b.py"],
+        }
+    }
     clan_container = project_clan_tree([clan_member])[0]
 
     family_root = _agent(
@@ -127,6 +132,10 @@ def test_snapshot_preserves_mixed_unit_order_and_aggregates_loaded_rows() -> Non
     assert [child.label for child in snapshot.units[1].children] == ["--code"]
     assert [entry.preview for entry in snapshot.errors] == ["Build failed"]
     assert [entry.name for entry in snapshot.output_variables] == ["report"]
+    assert snapshot.output_variables[0].value == {
+        "passed": True,
+        "files": ["a.py", "b.py"],
+    }
     assert [entry.name for entry in snapshot.workflow_variables] == ["Release Notes"]
 
 

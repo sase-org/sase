@@ -7,6 +7,8 @@ from collections import defaultdict
 from rich.syntax import Syntax
 from rich.text import Text
 
+from sase.core.output_variable_display import var_value_preview
+
 from ...models._agent_clan_sections import (
     ClanContextEntry,
     ClanContextLane,
@@ -23,6 +25,7 @@ from ...tools.slow import format_long_duration
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ._fold_language import append_fold_glyph, fold_count_style
 from ._helpers import append_major_section_divider, append_section_heading
+from ._output_variable_rich import append_var_value_lines, var_value_style
 
 _TRIAGE_ENTRY_LIMIT = 8
 _TRIAGE_SLOW_TOOL_LIMIT = 5
@@ -97,12 +100,13 @@ def append_variables_section(
         return
     if level == FoldLevel.EXPANDED:
         for entry in entries[:_TRIAGE_ENTRY_LIMIT]:
-            value = first_meaningful_line(entry.value, max_chars=96) or "—"
+            value = var_value_preview(entry.value, max_chars=96) or "—"
             _append_triage_line(
                 text,
                 f"{entry.member_label}.{entry.name}",
                 value,
                 separator=" = ",
+                body_style=var_value_style(entry.value),
             )
         _append_more_tail(text, len(entries), _TRIAGE_ENTRY_LIMIT)
         return
@@ -113,7 +117,12 @@ def append_variables_section(
         _append_member_subheading(text, member_label)
         for entry in member_entries:
             text.append(f"  {entry.name}\n", style="bold #87D7FF")
-            _append_full_body(text, entry.value, style=_CLAN_BODY_STYLE, indent="    ")
+            append_var_value_lines(
+                text,
+                entry.value,
+                first_prefix=Text("    ", style="dim"),
+                continuation_prefix="    ",
+            )
 
 
 def append_text_section(
@@ -267,6 +276,7 @@ def _append_triage_line(
     *,
     separator: str = " · ",
     kind: str | None = None,
+    body_style: str = _CLAN_BODY_STYLE,
 ) -> None:
     text.append("• ", style="dim #D75FFF")
     text.append(label, style=_AGENT_NAME_ANNOTATION_STYLE)
@@ -275,7 +285,7 @@ def _append_triage_line(
     text.append(separator, style="dim")
     text.append(
         first_meaningful_line(body, max_chars=120) or "—",
-        style=_CLAN_BODY_STYLE,
+        style=body_style,
     )
     text.append("\n")
 

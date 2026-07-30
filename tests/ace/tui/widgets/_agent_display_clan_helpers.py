@@ -75,7 +75,19 @@ def rich_clan_snapshot() -> tuple[Agent, ClanSectionSnapshot]:
     member.plan_path = "/tmp/demo-plan.md"
     member.error_message = "Build failed\nSecond error detail"
     member.error_traceback = "Traceback line one\nValueError: broken"
-    member.output_variables = {"report": "summary line\nfull report detail"}
+    member.output_variables = {
+        "report": {
+            "findings": [
+                {
+                    "file": "src/a.py",
+                    "severity": "high",
+                }
+            ],
+            "passed": True,
+            "ratio": 2.5,
+            "summary": "summary line",
+        }
+    }
     member.step_output = {
         "meta_release_notes": "release summary\nrelease detail",
     }

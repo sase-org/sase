@@ -272,8 +272,6 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-bf(coerce_var_value)' \
         --epic-symbol 'sase-bf(decode_var_value)' \
-        --epic-symbol 'sase-bf(encode_var_value)' \
-        --epic-symbol 'sase-bf(var_value_preview)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

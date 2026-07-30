@@ -10,6 +10,7 @@ from rich.text import Text
 
 from sase.ace.tui.agent_context_members import compact_role_label
 from sase.ace.tui.tools.cache import get_cache_key
+from sase.core.output_variable_values import VarValue
 
 from ...models.agent import Agent
 from ...models.fold_state import FoldLevel
@@ -21,17 +22,15 @@ from ._agent_context_common import (
     format_role_column,
 )
 from ._helpers import append_major_section_divider, append_section_heading
+from ._output_variable_rich import append_var_value_lines
 
 _COLOR_HEADER = "bold #D7AF5F underline"
-_COLOR_KEY = "bold #87D7FF"
-_COLOR_VALUE = "#5FD75F"
-_MULTILINE_VALUE_INDENT = "  "
 
 
 @dataclass(frozen=True)
 class _OutputVariableContributor:
     label: str
-    output_variables: Mapping[str, str]
+    output_variables: Mapping[str, VarValue]
 
 
 def append_agent_output_variables_section(
@@ -125,37 +124,24 @@ def _normalize_loaded_artifacts_dir(value: str | None) -> str | None:
 
 def _append_flat_variables(
     text: Text,
-    output_variables: Mapping[str, str],
+    output_variables: Mapping[str, VarValue],
 ) -> None:
     for key in sorted(output_variables):
-        value = output_variables[key]
-        if "\n" not in value:
-            text.append(f"{key}: ", style=_COLOR_KEY)
-            text.append(f"{value}\n", style=_COLOR_VALUE)
-            continue
-
-        text.append(f"{key}:\n", style=_COLOR_KEY)
-        for line in value.splitlines() or [""]:
-            text.append(_MULTILINE_VALUE_INDENT)
-            text.append(f"{line}\n", style=_COLOR_VALUE)
+        append_var_value_lines(text, output_variables[key], key=key)
 
 
 def _append_attributed_variables(
     text: Text,
     *,
     role_label: str,
-    output_variables: Mapping[str, str],
+    output_variables: Mapping[str, VarValue],
 ) -> None:
-    continuation_prefix = " " * ROLE_COLUMN_WIDTH + _MULTILINE_VALUE_INDENT
+    continuation_prefix = " " * ROLE_COLUMN_WIDTH
     for key in sorted(output_variables):
-        value = output_variables[key]
-        text.append(format_role_column(role_label), style=COLOR_ROLE)
-        if "\n" not in value:
-            text.append(f"{key}: ", style=_COLOR_KEY)
-            text.append(f"{value}\n", style=_COLOR_VALUE)
-            continue
-
-        text.append(f"{key}:\n", style=_COLOR_KEY)
-        for line in value.splitlines() or [""]:
-            text.append(continuation_prefix)
-            text.append(f"{line}\n", style=_COLOR_VALUE)
+        append_var_value_lines(
+            text,
+            output_variables[key],
+            key=key,
+            first_prefix=Text(format_role_column(role_label), style=COLOR_ROLE),
+            continuation_prefix=continuation_prefix,
+        )

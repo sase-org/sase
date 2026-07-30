@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_clan import (
 from tests.ace.tui.widgets._agent_display_clan_helpers import (
     make_clan_agent,
     rich_clan_snapshot,
+    style_at,
 )
 
 
@@ -150,7 +151,10 @@ def test_clan_sections_honor_all_three_fold_contracts() -> None:
     assert "reviewing patch" in expanded
     assert "wait for research.peer" in expanded
     assert "• .one · Build failed" in expanded
-    assert "• .one.report = summary line" in expanded
+    assert (
+        "• .one.report = {findings: [{file: src/a.py, severity: high}], "
+        "passed: true, ratio: 2.5, summary: summary line}"
+    ) in expanded
     assert "• .one · AGENT REPLY · Reply summary" in expanded
     assert "BEAD · sase-demo · render clan summary" in expanded
     assert "• .one · Bash · 2m 5s · just check" in expanded
@@ -164,10 +168,33 @@ def test_clan_sections_honor_all_three_fold_contracts() -> None:
     assert "0 attempts" in full
     assert "Second error detail" in full
     assert "ValueError: broken" in full
-    assert "full report detail" in full
+    assert "    findings:\n      - file: src/a.py\n        severity: high\n" in full
+    assert "    passed: true\n" in full
+    assert "    ratio: 2.5\n" in full
+    assert "    summary: summary line\n" in full
     assert "release detail" in full
     assert "Reply full detail" in full
     assert "Prompt full detail" in full
+
+
+def test_clan_structured_variable_previews_and_lines_have_kind_styles() -> None:
+    container, snapshot = rich_clan_snapshot()
+
+    expanded = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        fold_level=FoldLevel.EXPANDED,
+    )
+    full = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        fold_level=FoldLevel.FULLY_EXPANDED,
+    )
+
+    assert style_at(expanded, expanded.plain.index("{findings:")) == "dim"
+    assert style_at(full, full.plain.index("true")) == "italic #AFAFAF"
+    assert style_at(full, full.plain.index("2.5")) == "#FFAF5F"
+    assert style_at(full, full.plain.index("summary line")) == "#5FD75F"
 
 
 def test_exhaustive_shared_level_clamps_to_fully_expanded_clan() -> None:

@@ -155,16 +155,6 @@ def valid_meta_tribe(raw_value: object) -> str | None:
         return None
 
 
-def string_output_variables(raw_value: object) -> dict[str, str]:
-    if not isinstance(raw_value, dict):
-        return {}
-    return {
-        key: value
-        for key, value in raw_value.items()
-        if isinstance(key, str) and isinstance(value, str)
-    }
-
-
 def parse_linked_repos(raw_value: object) -> tuple[LinkedRepoMetadata, ...]:
     if not isinstance(raw_value, list):
         return ()
