@@ -313,6 +313,8 @@ jobs:
         run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_telemetry
       - name: Check every required binding exists in the published minimum
         run: /tmp/published-core-smoke/bin/python tools/check_sase_core_rs_bindings
+      - name: Smoke the at-reference file-row gate
+        run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_at_reference_file_gate
       - name: Smoke typed bead resolution round trip
         run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_bead_resolution
       - name: Smoke plan-header binding round trip

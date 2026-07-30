@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""Smoke the at-reference file-row gate in the published Rust-core minimum."""
+
+from __future__ import annotations
+
+import importlib
+import importlib.metadata
+import sys
+from types import ModuleType
+from typing import Any
+
+
+REQUIRED_BINDINGS = ("at_reference_context", "at_reference_menu")
+
+
+def _require_bindings(module: ModuleType) -> None:
+    missing = [
+        name for name in REQUIRED_BINDINGS if not callable(getattr(module, name, None))
+    ]
+    if missing:
+        raise RuntimeError("missing at-reference binding(s): " + ", ".join(missing))
+
+
+def _groups(menu: dict[str, Any]) -> set[str]:
+    rows = menu.get("rows")
+    if not isinstance(rows, list):
+        raise RuntimeError(f"at-reference menu has invalid rows: {menu!r}")
+    groups = {
+        row.get("group")
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("group"), str)
+    }
+    if len(groups) == 0 and len(rows) != 0:
+        raise RuntimeError(f"at-reference menu rows have no groups: {menu!r}")
+    return groups
+
+
+def validate_file_gate(module: ModuleType) -> dict[str, Any]:
+    """Exercise the default gate, explicit reveal, and kind-miss behavior."""
+
+    _require_bindings(module)
+    inventory = {
+        "kinds": [
+            {
+                "kind": "file",
+                "builtin": True,
+                "detail": "Tracked files",
+            }
+        ],
+        "paths": [
+            {"name": "fixture.md", "is_dir": False},
+            {"name": "folder", "is_dir": True},
+        ],
+        "payloads": [],
+    }
+
+    kind_hit_context = module.at_reference_context("@f", 0, 2)
+    if not isinstance(kind_hit_context, dict):
+        raise RuntimeError(f"unexpected @f context: {kind_hit_context!r}")
+
+    default_menu = module.at_reference_menu(kind_hit_context, inventory)
+    default_groups = _groups(default_menu)
+    if default_groups != {"artifact"} or default_menu.get("files_suppressed") is not True:
+        raise RuntimeError(
+            "default @f menu did not suppress matching path rows: "
+            f"{default_menu!r}"
+        )
+
+    revealed_menu = module.at_reference_menu(
+        kind_hit_context,
+        inventory,
+        options={"include_files": True},
+    )
+    revealed_groups = _groups(revealed_menu)
+    if (
+        revealed_groups != {"artifact", "file"}
+        or revealed_menu.get("files_suppressed") is not False
+    ):
+        raise RuntimeError(
+            "include_files did not return kind and path groups: "
+            f"{revealed_menu!r}"
+        )
+
+    kind_miss_context = module.at_reference_context("@fixture", 0, 8)
+    if not isinstance(kind_miss_context, dict):
+        raise RuntimeError(f"unexpected @fixture context: {kind_miss_context!r}")
+    kind_miss_menu = module.at_reference_menu(kind_miss_context, inventory)
+    kind_miss_groups = _groups(kind_miss_menu)
+    if (
+        kind_miss_groups != {"file"}
+        or kind_miss_menu.get("files_suppressed") is not False
+    ):
+        raise RuntimeError(
+            "kind-miss query did not return matching path rows: "
+            f"{kind_miss_menu!r}"
+        )
+
+    return {
+        "default_groups": sorted(default_groups),
+        "default_files_suppressed": default_menu["files_suppressed"],
+        "revealed_groups": sorted(revealed_groups),
+        "kind_miss_groups": sorted(kind_miss_groups),
+    }
+
+
+def main() -> int:
+    try:
+        module = importlib.import_module("sase_core_rs")
+        version = importlib.metadata.version("sase-core-rs")
+        result = validate_file_gate(module)
+    except Exception as error:
+        print(f"[at-reference-file-gate-smoke] {error}", file=sys.stderr)
+        return 1
+    print(f"[at-reference-file-gate-smoke] sase-core-rs {version}: {result}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
