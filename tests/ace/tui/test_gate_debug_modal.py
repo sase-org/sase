@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 from textual.app import App
@@ -200,15 +200,26 @@ async def test_tabs_and_copy_actions_use_prebuilt_snapshot(tmp_path: Path) -> No
         assert modal._tab_index == 0
 
         with patch(
-            "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
-            return_value=True,
-        ) as copy:
+            "sase.ace.tui.modals.gate_debug_modal.schedule_copy_delivery"
+        ) as schedule:
             modal.action_copy_tab()
             modal.action_copy_bundle_path()
-            await pilot.pause()
 
-        assert copy.call_args_list[0].args == (modal._snapshot.overview.raw_text,)
-        assert copy.call_args_list[1].args == (str(tmp_path / "missing-gate"),)
+        bundle_path = tmp_path / "missing-gate"
+        assert schedule.call_args_list == [
+            call(
+                modal,
+                modal._snapshot.overview.raw_text,
+                copied_label="Overview debug data",
+                task_name="sase-copy-gate-debug-tab",
+            ),
+            call(
+                modal,
+                str(bundle_path),
+                copied_label=f"gate bundle path ({bundle_path})",
+                task_name="sase-copy-gate-bundle-path",
+            ),
+        ]
 
 
 def test_d_without_context_shows_quiet_warning() -> None:

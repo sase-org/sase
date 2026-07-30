@@ -10,14 +10,14 @@ from sase.core.commit_footer_facade import parse_commit_footer
 from ...copy_targets import copy_targets_for
 from ...models.artifact_file_clipboard import artifact_file_preferred_path_text
 from ._palette_helpers import (
-    _marked_count_hint,
-    _marked_hint,
-    _short,
-    _size_hint,
+    marked_count_hint,
+    marked_hint,
+    shorten,
+    size_hint,
 )
 
 
-def _artifact_target_state(
+def artifact_target_state(
     *,
     group: str,
     subtab: str,
@@ -28,14 +28,12 @@ def _artifact_target_state(
 ) -> tuple[set[str], dict[str, str]]:
     available = {target.target for target in copy_targets_for(group)}
     previews = {
-        "reference": _marked_hint(count, "artifact references")
+        "reference": marked_hint(count, "artifact references")
         if marked
         else "artifact reference",
-        "link": _marked_hint(count, "Markdown links") if marked else "Markdown link",
-        "json": _marked_hint(count, "metadata records")
-        if marked
-        else "metadata record",
-        "handoff": _marked_hint(count, "prompt references")
+        "link": marked_hint(count, "Markdown links") if marked else "Markdown link",
+        "json": marked_hint(count, "metadata records") if marked else "metadata record",
+        "handoff": marked_hint(count, "prompt references")
         if marked
         else "new agent prompt",
         "snapshot": "current Artifacts pane",
@@ -76,7 +74,7 @@ def _artifact_target_state(
         values = {
             "path": getattr(first, "absolute_path", ""),
             "agent": agent or "",
-            "transcript": excerpt or _size_hint(getattr(first, "size_bytes", None)),
+            "transcript": excerpt or size_hint(getattr(first, "size_bytes", None)),
         }
         if not agent and not marked:
             available.discard("agent")
@@ -105,7 +103,7 @@ def _artifact_target_state(
             if not representable_count:
                 available.discard(target)
             elif marked:
-                previews[target] = _marked_count_hint(
+                previews[target] = marked_count_hint(
                     representable_count,
                     count,
                     labels[target],
@@ -113,9 +111,9 @@ def _artifact_target_state(
 
     for target, value in values.items():
         if value:
-            previews[target] = _short(str(value)) + suffix
+            previews[target] = shorten(str(value)) + suffix
         elif marked:
-            previews[target] = _marked_hint(count, target.replace("_", " "))
+            previews[target] = marked_hint(count, target.replace("_", " "))
     return available, previews
 
 
@@ -168,7 +166,7 @@ def _file_target_values(pane: Any, entry: Any | None) -> dict[str, str]:
     artifact_id = str(getattr(entry, "id", "") or "")
     label = str(getattr(entry, "label", "") or "")
     kind = str(getattr(entry, "kind", "") or "")
-    size = _size_hint(getattr(entry, "size_bytes", None))
+    size = size_hint(getattr(entry, "size_bytes", None))
     view_mode = _warm_file_view_mode(pane, entry, selected=True)
     reference = f"file:{artifact_id}" if artifact_id else ""
     metadata_hint = " · ".join(part for part in (kind, size, "metadata") if part)

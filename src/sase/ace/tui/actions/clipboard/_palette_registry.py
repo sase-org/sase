@@ -11,7 +11,7 @@ from ...commands import (
 )
 from ...copy_targets import copy_targets_for
 from ...keymaps import footer_key_display
-from ._palette_helpers import _short
+from ._palette_helpers import shorten
 
 if TYPE_CHECKING:
     from ...modals.copy_as_types import CopyAsContext
@@ -87,7 +87,7 @@ _DISPATCH_ORDER: dict[str, tuple[str, ...]] = {
 }
 
 
-def _context_from_registry(
+def context_from_registry(
     app: Any,
     *,
     group: str,
@@ -142,7 +142,7 @@ def _context_from_registry(
         return None
     return CopyAsContext(
         group=group,
-        subtitle=_short(subtitle, limit=92),
+        subtitle=shorten(subtitle, limit=92),
         unknown_context=unknown_context,
         rows=tuple(rows),
     )

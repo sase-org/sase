@@ -7,18 +7,18 @@ from typing import TYPE_CHECKING, Any
 from sase.project_display_names import humanize_cl_name
 
 from ...commands import CommandContext
-from ._palette_artifacts import _build_artifacts_context
+from ._palette_artifacts import build_artifacts_context
 from ._palette_helpers import (
-    _axe_item_label,
-    _number_from_url,
-    _output_hint,
-    _short,
-    _warn,
-    _warm_agent_file_path,
+    axe_item_label,
+    notify_copy_warning,
+    number_from_url,
+    output_hint,
+    shorten,
+    warm_agent_file_path,
 )
 from ._palette_registry import (
     _DISPATCH_ORDER as _DISPATCH_ORDER,
-    _context_from_registry,
+    context_from_registry,
 )
 
 if TYPE_CHECKING:
@@ -34,7 +34,7 @@ def build_copy_as_context(app: Any) -> CopyAsContext | None:
     tab = app.current_tab
     subtab = getattr(app, "current_artifacts_subtab", "prs")
     if tab == "changespecs" and subtab in _ARTIFACT_SUBTABS:
-        return _build_artifacts_context(app, subtab)
+        return build_artifacts_context(app, subtab)
     if tab == "changespecs":
         return _build_changespec_context(app)
     if tab == "agents":
@@ -47,7 +47,7 @@ def _build_changespec_context(app: Any) -> CopyAsContext | None:
     index = getattr(app, "current_idx", 0)
     changespec = changespecs[index] if 0 <= index < len(changespecs) else None
     if changespec is None:
-        _warn(app, "No ChangeSpec to copy")
+        notify_copy_warning(app, "No ChangeSpec to copy")
         return None
 
     ctx = CommandContext(
@@ -56,16 +56,16 @@ def _build_changespec_context(app: Any) -> CopyAsContext | None:
         changespec=changespec,
     )
     previews = {
-        "raw": _short(
+        "raw": shorten(
             getattr(changespec, "description", "")
             or f"{changespec.status} · {humanize_cl_name(changespec.name)}"
         ),
         "with_snapshot": "ChangeSpec + current pane",
-        "bug": _short(getattr(changespec, "bug", "")),
-        "pr_number": _number_from_url(getattr(changespec, "pr_url", None)),
+        "bug": shorten(getattr(changespec, "bug", "")),
+        "pr_number": number_from_url(getattr(changespec, "pr_url", None)),
         "name": humanize_cl_name(changespec.name),
-        "link": _short(getattr(changespec, "pr_url", "") or ""),
-        "spec": _short(getattr(changespec, "file_path", "")),
+        "link": shorten(getattr(changespec, "pr_url", "") or ""),
+        "spec": shorten(getattr(changespec, "file_path", "")),
         "snapshot": "current pane",
     }
     project = (
@@ -74,7 +74,7 @@ def _build_changespec_context(app: Any) -> CopyAsContext | None:
         or "ChangeSpecs"
     )
     subtitle = f"{project} · {humanize_cl_name(changespec.name)}"
-    return _context_from_registry(
+    return context_from_registry(
         app,
         group="changespecs",
         command_context=ctx,
@@ -91,10 +91,10 @@ def _build_agent_context(app: Any) -> CopyAsContext | None:
     except Exception:
         agent = None
     if agent is None:
-        _warn(app, "No agent selected")
+        notify_copy_warning(app, "No agent selected")
         return None
 
-    file_path = _warm_agent_file_path(app)
+    file_path = warm_agent_file_path(app)
     ctx = CommandContext(
         tab="agents",
         agent=agent,
@@ -110,9 +110,9 @@ def _build_agent_context(app: Any) -> CopyAsContext | None:
     response_path = getattr(agent, "response_path", None)
     status = str(getattr(agent, "status", "")).lower()
     previews = {
-        "chat": _short(response_path or ""),
-        "file_path": _short(file_path or ""),
-        "name": _short(str(presented_name)),
+        "chat": shorten(response_path or ""),
+        "file_path": shorten(file_path or ""),
+        "name": shorten(str(presented_name)),
         "prompt": f"{status} agent prompt" if status else "agent prompt",
         "reference": (
             f"@agent:{getattr(agent, 'agent_name', '')}"
@@ -121,7 +121,7 @@ def _build_agent_context(app: Any) -> CopyAsContext | None:
         ),
         "snapshot": "current pane",
     }
-    return _context_from_registry(
+    return context_from_registry(
         app,
         group="agents",
         command_context=ctx,
@@ -136,13 +136,13 @@ def _build_axe_context(app: Any) -> CopyAsContext | None:
     index = getattr(app, "current_idx", 0)
     item = items[index] if 0 <= index < len(items) else None
     if item is None:
-        _warn(app, "No AXE item to copy")
+        notify_copy_warning(app, "No AXE item to copy")
         return None
 
     ctx = CommandContext(tab="axe", axe_item=item)
-    subtitle = _axe_item_label(item)
+    subtitle = axe_item_label(item)
     output = getattr(app, "_axe_output", "")
-    output_preview = _output_hint(output)
+    output_preview = output_hint(output)
     if getattr(app, "_axe_current_view", "axe") != "axe":
         output_preview = (
             f"command output · {output_preview}" if output_preview else "command output"
@@ -152,7 +152,7 @@ def _build_axe_context(app: Any) -> CopyAsContext | None:
         "full": output_preview or "full output",
         "snapshot": "current pane",
     }
-    return _context_from_registry(
+    return context_from_registry(
         app,
         group="axe",
         command_context=ctx,

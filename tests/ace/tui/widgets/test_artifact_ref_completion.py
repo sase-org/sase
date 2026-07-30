@@ -16,8 +16,8 @@ from sase.ace.tui.widgets._artifact_ref_entity_catalogs import (
     ArtifactRefAgentCandidate,
     ArtifactRefBeadCandidate,
     _BEAD_CACHE,
-    load_agent_candidates,
-    load_bead_candidates,
+    load_agent_candidate_catalog,
+    load_bead_candidate_catalog,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
@@ -32,7 +32,7 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     _ArtifactRefFileCandidate,
     ArtifactRefKindCompletionMetadata,
     ArtifactRefPayloadCompletionMetadata,
-    _load_artifact_file_candidates,
+    _load_artifact_file_candidate_catalog,
     _read_cached_artifact_index,
     build_artifact_ref_completion_result,
     detect_artifact_ref_completion_context,
@@ -747,7 +747,7 @@ def test_artifact_file_catalog_preserves_rust_order_and_project_alias_filtering(
         "sase.ace.tui.widgets.artifact_ref_completion._read_cached_artifact_index",
         return_value=rust_ordered_rows,
     ):
-        candidates = _load_artifact_file_candidates("sase", context)
+        candidates = _load_artifact_file_candidate_catalog("sase", context).rows
 
     assert [candidate.payload for candidate in candidates] == [
         "explicit:aaa",
@@ -785,8 +785,8 @@ def test_bead_catalog_caches_sorts_and_caps_rows(tmp_path) -> None:
         "sase.core.bead_read_facade.list_issues",
         return_value=issues,
     ) as list_rows:
-        first = load_bead_candidates(context)
-        second = load_bead_candidates(context)
+        first = load_bead_candidate_catalog(context).rows
+        second = load_bead_candidate_catalog(context).rows
 
     assert first == second
     assert len(first) == 500
@@ -817,7 +817,7 @@ def test_agent_catalog_inserts_global_name_and_labels_current_owner(
         agent_roots=(ArtifactRefAgentRoot("sase", tmp_path / "agents-root"),),
         agent_owner=ArtifactRefAgentOwner("bbugyi200", "athena"),
     )
-    rows = load_agent_candidates(context)
+    rows = load_agent_candidate_catalog(context).rows
 
     assert rows == (
         ArtifactRefAgentCandidate(
@@ -837,4 +837,4 @@ def test_agent_catalog_inserts_global_name_and_labels_current_owner(
         "sase.ace.tui.widgets._artifact_ref_entity_catalogs._MAX_ENTITY_ROWS",
         1,
     )
-    assert load_agent_candidates(context) == rows[:1]
+    assert load_agent_candidate_catalog(context).rows == rows[:1]

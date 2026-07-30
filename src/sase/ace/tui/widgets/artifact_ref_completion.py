@@ -778,14 +778,6 @@ def _load_document_candidate_catalog(
     return _LoadedCandidates(tuple(rows), tuple(truncated))
 
 
-def _load_artifact_file_candidates(
-    project: str | None,
-    context: ArtifactRefContext,
-) -> tuple[_ArtifactRefFileCandidate, ...]:
-    """Compatibility projection for callers that only need bounded rows."""
-    return tuple(_load_artifact_file_candidate_catalog(project, context).rows)
-
-
 def _load_artifact_file_candidate_catalog(
     project: str | None,
     context: ArtifactRefContext,

@@ -6,18 +6,18 @@ from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from ...commands import CommandContext
-from ._palette_artifact_previews import _artifact_target_state
-from ._palette_helpers import _warn
-from ._palette_registry import _context_from_registry
+from ._palette_artifact_previews import artifact_target_state
+from ._palette_helpers import notify_copy_warning
+from ._palette_registry import context_from_registry
 
 if TYPE_CHECKING:
     from ...modals.copy_as_types import CopyAsContext
 
 
-def _build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
+def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
     pane = _artifact_pane(app, subtab)
     if pane is None:
-        _warn(app, f"No {subtab} entry to copy")
+        notify_copy_warning(app, f"No {subtab} entry to copy")
         return None
 
     visible_targets = _entry_targets(pane)
@@ -26,7 +26,7 @@ def _build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
     marked_targets = tuple(target for target in visible_targets if target in marks)
     marked = bool(marks)
     if marked and not marked_targets:
-        _warn(app, f"No marked {subtab} entries are visible")
+        notify_copy_warning(app, f"No marked {subtab} entries are visible")
         return None
 
     selected_target = _selected_entry_target(pane)
@@ -42,11 +42,11 @@ def _build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
         if selected is not None and not selected_objects:
             selected_objects = (selected,)
         if selected_target is None and not selected_objects:
-            _warn(app, f"No {subtab} entry to copy")
+            notify_copy_warning(app, f"No {subtab} entry to copy")
             return None
 
     count = len(marked_targets) if marked else 1
-    available, previews = _artifact_target_state(
+    available, previews = artifact_target_state(
         group=f"artifacts_{subtab}",
         subtab=subtab,
         pane=pane,
@@ -73,7 +73,7 @@ def _build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
         if not subtitle:
             subtitle = f"Selected {subtab[:-1] if subtab.endswith('s') else subtab}"
 
-    return _context_from_registry(
+    return context_from_registry(
         app,
         group=f"artifacts_{subtab}",
         command_context=ctx,

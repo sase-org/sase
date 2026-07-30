@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 
-def _warm_agent_file_path(app: Any) -> str | None:
+def warm_agent_file_path(app: Any) -> str | None:
     try:
         from ...widgets import AgentDetail
         from ...widgets.file_panel import AgentFilePanel
@@ -21,7 +21,7 @@ def _warm_agent_file_path(app: Any) -> str | None:
         return None
 
 
-def _axe_item_label(item: Any) -> str:
+def axe_item_label(item: Any) -> str:
     if hasattr(item, "lumberjack_name") and hasattr(item, "chop_name"):
         return f"{item.lumberjack_name} · {item.chop_name}"
     if hasattr(item, "name"):
@@ -31,21 +31,21 @@ def _axe_item_label(item: Any) -> str:
     return "AXE selection"
 
 
-def _output_hint(output: str) -> str:
+def output_hint(output: str) -> str:
     if not output or not output.strip():
         return ""
     lines = output.strip().splitlines()
-    return _short(f"{len(lines)} lines · {lines[0]}")
+    return shorten(f"{len(lines)} lines · {lines[0]}")
 
 
-def _number_from_url(url: str | None) -> str:
+def number_from_url(url: str | None) -> str:
     if not url:
         return ""
     match = re.search(r"/(\d+)(?:/)?$", url)
     return match.group(1) if match else ""
 
 
-def _size_hint(size: Any) -> str:
+def size_hint(size: Any) -> str:
     if not isinstance(size, int) or size < 0:
         return ""
     if size < 1024:
@@ -55,22 +55,22 @@ def _size_hint(size: Any) -> str:
     return f"{size / (1024 * 1024):.1f} MiB"
 
 
-def _marked_hint(count: int, label: str) -> str:
+def marked_hint(count: int, label: str) -> str:
     return f"{count} marked · {label}"
 
 
-def _marked_count_hint(representable: int, total: int, label: str) -> str:
+def marked_count_hint(representable: int, total: int, label: str) -> str:
     if representable == total:
-        return _marked_hint(total, label)
+        return marked_hint(total, label)
     return f"{representable}/{total} marked · {label}"
 
 
-def _short(value: str, *, limit: int = 58) -> str:
+def shorten(value: str, *, limit: int = 58) -> str:
     collapsed = " ".join(str(value).split())
     if len(collapsed) <= limit:
         return collapsed
     return collapsed[: limit - 1] + "…"
 
 
-def _warn(app: Any, message: str) -> None:
+def notify_copy_warning(app: Any, message: str) -> None:
     app.notify(message, severity="warning")
