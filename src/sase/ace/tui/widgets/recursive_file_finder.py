@@ -6,9 +6,8 @@ provides three building blocks for the :class:`RecursiveFileFinderModal`:
 
 * :func:`enumerate_recursive_candidates` -- git-aware recursive enumeration of
   files (and their intermediate directories) under a root.
-* :func:`_fuzzy_match` / :func:`_rank_candidates` -- fzf/Telescope-style fuzzy
-  subsequence matching with quality ranking and matched-position output for
-  highlighting.
+* :func:`_fuzzy_match` / :func:`_rank_candidates` -- shared Rust fuzzy matching
+  with quality ranking and matched-run output for highlighting.
 * :class:`FinderModel` -- the thin, unit-testable finder state (candidates +
   query + filtered view + selection index) the modal renders.
 """
@@ -20,6 +19,7 @@ import subprocess
 from dataclasses import dataclass, field
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.core.fuzzy_facade import FuzzyMatch, fuzzy_match, fuzzy_sort_key
 
 # ── Enumeration constants ─────────────────────────────────────────────
 
@@ -50,114 +50,10 @@ IGNORE_DIRS: frozenset[str] = frozenset(
 )
 """Heavy/uninteresting directories skipped by the non-git filesystem walk."""
 
-# ── Scoring constants ─────────────────────────────────────────────────
-
-SCORE_MATCH = 16
-"""Base score awarded for each matched character."""
-
-BONUS_BOUNDARY = 14
-"""Bonus when a matched char sits at a segment/word boundary."""
-
-BONUS_CONSECUTIVE = 10
-"""Bonus when a matched char immediately follows the previous match."""
-
-BONUS_BASENAME = 10
-"""Bonus when a matched char falls within the basename (vs. dir portion)."""
-
-MAX_LEADING_PENALTY = 10
-"""Cap on the penalty applied for a late first match (earlier is better)."""
-
-_BOUNDARY_CHARS: frozenset[str] = frozenset("/_-. ")
-
-
-@dataclass(frozen=True, slots=True)
-class FuzzyMatch:
-    """Result of a successful fuzzy match.
-
-    ``positions`` holds the matched character indices (into the matched text)
-    so the view can highlight them.  For an empty query the match is trivially
-    successful with ``score == 0`` and no positions.
-    """
-
-    score: int
-    positions: tuple[int, ...]
-
-
-def _is_boundary(text: str, pos: int) -> bool:
-    """Return True when ``text[pos]`` begins a new path segment or word."""
-    if pos == 0:
-        return True
-    prev = text[pos - 1]
-    if prev in _BOUNDARY_CHARS:
-        return True
-    # camelCase transition: lowercase/digit followed by an uppercase letter.
-    cur = text[pos]
-    return (prev.islower() or prev.isdigit()) and cur.isupper()
-
-
-def _basename_start(text: str) -> int:
-    """Return the index where the basename begins (after the final ``/``).
-
-    A trailing slash (directory candidate) is ignored so the last real path
-    segment counts as the basename.
-    """
-    core = text[:-1] if text.endswith("/") else text
-    return core.rfind("/") + 1
-
-
-def _score_positions(text: str, positions: list[int]) -> int:
-    """Score a chosen set of matched positions for *text*."""
-    basename_start = _basename_start(text)
-    score = 0
-    prev = -2
-    for pos in positions:
-        char_score = SCORE_MATCH
-        if _is_boundary(text, pos):
-            char_score += BONUS_BOUNDARY
-        if pos == prev + 1:
-            char_score += BONUS_CONSECUTIVE
-        if pos >= basename_start:
-            char_score += BONUS_BASENAME
-        score += char_score
-        prev = pos
-    # Penalise a late first match so earlier hits rank higher (bounded so it
-    # never overwhelms the per-character quality bonuses above).
-    score -= min(positions[0], MAX_LEADING_PENALTY)
-    return score
-
 
 def _fuzzy_match(query: str, text: str) -> FuzzyMatch | None:
-    """Fuzzy-match *query* against *text* (case-insensitive subsequence).
-
-    Returns a :class:`FuzzyMatch` (score + matched positions) when every
-    character of *query* appears in order within *text*, or ``None`` otherwise.
-    An empty *query* always matches with a zero score and no positions.
-
-    Matching is greedy left-to-right (the leftmost in-order subsequence), which
-    keeps positions deterministic and naturally favours boundary/consecutive
-    runs in typical path queries.
-    """
-    if not query:
-        return FuzzyMatch(score=0, positions=())
-
-    lowered = text.lower()
-    positions: list[int] = []
-    cursor = 0
-    for qch in query.lower():
-        found = -1
-        while cursor < len(lowered):
-            if lowered[cursor] == qch:
-                found = cursor
-                cursor += 1
-                break
-            cursor += 1
-        if found == -1:
-            return None
-        positions.append(found)
-
-    return FuzzyMatch(
-        score=_score_positions(text, positions), positions=tuple(positions)
-    )
+    """Fuzzy-match *query* against *text* with the shared core matcher."""
+    return fuzzy_match(query, text)
 
 
 def _rank_candidates(
@@ -166,17 +62,17 @@ def _rank_candidates(
 ) -> list[tuple[CompletionCandidate, FuzzyMatch]]:
     """Filter and rank *candidates* against *query*.
 
-    With a non-empty query, only matching candidates are returned, sorted by
-    descending score with ties broken by shorter then lexicographically-smaller
-    display path.  With an empty query, every candidate is returned in a
-    shallow-and-short-first default order.
+    With a non-empty query, only matching candidates are returned, sorted with
+    the shared fuzzy ordering: tier, descending score, shorter display path,
+    then case-insensitive path. With an empty query, every candidate is
+    returned in a shallow-and-short-first default order.
     """
     if not query:
         ordered = sorted(
             candidates,
             key=lambda c: (c.display.count("/"), len(c.display), c.display.lower()),
         )
-        empty = FuzzyMatch(score=0, positions=())
+        empty = FuzzyMatch(tier=0, score=0, runs=())
         return [(c, empty) for c in ordered]
 
     scored: list[tuple[CompletionCandidate, FuzzyMatch]] = []
@@ -184,9 +80,7 @@ def _rank_candidates(
         match = _fuzzy_match(query, candidate.display)
         if match is not None:
             scored.append((candidate, match))
-    scored.sort(
-        key=lambda cm: (-cm[1].score, len(cm[0].display), cm[0].display.lower())
-    )
+    scored.sort(key=lambda cm: fuzzy_sort_key(cm[1], cm[0].display))
     return scored
 
 

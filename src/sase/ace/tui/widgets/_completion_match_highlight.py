@@ -23,11 +23,14 @@ def append_highlighted(
     match_style: str = MATCH_STYLE,
     segment_split: int = 0,
     dim_style: str = DIR_PORTION_STYLE,
+    cellwise: bool = False,
 ) -> None:
     """Append *text* with bounded match spans and an optional dim prefix.
 
     ``runs`` are half-open character ranges. Invalid and overlapping ranges are
     normalized so this presentation helper stays safe at the wire boundary.
+    ``cellwise`` preserves the legacy finder raster by emitting one span per
+    character while still using the shared run/style normalization.
     """
     text_length = len(text)
     normalized: list[tuple[int, int]] = []
@@ -69,4 +72,9 @@ def append_highlighted(
             if split and start < split
             else base_style
         )
-        content.append(text[start:end], style=style)
+        segment = text[start:end]
+        if cellwise:
+            for char in segment:
+                content.append(char, style=style)
+        else:
+            content.append(segment, style=style)

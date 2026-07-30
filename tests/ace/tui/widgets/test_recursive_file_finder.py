@@ -31,10 +31,10 @@ def _candidate(display: str, is_dir: bool = False) -> CompletionCandidate:
 
 
 class TestFuzzyMatch:
-    def test_subsequence_match_returns_positions(self) -> None:
+    def test_subsequence_match_returns_runs(self) -> None:
         match = _fuzzy_match("ace", "src/ace/x.py")
         assert match is not None
-        assert match.positions == (4, 5, 6)
+        assert match.runs == ((4, 7),)
 
     def test_case_insensitive(self) -> None:
         assert _fuzzy_match("ACE", "src/ace/x.py") is not None
@@ -49,7 +49,7 @@ class TestFuzzyMatch:
         match = _fuzzy_match("", "anything/at/all.py")
         assert match is not None
         assert match.score == 0
-        assert match.positions == ()
+        assert match.runs == ()
 
     def test_consecutive_run_scores_higher_than_scattered(self) -> None:
         consecutive = _fuzzy_match("abc", "abcxx")
@@ -71,13 +71,13 @@ class TestFuzzyMatch:
 
 
 class TestRankCandidates:
-    def test_basename_match_outranks_directory_match(self) -> None:
+    def test_literal_prefix_outranks_basename_prefix(self) -> None:
         candidates = [
             _candidate("test/foo.py"),
             _candidate("foo/test.py"),
         ]
         ranked = _rank_candidates("test", candidates)
-        assert [c.display for c, _ in ranked][0] == "foo/test.py"
+        assert [c.display for c, _ in ranked][0] == "test/foo.py"
 
     def test_non_matches_filtered_out(self) -> None:
         candidates = [_candidate("alpha.py"), _candidate("beta.py")]

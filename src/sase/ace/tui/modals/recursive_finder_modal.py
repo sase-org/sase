@@ -15,6 +15,7 @@ from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from sase.ace.tui.widgets._completion_match_highlight import append_highlighted
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.recursive_file_finder import FinderModel, FuzzyMatch
 
@@ -199,20 +200,18 @@ class RecursiveFileFinderModal(ModalScreen[CompletionCandidate | None]):
         row.append("📁 " if candidate.is_dir else "📄 ")
 
         display = candidate.display
-        # Basename begins after the final "/" (ignoring a dir's trailing slash).
         core = display[:-1] if display.endswith("/") else display
         basename_start = core.rfind("/") + 1
-        matched = set(match.positions)
-        for idx, ch in enumerate(display):
-            if idx in matched:
-                style = _MATCH_STYLE
-            elif idx < basename_start:
-                style = _DIR_PORTION_STYLE
-            elif candidate.is_dir:
-                style = _DIR_STYLE
-            else:
-                style = _FILE_BASENAME_STYLE
-            row.append(ch, style=style)
+        append_highlighted(
+            row,
+            display,
+            match.runs,
+            base_style=_DIR_STYLE if candidate.is_dir else _FILE_BASENAME_STYLE,
+            match_style=_MATCH_STYLE,
+            segment_split=basename_start,
+            dim_style=_DIR_PORTION_STYLE,
+            cellwise=True,
+        )
 
         if selected:
             row.stylize(_SELECTED_BG)
