@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,11 @@ from sase.agents_sync.v2_import_package import (
     _validate_v2_hood_package,
     discover_agent_imports,
 )
-from sase.agents_sync.v2_io import read_owner_manifest
+from sase.agents_sync.v2_io import (
+    content_digest,
+    read_owner_manifest,
+    v2_json_bytes,
+)
 from sase.agents_sync.v2_models import V2ProjectIdentity
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 
@@ -92,6 +97,36 @@ def test_discovery_validates_complete_optional_restart_payloads(
     assert package.hood == "crew"
     assert package.runs[0].file_bytes("embedded_workflows") is not None
     assert package.runs[0].file_bytes("prompt_steps") is not None
+
+
+def test_import_package_preserves_family_container_commits(tmp_path: Path) -> None:
+    _target_value, repo = _publish(tmp_path)
+    manifest = read_owner_manifest(repo, OWNER, PROJECT)
+    hood, entry = manifest.hoods[0]
+    snapshot_path = (
+        repo
+        / "users"
+        / OWNER.username
+        / "machines"
+        / OWNER.machine_name
+        / "hoods"
+        / hood
+        / "snapshot.json"
+    )
+    snapshot = json.loads(snapshot_path.read_bytes())
+    lane_commit = CommitRecord("f" * 40, "lane commit", 3)
+    snapshot["containers"][0]["commits"] = [lane_commit.to_json_dict()]
+    snapshot_bytes = v2_json_bytes(snapshot)
+    snapshot_path.write_bytes(snapshot_bytes)
+
+    package = _validate_v2_hood_package(
+        repo,
+        manifest,
+        hood,
+        replace(entry, digest=content_digest(snapshot_bytes)),
+    )
+
+    assert package.snapshot.containers[0].commits == (lane_commit,)
 
 
 def test_whole_hood_rejects_referenced_digest_mismatch(

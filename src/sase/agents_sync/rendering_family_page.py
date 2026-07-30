@@ -101,8 +101,17 @@ def render_family_page(
             f"| {prompt} | {chat} |"
         )
     lines.append("")
-    family_commits = tuple(
+    member_commits = tuple(
         (commit, _member_role(run)) for run in members for commit in run.commits
+    )
+    member_commit_shas = {commit.sha for commit, _role in member_commits}
+    family_commits = (
+        *member_commits,
+        *(
+            (commit, "—")
+            for commit in family.commits
+            if commit.sha not in member_commit_shas
+        ),
     )
     if family_commits:
         lines.extend(

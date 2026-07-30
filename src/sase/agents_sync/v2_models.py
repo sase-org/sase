@@ -136,8 +136,17 @@ class V2ContainerRecord:
     kind: ContainerKind
     global_name: str
     member_source_run_ids: tuple[str, ...]
+    commits: tuple[CommitRecord, ...] = ()
 
     def to_json_dict(self, owner: AgentOwnerIdentity) -> dict[str, object]:
+        return {
+            **self.to_relationship_json_dict(owner),
+            "commits": [commit.to_json_dict() for commit in self.commits],
+        }
+
+    def to_relationship_json_dict(self, owner: AgentOwnerIdentity) -> dict[str, object]:
+        """Return the container fields owned by the Rust relationship schema."""
+
         return {
             "kind": self.kind,
             "global_name": self.global_name,
@@ -207,7 +216,8 @@ class V2HoodSnapshot:
                 for run in self.runs
             ],
             "containers": [
-                container.to_json_dict(self.owner) for container in self.containers
+                container.to_relationship_json_dict(self.owner)
+                for container in self.containers
             ],
             "relationships": [
                 relationship.to_json_dict() for relationship in self.relationships

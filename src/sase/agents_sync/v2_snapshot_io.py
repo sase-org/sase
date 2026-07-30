@@ -198,10 +198,12 @@ def _containers(
     result: list[V2ContainerRecord] = []
     for index, value in enumerate(rows):
         label = f"hood snapshot containers[{index}]"
+        base_keys = {"kind", "global_name", "owner", "member_source_run_ids"}
+        raw = json_object(value, label)
         row = exact_object(
-            value,
+            raw,
             label,
-            {"kind", "global_name", "owner", "member_source_run_ids"},
+            base_keys | ({"commits"} if "commits" in raw else set()),
         )
         if decode_owner_identity(row["owner"], f"{label} owner") != owner:
             raise AgentsSyncFormatError(f"{label} belongs to another owner")
@@ -212,7 +214,12 @@ def _containers(
         members = string_list(
             row["member_source_run_ids"], f"{label} members", MAX_RUNS
         )
-        result.append(V2ContainerRecord(kind, global_name, members))
+        commits = _commits(row["commits"], label) if "commits" in row else ()
+        if len({commit.sha for commit in commits}) != len(commits):
+            raise AgentsSyncFormatError(f"{label} commits must have unique SHAs")
+        if kind == "clan" and commits:
+            raise AgentsSyncFormatError(f"{label} clan commits must be empty")
+        result.append(V2ContainerRecord(kind, global_name, members, commits))
     output = tuple(result)
     if tuple(sorted(output, key=lambda item: (item.kind, item.global_name))) != output:
         raise AgentsSyncFormatError("hood snapshot containers must be stably sorted")

@@ -213,6 +213,54 @@ def test_commit_tables_link_escape_and_format_utc(
         time.tzset()
 
 
+def test_family_page_unions_lane_commits_with_member_attribution_winning() -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    project = V2ProjectIdentity("proj", "Project")
+    member_commit = CommitRecord("a" * 40, "member subject", 2)
+    lane_commit = CommitRecord("b" * 40, "lane subject", 1)
+    run = V2RunRecord(
+        "run-family",
+        "foo.bar--code",
+        "alice.athena.foo.bar--code",
+        "completed",
+        commits=(member_commit,),
+    )
+    family = V2ContainerRecord(
+        "family",
+        "alice.athena.foo.bar",
+        ("run-family",),
+        (
+            lane_commit,
+            CommitRecord(member_commit.sha, "lane duplicate", 3),
+        ),
+    )
+    snapshot = V2HoodSnapshot(
+        owner,
+        project,
+        "foo",
+        "alice.athena.foo",
+        runs=(run,),
+        containers=(family,),
+    )
+    manifest = V2OwnerManifest(
+        owner,
+        project,
+        (("foo", V2OwnerHoodEntry("a" * 64, (), 1, 1)),),
+    )
+
+    family_page = render_browsing_payload(
+        (manifest,),
+        {("alice", "athena", "foo"): snapshot},
+        commit_repo_name="project",
+    )["families/alice.athena.foo.bar.md"].decode()
+
+    assert "| — | project | `bbbbbbb` | lane subject |" in family_page
+    assert "| code | project | `aaaaaaa` | member subject |" in family_page
+    assert "lane duplicate" not in family_page
+    assert family_page.count("`aaaaaaa`") == 1
+    assert family_page.index("lane subject") < family_page.index("member subject")
+
+
 @pytest.mark.parametrize(
     ("remote_url", "provider"),
     (
