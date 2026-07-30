@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 from rich.console import Group
@@ -31,6 +32,27 @@ def make_agent(**overrides: object) -> Agent:
     }
     defaults.update(overrides)
     return Agent(**defaults)  # type: ignore[arg-type]
+
+
+def make_workflow_agent(
+    artifacts_dir: str | None = None,
+    parent_workflow: str | None = None,
+    step_name: str | None = None,
+    step_type: str | None = None,
+    step_output: dict[str, Any] | None = None,
+    activity: str | None = None,
+) -> Agent:
+    """Create a minimal workflow agent for prompt-panel tests."""
+    return make_agent(
+        agent_type=AgentType.WORKFLOW,
+        start_time=None,
+        artifacts_dir=artifacts_dir,
+        parent_workflow=parent_workflow,
+        step_name=step_name,
+        step_type=step_type,
+        step_output=step_output,
+        activity=activity,
+    )
 
 
 @pytest.fixture
