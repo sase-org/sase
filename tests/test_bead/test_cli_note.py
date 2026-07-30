@@ -95,7 +95,7 @@ def test_note_appends_to_existing_notes_and_history_shows_revisions(
         for line in stream_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    assert operations == ["issue_created", "issue_updated", "issue_updated"]
+    assert operations == ["issue_created", "note_appended", "note_appended"]
 
     history = _run_history([issue_id, "--field", "notes", "--format", "full"], capsys)
     assert "from: [2026-01-01T00:01:00Z · alice] first note" in history

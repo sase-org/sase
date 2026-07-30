@@ -55,6 +55,7 @@ sase bead pages refresh --write                        # Regenerate, commit, and
 sase bead pages url beads-001.1                        # Print the hosted page URL when available
 sase bead stats                                         # Project statistics
 sase bead doctor                                        # Health check
+sase bead doctor --fix-projection                       # Repair issues.jsonl from canonical events
 sase bead work "$PLANS_ROOT/202605/epic.md" --dry-run   # Preview bead creation and launch waves
 sase bead work "$PLANS_ROOT/202605/epic.md" --yes       # Create, link, and launch an epic plan
 sase bead work beads-001                                # Launch agents for an epic plan bead
@@ -100,12 +101,15 @@ sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.m
 Status can transition between values via `sase bead update --status=<status>`, with one completion guard: moving a bead
 to `closed` is rejected while any descendant remains open, claimed, or in progress. Close those descendants deliberately
 first; `update --status=closed` never cascades. `sase bead open <id>` reopens the bead and every closed ancestor above
-it, clearing their resolutions so a closed parent never sits above reopened work. `claimed` is machine-managed by the
-agent runner (see [Bead Claim Lifecycle](#bead-claim-lifecycle)); do not set it by hand.
+it, clearing their resolution, close reason, and close timestamp so a closed parent never sits above reopened work.
+`claimed` is machine-managed by the agent runner (see [Bead Claim Lifecycle](#bead-claim-lifecycle)); do not set it by
+hand.
 
 Every new close records a typed `resolution`: `done`, `canceled`, or `superseded`. Normal closes default to `done`;
-`close_reason` remains optional free text for the human explanation. Historical closed beads are not backfilled, so
-their resolution remains unset and human-readable detail views show `(unrecorded)`.
+`close_reason` remains optional free text for the human explanation. Closing an already-closed bead is a verified no-op:
+the command succeeds when any supplied reason or resolution agrees with the recorded close, and fails without writing
+when the request conflicts. Historical closed beads are not backfilled, so their resolution remains unset and
+human-readable detail views show `(unrecorded)`.
 
 ### Bead Claim Lifecycle
 
@@ -229,6 +233,12 @@ are kept in sync:
 - **Fresh clones** read directly from the tracked event streams and can rebuild the compatibility mirrors on demand.
 - **Dependency removals** are recorded as `dependency_removed` events. During merged replay, a remove sorts after an add
   with the same timestamp, so add-then-remove deterministically leaves the edge absent.
+- **Closed intervals** start with the first close after a bead becomes closed. Later close events in the same interval
+  are kept in the log but ignored by the projection, so duplicate closes cannot move `closed_at` or erase a close
+  reason. Reopening or otherwise moving out of `closed` ends the interval and clears close metadata.
+- **Note appends** use `note_appended` events whose payload stores only the new entry text. The reducer renders the
+  timestamped attribution from the event metadata, so concurrent note appends merge as separate entries instead of
+  replacing each other. Legacy `issue_updated { notes }` events remain whole-field replacements.
 
 The `.gitignore` excludes `beads.db*` files. The event store, `issues.jsonl`, and `config.json` are tracked in git.
 
@@ -291,6 +301,12 @@ Close one or more issues. Every requested bead is checked before the first write
 leaves the store untouched. A bead with any non-closed descendant is rejected and names the unfinished work; phase
 agents should continue to close only their assigned phase bead, not the parent epic.
 
+Closing a bead that is already closed exits successfully and reports `Already closed` without appending another close
+event, changing `issues.jsonl`, or creating a store commit. If the repeat close includes a note, the note is still
+appended and committed as a note-only mutation. If the repeat close supplies an explicit `--resolution` or `--reason`
+that disagrees with the recorded close, the command exits non-zero before writing and points at `sase bead open` or
+`sase bead note` as the appropriate remedy.
+
 For an epic plan bead, `--phases` (`-p`) closes phase beads by their numeric bead-ID suffix: for example,
 `sase bead close sase-at -p 1-3,5` closes `sase-at.1`, `sase-at.2`, `sase-at.3`, and `sase-at.5`. The option accepts
 comma-separated numbers and inclusive ranges, may be repeated, and requires exactly one epic ID. It never closes the
@@ -301,23 +317,23 @@ an explicit `canceled` or `superseded` resolution; `--force --resolution done` i
 closes the unfinished descendants with the same non-done resolution, gives each one a close reason naming the forcing
 parent, and records the swept descendant IDs in that parent's close event.
 
-`--note` appends one attributed note to every explicitly listed bead before the close events, in the same mutation, so
-completion evidence and the close land in one commit and one push instead of two. The note text and attribution match
-`sase bead note`; forced closes apply it only to the listed beads, never to the swept descendants. Keep `sase bead note`
-for mid-work progress notes.
+`--note` appends one attributed note to every explicitly listed bead before any close events, in the same mutation, so
+completion evidence and the close land in one commit and one push instead of two. The note entry is stored as a
+`note_appended` event, matching `sase bead note`; forced closes apply it only to the listed beads, never to the swept
+descendants. Keep `sase bead note` for mid-work progress notes and for adding evidence to a bead that is already closed.
 
 Closing a delegated child plan/epic also closes its parent phase automatically once every child of that phase is closed.
 This upward cascade continues only through phase parents and never auto-closes a parent plan/epic; the parent land agent
 retains that responsibility. Removing a child epic does not trigger the cascade, so its phase stays open and can be
 scheduled again on retry.
 
-| Flag               | Description                                                                         |
-| ------------------ | ----------------------------------------------------------------------------------- |
-| `-f, --force`      | Sweep unfinished descendants; requires a reason and `canceled` or `superseded`      |
-| `-n, --note`       | Append this attributed note to each listed issue before closing it                  |
-| `-p, --phases`     | Close numbered phases of one epic; accepts comma-separated numbers and ranges       |
-| `-r, --reason`     | Optional close reason text; required with `--force`                                 |
-| `-R, --resolution` | `canceled`, `done`, or `superseded`; defaults to `done`, which force does not allow |
+| Flag               | Description                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `-f, --force`      | Sweep unfinished descendants; requires a reason and `canceled` or `superseded`                               |
+| `-n, --note`       | Append this attributed note to each listed issue before closing it                                           |
+| `-p, --phases`     | Close numbered phases of one epic; accepts comma-separated numbers and ranges                                |
+| `-r, --reason`     | Optional close reason text; required with `--force`                                                          |
+| `-R, --resolution` | `canceled`, `done`, or `superseded`; real closes default to `done`; repeat closes compare only when supplied |
 
 ### `sase bead create`
 
@@ -391,6 +407,7 @@ Run health checks on the beads database. Checks for:
 
 - Missing `config.json`, event store, legacy projection, or compatibility cache
 - Projection drift between canonical events and `issues.jsonl`
+- Redundant close events, including how many landed in the recent diagnostic window
 - Invalid events or unreduced orphan phase records
 - Uncommitted bead-state changes
 - Orphan children (phase or nested-plan beads whose parent is missing)
@@ -401,19 +418,32 @@ Run health checks on the beads database. Checks for:
 If bead commands fail before opening a store, run `sase core health` first. It verifies that the required `sase_core_rs`
 extension is importable and exposes the representative bead CLI binding used by the fast path.
 
+`--fix-projection` previews rows where `issues.jsonl` differs from replaying the canonical event streams, then rewrites
+the projection from the streams after confirmation. The repair refuses unexpected diffs: row additions or removals,
+status changes, fields outside `closed_at`, `close_reason`, and `updated_at`, or any `closed_at` move later. A
+successful repair commits `chore(beads): reproject bead state from canonical events`; a second clean run writes nothing.
+Use `--yes` for non-interactive repair after reviewing the preview through an external approval gate.
+
+| Flag                    | Description                                                            |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `-F, --fix-design-refs` | Repair recoverable legacy design references after confirmation         |
+| `-P, --fix-projection`  | Rewrite `issues.jsonl` from canonical event streams after confirmation |
+| `-y, --yes`             | Apply the requested doctor repair without an interactive confirmation  |
+
 ### `sase bead history [<id>]`
 
 Replay one bead's canonical event stream as an ordered, field-level timeline. Compact output prints the timestamp,
 actor, operation, and changed field names for each event. Full output prints every prior and new value, including
 earlier note revisions that later updates replaced. JSON emits one envelope with `issue_id`, `schema_version`, and
-`entries`.
+`entries`. A duplicate close that the reducer treated as inert is labeled as redundant instead of rendering as an empty
+change row.
 
 Use `--lost-notes` to report notes snapshots whose nonblank text no longer appears in the current notes. With no
 positional ID it scans the whole store; with an ID it checks only that bead. Findings are sorted by bead ID. Add
 `--restore` to preview provenance-tagged appends, prompt once, and restore every finding through the same atomic append
 mutation used by `sase bead note`. Restoration is idempotent: restored text is retained by later append snapshots, so a
-second scan reports nothing. Non-interactive restoration declines safely, and `--restore` without `--lost-notes` is a
-usage error.
+second scan reports nothing. Non-interactive restoration declines safely unless `--yes` is supplied, and `--restore`
+without `--lost-notes` is a usage error.
 
 | Flag               | Values                    | Description                                                    |
 | ------------------ | ------------------------- | -------------------------------------------------------------- |
@@ -422,6 +452,7 @@ usage error.
 | `-n, --limit`      | non-negative integer      | Newest entries to print; omitted or `0` is unlimited           |
 | `-l, --lost-notes` | boolean                   | Report beads whose current notes dropped an earlier revision   |
 | `-R, --restore`    | boolean                   | With `--lost-notes`, re-append findings after one confirmation |
+| `-y, --yes`        | boolean                   | With `--restore`, skip the confirmation prompt                 |
 
 ### `sase bead init`
 
@@ -448,9 +479,10 @@ and `--limit` is omitted, only the newest 20 beads print; pass `--limit 0` for t
 
 ### `sase bead note <id> <text>`
 
-Append one timestamped, attributed entry to an issue's notes. The entry is recorded as
-`[<timestamp> · <author>] <text>`, separated from existing notes by a blank line. The mutation runs atomically in the
-Rust bead store, so concurrent note writers append to the current value rather than replacing each other.
+Append one timestamped, attributed entry to an issue's notes. The mutation records a `note_appended` event containing
+only the entry text; the reducer renders `[<timestamp> · <author>] <text>` from event metadata and separates it from
+existing notes by a blank line. The mutation runs atomically in the Rust bead store, and concurrent note writers merge
+as separate events rather than replacing each other.
 
 | Flag           | Description                                                               |
 | -------------- | ------------------------------------------------------------------------- |
@@ -463,8 +495,8 @@ Display a quick-start guide with common command examples.
 ### `sase bead open <id>`
 
 Reopen an issue with an `issue_opened` event. Every closed ancestor above it is reopened in the same mutation, and the
-command prints the ancestor IDs it changed. Resolutions are cleared on the reopened bead and ancestors; historical close
-reasons and timestamps remain available.
+command prints the ancestor IDs it changed. Resolutions, close reasons, and close timestamps are cleared on the reopened
+bead and ancestors; historical values remain available in `sase bead history --format full`.
 
 ### `sase bead ready`
 
