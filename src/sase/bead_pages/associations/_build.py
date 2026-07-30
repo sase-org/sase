@@ -45,9 +45,12 @@ def build_bead_association_index(
 ) -> BeadAssociationIndex:
     """Derive every bead's agents and commits in one reusable pass."""
 
-    primary = Path(primary_root or Path.cwd()).resolve(strict=False)
+    from sase.sdd.checkout_anchor import resolve_checkout_anchor
+
+    anchor = resolve_checkout_anchor(primary_root or Path.cwd())
+    primary = anchor.primary_root
     snapshot = identity or AgentIdentitySnapshot.current()
-    selected_project = project or _current_project()
+    selected_project = project or anchor.project_name or _current_project()
     diagnostics: list[str] = []
     issues = _read_issues(store, bead_issues, diagnostics)
     known_bead_ids = frozenset(issue.id for issue in issues)

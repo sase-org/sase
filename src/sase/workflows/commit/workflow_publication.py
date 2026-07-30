@@ -20,11 +20,14 @@ def run_agent_publication_step(
         return True
     if "publish_bead_pages" not in cp.completed_steps:
         from sase.bead_pages.publication import publish_committed_bead_pages
+        from sase.sdd.checkout_anchor import resolve_checkout_anchor
 
         try:
+            anchor = resolve_checkout_anchor(cp.cwd)
             publish_committed_bead_pages(
                 str(cp.payload.get("message") or ""),
-                primary_root=cp.cwd,
+                primary_root=anchor.primary_root,
+                project=anchor.project_name,
             )
         except Exception as exc:  # noqa: BLE001 - best-effort projection.
             print_status(

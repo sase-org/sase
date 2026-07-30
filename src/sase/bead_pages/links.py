@@ -28,16 +28,25 @@ def resolve_bead_commit_tag(
     label = str(bead_id).strip()
     if not label:
         return label
-    primary_root = Path(cwd or os.getcwd()).expanduser().resolve(strict=False)
+    from sase.sdd.checkout_anchor import resolve_checkout_anchor
+
+    anchor = resolve_checkout_anchor(cwd or os.getcwd())
+    primary_root = anchor.primary_root
 
     try:
         resolved_store = store or _resolve_store(primary_root)
         from sase.sdd.hosted_links import hosted_link_resolver
 
-        destination = hosted_link_resolver(
-            resolved_store,
-            primary_root=primary_root,
-        ).bead_url(label)
+        resolver = (
+            hosted_link_resolver(resolved_store, primary_root=primary_root)
+            if anchor.project_name is None
+            else hosted_link_resolver(
+                resolved_store,
+                project=anchor.project_name,
+                primary_root=primary_root,
+            )
+        )
+        destination = resolver.bead_url(label)
     except Exception:
         return label
     if destination is None:
@@ -79,11 +88,19 @@ def resolve_bead_page_target(
     if store is None:
         return None
     from sase.sdd.hosted_links import hosted_link_resolver
+    from sase.sdd.checkout_anchor import resolve_checkout_anchor
 
-    destination = hosted_link_resolver(
-        store,
-        primary_root=primary_root,
-    ).bead_url(bead_id)
+    anchor = resolve_checkout_anchor(primary_root)
+    resolver = (
+        hosted_link_resolver(store, primary_root=anchor.primary_root)
+        if anchor.project_name is None
+        else hosted_link_resolver(
+            store,
+            project=anchor.project_name,
+            primary_root=anchor.primary_root,
+        )
+    )
+    destination = resolver.bead_url(bead_id)
     if destination is None:
         return None
     resolved_ids = (
@@ -111,7 +128,10 @@ def resolve_bead_page_url_from_cwd(
     if not label:
         return None
     try:
-        primary_root = Path(cwd or os.getcwd()).expanduser().resolve(strict=False)
+        from sase.sdd.checkout_anchor import resolve_checkout_anchor
+
+        anchor = resolve_checkout_anchor(cwd or os.getcwd())
+        primary_root = anchor.primary_root
         store = _resolve_store(primary_root)
         return resolve_bead_page_target(
             label,

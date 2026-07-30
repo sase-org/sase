@@ -37,6 +37,10 @@ def refresh_bead_pages(
 ) -> BeadPagesRefreshReport:
     """Rebuild generated bead pages, optionally writing one batched commit."""
 
+    from sase.sdd.checkout_anchor import resolve_checkout_anchor
+
+    anchor = resolve_checkout_anchor(primary_root)
+    resolved_project = project or anchor.project_name
     pages_root = store.repo_root_for_kind("beads") / BEAD_PAGES_DIRNAME
     if not store.is_sidecar_storage or store.beads_dir is None:
         return _error_report(
@@ -70,10 +74,10 @@ def refresh_bead_pages(
         return _refresh_locked(
             store,
             pages_root=pages_root,
-            primary_root=Path(primary_root).resolve(strict=False),
+            primary_root=anchor.primary_root,
             bead_id=bead_id,
             write=write,
-            project=project,
+            project=resolved_project,
             association_index=association_index,
             link_resolver=link_resolver,
         )

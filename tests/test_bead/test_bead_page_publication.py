@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 from types import MappingProxyType
@@ -9,8 +11,11 @@ from types import MappingProxyType
 import pytest
 
 from sase.bead.model import Issue, IssueType
+from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.bead_pages.associations import BeadAssociationIndex
 from sase.bead_pages.publication import publish_committed_bead_pages
+from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+from sase.core.paths import sase_projects_dir
 from sase.sdd.store import SddStore
 from sase.workflows.commit.checkpoint import CommitCheckpoint
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
@@ -59,6 +64,59 @@ def _store(tmp_path: Path, *, with_beads: bool = True) -> SddStore:
         repo_root=plans,
         beads_dir=beads if with_beads else None,
     )
+
+
+def _register_project(project_name: str, checkout: Path) -> None:
+    project_dir = sase_projects_dir() / project_name
+    project_dir.mkdir(parents=True)
+    (project_dir / f"{project_name}.sase").write_text(
+        f"WORKSPACE_DIR: {checkout}\n",
+        encoding="utf-8",
+    )
+
+
+def _write_marker(checkout: Path, *, project_name: str) -> None:
+    marker_path = checkout / ".sase" / "checkout.json"
+    marker_path.parent.mkdir(parents=True)
+    marker_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "project_name": project_name,
+                "project_key": project_name,
+                "workspace_num": 3,
+                "primary_workspace_dir": str(checkout),
+                "registry_path": str(checkout / "registry.json"),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _init_git_repo(repo: Path, remote: str) -> None:
+    repo.mkdir(parents=True, exist_ok=True)
+    _git(repo, "init", "-q")
+    _git(repo, "checkout", "-B", "main")
+    _git(repo, "config", "user.name", "SASE Test")
+    _git(repo, "config", "user.email", "sase-test@example.com")
+    _git(repo, "remote", "add", "origin", remote)
+
+
+def _commit_bead(repo: Path, filename: str, subject: str, bead_id: str) -> str:
+    (repo / filename).write_text(subject, encoding="utf-8")
+    _git(repo, "add", filename)
+    _git(repo, "commit", "-q", "-m", subject, "-m", f"SASE_BEAD={bead_id}")
+    return _git(repo, "rev-parse", "HEAD").stdout.strip().casefold()
 
 
 def _patch_publication_dependencies(
@@ -143,6 +201,80 @@ def test_tagged_commit_publishes_whole_lineage_once(
     ]
     assert not (store.beads_dir / "pages" / "README.md").exists()
     assert not (store.beads_dir / "pages" / "sase-other").exists()
+
+
+def test_sidecar_publication_anchors_associations_and_commit_links_to_primary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    checkout = tmp_path / "checkout"
+    plans = checkout / "sase" / "repos" / "plans"
+    beads = checkout / "sase" / "repos" / "beads"
+    _init_git_repo(checkout, "git@github.com:sase-org/sase.git")
+    _init_git_repo(plans, "git@github.com:sase-org/sase--plans.git")
+    _init_git_repo(beads, "git@github.com:sase-org/sase--beads.git")
+    _register_project("sase", checkout)
+    _write_marker(checkout, project_name="sase")
+    with BeadProject.init(beads, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+        root = project.create("Published pages", IssueType.PLAN)
+        phase = project.create("Publication", IssueType.PHASE, parent_id=root.id)
+    phase_id = phase.id
+    primary_sha = _commit_bead(
+        checkout,
+        "primary.txt",
+        "feat: primary association",
+        phase_id,
+    )
+    _commit_bead(plans, "plan.txt", "docs: sidecar association", phase_id)
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        provider="github",
+        remote_url="git@github.com:sase-org/sase--plans.git",
+        beads_dir=beads,
+        beads_remote_url="git@github.com:sase-org/sase--beads.git",
+    )
+
+    @contextmanager
+    def acquired_lock(*_args: object, **_kwargs: object):
+        yield True
+
+    monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_args: store)
+    monkeypatch.setattr(
+        "sase.sdd._git_contention.store_git_write_lock",
+        acquired_lock,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.files.commit_sdd_store_files",
+        lambda *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        "sase.core.agent_identity_facade.AgentIdentitySnapshot.current",
+        lambda: AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena")),
+    )
+    monkeypatch.setattr(
+        "sase.bead_pages.associations._build.load_artifact_records",
+        lambda _project: (),
+    )
+    message = f"docs: sidecar association\n\nSASE_BEAD={phase_id}"
+
+    from_primary = publish_committed_bead_pages(message, primary_root=checkout)
+    primary_payload = (beads / "pages" / root.id / "README.md").read_text(
+        encoding="utf-8"
+    )
+    from_sidecar = publish_committed_bead_pages(message, primary_root=plans)
+    sidecar_payload = (beads / "pages" / root.id / "README.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert from_primary.error is None
+    assert from_sidecar.error is None
+    assert sidecar_payload == primary_payload
+    assert f"https://github.com/sase-org/sase/commit/{primary_sha}" in sidecar_payload
+    assert "feat: primary association" in sidecar_payload
+    assert "docs: sidecar association" not in sidecar_payload
+    assert "sase--plans/commit/" not in sidecar_payload
 
 
 def test_missing_sidecar_and_missing_tag_skip_without_error(

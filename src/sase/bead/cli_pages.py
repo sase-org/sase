@@ -103,19 +103,25 @@ def _page_context(*, materialize: bool) -> tuple[Any, Path, str | None]:
     from sase.sdd.plan_refs import workspace_context_for_plan_resolution
     from sase.sdd.store import materialize_sdd_store, resolve_sdd_store
 
-    primary_root, workspace_num = workspace_context_for_plan_resolution(Path.cwd())
+    from sase.sdd.checkout_anchor import resolve_checkout_anchor
+
+    anchor = resolve_checkout_anchor(Path.cwd())
+    primary_root, workspace_num = workspace_context_for_plan_resolution(
+        anchor.primary_root
+    )
     store = (
         materialize_sdd_store(primary_root, workspace_num)
         if materialize
         else resolve_sdd_store(primary_root, workspace_num)
     )
-    project = None
-    try:
-        from sase.workflows.utils import get_project_from_workspace
+    project = anchor.project_name
+    if project is None:
+        try:
+            from sase.workflows.utils import get_project_from_workspace
 
-        project = get_project_from_workspace()
-    except Exception:
-        pass
+            project = get_project_from_workspace()
+        except Exception:
+            pass
     return store, primary_root, project
 
 

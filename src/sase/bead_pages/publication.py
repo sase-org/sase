@@ -28,10 +28,13 @@ def publish_committed_bead_pages(
     """Publish the lineage named by ``SASE_BEAD`` without ever raising."""
 
     try:
+        from sase.sdd.checkout_anchor import resolve_checkout_anchor
+
+        anchor = resolve_checkout_anchor(primary_root)
         return _publish_committed_bead_pages(
             commit_message,
-            primary_root=Path(primary_root).resolve(strict=False),
-            project=project,
+            primary_root=anchor.primary_root,
+            project=project or anchor.project_name,
         )
     except Exception as exc:  # noqa: BLE001 - auxiliary post-commit boundary.
         return _error_outcome(exc)
