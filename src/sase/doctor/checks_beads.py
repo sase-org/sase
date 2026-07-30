@@ -53,7 +53,98 @@ def bead_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="Project beads",
             runner=lambda: _check_project_beads(context),
         ),
+        CheckSpec(
+            id="project.bead_pages",
+            group="project",
+            title="Published bead pages",
+            runner=lambda: _check_bead_page_commit_links(context),
+        ),
     )
+
+
+def _check_bead_page_commit_links(context: DoctorContext) -> DiagnosticCheck:
+    """Report published commit links that name the wrong repository.
+
+    A bare short SHA on a published page claims the primary repository, so a
+    bare label pointing at a sidecar or linked remote means the projection that
+    wrote the page walked the wrong repository. The symptom is cheap to detect
+    from the published bytes and silently degraded 21 lineages before anything
+    surfaced it.
+    """
+    from sase.bead_pages.audit import audit_commit_link_attribution
+
+    pages_root, remote_url = _bead_pages_audit_inputs(context)
+    if pages_root is None or not pages_root.is_dir() or not remote_url:
+        return DiagnosticCheck(
+            id="project.bead_pages",
+            group="project",
+            status="SKIP",
+            title="Published bead pages",
+            summary="no published bead pages with a resolvable primary remote",
+            data={
+                "pages_root": str(pages_root) if pages_root is not None else None,
+                "primary_remote_url": remote_url,
+            },
+        )
+
+    findings = audit_commit_link_attribution(
+        pages_root,
+        primary_remote_url=remote_url,
+    )
+    details = tuple(
+        f"{finding.page}: `{finding.label}` links to {finding.url}"
+        for finding in findings[:_MAX_DETAIL_ROWS]
+    )
+    return DiagnosticCheck(
+        id="project.bead_pages",
+        group="project",
+        status="ERROR" if findings else "OK",
+        title="Published bead pages",
+        summary=(
+            f"{len(findings)} published commit link(s) misattributed to the "
+            "primary repository"
+            if findings
+            else "published commit links name their own repository"
+        ),
+        details=details,
+        next_steps=(("Run `sase bead pages refresh --write`.",) if findings else ()),
+        data={
+            "pages_root": str(pages_root),
+            "primary_remote_url": remote_url,
+            "misattributed": [
+                {
+                    "page": str(finding.page),
+                    "label": finding.label,
+                    "url": finding.url,
+                }
+                for finding in findings
+            ],
+        },
+    )
+
+
+def _bead_pages_audit_inputs(
+    context: DoctorContext,
+) -> tuple[Path | None, str | None]:
+    """Resolve the published pages root and the primary repository remote."""
+    try:
+        from sase.bead_pages.paths import BEAD_PAGES_DIRNAME
+        from sase.sdd.checkout_anchor import resolve_checkout_anchor
+        from sase.sdd.hosted_links import resolve_origin_remote_url
+        from sase.sdd.plan_refs import workspace_context_for_plan_resolution
+        from sase.sdd.store import resolve_sdd_store
+
+        anchor = resolve_checkout_anchor(context.cwd)
+        primary_root, workspace_num = workspace_context_for_plan_resolution(
+            anchor.primary_root
+        )
+        store = resolve_sdd_store(primary_root, workspace_num)
+        if not store.is_sidecar_storage or store.beads_dir is None:
+            return None, None
+        pages_root = store.repo_root_for_kind("beads") / BEAD_PAGES_DIRNAME
+        return pages_root, resolve_origin_remote_url(primary_root)
+    except Exception:  # noqa: BLE001 - a doctor check never breaks the report.
+        return None, None
 
 
 def _check_project_beads(context: DoctorContext) -> DiagnosticCheck:

@@ -58,6 +58,16 @@ def resolve_hosted_branch(
     return origin.removeprefix("origin/") or None
 
 
+def resolve_origin_remote_url(
+    repo: Path,
+    *,
+    git_runner: GitRunner | None = None,
+) -> str | None:
+    """Return *repo*'s ``origin`` remote URL, or ``None`` when unresolvable."""
+
+    return _origin_remote_url(repo, git_runner or _default_git_runner())
+
+
 @dataclass(frozen=True, slots=True)
 class _RemoteCoordinates:
     """One repository's remote, provider, and — for blob links — branch."""
@@ -384,4 +394,9 @@ def _symbolic_ref(
     return result.stdout.strip() or None
 
 
-__all__ = ["HostedLinkResolver", "hosted_link_resolver", "resolve_hosted_branch"]
+__all__ = [
+    "HostedLinkResolver",
+    "hosted_link_resolver",
+    "resolve_hosted_branch",
+    "resolve_origin_remote_url",
+]

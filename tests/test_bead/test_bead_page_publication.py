@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
@@ -13,6 +14,7 @@ import pytest
 from sase.bead.model import Issue, IssueType
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.bead_pages.associations import BeadAssociationIndex
+from sase.bead_pages.audit import audit_commit_link_attribution
 from sase.bead_pages.publication import publish_committed_bead_pages
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.core.paths import sase_projects_dir
@@ -203,10 +205,25 @@ def test_tagged_commit_publishes_whole_lineage_once(
     assert not (store.beads_dir / "pages" / "sase-other").exists()
 
 
-def test_sidecar_publication_anchors_associations_and_commit_links_to_primary(
+@dataclass(frozen=True)
+class _MultiRepoPublication:
+    """One checkout whose plans sidecar also carries a bead-tagged commit."""
+
+    checkout: Path
+    plans: Path
+    beads: Path
+    root_id: str
+    primary_sha: str
+    sidecar_sha: str
+    message: str
+
+
+def _multi_repo_publication(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
+) -> _MultiRepoPublication:
+    """Register a project whose bead work spans the primary repo and a sidecar."""
+
     checkout = tmp_path / "checkout"
     plans = checkout / "sase" / "repos" / "plans"
     beads = checkout / "sase" / "repos" / "beads"
@@ -262,16 +279,36 @@ def test_sidecar_publication_anchors_associations_and_commit_links_to_primary(
         "sase.bead_pages.associations._build.load_artifact_records",
         lambda _project: (),
     )
-    message = f"docs: sidecar association\n\nSASE_BEAD={phase_id}"
+    return _MultiRepoPublication(
+        checkout,
+        plans,
+        beads,
+        root.id,
+        primary_sha,
+        sidecar_sha,
+        f"docs: sidecar association\n\nSASE_BEAD={phase_id}",
+    )
 
-    from_primary = publish_committed_bead_pages(message, primary_root=checkout)
-    primary_payload = (beads / "pages" / root.id / "README.md").read_text(
-        encoding="utf-8"
+
+def test_sidecar_publication_anchors_associations_and_commit_links_to_primary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _multi_repo_publication(tmp_path, monkeypatch)
+    page = fixture.beads / "pages" / fixture.root_id / "README.md"
+    primary_sha = fixture.primary_sha
+    sidecar_sha = fixture.sidecar_sha
+
+    from_primary = publish_committed_bead_pages(
+        fixture.message,
+        primary_root=fixture.checkout,
     )
-    from_sidecar = publish_committed_bead_pages(message, primary_root=plans)
-    sidecar_payload = (beads / "pages" / root.id / "README.md").read_text(
-        encoding="utf-8"
+    primary_payload = page.read_text(encoding="utf-8")
+    from_sidecar = publish_committed_bead_pages(
+        fixture.message,
+        primary_root=fixture.plans,
     )
+    sidecar_payload = page.read_text(encoding="utf-8")
 
     assert from_primary.error is None
     assert from_sidecar.error is None
@@ -286,6 +323,25 @@ def test_sidecar_publication_anchors_associations_and_commit_links_to_primary(
     assert (
         f"https://github.com/sase-org/sase--plans/commit/{primary_sha}"
         not in sidecar_payload
+    )
+
+
+def test_published_pages_never_attribute_a_commit_to_a_sidecar_remote(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Guard the symptom that stayed invisible across 21 published lineages."""
+
+    fixture = _multi_repo_publication(tmp_path, monkeypatch)
+
+    publish_committed_bead_pages(fixture.message, primary_root=fixture.plans)
+
+    assert (
+        audit_commit_link_attribution(
+            fixture.beads / "pages",
+            primary_remote_url="git@github.com:sase-org/sase.git",
+        )
+        == ()
     )
 
 
