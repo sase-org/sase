@@ -412,6 +412,63 @@ def test_pr_body_agent_info_precedes_structured_footer(
     )
 
 
+def test_pr_body_agent_footer_renders_the_family_lane(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A family member's PR footer names the lane and links the family page."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"name": "pc--code"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    destination = (
+        "https://github.com/acme/project--agents/blob/main/families/alice.athena.pc.md"
+    )
+    payload = {
+        "message": (
+            f"Description\n\nSASE_AGENT=[alice.athena.pc][1]\n\n[1]: {destination}"
+        )
+    }
+
+    build_pr_body(payload)
+
+    assert f"**Agent:** [alice.athena.pc]({destination})" in payload["_pr_body"]
+
+
+def test_pr_body_agent_metadata_fallback_is_projected_to_the_lane(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without a footer tag the member name in metadata still renders as a lane."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"name": "pc--code"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    payload = {"message": "Description\n\nSASE_TYPE=sdd"}
+
+    build_pr_body(payload)
+
+    assert "**Agent:** `pc`" in payload["_pr_body"]
+
+
+def test_pr_body_agent_metadata_fallback_leaves_a_solo_name_alone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"name": "worker"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    payload = {"message": "Description\n\nSASE_TYPE=sdd"}
+
+    build_pr_body(payload)
+
+    assert "**Agent:** `worker`" in payload["_pr_body"]
+
+
 def test_linked_bead_tag_survives_into_pr_body(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

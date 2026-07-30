@@ -3,10 +3,11 @@
 import socket
 from pathlib import Path
 
-from sase.axe.image_attachments import DiffScan, ExtraRepoScan
+from sase.axe.image_attachments import DiffScan, ExtraRepoScan, _agent_tag_matches
 from sase.axe.image_attachments import collect_agent_image_paths
 from sase.axe.image_attachments import collect_agent_markdown_paths
 from sase.axe.image_attachments import collect_agent_video_paths
+from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.sdd.files import is_sdd_internal_path
 
 
@@ -311,6 +312,65 @@ def test_collect_agent_paths_from_extra_repo_base_range_and_untracked(
         str(committed_image.resolve()),
         str(untracked_image.resolve()),
     ]
+
+
+def test_extra_repo_commit_paths_match_lane_tagged_family_commits(
+    tmp_path: Path,
+) -> None:
+    """A family member collects commits tagged with its lane and legacy self."""
+    primary = tmp_path / "workspace"
+    primary.mkdir()
+    _init_repo(primary)
+
+    extra = tmp_path / "sdd"
+    extra.mkdir()
+    _init_repo(extra)
+    (extra / "base.txt").write_text("base\n")
+    _run(extra, "git", "add", ".")
+    _run(extra, "git", "commit", "-m", "base")
+    base_sha = _run(extra, "git", "rev-parse", "HEAD")
+
+    expected: list[str] = []
+    for filename, agent_tag in (
+        # The lane spelling every commit made after provenance moved to lanes.
+        ("lane.md", "feat"),
+        # The legacy member spelling, which must keep matching forever.
+        ("legacy.md", "feat--code"),
+        # A lane-mate's legacy commit: same lane, so same attachments.
+        ("sibling.md", "feat--plan"),
+    ):
+        path = extra / filename
+        path.write_text(f"# {filename}\n")
+        _run(extra, "git", "add", ".")
+        _run(extra, "git", "commit", "-m", f"add {filename}\n\nSASE_AGENT={agent_tag}")
+        expected.append(str(path.resolve()))
+
+    foreign = extra / "foreign.md"
+    foreign.write_text("# Foreign\n")
+    _run(extra, "git", "add", ".")
+    _run(extra, "git", "commit", "-m", "foreign\n\nSASE_AGENT=other--code")
+
+    assert (
+        collect_agent_markdown_paths(
+            str(primary),
+            extra_repo_scans=[
+                ExtraRepoScan(str(extra), base_sha, agent_name="feat--code")
+            ],
+        )
+        == expected
+    )
+
+
+def test_agent_tag_matches_projects_global_lane_tags_onto_local_members() -> None:
+    """The globally spelled lane tag a real commit carries matches its member."""
+    identity = AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena"))
+
+    assert _agent_tag_matches("alice.athena.feat", "feat--code", identity)
+    assert _agent_tag_matches("alice.athena.feat--code", "feat--code", identity)
+    assert _agent_tag_matches("alice.athena.feat", "feat", identity)
+    assert not _agent_tag_matches("alice.athena.other", "feat--code", identity)
+    assert not _agent_tag_matches("bob.athena.feat", "feat--code", identity)
+    assert not _agent_tag_matches(None, "feat--code", identity)
 
 
 def test_extra_repo_commit_paths_require_matching_agent_and_machine_tags(

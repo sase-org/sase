@@ -8,8 +8,12 @@ import subprocess
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.media_types import SUPPORTED_VIDEO_EXTENSIONS, is_supported_video_path
+
+if TYPE_CHECKING:
+    from sase.core.agent_identity_facade import AgentIdentitySnapshot
 
 SUPPORTED_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})
 SUPPORTED_MARKDOWN_EXTENSIONS = frozenset({".md", ".markdown"})
@@ -253,6 +257,9 @@ def _attributed_commit_paths(
         f"{base_sha}..HEAD",
     )
     current_hostname = _current_hostname()
+    # Resolved once: the lane projection needs owner identity for every commit
+    # in the scan and that lookup reads configuration.
+    identity = _agent_identity_snapshot()
     paths: list[str] = []
     for record in output.split("\0"):
         if "\x1f" not in record:
@@ -262,7 +269,7 @@ def _attributed_commit_paths(
         if not commit_sha:
             continue
         tags = parse_trailing_commit_tags(message)
-        if not _agent_tag_matches(tags.get("AGENT"), agent_name):
+        if not _agent_tag_matches(tags.get("AGENT"), agent_name, identity):
             continue
         tagged_machine = tags.get("MACHINE")
         if tagged_machine and tagged_machine != current_hostname:
@@ -283,15 +290,60 @@ def _attributed_commit_paths(
     return paths
 
 
-def _agent_tag_matches(tagged_agent: str | None, agent_name: str) -> bool:
-    return bool(
-        tagged_agent
-        and (
-            tagged_agent == agent_name
-            or tagged_agent.startswith(f"{agent_name}.")
-            or tagged_agent.startswith(f"{agent_name}--")
-        )
+def _agent_tag_matches(
+    tagged_agent: str | None,
+    agent_name: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> bool:
+    """Return whether the ``AGENT`` tag *tagged_agent* attributes *agent_name*.
+
+    A commit footer names the committing agent's *lane*, so a family member's
+    own commits carry the family container's name rather than the member
+    spelling this scan was handed.  Both sides are therefore also compared as
+    lanes, while the literal spellings keep being compared so legacy
+    member-name tags -- and neighbors inside the same hood -- still match.
+    """
+    if not tagged_agent:
+        return False
+    if _names_match(tagged_agent, agent_name):
+        return True
+    return _names_match(
+        _lane_of(tagged_agent, identity),
+        _lane_of(agent_name, identity),
     )
+
+
+def _names_match(tagged_agent: str, agent_name: str) -> bool:
+    return (
+        tagged_agent == agent_name
+        or tagged_agent.startswith(f"{agent_name}.")
+        or tagged_agent.startswith(f"{agent_name}--")
+    )
+
+
+def _lane_of(name: str, identity: AgentIdentitySnapshot | None) -> str:
+    """Return the bare local lane of *name*, or *name* when unresolvable.
+
+    Attachment discovery is a best-effort boundary that must never fail
+    because agent identity is unavailable, so every projection error degrades
+    to the raw spelling.
+    """
+    try:
+        from sase.agent_lanes import lane_ref_for_agent
+
+        return lane_ref_for_agent(name, identity).local_name
+    except Exception:
+        return name
+
+
+def _agent_identity_snapshot() -> AgentIdentitySnapshot | None:
+    """Return the current agent identity, or ``None`` when unavailable."""
+    try:
+        from sase.core.agent_identity_facade import AgentIdentitySnapshot
+
+        return AgentIdentitySnapshot.current()
+    except Exception:
+        return None
 
 
 def _current_hostname() -> str | None:

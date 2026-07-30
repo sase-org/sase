@@ -87,6 +87,25 @@ def test_linked_plan_displays_label_and_hides_definition_from_body() -> None:
     assert view.body == "body text"
 
 
+def test_linked_lane_agent_tag_displays_the_lane_label() -> None:
+    """A family member's commit shows its lane, linked to the family page."""
+    view = commit_tag_view(
+        _commit(
+            "body text\n\nSASE_AGENT=[bbugyi200.athena.pc][1]\n\n"
+            "[1]: https://github.com/sase-org/sase--agents/blob/main/"
+            "families/bbugyi200.athena.pc.md"
+        )
+    )
+
+    assert view.tags == (("AGENT", "bbugyi200.athena.pc"),)
+    assert view.body == "body text"
+
+    text = inline_tag_text(view.tags)
+
+    assert text.plain == "@bbugyi200.athena.pc"
+    assert _styles_covering(text, "bbugyi200.athena.pc") == ["#FFD700"]
+
+
 @pytest.mark.parametrize(
     ("type_value", "expected_color"),
     [
