@@ -305,6 +305,30 @@ def test_reference_resolver_renders_every_artifacts_identity(
         archive=None,
         issue=None,
     )
+    epic_row = SimpleNamespace(
+        row_id="epic",
+        project="alpha",
+        kind="epic",
+        proposal=None,
+        archive=None,
+        issue=SimpleNamespace(
+            id="sase-b2",
+            title="Artifact references",
+            design="plans:202607/artifact.md",
+        ),
+    )
+    phase_row = SimpleNamespace(
+        row_id="phase",
+        project="alpha",
+        kind="phase",
+        proposal=None,
+        archive=None,
+        issue=SimpleNamespace(
+            id="sase-b2.7",
+            title="ACE copy mode",
+            design="plans:202607/artifact.md",
+        ),
+    )
     cases = (
         (
             "commits",
@@ -327,6 +351,28 @@ def test_reference_resolver_renders_every_artifacts_identity(
                 str(tmp_path),
             ),
             "@plans:202607/artifact.md",
+        ),
+        (
+            "plans",
+            _artifacts._ArtifactReferenceItem(
+                "epic",
+                ("plan", "alpha", "epic", "sase-b2"),
+                epic_row,
+                "alpha",
+                str(tmp_path),
+            ),
+            "@bead:sase-b2",
+        ),
+        (
+            "plans",
+            _artifacts._ArtifactReferenceItem(
+                "phase",
+                ("plan", "alpha", "phase", "sase-b2.7"),
+                phase_row,
+                "alpha",
+                str(tmp_path),
+            ),
+            "@bead:sase-b2.7",
         ),
         (
             "chats",

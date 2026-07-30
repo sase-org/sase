@@ -8,6 +8,7 @@ from typing import Any
 
 from sase.core.agent_identity_facade import present_agent_name
 from sase.core.commit_footer_facade import parse_commit_footer
+from sase.artifact_refs import design_reference_for_plan_row
 
 from ...graphics._viewer_render import artifact_file_view_mode
 from ...models.artifact_file_clipboard import (
@@ -69,6 +70,20 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
         row = pane.selected_row() if pane is not None else None
         if row is None:
             self.notify("No plan entry selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        if target == "design":
+            value = design_reference_for_plan_row(row)
+            if value is None:
+                self.notify(  # type: ignore[attr-defined]
+                    "The selected bead has no design plan reference",
+                    severity="warning",
+                )
+                return
+            self._schedule_artifacts_copy(
+                value,
+                copied_message="Copied bead design plan reference",
+            )
             return
 
         if row.proposal is not None:
@@ -329,7 +344,11 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
                 )
                 for row in rows
             ],
-            plural_label=f"plan {_plural(target)}",
+            plural_label=(
+                "bead design plan references"
+                if target == "design"
+                else f"plan {_plural(target)}"
+            ),
         )
 
     def _copy_marked_chat_targets(
@@ -606,6 +625,11 @@ def _bug_prompt(pane: Any, issue: Any, project: str) -> str:
 
 
 def _plan_copy_value(pane: Any, row: Any, target: str) -> str:
+    if target == "design":
+        value = design_reference_for_plan_row(row)
+        if value is None:
+            raise ValueError(f"{row.row_id} has no design plan reference")
+        return value
     if row.proposal is not None:
         values = {
             "path": row.proposal.plan_path,

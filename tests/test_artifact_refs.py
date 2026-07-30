@@ -596,7 +596,8 @@ def test_reference_for_each_entry_target_shape(tmp_path: Path) -> None:
     archive = SimpleNamespace(
         plan=SimpleNamespace(relpath="202607/design.md", kind="designs")
     )
-    issue = SimpleNamespace(design="plans:202607/epic.md")
+    issue = SimpleNamespace(id="sase-av", design="plans:202607/epic.md")
+    phase = SimpleNamespace(id="sase-av.2", design="plans:202607/epic.md")
 
     assert (
         artifact_refs.reference_for_entry_target(
@@ -638,7 +639,16 @@ def test_reference_for_each_entry_target_shape(tmp_path: Path) -> None:
             context=context,
             row=SimpleNamespace(issue=issue),
         )
-        == "plans:202607/epic.md"
+        == "bead:sase-av"
+    )
+    assert (
+        artifact_refs.reference_for_entry_target(
+            "plans",
+            ("plan", "sase", "phase", "sase-av.2"),
+            context=context,
+            row=SimpleNamespace(issue=phase),
+        )
+        == "bead:sase-av.2"
     )
     assert (
         artifact_refs.reference_for_entry_target(
@@ -675,9 +685,40 @@ def test_reference_rendering_declines_unrepresentable_rows(tmp_path: Path) -> No
             "plans",
             ("plan", "sase", "phase", "sase-av.2"),
             context=context,
-            row=SimpleNamespace(issue=SimpleNamespace(design="")),
+            row=SimpleNamespace(issue=SimpleNamespace(id="")),
         )
         is None
+    )
+
+
+def test_plan_design_and_agent_reference_entry_points(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        AgentOwnerIdentity,
+    )
+
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity(username="alice", machine_name="athena"),
+        sibling_machines=("athena", "zeus"),
+    )
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity),
+    )
+
+    row = SimpleNamespace(issue=SimpleNamespace(design="plans:202607/epic.md"))
+    assert artifact_refs.design_reference_for_plan_row(row) == "plans:202607/epic.md"
+    assert artifact_refs.reference_for_agent_name("9w") == "agent:alice.athena.9w"
+    assert (
+        artifact_refs.reference_for_agent_name("alice.athena.9w--code")
+        == "agent:alice.athena.9w--code"
+    )
+    assert (
+        artifact_refs.reference_for_agent_name("bob.zeus.reader")
+        == "agent:bob.zeus.reader"
     )
 
 

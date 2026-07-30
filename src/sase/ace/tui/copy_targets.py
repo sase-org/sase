@@ -208,6 +208,15 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
     ),
     _target(
         "artifacts_plans",
+        "design",
+        "design",
+        "Copy design reference",
+        "Location",
+        "design references",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_plans",
         "path",
         "path",
         "Copy plan path",
@@ -514,6 +523,14 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         "Copy prompt",
         "Content",
         "prompts",
+    ),
+    _target(
+        "agents",
+        "reference",
+        "@ref",
+        "Copy agent reference",
+        "Identity",
+        "agent references",
     ),
     _target(
         "agents",

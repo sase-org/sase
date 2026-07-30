@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+
 from sase.project_display_names import humanize_vcs_refs_in_text
 
+from ._artifact_reference_resolution import reference_for_agent_row
 from ._base import ClipboardBase
 from ._delivery import schedule_copy_delivery
 from ._helpers import cap_copy_content
@@ -80,6 +82,45 @@ class ClipboardAgentsMixin(ClipboardBase):
                 else f"agent prompt ({lines} lines)"
             ),
             task_name="sase-copy-agent-prompt",
+        )
+
+    def _copy_agent_reference(self) -> None:
+        """Copy the durable reference for a concrete Agents-tab agent row."""
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+        if agent.is_clan_container:
+            self.notify(  # type: ignore[attr-defined]
+                "The selected clan row has no agent reference",
+                severity="warning",
+            )
+            return
+        if agent.is_family_container_row:
+            self.notify(  # type: ignore[attr-defined]
+                "The selected family container has no agent reference",
+                severity="warning",
+            )
+            return
+        if not agent.is_agent_entry:
+            row_kind = "workflow step" if agent.is_workflow_step_child else "workflow"
+            self.notify(  # type: ignore[attr-defined]
+                f"The selected {row_kind} row has no agent reference",
+                severity="warning",
+            )
+            return
+        reference = reference_for_agent_row(agent)
+        if reference is None:
+            self.notify(  # type: ignore[attr-defined]
+                "The selected agent has no durable agent name",
+                severity="warning",
+            )
+            return
+        schedule_copy_delivery(
+            self,
+            f"@{reference}",
+            copied_label=f"agent reference ({reference})",
+            task_name="sase-copy-agent-reference",
         )
 
     def _copy_file_path(self) -> None:

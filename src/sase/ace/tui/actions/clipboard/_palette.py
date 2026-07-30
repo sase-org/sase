@@ -51,6 +51,7 @@ _DISPATCH_ORDER: dict[str, tuple[str, ...]] = {
         "handoff",
         "link",
         "json",
+        "design",
         "path",
         "title",
         "body",
@@ -87,7 +88,7 @@ _DISPATCH_ORDER: dict[str, tuple[str, ...]] = {
         "title",
         "prompt",
     ),
-    "agents": ("chat", "file_path", "name", "prompt", "snapshot"),
+    "agents": ("chat", "file_path", "name", "prompt", "reference", "snapshot"),
     "axe": ("visible", "full", "snapshot"),
 }
 
@@ -178,6 +179,11 @@ def _build_agent_context(app: Any) -> CopyAsContext | None:
         "file_path": _short(file_path or ""),
         "name": _short(str(presented_name)),
         "prompt": f"{status} agent prompt" if status else "agent prompt",
+        "reference": (
+            f"@agent:{getattr(agent, 'agent_name', '')}"
+            if getattr(agent, "agent_name", None)
+            else ""
+        ),
         "snapshot": "current pane",
     }
     return _context_from_registry(
@@ -407,7 +413,7 @@ def _artifact_target_state(
             available.discard("plan")
     elif subtab == "plans":
         values = _plan_values(pane, first)
-        for target in ("path", "title", "body"):
+        for target in ("design", "path", "title", "body"):
             if not values.get(target) and not marked:
                 available.discard(target)
     elif subtab == "chats":
@@ -610,9 +616,10 @@ def _artifact_identity(subtab: str, value: Any | None) -> str:
 
 def _plan_values(pane: Any, row: Any | None) -> dict[str, str]:
     if row is None:
-        return {"path": "", "title": "", "body": ""}
+        return {"design": "", "path": "", "title": "", "body": ""}
     if getattr(row, "proposal", None) is not None:
         return {
+            "design": "",
             "path": row.proposal.plan_path,
             "title": row.proposal.title,
             "body": row.proposal.body,
@@ -620,6 +627,7 @@ def _plan_values(pane: Any, row: Any | None) -> dict[str, str]:
     if getattr(row, "archive", None) is not None:
         plan = row.archive.plan
         return {
+            "design": "",
             "path": plan.path,
             "title": plan.title or plan.name,
             "body": plan.body,
@@ -632,6 +640,7 @@ def _plan_values(pane: Any, row: Any | None) -> dict[str, str]:
         else ""
     )
     return {
+        "design": getattr(issue, "design", "") if issue is not None else "",
         "path": path or "",
         "title": getattr(issue, "title", "") if issue is not None else "",
         "body": body or "",

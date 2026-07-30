@@ -13,11 +13,11 @@ from sase.ace.tui.widgets._file_completion_base import (
     _PromptPathInventoryWorkerResult,
 )
 from sase.ace.tui.widgets._artifact_ref_entity_catalogs import (
-    _ArtifactRefAgentCandidate,
-    _ArtifactRefBeadCandidate,
+    ArtifactRefAgentCandidate,
+    ArtifactRefBeadCandidate,
     _BEAD_CACHE,
-    _load_agent_candidates,
-    _load_bead_candidates,
+    load_agent_candidates,
+    load_bead_candidates,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
@@ -100,7 +100,7 @@ _CATALOG = ArtifactRefCompletionCatalog(
     ),
     chats=(_ArtifactRefChatCandidate("202607/agent.md", 1_785_326_400),),
     beads=(
-        _ArtifactRefBeadCandidate(
+        ArtifactRefBeadCandidate(
             "sase-9z",
             "Artifact references",
             "in_progress · epic",
@@ -108,7 +108,7 @@ _CATALOG = ArtifactRefCompletionCatalog(
         ),
     ),
     agents=(
-        _ArtifactRefAgentCandidate(
+        ArtifactRefAgentCandidate(
             "bbugyi200.athena.9w",
             "9w",
             "sase",
@@ -771,8 +771,8 @@ def test_bead_catalog_caches_sorts_and_caps_rows(tmp_path) -> None:
         "sase.core.bead_read_facade.list_issues",
         return_value=issues,
     ) as list_rows:
-        first = _load_bead_candidates(context)
-        second = _load_bead_candidates(context)
+        first = load_bead_candidates(context)
+        second = load_bead_candidates(context)
 
     assert first == second
     assert len(first) == 500
@@ -803,16 +803,16 @@ def test_agent_catalog_inserts_global_name_and_labels_current_owner(
         agent_roots=(ArtifactRefAgentRoot("sase", tmp_path / "agents-root"),),
         agent_owner=ArtifactRefAgentOwner("bbugyi200", "athena"),
     )
-    rows = _load_agent_candidates(context)
+    rows = load_agent_candidates(context)
 
     assert rows == (
-        _ArtifactRefAgentCandidate(
+        ArtifactRefAgentCandidate(
             payload="bbugyi200.athena.9w",
             label="9w",
             detail="sase",
             updated_at=20,
         ),
-        _ArtifactRefAgentCandidate(
+        ArtifactRefAgentCandidate(
             payload="alice.zeus.foo",
             label="alice.zeus.foo",
             detail="alice.zeus",
@@ -823,4 +823,4 @@ def test_agent_catalog_inserts_global_name_and_labels_current_owner(
         "sase.ace.tui.widgets._artifact_ref_entity_catalogs._MAX_ENTITY_ROWS",
         1,
     )
-    assert _load_agent_candidates(context) == rows[:1]
+    assert load_agent_candidates(context) == rows[:1]

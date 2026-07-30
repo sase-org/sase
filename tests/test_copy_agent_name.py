@@ -7,6 +7,10 @@ from unittest.mock import patch
 
 from sase.ace.tui.actions.clipboard import ClipboardMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+)
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -123,3 +127,93 @@ def test_copy_agent_name_uses_recoverable_delivery_policy() -> None:
 
     assert schedule.call_args.kwargs.get("on_failure", "modal") == "modal"
     assert app.notifications == []
+
+
+def test_copy_agent_reference_uses_global_name() -> None:
+    agent = _make_agent(
+        agent_type=AgentType.RUNNING,
+        agent_name="sase-b2.7",
+    )
+    app = FakeApp(agent)
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity(username="alice", machine_name="athena")
+    )
+
+    with (
+        patch.object(AgentIdentitySnapshot, "current", return_value=identity),
+        patch(
+            "sase.ace.tui.actions.clipboard._agents.schedule_copy_delivery"
+        ) as schedule,
+    ):
+        app._copy_agent_reference()
+
+    schedule.assert_called_once_with(
+        app,
+        "@agent:alice.athena.sase-b2.7",
+        copied_label="agent reference (agent:alice.athena.sase-b2.7)",
+        task_name="sase-copy-agent-reference",
+    )
+    assert app.notifications == []
+
+
+def test_copy_agent_reference_warns_for_clan_row() -> None:
+    agent = _make_agent(
+        agent_name=None,
+        agent_clan="reviewers",
+        is_clan_container=True,
+    )
+    app = FakeApp(agent)
+
+    with patch(
+        "sase.ace.tui.actions.clipboard._agents.schedule_copy_delivery"
+    ) as schedule:
+        app._copy_agent_reference()
+
+    schedule.assert_not_called()
+    assert app.notifications == [
+        ("The selected clan row has no agent reference", "warning")
+    ]
+
+
+def test_copy_agent_reference_warns_for_family_container() -> None:
+    member = _make_agent(
+        agent_type=AgentType.RUNNING,
+        agent_name="review--code",
+    )
+    agent = _make_agent(
+        agent_type=AgentType.RUNNING,
+        agent_name="review--plan",
+        agent_family="review",
+        agent_family_role="root",
+        followup_agents=[member],
+    )
+    app = FakeApp(agent)
+
+    with patch(
+        "sase.ace.tui.actions.clipboard._agents.schedule_copy_delivery"
+    ) as schedule:
+        app._copy_agent_reference()
+
+    schedule.assert_not_called()
+    assert app.notifications == [
+        ("The selected family container has no agent reference", "warning")
+    ]
+
+
+def test_copy_agent_reference_warns_for_non_agent_workflow_step() -> None:
+    agent = _make_agent(
+        agent_name=None,
+        parent_workflow="release",
+        step_type="python",
+    )
+    app = FakeApp(agent)
+
+    with patch(
+        "sase.ace.tui.actions.clipboard._agents.schedule_copy_delivery"
+    ) as schedule:
+        app._copy_agent_reference()
+
+    schedule.assert_not_called()
+    assert app.notifications == [
+        ("The selected workflow step row has no agent reference", "warning")
+    ]

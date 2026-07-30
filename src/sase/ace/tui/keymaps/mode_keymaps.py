@@ -78,6 +78,7 @@ class CopyModeKeymaps(ModeKeymaps):
             "artifacts_plans": {
                 "reference": "at",
                 "handoff": "exclamation_mark",
+                "design": "d",
                 "path": "p",
                 "title": "t",
                 "body": "b",
@@ -122,6 +123,7 @@ class CopyModeKeymaps(ModeKeymaps):
                 "file_path": "E",
                 "name": "n",
                 "prompt": "p",
+                "reference": "at",
                 "snapshot": "s",
             },
             "axe": {

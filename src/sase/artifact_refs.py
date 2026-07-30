@@ -705,14 +705,10 @@ def _reference_for_plan_row(
         return None
     if row_kind in {"epic", "phase"}:
         issue = getattr(row, "issue", None)
-        design = getattr(issue, "design", None)
-        if not isinstance(design, str) or not design:
+        issue_id = getattr(issue, "id", None)
+        if not isinstance(issue_id, str) or not issue_id:
             return None
-        try:
-            parsed = parse_artifact_ref(design)
-        except ValueError:
-            return None
-        return parsed.rendered if parsed.kind == "plans" else None
+        return parse_artifact_ref(f"bead:{issue_id}").rendered
     if row_kind == "proposal":
         proposal = getattr(row, "proposal", None)
         plan_path = getattr(proposal, "plan_path", None)
@@ -744,6 +740,41 @@ def _reference_for_plan_row(
             return None
         return parse_artifact_ref(f"{role}:{relpath}").rendered
     return None
+
+
+def design_reference_for_plan_row(row: object | None) -> str | None:
+    """Return the design reference attached to an ACE epic or phase row."""
+
+    issue = getattr(row, "issue", None)
+    design = getattr(issue, "design", None)
+    if not isinstance(design, str) or not design:
+        return None
+    try:
+        parsed = parse_artifact_ref(design)
+    except ValueError:
+        return None
+    return parsed.rendered if parsed.kind == "plans" else None
+
+
+def reference_for_agent_name(name: str) -> str | None:
+    """Render one Agents-tab agent name with durable global provenance."""
+
+    if not name:
+        return None
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        current_owner_agent_name_lookup_candidates,
+        globalize_owned_agent_name,
+    )
+
+    identity = AgentIdentitySnapshot.current()
+    candidates = current_owner_agent_name_lookup_candidates(name, identity)
+    global_name = globalize_owned_agent_name(name, identity)
+    durable_name = global_name if global_name in candidates else name
+    try:
+        return parse_artifact_ref(f"agent:{durable_name}").rendered
+    except ValueError:
+        return None
 
 
 def _require_artifact_ref_schema() -> None:
@@ -820,9 +851,11 @@ __all__ = [
     "artifact_ref_resolution_hint",
     "artifact_ref_context",
     "artifact_ref_lsp_catalog_payload",
+    "design_reference_for_plan_row",
     "launch_artifact_ref_context",
     "parse_artifact_ref",
     "process_artifact_references",
+    "reference_for_agent_name",
     "reference_for_entry_target",
     "resolve_artifact_ref",
     "scan_artifact_ref_prompt",

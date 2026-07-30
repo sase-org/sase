@@ -7,7 +7,11 @@ from typing import Any
 
 from sase.artifact_cli.references import artifact_file_json_dict, resolve_cli_reference
 from sase.core.artifact_file_types import ArtifactFile
-from sase.artifact_refs import artifact_ref_context, reference_for_entry_target
+from sase.artifact_refs import (
+    artifact_ref_context,
+    reference_for_agent_name,
+    reference_for_entry_target,
+)
 
 from ...widgets.artifacts.chats_list import chat_row_target
 from ...widgets.artifacts.plans_list import plan_row_target
@@ -151,6 +155,15 @@ def reference_items_for_targets(
     return tuple(items)
 
 
+def reference_for_agent_row(agent: Any) -> str | None:
+    """Return a durable reference for one concrete Agents-tab row."""
+
+    name = getattr(agent, "agent_name", None)
+    if not isinstance(name, str) or not name:
+        return None
+    return reference_for_agent_name(name)
+
+
 def resolve_artifact_selection(
     selection: ArtifactReferenceSelection,
     *,
@@ -229,7 +242,7 @@ def _missing_reference_message(subtab: str, label: str) -> str:
     if subtab == "chats":
         reason = "it is an imported transcript outside the chats root"
     elif subtab == "plans":
-        reason = "it has no canonical document reference"
+        reason = "it has no canonical bead or document reference"
     elif subtab == "files":
         reason = "it has no durable file id"
     else:

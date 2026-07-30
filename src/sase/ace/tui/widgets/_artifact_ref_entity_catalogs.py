@@ -19,7 +19,7 @@ _MAX_ENTITY_ROWS = 500
 
 
 @dataclass(frozen=True, slots=True)
-class _ArtifactRefBeadCandidate:
+class ArtifactRefBeadCandidate:
     payload: str
     label: str
     detail: str
@@ -27,7 +27,7 @@ class _ArtifactRefBeadCandidate:
 
 
 @dataclass(frozen=True, slots=True)
-class _ArtifactRefAgentCandidate:
+class ArtifactRefAgentCandidate:
     payload: str
     label: str
     detail: str
@@ -43,9 +43,9 @@ class _BeadCacheEntry:
 _BEAD_CACHE: dict[Path, _BeadCacheEntry] = {}
 
 
-def _load_bead_candidates(
+def load_bead_candidates(
     context: ArtifactRefContext,
-) -> tuple[_ArtifactRefBeadCandidate, ...]:
+) -> tuple[ArtifactRefBeadCandidate, ...]:
     """Load the newest bead rows from the context's scoped stores."""
     try:
         issues = [
@@ -83,14 +83,14 @@ def _read_cached_bead_store(root: Path) -> tuple[Issue, ...]:
     return rows
 
 
-def _bead_candidate(issue: Issue) -> _ArtifactRefBeadCandidate:
+def _bead_candidate(issue: Issue) -> ArtifactRefBeadCandidate:
     kind = ""
     if issue.tier is BeadTier.EPIC:
         kind = "epic"
     elif issue.issue_type is IssueType.PHASE:
         kind = "phase"
     detail = issue.status.value if not kind else f"{issue.status.value} · {kind}"
-    return _ArtifactRefBeadCandidate(
+    return ArtifactRefBeadCandidate(
         payload=issue.id,
         label=issue.title,
         detail=detail,
@@ -98,13 +98,13 @@ def _bead_candidate(issue: Issue) -> _ArtifactRefBeadCandidate:
     )
 
 
-def _load_agent_candidates(
+def load_agent_candidates(
     context: ArtifactRefContext,
-) -> tuple[_ArtifactRefAgentCandidate, ...]:
+) -> tuple[ArtifactRefAgentCandidate, ...]:
     """Scan the newest published agent pages from the scoped sidecar."""
     try:
         identity = _agent_identity(context)
-        rows: list[_ArtifactRefAgentCandidate] = []
+        rows: list[ArtifactRefAgentCandidate] = []
         for root in context.agent_roots:
             with os.scandir(root.root / "agents") as entries:
                 for entry in entries:
@@ -115,7 +115,7 @@ def _load_agent_candidates(
                     name = entry.name
                     label = present_agent_name(name, identity)
                     rows.append(
-                        _ArtifactRefAgentCandidate(
+                        ArtifactRefAgentCandidate(
                             payload=name,
                             label=label,
                             detail=_agent_detail(
@@ -163,10 +163,10 @@ def _agent_detail(
 
 
 __all__ = [
-    "_ArtifactRefAgentCandidate",
-    "_ArtifactRefBeadCandidate",
+    "ArtifactRefAgentCandidate",
+    "ArtifactRefBeadCandidate",
     "_BEAD_CACHE",
-    "_load_agent_candidates",
-    "_load_bead_candidates",
     "_read_cached_bead_store",
+    "load_agent_candidates",
+    "load_bead_candidates",
 ]

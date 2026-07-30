@@ -283,6 +283,56 @@ def test_plans_copy_targets_use_the_selected_plan_payload() -> None:
     ]
 
 
+def test_plans_design_copy_preserves_the_bead_design_reference() -> None:
+    app = CopyHarness()
+    app.current_artifacts_subtab = "plans"
+    issue = SimpleNamespace(
+        id="sase-b2",
+        title="Artifact references",
+        design="plans:202607/bead_and_agent_artifact_refs.md",
+    )
+    row = SimpleNamespace(proposal=None, archive=None, issue=issue)
+    app.plans_pane = SimpleNamespace(
+        selected_row=lambda: row,
+        selected_preview=lambda: None,
+    )
+
+    assert app._handle_copy_key("d") is True
+
+    assert app.copies == [
+        (
+            issue.design,
+            "Copied bead design plan reference",
+        )
+    ]
+
+
+def test_plans_design_copy_warns_when_selected_row_has_no_bead_design() -> None:
+    app = CopyHarness()
+    app.current_artifacts_subtab = "plans"
+    row = SimpleNamespace(
+        proposal=SimpleNamespace(
+            plan_path="/tmp/proposal.md",
+            title="Proposal",
+            body="Body",
+        ),
+        archive=None,
+        issue=None,
+    )
+    app.plans_pane = SimpleNamespace(
+        selected_row=lambda: row,
+        selected_preview=lambda: None,
+    )
+
+    assert app._handle_copy_key("d") is True
+
+    assert app.copies == []
+    assert app.notifications[-1] == (
+        "The selected bead has no design plan reference",
+        "warning",
+    )
+
+
 def test_chats_copy_targets_use_path_agent_and_full_transcript(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -366,6 +416,7 @@ def test_bugs_copy_targets_include_an_agent_ready_prompt(
             [
                 ("@", "@ref"),
                 ("l", "link"),
+                ("d", "design"),
                 ("p", "path"),
                 ("t", "title"),
                 ("b", "body"),

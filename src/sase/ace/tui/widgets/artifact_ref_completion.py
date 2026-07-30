@@ -154,8 +154,8 @@ class ArtifactRefCompletionCatalog:
     documents: tuple[_ArtifactRefDocumentCandidate, ...] = ()
     artifact_files: tuple[_ArtifactRefFileCandidate, ...] = ()
     chats: tuple[_ArtifactRefChatCandidate, ...] = ()
-    beads: tuple[entity_catalogs._ArtifactRefBeadCandidate, ...] = ()
-    agents: tuple[entity_catalogs._ArtifactRefAgentCandidate, ...] = ()
+    beads: tuple[entity_catalogs.ArtifactRefBeadCandidate, ...] = ()
+    agents: tuple[entity_catalogs.ArtifactRefAgentCandidate, ...] = ()
     kind_details: tuple[tuple[str, str], ...] = ()
 
 
@@ -339,8 +339,8 @@ def load_artifact_ref_completion_catalog(
         documents=_load_document_candidates(context),
         artifact_files=_load_artifact_file_candidates(project, context),
         chats=_load_chat_candidates(context),
-        beads=entity_catalogs._load_bead_candidates(context),
-        agents=entity_catalogs._load_agent_candidates(context),
+        beads=entity_catalogs.load_bead_candidates(context),
+        agents=entity_catalogs.load_agent_candidates(context),
         kind_details=_document_kind_details(context),
     )
 

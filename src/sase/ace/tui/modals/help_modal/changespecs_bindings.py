@@ -488,7 +488,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(cm.prefix), "Open Copy as… palette"),
                 (
                     key_sequence_display(cm.prefix, plans_copy["reference"]),
-                    "Copy @document reference",
+                    "Copy @bead/document reference",
                 ),
                 (
                     key_sequence_display(cm.prefix, plans_copy["link"]),
@@ -497,6 +497,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (
                     key_sequence_display(cm.prefix, plans_copy["handoff"]),
                     "Reference in new agent prompt",
+                ),
+                (
+                    key_sequence_display(cm.prefix, plans_copy["design"]),
+                    "Copy bead design reference",
                 ),
                 (
                     key_sequence_display(cm.prefix, plans_copy["path"]),

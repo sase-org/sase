@@ -114,7 +114,7 @@ arrow keys or `j`/`k` plus `Enter`, or the accelerator directly. `q`/`Esc` cance
 | Sub-tab | Keys                                                                                                                                                      |
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Commits | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan       |
-| Plans   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%t` title · `%b` body                               |
+| Plans   | `%@` artifact ref · `%d` bead design ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%t` title · `%b` body        |
 | Chats   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript                         |
 | Files   | `%%` contents · `%@` artifact ref · `%L` Markdown link · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON · `%!` ref in agent prompt |
 | Bugs    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%b` `#N` · `%u` URL · `%t` title · `%p` agent prompt            |
@@ -1475,6 +1475,7 @@ copy target, in which case the target wins.
 | ---- | ------------------------------------------------------------------------------------------- |
 | `%c` | Copy chat file path                                                                         |
 | `%E` | Copy file path                                                                              |
+| `%@` | Copy the focused concrete agent's durable global `@agent:` reference                        |
 | `%n` | Copy the focused agent's `agent_name` (falls back to `display_name`; toast indicates which) |
 | `%p` | Copy agent prompt                                                                           |
 | `%s` | Copy sase ace snapshot                                                                      |

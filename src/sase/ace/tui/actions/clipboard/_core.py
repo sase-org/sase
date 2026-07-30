@@ -171,6 +171,8 @@ class ClipboardCoreMixin(ClipboardBase):
             self._copy_agent_name()  # type: ignore[attr-defined]
         elif key == ag_keys["prompt"]:
             self._copy_agent_prompt()  # type: ignore[attr-defined]
+        elif key == ag_keys["reference"]:
+            self._copy_agent_reference()  # type: ignore[attr-defined]
         elif key == ag_keys["snapshot"]:
             self._copy_snapshot()
         else:
