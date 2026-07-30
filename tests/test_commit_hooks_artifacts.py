@@ -534,6 +534,41 @@ class TestHandleBeads:
 
         assert payload["message"] == "Fix bug"
 
+    def test_bare_reclose_reports_actual_already_closed_outcome(
+        self, tmp_path: Path
+    ) -> None:
+        payload = {"message": "Fix bug", "bead_id": "B-123"}
+        close = subprocess.CompletedProcess(
+            ["sase", "bead", "close", "B-123"],
+            0,
+            stdout=b"\xc2\xb7 Already closed  B-123 \xe2\x80\x94 Finished\n",
+            stderr=b"",
+        )
+        sync = subprocess.CompletedProcess(
+            ["sase", "bead", "sync"],
+            0,
+            stdout=b"",
+            stderr=b"",
+        )
+        with (
+            patch(
+                "sase.workflows.commit.commit_hooks.subprocess.run",
+                side_effect=[close, sync],
+            ) as run,
+            patch("sase.workflows.commit.commit_hooks.print_status") as print_status,
+        ):
+            handle_beads(payload, str(tmp_path))
+
+        assert run.call_args_list[0].args[0] == [
+            "sase",
+            "bead",
+            "close",
+            "B-123",
+        ]
+        print_status.assert_called_once_with(
+            "· Already closed  B-123 — Finished", "success"
+        )
+
     def test_bead_sync_runs_when_bead_dir_exists(self, tmp_path: Path) -> None:
         (tmp_path / "sdd/beads").mkdir(parents=True)
         payload = {"message": "Fix bug"}

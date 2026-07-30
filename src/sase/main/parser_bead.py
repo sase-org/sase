@@ -74,8 +74,11 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         "-R",
         "--resolution",
         choices=["canceled", "done", "superseded"],
-        default="done",
-        help="How this bead was resolved (default: done)",
+        default=None,
+        help=(
+            "How this bead was resolved; a real close defaults to done, while "
+            "an already-closed bead is not compared unless this is supplied"
+        ),
     )
 
     # sase bead create

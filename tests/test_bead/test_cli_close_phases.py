@@ -231,8 +231,8 @@ def test_close_selected_phases_leaves_epic_and_other_phases_open(
     bead_cli.handle_bead_close(args)
 
     assert capsys.readouterr().out == (
-        f"✓ Closed: {phases[0].id} — {phases[0].title}\n"
-        f"✓ Closed: {phases[1].id} — {phases[1].title}\n"
+        f"✓ Closed          {phases[0].id} — {phases[0].title}\n"
+        f"✓ Closed          {phases[1].id} — {phases[1].title}\n"
     )
     with BeadProject(project_dir) as project:
         assert project.show(epic.id).status is Status.OPEN
@@ -395,6 +395,57 @@ def test_phase_close_auto_commit_names_expanded_ids(project_dir: Path) -> None:
 
     auto_commit.assert_called_once_with(
         f"chore(beads): close {phases[0].id} {phases[1].id}",
+        push_after_commit=False,
+        already_locked=False,
+    )
+
+
+def test_phase_close_reports_closed_and_already_closed_in_one_invocation(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic, phases = _create_epic_with_phases(project_dir, count=2)
+    with BeadProject(project_dir) as project:
+        project.close([phases[0].id])
+        first = project.show(phases[0].id)
+    args = create_parser().parse_args(["bead", "close", epic.id, "--phases", "1-2"])
+
+    bead_cli.handle_bead_close(args)
+
+    assert capsys.readouterr().out == (
+        f"· Already closed  {first.id} — {first.title} "
+        f"({first.closed_at} · done)\n"
+        f"✓ Closed          {phases[1].id} — {phases[1].title}\n"
+    )
+
+
+def test_force_close_renders_cascade_and_commits_only_requested_id(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic, phases = _create_epic_with_phases(project_dir, count=1)
+    args = create_parser().parse_args(
+        [
+            "bead",
+            "close",
+            epic.id,
+            "--force",
+            "--reason",
+            "Canceled",
+            "--resolution",
+            "canceled",
+        ]
+    )
+
+    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+        bead_cli.handle_bead_close(args)
+
+    assert capsys.readouterr().out == (
+        f"↳ Closed          {phases[0].id} — {phases[0].title}\n"
+        f"✓ Closed          {epic.id} — {epic.title}\n"
+    )
+    auto_commit.assert_called_once_with(
+        f"chore(beads): close {epic.id}",
         push_after_commit=False,
         already_locked=False,
     )

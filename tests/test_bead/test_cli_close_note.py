@@ -125,12 +125,12 @@ def test_force_close_with_note_only_notes_explicit_parent(
     assert swept_phase.resolution is Resolution.CANCELED
 
 
-def test_close_with_note_uses_one_fast_path_side_effect(
+def test_close_with_note_defers_to_truthful_slow_path(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     with BeadProject(project_dir) as project:
-        issue = project.create("Fast close", IssueType.PLAN)
+        issue = project.create("Slow close", IssueType.PLAN)
     beads_dir = project_dir / "sdd/beads"
     context = bead_fast_path._FastPathContext(
         read_beads_dirs=[beads_dir],
@@ -139,7 +139,6 @@ def test_close_with_note_uses_one_fast_path_side_effect(
     )
     summaries: list[dict[str, object]] = []
     monkeypatch.chdir(project_dir)
-    monkeypatch.setenv("SASE_AGENT_NAME", "fast-agent")
     monkeypatch.setattr(
         bead_fast_path,
         "_resolve_fast_path_context",
@@ -155,16 +154,44 @@ def test_close_with_note_uses_one_fast_path_side_effect(
         lambda: None,
     )
 
-    assert (
-        try_handle_bead_fast_path(
-            ["close", issue.id, "--note", "verified on fast path"]
-        )
-        == 0
+    assert try_handle_bead_fast_path(["close", issue.id, "--note", "verified"]) is None
+
+    assert summaries == []
+    with BeadProject(project_dir) as project:
+        unchanged = project.show(issue.id)
+    assert unchanged.status is Status.OPEN
+    assert unchanged.notes == ""
+
+
+def test_reclose_with_note_reports_both_outcomes_and_commits_note(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        issue = project.create("Already finished", IssueType.PLAN)
+        project.close([issue.id])
+        first_closed_at = project.show(issue.id).closed_at
+    monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:02:00Z")
+    args = create_parser().parse_args(
+        ["bead", "close", issue.id, "--note", "second look"]
     )
 
-    assert len(summaries) == 1
-    assert summaries[0]["operation"] == "close"
+    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+        bead_cli.handle_bead_close(args)
+
+    output = capsys.readouterr().out
+    assert (
+        f"· Already closed  {issue.id} — {issue.title} "
+        f"({first_closed_at} · done)\n" in output
+    )
+    assert f"+ Noted           {issue.id} — {issue.title}\n" in output
+    auto_commit.assert_called_once_with(
+        f"chore(beads): note {issue.id}",
+        push_after_commit=False,
+        already_locked=False,
+    )
     with BeadProject(project_dir) as project:
-        closed = project.show(issue.id)
-    assert closed.status is Status.CLOSED
-    assert closed.notes.endswith("· fast-agent] verified on fast path")
+        reclosed = project.show(issue.id)
+    assert reclosed.closed_at == first_closed_at
+    assert reclosed.notes.endswith("] second look")

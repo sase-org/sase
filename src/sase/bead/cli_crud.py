@@ -15,8 +15,11 @@ from sase.bead.cli_common import (
     init_beads,
     storage_plan_path,
 )
-from sase.bead.model import BeadTier, IssueType
-from sase.bead.mutation_commit import require_mutation_commit_message
+from sase.bead.model import BeadTier, Issue, IssueType
+from sase.bead.mutation_commit import (
+    close_mutation_commit_message,
+    require_mutation_commit_message,
+)
 from sase.bead.phase_selector import (
     PhaseSelectorError,
     parse_phase_selectors,
@@ -221,6 +224,50 @@ def _resolve_close_ids(args: argparse.Namespace, project: BeadProject) -> list[s
     return resolve_epic_phase_ids(project, args.ids[0], phase_numbers)
 
 
+def _mutation_outcome_ids(outcome: dict[str, object], field: str) -> list[str]:
+    values = outcome.get(field)
+    if not isinstance(values, list):
+        return []
+    return [str(value) for value in values]
+
+
+def _print_close_results(
+    issues: list[Issue],
+    *,
+    closed_ids: list[str],
+    already_closed_ids: list[str],
+    noted_ids: list[str],
+    cascade_closed_ids: list[str],
+) -> None:
+    closed = set(closed_ids)
+    already_closed = set(already_closed_ids)
+    noted = set(noted_ids)
+    cascade_closed = set(cascade_closed_ids)
+
+    for issue in issues:
+        if issue.id in cascade_closed:
+            _print_close_result_row("↳", "Closed", issue)
+        elif issue.id in closed:
+            _print_close_result_row("✓", "Closed", issue)
+        elif issue.id in already_closed:
+            resolution = issue.resolution.value if issue.resolution else "(unrecorded)"
+            metadata = f" ({issue.closed_at or 'unknown close time'} · {resolution})"
+            _print_close_result_row("·", "Already closed", issue, metadata)
+
+        if issue.id in noted:
+            _print_close_result_row("+", "Noted", issue)
+
+
+def _print_close_result_row(
+    glyph: str,
+    label: str,
+    issue: Issue,
+    suffix: str = "",
+) -> None:
+    prefix = f"{glyph} {label}"
+    print(f"{prefix:<18}{issue.id} — {issue.title}{suffix}")
+
+
 def handle_bead_close(args: argparse.Namespace) -> None:
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         try:
@@ -235,7 +282,7 @@ def handle_bead_close(args: argparse.Namespace) -> None:
             closed = mutation.project.close(
                 resolved_ids,
                 reason=args.reason,
-                resolution=getattr(args, "resolution", "done"),
+                resolution=getattr(args, "resolution", None),
                 force=getattr(args, "force", False),
                 note=note,
                 author=author,
@@ -251,9 +298,25 @@ def handle_bead_close(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        mutation.commit(require_mutation_commit_message("close", resolved_ids))
-    for issue in closed:
-        print(f"✓ Closed: {issue.id} — {issue.title}")
+        outcome = mutation.project.last_mutation_outcome
+        closed_ids = _mutation_outcome_ids(outcome, "closed_ids")
+        already_closed_ids = _mutation_outcome_ids(outcome, "already_closed_ids")
+        noted_ids = _mutation_outcome_ids(outcome, "noted_ids")
+        cascade_closed_ids = _mutation_outcome_ids(outcome, "cascade_closed_ids")
+        commit_message = close_mutation_commit_message(
+            closed_ids=closed_ids,
+            cascade_closed_ids=cascade_closed_ids,
+            noted_ids=noted_ids,
+        )
+        if commit_message is not None:
+            mutation.commit(commit_message)
+    _print_close_results(
+        closed,
+        closed_ids=closed_ids,
+        already_closed_ids=already_closed_ids,
+        noted_ids=noted_ids,
+        cascade_closed_ids=cascade_closed_ids,
+    )
 
 
 def handle_bead_rm(args: argparse.Namespace) -> None:

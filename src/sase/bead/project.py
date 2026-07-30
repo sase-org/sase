@@ -78,6 +78,7 @@ class BeadProject:
         self._config: dict[str, object] = load_config(self.beads_dir)
         self._conn_cache: sqlite3.Connection | None = None
         self._mutation_changed = False
+        self._last_mutation_outcome: dict[str, object] = {}
         prefix = str(self._config.get("issue_prefix", "beads"))
         raw_counter = self._config.get("next_counter", 1)
         counter = raw_counter if isinstance(raw_counter, int) else int(str(raw_counter))
@@ -107,6 +108,11 @@ class BeadProject:
     def mutation_changed(self) -> bool:
         """Whether any Rust-backed mutation changed this project instance."""
         return self._mutation_changed
+
+    @property
+    def last_mutation_outcome(self) -> dict[str, object]:
+        """Return the most recent Rust mutation outcome."""
+        return self._last_mutation_outcome.copy()
 
     def _close_connection(self) -> None:
         if self._conn_cache is not None:
@@ -594,6 +600,7 @@ class BeadProject:
 
     def _record_mutation_outcome(self, outcome: dict[str, object]) -> None:
         """Accumulate honest core mutation results for commit gating."""
+        self._last_mutation_outcome = outcome.copy()
         self._mutation_changed |= bool(outcome.get("changed", True))
 
     def _refresh_db_from_jsonl(self) -> None:

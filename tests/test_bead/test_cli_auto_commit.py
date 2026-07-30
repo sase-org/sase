@@ -262,6 +262,42 @@ def test_redundant_update_and_close_skip_auto_commit(project_dir: Path) -> None:
     auto_commit.assert_not_called()
 
 
+def test_fast_path_reclose_with_note_uses_note_commit() -> None:
+    from sase.main import bead_fast_path
+
+    summary = {
+        "operation": "close",
+        "changed": True,
+        "issue_ids": ["beads-1"],
+        "closed_ids": [],
+        "already_closed_ids": ["beads-1"],
+        "noted_ids": ["beads-1"],
+        "cascade_closed_ids": [],
+    }
+    with patch("sase.bead.cli_common.auto_commit_bead_store") as auto_commit:
+        bead_fast_path._apply_mutation_side_effects(Path("/tmp/beads"), summary)
+
+    auto_commit.assert_called_once_with("chore(beads): note beads-1")
+
+
+def test_fast_path_close_commit_omits_cascade_ids() -> None:
+    from sase.main import bead_fast_path
+
+    summary = {
+        "operation": "close",
+        "changed": True,
+        "issue_ids": ["beads-1.1", "beads-1"],
+        "closed_ids": ["beads-1.1", "beads-1"],
+        "already_closed_ids": [],
+        "noted_ids": [],
+        "cascade_closed_ids": ["beads-1"],
+    }
+    with patch("sase.bead.cli_common.auto_commit_bead_store") as auto_commit:
+        bead_fast_path._apply_mutation_side_effects(Path("/tmp/beads"), summary)
+
+    auto_commit.assert_called_once_with("chore(beads): close beads-1.1")
+
+
 def test_handle_bead_open_auto_commit_message(project_dir: Path) -> None:
     issue = _create_issue(project_dir, "Reopened")
     with BeadProject(project_dir) as proj:

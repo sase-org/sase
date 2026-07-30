@@ -146,18 +146,20 @@ def handle_beads(payload: dict, cwd: str) -> None:
 
     if bead_id:
         # Close bead (best effort)
-        print_status(f"Closing bead {bead_id}...", "progress")
-        _run_bead_command(["sase", "bead", "close", bead_id], cwd)
+        result = _run_bead_command(["sase", "bead", "close", bead_id], cwd)
+        _report_bead_close_result(str(bead_id), result)
 
     if bead_id or has_bead_dir:
         # Sync beads (best effort)
         _run_bead_command(["sase", "bead", "sync"], cwd)
 
 
-def _run_bead_command(args: list[str], cwd: str) -> None:
+def _run_bead_command(
+    args: list[str], cwd: str
+) -> subprocess.CompletedProcess[bytes] | None:
     """Run a bead command best-effort, tolerating missing sase binary."""
     try:
-        subprocess.run(
+        return subprocess.run(
             args,
             cwd=cwd,
             capture_output=True,
@@ -165,6 +167,32 @@ def _run_bead_command(args: list[str], cwd: str) -> None:
         )
     except FileNotFoundError:
         print_status("Skipping bead command: `sase` CLI not found.", "warning")
+        return None
+
+
+def _report_bead_close_result(
+    bead_id: str,
+    result: subprocess.CompletedProcess[bytes] | None,
+) -> None:
+    """Report the close command's actual outcome without pre-claiming success."""
+    if result is None or not isinstance(result.returncode, int):
+        return
+    stdout = _decoded_command_output(result.stdout)
+    stderr = _decoded_command_output(result.stderr)
+    if result.returncode == 0:
+        message = stdout or f"Bead {bead_id} close checked."
+        print_status(message, "success")
+        return
+    detail = stderr or stdout or f"exit {result.returncode}"
+    print_status(f"Bead {bead_id} close failed: {detail}", "warning")
+
+
+def _decoded_command_output(output: bytes | str | object) -> str:
+    if isinstance(output, bytes):
+        return output.decode(errors="replace").strip()
+    if isinstance(output, str):
+        return output.strip()
+    return ""
 
 
 def _get_repo_root(cwd: str) -> str:

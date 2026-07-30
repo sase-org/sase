@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 
 def mutation_commit_message(operation: str, issue_ids: list[str]) -> str | None:
     """Return the canonical auto-commit message for one CLI mutation."""
@@ -24,6 +26,24 @@ def mutation_commit_message(operation: str, issue_ids: list[str]) -> str | None:
     return None
 
 
+def close_mutation_commit_message(
+    *,
+    closed_ids: Sequence[str],
+    cascade_closed_ids: Sequence[str],
+    noted_ids: Sequence[str],
+) -> str | None:
+    """Describe what a close mutation changed, excluding implicit closes."""
+    cascade_ids = set(cascade_closed_ids)
+    requested_closed_ids = [
+        issue_id for issue_id in closed_ids if issue_id not in cascade_ids
+    ]
+    if requested_closed_ids:
+        return f"chore(beads): close {' '.join(requested_closed_ids)}"
+    if noted_ids:
+        return f"chore(beads): note {' '.join(noted_ids)}"
+    return None
+
+
 def require_mutation_commit_message(operation: str, issue_ids: list[str]) -> str:
     """Return a canonical message, rejecting incomplete mutation metadata."""
     message = mutation_commit_message(operation, issue_ids)
@@ -34,4 +54,8 @@ def require_mutation_commit_message(operation: str, issue_ids: list[str]) -> str
     return message
 
 
-__all__ = ["mutation_commit_message", "require_mutation_commit_message"]
+__all__ = [
+    "close_mutation_commit_message",
+    "mutation_commit_message",
+    "require_mutation_commit_message",
+]

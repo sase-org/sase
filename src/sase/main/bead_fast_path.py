@@ -6,7 +6,10 @@ import sys
 from pathlib import Path
 from typing import Any, Literal, overload
 
-from sase.bead.mutation_commit import mutation_commit_message
+from sase.bead.mutation_commit import (
+    close_mutation_commit_message,
+    mutation_commit_message,
+)
 
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
@@ -22,6 +25,10 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     the command through the compatibility slow path.
     """
     if not argv or any(arg in {"-h", "--help"} for arg in argv):
+        return None
+    # The Rust close fast path does not yet expose the classification fields
+    # needed for truthful close/already-closed/noted/cascade rendering.
+    if argv[0] == "close":
         return None
     if argv[0] in {"list", "show"} or _search_uses_full_format(argv):
         return None
@@ -180,7 +187,21 @@ def _apply_mutation_side_effects(
     try:
         from sase.bead.cli_common import auto_commit_bead_store
 
-        message = mutation_commit_message(operation, issue_ids)
+        if operation == "close":
+            message = close_mutation_commit_message(
+                closed_ids=[
+                    str(value) for value in mutation_summary.get("closed_ids") or []
+                ],
+                cascade_closed_ids=[
+                    str(value)
+                    for value in mutation_summary.get("cascade_closed_ids") or []
+                ],
+                noted_ids=[
+                    str(value) for value in mutation_summary.get("noted_ids") or []
+                ],
+            )
+        else:
+            message = mutation_commit_message(operation, issue_ids)
         if message:
             auto_commit_bead_store(message)
     except Exception:
