@@ -52,6 +52,16 @@ class TestGetSearchableTextEdgeCases:
         text = get_searchable_text(cs)
         assert "CL-12345" in text
 
+    def test_includes_artifact_references_when_present(self) -> None:
+        cs = _cs()
+        cs.__dict__["refs"] = [
+            "research:202607/report.md",
+            "bead:sase-bb",
+        ]
+        text = get_searchable_text(cs)
+        assert "research:202607/report.md" in text
+        assert "bead:sase-bb" in text
+
     def test_hook_running_agent_with_suffix(self) -> None:
         cs = _cs(
             hooks=[

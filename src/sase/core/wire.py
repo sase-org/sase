@@ -24,9 +24,9 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-CHANGESPEC_WIRE_SCHEMA_VERSION = 4
+CHANGESPEC_WIRE_SCHEMA_VERSION = 5
 SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS = frozenset(
-    {2, 3, CHANGESPEC_WIRE_SCHEMA_VERSION}
+    {2, 3, 4, CHANGESPEC_WIRE_SCHEMA_VERSION}
 )
 
 
@@ -149,6 +149,7 @@ class ChangeSpecWire:
     pr_url: str | None
     bug: str | None
     description: str
+    refs: list[str] = field(default_factory=list)
     commits: list[CommitWire] = field(default_factory=list)
     hooks: list[HookWire] = field(default_factory=list)
     comments: list[CommentWire] = field(default_factory=list)

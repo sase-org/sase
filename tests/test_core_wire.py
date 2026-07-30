@@ -149,6 +149,7 @@ def test_changespec_to_wire_full_round_trip() -> None:
     )
     assert wire.pr_url == "PR/42"
     assert wire.bug == "BUG-1"
+    assert wire.refs == []
     assert len(wire.commits) == 2
     assert wire.commits[0].suffix == "ZOMBIE"
     assert wire.commits[0].suffix_type == "error"
@@ -299,8 +300,30 @@ def test_changespec_wire_from_dict_treats_missing_lists_as_empty() -> None:
         "description": "",
     }
     wire = changespec_wire_from_dict(payload)
+    assert wire.refs == []
     assert wire.commits == []
     assert wire.deltas == []
+
+
+def test_changespec_wire_from_schema_four_defaults_refs() -> None:
+    """Version 4 records predate the REFS section."""
+    payload = {
+        "schema_version": 4,
+        "name": "x",
+        "project_basename": "p",
+        "file_path": "/tmp/p/p.sase",
+        "source_span": {
+            "file_path": "/tmp/p/p.sase",
+            "start_line": 1,
+            "end_line": 1,
+        },
+        "status": "WIP",
+        "parent": None,
+        "pr_url": None,
+        "bug": None,
+        "description": "",
+    }
+    assert changespec_wire_from_dict(payload).refs == []
 
 
 def test_changespec_wire_from_older_dict_defaults_project_name_metadata() -> None:

@@ -74,7 +74,7 @@ def test_changespec_wire_json_snapshot() -> None:
     assert payload == snapshot(
         [
             {
-                "schema_version": 4,
+                "schema_version": 5,
                 "name": "alpha",
                 "project_basename": "myproj",
                 "project_display_name": None,
@@ -89,6 +89,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 "pr_url": "https://example.test/repo/pull/1",
                 "bug": "BUG-100",
                 "description": "Initial feature work.\nSpans multiple lines.",
+                "refs": [],
                 "commits": [
                     {
                         "number": 1,
@@ -157,7 +158,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 ],
             },
             {
-                "schema_version": 4,
+                "schema_version": 5,
                 "name": "beta",
                 "project_basename": "myproj",
                 "project_display_name": None,
@@ -172,6 +173,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 "pr_url": "",
                 "bug": None,
                 "description": "Sibling feature.",
+                "refs": [],
                 "commits": [],
                 "hooks": [],
                 "comments": [],
@@ -180,7 +182,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 "deltas": [],
             },
             {
-                "schema_version": 4,
+                "schema_version": 5,
                 "name": "beta__260102_010101",
                 "project_basename": "myproj",
                 "project_display_name": None,
@@ -195,6 +197,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 "pr_url": "",
                 "bug": None,
                 "description": "Reverted retry of beta.",
+                "refs": [],
                 "commits": [],
                 "hooks": [],
                 "comments": [],
@@ -203,7 +206,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 "deltas": [],
             },
             {
-                "schema_version": 4,
+                "schema_version": 5,
                 "name": "gamma",
                 "project_basename": "myproj",
                 "project_display_name": None,
@@ -218,6 +221,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 "pr_url": "",
                 "bug": None,
                 "description": "Ready feature with running agent.",
+                "refs": [],
                 "commits": [],
                 "hooks": [
                     {
@@ -251,7 +255,7 @@ def test_archive_corpus_wire_json_snapshot() -> None:
     assert payload == snapshot(
         [
             {
-                "schema_version": 4,
+                "schema_version": 5,
                 "name": "archived_one",
                 "project_basename": "myproj",
                 "project_display_name": None,
@@ -266,6 +270,7 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 "pr_url": "https://example.test/repo/pull/99",
                 "bug": None,
                 "description": "An archived spec.",
+                "refs": [],
                 "commits": [
                     {
                         "number": 1,
@@ -286,7 +291,7 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 "deltas": [],
             },
             {
-                "schema_version": 4,
+                "schema_version": 5,
                 "name": "reverted_two",
                 "project_basename": "myproj",
                 "project_display_name": None,
@@ -301,6 +306,7 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 "pr_url": "",
                 "bug": None,
                 "description": "A reverted spec.",
+                "refs": [],
                 "commits": [],
                 "hooks": [],
                 "comments": [],

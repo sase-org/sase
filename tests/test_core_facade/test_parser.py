@@ -48,6 +48,20 @@ def test_parse_project_bytes_returns_wire_records(sample_project: Path) -> None:
     assert all(w.file_path == str(sample_project) for w in wires)
 
 
+def test_parse_project_bytes_preserves_refs_verbatim(tmp_path: Path) -> None:
+    project = tmp_path / "refs.sase"
+    raw_bytes = (
+        b"NAME: refs\nSTATUS: WIP\nREFS:\n"
+        b"  research:202607/report.md\n"
+        b"  definitely not a reference\n"
+    )
+    wires = parser_facade.parse_project_bytes(str(project), raw_bytes)
+    assert wires[0].refs == [
+        "research:202607/report.md",
+        "definitely not a reference",
+    ]
+
+
 def test_parse_project_bytes_uses_rust_binding(
     sample_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
