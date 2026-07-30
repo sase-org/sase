@@ -239,14 +239,14 @@ def test_entity_context_discovers_only_available_local_sidecars(
         lambda: SimpleNamespace(username="alice", machine_name="athena"),
     )
 
-    assert artifact_ref_entity_context.collect_bead_stores(store, "sase") == (
+    assert artifact_ref_entity_context._collect_bead_stores(store, "sase") == (
         ArtifactRefBeadStore("sase", "sase", beads),
     )
-    assert artifact_ref_entity_context.collect_agent_roots(
+    assert artifact_ref_entity_context._collect_agent_roots(
         "gh_sase-org__sase",
         "sase",
     ) == (ArtifactRefAgentRoot("sase", agents),)
-    assert artifact_ref_entity_context.local_agent_owner() == ArtifactRefAgentOwner(
+    assert artifact_ref_entity_context._local_agent_owner() == ArtifactRefAgentOwner(
         "alice",
         "athena",
     )
@@ -274,14 +274,14 @@ def test_entity_context_discovers_only_available_local_sidecars(
         lambda project_key, role: str(tmp_path / "missing-agents"),
     )
     assert (
-        artifact_ref_entity_context.collect_bead_stores(
+        artifact_ref_entity_context._collect_bead_stores(
             missing_store,
             "sase",
         )
         == ()
     )
     assert (
-        artifact_ref_entity_context.collect_agent_roots(
+        artifact_ref_entity_context._collect_agent_roots(
             "gh_sase-org__sase",
             "sase",
         )

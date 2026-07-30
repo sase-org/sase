@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from sase.artifact_ref_entity_context import collect_entity_context
@@ -21,6 +22,7 @@ from sase.sdd.store import document_sidecar_roles, resolve_sdd_store
 
 
 ARTIFACT_REF_LSP_CATALOG_SCHEMA_VERSION = 1
+log = logging.getLogger(__name__)
 
 
 def artifact_ref_context(
@@ -56,6 +58,11 @@ def artifact_ref_context(
     try:
         inventory = collect_repo_inventory(project=project_filter)
     except Exception:
+        log.debug(
+            "Unable to collect artifact-reference repository inventory for project %r",
+            project_filter,
+            exc_info=True,
+        )
         inventory = None
     repository_records = () if inventory is None else inventory.records
     repositories = tuple(
@@ -185,7 +192,7 @@ def _workspace_project_ref(workspace: Path) -> str | None:
     if found is None:
         return None
     marker = found[1]
-    return marker.project_key or marker.project_name or None
+    return marker.project_name or marker.project_key or None
 
 
 __all__ = [

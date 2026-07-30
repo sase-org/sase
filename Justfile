@@ -270,9 +270,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-b2(collect_agent_roots)" \
-        --epic-symbol "sase-b2(collect_bead_stores)" \
-        --epic-symbol "sase-b2(local_agent_owner)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from sase._linked_repo_paths import hidden_sidecar_clone_dir
@@ -17,6 +18,8 @@ from sase.sdd.store import (
     BEADS_SIDECAR_ROLE,
     SddStore,
 )
+
+log = logging.getLogger(__name__)
 
 
 def collect_entity_context(
@@ -34,25 +37,30 @@ def collect_entity_context(
     if selected is None and len(projects) == 1:
         selected = projects[0]
     if selected is None:
+        if project_ref is not None:
+            log.debug(
+                "Artifact-reference project %r did not match a registered project",
+                project_ref,
+            )
         bead_stores: tuple[ArtifactRefBeadStore, ...] = ()
         agent_roots: tuple[ArtifactRefAgentRoot, ...] = ()
     else:
         try:
-            bead_stores = collect_bead_stores(store, selected.name)
+            bead_stores = _collect_bead_stores(store, selected.name)
         except Exception:
             bead_stores = ()
         try:
-            agent_roots = collect_agent_roots(selected.key, selected.name)
+            agent_roots = _collect_agent_roots(selected.key, selected.name)
         except Exception:
             agent_roots = ()
     try:
-        owner = local_agent_owner()
+        owner = _local_agent_owner()
     except Exception:
         owner = None
     return bead_stores, agent_roots, owner
 
 
-def collect_bead_stores(
+def _collect_bead_stores(
     store: SddStore,
     project_name: str,
 ) -> tuple[ArtifactRefBeadStore, ...]:
@@ -71,7 +79,7 @@ def collect_bead_stores(
     return (ArtifactRefBeadStore(project=project_name, prefix=prefix, root=root),)
 
 
-def collect_agent_roots(
+def _collect_agent_roots(
     project_key: str | None,
     project_name: str,
 ) -> tuple[ArtifactRefAgentRoot, ...]:
@@ -92,7 +100,7 @@ def collect_agent_roots(
     return (ArtifactRefAgentRoot(project=project_name, root=root),)
 
 
-def local_agent_owner() -> ArtifactRefAgentOwner | None:
+def _local_agent_owner() -> ArtifactRefAgentOwner | None:
     """Return the configured local owner when identity is available."""
 
     try:
@@ -120,15 +128,22 @@ def _project_for_ref(
         if (
             project.name.casefold() == folded
             or project.key.casefold() == folded
+            or _project_provider_slug(project.key).casefold() == folded
             or any(alias.casefold() == folded for alias in project.aliases)
         ):
             return project
     return None
 
 
+def _project_provider_slug(project_key: str) -> str:
+    if not project_key.startswith("gh_") or "__" not in project_key:
+        return ""
+    owner, repository = project_key.removeprefix("gh_").split("__", 1)
+    if not owner or not repository:
+        return ""
+    return f"{owner}/{repository}"
+
+
 __all__ = [
-    "collect_agent_roots",
-    "collect_bead_stores",
     "collect_entity_context",
-    "local_agent_owner",
 ]
