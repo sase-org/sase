@@ -148,7 +148,11 @@ def record_completion_metrics(
         pass
 
 
-def _completion_explicit_artifact_paths(current_artifacts_dir: str | None) -> list[str]:
+def _completion_explicit_artifact_paths(
+    current_artifacts_dir: str | None,
+    *,
+    existing_paths: list[str],
+) -> list[str]:
     """Return explicit artifact file paths for notification attachment."""
     if not current_artifacts_dir:
         return []
@@ -160,8 +164,19 @@ def _completion_explicit_artifact_paths(current_artifacts_dir: str | None) -> li
     except Exception:
         return []
 
+    existing_keys = {
+        os.path.abspath(os.path.expanduser(path)) for path in existing_paths if path
+    }
     paths: list[str] = []
     for artifact in artifacts:
+        source_path = getattr(artifact, "source_path", None)
+        if source_path:
+            try:
+                source_key = os.path.abspath(os.path.expanduser(source_path))
+            except (OSError, TypeError, ValueError):
+                source_key = None
+            if source_key in existing_keys:
+                continue
         path = artifact.path
         if not path:
             continue
@@ -251,7 +266,10 @@ def send_completion_notification(
     if image_attachment_count <= MAX_COMPLETION_IMAGE_ATTACHMENTS:
         extra_files.extend(image_candidates)
     extra_files.extend(append_unique_paths(video_paths or [], extra_files))
-    explicit_artifact_paths = _completion_explicit_artifact_paths(current_artifacts_dir)
+    explicit_artifact_paths = _completion_explicit_artifact_paths(
+        current_artifacts_dir,
+        existing_paths=extra_files,
+    )
     extra_files.extend(append_unique_paths(explicit_artifact_paths, extra_files))
 
     agent_label = format_provider_model_label(agent_llm_provider, agent_model)

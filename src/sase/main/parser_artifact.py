@@ -54,10 +54,16 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Display label (default: source file name)",
     )
     create_parser.add_argument(
+        "-m",
+        "--move",
+        action="store_true",
+        help="Remove the source file after storing it (default: copy)",
+    )
+    create_parser.add_argument(
         "-p",
         "--path",
         required=True,
-        help="Source file to move into durable artifact storage",
+        help="Source file to copy into durable artifact storage",
     )
 
     doctor_parser = artifact_subparsers.add_parser(

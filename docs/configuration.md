@@ -3235,16 +3235,16 @@ while `--quiet` suppresses only the successful human summary. See
 `sase artifact` creates, discovers, inspects, resolves, opens, and repairs indexed artifacts. Bare `sase artifact`
 delegates to `sase artifact list`, and `sase artifact-file` remains a compatibility alias for the whole group.
 
-`sase artifact create` is intended for code agents running with `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR` set. It moves a
+`sase artifact create` is intended for code agents running with `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR` set. It copies a
 generated file into persistent SASE artifact storage and associates it with the current agent so the Agents tab can open
 it with `A`, even after the agent has been dismissed and revived. `-k/--kind` accepts `chat`, `plan`, `image`,
-`markdown`, `pdf`, or `file` and defaults to a kind inferred from the file extension. On success it prints the
-artifact's `id:`, stored `path:`, and durable `ref:` (`file:<id>`). The read subcommands (`doctor`, `list`, `open`,
-`path`, `show`) are not agent-gated.
+`markdown`, `pdf`, or `file` and defaults to a kind inferred from the file extension. `-m/--move` opts into removing the
+source after it is stored. On success the command prints the artifact's `id:`, absolute `source:`, stored `path:`, and
+durable `ref:` (`file:<id>`). The read subcommands (`doctor`, `list`, `open`, `path`, `show`) are not agent-gated.
 
 | Form                   | Flags                                                                                                             | Description                                                                                     |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `sase artifact create` | `-k/--kind`, `-l/--label`, `-p/--path`                                                                            | Store one explicit artifact for the current agent                                               |
+| `sase artifact create` | `-k/--kind`, `-l/--label`, `-m/--move`, `-p/--path`                                                               | Store one explicit artifact for the current agent                                               |
 | `sase artifact doctor` | `-f/--fix`, `-v/--verify`                                                                                         | Report index health (including VCS reference counts), backfill enrichment fields, verify hashes |
 | `sase artifact list`   | `-a/--agent`, `-e/--explicit`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-p/--project`, `-q/--query`, `-s/--since` | List indexed artifacts newest-first                                                             |
 | `sase artifact open`   | (positional `reference`)                                                                                          | Open a resolved reference with a kind-appropriate viewer                                        |

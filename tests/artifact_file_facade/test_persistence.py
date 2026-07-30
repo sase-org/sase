@@ -2,6 +2,7 @@ import hashlib
 import os
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 from typing import Any
 
 from sase._repo_inventory_models import RepoCloneRecord, RepoInventory, RepoRecord
@@ -9,6 +10,7 @@ from sase.core.artifact_capture_policy import CaptureLimits
 from sase.core.artifact_file_facade import (
     persist_default_artifact_files,
     read_artifact_file_index,
+    store_explicit_artifact_file,
 )
 from tests._sdd_commit_helpers import init_test_git_repo
 
@@ -194,6 +196,94 @@ def test_persist_default_artifact_files_dedupes_media_candidates_stably(
         (str(direct_video), "file"),
         (str(prompt_video.resolve()), "file"),
     ]
+
+
+def test_persist_default_artifact_files_excludes_declared_sources(
+    tmp_path: Path,
+    capsys: Any,
+) -> None:
+    artifacts_dir = agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    declared = _write(workspace / "declared.png", b"declared")
+    discovered = _write(workspace / "discovered.png", b"discovered")
+    artifact_files_root = tmp_path / ".sase" / "artifacts"
+    index_path = artifact_files_root / "index.jsonl"
+    explicit = store_explicit_artifact_file(
+        declared,
+        artifacts_dir,
+        artifact_files_root=artifact_files_root,
+        index_path=index_path,
+    )
+
+    persisted = persist_default_artifact_files(
+        artifacts_dir,
+        image_paths=[str(declared), str(discovered)],
+        workspace_dir=str(workspace),
+        artifact_files_root=artifact_files_root,
+        index_path=index_path,
+        print_summary=True,
+    )
+
+    assert [row.source_path for row in persisted] == [str(discovered)]
+    declared_rows = [
+        row
+        for row in read_artifact_file_index(index_path)
+        if row.source_path == str(declared)
+    ]
+    assert declared_rows == [explicit]
+    assert declared_rows[0].explicit is True
+    assert capsys.readouterr().out.strip() == (
+        "[artifacts] default capture: stored=1 referenced=0 skipped=0 "
+        "declared=1 cap_fired=false"
+    )
+
+
+def test_persist_default_artifact_files_ignores_explicit_rows_without_source(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    artifacts_dir = agent_dir(tmp_path)
+    image = _write(tmp_path / "workspace" / "image.png", b"image")
+    artifact_files_root = tmp_path / ".sase" / "artifacts"
+    monkeypatch.setattr(
+        "sase.core.artifact_file_defaults.list_indexed_artifact_files",
+        lambda *_args, **_kwargs: [SimpleNamespace(explicit=True, source_path=None)],
+    )
+
+    persisted = persist_default_artifact_files(
+        artifacts_dir,
+        image_paths=[str(image)],
+        artifact_files_root=artifact_files_root,
+        index_path=artifact_files_root / "index.jsonl",
+    )
+
+    assert [row.source_path for row in persisted] == [str(image)]
+
+
+def test_persist_default_artifact_files_captures_when_index_read_fails(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    artifacts_dir = agent_dir(tmp_path)
+    image = _write(tmp_path / "workspace" / "image.png", b"image")
+    artifact_files_root = tmp_path / ".sase" / "artifacts"
+
+    def fail_index_read(*_args: object, **_kwargs: object) -> list[object]:
+        raise OSError("index unavailable")
+
+    monkeypatch.setattr(
+        "sase.core.artifact_file_defaults.list_indexed_artifact_files",
+        fail_index_read,
+    )
+
+    persisted = persist_default_artifact_files(
+        artifacts_dir,
+        image_paths=[str(image)],
+        artifact_files_root=artifact_files_root,
+        index_path=artifact_files_root / "index.jsonl",
+    )
+
+    assert [row.source_path for row in persisted] == [str(image)]
 
 
 def test_persist_default_artifact_files_applies_capture_policy_matrix(

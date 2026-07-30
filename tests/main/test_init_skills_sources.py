@@ -134,6 +134,7 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
             (
                 "sase artifact create -p",
                 "--kind",
+                "--move",
                 "sase artifact list",
                 "sase artifact show",
                 "sase artifact path",

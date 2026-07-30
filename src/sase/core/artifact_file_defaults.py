@@ -200,6 +200,11 @@ def persist_default_artifact_files(
             workspace_dir=workspace_dir,
         )
     )
+    candidates, declared_count = _exclude_declared_media_candidates(
+        candidates,
+        artifacts_dir=artifacts_dir,
+        index_path=index_path,
+    )
     decisions = _capture_decisions(
         candidates,
         artifacts_dir=artifacts_dir,
@@ -247,7 +252,8 @@ def persist_default_artifact_files(
         print(
             "[artifacts] default capture: "
             f"stored={stored_count} referenced={referenced_count} "
-            f"skipped={skipped_count} cap_fired={str(cap_fired).lower()}"
+            f"skipped={skipped_count} declared={declared_count} "
+            f"cap_fired={str(cap_fired).lower()}"
         )
     return persisted
 
@@ -397,6 +403,46 @@ def _existing_media_candidates(
             )
         )
     return hashed
+
+
+def _exclude_declared_media_candidates(
+    candidates: list[_HashedMediaCandidate],
+    *,
+    artifacts_dir: Path,
+    index_path: Path | str | None,
+) -> tuple[list[_HashedMediaCandidate], int]:
+    try:
+        rows = list_indexed_artifact_files(
+            artifacts_dir,
+            index_path=index_path,
+        )
+    except Exception:
+        return candidates, 0
+
+    declared_source_keys: set[str] = set()
+    for row in rows:
+        if not row.explicit or not row.source_path:
+            continue
+        try:
+            declared_source_keys.add(path_key(row.source_path))
+        except (OSError, ValueError):
+            continue
+
+    if not declared_source_keys:
+        return candidates, 0
+
+    remaining: list[_HashedMediaCandidate] = []
+    declared_count = 0
+    for candidate in candidates:
+        try:
+            declared = path_key(candidate.path) in declared_source_keys
+        except (OSError, ValueError):
+            declared = False
+        if declared:
+            declared_count += 1
+        else:
+            remaining.append(candidate)
+    return remaining, declared_count
 
 
 def _capture_decisions(

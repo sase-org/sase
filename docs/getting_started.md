@@ -98,7 +98,7 @@ After you have seen the agent record, try a low-risk change:
 
 ```bash
 sase run \
-  "#git:home create or update notes.md with one short note about SASE workspaces. Then run: cp notes.md workspace-note.md && sase artifact create -p workspace-note.md -l 'Workspace note'"
+  "#git:home create or update notes.md with one short note about SASE workspaces. Then run: sase artifact create -p notes.md -l 'Workspace note'"
 sase agent list
 ```
 
@@ -107,9 +107,8 @@ Now the agent has permission to make a visible diff in its isolated numbered wor
 commit workflow records a ChangeSpec that you can review in ACE's Artifacts tab, under PRs, before landing or submitting
 anything.
 
-Wait until `sase agent list` reports that the run is done before continuing. The second instruction deliberately
-registers a copy: `sase artifact create` moves its input into durable artifact storage, so the tracked `notes.md` stays
-in the workspace while `workspace-note.md` becomes the handoff artifact.
+Wait until `sase agent list` reports that the run is done before continuing. The second instruction registers a durable
+snapshot while leaving the tracked `notes.md` in the workspace.
 
 For your own repositories, use `#git:<name>` to target a managed project or `#git:<bare-repo-path>` to register an
 existing bare repository. Provider plugins add other workspace references, such as `#gh:<owner>/<repo>` for GitHub. The

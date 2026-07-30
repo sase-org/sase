@@ -117,12 +117,13 @@ Explicit artifacts created with `sase artifact create` never enter this matrix a
 Finalization prints one summary line beside the other `[artifacts]` output:
 
 ```text
-[artifacts] default capture: stored=3 referenced=12 skipped=1 cap_fired=false
+[artifacts] default capture: stored=3 referenced=12 skipped=1 declared=2 cap_fired=false
 ```
 
 `cap_fired` reports whether `artifacts.capture.max_stored_per_agent` was reached; once it is, remaining `store`
 candidates become `skip` with reason `capture_cap`. Reference rows cost no bytes, are not counted, and are never capped.
-See [`configuration.md`](configuration.md#artifacts) for the `artifacts.capture` block.
+`declared` counts auto-discovered candidates omitted because the agent already registered their source with
+`sase artifact create`. See [`configuration.md`](configuration.md#artifacts) for the `artifacts.capture` block.
 
 ### The record fields
 
@@ -239,15 +240,28 @@ Sources:
 Agents can save a generated file explicitly with:
 
 ```bash
-sase artifact create -p <path> [-l <label>] [-k <kind>]
+sase artifact create [-k <kind>] [-l <label>] [-m] -p <path>
 ```
 
 `sase artifact-file create` remains a compatibility alias for the same command.
 
-`-p/--path` is required. `-l/--label` sets the display label and defaults to the source file name. `-k/--kind` is one of
-`chat`, `plan`, `image`, `markdown`, `pdf`, or `file`, and defaults to a kind inferred from the file extension. On
-success the command prints the new artifact's `id:`, stored `path:`, and durable `ref:` (`file:<id>`), which is the
-copyable name to hand to a user or another agent.
+`-k/--kind` is one of `chat`, `plan`, `image`, `markdown`, `pdf`, or `file`, and defaults to a kind inferred from the
+file extension. `-l/--label` sets the display label and defaults to the source file name. `-m/--move` removes the source
+after storing it instead of retaining the default workspace copy; it is intended for scratch files, and using it on a
+tracked file leaves a deletion in the working tree. `-p/--path` is required.
+
+On success the command prints four lines:
+
+```text
+id: explicit:<hash>
+source: /absolute/path/to/report.md
+path: /home/<user>/.sase/artifacts/agents/<project>/<timestamp>/report-<digest>.md
+ref: file:explicit:<hash>
+```
+
+The `source:` line records where the artifact came from, `path:` names the stored snapshot, and `ref:` is the copyable
+name to hand to a user or another agent. By default the source remains in place. Later source edits do not propagate to
+the stored snapshot; run `create` again to register a fresh one.
 
 Every new index row also records `sha256` (the full digest of the stored file), `size_bytes`, and `mime_type`. All three
 are optional at index schema version 1, so rows written before they existed simply carry `null`; `sase artifact doctor`
@@ -258,11 +272,12 @@ rows on rewrite.
 
 The CLI command is intended for agent processes: it requires `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR` so SASE knows which
 run owns the artifact, and it exits non-zero with an explanatory message when either is missing or the source path is
-not a file. It moves the source file into persistent SASE artifact storage, records an association with the current
+not a file. It copies the source file into persistent SASE artifact storage, records an association with the current
 agent, and lets ACE show the artifact even after the agent is dismissed and later revived. During completion
 notification delivery, SASE appends existing explicit artifact files after chat, diff, generated Markdown PDFs,
-generated image attachments, and generated video attachments. Duplicate paths and missing files are ignored, and
-explicit-artifact index failures do not fail the completion path.
+generated image attachments, and generated video attachments. Duplicate stored paths and artifacts whose source is
+already attached are ignored, missing files are skipped, and explicit-artifact index failures do not fail the completion
+path.
 
 Sources:
 
@@ -287,10 +302,11 @@ See [`notifications.md`](notifications.md) for the notification model and modal 
 
 The Agents tab exposes completed agent artifacts through the `a` key. When artifacts exist, ACE opens the artifact panel
 for selection. Chat transcripts, plan files, generated Markdown PDFs, generated images, generated videos,
-prompt-referenced media, and explicit artifacts created with `sase artifact create -p <path> [-l <label>] [-k <kind>]`
-all use the same list. Generated videos are stored as ordinary `file` artifacts, but the picker labels supported video
-suffixes as `[video]` and the viewer opens them with terminal video playback. The panel is shown even for a single
-artifact so users can confirm the artifact label, kind, and path before opening it.
+prompt-referenced media, and explicit artifacts created with
+`sase artifact create [-k <kind>] [-l <label>] [-m] -p <path>` all use the same list. Generated videos are stored as
+ordinary `file` artifacts, but the picker labels supported video suffixes as `[video]` and the viewer opens them with
+terminal video playback. The panel is shown even for a single artifact so users can confirm the artifact label, kind,
+and path before opening it.
 
 The selected agent's prompt/detail header also includes non-chat artifacts in the plan-adjacent `SASE CONTEXT`
 `ARTIFACTS` lane. The complete lane order is `PLAN`, `ARTIFACTS`, `MEMORY`, `SKILLS`, then `WORKSPACES`; within

@@ -23,17 +23,20 @@ The canonical command group is `sase artifact`. `sase artifact-file` remains a c
    sase artifact create -p <path> -l "<label>"
    ```
 
-3. Report the `id:`, stored `path:`, and durable `ref:` printed by the command. The `ref:` line (`file:<id>`) is the
-   copyable name to hand to the user or to another agent.
+3. Report the `id:`, `source:`, stored `path:`, and durable `ref:` printed by the command. The `ref:` line (`file:<id>`)
+   is the copyable name to hand to the user or to another agent.
 
 Options:
 
-- `-p, --path` is required and points to the file you created.
-- `-l, --label` sets the artifact-file display name (defaults to the source file name).
 - `-k, --kind` may be one of `chat`, `plan`, `image`, `markdown`, `pdf`, or `file`. Omit it to infer from the file
   extension.
+- `-l, --label` sets the artifact-file display name (defaults to the source file name).
+- `-m, --move` removes the source after storing it. Use this only for a scratch file that should not be left behind;
+  using it on a tracked file leaves a deletion in the working tree.
+- `-p, --path` is required and points to the file you created.
 
-The command moves the file into SASE artifact-file storage, so do not edit the original path after registration.
+By default the command copies the file, so the source stays where you created it. The stored copy is a snapshot: later
+edits to the source do not propagate to it. Run `create` again to register a fresh snapshot.
 
 Explicit artifacts always keep their own bytes; the automatic-capture rules below never apply to `create`.
 

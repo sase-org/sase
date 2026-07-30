@@ -134,6 +134,7 @@ def _artifact_create_args(
         path=str(path),
         label=label,
         kind=None,
+        move=False,
     )
 
 

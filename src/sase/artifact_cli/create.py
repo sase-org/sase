@@ -11,7 +11,7 @@ from sase.core.artifact_file_facade import store_explicit_artifact_file
 
 
 def handle_create(args: argparse.Namespace) -> int:
-    """Move a source file into persistent SASE artifact storage."""
+    """Copy a source file into persistent SASE artifact storage."""
 
     if os.environ.get("SASE_AGENT") != "1":
         return _error(
@@ -23,7 +23,7 @@ def handle_create(args: argparse.Namespace) -> int:
     if not agent_artifacts_dir:
         return _error("sase artifact create requires SASE_ARTIFACTS_DIR")
 
-    source_path = Path(args.path).expanduser()
+    source_path = Path(args.path).expanduser().absolute()
     if not source_path.is_file():
         return _error(f"artifact source not found: {source_path}")
 
@@ -33,12 +33,13 @@ def handle_create(args: argparse.Namespace) -> int:
             agent_artifacts_dir,
             label=args.label,
             kind=args.kind,
-            move=True,
+            move=args.move,
         )
     except Exception as exc:
         return _error(f"failed to create artifact: {exc}")
 
     print(f"id: {artifact_file.id}")
+    print(f"source: {source_path}")
     print(f"path: {artifact_file.path}")
     print(f"ref: file:{artifact_file.id}")
     return 0

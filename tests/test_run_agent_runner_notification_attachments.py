@@ -190,16 +190,22 @@ def test_completion_notification_dedupes_video_paths(base_kwargs, tmp_path):
     assert mock_notify.call_args.kwargs["extra_files"] == [str(video)]
 
 
-def test_completion_notification_appends_explicit_artifact_paths(base_kwargs, tmp_path):
+def test_completion_notification_appends_uncollected_explicit_artifact(
+    base_kwargs, tmp_path
+):
     chat = tmp_path / "chat.md"
-    explicit = tmp_path / "result.png"
+    source = tmp_path / "workspace" / "report.md"
+    explicit = tmp_path / "artifacts" / "report.md"
     base_kwargs["saved_path"] = str(chat)
-    explicit.write_bytes(b"png")
+    source.parent.mkdir()
+    explicit.parent.mkdir()
+    source.write_text("# Report\n")
+    explicit.write_text("# Report\n")
 
     with (
         patch(
             "sase.core.artifact_file_facade.list_explicit_artifact_files",
-            return_value=[SimpleNamespace(path=str(explicit))],
+            return_value=[SimpleNamespace(path=str(explicit), source_path=str(source))],
         ) as list_artifacts,
         patch("sase.notifications.senders.notify_workflow_complete") as mock_notify,
     ):
@@ -210,6 +216,29 @@ def test_completion_notification_appends_explicit_artifact_paths(base_kwargs, tm
         str(chat),
         str(explicit),
     ]
+
+
+def test_completion_notification_prefers_collected_declared_image_source(
+    base_kwargs, tmp_path
+):
+    source = tmp_path / "workspace" / "result.png"
+    explicit = tmp_path / "artifacts" / "result.png"
+    source.parent.mkdir()
+    explicit.parent.mkdir()
+    source.write_bytes(b"png")
+    explicit.write_bytes(b"png")
+    base_kwargs["image_paths"] = [str(source)]
+
+    with (
+        patch(
+            "sase.core.artifact_file_facade.list_explicit_artifact_files",
+            return_value=[SimpleNamespace(path=str(explicit), source_path=str(source))],
+        ),
+        patch("sase.notifications.senders.notify_workflow_complete") as mock_notify,
+    ):
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["extra_files"] == [str(source)]
 
 
 def test_completion_notification_dedupes_explicit_artifact_paths(base_kwargs, tmp_path):
