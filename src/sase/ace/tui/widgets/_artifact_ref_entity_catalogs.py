@@ -35,6 +35,22 @@ class ArtifactRefAgentCandidate:
 
 
 @dataclass(frozen=True, slots=True)
+class ArtifactRefBeadCandidateCatalog:
+    """Bounded bead rows plus the number omitted by the provider cap."""
+
+    rows: tuple[ArtifactRefBeadCandidate, ...]
+    truncated: int
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactRefAgentCandidateCatalog:
+    """Bounded agent rows plus the number omitted by the provider cap."""
+
+    rows: tuple[ArtifactRefAgentCandidate, ...]
+    truncated: int
+
+
+@dataclass(frozen=True, slots=True)
 class _BeadCacheEntry:
     token: tuple[int, int] | None
     rows: tuple[Issue, ...]
@@ -47,6 +63,13 @@ def load_bead_candidates(
     context: ArtifactRefContext,
 ) -> tuple[ArtifactRefBeadCandidate, ...]:
     """Load the newest bead rows from the context's scoped stores."""
+    return load_bead_candidate_catalog(context).rows
+
+
+def load_bead_candidate_catalog(
+    context: ArtifactRefContext,
+) -> ArtifactRefBeadCandidateCatalog:
+    """Load bounded bead rows and retain the exact pre-cap count."""
     try:
         issues = [
             issue
@@ -54,9 +77,12 @@ def load_bead_candidates(
             for issue in _read_cached_bead_store(store.root)
         ]
         issues.sort(key=lambda issue: issue.updated_at, reverse=True)
-        return tuple(_bead_candidate(issue) for issue in issues[:_MAX_ENTITY_ROWS])
+        return ArtifactRefBeadCandidateCatalog(
+            tuple(_bead_candidate(issue) for issue in issues[:_MAX_ENTITY_ROWS]),
+            max(0, len(issues) - _MAX_ENTITY_ROWS),
+        )
     except Exception:
-        return ()
+        return ArtifactRefBeadCandidateCatalog((), 0)
 
 
 def _read_cached_bead_store(root: Path) -> tuple[Issue, ...]:
@@ -102,6 +128,13 @@ def load_agent_candidates(
     context: ArtifactRefContext,
 ) -> tuple[ArtifactRefAgentCandidate, ...]:
     """Scan the newest published agent pages from the scoped sidecar."""
+    return load_agent_candidate_catalog(context).rows
+
+
+def load_agent_candidate_catalog(
+    context: ArtifactRefContext,
+) -> ArtifactRefAgentCandidateCatalog:
+    """Load bounded agent rows and retain the exact pre-cap count."""
     try:
         identity = _agent_identity(context)
         rows: list[ArtifactRefAgentCandidate] = []
@@ -130,9 +163,12 @@ def load_agent_candidates(
         rows.sort(
             key=lambda row: (-row.updated_at, row.payload.casefold(), row.payload)
         )
-        return tuple(rows[:_MAX_ENTITY_ROWS])
+        return ArtifactRefAgentCandidateCatalog(
+            tuple(rows[:_MAX_ENTITY_ROWS]),
+            max(0, len(rows) - _MAX_ENTITY_ROWS),
+        )
     except Exception:
-        return ()
+        return ArtifactRefAgentCandidateCatalog((), 0)
 
 
 def _agent_identity(context: ArtifactRefContext) -> AgentIdentitySnapshot:
@@ -164,9 +200,13 @@ def _agent_detail(
 
 __all__ = [
     "ArtifactRefAgentCandidate",
+    "ArtifactRefAgentCandidateCatalog",
     "ArtifactRefBeadCandidate",
+    "ArtifactRefBeadCandidateCatalog",
     "_BEAD_CACHE",
     "_read_cached_bead_store",
+    "load_agent_candidate_catalog",
     "load_agent_candidates",
+    "load_bead_candidate_catalog",
     "load_bead_candidates",
 ]

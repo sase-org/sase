@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from itertools import islice
 from pathlib import Path
-from typing import Literal
+from types import MappingProxyType
+from typing import Literal, cast
 
 from sase.artifact_refs import (
     BUILTIN_ARTIFACT_REF_KINDS,
     ArtifactRefContext,
     at_reference_context,
+    at_reference_inventory,
     at_reference_menu,
 )
 from sase.ace.tui.widgets import _artifact_ref_entity_catalogs as entity_catalogs
@@ -32,10 +33,10 @@ ArtifactRefPayloadSource = Literal[
     "agent",
 ]
 
-_MAX_DOCUMENT_ROWS = 500
-_MAX_ARTIFACT_FILE_ROWS = 500
-_MAX_CHAT_SCAN_ROWS = 1000
-_MAX_CHAT_ROWS = 500
+_MAX_DOCUMENT_ROWS_PER_KIND = 5000
+_MAX_ARTIFACT_FILE_ROWS = 5000
+_MAX_CHAT_SCAN_ROWS = 5000
+_MAX_CHAT_ROWS = 5000
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +158,41 @@ class ArtifactRefCompletionCatalog:
     beads: tuple[entity_catalogs.ArtifactRefBeadCandidate, ...] = ()
     agents: tuple[entity_catalogs.ArtifactRefAgentCandidate, ...] = ()
     kind_details: tuple[tuple[str, str], ...] = ()
+    truncated_payloads_by_kind: tuple[tuple[str, int], ...] = ()
+    payload_indexes: Mapping[str, object] = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    payload_metadata: Mapping[
+        str,
+        Mapping[str, ArtifactRefPayloadCompletionMetadata],
+    ] = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    payload_truncation: Mapping[str, int] = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+
+    def __post_init__(self) -> None:
+        """Build native indexes and row metadata once with the warm snapshot."""
+        indexes, metadata = _build_catalog_payload_memos(self)
+        object.__setattr__(self, "payload_indexes", MappingProxyType(indexes))
+        object.__setattr__(self, "payload_metadata", MappingProxyType(metadata))
+        object.__setattr__(
+            self,
+            "payload_truncation",
+            MappingProxyType(
+                {
+                    kind.casefold(): count
+                    for kind, count in self.truncated_payloads_by_kind
+                }
+            ),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +202,8 @@ class ArtifactRefCompletionResult:
     context: ArtifactRefCompletionContext
     candidates: list[CompletionCandidate]
     shared_extension: str
+    payload_count: int = 0
+    truncated_payloads: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,7 +212,21 @@ class _ArtifactIndexCacheEntry:
     rows: tuple[object, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _LoadedCandidates[CandidateT]:
+    rows: tuple[CandidateT, ...]
+    truncated_by_kind: tuple[tuple[str, int], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _SnapshotPayloadMemo:
+    snapshot: object
+    index: object
+    metadata_by_payload: Mapping[str, ArtifactRefPayloadCompletionMetadata]
+
+
 _ARTIFACT_INDEX_CACHE: dict[Path, _ArtifactIndexCacheEntry] = {}
+_SNAPSHOT_PAYLOAD_MEMOS: dict[str, _SnapshotPayloadMemo] = {}
 
 
 def at_reference_leading_match_count(
@@ -268,7 +320,7 @@ def build_artifact_ref_completion_result(
     if wire is None:
         return ArtifactRefCompletionResult(context, [], "")
     kinds = _kind_inventory(catalog)
-    payloads, payload_metadata = _payload_inventory(
+    payloads, payload_index, payload_metadata, truncated_payloads = _payload_inventory(
         context,
         catalog,
         commits=commits,
@@ -278,8 +330,13 @@ def build_artifact_ref_completion_result(
         "kinds": kinds,
         "paths": [{"name": row.name, "is_dir": row.is_dir} for row in paths],
         "payloads": payloads,
+        "truncated_payloads": truncated_payloads,
     }
-    menu = at_reference_menu(wire, inventory)
+    menu = at_reference_menu(
+        wire,
+        inventory,
+        payload_index=payload_index,
+    )
     candidates: list[CompletionCandidate] = []
     for raw_row in menu.get("rows", []):
         if not isinstance(raw_row, dict):
@@ -299,7 +356,8 @@ def build_artifact_ref_completion_result(
                 directory=context.path_directory or "",
             )
         else:
-            metadata = payload_metadata.get(insertion)
+            payload = insertion.removeprefix(f"@{context.kind or ''}:")
+            metadata = payload_metadata.get(payload)
             if metadata is None:
                 continue
         candidates.append(
@@ -325,6 +383,8 @@ def build_artifact_ref_completion_result(
         context,
         candidates,
         str(menu.get("shared_extension", "")),
+        int(menu.get("payload_count", 0)),
+        int(menu.get("truncated_payloads", 0)),
     )
 
 
@@ -333,15 +393,27 @@ def load_artifact_ref_completion_catalog(
     context: ArtifactRefContext,
 ) -> ArtifactRefCompletionCatalog:
     """Discover bounded payload rows; callers must run this off the UI thread."""
+    documents = _load_document_candidate_catalog(context)
+    artifact_files = _load_artifact_file_candidate_catalog(project, context)
+    chats = _load_chat_candidate_catalog(context)
+    beads = entity_catalogs.load_bead_candidate_catalog(context)
+    agents = entity_catalogs.load_agent_candidate_catalog(context)
     return ArtifactRefCompletionCatalog(
         project=project,
         kinds=tuple(context.known_kinds),
-        documents=_load_document_candidates(context),
-        artifact_files=_load_artifact_file_candidates(project, context),
-        chats=_load_chat_candidates(context),
-        beads=entity_catalogs.load_bead_candidates(context),
-        agents=entity_catalogs.load_agent_candidates(context),
+        documents=tuple(documents.rows),
+        artifact_files=tuple(artifact_files.rows),
+        chats=tuple(chats.rows),
+        beads=beads.rows,
+        agents=agents.rows,
         kind_details=_document_kind_details(context),
+        truncated_payloads_by_kind=(
+            *documents.truncated_by_kind,
+            *artifact_files.truncated_by_kind,
+            *chats.truncated_by_kind,
+            ("bead", beads.truncated),
+            ("agent", agents.truncated),
+        ),
     )
 
 
@@ -395,13 +467,122 @@ def _payload_inventory(
     bugs: Sequence[ArtifactRefBugCandidate],
 ) -> tuple[
     list[dict[str, object]],
-    dict[str, ArtifactRefPayloadCompletionMetadata],
+    object | None,
+    Mapping[str, ArtifactRefPayloadCompletionMetadata],
+    int,
 ]:
-    """Project existing warm payload providers into shared-core inventory."""
+    """Return a warm native index and O(1) metadata lookup for this kind."""
+    if context.stage != "payload":
+        return [], None, MappingProxyType({}), 0
     kind = context.kind or context.partial_kind
     folded = kind.casefold()
+    if folded == "commit":
+        memo = _snapshot_payload_memo(kind, commits)
+    elif folded == "bug":
+        memo = _snapshot_payload_memo(kind, bugs)
+    else:
+        index = catalog.payload_indexes.get(folded)
+        metadata = catalog.payload_metadata.get(folded)
+        if index is None or metadata is None:
+            return [], None, MappingProxyType({}), 0
+        truncated = catalog.payload_truncation.get(folded, 0)
+        return [], index, metadata, truncated
+    return [], memo.index, memo.metadata_by_payload, 0
+
+
+def _build_catalog_payload_memos(
+    catalog: ArtifactRefCompletionCatalog,
+) -> tuple[
+    dict[str, object],
+    dict[str, Mapping[str, ArtifactRefPayloadCompletionMetadata]],
+]:
+    """Build every static provider's native index with the warm catalog."""
+    if not any(
+        (
+            catalog.documents,
+            catalog.artifact_files,
+            catalog.chats,
+            catalog.beads,
+            catalog.agents,
+        )
+    ):
+        return {}, {}
+    kinds = [
+        *catalog.kinds,
+        *(row.kind for row in catalog.documents),
+        "file",
+        "chat",
+        "bead",
+        "agent",
+    ]
+    indexes: dict[str, object] = {}
+    metadata: dict[
+        str,
+        Mapping[str, ArtifactRefPayloadCompletionMetadata],
+    ] = {}
+    for kind in dict.fromkeys(value.casefold() for value in kinds):
+        if kind in {"commit", "bug"}:
+            continue
+        rows = _payload_rows(kind, catalog, commits=(), bugs=())
+        index, metadata_by_payload = _index_payload_rows(rows)
+        indexes[kind] = index
+        metadata[kind] = metadata_by_payload
+    return indexes, metadata
+
+
+def _snapshot_payload_memo(
+    kind: str,
+    snapshot: Sequence[ArtifactRefCommitCandidate] | Sequence[ArtifactRefBugCandidate],
+) -> _SnapshotPayloadMemo:
+    """Memoize dynamic mounted-pane snapshots by object identity."""
+    folded = kind.casefold()
+    cached = _SNAPSHOT_PAYLOAD_MEMOS.get(folded)
+    if cached is not None and cached.snapshot is snapshot:
+        return cached
+    commits: Sequence[ArtifactRefCommitCandidate] = ()
+    bugs: Sequence[ArtifactRefBugCandidate] = ()
+    if folded == "commit":
+        commits = cast(Sequence[ArtifactRefCommitCandidate], snapshot)
+    else:
+        bugs = cast(Sequence[ArtifactRefBugCandidate], snapshot)
+    index, metadata = _index_payload_rows(
+        _payload_rows(kind, None, commits=commits, bugs=bugs)
+    )
+    memo = _SnapshotPayloadMemo(snapshot, index, metadata)
+    _SNAPSHOT_PAYLOAD_MEMOS[folded] = memo
+    return memo
+
+
+def _index_payload_rows(
+    rows: Sequence[tuple[str, ArtifactRefPayloadCompletionMetadata]],
+) -> tuple[
+    object,
+    Mapping[str, ArtifactRefPayloadCompletionMetadata],
+]:
+    inventory = [
+        {
+            "payload": payload,
+            "label": metadata.label,
+            "detail": metadata.detail,
+            "age": metadata.age,
+        }
+        for payload, metadata in rows
+    ]
+    metadata_by_payload = MappingProxyType(dict(rows))
+    return at_reference_inventory(inventory), metadata_by_payload
+
+
+def _payload_rows(
+    kind: str,
+    catalog: ArtifactRefCompletionCatalog | None,
+    *,
+    commits: Sequence[ArtifactRefCommitCandidate],
+    bugs: Sequence[ArtifactRefBugCandidate],
+) -> list[tuple[str, ArtifactRefPayloadCompletionMetadata]]:
+    """Project one provider snapshot into native rows and render metadata."""
+    folded = kind.casefold()
     rows: list[tuple[str, ArtifactRefPayloadCompletionMetadata]] = []
-    if folded == "file":
+    if folded == "file" and catalog is not None:
         rows.extend(
             (
                 row.payload,
@@ -416,7 +597,7 @@ def _payload_inventory(
             )
             for row in catalog.artifact_files
         )
-    elif folded == "chat":
+    elif folded == "chat" and catalog is not None:
         rows.extend(
             (
                 row.payload,
@@ -460,7 +641,7 @@ def _payload_inventory(
             )
             for row in bugs
         )
-    elif folded in {"bead", "agent"}:
+    elif folded in {"bead", "agent"} and catalog is not None:
         entities = catalog.beads if folded == "bead" else catalog.agents
         source: ArtifactRefPayloadSource = "bead" if folded == "bead" else "agent"
         rows.extend(
@@ -477,7 +658,7 @@ def _payload_inventory(
             )
             for row in entities
         )
-    else:
+    elif catalog is not None:
         rows.extend(
             (
                 row.payload,
@@ -494,80 +675,86 @@ def _payload_inventory(
             if row.kind.casefold() == folded
         )
 
-    inventory: list[dict[str, object]] = [
-        {
-            "payload": payload,
-            "label": metadata.label,
-            "detail": metadata.detail,
-            "age": metadata.age,
-        }
-        for payload, metadata in rows
-    ]
-    metadata_by_insertion = {
-        f"@{kind}:{payload}": metadata for payload, metadata in rows
-    }
-    return inventory, metadata_by_insertion
+    return rows
 
 
-def _load_document_candidates(
+def _load_document_candidate_catalog(
     context: ArtifactRefContext,
-) -> tuple[_ArtifactRefDocumentCandidate, ...]:
-    corpora = tuple((root.root, root.kind) for root in context.document_roots)
-    if not corpora:
-        return ()
-    try:
-        from sase.plan_search.facade import SOURCE_REPO, search
+) -> _LoadedCandidates[_ArtifactRefDocumentCandidate]:
+    """Load each document role independently so large roles cannot starve peers."""
+    corpora_by_role: dict[str, list[tuple[Path, str]]] = {}
+    role_names: dict[str, str] = {}
+    for root in context.document_roots:
+        folded = root.kind.casefold()
+        role_names.setdefault(folded, root.kind)
+        corpora_by_role.setdefault(folded, []).append((root.root, root.kind))
+    if not corpora_by_role:
+        return _LoadedCandidates(())
 
-        matches = search(
-            source=SOURCE_REPO,
-            sort="recent",
-            limit=_MAX_DOCUMENT_ROWS,
-            repo_root=corpora[0][0],
-            document_corpora=corpora,
-        )
-    except Exception:
-        return ()
+    from sase.plan_search.facade import SOURCE_REPO, search
 
     rows: list[_ArtifactRefDocumentCandidate] = []
-    seen: set[tuple[str, str]] = set()
-    for match in matches:
-        plan = match.plan
-        role = _document_role_for_path(plan.path, corpora, fallback=plan.kind)
-        key = (role.casefold(), plan.relpath.casefold())
-        if key in seen:
+    truncated: list[tuple[str, int]] = []
+    search_kinds = tuple(
+        dict.fromkeys(
+            kind
+            for kind in (*context.known_kinds, "tale", "epic")
+            if kind.casefold() != "prompt"
+        )
+    )
+    for folded, role_corpora in corpora_by_role.items():
+        role = role_names[folded]
+        try:
+            matches = search(
+                source=SOURCE_REPO,
+                sort="recent",
+                limit=None,
+                kinds=search_kinds,
+                repo_root=role_corpora[0][0],
+                document_corpora=role_corpora,
+            )
+        except Exception:
             continue
-        seen.add(key)
-        rows.append(
-            _ArtifactRefDocumentCandidate(
-                kind=role,
-                payload=plan.relpath,
-                title=plan.title,
-                created_at=plan.created_at,
+        role_rows: list[_ArtifactRefDocumentCandidate] = []
+        seen: set[str] = set()
+        for match in matches:
+            plan = match.plan
+            key = plan.relpath.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            if len(role_rows) < _MAX_DOCUMENT_ROWS_PER_KIND:
+                role_rows.append(
+                    _ArtifactRefDocumentCandidate(
+                        kind=role,
+                        payload=plan.relpath,
+                        title=plan.title,
+                        created_at=plan.created_at,
+                    )
+                )
+        rows.extend(role_rows)
+        truncated.append(
+            (
+                folded,
+                max(0, len(seen) - _MAX_DOCUMENT_ROWS_PER_KIND),
             )
         )
-    return tuple(rows)
-
-
-def _document_role_for_path(
-    path: str,
-    corpora: Sequence[tuple[Path, str]],
-    *,
-    fallback: str,
-) -> str:
-    candidate = Path(path).expanduser().resolve(strict=False)
-    for root, role in corpora:
-        try:
-            candidate.relative_to(Path(root).expanduser().resolve(strict=False))
-        except ValueError:
-            continue
-        return role
-    return fallback
+    return _LoadedCandidates(tuple(rows), tuple(truncated))
 
 
 def _load_artifact_file_candidates(
     project: str | None,
     context: ArtifactRefContext,
 ) -> tuple[_ArtifactRefFileCandidate, ...]:
+    """Compatibility projection for callers that only need bounded rows."""
+    return tuple(_load_artifact_file_candidate_catalog(project, context).rows)
+
+
+def _load_artifact_file_candidate_catalog(
+    project: str | None,
+    context: ArtifactRefContext,
+) -> _LoadedCandidates[_ArtifactRefFileCandidate]:
+    """Load bounded artifact-file rows and retain the exact eligible count."""
     rows = _read_cached_artifact_index(context.artifact_index_path)
     accepted_projects = _accepted_project_names(project, context)
     filtered = [
@@ -580,14 +767,24 @@ def _load_artifact_file_candidates(
             or str(getattr(row, "project", "")).casefold() in accepted_projects
         )
     ]
-    return tuple(
-        _ArtifactRefFileCandidate(
-            payload=str(getattr(row, "id", "")),
-            label=str(getattr(row, "label", getattr(row, "id", ""))),
-            file_kind=str(getattr(row, "kind", "file")),
-            created_at=str(getattr(row, "created_at", "") or ""),
+    return _LoadedCandidates(
+        tuple(
+            _ArtifactRefFileCandidate(
+                payload=str(getattr(row, "id", "")),
+                label=str(getattr(row, "label", getattr(row, "id", ""))),
+                file_kind=str(getattr(row, "kind", "file")),
+                created_at=str(getattr(row, "created_at", "") or ""),
+            )
+            for row in filtered[:_MAX_ARTIFACT_FILE_ROWS]
+        ),
+        (
+            (
+                "file",
+                max(0, len(filtered) - _MAX_ARTIFACT_FILE_ROWS),
+            ),
         )
-        for row in filtered[:_MAX_ARTIFACT_FILE_ROWS]
+        if filtered
+        else (),
     )
 
 
@@ -633,18 +830,23 @@ def _accepted_project_names(
     return frozenset(names)
 
 
-def _load_chat_candidates(
+def _load_chat_candidate_catalog(
     context: ArtifactRefContext,
-) -> tuple[_ArtifactRefChatCandidate, ...]:
+) -> _LoadedCandidates[_ArtifactRefChatCandidate]:
+    """Load bounded chat rows and count paths deliberately left unscanned."""
     try:
         from sase.history.chat_storage import iter_chat_files
 
-        paths = tuple(islice(iter_chat_files(), _MAX_CHAT_SCAN_ROWS))
+        paths = iter_chat_files()
     except Exception:
-        return ()
+        return _LoadedCandidates(())
     rows: list[_ArtifactRefChatCandidate] = []
+    truncated = 0
     root = context.chats_root.expanduser().resolve(strict=False)
-    for path in paths:
+    for index, path in enumerate(paths):
+        if index >= _MAX_CHAT_SCAN_ROWS:
+            truncated += 1
+            continue
         resolved = path.expanduser().resolve(strict=False)
         try:
             payload = resolved.relative_to(root).as_posix()
@@ -653,7 +855,11 @@ def _load_chat_candidates(
             continue
         rows.append(_ArtifactRefChatCandidate(payload, modified_at))
     rows.sort(key=lambda row: (-row.modified_at, row.payload.casefold(), row.payload))
-    return tuple(rows[:_MAX_CHAT_ROWS])
+    truncated += max(0, len(rows) - _MAX_CHAT_ROWS)
+    return _LoadedCandidates(
+        tuple(rows[:_MAX_CHAT_ROWS]),
+        (("chat", truncated),),
+    )
 
 
 def _age_label(value: str | int | float) -> str:

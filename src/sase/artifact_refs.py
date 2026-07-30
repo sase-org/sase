@@ -37,6 +37,7 @@ from sase.artifact_ref_models import (
 )
 from sase.artifact_ref_operations import (
     at_reference_context,
+    at_reference_inventory,
     at_reference_menu,
     canonicalize_artifact_ref,
     parse_artifact_ref,
@@ -74,6 +75,7 @@ __all__ = [
     "artifact_ref_lsp_catalog_payload",
     "artifact_ref_resolution_hint",
     "at_reference_context",
+    "at_reference_inventory",
     "at_reference_menu",
     "canonicalize_artifact_ref",
     "design_reference_for_plan_row",

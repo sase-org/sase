@@ -225,13 +225,13 @@ def test_payload_rows_keep_full_prefix_metadata_and_shared_extension() -> None:
     result = build_artifact_ref_completion_result(context, _CATALOG)
 
     assert [candidate.insertion for candidate in result.candidates] == [
-        "@plans:202607/alpha.md",
         "@plans:202607/beta.md",
+        "@plans:202607/alpha.md",
     ]
     assert result.shared_extension == ""
     metadata = result.candidates[0].metadata
     assert isinstance(metadata, ArtifactRefPayloadCompletionMetadata)
-    assert (metadata.source, metadata.label) == ("document", "Alpha plan")
+    assert (metadata.source, metadata.label) == ("document", "Beta plan")
 
 
 @pytest.mark.parametrize(
@@ -239,7 +239,7 @@ def test_payload_rows_keep_full_prefix_metadata_and_shared_extension() -> None:
     (
         (
             "@bead:",
-            "Artifact references",
+            "sase-9z",
             "@bead:sase-9z",
             "bead",
             "Artifact references",
@@ -247,7 +247,7 @@ def test_payload_rows_keep_full_prefix_metadata_and_shared_extension() -> None:
         ),
         (
             "@agent:",
-            "9w",
+            "bbugyi200.athena.9w",
             "@agent:bbugyi200.athena.9w",
             "agent",
             "9w",
@@ -355,8 +355,8 @@ async def test_directory_accept_drills_down_and_file_accept_closes() -> None:
         _seed_catalog(text_area, _CATALOG)
         _seed_paths(text_area, "", (PromptPathRow("src", True),))
         _seed_paths(text_area, "src/", (PromptPathRow("main.py", False),))
-        text_area.load_text("@s")
-        text_area.cursor_location = (0, 2)
+        text_area.load_text("@sr")
+        text_area.cursor_location = (0, 3)
 
         assert text_area._try_artifact_ref_completion() is True
         await pilot.press("enter")
@@ -640,7 +640,7 @@ async def test_warm_keystroke_paths_do_not_touch_discovery_providers() -> None:
             text_area._refresh_file_completion_from_cursor()
             assert text_area._accept_file_completion() is True
 
-        assert text_area.text == "@plans:202607/alpha.md"
+        assert text_area.text == "@plans:202607/beta.md"
 
 
 def test_chat_catalog_scan_is_bounded(tmp_path) -> None:
@@ -648,9 +648,11 @@ def test_chat_catalog_scan_is_bounded(tmp_path) -> None:
 
     def _chat_files():
         nonlocal yielded
-        for index in range(2000):
+        for index in range(4):
             yielded += 1
-            yield tmp_path / f"{index}.md"
+            path = tmp_path / f"{index}.md"
+            path.touch()
+            yield path
 
     context = ArtifactRefContext(
         document_roots=(),
@@ -659,13 +661,25 @@ def test_chat_catalog_scan_is_bounded(tmp_path) -> None:
         repositories=(),
         projects=(),
     )
-    with patch(
-        "sase.history.chat_storage.iter_chat_files",
-        return_value=_chat_files(),
+    with (
+        patch(
+            "sase.history.chat_storage.iter_chat_files",
+            return_value=_chat_files(),
+        ),
+        patch(
+            "sase.ace.tui.widgets.artifact_ref_completion._MAX_CHAT_SCAN_ROWS",
+            2,
+        ),
+        patch(
+            "sase.ace.tui.widgets.artifact_ref_completion._MAX_CHAT_ROWS",
+            2,
+        ),
     ):
-        load_artifact_ref_completion_catalog(None, context)
+        catalog = load_artifact_ref_completion_catalog(None, context)
 
-    assert yielded == 1000
+    assert yielded == 4
+    assert len(catalog.chats) == 2
+    assert catalog.payload_truncation["chat"] == 2
 
 
 def test_artifact_index_cache_miss_queries_rust_and_reuses_unchanged_token(

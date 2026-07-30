@@ -106,6 +106,12 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         _prompt_path_snapshots: dict[str, PromptPathSnapshot]
         _prompt_path_inflight: set[str]
         _prompt_path_completion_directory_key: str | None
+        _artifact_ref_commit_projection: (
+            tuple[object, tuple[ArtifactRefCommitCandidate, ...]] | None
+        )
+        _artifact_ref_bug_projection: (
+            tuple[object, str | None, tuple[ArtifactRefBugCandidate, ...]] | None
+        )
 
         def _find_prompt_bar(self) -> Any: ...
         def _prompt_completion_settings(self) -> PromptCompletionSettings: ...
@@ -491,6 +497,9 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         if result is None:
             preview = getattr(pane, "_preview_base", None)
             result = getattr(preview, "result", None)
+        cached = getattr(self, "_artifact_ref_commit_projection", None)
+        if cached is not None and cached[0] is result:
+            return cached[1]
         commits = getattr(result, "commits", ())
         rows: list[ArtifactRefCommitCandidate] = []
         for entry in commits:
@@ -507,7 +516,9 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
                     timestamp=int(getattr(commit, "timestamp", 0) or 0),
                 )
             )
-        return tuple(rows)
+        projected = tuple(rows)
+        self._artifact_ref_commit_projection = (result, projected)
+        return projected
 
     def _snapshot_artifact_ref_bug_candidates(
         self,
@@ -520,6 +531,10 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         snapshot = getattr(pane, "snapshot", None)
         if snapshot is None:
             return ()
+        target_project = self._xprompt_arg_assist_project_from_text()
+        cached = getattr(self, "_artifact_ref_bug_projection", None)
+        if cached is not None and cached[0] is snapshot and cached[1] == target_project:
+            return cached[2]
         project = str(
             getattr(snapshot, "display_name", "")
             or getattr(snapshot, "project_key", "")
@@ -527,13 +542,17 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         )
         if not project:
             return ()
-        target_project = self._xprompt_arg_assist_project_from_text()
         if target_project is not None:
             accepted = {
                 project.casefold(),
                 str(getattr(snapshot, "project_key", "") or "").casefold(),
             }
             if target_project.casefold() not in accepted:
+                self._artifact_ref_bug_projection = (
+                    snapshot,
+                    target_project,
+                    (),
+                )
                 return ()
         rows: list[ArtifactRefBugCandidate] = []
         for issue in getattr(snapshot, "issues", ()):
@@ -552,7 +571,13 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
                     ),
                 )
             )
-        return tuple(rows)
+        projected = tuple(rows)
+        self._artifact_ref_bug_projection = (
+            snapshot,
+            target_project,
+            projected,
+        )
+        return projected
 
     def _history_prompt_words(self) -> list[str] | None:
         """Return the app's warm history-word list without touching disk."""

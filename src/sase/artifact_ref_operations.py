@@ -60,10 +60,29 @@ def at_reference_context(
 def at_reference_menu(
     context: Mapping[str, Any],
     inventory: Mapping[str, Any],
+    *,
+    payload_index: object | None = None,
 ) -> dict[str, Any]:
     """Build one shared, I/O-free ``@`` menu from caller-owned inventory."""
     binding = require_rust_binding("at_reference_menu")
-    return dict(cast(Mapping[str, Any], binding(dict(context), dict(inventory))))
+    return dict(
+        cast(
+            Mapping[str, Any],
+            binding(
+                dict(context),
+                dict(inventory),
+                payload_index=payload_index,
+            ),
+        )
+    )
+
+
+def at_reference_inventory(
+    payloads: Iterable[Mapping[str, Any]],
+) -> object:
+    """Build one immutable native payload index outside the keystroke path."""
+    binding = require_rust_binding("AtReferenceInventory")
+    return binding(payloads=[dict(payload) for payload in payloads])
 
 
 def _lsp_position_for_offset(text: str, offset: int) -> tuple[int, int] | None:
@@ -168,6 +187,7 @@ def _require_artifact_ref_schema() -> None:
 
 __all__ = [
     "at_reference_context",
+    "at_reference_inventory",
     "at_reference_menu",
     "canonicalize_artifact_ref",
     "parse_artifact_ref",
