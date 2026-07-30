@@ -6,6 +6,7 @@ from sase.artifact_cli.listing import handle_list
 from sase.artifact_cli.open import handle_open
 from sase.artifact_cli.path import handle_path
 from sase.artifact_cli.show import handle_show
+from sase.artifact_cli.stats import handle_stats
 
 __all__ = [
     "handle_create",
@@ -14,4 +15,5 @@ __all__ = [
     "handle_open",
     "handle_path",
     "handle_show",
+    "handle_stats",
 ]

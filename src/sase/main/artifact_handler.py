@@ -18,6 +18,7 @@ def handle_artifact_command(args: argparse.Namespace) -> NoReturn:
         handle_open,
         handle_path,
         handle_show,
+        handle_stats,
     )
 
     handlers: dict[str, Callable[[argparse.Namespace], int]] = {
@@ -27,12 +28,13 @@ def handle_artifact_command(args: argparse.Namespace) -> NoReturn:
         "open": handle_open,
         "path": handle_path,
         "show": handle_show,
+        "stats": handle_stats,
     }
     subcommand = getattr(args, "artifact_subcommand", None)
     handler = handlers.get(subcommand) if isinstance(subcommand, str) else None
     if handler is None:
         print(
-            "Usage: sase artifact {create,doctor,list,open,path,show}",
+            "Usage: sase artifact {create,doctor,list,open,path,show,stats}",
             file=sys.stderr,
         )
         sys.exit(2)

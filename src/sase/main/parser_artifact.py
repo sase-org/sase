@@ -195,5 +195,35 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Artifact reference or a bare default:/explicit: file id",
     )
 
+    stats_parser = artifact_subparsers.add_parser(
+        "stats",
+        help="Report artifact-store economics and default retention selection",
+        description=(
+            "Report artifact-store economics, reference protections, trash "
+            "occupancy, and what the default retention policy would select. "
+            "This command is read-only."
+        ),
+    )
+    stats_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one machine-readable statistics envelope",
+    )
+    stats_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Only report a project by display name, alias, or canonical key",
+    )
+    stats_parser.add_argument(
+        "-t",
+        "--top",
+        type=nonnegative_int,
+        default=10,
+        metavar="N",
+        help="Maximum agent groups to show (default: 10)",
+    )
+
 
 __all__ = ["register_artifact_parser"]
