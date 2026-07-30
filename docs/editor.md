@@ -42,8 +42,9 @@ The wrapper also exports installed package xprompt locations, bundled default co
 plugin config paths to the Rust server. It also materializes a local artifact-reference catalog under
 `~/.sase/xprompt_lsp/` by default. The server refreshes its xprompt catalog when the LSP session starts, keeps a short
 cache for completion requests, and exposes a `sase.xpromptLsp.refreshCatalog` command for clients that surface LSP
-commands. Artifact-reference completion, diagnostics, and semantic highlighting re-read their catalog on each request,
-so a launcher refresh or external rewrite is visible on the next editor pass.
+commands. Artifact-reference diagnostics and semantic highlighting re-read their catalog on each request, so a launcher
+refresh or external rewrite is visible on the next editor pass; artifact-reference completion reads the same catalog
+through a short-lived cache keyed by the catalog file's signature (see [LSP Features](#lsp-features)).
 
 ## LSP Features
 
@@ -79,9 +80,12 @@ payloads resolve locally from generated sidecar pages, while `commit` and `bug` 
 no completion enumeration or resolution request. The LSP never contacts git hosts, issue trackers, or other network
 providers. Unknown `@kind:` text remains ordinary prose.
 
-Matching is **fuzzy and ranked on the server**, so a payload is reachable by any memorable fragment of its path or
-title: `@research:site` finds `@research:202607/sase_sites_hub_and_pages/sase_sites_hub_and_pages.md`. Rows are grouped
-into tiers so a fuzzy hit never outranks a literal one, then ordered by score, shorter text, and case-insensitive text:
+Matching is **fuzzy and ranked on the server** for every enumerated kind — document roles, chats, indexed artifact
+files, beads, and agents — against both the inserted payload and the row's title, so `@research:site` finds
+`@research:202607/sase_sites_hub_and_pages/sase_sites_hub_and_pages.md`, `@agent:sase-b3` finds
+`@agent:bbugyi200.athena.sase-b3.5` from a mid-name fragment, and `@file:panel` finds a `default:<hex>` indexed file by
+its file name. Rows are grouped into tiers so a fuzzy hit never outranks a literal one, then ordered by score, shorter
+text, and case-insensitive text:
 
 | Tier | Meaning                                   | Example query against `202607/sase_sites_hub_and_pages/…` |
 | ---- | ----------------------------------------- | --------------------------------------------------------- |
@@ -95,6 +99,14 @@ directories-before-files for paths, recency for chats and commits). Kind rows an
 are matched the same way, but a `@` path token's directory portion stays exact, so `@src/` still lists `src/` and
 `@src/fcb` can still find `src/…/_file_completion_base.py`.
 
+Two bounds remain, and both are disclosed rather than silent. Enumeration walks up to 5000 payloads per root, so a root
+larger than that is matched only over the rows the walk reached; matching then returns at most 200 rows per group to the
+editor. Whichever bound bites, the count of payloads left out is appended to every item's `detail` as
+`at least N additional payloads not shown`, on top of the list's `isIncomplete: true`. Because the walk is
+query-independent, the enumerated and titled inventory is cached in-process per project and per catalog signature (path,
+mtime, size) with a two-second TTL, so a keystroke re-ranks a warm corpus instead of re-walking the filesystem. A
+watched catalog write or the `sase.xpromptLsp.refreshCatalog` command invalidates it immediately.
+
 Keeping server-ranked rows alive in the client is an explicit contract. Every artifact-reference item sets `filterText`
 to the reference text **as typed** (`@research:site` in the payload stage, `@rsch` in the kind stage) rather than to the
 inserted reference, because a client that prefix-filters `@research:202607/…` against `@research:site` would discard
@@ -105,9 +117,9 @@ re-sort so the server's `sortText` order survives. Insertion is unaffected: each
 
 Editors cannot highlight individual characters inside a completion label, so the "why is this row here" affordance moves
 into the preview. `labelDetails.description` keeps the group word (`artifact kind`, `file`, `directory`),
-`labelDetails.detail` adds the document title, commit subject, or bead/bug title when it differs from the label, and
-markdown `documentation` shows the matched payload with the matched runs wrapped in `**`, followed by that title on a
-second line.
+`labelDetails.detail` adds the row's title when it differs from the label — a document's frontmatter title, a chat or
+indexed file's basename, a bead or bug title, an agent's short name, or a commit subject — and markdown `documentation`
+shows the matched payload with the matched runs wrapped in `**`, followed by that title on a second line.
 
 Artifact-reference semantic tokens use the standard LSP legend: `namespace` for the kind, `string` for the payload, and
 `number` for the fragment. Dynamic document-role references carry the standard `documentation` modifier; builtin
