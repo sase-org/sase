@@ -27,6 +27,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
 from sase.ace.tui.widgets.prompt_panel._agent_xprompts import (
     _COLOR_HEADER,
     _COLOR_PART,
+    _COLOR_SWARM,
     _COLOR_WORKFLOW,
 )
 from tests.ace.tui.widgets._agent_display_metadata_helpers import (
@@ -584,6 +585,87 @@ def test_xprompt_part_value_uses_distinct_style(tmp_path: Path) -> None:
     # The part value must not read like a metadata field label.
     assert _COLOR_PART != _COLOR_HEADER
     assert _COLOR_HEADER not in styles_over("#review_checklist")
+
+
+def test_swarm_xprompt_gets_own_glyph_style_and_summary_count(
+    tmp_path: Path,
+) -> None:
+    """The originating swarm reads as a swarm, not as a part."""
+    metadata = [
+        {
+            "name": "research_swarm",
+            "kind": "swarm",
+            "positional": [],
+            "named": {},
+            "tags": ["research"],
+        },
+        {
+            "name": "review_checklist",
+            "kind": "part",
+            "positional": [],
+            "named": {},
+            "tags": [],
+        },
+    ]
+    metadata_file = tmp_path / "xprompts_main.json"
+    metadata_file.write_text(json.dumps(metadata))
+
+    agent = _make_agent(
+        artifacts_dir=str(tmp_path),
+        parent_workflow="olcr",
+        step_name="main",
+    )
+
+    header, _ = build_header_text(
+        agent,
+        summary=build_detail_header_summary(agent),
+    )
+
+    def styles_over(substring: str) -> set[str]:
+        start = header.plain.index(substring)
+        end = start + len(substring)
+        return {
+            str(span.style)
+            for span in header.spans
+            if span.start < end and span.end > start
+        }
+
+    assert "Xprompts: 1 swarm · 1 part" in header.plain
+    assert "❋ #research_swarm" in header.plain
+    assert _COLOR_SWARM in styles_over("#research_swarm")
+    assert _COLOR_PART not in styles_over("#research_swarm")
+
+
+def test_swarm_only_agent_summarizes_as_a_swarm(tmp_path: Path) -> None:
+    """A swarm-only record must not fall back to the generic xprompt count."""
+    metadata_file = tmp_path / "xprompts_main.json"
+    metadata_file.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "research_swarm",
+                    "kind": "swarm",
+                    "positional": [],
+                    "named": {},
+                    "tags": [],
+                }
+            ]
+        )
+    )
+
+    agent = _make_agent(
+        artifacts_dir=str(tmp_path),
+        parent_workflow="olcr",
+        step_name="main",
+    )
+
+    header, _ = build_header_text(
+        agent,
+        summary=build_detail_header_summary(agent),
+    )
+
+    assert "Xprompts: 1 swarm" in header.plain
+    assert "1 xprompt" not in header.plain
 
 
 def test_update_display_renders_xprompts_after_detail_settles(

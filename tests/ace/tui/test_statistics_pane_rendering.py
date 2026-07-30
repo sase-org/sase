@@ -141,6 +141,53 @@ def test_xprompts_grouping_modes_render_distinctive_columns_and_rows(
     assert "Scope = launch-boundary references only" in rendered
 
 
+def test_swarm_rows_and_focus_header_label_the_swarm_kind() -> None:
+    pane = StatisticsPane(auto_load=False)
+    payload = _run_payload(pane._range, pane._runtime_group_by)
+    payload["xprompts"]["rows"][0].update(
+        {"name": "research_swarm", "kind": "swarm", "tags": []}
+    )
+    views = build_statistics_views(payload, _activity_payload())
+
+    rendered = _render_plain(pane._xprompts_usage_renderable(views.xprompts))
+
+    assert "#research_swarm  swarm" in rendered
+
+
+def test_xprompt_focus_header_labels_the_swarm_kind() -> None:
+    pane = StatisticsPane(auto_load=False)
+    payload = _run_payload(pane._range, pane._runtime_group_by)
+    payload["xprompts"]["focus"] = {
+        "name": "research_swarm",
+        "found": True,
+        "kind": "swarm",
+        "tags": [],
+        "runs": 4,
+        "references": 4,
+        "distinct_agents": 4,
+        "completed": 4,
+        "failed": 0,
+        "success_rate": 1.0,
+        "total_runtime_seconds": 480.0,
+        "mean_runtime_seconds": 120.0,
+        "first_run_ts": pane._range.start_ts,
+        "last_run_ts": pane._range.start_ts + 60,
+        "models": [],
+        "projects": [],
+        "partners": [{"name": "gh", "count": 4}],
+        "providers": [],
+        "tribes": [],
+        "buckets": [],
+    }
+    views = build_statistics_views(payload, _activity_payload())
+    focus = views.xprompts.focus
+    assert focus is not None
+
+    rendered = _render_plain(pane._xprompt_focus_header(focus))
+
+    assert "#research_swarm  swarm" in rendered
+
+
 def test_xprompts_truncation_is_explicit() -> None:
     pane = StatisticsPane(auto_load=False)
     payload = _run_payload(pane._range, pane._runtime_group_by)

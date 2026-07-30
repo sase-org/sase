@@ -111,6 +111,8 @@ def test_help_explains_xprompt_counting_methodology() -> None:
         "A run counts once per xprompt name",
         "Refs counts argument variants separately",
         "other xprompts referenced in the same run",
+        "attributed to every agent the swarm launched",
+        "attribution is forward-only",
         "project filter is applied before aggregation",
         "artifact index has been rebuilt at its current schema",
     ):

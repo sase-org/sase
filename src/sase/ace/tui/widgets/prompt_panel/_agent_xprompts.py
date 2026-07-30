@@ -12,9 +12,11 @@ _COLOR_HEADER = "bold #87D7FF"
 _COLOR_SUMMARY = "dim"
 _COLOR_WORKFLOW = "bold #FFAF5F"
 _COLOR_PART = "bold #87FFAF"
+_COLOR_SWARM = "bold #FF87D7"
 _COLOR_ARGS = "dim"
 _WORKFLOW_GLYPH = "⌘"
 _PART_GLYPH = "▣"
+_SWARM_GLYPH = "❋"
 _ARG_VALUE_LIMIT = 40
 
 
@@ -39,6 +41,9 @@ def append_agent_xprompts_section(
         if kind == "workflow":
             glyph = _WORKFLOW_GLYPH
             style = _COLOR_WORKFLOW
+        elif kind == "swarm":
+            glyph = _SWARM_GLYPH
+            style = _COLOR_SWARM
         else:
             glyph = _PART_GLYPH
             style = _COLOR_PART
@@ -59,9 +64,12 @@ def append_agent_xprompts_section(
 
 
 def _summary(xprompts: list[dict[str, Any]]) -> str:
+    swarm_count = sum(1 for item in xprompts if item.get("kind") == "swarm")
     workflow_count = sum(1 for item in xprompts if item.get("kind") == "workflow")
     part_count = sum(1 for item in xprompts if item.get("kind") == "part")
     parts: list[str] = []
+    if swarm_count:
+        parts.append(count_phrase(swarm_count, "swarm"))
     if workflow_count:
         parts.append(count_phrase(workflow_count, "workflow"))
     if part_count:

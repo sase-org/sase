@@ -21,6 +21,7 @@ _ACCENT = "#FF87D7"
 _CYAN = "#87D7FF"
 _GOLD = "#FFD700"
 _GREEN = "#5FD75F"
+_KIND_LABELS = {"workflow": "wf", "part": "part", "swarm": "swarm"}
 
 
 class StatisticsXPromptsRenderingMixin:
@@ -151,7 +152,7 @@ class StatisticsXPromptsRenderingMixin:
             f"#{focus.name}",
             style=f"bold {categorical_color(focus.name)}",
         )
-        kind = {"workflow": "wf", "part": "part"}.get(focus.kind, focus.kind)
+        kind = _KIND_LABELS.get(focus.kind, focus.kind)
         if kind:
             heading.append(f"  {kind}", style="dim")
         if focus.tags:
@@ -418,7 +419,7 @@ class StatisticsXPromptsRenderingMixin:
     def _xprompt_cell(row: Any) -> Text:
         text = Text(no_wrap=True, overflow="ellipsis")
         text.append(f"#{row.name}", style=f"bold {categorical_color(row.name)}")
-        kind = {"workflow": "wf", "part": "part"}.get(row.kind, row.kind)
+        kind = _KIND_LABELS.get(row.kind, row.kind)
         if kind:
             text.append(f"  {kind}", style="dim")
         if row.tags:

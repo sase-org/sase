@@ -336,6 +336,12 @@ class StatisticsHelpModal(ModalScreen[None]):
                 "Partners are other xprompts referenced in the same run.",
             ),
             (
+                "Swarms",
+                "A swarm origin is attributed to every agent the swarm launched; "
+                "attribution is forward-only, so runs launched before this release "
+                "are not backfilled.",
+            ),
+            (
                 "Project scope",
                 f"{self._project_label}; the project filter is applied before "
                 "aggregation.",
