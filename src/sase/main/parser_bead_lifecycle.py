@@ -1,0 +1,291 @@
+"""Lifecycle argument parser definitions for bead subcommands."""
+
+from __future__ import annotations
+
+import argparse
+
+
+def register_bead_close_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead close``."""
+    parser = subparsers.add_parser(
+        "close",
+        help="Close one or more issues",
+        description=(
+            "Close one or more issues atomically. With --phases, the single "
+            "target is an epic whose numbered phase beads are closed instead."
+        ),
+        epilog=(
+            "Examples:\n"
+            '  sase bead close sase-at.1 --note "verified with just check"\n'
+            "  sase bead close sase-at -p 1,2,3\n"
+            "  sase bead close sase-at -p 1-3\n"
+            '  sase bead close sase-at -p 1-3,5 --reason "phases landed together"'
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "ids",
+        nargs="+",
+        help="Issue IDs to close (exactly one epic ID when --phases is used)",
+    )
+    parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help=(
+            "Close unfinished descendants; requires --reason and a "
+            "non-done --resolution"
+        ),
+    )
+    parser.add_argument(
+        "-P",
+        "--no-push",
+        action="store_true",
+        help="Commit the close locally but skip the post-commit push",
+    )
+    parser.add_argument(
+        "-n",
+        "--note",
+        help="Append this attributed note to each issue before closing it",
+    )
+    parser.add_argument(
+        "-p",
+        "--phases",
+        action="append",
+        metavar="SPEC",
+        help=(
+            "Close these phase beads of the target epic; comma-separated "
+            "numbers and ranges (e.g. 1,3,5-7)"
+        ),
+    )
+    parser.add_argument("-r", "--reason", help="Close reason")
+    parser.add_argument(
+        "-R",
+        "--resolution",
+        choices=["canceled", "done", "superseded"],
+        default=None,
+        help=(
+            "How this bead was resolved; a real close defaults to done, while "
+            "an already-closed bead is not compared unless this is supplied"
+        ),
+    )
+
+
+def register_bead_create_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead create``."""
+    parser = subparsers.add_parser("create", help="Create a new issue")
+    parser.add_argument("-a", "--assignee", help="Assignee")
+    parser.add_argument(
+        "-b",
+        "--bug-id",
+        help="Bug ID to pass when creating the attached ChangeSpec",
+    )
+    parser.add_argument(
+        "-c", "--changespec", help="Attach a ChangeSpec name to a plan bead"
+    )
+    parser.add_argument("-d", "--description", help="Issue description")
+    parser.add_argument(
+        "-m",
+        "--model",
+        help=(
+            "Model to use when this bead is launched. Provider-qualified "
+            "(e.g. codex/gpt-5.6-sol) or local alias (e.g. #pro). For epic "
+            "plan beads this becomes the land-agent model; for phase beads it "
+            "is the per-phase work model."
+        ),
+    )
+    parser.add_argument(
+        "-R",
+        "--ref",
+        action="append",
+        help="Artifact reference to attach (repeatable)",
+    )
+    parser.add_argument(
+        "-z",
+        "--size",
+        choices=["xsmall", "small", "medium", "large", "xlarge"],
+        help="Phase size controlling plan-first prompting and default model routing",
+    )
+    parser.add_argument(
+        "-r",
+        "--tier",
+        choices=["plan", "epic"],
+        help="Plan-bead tier (plan or epic)",
+    )
+    parser.add_argument("-t", "--title", required=True, help="Issue title")
+    parser.add_argument(
+        "-T",
+        "--type",
+        required=True,
+        help=(
+            "Bead type: plan(<plan_file>), plan(<plan_file>,<parent_id>), "
+            "or phase(<parent_id>)"
+        ),
+    )
+
+
+def register_bead_note_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead note``."""
+    parser = subparsers.add_parser("note", help="Append an attributed note entry")
+    parser.add_argument("id", help="Issue ID")
+    parser.add_argument(
+        "text",
+        nargs="+",
+        help="Note text to append",
+    )
+    parser.add_argument(
+        "-a",
+        "--author",
+        metavar="NAME",
+        help="Author recorded on the entry (default: current agent, else store owner)",
+    )
+
+
+def register_bead_onboard_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead onboard``."""
+    subparsers.add_parser("onboard", help="Show quick-start guide")
+
+
+def register_bead_open_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead open``."""
+    parser = subparsers.add_parser("open", help="Reopen an issue")
+    parser.add_argument("id", help="Issue ID to reopen")
+
+
+def register_bead_rm_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead rm``."""
+    parser = subparsers.add_parser("rm", help="Remove issues and all their children")
+    parser.add_argument("ids", nargs="+", help="One or more issue IDs to remove")
+
+
+def register_bead_work_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead work``."""
+    parser = subparsers.add_parser(
+        "work",
+        help="Create or launch work for an epic plan",
+        description=(
+            "Launch an existing epic plan bead, or validate an epic Markdown "
+            "plan, archive it into the SDD store, create its bead DAG, and "
+            "launch its phase and land agents. Plan-file launches are "
+            "idempotent and resume from an existing bead_id link."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead work sase-64\n"
+            "  sase bead work ./epic_plan.md --dry-run\n"
+            "  sase bead work ./epic_plan.md --parent sase-64.2 --yes\n"
+            "  sase bead work ./epic_plan.md --parent top-level --yes\n"
+            "  sase bead work ./epic_plan.md --yes\n"
+            "  sase bead work ./epic_plan.md --yes-to-all\n"
+            "  sase bead work ./epic_plan.md --json"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "target",
+        help="Epic bead ID, or path to a validated epic plan file",
+    )
+    parser.add_argument(
+        "-a",
+        "--artifacts-dir",
+        metavar="DIR",
+        help="Planner artifacts directory to back-fill after an approved epic launch",
+    )
+    parser.add_argument(
+        "-c",
+        "--cl-name",
+        metavar="NAME",
+        help="ChangeSpec name for the approved epic completion notification",
+    )
+    parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Validate and preview the wave plan without changing files, "
+            "beads, or agents"
+        ),
+    )
+    parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help=(
+            "Print one machine-readable result object; implies --yes-to-all, "
+            "so no confirmation prompt is shown"
+        ),
+    )
+    parser.add_argument(
+        "-P",
+        "--no-push",
+        action="store_true",
+        help="Commit plan and bead state locally but skip post-commit pushes",
+    )
+    parser.add_argument(
+        "-p",
+        "--parent",
+        metavar="BEAD_ID|top-level",
+        help=(
+            "Override a plan file's parent_bead; use 'top-level' to create "
+            "an unparented epic"
+        ),
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Skip only the launch confirmation prompt",
+    )
+    parser.add_argument(
+        "-Y",
+        "--yes-to-all",
+        action="store_true",
+        help="Skip both destructive-cleanup and launch confirmation prompts",
+    )
+
+
+def register_bead_update_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead update``."""
+    parser = subparsers.add_parser("update", help="Update an issue")
+    parser.add_argument("id", help="Issue ID")
+    parser.add_argument("-a", "--assignee")
+    parser.add_argument("-D", "--design")
+    parser.add_argument("-d", "--description")
+    parser.add_argument(
+        "-m",
+        "--model",
+        help=(
+            "Model for this bead's launch. Provider-qualified (e.g. "
+            "codex/gpt-5.6-sol) or local alias (e.g. #pro). Pass '' to clear."
+        ),
+    )
+    parser.add_argument("-n", "--notes")
+    parser.add_argument(
+        "-z",
+        "--size",
+        choices=["xsmall", "small", "medium", "large", "xlarge"],
+        help="Phase size controlling plan-first prompting and default model routing",
+    )
+    parser.add_argument(
+        "-s",
+        "--status",
+        choices=["open", "claimed", "in_progress", "closed"],
+    )
+    parser.add_argument("-r", "--tier", choices=["plan", "epic"])
+    parser.add_argument("-t", "--title")
