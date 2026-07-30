@@ -159,6 +159,7 @@ def test_running_record_carries_output_variables_through_scan_and_index(
     rec = record_by_timestamp(snapshot, TS_ACE_RUN_RUNNING)
     assert rec.agent_meta is not None
     assert rec.agent_meta.output_variables == {
+        "attempts": 2,
         "report_path": "/tmp/report.md",
         "status": "ok",
     }
@@ -180,6 +181,7 @@ def test_running_record_carries_output_variables_through_scan_and_index(
     indexed_rec = record_by_timestamp(indexed, TS_ACE_RUN_RUNNING)
     assert indexed_rec.agent_meta is not None
     assert indexed_rec.agent_meta.output_variables == {
+        "attempts": 2,
         "report_path": "/tmp/report.md",
         "status": "ok",
     }

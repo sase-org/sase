@@ -193,8 +193,23 @@ def test_agent_meta_output_variables_round_trip() -> None:
                             }
                         ],
                         "output_variables": {
+                            "attempts": 2,
+                            "duration_s": 42.5,
+                            "findings": [
+                                {
+                                    "file": "src/a.py",
+                                    "severity": "high",
+                                },
+                                {
+                                    "file": "src/b.py",
+                                    "severity": "low",
+                                },
+                            ],
+                            "missing": None,
+                            "passed": True,
                             "report_path": "/tmp/report.md",
                             "status": "ok",
+                            "suites": ["unit", "integration"],
                         },
                     },
                     "done": None,
@@ -219,8 +234,17 @@ def test_agent_meta_output_variables_round_trip() -> None:
     assert record.agent_meta.agent_family is None
     assert record.agent_meta.agent_family_role is None
     assert record.agent_meta.output_variables == {
+        "attempts": 2,
+        "duration_s": 42.5,
+        "findings": [
+            {"file": "src/a.py", "severity": "high"},
+            {"file": "src/b.py", "severity": "low"},
+        ],
+        "missing": None,
+        "passed": True,
         "report_path": "/tmp/report.md",
         "status": "ok",
+        "suites": ["unit", "integration"],
     }
     assert record.agent_meta.output_path == "/tmp/producer.log"
     assert record.agent_meta.linked_repos == [
@@ -245,8 +269,17 @@ def test_agent_meta_output_variables_round_trip() -> None:
         }
     ]
     assert payload["records"][0]["agent_meta"]["output_variables"] == {
+        "attempts": 2,
+        "duration_s": 42.5,
+        "findings": [
+            {"file": "src/a.py", "severity": "high"},
+            {"file": "src/b.py", "severity": "low"},
+        ],
+        "missing": None,
+        "passed": True,
         "report_path": "/tmp/report.md",
         "status": "ok",
+        "suites": ["unit", "integration"],
     }
     assert payload["records"][0]["agent_meta"]["agent_family_parallel"] is True
     assert payload["records"][0]["agent_meta"]["output_path"] == "/tmp/producer.log"
