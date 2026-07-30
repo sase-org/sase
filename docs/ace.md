@@ -3219,8 +3219,9 @@ in NORMAL mode, and during feedback prompts.
 For file completion, directories appear before files in the candidate list. Dotfiles are hidden unless the partial
 prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The
 completion panel shows up to eight candidates at a time — seven when more candidates remain, so the `↓ N more…` line
-always fits — and scrolls to keep the highlight visible. When exactly one xprompt or file candidate matches, accepting
-completion inserts the canonical reference immediately.
+always fits, and one fewer again when the grouped `@` reference menu draws its `── files · <base-dir>` rule — and
+scrolls to keep the highlight visible. When exactly one xprompt or file candidate matches, accepting completion inserts
+the canonical reference immediately.
 
 Accepting an xprompt completion, or selecting an xprompt from the `#@` picker, opens an `xprompt args` hint panel when
 the xprompt has required user-facing inputs. The panel shows the supported arguments and highlights the active one.
