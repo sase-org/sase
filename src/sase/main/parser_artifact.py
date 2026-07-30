@@ -182,7 +182,11 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
 
     show_parser = artifact_subparsers.add_parser(
         "show",
-        help="Show artifact metadata and reference-resolution details",
+        help="Show artifact metadata, resolution details, and consumption",
+        description=(
+            "Show artifact metadata, reference-resolution details, and the "
+            "recorded consumption summary."
+        ),
     )
     show_parser.add_argument(
         "-j",

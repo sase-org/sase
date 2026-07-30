@@ -66,7 +66,8 @@ Deleting `vcs-cache/` is safe; it only costs re-materialization.
 `sase artifact list` prints a table of KIND, REF, LABEL, PROJECT, AGENT, SIZE, and CREATED, newest first. Filters:
 `-a/--agent`, `-e/--explicit`, `-k/--kind` (repeatable), `-l/--limit` (default 50; `0` means unlimited), `-p/--project`
 (display name, alias, or key), `-q/--query` (substring over label and paths), and `-s/--since` (`YYYY-MM-DD`, `YYYY-MM`,
-`YYYYMM`, or a relative `14d` / `3w` / `2m`).
+`YYYYMM`, or a relative `14d` / `3w` / `2m`). Add `-u/--unused` to show only artifact files no agent has ever referenced
+in a launch prompt.
 
 ```bash
 # Images this project produced in the last two weeks.
@@ -74,10 +75,24 @@ sase artifact list -p sase -k image -s 14d
 
 # Everything a given agent registered explicitly, as JSON.
 sase artifact list -a bbugyi200.athena.ov -e -j
+
+# Artifacts that have not been referenced by any agent prompt.
+sase artifact list -u -l 20
 ```
 
 Add `-j/--json` for a stable machine-readable array; each record carries every index field, including `sha256`,
 `size_bytes`, and `mime_type`, plus the rendered `ref`.
+
+## Consumption Tracking
+
+When an agent launch prompt contains `@` artifact references, SASE automatically records each successfully expanded
+canonical reference in `~/.sase/artifacts/consumption.jsonl`. The ledger records the consuming agent, timestamp,
+reference kind, optional fragment, resolution status, and a v1 role: `report`, `image`, `source`, or reserved
+`test-result`. Videos are grouped under `image` because the role means visual media.
+
+Use `sase artifact show <ref>` to see `consumption_count`, `consumed_by_agents`, `consuming_agents`, and
+`last_consumed_at` for any resolved reference. Use `sase artifact list --unused` to find indexed `file:` artifacts with
+no recorded consumption.
 
 ## Resolve a Reference You Were Handed
 
@@ -95,6 +110,9 @@ sase artifact path plans:202607/artifact_read_cli.md
 # Open with the right viewer for the kind and mime type.
 sase artifact open file:default:0123456789abcdef01234567
 ```
+
+`show` also reports consumption from the ledger. In JSON mode the `consumption` field is an object with the full
+summary, or `null` when the reference has never been consumed.
 
 `path` exits 0 on success, 1 for a missing, ambiguous, or malformed reference (candidates are listed on stderr), and 2
 for kinds with no filesystem identity (`commit:`, `bug:`) — use `show` for those. `open` pages text through `bat`,

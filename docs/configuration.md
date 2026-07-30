@@ -3242,21 +3242,22 @@ it with `A`, even after the agent has been dismissed and revived. `-k/--kind` ac
 source after it is stored. On success the command prints the artifact's `id:`, absolute `source:`, stored `path:`, and
 durable `ref:` (`file:<id>`). The read subcommands (`doctor`, `list`, `open`, `path`, `show`) are not agent-gated.
 
-| Form                   | Flags                                                                                                             | Description                                                                                     |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `sase artifact create` | `-k/--kind`, `-l/--label`, `-m/--move`, `-p/--path`                                                               | Store one explicit artifact for the current agent                                               |
-| `sase artifact doctor` | `-f/--fix`, `-v/--verify`                                                                                         | Report index health (including VCS reference counts), backfill enrichment fields, verify hashes |
-| `sase artifact list`   | `-a/--agent`, `-e/--explicit`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-p/--project`, `-q/--query`, `-s/--since` | List indexed artifacts newest-first                                                             |
-| `sase artifact open`   | (positional `reference`)                                                                                          | Open a resolved reference with a kind-appropriate viewer                                        |
-| `sase artifact path`   | (positional `reference`)                                                                                          | Print the one absolute path a reference resolves to                                             |
-| `sase artifact show`   | `-j/--json`, (positional `reference`)                                                                             | Show metadata plus a reference-resolution report                                                |
+| Form                   | Flags                                                                                                                            | Description                                                                                     |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `sase artifact create` | `-k/--kind`, `-l/--label`, `-m/--move`, `-p/--path`                                                                              | Store one explicit artifact for the current agent                                               |
+| `sase artifact doctor` | `-f/--fix`, `-v/--verify`                                                                                                        | Report index health (including VCS reference counts), backfill enrichment fields, verify hashes |
+| `sase artifact list`   | `-a/--agent`, `-e/--explicit`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-p/--project`, `-q/--query`, `-s/--since`, `-u/--unused` | List indexed artifacts newest-first                                                             |
+| `sase artifact open`   | (positional `reference`)                                                                                                         | Open a resolved reference with a kind-appropriate viewer                                        |
+| `sase artifact path`   | (positional `reference`)                                                                                                         | Print the one absolute path a reference resolves to                                             |
+| `sase artifact show`   | `-j/--json`, (positional `reference`)                                                                                            | Show metadata, resolution, and consumption                                                      |
 
 `list` filters: `-k/--kind` is repeatable and accepts the artifact kinds above; `-l/--limit` defaults to `50` and `0`
 means unlimited; `-p/--project` accepts a display name, alias, or canonical key and exits 2 for an unknown project;
 `-q/--query` is a case-insensitive substring match over label and paths; `-s/--since` accepts the same DATE forms as
-`sase plan search` (`YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or relative `14d` / `3w` / `2m`). Pretty output is a Rich panel
-with KIND, REF, LABEL, PROJECT (display name), AGENT, SIZE, and CREATED columns; `-j/--json` emits every record field —
-including `sha256`, `size_bytes`, and `mime_type` — plus the rendered `ref`.
+`sase plan search` (`YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or relative `14d` / `3w` / `2m`); and `-u/--unused` shows only
+artifact files with no recorded `file:<id>` consumption. Pretty output is a Rich panel with KIND, REF, LABEL, PROJECT
+(display name), AGENT, SIZE, and CREATED columns; `-j/--json` emits every record field — including `sha256`,
+`size_bytes`, and `mime_type` — plus the rendered `ref`.
 
 `show`, `path`, and `open` accept any artifact reference (`file:`, `chat:`, `bug:`, `commit:`, `bead:`, `agent:`, and
 document roles such as `plans:`, `research:`, `designs:`). Document roles, `chat:`, and `file:` preserve supported `#L`,
@@ -3270,8 +3271,11 @@ resolution is intentionally scoped to the reference context's single project; fo
 A bare `default:<hash>` or `explicit:<hash>` index id is accepted as sugar for `file:<id>`. `path` exits 0 on success, 1
 when the reference is malformed, missing, or ambiguous (status and candidates go to stderr), and 2 for kinds with no
 filesystem identity (`commit:`, `bug:`), pointing at `show` instead. `open` refuses `commit:` refs the same way and
-opens `bug:` refs in a browser. `doctor` exits 1 when it finds missing enrichment fields, missing stored files,
-duplicate ids, unsupported schema versions, malformed rows, or digest mismatches, and 0 on a clean bill of health.
+opens `bug:` refs in a browser. `show` also reports consumption from the append-only
+`~/.sase/artifacts/consumption.jsonl` ledger: `consumption_count`, `consumed_by_agents`, `consuming_agents`, and
+`last_consumed_at` in pretty output, plus an additive `consumption` object in `-j/--json` output. `doctor` exits 1 when
+it finds missing enrichment fields, missing stored files, duplicate ids, unsupported schema versions, malformed rows, or
+digest mismatches, and 0 on a clean bill of health.
 
 ### `sase questions`
 

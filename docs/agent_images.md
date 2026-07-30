@@ -188,6 +188,84 @@ Sources:
 - `src/sase/core/artifact_file_vcs.py`
 - `src/sase/core/artifact_file_defaults.py`
 
+## Consumption Ledger
+
+When a launch prompt expands `@` artifact references in rewrite mode, SASE records the references that the agent was
+actually handed. The ledger is append-only JSONL at:
+
+```text
+~/.sase/artifacts/consumption.jsonl
+```
+
+Writes use a sibling lock file:
+
+```text
+~/.sase/artifacts/consumption.lock
+```
+
+Each line is a schema-versioned envelope:
+
+```json
+{
+  "schema_version": 1,
+  "consumption": {
+    "id": "3f0a91c2d4e5",
+    "timestamp": "2026-07-30T14:02:11.481293+00:00",
+    "ref": "file:default:52895d68931185056fd0e49f",
+    "ref_kind": "file",
+    "fragment": null,
+    "role": "image",
+    "artifact_id": "default:52895d68931185056fd0e49f",
+    "resolved_path": "/home/user/.sase/artifacts/agents/sase/20260730134501/image.png",
+    "resolution_status": "exact",
+    "agent_name": "sase-b8.2",
+    "agent_source": "SASE_AGENT_NAME",
+    "artifacts_dir": "/home/user/.sase/projects/gh_sase-org__sase/artifacts/ace-run/202607/30/20260730134501",
+    "project": "gh_sase-org__sase"
+  }
+}
+```
+
+`ref` is the fragment-free canonical reference and is the join key used by `sase artifact show` and
+`sase artifact list --unused`. A prompt reference such as `@file:default:<digest>#L1-L5` records
+`ref: file:default:<digest>` and stores the discarded anchor as `fragment: L1-L5`, so all fragments of the same artifact
+aggregate together. `artifact_id` is populated only for `file:` references; non-file references such as `chat:`,
+`bead:`, `bug:`, `plans:`, and `research:` leave it null but are still recorded and summarized by `show`.
+
+The v1 role vocabulary is deliberately small:
+
+| Role          | Derivation                                                                                                                         |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `report`      | `chat:` and document-role references; `file:` references whose resolved path is Markdown, plain text, or PDF                       |
+| `image`       | Visual media by suffix, including images and videos such as PNG, JPEG, GIF, SVG, WebP, MP4, MOV, and WebM                          |
+| `source`      | Code, data, `bead:`, `agent:`, `commit:`, `bug:`, unknown suffixes, and other references that are neither reports nor visual media |
+| `test-result` | Reserved for future writers; no v1 code emits it                                                                                   |
+
+Grouping videos under `image` is intentional: in this ledger the role means visual media, and keeping the v1 vocabulary
+to four values leaves later lineage work additive.
+
+SASE logs every reference that successfully expands in rewrite mode. It does not log validation-only checks, failed
+expansion passes, `sase artifact open`, `sase artifact path`, ACE browsing, or LSP completion. Within one expansion pass
+duplicate references collapse to one event by canonical `ref`; later launches, retries, and workflow steps append new
+events because they are separate consumptions.
+
+`sase artifact show <reference>` reads the ledger for any resolvable reference and adds `consumption_count`,
+`consumed_by_agents`, `consuming_agents`, and `last_consumed_at` to the pretty report. JSON output adds an additive
+`consumption` object with the full summary, or `null` when the reference has never been consumed.
+`sase artifact list --unused` filters artifact files to rows with no recorded `file:<id>` consumption; the filter is
+applied before `--limit`, so `-u -l 50` asks for 50 unused artifacts, not for unused rows among the newest 50.
+
+Ledger retention and pruning protection are not implemented yet. The current file is the durable signal those later
+retention rules will use.
+
+Sources:
+
+- `src/sase/core/artifact_consumption.py`
+- `src/sase/core/artifact_consumption_query.py`
+- `src/sase/artifact_ref_prompt.py`
+- `src/sase/artifact_cli/show.py`
+- `src/sase/artifact_cli/listing.py`
+
 ## Markdown PDF Attachment Contract
 
 Markdown discovery runs on successful agent finalization with the same candidate ordering as image discovery. Supported
