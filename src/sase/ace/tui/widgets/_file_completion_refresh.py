@@ -78,6 +78,7 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                 result.payload_total,
                 result.truncated_payloads,
             )
+            self._artifact_ref_files_suppressed = result.files_suppressed
             self._update_file_completion_panel(context.prefix)
             if self._artifact_ref_completion_force:
                 if at_reference_leading_match_count(result.candidates) == 1:

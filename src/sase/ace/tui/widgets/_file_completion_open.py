@@ -269,6 +269,7 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
             result.payload_total,
             result.truncated_payloads,
         )
+        self._artifact_ref_files_suppressed = result.files_suppressed
         self._update_file_completion_panel(context.prefix)
         if force and at_reference_leading_match_count(result.candidates) == 1:
             self._accept_artifact_ref_completion(result.candidates[0])
@@ -280,6 +281,20 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
             )
             self._try_artifact_ref_completion(force=True)
         return True
+
+    def _try_artifact_ref_completion_tab(self) -> bool:
+        """Reveal gated file rows before force-completing an ``@`` kind."""
+        context = self._get_artifact_ref_completion_context()
+        if (
+            context is not None
+            and context.stage == "kind"
+            and not self._artifact_ref_files_revealed
+        ):
+            result = self._artifact_ref_completion_result()
+            if result is not None and result.files_suppressed:
+                self._artifact_ref_files_revealed = True
+                return self._try_artifact_ref_completion()
+        return self._try_artifact_ref_completion(force=True)
 
     def _try_auto_directive_arg_completion(self) -> bool:
         """Open fixed-value directive argument completion after ``:``."""

@@ -275,7 +275,7 @@ def test_help_modal_lists_at_reference_completion() -> None:
         pairs = {
             (key, label) for _section, bindings in sections for key, label in bindings
         }
-        assert ("@", "Artifact kinds + local files") in pairs
+        assert ("@", "Artifact kinds; Ctrl+T files") in pairs
 
 
 def test_help_modal_lists_frontmatter_panel_toggle() -> None:

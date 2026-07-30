@@ -60,6 +60,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         def _try_vcs_repo_completion(self) -> bool: ...
         def _try_vcs_ref_completion(self, *, force: bool = False) -> bool: ...
         def _try_artifact_ref_completion(self, *, force: bool = False) -> bool: ...
+        def _try_artifact_ref_completion_tab(self) -> bool: ...
         def _try_file_history_completion(self) -> bool: ...
 
     def _try_file_completion_tab(self) -> bool:
@@ -108,7 +109,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
             arg_ctx = self._get_xprompt_arg_completion_context()
             if arg_ctx is not None:
                 return self._try_xprompt_arg_completion_tab(arg_ctx)
-            if self._try_artifact_ref_completion(force=True):
+            if self._try_artifact_ref_completion_tab():
                 return True
 
             self._clear_xprompt_arg_hint()

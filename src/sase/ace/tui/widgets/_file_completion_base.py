@@ -94,6 +94,8 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         _completion_selection_moved: bool
         _artifact_ref_completion_force: bool
         _artifact_ref_completion_stats: tuple[int, int, int]
+        _artifact_ref_files_revealed: bool
+        _artifact_ref_files_suppressed: bool
         # ``"auto"`` or ``"manual"``, recorded for the lifetime of an open
         # placeholder menu so refresh and accept keep resolving the same
         # candidate set the user is looking at.
@@ -233,6 +235,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             artifact_ref_payload_count=self._artifact_ref_completion_stats[0],
             artifact_ref_payload_total=self._artifact_ref_completion_stats[1],
             artifact_ref_truncated_payloads=self._artifact_ref_completion_stats[2],
+            artifact_ref_files_suppressed=self._artifact_ref_files_suppressed,
         )
 
     def _completion_group_rule_reserved(self) -> bool:
@@ -263,6 +266,8 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         self._completion_selection_moved = False
         self._artifact_ref_completion_force = False
         self._artifact_ref_completion_stats = (0, 0, 0)
+        self._artifact_ref_files_revealed = False
+        self._artifact_ref_files_suppressed = False
         self._placeholder_completion_trigger = None
         self._agent_completion_candidates = None
         self._vcs_repo_completion_key = None
@@ -484,6 +489,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         return build_artifact_ref_completion_result(
             context,
             catalog,
+            include_files=self._artifact_ref_files_revealed,
             commits=self._snapshot_artifact_ref_commit_candidates(),
             bugs=self._snapshot_artifact_ref_bug_candidates(),
             paths=() if path_snapshot is None else path_snapshot.rows,

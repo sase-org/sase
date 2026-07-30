@@ -111,6 +111,7 @@ def _artifact_ref_completion_subtitle(
     payload_total: int,
     truncated_payloads: int,
     inner_width: int,
+    files_suppressed: bool = False,
 ) -> Text:
     """Return match-mode and catalog-coverage context for an ``@`` menu."""
     fuzzy = any(
@@ -139,6 +140,10 @@ def _artifact_ref_completion_subtitle(
             f"⚠ {truncated_payloads} not scanned",
             style="bold #FF8C00",
         )
+    if files_suppressed:
+        if subtitle:
+            subtitle.append(" · ")
+        subtitle.append("[^T] files", style="dim")
     if inner_width > 0:
         subtitle.truncate(inner_width, overflow="ellipsis")
     return subtitle
@@ -250,6 +255,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         artifact_ref_payload_count: int = 0,
         artifact_ref_payload_total: int = 0,
         artifact_ref_truncated_payloads: int = 0,
+        artifact_ref_files_suppressed: bool = False,
     ) -> None:
         """Show the shared manual-completion panel with Rich styling.
 
@@ -528,6 +534,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
                 artifact_ref_payload_total,
                 artifact_ref_truncated_payloads,
                 panel_inner_width,
+                artifact_ref_files_suppressed,
             )
         elif is_model_completion:
             panel.border_subtitle = _model_completion_subtitle(

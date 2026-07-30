@@ -212,6 +212,7 @@ class ArtifactRefCompletionResult:
     payload_count: int = 0
     payload_total: int = 0
     truncated_payloads: int = 0
+    files_suppressed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -318,6 +319,7 @@ def build_artifact_ref_completion_result(
     context: ArtifactRefCompletionContext,
     catalog: ArtifactRefCompletionCatalog,
     *,
+    include_files: bool = False,
     commits: Sequence[ArtifactRefCommitCandidate] = (),
     bugs: Sequence[ArtifactRefBugCandidate] = (),
     paths: Sequence[PromptPathRow] = (),
@@ -344,6 +346,7 @@ def build_artifact_ref_completion_result(
         wire,
         inventory,
         payload_index=payload_index,
+        options={"include_files": include_files},
     )
     candidates: list[CompletionCandidate] = []
     for raw_row in menu.get("rows", []):
@@ -405,6 +408,7 @@ def build_artifact_ref_completion_result(
         int(menu.get("payload_count", 0)),
         len(payload_metadata) + truncated_payloads,
         int(menu.get("truncated_payloads", 0)),
+        bool(menu.get("files_suppressed", False)),
     )
 
 

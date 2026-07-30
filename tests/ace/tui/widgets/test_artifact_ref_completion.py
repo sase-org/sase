@@ -288,15 +288,28 @@ def test_kind_menu_filters_artifacts_and_files_through_shared_policy() -> None:
         paths=(PromptPathRow("plans", True), PromptPathRow("plain.txt", False)),
     )
 
-    assert [candidate.insertion for candidate in result.candidates] == [
+    assert [candidate.insertion for candidate in result.candidates] == ["@plans:"]
+    assert result.files_suppressed is True
+
+    revealed = build_artifact_ref_completion_result(
+        context,
+        _CATALOG,
+        include_files=True,
+        paths=(PromptPathRow("plans", True), PromptPathRow("plain.txt", False)),
+    )
+
+    assert [candidate.insertion for candidate in revealed.candidates] == [
         "@plans:",
         "@plans/",
         "@plain.txt",
     ]
-    assert isinstance(result.candidates[0].metadata, ArtifactRefKindCompletionMetadata)
+    assert revealed.files_suppressed is False
+    assert isinstance(
+        revealed.candidates[0].metadata, ArtifactRefKindCompletionMetadata
+    )
     assert all(
         isinstance(candidate.metadata, AtReferenceFileCompletionMetadata)
-        for candidate in result.candidates[1:]
+        for candidate in revealed.candidates[1:]
     )
 
 
@@ -320,7 +333,7 @@ def test_path_query_returns_only_rows_from_the_requested_directory() -> None:
     )
 
 
-async def test_bare_at_opens_artifacts_then_files() -> None:
+async def test_bare_at_opens_artifact_kinds_only() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         text_area = app.query_one(PromptTextArea)
@@ -335,17 +348,79 @@ async def test_bare_at_opens_artifacts_then_files() -> None:
 
         assert text_area._completion_kind == ARTIFACT_REF_COMPLETION_KIND
         assert text_area._file_completion_active is True
-        insertions = [row.insertion for row in text_area._file_completion_candidates]
-        first_file = next(
-            index
-            for index, row in enumerate(text_area._file_completion_candidates)
-            if isinstance(row.metadata, AtReferenceFileCompletionMetadata)
-        )
         assert all(
             not isinstance(row.metadata, AtReferenceFileCompletionMetadata)
-            for row in text_area._file_completion_candidates[:first_file]
+            for row in text_area._file_completion_candidates
         )
-        assert insertions[first_file:] == ["@src/", "@Justfile"]
+        assert text_area._artifact_ref_files_suppressed is True
+
+
+async def test_ctrl_t_reveals_gated_files_before_accepting_lone_kind() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        text_area = app.query_one(PromptTextArea)
+        _seed_catalog(text_area, _CATALOG)
+        _seed_paths(
+            text_area,
+            "",
+            (PromptPathRow("fixtures", True), PromptPathRow("final.txt", False)),
+        )
+        text_area.load_text("@f")
+        text_area.cursor_location = (0, 2)
+
+        await pilot.press("ctrl+t")
+
+        assert text_area.text == "@f"
+        assert text_area._artifact_ref_files_revealed is True
+        assert [row.insertion for row in text_area._file_completion_candidates] == [
+            "@file:",
+            "@fixtures/",
+            "@final.txt",
+        ]
+
+        await pilot.press("ctrl+t")
+
+        assert text_area.text == "@file:"
+        assert text_area._artifact_ref_files_revealed is False
+
+
+async def test_revealed_files_survive_typing_and_reset_when_menu_closes() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        text_area = app.query_one(PromptTextArea)
+        _seed_catalog(text_area, _CATALOG)
+        _seed_paths(text_area, "", (PromptPathRow("final.txt", False),))
+        text_area.load_text("@f")
+        text_area.cursor_location = (0, 2)
+
+        await pilot.press("ctrl+t", "i")
+
+        assert text_area.text == "@fi"
+        assert text_area._artifact_ref_files_revealed is True
+        assert [row.insertion for row in text_area._file_completion_candidates] == [
+            "@file:",
+            "@final.txt",
+        ]
+
+        await pilot.press("ctrl+n", "enter")
+
+        assert text_area.text == "@final.txt"
+        assert text_area._file_completion_active is False
+        assert text_area._artifact_ref_files_revealed is False
+
+
+def test_kind_miss_lists_matching_files_without_ctrl_t() -> None:
+    context = detect_artifact_ref_completion_context("@zz", 3, _KINDS)
+    assert context is not None
+
+    result = build_artifact_ref_completion_result(
+        context,
+        _CATALOG,
+        paths=(PromptPathRow("fizz.txt", False),),
+    )
+
+    assert [candidate.insertion for candidate in result.candidates] == ["@fizz.txt"]
+    assert result.files_suppressed is False
 
 
 async def test_directory_accept_drills_down_and_file_accept_closes() -> None:

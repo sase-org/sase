@@ -293,6 +293,28 @@ def test_artifact_subtitle_reports_fuzzy_matches_and_unscanned_rows() -> None:
     assert prefix_subtitle.plain == "1 of 305"
 
 
+def test_artifact_subtitle_advertises_suppressed_files_only_when_present() -> None:
+    row = _kind("file")
+
+    suppressed = _artifact_ref_completion_subtitle(
+        [row],
+        0,
+        0,
+        0,
+        80,
+        files_suppressed=True,
+    )
+    visible = _artifact_ref_completion_subtitle([row], 0, 0, 0, 80)
+
+    assert suppressed.plain == "[^T] files"
+    assert any(
+        suppressed.plain[span.start : span.end] == "[^T] files"
+        and str(span.style) == "dim"
+        for span in suppressed.spans
+    )
+    assert visible.plain == ""
+
+
 @pytest.mark.parametrize(
     ("source", "badge"),
     (("bead", "[◆] "), ("agent", "[A] ")),

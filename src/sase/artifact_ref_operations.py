@@ -62,6 +62,7 @@ def at_reference_menu(
     inventory: Mapping[str, Any],
     *,
     payload_index: object | None = None,
+    options: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build one shared, I/O-free ``@`` menu from caller-owned inventory."""
     binding = require_rust_binding("at_reference_menu")
@@ -72,6 +73,7 @@ def at_reference_menu(
                 dict(context),
                 dict(inventory),
                 payload_index=payload_index,
+                options=None if options is None else dict(options),
             ),
         )
     )

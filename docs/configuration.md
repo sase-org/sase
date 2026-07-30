@@ -819,11 +819,13 @@ project/ChangeSpec completion uses the same token rule and works regardless of t
 
 `@` reference completion uses a project-scoped artifact catalog and warm prompt path inventory. `auto_artifact_menu`
 controls automatic opening of the grouped menu from bare `@`, narrowed artifact-kind or local-path queries such as `@pl`
-and `@src/`, and `@kind:` payload contexts; manual `Ctrl+T` remains available. Before a `:` appears, artifact kinds are
-shown first and local file rows second. File rows preserve the `@` sigil on insertion, directories drill down, and
-dotfiles are hidden unless the typed path segment starts with `.`. A cold path inventory can briefly show a loading row
-while ACE refreshes it off-thread. Document, chat, indexed-file, bead, and agent payloads use bounded project-scoped
-catalogs; commit and bug candidates are projected only from already-loaded Artifacts-pane snapshots.
+and `@src/`, and `@kind:` payload contexts; manual `Ctrl+T` remains available. Before a `:` appears, local file rows
+stay hidden while the query prefix-matches an artifact kind (including bare `@`). The panel's `[^T] files` hint marks
+that state; the first `Ctrl+T` reveals files without completing the kind, and a later press completes normally. Queries
+with no kind prefix match show file rows automatically. File rows preserve the `@` sigil on insertion, directories drill
+down, and dotfiles are hidden unless the typed path segment starts with `.`. A cold path inventory can briefly show a
+loading row while ACE refreshes it off-thread. Document, chat, indexed-file, bead, and agent payloads use bounded
+project-scoped catalogs; commit and bug candidates are projected only from already-loaded Artifacts-pane snapshots.
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists inline-typable model names,
 implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_lander`, `@big_epic_lander`,
