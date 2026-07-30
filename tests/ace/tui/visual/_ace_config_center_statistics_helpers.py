@@ -112,6 +112,27 @@ def _xprompts_payload(
             ],
             "partners": [{"name": "split_file", "count": 4}],
         },
+        {
+            "name": "sase/reads",
+            "kind": "swarm",
+            "tags": ["research"],
+            "runs": 4,
+            "references": 4,
+            "distinct_agents": 4,
+            "completed": 4,
+            "failed": 0,
+            "success_rate": 1.0,
+            "total_runtime_seconds": 1_920.0,
+            "mean_runtime_seconds": 480.0,
+            "first_run_ts": _STATISTICS_NOW - 2 * 86_400,
+            "last_run_ts": _STATISTICS_NOW - 10_800,
+            "models": [
+                {"name": "opus-4.1", "count": 3},
+                {"name": "gpt-5.6", "count": 1},
+            ],
+            "projects": [{"name": _WIDGETS_KEY, "count": 4}],
+            "partners": [{"name": "gh", "count": 4}],
+        },
     ]
     focus: dict[str, object] | None = None
     if xprompt_focus is not None:
@@ -190,8 +211,8 @@ def _xprompts_payload(
     return {
         "runs_with_xprompts": 23,
         "runs_without_xprompts": 9,
-        "distinct_xprompts": 3,
-        "total_references": 32,
+        "distinct_xprompts": 4,
+        "total_references": 36,
         "truncated_rows": 0,
         "rows": rows,
         "focus": focus,

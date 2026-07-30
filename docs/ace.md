@@ -1887,6 +1887,12 @@ per xprompt name, while **Refs** counts distinct argument variants of the same n
 inside workflow step templates are intentionally excluded. Historical runs appear after the agent-artifact index
 rebuilds at the current schema.
 
+Each record carries a kind — `workflow`, `part`, or `swarm`. An xprompt swarm is consumed by the dispatcher before any
+agent starts, so it never appears as a lexical reference in a child's prompt; instead the swarm is attributed to every
+agent it launched, and a nested swarm records every link of its chain. Because swarm records carry no arguments,
+**Refs** equals **Runs** for a swarm row. Attribution is forward-only: runs launched before this feature shipped are not
+backfilled.
+
 This Statistics sub-tab is distinct from the Admin Center's top-level **XPrompts** tab described in
 [XPrompt Browser](#xprompt-browser): the top-level tab browses and edits xprompt definitions, while the Statistics
 sub-tab measures how launch prompts used them.
