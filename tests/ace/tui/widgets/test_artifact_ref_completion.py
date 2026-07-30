@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import os
 from unittest.mock import patch
 
 import pytest
@@ -10,6 +11,13 @@ from textual.widgets import Static
 
 from sase.ace.tui.widgets._file_completion_base import (
     _PromptPathInventoryWorkerResult,
+)
+from sase.ace.tui.widgets._artifact_ref_entity_catalogs import (
+    _ArtifactRefAgentCandidate,
+    _ArtifactRefBeadCandidate,
+    _BEAD_CACHE,
+    _load_agent_candidates,
+    _load_bead_candidates,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
@@ -30,7 +38,13 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     detect_artifact_ref_completion_context,
     load_artifact_ref_completion_catalog,
 )
-from sase.artifact_refs import ArtifactRefContext, ArtifactRefProject
+from sase.artifact_refs import (
+    ArtifactRefAgentOwner,
+    ArtifactRefAgentRoot,
+    ArtifactRefBeadStore,
+    ArtifactRefContext,
+    ArtifactRefProject,
+)
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_path_inventory import (
     PromptPathRow,
@@ -38,11 +52,21 @@ from sase.ace.tui.widgets.prompt_path_inventory import (
 )
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.core.artifact_file_types import ArtifactFile
+from sase.bead.model import BeadTier, Issue, IssueType, Status
 
 from ._completion_helpers import CompletionTestApp
 
 
-_KINDS = ("commit", "chat", "bug", "file", "plans", "designs")
+_KINDS = (
+    "commit",
+    "chat",
+    "bug",
+    "file",
+    "bead",
+    "agent",
+    "plans",
+    "designs",
+)
 _CATALOG = ArtifactRefCompletionCatalog(
     project=None,
     kinds=_KINDS,
@@ -75,6 +99,22 @@ _CATALOG = ArtifactRefCompletionCatalog(
         ),
     ),
     chats=(_ArtifactRefChatCandidate("202607/agent.md", 1_785_326_400),),
+    beads=(
+        _ArtifactRefBeadCandidate(
+            "sase-9z",
+            "Artifact references",
+            "in_progress · epic",
+            "2026-07-29T12:00:00Z",
+        ),
+    ),
+    agents=(
+        _ArtifactRefAgentCandidate(
+            "bbugyi200.athena.9w",
+            "9w",
+            "sase",
+            1_785_326_400,
+        ),
+    ),
 )
 
 
@@ -192,6 +232,50 @@ def test_payload_rows_keep_full_prefix_metadata_and_shared_extension() -> None:
     metadata = result.candidates[0].metadata
     assert isinstance(metadata, ArtifactRefPayloadCompletionMetadata)
     assert (metadata.source, metadata.label) == ("document", "Alpha plan")
+
+
+@pytest.mark.parametrize(
+    ("token", "display", "insertion", "source", "label", "detail"),
+    (
+        (
+            "@bead:",
+            "Artifact references",
+            "@bead:sase-9z",
+            "bead",
+            "Artifact references",
+            "in_progress · epic",
+        ),
+        (
+            "@agent:",
+            "9w",
+            "@agent:bbugyi200.athena.9w",
+            "agent",
+            "9w",
+            "sase",
+        ),
+    ),
+)
+def test_entity_rows_keep_readable_labels_and_durable_payloads(
+    token: str,
+    display: str,
+    insertion: str,
+    source: str,
+    label: str,
+    detail: str,
+) -> None:
+    context = detect_artifact_ref_completion_context(token, len(token), _KINDS)
+    assert context is not None
+
+    candidate = build_artifact_ref_completion_result(context, _CATALOG).candidates[0]
+
+    assert (candidate.display, candidate.insertion) == (display, insertion)
+    metadata = candidate.metadata
+    assert isinstance(metadata, ArtifactRefPayloadCompletionMetadata)
+    assert (metadata.source, metadata.label, metadata.detail) == (
+        source,
+        label,
+        detail,
+    )
 
 
 def test_kind_menu_filters_artifacts_and_files_through_shared_policy() -> None:
@@ -436,6 +520,8 @@ async def test_accept_kind_reopens_payload_then_accepts_document() -> None:
         ("@chat:", "chat: chats", "@chat:202607/agent.md"),
         ("@commit:", "commit: commits", "@commit:sase@" + "a" * 40),
         ("@bug:", "bug: bugs", "@bug:sase#42"),
+        ("@bead:", "bead: beads", "@bead:sase-9z"),
+        ("@agent:", "agent: agents", "@agent:bbugyi200.athena.9w"),
     ),
 )
 async def test_all_payload_sources_render_stage_title_and_canonical_insertion(
@@ -654,3 +740,87 @@ def test_artifact_file_catalog_preserves_rust_order_and_project_alias_filtering(
         "explicit:bbb",
         "explicit:ccc",
     ]
+
+
+def test_bead_catalog_caches_sorts_and_caps_rows(tmp_path) -> None:
+    root = tmp_path / "beads"
+    root.mkdir()
+    (root / "issues.jsonl").write_text("{}\n", encoding="utf-8")
+    _BEAD_CACHE.pop(root.resolve(), None)
+    issues = [
+        Issue(
+            id=f"sase-{index}",
+            title=f"Issue {index}",
+            status=Status.IN_PROGRESS,
+            issue_type=IssueType.PLAN,
+            tier=BeadTier.EPIC if index == 500 else BeadTier.PLAN,
+            updated_at=f"2026-07-29T12:{index // 60:02d}:{index % 60:02d}Z",
+        )
+        for index in range(501)
+    ]
+    context = ArtifactRefContext(
+        document_roots=(),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifacts.jsonl",
+        repositories=(),
+        projects=(),
+        bead_stores=(ArtifactRefBeadStore("sase", "sase", root),),
+    )
+
+    with patch(
+        "sase.core.bead_read_facade.list_issues",
+        return_value=issues,
+    ) as list_rows:
+        first = _load_bead_candidates(context)
+        second = _load_bead_candidates(context)
+
+    assert first == second
+    assert len(first) == 500
+    assert first[0].payload == "sase-500"
+    assert first[0].detail == "in_progress · epic"
+    list_rows.assert_called_once_with(root.resolve())
+
+
+def test_agent_catalog_inserts_global_name_and_labels_current_owner(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    agents_dir = tmp_path / "agents-root" / "agents"
+    current = agents_dir / "bbugyi200.athena.9w"
+    foreign = agents_dir / "alice.zeus.foo"
+    current.mkdir(parents=True)
+    foreign.mkdir()
+    (current / "README.md").touch()
+    (foreign / "README.md").touch()
+    os.utime(current, (20, 20))
+    os.utime(foreign, (10, 10))
+    context = ArtifactRefContext(
+        document_roots=(),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifacts.jsonl",
+        repositories=(),
+        projects=(),
+        agent_roots=(ArtifactRefAgentRoot("sase", tmp_path / "agents-root"),),
+        agent_owner=ArtifactRefAgentOwner("bbugyi200", "athena"),
+    )
+    rows = _load_agent_candidates(context)
+
+    assert rows == (
+        _ArtifactRefAgentCandidate(
+            payload="bbugyi200.athena.9w",
+            label="9w",
+            detail="sase",
+            updated_at=20,
+        ),
+        _ArtifactRefAgentCandidate(
+            payload="alice.zeus.foo",
+            label="alice.zeus.foo",
+            detail="alice.zeus",
+            updated_at=10,
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._artifact_ref_entity_catalogs._MAX_ENTITY_ROWS",
+        1,
+    )
+    assert _load_agent_candidates(context) == rows[:1]

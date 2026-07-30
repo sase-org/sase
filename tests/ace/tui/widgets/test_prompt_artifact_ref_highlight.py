@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import threading
 
+import pytest
 from rich.color import Color
 
 from sase.ace.tui.widgets import _artifact_ref_highlight
@@ -19,7 +20,9 @@ from sase.artifact_refs import ArtifactRefContext, ArtifactRefDocumentRoot
 from ._completion_helpers import CompletionTestApp
 
 
-_KNOWN_KINDS = frozenset({"commit", "chat", "bug", "file", "plans", "designs"})
+_KNOWN_KINDS = frozenset(
+    {"commit", "chat", "bug", "file", "bead", "agent", "plans", "designs"}
+)
 
 
 class _WarmCompletionTestApp(CompletionTestApp):
@@ -169,6 +172,21 @@ async def test_artifact_ref_overlay_marks_each_part_and_registers_styles() -> No
         assert styles["artifact_ref.kind"].bold is True
         assert styles["artifact_ref.payload"].color != styles["artifact_ref.kind"].color
         assert styles["artifact_ref.fragment"].italic is True
+
+
+@pytest.mark.parametrize("token", ("@bead:sase-9z", "@agent:9w"))
+async def test_entity_kinds_highlight_as_known(token: str) -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        text_area = app.query_one(PromptTextArea)
+        _seed_known_kinds(text_area)
+        text_area.load_text(token)
+        text_area._build_highlight_map()
+
+        names = [name for *_range, name in _artifact_highlights(text_area)]
+        assert "artifact_ref.kind" in names
+        assert "artifact_ref.payload" in names
+        assert "artifact_ref.unknown" not in names
 
 
 async def test_artifact_ref_overlay_subdues_well_formed_unknown_kind() -> None:

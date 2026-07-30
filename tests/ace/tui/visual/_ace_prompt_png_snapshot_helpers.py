@@ -177,7 +177,18 @@ def patch_visual_artifact_ref_kinds(monkeypatch: pytest.MonkeyPatch) -> None:
     ) -> _artifact_ref_highlight._KnownKindsResult:
         return _artifact_ref_highlight._KnownKindsResult(
             project,
-            frozenset({"commit", "chat", "bug", "file", "plans", "designs"}),
+            frozenset(
+                {
+                    "commit",
+                    "chat",
+                    "bug",
+                    "file",
+                    "bead",
+                    "agent",
+                    "plans",
+                    "designs",
+                }
+            ),
         )
 
     monkeypatch.setattr(

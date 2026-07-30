@@ -20,6 +20,8 @@ _ARTIFACT_SOURCE_BADGES = {
     "chat": ("[C] ", "bold #5FD7AF"),
     "commit": ("[G] ", "bold #AF87FF"),
     "bug": ("[B] ", "bold #FF875F"),
+    "bead": ("[◆] ", "bold #FFD700"),
+    "agent": ("[A] ", "bold #FF5FD7"),
 }
 
 

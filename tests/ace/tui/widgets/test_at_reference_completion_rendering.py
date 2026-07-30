@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from rich.text import Text
 from textual.widgets import Static
 
@@ -20,6 +21,7 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     AtReferenceFileCompletionMetadata,
     ArtifactRefKindCompletionMetadata,
     ArtifactRefPayloadCompletionMetadata,
+    ArtifactRefPayloadSource,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -63,6 +65,23 @@ def _payload(name: str) -> CompletionCandidate:
             kind="plans",
             payload=name,
             source="document",
+        ),
+    )
+
+
+def _entity_payload(
+    display: str,
+    source: ArtifactRefPayloadSource,
+) -> CompletionCandidate:
+    return CompletionCandidate(
+        display=display,
+        insertion=f"@{source}:payload",
+        is_dir=False,
+        name=display,
+        metadata=ArtifactRefPayloadCompletionMetadata(
+            kind=source,
+            payload="payload",
+            source=source,
         ),
     )
 
@@ -112,6 +131,20 @@ def test_file_rows_reuse_file_menu_glyph_and_color_anatomy() -> None:
     assert regular_file.plain == "📄 Justfile"
     assert any(str(span.style) == "bold cyan" for span in directory.spans)
     assert any(str(span.style) == "bold" for span in regular_file.spans)
+
+
+@pytest.mark.parametrize(
+    ("source", "badge"),
+    (("bead", "[◆] "), ("agent", "[A] ")),
+)
+def test_entity_badges_use_documented_four_cell_width(
+    source: ArtifactRefPayloadSource,
+    badge: str,
+) -> None:
+    rendered = _render_row(_entity_payload("row", source))
+
+    assert Text(badge).cell_len == 4
+    assert rendered.plain == f"{badge}row"
 
 
 def test_group_rule_is_padded_to_inner_width_and_shortens_home(

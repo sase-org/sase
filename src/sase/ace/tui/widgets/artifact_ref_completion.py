@@ -15,6 +15,7 @@ from sase.artifact_refs import (
     at_reference_context,
     at_reference_menu,
 )
+from sase.ace.tui.widgets import _artifact_ref_entity_catalogs as entity_catalogs
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_path_inventory import PromptPathRow
 
@@ -27,6 +28,8 @@ ArtifactRefPayloadSource = Literal[
     "chat",
     "commit",
     "bug",
+    "bead",
+    "agent",
 ]
 
 _MAX_DOCUMENT_ROWS = 500
@@ -151,6 +154,8 @@ class ArtifactRefCompletionCatalog:
     documents: tuple[_ArtifactRefDocumentCandidate, ...] = ()
     artifact_files: tuple[_ArtifactRefFileCandidate, ...] = ()
     chats: tuple[_ArtifactRefChatCandidate, ...] = ()
+    beads: tuple[entity_catalogs._ArtifactRefBeadCandidate, ...] = ()
+    agents: tuple[entity_catalogs._ArtifactRefAgentCandidate, ...] = ()
     kind_details: tuple[tuple[str, str], ...] = ()
 
 
@@ -242,6 +247,10 @@ def _artifact_ref_payload_panel_title(kind: str) -> str:
         return "commit: commits"
     if folded == "bug":
         return "bug: bugs"
+    if folded == "bead":
+        return "bead: beads"
+    if folded == "agent":
+        return "agent: agents"
     return f"{kind}: documents"
 
 
@@ -330,6 +339,8 @@ def load_artifact_ref_completion_catalog(
         documents=_load_document_candidates(context),
         artifact_files=_load_artifact_file_candidates(project, context),
         chats=_load_chat_candidates(context),
+        beads=entity_catalogs._load_bead_candidates(context),
+        agents=entity_catalogs._load_agent_candidates(context),
         kind_details=_document_kind_details(context),
     )
 
@@ -448,6 +459,23 @@ def _payload_inventory(
                 ),
             )
             for row in bugs
+        )
+    elif folded in {"bead", "agent"}:
+        entities = catalog.beads if folded == "bead" else catalog.agents
+        source: ArtifactRefPayloadSource = "bead" if folded == "bead" else "agent"
+        rows.extend(
+            (
+                row.payload,
+                ArtifactRefPayloadCompletionMetadata(
+                    kind=kind,
+                    payload=row.payload,
+                    source=source,
+                    label=row.label,
+                    detail=row.detail,
+                    age=_age_label(row.updated_at),
+                ),
+            )
+            for row in entities
         )
     else:
         rows.extend(
