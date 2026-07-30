@@ -27,14 +27,16 @@ renders" check the plan calls for.
 ## Clarity
 
 1. **Façade list reads as exhaustive but isn't.** The middle column shows five chips — `parser_facade`, `query_facade`,
-   `status_facade`, `agent_facade`, `git_query` — with no ellipsis or "examples include" framing. `src/sase/core/`
-   actually contains 13+ facade modules (see Accuracy §1). A new reader will infer the boundary is five operations wide
-   when it's really an order of magnitude broader.
+   `status_facade`, `agent_facade`, `git_query` — with no ellipsis or "examples include" framing. The current
+   `src/sase/core/` tree contains 27 `*_facade.py` modules (see Accuracy §1). Some call Rust directly and others are
+   Python-owned host adapters, a distinction the diagram also needs to preserve. A new reader will otherwise infer both
+   that the façade surface is much smaller than it is and that every façade crosses the Rust boundary.
 
 2. **`agent_facade` is not a real module.** No file by that name exists in `src/sase/core/`. The closest matches are
-   `agent_scan_facade.py`, `agent_cleanup_facade.py`, `agent_launch_facade.py`, `artifact_file_facade.py`, and
-   `agent_launch_claims.py`. Picking a single composite label hides that "agent" spans four distinct facades with
-   different responsibilities.
+   `agent_scan_facade.py`, `agent_cleanup_facade.py`, `agent_launch_facade.py`, `agent_identity_facade.py`, and
+   `agent_runtime_facade.py`; related boundaries include `agent_launch_claims.py`, `artifact_file_facade.py`, and
+   `dismissed_agents_facade.py`. Picking one invented composite label hides distinct identity, runtime, scan, launch,
+   cleanup, artifact-file, and archive responsibilities.
 
 3. **Bottom-row arrows imply a sequence, but the steps are alternatives.** `pip install sase` and `just rust-install`
    are not sequential — per `docs/rust_backend.md` line 6 and the `Justfile` `_setup` recipe, a normal
@@ -67,21 +69,13 @@ renders" check the plan calls for.
 
 ## Accuracy
 
-1. **Façade coverage is significantly understated.** Per `docs/rust_backend.md` lines 9–29, the Rust-backed operations
-   are grouped into these façade families:
-   - `parser_facade` (project parsing)
-   - `query_facade` + `query_corpus_facade` (query parsing/eval/corpus)
-   - `status_facade` (status read + transition planner)
-   - `git_query_facade` (git output parsers)
-   - `notification_store_facade` (JSONL notifications)
-   - `agent_scan_facade` (agent scan + persistent agent index)
-   - `artifact_file_facade` + `artifact_file_query_facade` (artifact-file storage + Rust-backed index queries)
-   - `agent_cleanup_facade` + `agent_cleanup_execution` (cleanup planning + deterministic mutations)
-   - `agent_launch_facade` + `agent_launch_claims` (launch prep, spawn, fan-out, RUNNING-field claims)
-   - `bead_read_facade` + `bead_mutation_facade` (bead data ops)
-
-   The diagram lists five chips and omits notification, agent-cleanup, agent-launch, bead, and corpus families — roughly
-   two-thirds of the actual surface.
+1. **Façade coverage is significantly understated and the suffix alone does not prove Rust ownership.** The current tree
+   has 27 `*_facade.py` modules. Direct or mixed Rust boundary families include project parsing, lifecycle, query, and
+   status; notifications and prompt/snippet stores; agent identity/runtime/scan/launch/cleanup; bead reads, mutations,
+   and conflicts; Git/VCS/commit helpers; axe chop; and Rust-backed artifact-file index queries. Artifact-file storage
+   and default synthesis remain Python-owned behind `artifact_file_facade.py`, while facades such as
+   `graph_index_facade.py` and `dismissed_agents_facade.py` are host adapters. The diagram should use representative
+   grouped examples and mark which route reaches Rust instead of presenting five chips as the complete boundary.
 
 2. **`agent_facade` does not exist.** Search `src/sase/core/` — there is no `agent_facade.py`. Should be at minimum
    `agent_scan_facade`, with the other agent-related facades shown explicitly or grouped under a labeled cluster.
@@ -92,10 +86,11 @@ renders" check the plan calls for.
    `crates/sase_core_py` (PyO3 bindings) linked against `crates/sase_core` (pure Rust logic). The right label is "built
    from" or "source repo for the wheel".
 
-4. **"PyPI wheel" + "Cargo workspace" framing leaves out the required-extension property.** Per `docs/architecture.md`
-   line 22 and `docs/rust_backend.md` line 5, `sase-core-rs>=0.1.1,<0.2.0` is a **hard runtime dependency** with **no
-   Python fallback** for ported operations. The diagram never says "required" or "no fallback", so readers familiar with
-   optional Rust accelerators (e.g., orjson, ruff plugins) might wrongly assume they can opt out.
+4. **"PyPI wheel" + "Cargo workspace" framing leaves out the required-extension property.** The current `pyproject.toml`
+   declares `sase-core-rs>=0.12.17,<0.13.0` as a **hard runtime dependency**. There is no supported Rust-free mode or
+   backend-selection environment variable. Most ported operations fail fast when a binding is missing or stale; the
+   agent-cleanup planner and mutation wrappers retain narrow compatibility fallbacks. The diagram should say the
+   extension is required without incorrectly implying that every individual call lacks a fallback.
 
 5. **"missing or stale wheel fails fast" undersells what `tools/validate_sase_core_rs` does in `_setup`.** The
    `Justfile` `_setup` recipe (lines 22–29) actively rebuilds `sase_core_rs` from `../sase-core` when validation fails
@@ -111,10 +106,9 @@ renders" check the plan calls for.
    `require_rust_extension` + a binding probe), but readers who don't already know what "binding" means in PyO3 context
    get no help. Recommend: "verifies the `sase_core_rs` extension imports and exposes the expected functions".
 
-8. **Wire records are entirely absent.** The codebase has 9 `*_wire.py` modules (`wire.py`, `query_wire.py`,
-   `notification_store_wire.py`, `agent_scan_wire.py`, `agent_cleanup_wire.py`, `agent_launch_wire.py`, `bead_wire.py`,
-   `git_query_wire.py`, `status_wire.py`) and 3 `*_wire_conversion.py` modules. Per `docs/rust_backend.md` they are the
-   **stable** part of the contract. A boundary diagram that omits them misstates what stability means here.
+8. **Wire records are entirely absent.** The current codebase has the shared `wire.py`, 15 `*_wire.py` modules, and 3
+   `*_wire_conversion.py` modules. Per `docs/rust_backend.md` they are the **stable** part of the contract. A boundary
+   diagram that omits them misstates what stability means here.
 
 9. **Python App Layer chips are slightly off-target.** "ChangeSpec workflows", "agent scans", "status + git helpers" are
    all real, but the diagram chooses three areas that happen to all be Rust-backed, omitting the purely-host areas (TUI
@@ -130,16 +124,17 @@ the docs. Specific edits:
 
 - **Title**: change to something like "How SASE Python reaches Rust: facades, wire records, and the `sase_core_rs`
   extension" so the diagram's question is explicit.
-- **Façade column**: replace the five chips with grouped families — `parser`, `query` (incl. corpus), `status`,
-  `notification_store`, `agent_scan`, `agent_cleanup`, `agent_launch` (incl. claims), `bead_read` / `bead_mutation`,
-  `git_query`. Keep the `_facade` suffix in at least one example so the naming convention is visible. If space is tight,
-  tag it "10 facade families".
+- **Façade column**: replace the five chips with representative grouped families — project/query/status,
+  notifications/prompts, agent identity/runtime/scan/launch/cleanup, beads, VCS/commits, axe chop, and artifact-file
+  queries. Keep the `_facade` suffix in at least one real example so the naming convention is visible. Label the list as
+  examples rather than attaching a fixed family count, and distinguish Rust-backed boundaries from host-only adapters.
 - **Add a wire-record band** between the façade column and `sase_core_rs`, labeled "stable wire records (`*_wire.py`,
   `*_wire_conversion.py`) — Python ↔ Rust serialization contract".
 - **Add a sibling "Host-owned (never crosses boundary)" box** in the App Layer with chips like "TUI rendering", "xprompt
   expansion", "workflow orchestration", "subprocess + signalling", "plugin dispatch". This sets the scope honestly.
 - **Rust column**: keep the `sase_core_rs` ↔ `../sase-core` pairing but relabel the arrow "built from" (not "Python ↔
-  Rust boundary"). Add a "no Python fallback" / "required runtime dep" annotation on the wheel chip.
+  Rust boundary"). Add a "required runtime dependency" annotation on the wheel chip; if fallback behavior is mentioned,
+  preserve the current cleanup-only compatibility exception.
 - **Crate split**: keep `crates/sase_core` (pure Rust, reusable by future non-Python frontends) and
   `crates/sase_core_py` (PyO3 bindings → ships as the `sase-core-rs` wheel). Add a small "future: web/CLI from pure
   crate" hint to justify the split.

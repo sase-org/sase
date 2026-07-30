@@ -159,7 +159,10 @@ notification delivery, SASE appends existing explicit artifact files after chat,
 generated image attachments, and generated video attachments. Duplicate paths and missing files are ignored, and
 explicit-artifact index failures do not fail the completion path.
 
-Source: `src/sase/core/artifact_file_facade.py`
+Sources:
+
+- `src/sase/artifact_cli/create.py`
+- `src/sase/core/artifact_file_explicit.py`
 
 ## Notification Delivery
 

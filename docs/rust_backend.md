@@ -4,7 +4,9 @@ A subset of sase's core APIs is served by a Rust extension distributed as
 [`sase-core-rs`](https://pypi.org/project/sase-core-rs/) on PyPI and built from the sibling
 [`sase-core`](https://github.com/sase-org/sase-core) repo. `sase` declares `sase-core-rs` as a hard runtime dependency
 (see `pyproject.toml` for the pinned range), so a normal `uv tool install sase` (or `pip install sase`) pulls a prebuilt
-wheel automatically — no Rust toolchain required, no env-var selection, no Python fallback for ported operations.
+wheel automatically — no Rust toolchain required and no env-var backend selection. Most ported operations fail fast when
+the extension or a required binding is unavailable. The agent-cleanup planner and cleanup-mutation wrappers are a
+temporary compatibility exception: they retain Python fallback paths for missing or stale cleanup bindings.
 
 The shipped Rust-backed operations are grouped by the Python facade that calls them:
 
@@ -26,7 +28,8 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
 - Notification JSONL store operations: `read_notifications_snapshot`, `append_notification`,
   `apply_notification_state_update`, and `rewrite_notifications`
 - Agent cleanup planning plus deterministic cleanup mutations: dismissed-identity index writes, artifact-marker
-  deletion, workspace-release text mutation, and hook/mentor/comment kill marking. In the current ACE host path,
+  deletion, workspace-release text mutation, and hook/mentor/comment kill marking. These calls prefer Rust but retain
+  cleanup-specific Python compatibility paths for missing or stale bindings. In the current ACE host path,
   dismissed-bundle JSON persistence and its summary SQLite index are Python-owned.
 - Agent launch preparation, low-level detached spawn, timestamp allocation, fan-out planning, and RUNNING-field
   workspace-claim planning/mutation helpers
@@ -35,7 +38,7 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   sync-clean checks, compatibility projection export), deterministic epic work planning, and the early `sase bead` CLI
   fast path for common read/write commands
 
-The intentionally Python-owned facade surfaces (host logic, not backend fallbacks) are:
+The intentionally Python-owned host surfaces include:
 
 - `parse_project_file` — Python file-path API. The Rust binding consumes bytes; routing the file-path API through it
   would either re-read the file or duplicate the Python parser's tokenization for no measurable win.
@@ -69,10 +72,12 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
   launch, rollback of already-spawned children, and telemetry increments. Rust owns the bead data model, storage/query
   engine, JSONL codecs, mutation transactions, single-store ID allocation, deterministic work-plan DAG, and CLI output
   planning.
-- Explicit agent artifact storage remains Python-owned because it copies or moves user files into `~/.sase/artifacts/`
-  and updates the local JSONL association index under a file lock. Rust owns the separate agent-run artifact scanner and
-  its persistent query index. Python owns best-effort lifecycle orchestration around that index: syncing dismissed-agent
-  projection inputs before ACE loads, refreshing rows after marker mutations, and dispatching `sase agent index gc`.
+- Explicit and automatically captured artifact-file storage remains Python-owned because it copies or moves files into
+  `~/.sase/artifacts/` and updates the local JSONL association index under a file lock. Reads and filtering of that
+  artifact-file index go through the Rust-backed `artifact_file_query_facade`. Separately, Rust owns the agent-run
+  artifact scanner and its persistent agent index. Python owns best-effort lifecycle orchestration around the agent
+  index: syncing dismissed-agent projection inputs before ACE loads, refreshing rows after marker mutations, and
+  dispatching `sase agent index gc`.
 
 ## Why a Rust Backend?
 
@@ -105,7 +110,8 @@ startup, large search results, axe lumberjack scans), so it was the first operat
                 └──────────────────────┘   └──────────────────┘
 ```
 
-The facade lives at `src/sase/core/`:
+Important boundary modules under `src/sase/core/` include the following. This is a guided map, not an exhaustive
+directory listing; some `*_facade.py` modules are Rust-backed boundaries, while others are Python-owned host adapters.
 
 | Module                          | Purpose                                                                                                            |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -124,7 +130,9 @@ The facade lives at `src/sase/core/`:
 | `graph_index_facade.py`         | `build_changespec_graph_index()` facade (Python host logic)                                                        |
 | `agent_scan_facade.py`          | Agent artifact scan plus persistent index query/rebuild/update/delete facade (Rust)                                |
 | `agent_scan_wire.py`            | Stable wire records for agent-artifact scans and index maintenance                                                 |
-| `artifact_file_facade.py`       | Compatibility import surface for explicit/default artifact-file helpers (Python host logic)                        |
+| `agent_identity_facade.py`      | Rust-backed agent identity, ownership, validation, and name-rewriting boundary                                     |
+| `agent_runtime_facade.py`       | Rust-backed clan/family wall-clock runtime aggregation                                                             |
+| `artifact_file_facade.py`       | Compatibility import surface; artifact-file storage/default synthesis is Python-owned                              |
 | `artifact_file_query_facade.py` | Rust-backed query facade for the persistent artifact-file index                                                    |
 | `agent_cleanup_wire.py`         | Stable cleanup planning and side-effect intent wires                                                               |
 | `agent_cleanup_facade.py`       | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
@@ -264,13 +272,15 @@ Both targets install `maturin` into the target venv on demand and run `maturin d
 `../sase-core/crates/sase_core_py/`, so re-running them after a `../sase-core` update is the supported way to refresh an
 existing source install.
 
-### No pure-Python fallback
+### Required Extension And Cleanup Compatibility Exception
 
 A working `sase` install requires a loadable `sase_core_rs` extension. There is no `SASE_CORE_BACKEND` env var, no
-Python escape hatch for ported operations, and no silent fallback when the wheel is missing. A misbuilt or absent
-extension fails fast: ported facades raise `ImportError` from `sase.core.rust.require_rust_extension`, or
-`AttributeError` from `require_rust_binding` when the wheel is too old to expose the requested binding.
-`sase core health` exits non-zero in either case.
+global Python escape hatch, and no supported way to run SASE without the wheel. Most ported facades fail fast:
+`sase.core.rust.require_rust_extension` raises `ImportError` for a missing or misbuilt extension, and
+`require_rust_binding` raises `AttributeError` when the wheel is too old to expose a requested binding. The current
+agent-cleanup planner catches those two errors and uses its Python reference planner; cleanup-mutation wrappers likewise
+return a sentinel that lets their host callers use the compatibility implementation. These narrow cleanup fallbacks do
+not make the extension optional, and `sase core health` still exits non-zero when the extension is missing or stale.
 
 If a contributor's local checkout does not have a working `sase_core_rs`, the fix is to run `just install` (or
 `just rust-install` against a sibling `../sase-core/`) — not to disable Rust.
@@ -504,9 +514,9 @@ and runs `sase core health`; on failure it dumps `pip list`, Python/platform inf
 
 ## Golden Contract
 
-After Phase 8 the Python halves of the ported operations are gone, so the compatibility seam is the _golden corpus_
-rather than a live Python/Rust dual-run comparison. The corpus pins the Rust extension's expected output byte-for-byte
-across parser, query, agent scan, status, and Git query helpers:
+For the fully ported operations, the historical Python halves are gone, so the compatibility seam is the _golden corpus_
+rather than a live Python/Rust dual-run comparison. Agent cleanup is the current exception described above. The corpus
+pins the Rust extension's expected output byte-for-byte across parser, query, agent scan, status, and Git query helpers:
 
 | Surface                      | Tests                                                                                                                       |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- |

@@ -97,7 +97,8 @@ ACE has three top-level tabs:
 After you have seen the agent record, try a low-risk change:
 
 ```bash
-sase run "#git:home create or update notes.md with one short note about SASE workspaces"
+sase run \
+  "#git:home create or update notes.md with one short note about SASE workspaces. Then run: cp notes.md workspace-note.md && sase artifact create -p workspace-note.md -l 'Workspace note'"
 sase agent list
 ```
 
@@ -105,6 +106,10 @@ Now the agent has permission to make a visible diff in its isolated numbered wor
 `home` primary checkout stay untouched unless you explicitly bring changes back. When the agent commits its work, SASE's
 commit workflow records a ChangeSpec that you can review in ACE's Artifacts tab, under PRs, before landing or submitting
 anything.
+
+Wait until `sase agent list` reports that the run is done before continuing. The second instruction deliberately
+registers a copy: `sase artifact create` moves its input into durable artifact storage, so the tracked `notes.md` stays
+in the workspace while `workspace-note.md` becomes the handoff artifact.
 
 For your own repositories, use `#git:<name>` to target a managed project or `#git:<bare-repo-path>` to register an
 existing bare repository. Provider plugins add other workspace references, such as `#gh:<owner>/<repo>` for GitHub. The
@@ -115,48 +120,55 @@ state.
 
 ## Step 6 — Hand Off Existing Work With Artifact References
 
-An agent handoff is more reliable when it names the exact prior artifact instead of describing it loosely. After the
-editable run finishes, list the files SASE indexed for `home`:
+An agent handoff is more reliable when it names the exact prior artifact instead of describing it loosely. List the
+explicit files SASE indexed for `home`:
 
 ```bash
-sase artifact list --project home --limit 10
+sase artifact list --project home --explicit --limit 10
 ```
 
-The `REF` column contains durable file references such as `file:default:0123456789abcdef01234567`. The `default:` source
-means SASE captured the file from normal run output; files registered deliberately with `sase artifact create` use
-`explicit:` instead. Inspect a reference without launching an agent:
+The `Workspace note` row's `REF` column contains a durable file reference such as
+`file:explicit:0123456789abcdef01234567`. Copy the exact value from your output and inspect it without launching an
+agent:
 
 ```bash
-sase artifact show file:default:0123456789abcdef01234567
+sase artifact show file:explicit:0123456789abcdef01234567
 ```
 
 Then add `@` when the same reference appears inside a prompt:
 
 ```bash
-sase run "#git:home read @file:default:0123456789abcdef01234567 and summarize it"
+sase run "#git:home read @file:explicit:0123456789abcdef01234567 and summarize it"
 ```
 
 Replace the sample reference with one from your own `REF` column. This leading-`@` distinction is intentional:
 `sase artifact show`, `path`, and `open` accept the bare logical reference, while launch prompts use `@kind:payload` so
-SASE can find and expand references embedded in ordinary prose.
+SASE can find and expand references embedded in ordinary prose. `sase artifact list` inventories the persistent
+artifact-file index, not every kind of artifact reference. Rows with `file:explicit:` were registered with
+`sase artifact create`; `file:default:` rows are media that SASE persisted automatically while finalizing successful
+runs.
 
 Artifact references cover more than indexed files:
 
-| Prompt form                                  | What it identifies                                |
-| -------------------------------------------- | ------------------------------------------------- |
-| `@file:<source>:<digest>`                    | One file in the persistent artifact index         |
-| `@plans:<path>` or `@<document-role>:<path>` | One SDD document in a configured document sidecar |
-| `@chat:<path>`                               | One saved chat transcript                         |
-| `@bead:<id>`                                 | One generated bead page                           |
-| `@agent:<global-name>`                       | One generated agent page                          |
-| `@commit:<repo>@<sha>`                       | One repository revision                           |
-| `@bug:<project>#<number>`                    | One issue in the project's configured tracker     |
+| Prompt form               | What it identifies                                                        |
+| ------------------------- | ------------------------------------------------------------------------- |
+| `@file:<source>:<digest>` | One file in the persistent artifact index                                 |
+| `@<document-role>:<path>` | One SDD document in a configured sidecar, such as `plans:` or `research:` |
+| `@chat:<path>`            | One saved chat transcript                                                 |
+| `@bead:<id>`              | One published bead page in the current project                            |
+| `@agent:<global-name>`    | One published agent page in the current project                           |
+| `@commit:<repo>@<sha>`    | One repository revision                                                   |
+| `@bug:<project>#<number>` | One issue in the project's configured tracker                             |
 
 ACE can supply these without memorizing the grammar. Type `@` in the prompt bar for the grouped reference menu, or press
-`%` on an Artifacts entry and choose **Reference in new agent prompt** to copy the prompt-ready form. Document, chat,
-file, bead, and agent references resolve to local paths before the provider starts; commit and bug references resolve to
-source-control and tracker locators. A malformed or missing known reference stops the launch with a diagnostic instead
-of silently giving the agent bad context. Inline-code and fenced-code examples stay literal.
+`%` on an Artifacts entry to open **Copy as…**. Choose **Reference in new agent prompt** to open a prompt pre-filled
+with the entry's project and prompt-ready `@` reference; choose **Copy artifact reference** when you only want the
+reference on the clipboard.
+
+At launch, document, chat, file, bead, and agent references become local `@path` tokens. Commit references become a
+repository-and-revision locator plus the local checkout, while bug references become an issue number and URL. A
+malformed or missing known reference stops the launch with a diagnostic instead of silently giving the agent bad
+context. Inline-code and fenced-code examples stay literal.
 
 See the [`sase artifact` command reference](configuration.md#sase-artifact) for inspection, path, viewer, and repair
 commands. The [prompt preprocessing reference](llms.md#prompt-preprocessing-pipeline) explains expansion order and
@@ -229,8 +241,9 @@ The names you'll keep bumping into, in one place:
   touching your primary checkout.
 - **[ChangeSpecs](change_spec.md)** — durable PR-sized review records: status lifecycle, commits, hooks, comments,
   mentors.
-- **Artifact references** — durable `@kind:payload` names that hand files, documents, chats, beads, agents, commits, and
-  bugs from one run to another. Inspect them with `sase artifact`; complete or copy them from [ACE](ace.md).
+- **Artifact references** — durable `@kind:payload` locators that put files, documents, chats, beads, agents, commits,
+  and bugs into a launch prompt. Resolve them with `sase artifact show`, `path`, or `open`; complete, copy, or hand them
+  off from [ACE](ace.md).
 - **[Beads](beads.md)** — dependency-aware, git-portable work units. Powers epic execution.
 - **[XPrompts](xprompt.md)** — reusable prompt templates and YAML workflows with typed inputs and multi-agent fan-out.
   See also [workflow specs](workflow_spec.md).

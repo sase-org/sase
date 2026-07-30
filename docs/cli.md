@@ -293,11 +293,15 @@ GitHub pull requests, and other provider plugins.
 | `sase mobile agent-bridge`          | Fixed JSON bridge used by the mobile gateway for agent operations.                                                                                                                                                     | [Mobile gateway](mobile_gateway.md)                                                                                  |
 | `sase mobile helper-bridge`         | Fixed JSON bridge used by the mobile gateway for workflow helper operations.                                                                                                                                           | [Mobile gateway](mobile_gateway.md)                                                                                  |
 
-Artifact commands take the logical reference without a leading `@`, for example
-`sase artifact show file:default:<digest>`. In a launch prompt, add the sigil:
-`sase run "review @file:default:<digest>"`. The same rule applies to document roles, chats, beads, agents, commits, and
-bugs. `sase artifact list` inventories only filesystem artifact-file rows; use ACE's grouped `@` completion or
-contextual **Copy as…** palette to discover the other reference kinds. See
+The `sase artifact show`, `path`, and `open` commands take a logical reference without a leading `@`, for example
+`sase artifact show file:default:<digest>`. Add the sigil when embedding the same reference in a launch prompt:
+`sase run "review @file:default:<digest>"`. This bare-CLI/`@`-in-prompts rule also applies to document roles, chats,
+beads, agents, commits, and bugs. `path` accepts only references with a filesystem identity; `open` can also open a bug
+in a browser but rejects commits.
+
+`sase artifact list` inventories only the persistent artifact-file index; it is not a catalog of every reference kind.
+Use ACE's grouped `@` completion to browse prompt references, or its contextual **Copy as…** palette to copy a reference
+or pre-fill a new agent prompt from the selected entry. See
 [Getting Started](getting_started.md#step-6-hand-off-existing-work-with-artifact-references) for the handoff workflow
 and [prompt preprocessing](llms.md#prompt-preprocessing-pipeline) for launch-time resolution.
 
