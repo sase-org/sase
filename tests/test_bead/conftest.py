@@ -36,10 +36,15 @@ def project_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pat
 def fake_cli_work_xprompts(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stub xprompt resolution for ``sase bead work`` CLI tests."""
     work_phase = Workflow(name="bd/work_phase_bead")
+    work_task = Workflow(name="bd/work_task")
     land_epic = Workflow(name="bd/land_epic")
     monkeypatch.setattr(
         "sase.bead.xprompts.resolve_work_phase_xprompt",
         lambda project=None: work_phase,
+    )
+    monkeypatch.setattr(
+        "sase.bead.xprompts.resolve_work_task_xprompt",
+        lambda project=None: work_task,
     )
     monkeypatch.setattr(
         "sase.bead.xprompts.resolve_land_epic_xprompt",

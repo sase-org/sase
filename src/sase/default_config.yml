@@ -891,37 +891,27 @@ xprompts:
 
       1. Verify. Run `sase bead show {{ bead_id }}` (children, linked plan file), then `sase bead show` on each child
          bead. Confirm every bead note was addressed, and read the actual source code and the epic's commits (bead IDs
-         appear in commit messages) to confirm the work previous agents reported complete really is.
+         appear in commit messages) to confirm the work previous agents reported complete really is. While reviewing
+         child beads, collect every `PROPOSED FOLLOW-UP:` note entry.
 
       2. Integrate. Changes committed since this epic started could not integrate with this epic's feature while it was
          incomplete. Find them (e.g. `git log` since the first commit mentioning {{ bead_id }}, excluding the epic's own
          commits; in a PR workflow also review commits on the base branch) and update anything that should now use what
          this epic added or that duplicates or conflicts with it. This integration is part of the epic's work.
 
-      3. Land. Close the epic with `sase bead close {{ bead_id }} --note "<what you verified in steps 1-2>"`. AFTER
-         closing, run `just symvision` if available (epic-symbol whitelist entries for {{ bead_id }} expire at close)
-         and remove the stale entries and unused code it reports. Finally, set `status: done` in the frontmatter of the
-         epic's plan file (the PLAN path shown by `sase bead show`). If the close is rejected, the named phases were
-         never completed: finish or reopen them, or record the outcome deliberately with
+      3. Land. File each collected follow-up you judge worthwhile as a task bead:
+         `sase bead create -T task -t '<title>' -d '<details incl. which bead proposed it>'`, then
+         `sase bead update <id> -s ready`. Record in your close note why any entry was not filed. Close the epic with
+         `sase bead close {{ bead_id }} --note "<what you verified in steps 1-2>"`. AFTER closing, run `just symvision`
+         if available (epic-symbol whitelist entries for {{ bead_id }} expire at close) and remove the stale entries
+         and unused code it reports. Finally, set `status: done` in the frontmatter of the epic's plan file (the PLAN
+         path shown by `sase bead show`). If the close is rejected, the named phases were never completed: finish or
+         reopen them, or record the outcome deliberately with
          `--force --reason ... --resolution canceled|superseded`. Never force merely to make the command succeed.
 
       If steps 1-2 uncover remaining work, use your /sase_plan skill to plan it and complete the skill's tier-aware
       validate/revalidate/propose loop. Make step 3 the plan's final phase (close, run symvision, mark the plan file done)
       so the agent that executes the plan finishes the landing. Otherwise do step 3 now.
-  bd/next:
-    input:
-      prompt: { type: text, default: "" }
-    content: |
-      %wait(priority=15)
-      Can you run the `sase bead ready` command to see which beads are ready to be worked, claim the next ready bead
-      by marking it as in-progress, complete the work associated with it, and then close the bead with
-      `sase bead close <id> --note "<what you verified>"` (do NOT close the parent epic bead)? Make sure to mark the
-      bead as in-progress before you start working. If there are no non-epic beads ready to work, you should terminate
-      without doing anything. Closing an assigned phase bead is unaffected by the parent-close descendant guard.
-      {{ prompt }}
-
-      IMPORTANT: Do NOT create any beads of your own. You are meant to work the pre-existing ready bead that you select. If
-      you decide to create a plan for this bead, make sure you explicitly mention the bead ID in the plan.
   bd/review/plan:
     input:
       file_base: word
@@ -952,7 +942,22 @@ xprompts:
       checkpoint or by the runtime promoting an ad-hoc wait-time claim. Do not set the status by hand. Read its
       description and design file, do the work, and close the bead with
       `sase bead close {{ bead_id }} --note "<what you verified>"`. Closing an assigned phase bead is unaffected by the
-      parent-close descendant guard. Do NOT close the parent epic. Do NOT create new beads.
+      parent-close descendant guard. Do NOT close the parent epic. Do not create beads yourself: record discovered
+      follow-up work as a `PROPOSED FOLLOW-UP:` entry via
+      `sase bead note {{ bead_id }} 'PROPOSED FOLLOW-UP: <one-line summary — detail>'`; the epic's land agent triages
+      these into task beads.
+  bd/work_task:
+    tags: work_task_bead
+    input:
+      bead_id: word
+    content: |
+      %wait(priority=15)
+      Can you complete the work for task bead {{ bead_id }}? The bead is already reserved for you and assigned to your
+      agent name: it was set to status=in_progress by the launch that started you; do not set the status by hand. Run
+      `sase bead show {{ bead_id }}`, read the description and notes, do the work, and close the bead with
+      `sase bead close {{ bead_id }} --note "<what you verified>"`. If you discover genuinely distinct follow-up work,
+      do not expand this bead's scope: file a new task bead (`sase bead create -T task ...`), refine it while it is
+      `open`, and mark it ready to triage with `sase bead update <id> -s ready`.
   epic: |
     This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
     keep in mind that each phase will be completed by a distinct agent instance (i.e. a distinct `claude` / `agy` /

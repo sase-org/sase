@@ -19,10 +19,9 @@ later launch whose higher threshold currently permits it to run. Parallel family
 renders them as nested rows. Serial family follow-ups are exempt so a running parent can safely wait for child work;
 workflow Python/bash steps and axe ChangeSpec runners are exempt as well.
 
-The bundled `#bd/land_epic` and `#bd/next` xprompts carry `%wait(priority=15)` without adding another dependency, time,
-bead, or runner threshold. Their landing/next-work agents therefore yield to default-priority (`10`) work and receive
-the bounded deference described below. A project or plugin override of either xprompt supplies its own body and may
-choose a different priority.
+The bundled `#bd/land_epic` xprompt carries `%wait(priority=15)` without adding another dependency, time, bead, or
+runner threshold. Its landing agents therefore yield to default-priority (`10`) work and receive the bounded deference
+described below. A project or plugin override of the xprompt supplies its own body and may choose a different priority.
 
 Selecting a ranked waiter in ACE also shows a bounded `QUEUE` ladder. Its `N ahead` count includes only earlier entries
 whose runner threshold is greater than or equal to the selected waiter's threshold—the entries that become eligible no

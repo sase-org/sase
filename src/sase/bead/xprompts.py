@@ -39,6 +39,11 @@ def resolve_work_phase_xprompt(project: str | None = None) -> Workflow:
     return _resolve_bead_xprompt(XPromptTag.work_phase_bead, project=project)
 
 
+def resolve_work_task_xprompt(project: str | None = None) -> Workflow:
+    """Resolve the xprompt tagged ``work_task_bead``."""
+    return _resolve_bead_xprompt(XPromptTag.work_task_bead, project=project)
+
+
 def resolve_land_epic_xprompt(project: str | None = None) -> Workflow:
     """Resolve the xprompt tagged ``land_epic``."""
     return _resolve_bead_xprompt(XPromptTag.land_epic, project=project)

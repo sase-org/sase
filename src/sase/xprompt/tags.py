@@ -25,6 +25,7 @@ class XPromptTag(Enum):
     append_to_commit_and_propose = "append_to_commit_and_propose"
     create_epic_bead = "create_epic_bead"
     work_phase_bead = "work_phase_bead"
+    work_task_bead = "work_task_bead"
     land_epic = "land_epic"
 
 

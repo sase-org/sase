@@ -705,6 +705,7 @@ making the system extensible — a plugin or user can override the CRS workflow 
 | `append_to_commit_and_propose` | VCS-specific post-commit prompt appended when the active commit method creates a commit or proposal                                       |
 | `create_epic_bead`             | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                                         |
 | `work_phase_bead`              | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                                                                        |
+| `work_task_bead`               | Task-agent prompt used by `sase bead work` (input: `bead_id`)                                                                             |
 | `land_epic`                    | Final land agent prompt used by `sase bead work`: verifies, integrates, and closes the epic                                               |
 
 ### Defining Tags
@@ -939,8 +940,8 @@ defaults. Common entries include:
 | `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                  |
 | `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                 |
 | `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`                                                   |
+| `#bd/work_task`       | Task-agent prompt used by `sase bead work`; carries wait priority 15                              |
 | `#bd/land_epic`       | Final land agent prompt used by `sase bead work`; carries wait priority 15                        |
-| `#bd/next`            | "What should I work on next?" helper; carries wait priority 15                                    |
 | `#bd/review/plan`     | Plan-review helper for an epic plan                                                               |
 | `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                             |
 

@@ -12,6 +12,7 @@ from sase.bead.xprompts import (
     _resolve_bead_xprompt,
     resolve_land_epic_xprompt,
     resolve_work_phase_xprompt,
+    resolve_work_task_xprompt,
 )
 from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.loader import get_all_prompts
@@ -24,6 +25,7 @@ from sase.xprompt.workflow_models import Workflow, WorkflowStep
 def test_new_tags_parse_from_string() -> None:
     assert parse_tags("create_epic_bead") == frozenset({XPromptTag.create_epic_bead})
     assert parse_tags("work_phase_bead") == frozenset({XPromptTag.work_phase_bead})
+    assert parse_tags("work_task_bead") == frozenset({XPromptTag.work_task_bead})
     assert parse_tags("land_epic") == frozenset({XPromptTag.land_epic})
 
 
@@ -52,14 +54,23 @@ def test_builtin_land_epic_resolves() -> None:
     assert XPromptTag.land_epic in wf.tags
 
 
+def test_builtin_work_task_resolves() -> None:
+    wf = resolve_work_task_xprompt()
+    assert wf.name == "bd/work_task"
+    assert XPromptTag.work_task_bead in wf.tags
+
+
 def test_builtin_xprompts_loaded_from_config() -> None:
     """Confirm the bead automation built-ins are present in the loader registry."""
     prompts = get_all_prompts()
     assert "bd/new_epic" not in prompts
+    assert "bd/next" not in prompts
     assert "bd/land_epic" in prompts
     assert "bd/work_phase_bead" in prompts
+    assert "bd/work_task" in prompts
     assert XPromptTag.land_epic in prompts["bd/land_epic"].tags
     assert XPromptTag.work_phase_bead in prompts["bd/work_phase_bead"].tags
+    assert XPromptTag.work_task_bead in prompts["bd/work_task"].tags
 
 
 @pytest.mark.parametrize(
@@ -70,12 +81,12 @@ def test_builtin_xprompts_loaded_from_config() -> None:
             "You are the land agent for epic bead {{ bead_id }}",
         ),
         (
-            "bd/next",
-            "Can you run the `sase bead ready` command",
+            "bd/work_task",
+            "Can you complete the work for task bead {{ bead_id }}",
         ),
     ],
 )
-def test_epic_builtin_xprompts_use_priority_only_wait(
+def test_bead_builtin_xprompts_use_priority_only_wait(
     name: str,
     task_instruction: str,
 ) -> None:
@@ -92,6 +103,19 @@ def test_epic_builtin_xprompts_use_priority_only_wait(
     assert directives.wait_runners is None
     assert task_instruction in cleaned
     assert "%wait" not in cleaned
+
+
+def test_builtin_phase_and_land_prompts_capture_follow_ups() -> None:
+    prompts = get_all_prompts()
+    phase_body = prompts["bd/work_phase_bead"].steps[0].prompt_part
+    land_body = prompts["bd/land_epic"].steps[0].prompt_part
+    assert phase_body is not None
+    assert land_body is not None
+
+    assert "sase bead note {{ bead_id }} 'PROPOSED FOLLOW-UP:" in phase_body
+    assert "collect every `PROPOSED FOLLOW-UP:` note entry" in land_body
+    assert "sase bead create -T task" in land_body
+    assert "sase bead update <id> -s ready" in land_body
 
 
 def test_builtin_plan_review_globs_distinguish_prompt_from_plan(
