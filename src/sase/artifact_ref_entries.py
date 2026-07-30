@@ -1,0 +1,162 @@
+"""Canonical artifact references for ACE entry targets."""
+
+from __future__ import annotations
+
+from sase.artifact_ref_models import ArtifactRefContext
+from sase.artifact_ref_operations import (
+    canonicalize_artifact_ref,
+    parse_artifact_ref,
+)
+
+
+def reference_for_entry_target(
+    subtab: str,
+    target: tuple[str, ...],
+    *,
+    context: ArtifactRefContext | None = None,
+    row: object | None = None,
+) -> str | None:
+    """Render the canonical reference represented by one ACE artifact row."""
+
+    expected = {
+        "commits": "commit",
+        "commit": "commit",
+        "chats": "chat",
+        "chat": "chat",
+        "bugs": "bug",
+        "bug": "bug",
+        "plans": "plan",
+        "plan": "plan",
+        "files": "file",
+        "file": "file",
+    }.get(subtab)
+    if expected is None or not target or target[0] != expected:
+        return None
+    try:
+        if expected == "file" and len(target) == 2:
+            return parse_artifact_ref(f"file:{target[1]}").rendered
+        if context is None:
+            return None
+        if expected == "commit" and len(target) == 3:
+            return parse_artifact_ref(f"commit:{target[1]}@{target[2]}").rendered
+        if expected == "chat" and len(target) == 2:
+            reference = canonicalize_artifact_ref(
+                target[1],
+                context=context,
+            )
+            return (
+                reference
+                if reference is not None and reference.startswith("chat:")
+                else None
+            )
+        if expected == "bug" and len(target) == 3:
+            project = _project_display_name(target[1], context)
+            return parse_artifact_ref(f"bug:{project}#{int(target[2])}").rendered
+        if expected == "plan" and len(target) == 4:
+            return _reference_for_plan_row(target[2], row, context)
+    except (KeyError, TypeError, ValueError):
+        return None
+    return None
+
+
+def _reference_for_plan_row(
+    row_kind: str,
+    row: object | None,
+    context: ArtifactRefContext,
+) -> str | None:
+    if row is None:
+        return None
+    if row_kind in {"epic", "phase"}:
+        issue = getattr(row, "issue", None)
+        issue_id = getattr(issue, "id", None)
+        if not isinstance(issue_id, str) or not issue_id:
+            return None
+        return parse_artifact_ref(f"bead:{issue_id}").rendered
+    if row_kind == "proposal":
+        proposal = getattr(row, "proposal", None)
+        plan_path = getattr(proposal, "plan_path", None)
+        if not isinstance(plan_path, str) or not plan_path:
+            return None
+        reference = canonicalize_artifact_ref(plan_path, context=context)
+        return (
+            reference
+            if reference is not None and reference.startswith("plans:")
+            else None
+        )
+    if row_kind == "archive":
+        archive = getattr(row, "archive", None)
+        match = getattr(row, "match", None)
+        if match is not None:
+            archive = match
+        plan = getattr(archive, "plan", None)
+        relpath = getattr(plan, "relpath", None)
+        role = getattr(row, "archive_role", None) or getattr(row, "role", None)
+        if not isinstance(role, str) or not role:
+            plan_kind = getattr(plan, "kind", None)
+            role = (
+                plan_kind
+                if isinstance(plan_kind, str)
+                and plan_kind not in {"tale", "epic", "prompt", "local"}
+                else "plans"
+            )
+        if not isinstance(relpath, str) or not relpath:
+            return None
+        return parse_artifact_ref(f"{role}:{relpath}").rendered
+    return None
+
+
+def design_reference_for_plan_row(row: object | None) -> str | None:
+    """Return the design reference attached to an ACE epic or phase row."""
+
+    issue = getattr(row, "issue", None)
+    design = getattr(issue, "design", None)
+    if not isinstance(design, str) or not design:
+        return None
+    try:
+        parsed = parse_artifact_ref(design)
+    except ValueError:
+        return None
+    return parsed.rendered if parsed.kind == "plans" else None
+
+
+def reference_for_agent_name(name: str) -> str | None:
+    """Render one Agents-tab agent name with durable global provenance."""
+
+    if not name:
+        return None
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        current_owner_agent_name_lookup_candidates,
+        globalize_owned_agent_name,
+    )
+
+    identity = AgentIdentitySnapshot.current()
+    candidates = current_owner_agent_name_lookup_candidates(name, identity)
+    global_name = globalize_owned_agent_name(name, identity)
+    durable_name = global_name if global_name in candidates else name
+    try:
+        return parse_artifact_ref(f"agent:{durable_name}").rendered
+    except ValueError:
+        return None
+
+
+def _project_display_name(
+    project_ref: str,
+    context: ArtifactRefContext,
+) -> str:
+    folded = project_ref.casefold()
+    for project in context.projects:
+        if (
+            project.name.casefold() == folded
+            or project.key.casefold() == folded
+            or any(alias.casefold() == folded for alias in project.aliases)
+        ):
+            return project.name
+    return project_ref
+
+
+__all__ = [
+    "design_reference_for_plan_row",
+    "reference_for_agent_name",
+    "reference_for_entry_target",
+]

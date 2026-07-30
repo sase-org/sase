@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase import artifact_refs
+from sase import artifact_ref_prompt
 from sase.artifact_refs import (
     ArtifactRefAgentOwner,
     ArtifactRefAgentRoot,
@@ -207,7 +207,7 @@ def test_commit_expands_to_full_locator_and_checkout(
     context = _context(tmp_path)
     full_sha = "a" * 40
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_prompt,
         "_resolve_checkout_commit",
         lambda _path, _sha: full_sha,
     )
@@ -226,7 +226,7 @@ def test_bug_expands_to_number_and_resolved_url(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_prompt,
         "_resolved_bug_url",
         lambda project, number: f"https://bugs.test/{project}/{number}",
     )

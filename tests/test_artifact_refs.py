@@ -7,7 +7,12 @@ from typing import Any
 
 import pytest
 
-from sase import artifact_ref_entity_context, artifact_refs
+from sase import (
+    artifact_ref_context,
+    artifact_ref_entity_context,
+    artifact_ref_operations,
+    artifact_refs,
+)
 from sase.artifact_ref_models import check_record_schema
 from sase.artifact_refs import (
     ARTIFACT_REF_WIRE_SCHEMA_VERSION,
@@ -143,34 +148,34 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
     bead_store = ArtifactRefBeadStore("sase", "sase", tmp_path / "beads")
     agent_root = ArtifactRefAgentRoot("sase", tmp_path / "agents")
     agent_owner = ArtifactRefAgentOwner("alice", "athena")
-    monkeypatch.setattr(artifact_refs, "resolve_sdd_store", lambda *_: _Store())
+    monkeypatch.setattr(artifact_ref_context, "resolve_sdd_store", lambda *_: _Store())
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "collect_repo_inventory",
         lambda **_: inventory,
     )
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "list_project_records",
         lambda *_args, **_kwargs: [project_record],
     )
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "effective_project_name",
         lambda record: record.display_name,
     )
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "sase_subdir",
         lambda name: tmp_path / "state" / name,
     )
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "default_artifact_files_index_path",
         lambda: tmp_path / "artifact-index.jsonl",
     )
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "collect_entity_context",
         lambda store, project_ref, projects: (
             (bead_store,),
@@ -346,27 +351,27 @@ def test_lsp_catalog_projects_authoritative_context_and_default(
         ),
     }
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "list_project_records",
         lambda *_args, **_kwargs: records,
     )
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "effective_project_name",
         lambda record: record.display_name,
     )
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "workspace_context_for_plan_resolution",
         lambda workspace: (Path(workspace).resolve(), 1),
     )
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "artifact_ref_context",
         lambda _workspace, _workspace_num, project=None: contexts[str(project)],
     )
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "_workspace_project_ref",
         lambda _workspace: "example/beta",
     )
@@ -419,17 +424,17 @@ def test_lsp_catalog_omits_only_failing_or_unusable_projects(
     ]
     context = _context(tmp_path)
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "list_project_records",
         lambda *_args, **_kwargs: records,
     )
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "effective_project_name",
         lambda record: record.display_name,
     )
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "workspace_context_for_plan_resolution",
         lambda workspace: (Path(workspace).resolve(), 1),
     )
@@ -443,9 +448,9 @@ def test_lsp_catalog_omits_only_failing_or_unusable_projects(
             raise RuntimeError("stale project")
         return context
 
-    monkeypatch.setattr(artifact_refs, "artifact_ref_context", build_context)
+    monkeypatch.setattr(artifact_ref_context, "artifact_ref_context", build_context)
     monkeypatch.setattr(
-        artifact_refs,
+        artifact_ref_context,
         "_workspace_project_ref",
         lambda _workspace: None,
     )
@@ -490,7 +495,10 @@ def test_document_chat_and_indexed_file_resolve_through_fixture_roots(
         (chat, "chat:202607/agent.md"),
         (artifact, f"file:{artifact_id}"),
     ):
-        reference = artifact_refs._canonicalize_artifact_ref(path, context=context)
+        reference = artifact_ref_operations.canonicalize_artifact_ref(
+            path,
+            context=context,
+        )
         assert reference == expected
         resolution = artifact_refs.resolve_artifact_ref(
             reference,
@@ -733,7 +741,7 @@ def test_schema_gate_fails_before_operation(
             return lambda: 99
         raise AssertionError(name)
 
-    monkeypatch.setattr(artifact_refs, "require_rust_binding", require)
+    monkeypatch.setattr(artifact_ref_operations, "require_rust_binding", require)
 
     with pytest.raises(RuntimeError, match="wire is stale"):
         artifact_refs.parse_artifact_ref("plans:202607/plan.md")
