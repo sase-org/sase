@@ -2009,9 +2009,10 @@ xprompt.
 
 ### Cross-Agent Output Variables
 
-Agents can publish small, possibly multi-line string values for later waited agents or segments with `sase var set`.
-Give the producer a stable name and make the consumer wait before referencing the producer's variables. Every producer's
-variables live under a single reserved `agents` dictionary keyed by agent name:
+Agents can publish small JSON-shaped values for later waited agents or segments with `sase var set`. Values may be
+strings, numbers, booleans, null, lists, or maps nested within the documented reliability limits. Give the producer a
+stable name and make the consumer wait before referencing the producer's variables. Every producer's variables live
+under a single reserved `agents` dictionary keyed by agent name:
 
 ```
 %id:build-@
@@ -2032,6 +2033,27 @@ Tests passed.
 The release artifact is ready for review.
 EOF
 ```
+
+Add `-j` / `--json` to any input form to decode a structured value. Structured values remain real containers in Jinja,
+so consumers can access and iterate them directly:
+
+```
+%id:build-@
+Run the build, then publish:
+sase var set report --json --value '{"passed":true,"suites":["unit","integration"]}'
+---
+%id:review
+%wait:build-@
+Build passed: {{ agents["build"].report.passed }}
+{% for suite in agents["build"].report.suites %}
+- Review the {{ suite }} results.
+{% endfor %}
+```
+
+Rendering a whole container with `{{ agents["build"].report }}` produces compact JSON instead of a Python
+representation. Jinja's `| tojson` filter remains available for explicit formatting. Map keys are sorted for stable
+storage and display, while list order is preserved. Run `sase var list` to inspect the current agent's canonical block
+display or `sase var list --json` for compact JSON.
 
 The review prompt is rendered after the `build-@` dependency completes, so `{{ agents["build"].report_path }}` and
 `{{ agents["build"].status }}` come from the producer's stored `agent_meta.json` values. A consumer that has already

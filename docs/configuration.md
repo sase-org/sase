@@ -3117,26 +3117,49 @@ expose both values for auditability.
 
 ### `sase var`
 
-`sase var set` attaches small named string values to the current SASE agent run by merging them into
+`sase var set` attaches small named JSON-shaped values to the current SASE agent run by merging them into
 `agent_meta.json["output_variables"]`. The command is agent-scoped and requires `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR`.
 The variables appear in ACE's Agents-tab `OUTPUT VARIABLES` metadata panel and in Telegram agent-completion messages.
-Later agents that wait on this agent with `%wait` load the stored strings when they start and can render them through
-the `agents` Jinja dictionary in prompts and xprompt workflows.
+Later agents that wait on this agent with `%wait` load the stored values when they start and can render them through the
+`agents` Jinja dictionary in prompts and xprompt workflows.
 
-| Form                                 | Flags / arguments       | Description                                                   |
-| ------------------------------------ | ----------------------- | ------------------------------------------------------------- |
-| `sase var set KEY=VALUE [...]`       | positional assignments  | Store one or more values, splitting each assignment at `=`.   |
-| `sase var set KEY --value TEXT`      | `-v, --value TEXT`      | Store one value verbatim, including spaces or newlines.       |
-| `sase var set KEY --value-file PATH` | `-f, --value-file PATH` | Read one value as UTF-8 text; use `-` to read standard input. |
+With no subcommand, `sase var` prints a delegation notice and runs `sase var list`.
+
+| Form                                 | Flags / arguments              | Description                                                                   |
+| ------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------- |
+| `sase var list`                      | `-j, --json`                   | Display canonical block output, or compact machine-readable JSON.             |
+| `sase var set KEY=VALUE [...]`       | positional assignments         | Store one or more strings, splitting each assignment at the first `=`.        |
+| `sase var set KEY --value TEXT`      | `-v, --value TEXT`             | Store one string verbatim, including spaces or newlines.                      |
+| `sase var set KEY --value-file PATH` | `-f, --value-file PATH`        | Read one string as UTF-8 text; use `-` to read standard input.                |
+| `sase var set ... --json`            | `-j, --json` plus a form above | Decode each supplied value as JSON: scalar, list, map, or nested combination. |
 
 Keys must be valid Jinja attribute identifiers (`[A-Za-z_][A-Za-z0-9_]*`). Values may contain spaces, blank lines,
 newlines, and additional equals signs. The `KEY=VALUE` form splits only on the first `=` and preserves everything after
 it; quote the whole assignment when the shell would otherwise split it. `--value` likewise preserves exactly the text
 supplied by the shell, including any trailing newlines. `--value-file` reads a file or stdin and removes at most one
 trailing newline after normalizing line endings, which makes files, pipes, and heredocs convenient without discarding an
-intentional trailing blank line. Every form converts CRLF and lone CR line endings to LF, rejects NUL characters, and
-enforces an 8,192-byte UTF-8 limit per value at write time. Oversized values fail visibly instead of disappearing during
-agents-sidecar publication.
+intentional trailing blank line. With `--json`, JSON whitespace is ignored by the decoder and no trailing newline is
+removed before parsing:
+
+```bash
+sase var set 'suites=["unit","integration"]' --json
+sase var set cfg --json --value '{"retries":3,"enabled":true}'
+sase var set report --json --value-file report.json
+sase var set findings --json --value-file - <<'JSON'
+[{"file":"src/a.py","severity":"high"}]
+JSON
+```
+
+A value may be any JSON string, number, boolean, null, list, or map. Nested map keys may be any non-empty NUL-free
+string. Map keys are normalized into sorted order for deterministic storage and display; list order is always preserved.
+Structured values reach Jinja as real containers, so consumers can use attribute/subscript access and loops. Rendering
+an entire container with `{{ agents["build"].cfg }}` yields compact JSON, while `| tojson` remains available for
+explicit JSON formatting.
+
+An agent may store at most 256 variables. Each string leaf and nested map key is limited to 8,192 UTF-8 bytes; each
+variable is limited to depth 8, 1,024 total container-plus-leaf nodes, and 65,536 compact encoded JSON bytes. Numbers
+must be finite and integers must fit the signed 64-bit range. Every string converts CRLF and lone CR line endings to LF
+and rejects NUL characters. Invalid or oversized values fail visibly instead of disappearing during publication.
 
 Multiple calls merge into the same variable map; later writes for the same key replace earlier values. The command does
 not update prompts that have already started rendering, so write variables before the producing agent completes and
@@ -3147,10 +3170,11 @@ and Telegram completion messages.
 
 `STOP` is a reserved output variable. `sase var set` stays generic and stores it like any other key, but repeat
 orchestration interprets it: setting `STOP` (e.g. `sase var set STOP=1`) inside a `%repeat` / `%r` iteration stops the
-remaining repeat slots, which finalize as successful skipped slots. Truthiness is conservative — `""`, `0`, `false`,
-`no`, and `off` (case-insensitive) are not-stop; any other value stops the chain. `STOP` affects only repeat-chain
-continuation; ordinary `%wait` consumers read it as a normal variable. See
-[Repeat Directive](xprompt.md#repeat-directive) in the xprompt reference for the full cascade semantics.
+remaining repeat slots, which finalize as successful skipped slots. `null`, `false`, numeric zero, empty strings, empty
+lists, and empty maps are not-stop; string values `0`, `false`, `no`, and `off` are also not-stop case-insensitively
+after trimming. Any other value stops the chain. `STOP` affects only repeat-chain continuation; ordinary `%wait`
+consumers read it as a normal variable. See [Repeat Directive](xprompt.md#repeat-directive) in the xprompt reference for
+the full cascade semantics.
 
 ### `sase telemetry`
 

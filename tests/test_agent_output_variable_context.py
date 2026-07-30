@@ -522,6 +522,75 @@ def test_waited_producer_variables_render_in_later_workflow_prompt(
     )
 
 
+def test_structured_variables_reach_jinja_as_json_stringifying_containers(
+    tmp_path: Path,
+) -> None:
+    with patch.object(Path, "home", return_value=tmp_path):
+        upstream = build_agent_var_upstream_record(
+            agent_name="build",
+            project_name="proj",
+            workflow_timestamp="260501_120000",
+        )
+
+    artifacts_dir = Path(str(upstream["artifacts_dir"]))
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "build",
+                "output_variables": {
+                    "cfg": {
+                        "retries": 3,
+                        "hosts": ["beta", "alpha"],
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    context = build_agent_output_variable_context(
+        upstreams_json=encode_agent_var_upstreams([upstream]),
+    )
+    ctx = _consumer_ctx(context)
+    workflow = Workflow(
+        name="consumer",
+        steps=[
+            WorkflowStep(
+                name="main",
+                prompt_part=(
+                    'cfg={{ agents["build"].cfg }}; '
+                    'retries={{ agents["build"].cfg.retries }}; '
+                    '{% for host in agents["build"].cfg.hosts %}'
+                    "{{ host }}{% if not loop.last %},{% endif %}{% endfor %}; "
+                    'json={{ agents["build"].cfg | tojson }}'
+                ),
+            )
+        ],
+    )
+
+    with patch("sase.xprompt.workflow_executor.WorkflowExecutor") as executor_cls:
+        executor = executor_cls.return_value
+        executor.execute.return_value = True
+        executor.state.steps = []
+
+        execute_workflow(
+            name=workflow.name,
+            positional_args=[],
+            named_args=_build_named_args(ctx),
+            artifacts_dir=str(tmp_path / "consumer_workflow"),
+            workflow_obj=workflow,
+            silent=True,
+        )
+
+    rendered = executor_cls.call_args.kwargs["workflow"].steps[0].agent
+    assert rendered == (
+        'cfg={"hosts":["beta","alpha"],"retries":3}; '
+        "retries=3; beta,alpha; "
+        'json={"hosts": ["beta", "alpha"], "retries": 3}'
+    )
+
+
 def test_submitted_plan_file_renders_in_later_workflow_prompt(
     tmp_path: Path,
 ) -> None:

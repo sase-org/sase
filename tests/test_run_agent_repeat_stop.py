@@ -12,21 +12,54 @@ from sase.axe.run_agent_repeat_stop import (
     _is_stop_value,
     detect_repeat_stop,
 )
+from sase.core.output_variable_values import VarValue
 
 
 class TestIsStopValue:
     @pytest.mark.parametrize(
         "value",
-        ["", "0", "false", "False", "FALSE", "no", "No", "off", "OFF", "  off  "],
+        [
+            None,
+            False,
+            0,
+            0.0,
+            "",
+            "0",
+            "false",
+            "False",
+            "FALSE",
+            "no",
+            "No",
+            "off",
+            "OFF",
+            "  off  ",
+            [],
+            {},
+        ],
     )
-    def test_falsy_values(self, value: str) -> None:
+    def test_falsy_values(self, value: VarValue) -> None:
         assert _is_stop_value(value) is False
 
     @pytest.mark.parametrize(
         "value",
-        ["1", "true", "True", "yes", "on", "stop", "anything", "2"],
+        [
+            True,
+            1,
+            -1,
+            0.5,
+            "1",
+            "true",
+            "True",
+            "yes",
+            "on",
+            "stop",
+            "anything",
+            "2",
+            [0],
+            {"enabled": False},
+        ],
     )
-    def test_truthy_values(self, value: str) -> None:
+    def test_truthy_values(self, value: VarValue) -> None:
         assert _is_stop_value(value) is True
 
 
@@ -81,3 +114,18 @@ class TestDetectRepeatStop:
 
         assert decision is not None
         assert decision.stop_value == "done"
+
+    def test_stop_preserves_structured_value(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(REPEAT_PREV_NAME_ENV, "foo.2")
+        with patch(
+            "sase.agent.output_variable_context.read_waited_agent_output_variables",
+            return_value={"STOP": {"reason": "done"}},
+        ):
+            decision = detect_repeat_stop()
+
+        assert decision == RepeatStopDecision(
+            producer_name="foo.2",
+            stop_value={"reason": "done"},
+        )

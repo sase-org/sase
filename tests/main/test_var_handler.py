@@ -16,7 +16,8 @@ from sase.core.agent_output_variables import (
     read_agent_output_variables,
     set_agent_output_variables,
 )
-from sase.main.parser import create_parser
+from sase.core.output_variable_values import VarValue
+from sase.main.parser import create_parser, default_list_delegation_notice
 from sase.main.var_handler import handle_var_command
 
 
@@ -24,6 +25,7 @@ def _args(**overrides: object) -> argparse.Namespace:
     defaults: dict[str, object] = {
         "var_subcommand": "set",
         "assignments": ["status=ok"],
+        "json": False,
         "value": None,
         "value_file": None,
     }
@@ -39,6 +41,47 @@ def test_parser_registers_var_set_assignments() -> None:
     assert args.command == "var"
     assert args.var_subcommand == "set"
     assert args.assignments == ["plan_file=sdd/plan.md", "status=ok"]
+
+
+def test_parser_registers_json_for_var_list_and_set() -> None:
+    parser = create_parser()
+
+    list_args = parser.parse_args(["var", "list", "--json"])
+    set_args = parser.parse_args(["var", "set", "cfg={}", "--json"])
+
+    assert list_args.var_subcommand == "list"
+    assert list_args.json is True
+    assert set_args.var_subcommand == "set"
+    assert set_args.json is True
+
+
+def test_bare_var_delegates_to_list() -> None:
+    args = create_parser().parse_args(["var"])
+
+    assert args.var_subcommand == "list"
+    assert args.json is False
+    assert default_list_delegation_notice(args) == (
+        "No subcommand provided for 'sase var'; delegating to 'sase var list'."
+    )
+
+
+def test_var_help_keeps_subcommands_and_set_options_alphabetized(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["var", "--help"])
+    assert exc.value.code == 0
+    group_help = capsys.readouterr().out
+    assert group_help.index("\n    list ") < group_help.index("\n    set ")
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["var", "set", "--help"])
+    assert exc.value.code == 0
+    set_help = capsys.readouterr().out
+    assert set_help.index("\n  -j, --json") < set_help.index("\n  -v, --value ")
+    assert set_help.index("\n  -v, --value ") < set_help.index("\n  -f, --value-file")
 
 
 @pytest.mark.parametrize(
@@ -219,7 +262,7 @@ def test_set_agent_output_variables_round_trips_structured_values(
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
     (artifacts_dir / "agent_meta.json").write_text("{}", encoding="utf-8")
-    values = {
+    values: dict[str, VarValue] = {
         "report": {
             "passed": True,
             "duration": 2.5,
@@ -359,6 +402,193 @@ def test_var_set_value_file_reads_stdin(
 
     assert exc.value.code == 0
     assert read_agent_output_variables(artifacts_dir) == {"body": "first\nsecond"}
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    (
+        (
+            {
+                "assignments": ['cfg={"hosts":["b","a"],"retries":3,"enabled":true}'],
+                "json": True,
+            },
+            {"cfg": {"enabled": True, "hosts": ["b", "a"], "retries": 3}},
+        ),
+        (
+            {
+                "assignments": ["cfg"],
+                "json": True,
+                "value": '{"retries":3}',
+            },
+            {"cfg": {"retries": 3}},
+        ),
+    ),
+)
+def test_var_set_json_assignment_and_value_forms(
+    overrides: dict[str, object],
+    expected: dict[str, object],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = _prepare_agent_artifacts(tmp_path, monkeypatch)
+
+    with (
+        patch(
+            "sase.core.agent_output_variables."
+            "update_agent_artifact_index_for_marker_mutation"
+        ),
+        pytest.raises(SystemExit) as exc,
+    ):
+        handle_var_command(_args(**overrides))
+
+    assert exc.value.code == 0
+    assert read_agent_output_variables(artifacts_dir) == expected
+
+
+def test_var_set_json_value_file_preserves_json_whitespace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = _prepare_agent_artifacts(tmp_path, monkeypatch)
+    value_file = tmp_path / "value.json"
+    value_file.write_text('{"notes":"ends with newline\\n"}\n', encoding="utf-8")
+
+    with (
+        patch(
+            "sase.core.agent_output_variables."
+            "update_agent_artifact_index_for_marker_mutation"
+        ),
+        pytest.raises(SystemExit) as exc,
+    ):
+        handle_var_command(
+            _args(
+                assignments=["report"],
+                json=True,
+                value_file=str(value_file),
+            )
+        )
+
+    assert exc.value.code == 0
+    assert read_agent_output_variables(artifacts_dir) == {
+        "report": {"notes": "ends with newline\n"}
+    }
+
+
+def test_var_set_json_assignment_uses_structural_not_document_string_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = _prepare_agent_artifacts(tmp_path, monkeypatch)
+    chunks = ["x" * 1_024 for _ in range(9)]
+    assignment = f"chunks={json.dumps(chunks)}"
+    assert len(assignment.encode()) > MAX_OUTPUT_VARIABLE_VALUE_BYTES
+
+    with (
+        patch(
+            "sase.core.agent_output_variables."
+            "update_agent_artifact_index_for_marker_mutation"
+        ),
+        pytest.raises(SystemExit) as exc,
+    ):
+        handle_var_command(_args(assignments=[assignment], json=True))
+
+    assert exc.value.code == 0
+    assert read_agent_output_variables(artifacts_dir) == {"chunks": chunks}
+
+
+def test_var_set_json_value_file_reads_stdin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = _prepare_agent_artifacts(tmp_path, monkeypatch)
+    monkeypatch.setattr("sys.stdin", io.StringIO('["first","second"]\n'))
+
+    with (
+        patch(
+            "sase.core.agent_output_variables."
+            "update_agent_artifact_index_for_marker_mutation"
+        ),
+        pytest.raises(SystemExit) as exc,
+    ):
+        handle_var_command(_args(assignments=["items"], json=True, value_file="-"))
+
+    assert exc.value.code == 0
+    assert read_agent_output_variables(artifacts_dir) == {"items": ["first", "second"]}
+
+
+def test_var_set_invalid_json_names_input_form(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _prepare_agent_artifacts(tmp_path, monkeypatch)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_var_command(_args(assignments=["cfg"], json=True, value='{"broken":'))
+
+    assert exc.value.code == 1
+    error = capsys.readouterr().err
+    assert "invalid JSON for output variable cfg" in error
+    assert "from --value" in error
+
+
+def test_var_set_json_validation_errors_are_visible(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _prepare_agent_artifacts(tmp_path, monkeypatch)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_var_command(_args(assignments=[f"count={2**63}"], json=True))
+
+    assert exc.value.code == 1
+    assert "signed 64-bit range" in capsys.readouterr().err
+
+
+def test_var_list_renders_canonical_block_form(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    artifacts_dir = _prepare_agent_artifacts(tmp_path, monkeypatch)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "output_variables": {
+                    "status": "ok",
+                    "cfg": {"retries": 3, "hosts": ["a", "b"]},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        handle_var_command(_args(var_subcommand="list"))
+
+    assert exc.value.code == 0
+    assert capsys.readouterr().out == (
+        "cfg:\n  hosts:\n    - a\n    - b\n  retries: 3\nstatus: ok\n"
+    )
+
+
+def test_var_list_json_is_compact_and_sorted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    artifacts_dir = _prepare_agent_artifacts(tmp_path, monkeypatch)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"output_variables": {"z": None, "a": [2, True]}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        handle_var_command(_args(var_subcommand="list", json=True))
+
+    assert exc.value.code == 0
+    assert capsys.readouterr().out == '{"a":[2,true],"z":null}\n'
 
 
 @pytest.mark.parametrize(

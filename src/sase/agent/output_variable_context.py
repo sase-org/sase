@@ -20,6 +20,43 @@ class _AgentOutputVariableNamespaceError(ValueError):
     """Raised when an agent output-variable key cannot be derived."""
 
 
+class _JsonStringDict(dict[str, VarValue]):
+    """Jinja-compatible mapping whose implicit string form is compact JSON."""
+
+    def __str__(self) -> str:
+        return json.dumps(
+            self,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+
+class _JsonStringList(list[VarValue]):
+    """Jinja-compatible list whose implicit string form is compact JSON."""
+
+    def __str__(self) -> str:
+        return json.dumps(
+            self,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+
+def _wrap_var_value_for_jinja(value: VarValue) -> VarValue:
+    """Recursively wrap containers without changing normal container behavior."""
+    if isinstance(value, list):
+        return _JsonStringList(_wrap_var_value_for_jinja(item) for item in value)
+    if isinstance(value, dict):
+        return _JsonStringDict(
+            {key: _wrap_var_value_for_jinja(item) for key, item in value.items()}
+        )
+    return value
+
+
 def _agent_key_for_output_variables(
     *,
     agent_name: str | None,
@@ -331,11 +368,14 @@ def _merge_agent_variables(
     variables: Mapping[str, VarValue],
 ) -> None:
     """Merge ``variables`` into ``agents[key]``, later writes overriding."""
+    wrapped = {
+        name: _wrap_var_value_for_jinja(value) for name, value in variables.items()
+    }
     existing = agents.get(key)
     if existing is None:
-        agents[key] = dict(variables)
+        agents[key] = wrapped
         return
-    existing.update(variables)
+    existing.update(wrapped)
 
 
 def _artifacts_dir_for_launch(project_name: str, workflow_timestamp: str) -> str:
