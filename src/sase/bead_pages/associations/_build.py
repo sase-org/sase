@@ -260,7 +260,7 @@ def _rendering_records(
     )
     commit_rows = tuple(
         BeadCommitAssociation(
-            label=commit.sha[:7],
+            label=_commit_label(commit),
             target=_commit_url(resolver, commit),
             bead_id=bead_id,
             subject=commit.subject,
@@ -287,6 +287,13 @@ def _rendering_records(
         )
     )
     return BeadAssociations(agent_rows, commit_rows)
+
+
+def _commit_label(commit: HistoricalBeadCommit) -> str:
+    short_sha = commit.sha[:7]
+    if commit.repository.is_primary:
+        return short_sha
+    return f"{commit.repository.name}@{short_sha}"
 
 
 def _commit_url(

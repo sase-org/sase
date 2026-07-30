@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
 from sase.agents_sync.models import ProjectTarget, TargetSelection
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
-from sase.sdd.checkout_anchor import _CheckoutAnchor
 from sase.sdd.hosted_links import (
     HostedLinkResolver,
     hosted_link_resolver,
@@ -220,9 +220,9 @@ def test_agent_url_resolves_project_from_sidecar_anchor(
     monkeypatch.setattr(
         "sase.sdd.hosted_links.resolve_checkout_anchor",
         lambda path: (
-            _CheckoutAnchor(primary, "sase")
+            SimpleNamespace(primary_root=primary, project_name="sase")
             if path == sidecar_checkout
-            else _CheckoutAnchor(path, None)
+            else SimpleNamespace(primary_root=path, project_name=None)
         ),
     )
     monkeypatch.setattr(

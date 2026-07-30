@@ -303,6 +303,9 @@ def _collect_default_artifacts(
             image_paths=image_paths,
             video_paths=video_paths,
             workspace_dir=workspace_dir,
+            project=ctx.project_name,
+            workspace_num=ctx.workspace_num,
+            print_summary=True,
         )
         default_artifacts_persisted = True
     except Exception as exc:  # noqa: BLE001

@@ -1,20 +1,32 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
+import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
 
+from sase._repo_inventory_models import RepoCloneRecord, RepoInventory, RepoRecord
 from sase.ace.tui.actions.agents._panels import AgentPanelsMixin
 from sase.ace.tui.graphics import ArtifactFileViewerResult
 from sase.artifact_cli.create import handle_create
+from sase.artifact_ref_models import ArtifactRefContext, ArtifactRefRepository
+from sase.artifact_ref_operations import resolve_artifact_ref
 from sase.core.artifact_file_facade import ArtifactFile, list_artifact_files
+from sase.core.artifact_file_facade import materialize_artifact_file
+from sase.core.artifact_file_facade import persist_default_artifact_files
+from tests._sdd_commit_helpers import init_test_git_repo
+
+
+PROJECT = "proj"
+WORKSPACE_NUM = 7
 
 
 def _agent_dir(home: Path, timestamp: str) -> Path:
@@ -33,6 +45,63 @@ def _write_text(path: Path, content: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return path
+
+
+def _write_bytes(path: Path, content: bytes) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content)
+    return path
+
+
+def _git(cwd: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _init_pushed_repo(tmp_path: Path) -> Path:
+    bare = tmp_path / "remote.git"
+    repo = tmp_path / "workspace"
+    subprocess.run(["git", "init", "--bare", "-q", str(bare)], check=True)
+    _git(bare, "symbolic-ref", "HEAD", "refs/heads/main")
+    init_test_git_repo(repo)
+    _git(repo, "branch", "-M", "main")
+    _git(repo, "remote", "add", "origin", str(bare))
+    return repo
+
+
+def _push_repo(repo: Path) -> None:
+    _git(repo, "push", "-qu", "origin", "main")
+    _git(repo, "remote", "set-head", "origin", "-a")
+
+
+def _install_inventory(monkeypatch: Any, repo: Path) -> None:
+    clone = RepoCloneRecord(WORKSPACE_NUM, str(repo), True)
+    record = RepoRecord(
+        name=PROJECT,
+        kind="primary",
+        project=PROJECT,
+        project_key=PROJECT,
+        path=str(repo),
+        exists=True,
+        auto_clone=False,
+        description=None,
+        source="test",
+        env_name=None,
+        clones=(clone,),
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_capture_policy.collect_repo_inventory",
+        lambda **_kwargs: RepoInventory((record,)),
+    )
+
+
+def _digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _write_done_agent(
@@ -148,6 +217,59 @@ def test_done_artifact_file_fixture_matrix(
         ("chat", "Chat transcript"),
         ("file", "Revived"),
     ]
+
+
+def test_vcs_backed_default_capture_resolves_to_verified_content(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home)
+    repo = _init_pushed_repo(tmp_path)
+    image = _write_bytes(repo / "render.png", b"rendered image bytes")
+    _git(repo, "add", "render.png")
+    _git(repo, "commit", "-qm", "seed")
+    _push_repo(repo)
+    _install_inventory(monkeypatch, repo)
+    artifacts_dir = _agent_dir(home, "20260508030101")
+    artifact_files_root = home / ".sase" / "artifacts"
+    index_path = artifact_files_root / "index.jsonl"
+
+    [row] = persist_default_artifact_files(
+        artifacts_dir,
+        image_paths=[str(image)],
+        workspace_dir=str(repo),
+        project=PROJECT,
+        workspace_num=WORKSPACE_NUM,
+        artifact_files_root=artifact_files_root,
+        index_path=index_path,
+    )
+
+    assert row.path is None
+    assert row.is_vcs_backed
+    assert row.sha256 == _digest(image)
+
+    context = ArtifactRefContext(
+        document_roots=(),
+        chats_root=home / ".sase" / "chats",
+        artifact_index_path=index_path,
+        repositories=(
+            ArtifactRefRepository(
+                name=PROJECT,
+                checkout_path=repo,
+                checkout_paths=(repo,),
+            ),
+        ),
+        projects=(),
+    )
+    resolution = resolve_artifact_ref(f"file:{row.id}", context=context)
+    assert resolution.status == "vcs_backed"
+    assert resolution.locator == f"{PROJECT}@{row.vcs_sha}:render.png"
+    assert resolution.resolved_path is None
+
+    materialized = materialize_artifact_file(row, repositories=context.repositories)
+    assert materialized is not None
+    assert materialized.read_bytes() == image.read_bytes()
 
 
 class _SuspendRecorder:

@@ -143,8 +143,16 @@ def store_default_artifact_file(
     if reference_mode:
         stored_path = None
     else:
-        stored_path, sha256 = _store_file(source, root, association, move=False)
-        size_bytes = stored_path.stat().st_size
+        stored_path, sha256 = _store_file(
+            source,
+            root,
+            association,
+            move=False,
+            sha256=sha256,
+        )
+        size_bytes = (
+            size_bytes if size_bytes is not None else stored_path.stat().st_size
+        )
         mime_type = mime_type or artifact_file_mime_type(stored_path)
     identity_label = label or source.name
     artifact_file = ArtifactFile(
@@ -230,6 +238,7 @@ def _store_file(
     association: ArtifactFileAssociation,
     *,
     move: bool,
+    sha256: str | None = None,
 ) -> tuple[Path, str]:
     target_dir = (
         artifact_files_root
@@ -242,7 +251,7 @@ def _store_file(
     target_dir.mkdir(parents=True, exist_ok=True)
     suffix = source.suffix
     stem = safe_segment(source.stem) or "artifact"
-    digest = hash_file(source)
+    digest = sha256 or hash_file(source)
     target = target_dir / f"{stem}-{digest[:12]}{suffix}"
     if target.exists():
         if move and source.resolve(strict=False) != target.resolve(strict=False):

@@ -1,11 +1,84 @@
+import hashlib
+import os
 from pathlib import Path
+import subprocess
+from typing import Any
 
+from sase._repo_inventory_models import RepoCloneRecord, RepoInventory, RepoRecord
+from sase.core.artifact_capture_policy import CaptureLimits
 from sase.core.artifact_file_facade import (
     persist_default_artifact_files,
     read_artifact_file_index,
 )
+from tests._sdd_commit_helpers import init_test_git_repo
 
 from .helpers import agent_dir
+
+PROJECT = "proj"
+WORKSPACE_NUM = 7
+
+
+def _git(cwd: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _init_pushed_repo(tmp_path: Path) -> Path:
+    bare = tmp_path / "remote.git"
+    repo = tmp_path / "workspace"
+    subprocess.run(["git", "init", "--bare", "-q", str(bare)], check=True)
+    _git(bare, "symbolic-ref", "HEAD", "refs/heads/main")
+    init_test_git_repo(repo)
+    _git(repo, "branch", "-M", "main")
+    _git(repo, "remote", "add", "origin", str(bare))
+    return repo
+
+
+def _push_repo(repo: Path) -> str:
+    _git(repo, "push", "-qu", "origin", "main")
+    _git(repo, "remote", "set-head", "origin", "-a")
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def _install_inventory(monkeypatch: Any, repo: Path) -> None:
+    clone = RepoCloneRecord(WORKSPACE_NUM, str(repo), True)
+    record = RepoRecord(
+        name=PROJECT,
+        kind="primary",
+        project=PROJECT,
+        project_key=PROJECT,
+        path=str(repo),
+        exists=True,
+        auto_clone=False,
+        description=None,
+        source="test",
+        env_name=None,
+        clones=(clone,),
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_capture_policy.collect_repo_inventory",
+        lambda **_kwargs: RepoInventory((record,)),
+    )
+
+
+def _write(path: Path, content: bytes) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content)
+    return path
+
+
+def _digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _source_key(path: str | None) -> str:
+    assert path is not None
+    return str(Path(path).resolve(strict=False))
 
 
 def test_persist_default_artifact_files_unions_media_paths_and_xprompt(
@@ -121,3 +194,110 @@ def test_persist_default_artifact_files_dedupes_media_candidates_stably(
         (str(direct_video), "file"),
         (str(prompt_video.resolve()), "file"),
     ]
+
+
+def test_persist_default_artifact_files_applies_capture_policy_matrix(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    artifacts_dir = agent_dir(tmp_path)
+    repo = _init_pushed_repo(tmp_path)
+    clean = _write(repo / "clean.png", b"clean")
+    dirty = _write(repo / "dirty.png", b"dirty-v1")
+    mentioned_tracked = _write(repo / "mentioned.png", b"mentioned")
+    _git(repo, "add", "clean.png", "dirty.png", "mentioned.png")
+    _git(repo, "commit", "-qm", "seed")
+    pushed_sha = _push_repo(repo)
+    dirty.write_bytes(b"dirty-v2")
+    untracked_changed = _write(repo / "untracked_changed.png", b"untracked-changed")
+    mentioned_untracked = _write(repo / "mentioned_untracked.png", b"mentioned-skip")
+    os.utime(mentioned_untracked, (1, 1))
+    external = _write(tmp_path / "external.png", b"external")
+    os.utime(external, (1, 1))
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        f"Compare mentioned.png, mentioned_untracked.png, and {external}.\n",
+        encoding="utf-8",
+    )
+    _install_inventory(monkeypatch, repo)
+    artifact_files_root = tmp_path / ".sase" / "artifacts"
+    index_path = artifact_files_root / "index.jsonl"
+
+    persisted = persist_default_artifact_files(
+        artifacts_dir,
+        image_paths=[str(clean), str(dirty), str(untracked_changed)],
+        workspace_dir=str(repo),
+        project=PROJECT,
+        workspace_num=WORKSPACE_NUM,
+        artifact_files_root=artifact_files_root,
+        index_path=index_path,
+    )
+
+    by_source = {_source_key(row.source_path): row for row in persisted}
+    assert set(by_source) == {
+        str(clean),
+        str(dirty),
+        str(untracked_changed),
+        str(mentioned_tracked.resolve()),
+        str(external.resolve()),
+    }
+    assert str(mentioned_untracked.resolve()) not in by_source
+
+    clean_row = by_source[str(clean)]
+    mentioned_row = by_source[str(mentioned_tracked.resolve())]
+    for row, relpath in ((clean_row, "clean.png"), (mentioned_row, "mentioned.png")):
+        assert row.path is None
+        assert row.is_vcs_backed
+        assert (row.vcs_repo, row.vcs_sha, row.vcs_relpath) == (
+            PROJECT,
+            pushed_sha,
+            relpath,
+        )
+        assert row.sha256 == _digest(Path(row.source_path or ""))
+
+    copied_sources = {str(dirty), str(untracked_changed), str(external.resolve())}
+    for source in copied_sources:
+        row = by_source[source]
+        assert row.path is not None
+        assert Path(row.path).is_file()
+        assert row.sha256 == _digest(Path(row.source_path or ""))
+
+    indexed_ids = sorted(row.id for row in read_artifact_file_index(index_path))
+    persist_default_artifact_files(
+        artifacts_dir,
+        image_paths=[str(clean), str(dirty), str(untracked_changed)],
+        workspace_dir=str(repo),
+        project=PROJECT,
+        workspace_num=WORKSPACE_NUM,
+        artifact_files_root=artifact_files_root,
+        index_path=index_path,
+    )
+    assert sorted(row.id for row in read_artifact_file_index(index_path)) == indexed_ids
+
+
+def test_persist_default_artifact_files_enforces_store_cap(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    artifacts_dir = agent_dir(tmp_path)
+    repo = _init_pushed_repo(tmp_path)
+    _write(repo / "seed.txt", b"seed")
+    _git(repo, "add", "seed.txt")
+    _git(repo, "commit", "-qm", "seed")
+    _push_repo(repo)
+    _install_inventory(monkeypatch, repo)
+    first = _write(tmp_path / "first.png", b"first")
+    second = _write(tmp_path / "second.png", b"second")
+    artifact_files_root = tmp_path / ".sase" / "artifacts"
+
+    persisted = persist_default_artifact_files(
+        artifacts_dir,
+        image_paths=[str(first), str(second)],
+        workspace_dir=str(repo),
+        project=PROJECT,
+        workspace_num=WORKSPACE_NUM,
+        artifact_files_root=artifact_files_root,
+        index_path=artifact_files_root / "index.jsonl",
+        capture_limits=CaptureLimits(max_stored_per_agent=1, max_history_scan=20),
+    )
+
+    assert [_source_key(row.source_path) for row in persisted] == [str(first)]

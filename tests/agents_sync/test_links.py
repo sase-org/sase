@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 from sase.agents_sync.links import resolve_agent_commit_tag
 from sase.agents_sync.models import ProjectTarget, TargetSelection
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.core.commit_footer_facade import LinkedCommitTagValue
-from sase.sdd.checkout_anchor import _CheckoutAnchor
 
 
 def _git_result(
@@ -41,7 +41,7 @@ def test_family_member_commit_tag_links_to_stable_member_anchor(
     )
     monkeypatch.setattr(
         "sase.agents_sync.links.resolve_checkout_anchor",
-        lambda path: _CheckoutAnchor(path, "Project"),
+        lambda path: SimpleNamespace(primary_root=path, project_name="Project"),
     )
     monkeypatch.setattr(
         "sase.agents_sync.links.resolve_sync_targets",
@@ -80,7 +80,7 @@ def test_commit_tag_falls_back_to_global_label_for_non_hosted_sidecar(
     )
     monkeypatch.setattr(
         "sase.agents_sync.links.resolve_checkout_anchor",
-        lambda path: _CheckoutAnchor(path, "Project"),
+        lambda path: SimpleNamespace(primary_root=path, project_name="Project"),
     )
     monkeypatch.setattr(
         "sase.agents_sync.links.resolve_sync_targets",
@@ -118,9 +118,9 @@ def test_commit_tag_links_from_sidecar_checkout(
     monkeypatch.setattr(
         "sase.agents_sync.links.resolve_checkout_anchor",
         lambda path: (
-            _CheckoutAnchor(primary.resolve(), "Project")
+            SimpleNamespace(primary_root=primary.resolve(), project_name="Project")
             if path == sidecar_checkout.resolve()
-            else _CheckoutAnchor(path, None)
+            else SimpleNamespace(primary_root=path, project_name=None)
         ),
     )
     monkeypatch.setattr(
@@ -162,9 +162,9 @@ def test_commit_tag_links_from_linked_repo_checkout(
     monkeypatch.setattr(
         "sase.agents_sync.links.resolve_checkout_anchor",
         lambda path: (
-            _CheckoutAnchor(primary.resolve(), "Project")
+            SimpleNamespace(primary_root=primary.resolve(), project_name="Project")
             if path == linked_checkout.resolve()
-            else _CheckoutAnchor(path, None)
+            else SimpleNamespace(primary_root=path, project_name=None)
         ),
     )
     monkeypatch.setattr(
@@ -190,7 +190,7 @@ def test_commit_tag_degrades_when_checkout_project_is_unresolvable(
     unrelated.mkdir()
     monkeypatch.setattr(
         "sase.agents_sync.links.resolve_checkout_anchor",
-        lambda path: _CheckoutAnchor(path, None),
+        lambda path: SimpleNamespace(primary_root=path, project_name=None),
     )
 
     value = resolve_agent_commit_tag(
