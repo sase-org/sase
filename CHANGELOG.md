@@ -1,5 +1,124 @@
 # Changelog
 
+## [0.14.0](https://github.com/sase-org/sase/compare/v0.13.3...v0.14.0) (2026-07-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* Python ChangeSpec wire records now use schema version 5 and include a refs array.
+* **artifacts:** sase artifact create now keeps its source file by default. Pass --move to retain the previous source-removal behavior.
+
+### Features
+
+* **ace:** add artifact file copy actions ([fec7898](https://github.com/sase-org/sase/commit/fec7898b284d148c7c3ac2ba168ca8b6f24dfa3e))
+* **ace:** add artifact file copy representations ([132bd79](https://github.com/sase-org/sase/commit/132bd79c77d514bc109d3fecf0a6d2a4a0c0bc02))
+* **ace:** add artifact file detail panel ([f0c803a](https://github.com/sase-org/sase/commit/f0c803af859c627c92f2e52e02f7e1628d71c4b4))
+* **ace:** add artifact file filtering ([842723f](https://github.com/sase-org/sase/commit/842723f6f6db058f7d301d732e61bb24aaf052f5))
+* **ace:** add artifact file open actions ([f5df5e1](https://github.com/sase-org/sase/commit/f5df5e12221c5da96fdd9f542ce481ee2f327914))
+* **ace:** add artifact files list browsing ([2edfc8b](https://github.com/sase-org/sase/commit/2edfc8b7071b29aa44e8d58338184c1887c53ffe))
+* **ace:** add artifact reference prompt completion ([e55aab9](https://github.com/sase-org/sase/commit/e55aab9c92f73f5f902fa58ee39641da6a78686a))
+* **ace:** add bead and agent completion catalogs ([3173dae](https://github.com/sase-org/sase/commit/3173dae12003cace00cb98563e8c134398bd87fc))
+* **ace:** add contextual Copy as palette ([3da9140](https://github.com/sase-org/sase/commit/3da9140b4968f590f84ace1db91f21c565746381))
+* **ace:** add numbered Statistics subtabs ([216d027](https://github.com/sase-org/sase/commit/216d027d8ba439f6156b45557750e292c029311b))
+* **ace:** add paste-ready copy representations ([cf844c3](https://github.com/sase-org/sase/commit/cf844c3e5d574d7c8898a73fd36cba686c17a6ad))
+* **ace:** add source search to preview reader ([cc7a347](https://github.com/sase-org/sase/commit/cc7a347c3a9a15af4154117acb33ce27384e48cd))
+* **ace:** allow alt braces before punctuation ([a79dad1](https://github.com/sase-org/sase/commit/a79dad1639a7a54406a4c185fdc15be00d8e8628))
+* **ace:** complete Files copy-as palette ([86fb630](https://github.com/sase-org/sase/commit/86fb630bb8315f86895a48ac4a9be1a9243e8612))
+* **ace:** copy artifact references from artifact tabs ([d16fe1d](https://github.com/sase-org/sase/commit/d16fe1dcd9abe1bcc0e6b44af0bc98e2b0ad5788))
+* **ace:** copy bead and agent references ([751f469](https://github.com/sase-org/sase/commit/751f4695712a5cc7d6e68d6c30b930157e6cda84))
+* **ace:** finalize xprompt statistics contract ([d0b2ed9](https://github.com/sase-org/sase/commit/d0b2ed97cde8d15ab71afa62d7be06da1cb816f1))
+* **ace:** focus statistics on an xprompt ([c81eb5d](https://github.com/sase-org/sase/commit/c81eb5d429127ee80cf0098c0e20932b74cc0ffa))
+* **ace:** gate artifact file completion rows ([9ba92b0](https://github.com/sase-org/sase/commit/9ba92b09a7cacd192f59ccc0756970d8ca67526d))
+* **ace:** render plan previews as markdown ([afad2e6](https://github.com/sase-org/sase/commit/afad2e6ca1b5bce83e1facb22f584c137346bf40))
+* **ace:** turn preview modal into artifact reader ([a4d026b](https://github.com/sase-org/sase/commit/a4d026ba78e0406fa2f13701d2c56afbfd4b72cc))
+* **ace:** unify clipboard delivery ([77ec879](https://github.com/sase-org/sase/commit/77ec8798e0c6f435e3b32a4f24e161ce268fb81f))
+* add authorship-aware artifact capture policy ([d309f95](https://github.com/sase-org/sase/commit/d309f95370d8ecd8bda05e89b3e80057d3d6ca94))
+* **agent:** carry swarm provenance through launches ([0683114](https://github.com/sase-org/sase/commit/068311411b65de0931d755cdfc88e66114a918b3))
+* **agents-sync:** attribute commit history to agent lanes ([eefd432](https://github.com/sase-org/sase/commit/eefd432bab1b6562947545e0f1c52a67ea48c5a3))
+* **agents-sync:** preserve family lane commits ([59b0ecd](https://github.com/sase-org/sase/commit/59b0ecd227a23891e7c6ed0eb588376a9a3b7135))
+* **agents:** add shared agent-lane vocabulary ([c537f7e](https://github.com/sase-org/sase/commit/c537f7e03de7315d07f041def613cbba0bcde354))
+* **agents:** anchor sidecar publication requests on the agent lane ([1cd59c3](https://github.com/sase-org/sase/commit/1cd59c3b11e16835ab23dc030f8234e871bb194e))
+* **artifact-refs:** add bead and agent resolution context ([85b5b64](https://github.com/sase-org/sase/commit/85b5b642167aa400538f77121546a705f93fbe9f))
+* **artifact:** add pruning and trash lifecycle ([be4c199](https://github.com/sase-org/sase/commit/be4c19969fc6ce227ee4e474d9952722ea172b02))
+* **artifact:** add store lifecycle statistics ([18c01a1](https://github.com/sase-org/sase/commit/18c01a15257c3cb5b3d8540b65a91eab69e5e065))
+* **artifact:** expose consumption read surfaces ([a4880ce](https://github.com/sase-org/sase/commit/a4880ce321df4a9afdf1a2be5ce86eed8a5860fe))
+* **artifacts:** add artifact reference facade ([9988b61](https://github.com/sase-org/sase/commit/9988b6161c9b47b3a657b49981fb11b1bf3e0c98))
+* **artifacts:** add opt-in retention policy ([6999e31](https://github.com/sase-org/sase/commit/6999e31a3dd9b90e117ae36efe30a4a113fccdb9))
+* **artifacts:** copy created artifacts by default ([e0b1ca4](https://github.com/sase-org/sase/commit/e0b1ca4450b89a02b8f2bae3b019eddc649e1976))
+* **artifacts:** expand references during prompt launch ([46b40c5](https://github.com/sase-org/sase/commit/46b40c5f6610b2ccd97d0e315b853a6563b2ab1a))
+* **artifacts:** expose VCS-backed files across ACE ([03663eb](https://github.com/sase-org/sase/commit/03663eb8455b04110a43e6dcaed21389be8a34bb))
+* **artifacts:** materialize VCS-backed files on demand ([c9edec5](https://github.com/sase-org/sase/commit/c9edec56145a050d89ed18911c27f90831e7a9dc))
+* **artifacts:** wire VCS-backed default capture ([94daa1e](https://github.com/sase-org/sase/commit/94daa1ebdcff2d3adf11c24599d04807f8a5a03a))
+* **bead-pages:** associate commits across project repositories ([8e7120e](https://github.com/sase-org/sase/commit/8e7120ebe048dca1737c71592100244c8a52dc93))
+* **bead-pages:** guard against misattributed commit links ([f62e8cd](https://github.com/sase-org/sase/commit/f62e8cd01713c934cb6e5fcf0374667805a78ceb))
+* **bead:** close selected epic phases ([1f0296a](https://github.com/sase-org/sase/commit/1f0296ade1a22ac55dbd93d410f0247e6befba3a))
+* **bead:** integrate persistent artifact references ([4aee2f4](https://github.com/sase-org/sase/commit/4aee2f49fecb256d4ed5a06b23c0f401f94b3da8))
+* **cli:** add artifact read commands ([30e2ed3](https://github.com/sase-org/sase/commit/30e2ed37ed28cc2dab894e69419d206fec79ce05))
+* **editor:** materialize artifact reference catalog for LSP ([3f6e4ea](https://github.com/sase-org/sase/commit/3f6e4ea81a0ea13d5f0427358df02aa0c5cdde0a))
+* enrich artifact file records ([f39b0c4](https://github.com/sase-org/sase/commit/f39b0c405616accf8e4431c34461bddad8006a22))
+* record artifact consumption during prompt expansion ([3a0a92d](https://github.com/sase-org/sase/commit/3a0a92d84cffe20b3f1a9e7f57f4eb57ecb190f9))
+* **sdd:** add checkout anchor resolver ([ad0f038](https://github.com/sase-org/sase/commit/ad0f038a05e9b840247a5c97822c2ee3ebb05830))
+* show repository names in commit tables ([63d0ca5](https://github.com/sase-org/sase/commit/63d0ca504d48b8daed6702e38d79443d77af44cb))
+* **stats:** add XPrompt statistics view models ([6d99736](https://github.com/sase-org/sase/commit/6d99736516c426d900faa813f2584336fb3cffdc))
+* support ChangeSpec reference lists ([2433d6b](https://github.com/sase-org/sase/commit/2433d6bb83edfddbd0b2b3d2e1974906faea3560))
+* support entity artifact references in prompt paths ([278e169](https://github.com/sase-org/sase/commit/278e16952b95de02025a6f21f438db530362bc7d))
+* track xprompt swarm provenance on expansion records ([3054ea5](https://github.com/sase-org/sase/commit/3054ea56f2fbaa4709c02bfad2124c7636552c46))
+* **tui:** add xprompt statistics view ([7ddfbb1](https://github.com/sase-org/sase/commit/7ddfbb16a13bd0771d1bf3d47fc19beee3a31086))
+* **tui:** highlight artifact references in prompts ([de57f5a](https://github.com/sase-org/sase/commit/de57f5a5f3e8563b48400f2843737ef7b4c8b33b))
+* **tui:** highlight fuzzy artifact reference matches ([b6b51f2](https://github.com/sase-org/sase/commit/b6b51f2399df191dc5a926a26a3040a74bda3b03))
+* **tui:** render grouped @ reference completions ([fedea3a](https://github.com/sase-org/sase/commit/fedea3aa9b28d063add5edc2e83fbe108d0bae19))
+* **tui:** render the swarm xprompt kind ([e62f9a6](https://github.com/sase-org/sase/commit/e62f9a6ee5bbe1072e517ca3adae4265e8479033))
+* **tui:** scaffold artifacts files tab ([49e6b4c](https://github.com/sase-org/sase/commit/49e6b4cd17708195e8843d3806c98551f3846244))
+* **tui:** unify @ reference completion menu ([9eb1f5d](https://github.com/sase-org/sase/commit/9eb1f5d29e4182d3a41049ec67e80ca2907b7d93))
+* **xprompts:** capture swarm launch provenance ([01f9912](https://github.com/sase-org/sase/commit/01f9912ce6ef3042d2761de1d40aba7d602c29b4))
+* **xprompts:** require sase-core-rs with the swarm xprompt kind ([6e35387](https://github.com/sase-org/sase/commit/6e35387e2ba5564c134ccc7ce1b84c5cd5957850))
+
+
+### Bug Fixes
+
+* **ace:** acknowledge unread agents on panel entry ([64ffecf](https://github.com/sase-org/sase/commit/64ffecf887426a28d64bb635c6b93ddae709a614))
+* **ace:** align Files path preview with what the copy yields ([8fa0f57](https://github.com/sase-org/sase/commit/8fa0f573a6f0895d263598b7c588e9774c4aa142))
+* **ace:** keep completion panel rows within budget ([53b3496](https://github.com/sase-org/sase/commit/53b34965f1cf960e92935ca1ec999ff9c24ec4f7))
+* **ace:** mirror launch-boundary xprompt usage in the Python scan wire ([f35c4ce](https://github.com/sase-org/sase/commit/f35c4ce33185d857fac08c0b80b6e93ef4a2ea50))
+* **ace:** stabilize prompt input and visual waits ([0a7282f](https://github.com/sase-org/sase/commit/0a7282f20787c94e85c57319d33a6dfbd9f2f909))
+* **agents:** match SASE_AGENT commit tags by lane ([c407b3f](https://github.com/sase-org/sase/commit/c407b3f39e21af5c906eac128752474087d601e8))
+* anchor bead page publication on primary checkout ([5ba1f08](https://github.com/sase-org/sase/commit/5ba1f08d0262d14300f295b60b8fee2df3866d50))
+* **artifact:** protect consumed files from retention ([d6eb412](https://github.com/sase-org/sase/commit/d6eb4127138b071e02e179b4cd8bf0c1da7c9948))
+* **changelog:** enforce release-please ownership ([619de09](https://github.com/sase-org/sase/commit/619de093a7e9f9cb86a05042fb402f2710039996))
+* normalize agent associations by lane ([78522a3](https://github.com/sase-org/sase/commit/78522a318c48a33c3622d05b1885a8d045cbbbe0))
+* resolve agent links through checkout anchors ([f1289a1](https://github.com/sase-org/sase/commit/f1289a124ba4e94478b2ea0f973344c8a96ebc46))
+* resolve artifact entities for workspace projects ([a78894e](https://github.com/sase-org/sase/commit/a78894e7c409ce576b873af1526570b71d367cce))
+* resolve clipboard lint and test flake ([01ac81a](https://github.com/sase-org/sase/commit/01ac81a0bd90b28cf38496bbe58bd1e55d7da64e))
+* **sdd:** project canonical plan header links ([4866ece](https://github.com/sase-org/sase/commit/4866ece4a6dca7bc148f10323b5ce418f145729d))
+* tag family agent commits by lane ([5f94aae](https://github.com/sase-org/sase/commit/5f94aae4009ad5f260446a26d0f4d8e0c3f47e4e))
+* **tui:** load artifact catalog from target project ([03739dc](https://github.com/sase-org/sase/commit/03739dcecdc357d73dba1e83c3edce0b4309a58d))
+* **tui:** show full prompt input values ([07aebb2](https://github.com/sase-org/sase/commit/07aebb2f956550d47051b7d42f41d1642369dfff))
+
+
+### Performance Improvements
+
+* **artifact-refs:** cache bounded payload catalogs ([cbe3d21](https://github.com/sase-org/sase/commit/cbe3d214af47a9e645bfac725cd64960f337409c))
+* **tui:** warm prompt path inventory off keystrokes ([dc3462d](https://github.com/sase-org/sase/commit/dc3462d484a7cccabe4173a9182cf12779f2afdd))
+* warm artifact completion through Rust query ([af42951](https://github.com/sase-org/sase/commit/af42951798753ef28a2c73e75bcbef1780dbfb83))
+
+
+### Documentation
+
+* **ace:** document Files pane and add PNG snapshot coverage ([7994afa](https://github.com/sase-org/sase/commit/7994afadcfcc49a1fb51045f136b900c31bb5a76))
+* **artifacts:** document artifact consumption ledger ([0d01edb](https://github.com/sase-org/sase/commit/0d01edb911a117c69515ba1947c8d0f904e3c458))
+* **artifacts:** document VCS-backed artifact files ([658e576](https://github.com/sase-org/sase/commit/658e57696301cdab8119f77ef0ec1cd4fda16037))
+* clarify artifact reference handoffs ([a3130df](https://github.com/sase-org/sase/commit/a3130df52c0bff060db58bb4468d4a0ef82925f2))
+* correct artifact handoff and Rust boundary guidance ([7164ac9](https://github.com/sase-org/sase/commit/7164ac9e9cb71ac17d5431d166a1f36b5b312f3c))
+* correct artifact-reference completion reachability claims ([5ff7b8a](https://github.com/sase-org/sase/commit/5ff7b8ab899d014b5f8d4d2be7af6fe0a865213a))
+* describe lane-scoped commit provenance ([b030a3b](https://github.com/sase-org/sase/commit/b030a3b91085af677d76799b1d112185e6a5b692))
+* document bead and agent artifact refs ([34b2f7f](https://github.com/sase-org/sase/commit/34b2f7f2fdb1038d2c0ff3b82300a9b199b34732))
+* document fuzzy artifact reference completion ([43c5562](https://github.com/sase-org/sase/commit/43c55620fd790c7390e743b203c6fcef6800f825))
+* document grouped at-reference completion ([9d8a700](https://github.com/sase-org/sase/commit/9d8a70048e5aabeb5c594d1d50e28ba7f36fb84e))
+* document the sase artifact read commands ([c40aa7f](https://github.com/sase-org/sase/commit/c40aa7f9f5b755223e54469ee31693edc24d46f7))
+* document the ViewReport notification action ([7396862](https://github.com/sase-org/sase/commit/7396862437c034428ca25b4244beb4f0f92d325b))
+* **editor:** document artifact semantic highlighting ([a0ca459](https://github.com/sase-org/sase/commit/a0ca459ea1c0e9b4b938df8e42bcb1b0ba33d51d))
+* **memory:** Remove 'Agents-Tab Nesting' glossary entry ([6394252](https://github.com/sase-org/sase/commit/63942523cad5e016afb6da5df711b6b481db12a5))
+
 ## [0.13.3](https://github.com/sase-org/sase/compare/v0.13.2...v0.13.3) (2026-07-29)
 
 
