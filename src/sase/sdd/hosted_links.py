@@ -102,6 +102,7 @@ class HostedLinkResolver:
         self._remotes: dict[str, _RemoteCoordinates | None] = {}
         self._identity: AgentIdentitySnapshot | None = None
         self._identity_resolved = False
+        self._agents_sidecar_path: Path | None = None
 
     def plan_url(self, plan_ref: str) -> str | None:
         """Return the plans sidecar blob URL for *plan_ref*."""
@@ -125,7 +126,10 @@ class HostedLinkResolver:
         from sase.core.agent_identity_facade import (
             agent_link_target,
             normalize_owned_agent_name,
+            parse_agent_family_name,
         )
+        from sase.agent_lanes import lane_page_path, lane_ref_for_lane_name
+        from sase.core.agent_identity_facade import AgentFamilyNameKind
 
         snapshot = self._agent_identity()
         owner = None if snapshot is None else snapshot.owner
@@ -136,18 +140,33 @@ class HostedLinkResolver:
             return None
         try:
             local_name = normalize_owned_agent_name(agent_name, snapshot)
-            link_target = agent_link_target(local_name, owner)
+            parsed = parse_agent_family_name(local_name)
+            if parsed.kind is AgentFamilyNameKind.MEMBER:
+                link_target = agent_link_target(local_name, owner)
+                path = link_target.path
+                anchor = link_target.anchor
+            else:
+                lane_ref = lane_ref_for_lane_name(local_name, snapshot)
+                path = lane_page_path(lane_ref, owner)
+                family_path = f"families/{lane_ref.global_name}.md"
+                if (
+                    not lane_ref.is_family
+                    and self._agents_sidecar_path is not None
+                    and (self._agents_sidecar_path / family_path).is_file()
+                ):
+                    path = family_path
+                anchor = None
         except Exception:
             return None
         destination = github_blob_url(
             coordinates.remote_url,
             provider=coordinates.provider,
             branch=coordinates.branch,
-            path=link_target.path,
+            path=path,
         )
-        if destination is None or not link_target.anchor:
+        if destination is None or not anchor:
             return destination
-        return f"{destination}#{quote(link_target.anchor, safe='-._~')}"
+        return f"{destination}#{quote(anchor, safe='-._~')}"
 
     def bead_url(self, bead_id: str) -> str | None:
         """Return the beads sidecar page URL for *bead_id*."""
@@ -259,6 +278,7 @@ class HostedLinkResolver:
             return None
         if not (target.sidecar_path / ".git").exists():
             return None
+        self._agents_sidecar_path = target.sidecar_path
         branch = resolve_hosted_branch(
             target.sidecar_path,
             git_runner=self._git_runner,

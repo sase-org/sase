@@ -8,6 +8,11 @@ from types import MappingProxyType
 from typing import Protocol
 
 from sase.agents_sync.git import GitRunner, run_git
+from sase.association_agents import (
+    AgentAssociationRef,
+    merge_agent_associations,
+    resolve_agent_association_url,
+)
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.sdd.hosted_links import HostedLinkResolver, hosted_link_resolver
@@ -48,7 +53,7 @@ def build_plan_association_index(
     snapshot = identity or AgentIdentitySnapshot.current()
     selected_project = project or _current_project()
     history = read_history_associations(primary, normalizer, snapshot, git_runner)
-    agents = {key: set(values) for key, values in history.agents.items()}
+    agents = {key: dict(values) for key, values in history.agents.items()}
     commits = {key: dict(values) for key, values in history.commits.items()}
     diagnostics = list(history.diagnostics)
 
@@ -63,7 +68,12 @@ def build_plan_association_index(
             normalizer,
             snapshot,
         ).items():
-            agents.setdefault(plan_ref, set()).update(names)
+            target = agents.setdefault(plan_ref, {})
+            for label, association in names.items():
+                target[label] = merge_agent_associations(
+                    target.get(label),
+                    association,
+                )
     except Exception as exc:  # noqa: BLE001 - best-effort artifact projection.
         diagnostics.append(f"could not read agent artifacts: {exc}")
 
@@ -77,7 +87,7 @@ def build_plan_association_index(
     keys = set(nodes) | set(agents) | set(commits)
     by_plan = {
         plan_ref: _rendering_records(
-            agents.get(plan_ref, set()),
+            agents.get(plan_ref, {}),
             commits.get(plan_ref, {}),
             resolver,
         )
@@ -90,14 +100,14 @@ def build_plan_association_index(
 
 
 def _rendering_records(
-    agents: set[str],
+    agents: Mapping[str, AgentAssociationRef],
     commits: Mapping[str, HistoricalCommit],
     resolver: _LinkResolver,
 ) -> PlanAssociations:
     agent_rows = tuple(
         PlanAgentAssociation(
             label=name,
-            target=resolver.agent_url(name),
+            target=resolve_agent_association_url(agents[name], resolver),
             sort_key=name,
         )
         for name in sorted(agents)

@@ -167,6 +167,72 @@ def test_builds_sorted_rendering_records_from_one_history_walk(
     )
 
 
+def test_family_members_collapse_to_one_lane_with_member_link_hint(
+    tmp_path: Path,
+) -> None:
+    plans = tmp_path / "plans"
+    store = _store(plans)
+    plan = _plan(plans, "202607/family.md", tier="tale")
+    history = _history_entry(
+        "a" * 40,
+        10,
+        "family work",
+        "family work\n\n"
+        "SASE_PLAN=202607/family.md\n"
+        "SASE_AGENT=[alice.athena.pc][agent]\n\n"
+        "[agent]: https://agents.example/families/alice.athena.pc.md",
+    )
+
+    index = build_plan_association_index(
+        store,
+        primary_root=tmp_path,
+        git_runner=_FakeGit(history),
+        link_resolver=_FakeLinks(),
+        artifact_records=(
+            _record(tmp_path, "pc--plan", plan_path=str(plan)),
+            _record(tmp_path, "pc--code", plan_path=str(plan)),
+        ),
+        identity=_identity(),
+    )
+
+    agent_rows = index.for_plan("plans:202607/family.md").agents
+    assert len(agent_rows) == 1
+    row = agent_rows[0]
+    assert row.label == "alice.athena.pc"
+    assert row.target == "https://agents.example/pc--code"
+
+
+def test_legacy_member_tag_uses_its_recorded_destination(
+    tmp_path: Path,
+) -> None:
+    plans = tmp_path / "plans"
+    store = _store(plans)
+    _plan(plans, "202607/legacy.md", tier="tale")
+    destination = "https://agents.example/families/alice.athena.pc.md#member-code"
+    history = _history_entry(
+        "a" * 40,
+        10,
+        "legacy family work",
+        "legacy family work\n\n"
+        "SASE_PLAN=202607/legacy.md\n"
+        "SASE_AGENT=[alice.athena.pc--code][agent]\n\n"
+        f"[agent]: {destination}",
+    )
+
+    index = build_plan_association_index(
+        store,
+        primary_root=tmp_path,
+        git_runner=_FakeGit(history),
+        link_resolver=_FakeLinks(),
+        artifact_records=(),
+        identity=_identity(),
+    )
+
+    row = index.for_plan("plans:202607/legacy.md").agents[0]
+    assert row.label == "alice.athena.pc"
+    assert row.target == destination
+
+
 def test_artifact_metadata_paths_collapse_to_one_plan_key(tmp_path: Path) -> None:
     plans = tmp_path / "plans"
     store = _store(plans)

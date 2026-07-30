@@ -8,10 +8,15 @@ from pathlib import Path
 import re
 
 from sase.agents_sync.git import GitRunner
+from sase.association_agents import (
+    AgentAssociationRef,
+    commit_agent_association,
+    merge_agent_associations,
+)
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.commit_footer_facade import parse_commit_footer
 
-from ._agent_names import commit_tag_label, global_agent_name
+from ._agent_names import commit_tag_label
 from .models import BeadCommitRepository
 
 _LOG_FORMAT = "--format=%H%x00%ct%x00%s%x00%B%x00"
@@ -32,7 +37,7 @@ class HistoricalBeadCommit:
 class _HistoryAssociations:
     """Direct associations derived from one primary ``git log`` walk."""
 
-    agents: dict[str, set[str]]
+    agents: dict[str, dict[str, AgentAssociationRef]]
     agent_commits: dict[str, dict[str, set[tuple[str, str]]]]
     commits: dict[str, dict[tuple[str, str], HistoricalBeadCommit]]
     diagnostics: tuple[str, ...] = ()
@@ -68,7 +73,7 @@ def read_history_associations(
             (_history_diagnostic(repository, detail),),
         )
 
-    agents: defaultdict[str, set[str]] = defaultdict(set)
+    agents: defaultdict[str, dict[str, AgentAssociationRef]] = defaultdict(dict)
     agent_commits: defaultdict[str, dict[str, set[tuple[str, str]]]] = defaultdict(dict)
     commits: defaultdict[str, dict[tuple[str, str], HistoricalBeadCommit]] = (
         defaultdict(dict)
@@ -96,7 +101,7 @@ def _index_history_entry(
     repository: BeadCommitRepository,
     known_bead_ids: frozenset[str],
     identity: AgentIdentitySnapshot,
-    agents: defaultdict[str, set[str]],
+    agents: defaultdict[str, dict[str, AgentAssociationRef]],
     agent_commits: defaultdict[str, dict[str, set[tuple[str, str]]]],
     commits: defaultdict[str, dict[tuple[str, str], HistoricalBeadCommit]],
 ) -> None:
@@ -120,11 +125,14 @@ def _index_history_entry(
         subject,
         repository,
     )
-    agent_name = global_agent_name(commit_tag_label(tags.get("AGENT")), identity)
-    if agent_name is None:
+    association = commit_agent_association(tags.get("AGENT"), identity)
+    if association is None:
         return
-    agents[bead_id].add(agent_name)
-    agent_commits[bead_id].setdefault(agent_name, set()).add(commit_key)
+    agents[bead_id][association.label] = merge_agent_associations(
+        agents[bead_id].get(association.label),
+        association,
+    )
+    agent_commits[bead_id].setdefault(association.label, set()).add(commit_key)
 
 
 def _history_diagnostic(

@@ -5,6 +5,11 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable
 
+from sase.association_agents import (
+    AgentAssociationRef,
+    artifact_agent_association,
+    merge_agent_associations,
+)
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -18,7 +23,7 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.paths import sase_projects_dir
 
-from ._agent_names import agent_name_bead_id, global_agent_name
+from ._agent_names import agent_name_bead_id
 
 
 def load_artifact_records(project: str | None) -> tuple[AgentArtifactRecordWire, ...]:
@@ -60,10 +65,10 @@ def artifact_associations(
     records: Iterable[AgentArtifactRecordWire],
     known_bead_ids: frozenset[str],
     identity: AgentIdentitySnapshot,
-) -> dict[str, set[str]]:
+) -> dict[str, dict[str, AgentAssociationRef]]:
     """Group visible artifact agents by the bead derived from their name."""
 
-    agents: defaultdict[str, set[str]] = defaultdict(set)
+    agents: defaultdict[str, dict[str, AgentAssociationRef]] = defaultdict(dict)
     for record in records:
         meta = record.agent_meta
         done = record.done
@@ -77,9 +82,16 @@ def artifact_associations(
             else None
         )
         bead_id = agent_name_bead_id(raw_name, identity)
-        agent_name = global_agent_name(raw_name, identity)
-        if bead_id is not None and bead_id in known_bead_ids and agent_name is not None:
-            agents[bead_id].add(agent_name)
+        association = artifact_agent_association(raw_name, identity)
+        if (
+            bead_id is not None
+            and bead_id in known_bead_ids
+            and association is not None
+        ):
+            agents[bead_id][association.label] = merge_agent_associations(
+                agents[bead_id].get(association.label),
+                association,
+            )
     return dict(agents)
 
 

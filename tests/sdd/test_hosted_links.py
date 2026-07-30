@@ -208,6 +208,78 @@ def test_agent_url_links_family_member_anchor(tmp_path: Path, monkeypatch) -> No
     )
 
 
+def test_agent_url_links_registered_family_lane(tmp_path: Path, monkeypatch) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    sidecar = tmp_path / "agents"
+    target = _agents_target(primary, sidecar, _GITHUB_AGENTS_REMOTE)
+    monkeypatch.setattr(
+        "sase.agents_sync.targets.resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.get_reserved_family_names",
+        lambda: {"foo.bar"},
+    )
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(
+            lambda _cls: AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena"))
+        ),
+    )
+    resolver = HostedLinkResolver(
+        _plans_store(tmp_path / "plans"),
+        project="sase",
+        primary_root=primary,
+        git_runner=_FakeGit(branches={sidecar: "main"}),
+    )
+
+    assert resolver.agent_url("alice.athena.foo.bar") == (
+        "https://github.com/sase-org/sase--agents/blob/main/"
+        "families/alice.athena.foo.bar.md"
+    )
+
+
+def test_agent_url_finds_family_lane_page_in_local_sidecar(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    sidecar = tmp_path / "agents"
+    target = _agents_target(primary, sidecar, _GITHUB_AGENTS_REMOTE)
+    family_page = sidecar / "families" / "alice.athena.foo.bar.md"
+    family_page.parent.mkdir()
+    family_page.touch()
+    monkeypatch.setattr(
+        "sase.agents_sync.targets.resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.get_reserved_family_names",
+        lambda: set(),
+    )
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(
+            lambda _cls: AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena"))
+        ),
+    )
+    resolver = HostedLinkResolver(
+        _plans_store(tmp_path / "plans"),
+        project="sase",
+        primary_root=primary,
+        git_runner=_FakeGit(branches={sidecar: "main"}),
+    )
+
+    assert resolver.agent_url("foo.bar") == (
+        "https://github.com/sase-org/sase--agents/blob/main/"
+        "families/alice.athena.foo.bar.md"
+    )
+
+
 def test_agent_url_resolves_project_from_sidecar_anchor(
     tmp_path: Path,
     monkeypatch,

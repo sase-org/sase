@@ -9,6 +9,11 @@ from types import MappingProxyType
 from typing import Protocol
 
 from sase.agents_sync.git import GitRunner, run_git
+from sase.association_agents import (
+    AgentAssociationRef,
+    merge_agent_associations,
+    resolve_agent_association_url,
+)
 from sase.bead.model import Issue
 from sase.bead.store_locator import open_bead_project_for_beads_dir
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
@@ -70,7 +75,7 @@ def build_bead_association_index(
         inventory_project,
         diagnostics,
     )
-    direct_agents: defaultdict[str, set[str]] = defaultdict(set)
+    direct_agents: defaultdict[str, dict[str, AgentAssociationRef]] = defaultdict(dict)
     agent_commits: defaultdict[str, dict[str, set[tuple[str, str]]]] = defaultdict(dict)
     commits: defaultdict[str, dict[tuple[str, str], HistoricalBeadCommit]] = (
         defaultdict(dict)
@@ -103,7 +108,12 @@ def build_bead_association_index(
             known_bead_ids,
             snapshot,
         ).items():
-            direct_agents.setdefault(bead_id, set()).update(names)
+            target = direct_agents[bead_id]
+            for label, association in names.items():
+                target[label] = merge_agent_associations(
+                    target.get(label),
+                    association,
+                )
     except Exception as exc:  # noqa: BLE001 - best-effort artifact projection.
         diagnostics.append(f"could not read agent artifacts: {exc}")
 
@@ -204,19 +214,24 @@ def _history_repositories(
 
 
 def _merge_history(
-    agents: Mapping[str, set[str]],
+    agents: Mapping[str, Mapping[str, AgentAssociationRef]],
     source_agent_commits: Mapping[str, Mapping[str, set[tuple[str, str]]]],
     source_commits: Mapping[str, Mapping[tuple[str, str], HistoricalBeadCommit]],
-    target_agents: defaultdict[str, set[str]],
+    target_agents: defaultdict[str, dict[str, AgentAssociationRef]],
     target_agent_commits: defaultdict[str, dict[str, set[tuple[str, str]]]],
     target_commits: defaultdict[str, dict[tuple[str, str], HistoricalBeadCommit]],
 ) -> None:
-    for bead_id, names in agents.items():
-        target_agents[bead_id].update(names)
+    for bead_id, associations in agents.items():
+        target = target_agents[bead_id]
+        for label, association in associations.items():
+            target[label] = merge_agent_associations(
+                target.get(label),
+                association,
+            )
     for bead_id, by_agent in source_agent_commits.items():
-        target = target_agent_commits[bead_id]
+        target_commits_by_agent = target_agent_commits[bead_id]
         for agent_name, commit_keys in by_agent.items():
-            target.setdefault(agent_name, set()).update(commit_keys)
+            target_commits_by_agent.setdefault(agent_name, set()).update(commit_keys)
     for bead_id, by_commit in source_commits.items():
         target_commits[bead_id].update(by_commit)
 
@@ -239,7 +254,7 @@ def _read_issues(
 
 def _rendering_records(
     source_beads: tuple[str, ...],
-    agents: Mapping[str, set[str]],
+    agents: Mapping[str, Mapping[str, AgentAssociationRef]],
     agent_commits: Mapping[str, Mapping[str, set[tuple[str, str]]]],
     commits: Mapping[str, Mapping[tuple[str, str], HistoricalBeadCommit]],
     resolver: _LinkResolver,
@@ -247,7 +262,7 @@ def _rendering_records(
     agent_rows = tuple(
         BeadAgentAssociation(
             label=name,
-            target=resolver.agent_url(name),
+            target=resolve_agent_association_url(agents[bead_id][name], resolver),
             bead_id=bead_id,
             commit_count=len(agent_commits.get(bead_id, {}).get(name, ())),
             sort_key=(name, bead_id),

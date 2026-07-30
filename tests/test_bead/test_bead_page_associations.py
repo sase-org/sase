@@ -10,6 +10,7 @@ import pytest
 from sase.bead.model import Issue, IssueType
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.bead_pages.associations import build_bead_association_index
+from sase.bead_pages.associations._agent_names import agent_name_bead_id
 from sase._repo_inventory_models import (
     RepoCloneRecord,
     RepoInventory,
@@ -200,8 +201,7 @@ def test_builds_associations_with_one_store_read_and_history_walk(
 
     root_associations = index.for_bead(root.id)
     assert [(row.bead_id, row.label) for row in root_associations.agents] == [
-        (phase.id, f"alice.athena.{phase.id}--code"),
-        (phase.id, f"alice.athena.{phase.id}--review"),
+        (phase.id, f"alice.athena.{phase.id}"),
         (root.id, f"alice.athena.{root.id}.land"),
     ]
     assert [
@@ -211,12 +211,10 @@ def test_builds_associations_with_one_store_read_and_history_walk(
         (phase.id, "bbbbbbb", "tagged subject"),
     ]
     tagged_agent = next(
-        row
-        for row in root_associations.agents
-        if row.label.endswith(f"{phase.id}--code")
+        row for row in root_associations.agents if row.label.endswith(phase.id)
     )
     assert tagged_agent.commit_count == 1
-    assert tagged_agent.target == f"https://agents.example/{tagged_agent.label}"
+    assert tagged_agent.target == f"https://agents.example/{phase.id}--review"
     assert root_associations.commits[0].target == (
         f"https://commits.example/{tmp_path.name}/{legacy_sha}"
     )
@@ -228,6 +226,57 @@ def test_builds_associations_with_one_store_read_and_history_walk(
     assert [row.sha for row in index.for_bead(grandchild.id).commits] == [legacy_sha]
     with pytest.raises(TypeError):
         index.by_bead[root.id] = phase_associations  # type: ignore[index]
+
+
+def test_legacy_member_tag_uses_recorded_destination_and_lane_commit_count(
+    tmp_path: Path,
+) -> None:
+    issue = Issue("sase-legacy.1", "Legacy", issue_type=IssueType.PHASE)
+    sha = "d" * 40
+    destination = (
+        "https://agents.example/families/alice.athena.sase-legacy.1.md#member-code"
+    )
+    git = _FakeGit(
+        _history_entry(
+            sha,
+            10,
+            "legacy family work",
+            "legacy family work\n\n"
+            f"SASE_BEAD={issue.id}\n"
+            f"SASE_AGENT=[alice.athena.{issue.id}--code][agent]\n\n"
+            f"[agent]: {destination}",
+        )
+    )
+
+    index = build_bead_association_index(
+        _store(tmp_path / "plans", tmp_path / "missing"),
+        primary_root=tmp_path,
+        git_runner=git,
+        link_resolver=_FakeLinks(),
+        artifact_records=(),
+        bead_issues=(issue,),
+        identity=_identity(),
+    )
+
+    assert [
+        (row.label, row.target, row.commit_count)
+        for row in index.for_bead(issue.id).agents
+    ] == [(f"alice.athena.{issue.id}", destination, 1)]
+
+
+@pytest.mark.parametrize(
+    "agent_name",
+    (
+        "sase-b8.6",
+        "alice.athena.sase-b8.6",
+        "sase-b8.6--code",
+        "alice.athena.sase-b8.6--code",
+    ),
+)
+def test_agent_name_bead_id_accepts_lane_and_member_spellings(
+    agent_name: str,
+) -> None:
+    assert agent_name_bead_id(agent_name, _identity()) == "sase-b8.6"
 
 
 def test_tagged_unknown_bead_does_not_fall_back_to_legacy_subject(

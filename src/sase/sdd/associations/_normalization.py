@@ -5,10 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.core.agent_identity_facade import (
-    AgentIdentitySnapshot,
-    globalize_owned_agent_name,
-)
 from sase.sdd.plan_refs import (
     canonicalize_plan_reference_from_roots,
     parse_plan_reference,
@@ -84,20 +80,6 @@ class PlanReferenceNormalizer:
         )
 
 
-def global_agent_name(
-    value: str | None,
-    identity: AgentIdentitySnapshot,
-) -> str | None:
-    """Return the stable global spelling used by plan provenance."""
-
-    if value is None or not value.strip():
-        return None
-    try:
-        return globalize_owned_agent_name(value.strip(), identity)
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        return value.strip()
-
-
 def _canonical_legacy_suffix(value: str) -> str | None:
     normalized = value.removeprefix("./")
     for prefix in _LEGACY_PLAN_PREFIXES:
@@ -109,4 +91,4 @@ def _canonical_legacy_suffix(value: str) -> str | None:
     return None
 
 
-__all__ = ["PlanReferenceNormalizer", "global_agent_name"]
+__all__ = ["PlanReferenceNormalizer"]

@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 
+from sase.association_agents import (
+    AgentAssociationRef,
+    merge_agent_associations,
+)
 from sase.sdd.frontmatter import parse_frontmatter
 
 from ._history import HistoricalCommit
@@ -56,7 +60,7 @@ def scan_plan_tree(normalizer: PlanReferenceNormalizer) -> dict[str, _PlanNode]:
 
 
 def roll_up_epics(
-    agents: dict[str, set[str]],
+    agents: dict[str, dict[str, AgentAssociationRef]],
     commits: dict[str, dict[str, HistoricalCommit]],
     nodes: dict[str, _PlanNode],
 ) -> None:
@@ -70,7 +74,12 @@ def roll_up_epics(
         if node.tier != "epic":
             continue
         for descendant in _descendants(reference, children):
-            agents.setdefault(reference, set()).update(agents.get(descendant, ()))
+            target_agents = agents.setdefault(reference, {})
+            for label, association in agents.get(descendant, {}).items():
+                target_agents[label] = merge_agent_associations(
+                    target_agents.get(label),
+                    association,
+                )
             target_commits = commits.setdefault(reference, {})
             target_commits.update(commits.get(descendant, {}))
 

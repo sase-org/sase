@@ -5,7 +5,6 @@ from __future__ import annotations
 from sase.agent.bead_display import derive_agent_bead_id_from_name
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
-    globalize_owned_agent_name,
     normalize_owned_agent_name,
 )
 from sase.core.commit_footer_facade import LinkedCommitTagValue
@@ -19,20 +18,6 @@ def commit_tag_label(value: object) -> str | None:
     if isinstance(value, str):
         return value.strip() or None
     return None
-
-
-def global_agent_name(
-    value: str | None,
-    identity: AgentIdentitySnapshot,
-) -> str | None:
-    """Return the stable global spelling used by bead pages."""
-
-    if value is None or not value.strip():
-        return None
-    try:
-        return globalize_owned_agent_name(value.strip(), identity)
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        return value.strip()
 
 
 def agent_name_bead_id(
@@ -54,4 +39,4 @@ def agent_name_bead_id(
     return derive_agent_bead_id_from_name(local_name)
 
 
-__all__ = ["agent_name_bead_id", "commit_tag_label", "global_agent_name"]
+__all__ = ["agent_name_bead_id", "commit_tag_label"]

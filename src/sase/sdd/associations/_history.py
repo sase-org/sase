@@ -7,10 +7,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.agents_sync.git import GitRunner
+from sase.association_agents import (
+    AgentAssociationRef,
+    commit_agent_association,
+    merge_agent_associations,
+)
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.commit_footer_facade import LinkedCommitTagValue, parse_commit_footer
 
-from ._normalization import PlanReferenceNormalizer, global_agent_name
+from ._normalization import PlanReferenceNormalizer
 
 _LOG_FORMAT = "--format=%H%x00%ct%x00%s%x00%B%x00"
 
@@ -28,7 +33,7 @@ class HistoricalCommit:
 class _HistoryAssociations:
     """Direct associations derived from one primary ``git log`` walk."""
 
-    agents: dict[str, set[str]]
+    agents: dict[str, dict[str, AgentAssociationRef]]
     commits: dict[str, dict[str, HistoricalCommit]]
     diagnostics: tuple[str, ...] = ()
 
@@ -53,7 +58,7 @@ def read_history_associations(
         detail = result.stderr.strip() or f"git exited {result.returncode}"
         return _HistoryAssociations({}, {}, (f"could not read git history: {detail}",))
 
-    agents: defaultdict[str, set[str]] = defaultdict(set)
+    agents: defaultdict[str, dict[str, AgentAssociationRef]] = defaultdict(dict)
     commits: defaultdict[str, dict[str, HistoricalCommit]] = defaultdict(dict)
     chunks = result.stdout.split("\x00")
     for index in range(0, len(chunks) - 3, 4):
@@ -69,9 +74,12 @@ def read_history_associations(
         if plan_ref is None:
             continue
         commits[plan_ref][sha] = HistoricalCommit(sha, committed_at, subject)
-        agent = global_agent_name(_tag_label(tags.get("AGENT")), identity)
+        agent = commit_agent_association(tags.get("AGENT"), identity)
         if agent is not None:
-            agents[plan_ref].add(agent)
+            agents[plan_ref][agent.label] = merge_agent_associations(
+                agents[plan_ref].get(agent.label),
+                agent,
+            )
     return _HistoryAssociations(dict(agents), dict(commits))
 
 

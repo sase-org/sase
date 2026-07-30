@@ -5,6 +5,11 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable
 
+from sase.association_agents import (
+    AgentAssociationRef,
+    artifact_agent_association,
+    merge_agent_associations,
+)
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -18,7 +23,7 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.paths import sase_projects_dir
 
-from ._normalization import PlanReferenceNormalizer, global_agent_name
+from ._normalization import PlanReferenceNormalizer
 
 
 def load_artifact_records(project: str | None) -> tuple[AgentArtifactRecordWire, ...]:
@@ -60,10 +65,10 @@ def artifact_associations(
     records: Iterable[AgentArtifactRecordWire],
     normalizer: PlanReferenceNormalizer,
     identity: AgentIdentitySnapshot,
-) -> dict[str, set[str]]:
+) -> dict[str, dict[str, AgentAssociationRef]]:
     """Group visible artifact agents by every recorded plan path."""
 
-    agents: defaultdict[str, set[str]] = defaultdict(set)
+    agents: defaultdict[str, dict[str, AgentAssociationRef]] = defaultdict(dict)
     for record in records:
         meta = record.agent_meta
         done = record.done
@@ -76,8 +81,8 @@ def artifact_associations(
             if done is not None
             else None
         )
-        agent_name = global_agent_name(raw_name, identity)
-        if agent_name is None:
+        association = artifact_agent_association(raw_name, identity)
+        if association is None:
             continue
         plan_values = (
             meta.sdd_plan_path if meta is not None else None,
@@ -90,7 +95,10 @@ def artifact_associations(
         for value in plan_values:
             plan_ref = normalizer.normalize(value)
             if plan_ref is not None:
-                agents[plan_ref].add(agent_name)
+                agents[plan_ref][association.label] = merge_agent_associations(
+                    agents[plan_ref].get(association.label),
+                    association,
+                )
     return dict(agents)
 
 
