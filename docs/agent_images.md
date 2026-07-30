@@ -257,10 +257,11 @@ applied before `--limit`, so `-u -l 50` asks for 50 unused artifacts, not for un
 
 Every canonical, fragment-free `file:` key in the ledger is a hard lifecycle protection. The shared protection collector
 unions those consumed IDs with IDs found in persistent ProjectSpec, plan, bead, and research references before
-`sase artifact stats` projects the default policy or `sase artifact prune` plans and applies work. Overlap is
+`sase artifact stats` projects the default policy, `sase artifact prune` removes rows, `sase artifact reclaim` converts
+stored rows to VCS-backed identities, or opt-in automatic retention runs after agent finalization. Overlap is
 deduplicated, while stats reports referenced, consumed, overlap, and total counts separately. A missing ledger is an
-empty optional source; if a present ledger cannot be queried, reporting surfaces show it as unavailable and destructive
-apply refuses to remove artifacts.
+empty optional source; if a present ledger cannot be queried, reporting surfaces show it as unavailable and every
+destructive apply or automatic enforcement pass refuses to change artifacts.
 
 Sources:
 
@@ -272,6 +273,8 @@ Sources:
 - `src/sase/core/artifact_file_protection.py`
 - `src/sase/artifact_cli/stats.py`
 - `src/sase/artifact_cli/prune.py`
+- `src/sase/artifact_cli/reclaim.py`
+- `src/sase/axe/run_agent_exec_finalize.py`
 
 ## Markdown PDF Attachment Contract
 

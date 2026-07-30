@@ -281,7 +281,8 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
             "Find automatic artifact rows whose exact bytes are reproducible "
             "from durable remote-tracking history. This command is a dry run "
             "unless --apply is passed. Applied bytes move to restorable trash "
-            "and consume disk space until that trash is purged."
+            "and consume disk space until that trash is purged. Explicit, "
+            "referenced, and consumed artifacts are protected."
         ),
     )
     reclaim_parser.add_argument(

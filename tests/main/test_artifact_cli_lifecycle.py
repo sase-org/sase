@@ -271,7 +271,12 @@ def test_reclaim_dry_run_writes_nothing_and_apply_reports_old_and_new_ids(
     )
     monkeypatch.setattr(
         "sase.artifact_cli.reclaim.collect_protected_artifact_ids",
-        lambda: ProtectedArtifactIds(frozenset(), ("projects",), ()),
+        lambda: ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=("projects",),
+            sources_unavailable=(),
+        ),
     )
     monkeypatch.setattr(
         "sase.artifact_cli.reclaim.plan_artifact_file_reclaim",
@@ -309,9 +314,10 @@ def test_reclaim_unavailable_protection_source_blocks_apply(
     monkeypatch.setattr(
         "sase.artifact_cli.reclaim.collect_protected_artifact_ids",
         lambda: ProtectedArtifactIds(
-            frozenset(),
-            ("projects",),
-            ("proj:plans",),
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=("projects",),
+            sources_unavailable=("proj:plans",),
         ),
     )
     monkeypatch.setattr(

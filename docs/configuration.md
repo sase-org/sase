@@ -3242,17 +3242,18 @@ it with `A`, even after the agent has been dismissed and revived. `-k/--kind` ac
 source after it is stored. On success the command prints the artifact's `id:`, absolute `source:`, stored `path:`, and
 durable `ref:` (`file:<id>`). Only `create` is agent-gated; every other artifact subcommand works outside an agent run.
 
-| Form                   | Flags                                                                                                                            | Description                                                                                       |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `sase artifact create` | `-k/--kind`, `-l/--label`, `-m/--move`, `-p/--path`                                                                              | Store one explicit artifact for the current agent                                                 |
-| `sase artifact doctor` | `-f/--fix`, `-v/--verify`                                                                                                        | Report index health (including VCS reference counts), backfill enrichment fields, verify hashes   |
-| `sase artifact list`   | `-a/--agent`, `-e/--explicit`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-p/--project`, `-q/--query`, `-s/--since`, `-u/--unused` | List indexed artifacts newest-first                                                               |
-| `sase artifact open`   | (positional `reference`)                                                                                                         | Open a resolved reference with a kind-appropriate viewer                                          |
-| `sase artifact path`   | (positional `reference`)                                                                                                         | Print the one absolute path a reference resolves to                                               |
-| `sase artifact prune`  | `-a/--apply`, `-b/--before`, `-g/--keep-generations`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-m/--min-size`, `-p/--project`    | Plan retention, then move selected automatic rows to restorable trash only with `--apply`         |
-| `sase artifact show`   | `-j/--json`, (positional `reference`)                                                                                            | Show metadata, resolution, and consumption                                                        |
-| `sase artifact stats`  | `-j/--json`, `-p/--project`, `-t/--top`                                                                                          | Report store economics, protection-source evidence, trash occupancy, and default-policy selection |
-| `sase artifact trash`  | `list`, `purge`, `restore`                                                                                                       | Inspect, permanently purge, or restore artifact trash                                             |
+| Form                    | Flags                                                                                                                            | Description                                                                                       |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `sase artifact create`  | `-k/--kind`, `-l/--label`, `-m/--move`, `-p/--path`                                                                              | Store one explicit artifact for the current agent                                                 |
+| `sase artifact doctor`  | `-f/--fix`, `-v/--verify`                                                                                                        | Report index health (including VCS reference counts), backfill enrichment fields, verify hashes   |
+| `sase artifact list`    | `-a/--agent`, `-e/--explicit`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-p/--project`, `-q/--query`, `-s/--since`, `-u/--unused` | List indexed artifacts newest-first                                                               |
+| `sase artifact open`    | (positional `reference`)                                                                                                         | Open a resolved reference with a kind-appropriate viewer                                          |
+| `sase artifact path`    | (positional `reference`)                                                                                                         | Print the one absolute path a reference resolves to                                               |
+| `sase artifact prune`   | `-a/--apply`, `-b/--before`, `-g/--keep-generations`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-m/--min-size`, `-p/--project`    | Plan retention, then move selected automatic rows to restorable trash only with `--apply`         |
+| `sase artifact reclaim` | `-a/--apply`, `-d/--max-history-scan`, `-j/--json`, `-l/--limit`, `-p/--project`                                                 | Convert eligible stored automatic rows to verified VCS-backed rows only with `--apply`            |
+| `sase artifact show`    | `-j/--json`, (positional `reference`)                                                                                            | Show metadata, resolution, and consumption                                                        |
+| `sase artifact stats`   | `-j/--json`, `-p/--project`, `-t/--top`                                                                                          | Report store economics, protection-source evidence, trash occupancy, and default-policy selection |
+| `sase artifact trash`   | `list`, `purge`, `restore`                                                                                                       | Inspect, permanently purge, or restore artifact trash                                             |
 
 `list` filters: `-k/--kind` is repeatable and accepts the artifact kinds above; `-l/--limit` defaults to `50` and `0`
 means unlimited; `-p/--project` accepts a display name, alias, or canonical key and exits 2 for an unknown project;
@@ -3280,12 +3281,13 @@ opens `bug:` refs in a browser. `show` also reports consumption from the append-
 it finds missing enrichment fields, missing stored files, duplicate ids, unsupported schema versions, malformed rows, or
 digest mismatches, and 0 on a clean bill of health.
 
-`stats` and `prune` use one shared protection collector. It unions IDs found in persistent ProjectSpec and SDD text with
-canonical fragment-free `file:` IDs recorded in the consumption ledger, then passes the deduplicated set to the
-retention planner. Stats keeps referenced, consumed, overlap, and total protection counts distinct. Prune is a dry run
-unless `--apply` is passed, never selects explicit or protected rows, and moves selected rows to restorable trash. A
+`stats`, `prune`, `reclaim`, and opt-in automatic retention use one shared protection collector. It unions IDs found in
+persistent ProjectSpec and SDD text with canonical fragment-free `file:` IDs recorded in the consumption ledger, then
+passes the deduplicated set to the applicable planner. Stats keeps referenced, consumed, overlap, and total protection
+counts distinct. Prune and reclaim are dry runs unless `--apply` is passed and never select explicit or protected rows;
+automatic retention enforces the same union after agent finalization when `artifacts.retention.enabled` is true. A
 missing consumption ledger contributes no IDs; a present ledger that cannot be queried appears in protection-source
-evidence and blocks destructive apply.
+evidence and blocks destructive apply or skips automatic enforcement.
 
 ### `sase questions`
 

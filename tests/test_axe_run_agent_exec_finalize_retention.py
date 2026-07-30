@@ -202,3 +202,34 @@ def test_finalization_retention_unavailable_protection_source_skips_all_work(
     assert "retention skipped: protection sources unavailable: proj:plans" in (
         capsys.readouterr().out
     )
+
+
+def test_finalization_retention_excludes_consumed_only_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    index, old, new, explicit, expired = _seed_store(tmp_path, monkeypatch)
+    _patch_retention_config(monkeypatch, enabled=True)
+    _patch_protections(
+        monkeypatch,
+        ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset({old.id}),
+            sources_scanned=(str(tmp_path / "artifacts" / "consumption.jsonl"),),
+            sources_unavailable=(),
+        ),
+    )
+    before = index.read_bytes()
+
+    _enforce_artifact_retention()
+
+    assert index.read_bytes() == before
+    assert {row.id for row in read_artifact_file_index(index)} == {
+        old.id,
+        new.id,
+        explicit.id,
+        expired.id,
+    }
+    assert list_trashed_artifact_files().entries == ()
+    assert "retention: trashed 0 rows" in capsys.readouterr().out

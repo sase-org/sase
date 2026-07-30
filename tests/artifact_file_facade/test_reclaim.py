@@ -14,6 +14,7 @@ from sase.core.artifact_file_explicit import (
     read_artifact_file_index,
     write_artifact_file_index_unlocked,
 )
+from sase.core.artifact_file_protection import ProtectedArtifactIds
 from sase.core.artifact_file_reclaim import (
     execute_artifact_file_reclaim,
     plan_artifact_file_reclaim,
@@ -387,7 +388,7 @@ def test_sidecar_nested_source_maps_to_sidecar_repo(
     assert plan.verified[0].vcs_relpath == "design.md"
 
 
-def test_explicit_protected_missing_checkout_and_unknown_repo_are_unresolved(
+def test_explicit_consumed_missing_checkout_and_unknown_repo_are_unresolved(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -417,11 +418,17 @@ def test_explicit_protected_missing_checkout_and_unknown_repo_are_unresolved(
     index = _seed_index(tmp_path, automatic, monkeypatch)
     write_artifact_file_index_unlocked(index, [automatic, explicit, protected])
     inventory = RepoInventory((_record(workspace),))
+    protections = ProtectedArtifactIds(
+        referenced_ids=frozenset(),
+        consumed_ids=frozenset({protected.id}),
+        sources_scanned=(str(tmp_path / "artifacts" / "consumption.jsonl"),),
+        sources_unavailable=(),
+    )
 
     plan = plan_artifact_file_reclaim(
         index_path=index,
         inventory=inventory,
-        protected_ids=frozenset({protected.id}),
+        protected_ids=protections.ids,
     )
 
     assert plan.verified == ()
