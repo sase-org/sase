@@ -10,7 +10,12 @@ import subprocess
 from typing import Any
 
 from sase.ace.hints import build_editor_args
+from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
+from sase.ace.tui.models.artifact_file_clipboard import (
+    ArtifactFilePathCopy,
+    artifact_file_clipboard_path,
+)
 from sase.ace.tui.util.external_tool import suspend_for_external_tool
 from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
 from sase.core.artifact_file_types import ArtifactFile
@@ -233,10 +238,50 @@ class ArtifactsFilesActionsMixin:
             pane.cycle_kind()
 
     def action_files_copy_reference(self) -> None:
-        return
+        """Copy the selected row's durable ``file:`` reference."""
+
+        pane = self._files_pane()
+        entry = pane.selected_entry if pane is not None else None
+        if entry is None:
+            self._notify_no_file_selected()
+            return
+        reference = f"file:{entry.id}"
+        schedule_copy_delivery(
+            self,
+            reference,
+            copied_label=f"reference {reference}",
+            task_name="sase-copy-artifact-file-reference",
+        )
 
     def action_files_copy_path(self) -> None:
-        return
+        """Copy the selected row's anchored stored or PDF-source path."""
+
+        pane = self._files_pane()
+        entry = pane.selected_entry if pane is not None else None
+        if entry is None:
+            self._notify_no_file_selected()
+            return
+
+        copy_path: ArtifactFilePathCopy | None = None
+
+        def value() -> str:
+            nonlocal copy_path
+            copy_path = artifact_file_clipboard_path(entry)
+            if copy_path is None:
+                raise RuntimeError("selected artifact file has no path")
+            return copy_path.text
+
+        def copied_label() -> str:
+            assert copy_path is not None
+            suffix = " (no longer exists)" if copy_path.missing else ""
+            return f"{copy_path.label}{suffix}: {copy_path.text}"
+
+        schedule_copy_delivery(
+            self,
+            value,
+            copied_label=copied_label,
+            task_name="sase-copy-artifact-file-path",
+        )
 
     def action_files_refresh(self) -> None:
         pane = self._files_pane()

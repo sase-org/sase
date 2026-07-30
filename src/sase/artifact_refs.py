@@ -576,7 +576,7 @@ def reference_for_entry_target(
     subtab: str,
     target: tuple[str, ...],
     *,
-    context: ArtifactRefContext,
+    context: ArtifactRefContext | None = None,
     row: object | None = None,
 ) -> str | None:
     """Render the canonical reference represented by one ACE artifact row."""
@@ -590,10 +590,16 @@ def reference_for_entry_target(
         "bug": "bug",
         "plans": "plan",
         "plan": "plan",
+        "files": "file",
+        "file": "file",
     }.get(subtab)
     if expected is None or not target or target[0] != expected:
         return None
     try:
+        if expected == "file" and len(target) == 2:
+            return parse_artifact_ref(f"file:{target[1]}").rendered
+        if context is None:
+            return None
         if expected == "commit" and len(target) == 3:
             return parse_artifact_ref(f"commit:{target[1]}@{target[2]}").rendered
         if expected == "chat" and len(target) == 2:

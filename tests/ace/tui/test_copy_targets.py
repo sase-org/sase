@@ -18,8 +18,7 @@ from sase.ace.tui.actions.clipboard._helpers import (
 )
 from sase.ace.tui.copy_targets import COPY_TARGETS, copy_targets_for
 from sase.ace.tui.keymaps.mode_keymaps import CopyModeKeymaps
-
-from .test_artifacts_copy_mode import _CopyHarness
+from tests.ace.tui._artifacts_copy_helpers import CopyHarness as _CopyHarness
 
 
 def test_copy_target_registry_exactly_covers_default_keymap_targets() -> None:

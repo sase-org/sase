@@ -563,12 +563,32 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             [
                 (d(cm.prefix), "Open Copy as… palette"),
                 (
+                    key_sequence_display(cm.prefix, files_copy["contents"]),
+                    "Copy text contents",
+                ),
+                (
                     key_sequence_display(cm.prefix, files_copy["reference"]),
                     "Copy @file reference",
                 ),
                 (
                     key_sequence_display(cm.prefix, files_copy["handoff"]),
                     "Reference in new agent prompt",
+                ),
+                (
+                    key_sequence_display(cm.prefix, files_copy["path"]),
+                    "Copy anchored stored path",
+                ),
+                (
+                    key_sequence_display(cm.prefix, files_copy["source"]),
+                    "Copy anchored source path",
+                ),
+                (
+                    key_sequence_display(cm.prefix, files_copy["label"]),
+                    "Copy artifact-file label",
+                ),
+                (
+                    key_sequence_display(cm.prefix, files_copy["json"]),
+                    "Copy metadata JSON",
                 ),
                 (
                     key_sequence_display(cm.prefix, files_copy["snapshot"]),

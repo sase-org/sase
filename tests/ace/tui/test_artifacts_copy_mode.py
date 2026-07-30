@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import call, MagicMock
 
 import pytest
 
+from sase.ace.tui.actions.clipboard import _artifact_reference_resolution as _resolution
+from sase.ace.tui.actions.clipboard._representations import (
+    ArtifactReferenceSelection,
+)
 from sase.ace.testing import AcePage
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
+from sase.core.artifact_file_types import ArtifactFile
 from tests.ace.tui._artifacts_copy_helpers import CopyHarness
 
 
@@ -80,6 +87,139 @@ def test_files_percent_unknown_key_never_reaches_changespec_dispatch() -> None:
 
     app._copy_cl_name.assert_not_called()
     assert "Files:" in app.notifications[-1][0]
+
+
+def _artifact_file(
+    path: Path,
+    *,
+    artifact_id: str = "default:0123456789abcdef01234567",
+    label: str = "copy target",
+    kind: str = "file",
+    source_path: str | None = None,
+) -> ArtifactFile:
+    return ArtifactFile(
+        id=artifact_id,
+        label=label,
+        kind=kind,  # type: ignore[arg-type]
+        path=str(path),
+        source_path=source_path,
+        project="sase",
+    )
+
+
+def _files_pane(*entries: ArtifactFile) -> SimpleNamespace:
+    targets = tuple(("file", entry.id) for entry in entries)
+    by_target = dict(zip(targets, entries, strict=True))
+    selected = entries[0] if entries else None
+    return SimpleNamespace(
+        selected_entry=selected,
+        selected_view_mode="text" if selected is not None else None,
+        selected_entry_target=lambda: targets[0] if targets else None,
+        entry_targets=lambda: targets,
+        entries_for_targets=lambda requested: tuple(
+            by_target[target] for target in requested if target in by_target
+        ),
+        project_scope="sase",
+        project_file="/tmp/sase.sase",
+        snapshot=SimpleNamespace(display_name="sase"),
+    )
+
+
+def test_files_copy_targets_cover_contents_paths_source_and_label(
+    tmp_path: Path,
+) -> None:
+    stored = tmp_path / "stored.txt"
+    stored.write_text("artifact contents", encoding="utf-8")
+    source = tmp_path / "source.txt"
+    source.write_text("source contents", encoding="utf-8")
+    entry = _artifact_file(stored, source_path=str(source))
+    app = CopyHarness()
+    app.current_artifacts_subtab = "files"
+    app.files_pane = _files_pane(entry)
+
+    for key in ("percent_sign", "p", "o", "l"):
+        assert app._handle_copy_key(key) is True
+
+    assert [value for value, _message in app.copies] == [
+        "artifact contents",
+        str(stored),
+        str(source),
+        entry.label,
+    ]
+
+
+def test_files_marked_paths_preserve_visible_order(tmp_path: Path) -> None:
+    first = _artifact_file(
+        tmp_path / "first.txt",
+        artifact_id="default:111111111111111111111111",
+        label="first",
+    )
+    second = _artifact_file(
+        tmp_path / "second.txt",
+        artifact_id="default:222222222222222222222222",
+        label="second",
+    )
+    app = CopyHarness()
+    app.current_artifacts_subtab = "files"
+    app.files_pane = _files_pane(first, second)
+    app._artifacts_marked_targets = {"files": {("file", first.id), ("file", second.id)}}
+
+    assert app._handle_copy_key("p") is True
+
+    assert app.copies == [(f"{first.path}\n{second.path}", "Copied 2 stored paths")]
+
+
+def test_files_binary_contents_refuse_with_kind_named_warning(
+    tmp_path: Path,
+) -> None:
+    entry = _artifact_file(tmp_path / "image.png", kind="image")
+    pane = _files_pane(entry)
+    pane.selected_view_mode = "image"
+    app = CopyHarness()
+    app.current_artifacts_subtab = "files"
+    app.files_pane = pane
+
+    assert app._handle_copy_key("percent_sign") is True
+
+    assert app.copies == []
+    assert app.notifications[-1] == (
+        "Cannot copy image contents; that artifact file is binary",
+        "warning",
+    )
+
+
+def test_files_reference_resolution_is_context_free_and_serializes_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = _artifact_file(tmp_path / "stored.txt")
+    pane = _files_pane(entry)
+    items = _resolution.reference_items_for_targets(
+        "files",
+        pane,
+        (("file", entry.id),),
+    )
+    selection = ArtifactReferenceSelection(
+        subtab="files",
+        items=items,
+        marked=False,
+        prompt_project="sase",
+        prompt_display_name="sase",
+        prompt_project_file="/tmp/sase.sase",
+    )
+    context = MagicMock(side_effect=AssertionError("context should not be built"))
+    monkeypatch.setattr(_resolution, "artifact_ref_context", context)
+
+    resolved = _resolution.resolve_artifact_selection(
+        selection,
+        include_metadata=True,
+    )
+
+    context.assert_not_called()
+    assert resolved.items[0].reference == f"file:{entry.id}"
+    assert resolved.items[0].metadata is not None
+    assert resolved.items[0].metadata["ref"] == f"file:{entry.id}"
+    assert json.loads(json.dumps(resolved.items[0].metadata))["label"] == entry.label
 
 
 @pytest.mark.parametrize("key", ["at", "exclamation_mark"])
@@ -257,6 +397,19 @@ def test_bugs_copy_targets_include_an_agent_ready_prompt(
                 ("t", "title"),
                 ("p", "agent prompt"),
                 ("J", "JSON"),
+                ("!", "agent + @ref"),
+                ("s", "snap"),
+            ],
+        ),
+        (
+            "files",
+            [
+                ("%", "contents"),
+                ("@", "@ref"),
+                ("p", "path"),
+                ("o", "source"),
+                ("l", "label"),
+                ("j", "JSON"),
                 ("!", "agent + @ref"),
                 ("s", "snap"),
             ],

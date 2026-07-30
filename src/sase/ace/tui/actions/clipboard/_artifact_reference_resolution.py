@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sase.artifact_cli.references import resolve_cli_reference
+from sase.artifact_cli.references import artifact_file_json_dict, resolve_cli_reference
+from sase.core.artifact_file_types import ArtifactFile
 from sase.artifact_refs import artifact_ref_context, reference_for_entry_target
 
 from ...widgets.artifacts.chats_list import chat_row_target
@@ -104,6 +105,26 @@ def reference_items_for_targets(
                     kind_label="chat",
                 )
             )
+    elif subtab == "files":
+        entries = pane.entries_for_targets(targets)
+        entries_by_target: dict[tuple[str, ...], Any] = {
+            ("file", entry.id): entry for entry in entries
+        }
+        for target in targets:
+            entry = entries_by_target.get(target)
+            if entry is None:
+                continue
+            items.append(
+                ArtifactReferenceItem(
+                    entry.label,
+                    target,
+                    entry,
+                    entry.project,
+                    entry.workspace_dir or cwd,
+                    markdown_label=entry.label,
+                    kind_label="artifact file",
+                )
+            )
     else:
         issues = getattr(pane, "issues", ())
         issues_by_target: dict[tuple[str, ...], Any] = {
@@ -141,6 +162,25 @@ def resolve_artifact_selection(
     resolved_items: list[ResolvedArtifactItem] = []
     failures: list[str] = []
     for item in selection.items:
+        if selection.subtab == "files":
+            reference = reference_for_entry_target(
+                selection.subtab,
+                item.target,
+                context=None,
+                row=item.row,
+            )
+            if reference is None:
+                failures.append(
+                    _missing_reference_message(selection.subtab, item.label)
+                )
+                continue
+            metadata = (
+                artifact_file_json_dict(item.row)
+                if include_metadata and isinstance(item.row, ArtifactFile)
+                else None
+            )
+            resolved_items.append(ResolvedArtifactItem(item, reference, metadata))
+            continue
         context_key = (item.workspace_dir, item.project)
         context = contexts.get(context_key)
         if context is None:
@@ -190,6 +230,8 @@ def _missing_reference_message(subtab: str, label: str) -> str:
         reason = "it is an imported transcript outside the chats root"
     elif subtab == "plans":
         reason = "it has no canonical document reference"
+    elif subtab == "files":
+        reason = "it has no durable file id"
     else:
         reason = "its artifact identity is incomplete"
     return f"{label} cannot be referenced because {reason}"

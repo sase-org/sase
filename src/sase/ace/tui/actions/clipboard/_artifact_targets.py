@@ -4,11 +4,20 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import partial
+import json
 from typing import Any
 
+from sase.artifact_cli.references import artifact_file_json_dict
 from sase.core.agent_identity_facade import present_agent_name
 from sase.core.commit_footer_facade import parse_commit_footer
 
+from ...graphics._viewer_render import artifact_file_view_mode
+from ...models.artifact_file_clipboard import (
+    ArtifactFilePathCopy,
+    artifact_file_clipboard_path,
+    artifact_file_resolved_stored_path,
+    artifact_file_source_clipboard_path,
+)
 from ...widgets.artifacts.chats_list import chat_row_target
 from ...widgets.artifacts.plans_list import plan_row_target
 from ._base import ClipboardBase
@@ -135,6 +144,74 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
             copied_message="Copied chat transcript",
             task_name="sase-chat-copy-transcript",
             content_shaped=True,
+        )
+
+    def _copy_file_target(self, target: str) -> None:
+        pane = self._files_pane()  # type: ignore[attr-defined]
+        marked = self._visible_marked_targets(pane)
+        if marked is not None:
+            self._copy_marked_file_targets(pane, marked, target)
+            return
+        entry = pane.selected_entry if pane is not None else None
+        if entry is None:
+            self.notify("No artifact file selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        if target == "contents":
+            view_mode = pane.selected_view_mode
+            if view_mode not in {"markdown", "text"}:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Cannot copy {view_mode or entry.kind} contents; "
+                    "that artifact file is binary",
+                    severity="warning",
+                )
+                return
+            self._schedule_artifacts_copy(
+                partial(_artifact_file_contents, entry),
+                copied_message=f"Copied contents of {entry.label}",
+                task_name="sase-file-copy-contents",
+                content_shaped=True,
+            )
+            return
+
+        if target == "label":
+            self._schedule_artifacts_copy(
+                entry.label,
+                copied_message="Copied artifact file label",
+            )
+            return
+        if target == "json":
+            self._schedule_artifacts_copy(
+                json.dumps(artifact_file_json_dict(entry), indent=2),
+                copied_message="Copied artifact file metadata JSON",
+            )
+            return
+
+        copy_path: ArtifactFilePathCopy | None = None
+
+        def value() -> str:
+            nonlocal copy_path
+            copy_path = (
+                artifact_file_clipboard_path(entry)
+                if target == "path"
+                else artifact_file_source_clipboard_path(entry)
+            )
+            if copy_path is None:
+                raise ValueError(
+                    f"{entry.label} has no "
+                    f"{'stored' if target == 'path' else 'source'} path"
+                )
+            return copy_path.text
+
+        def copied_message() -> str:
+            assert copy_path is not None
+            suffix = " (no longer exists)" if copy_path.missing else ""
+            return f"Copied {copy_path.label}{suffix}: {copy_path.text}"
+
+        self._schedule_artifacts_copy(
+            value,
+            copied_message=copied_message,
+            task_name=f"sase-file-copy-{target}",
         )
 
     def _copy_bug_target(self, target: str) -> None:
@@ -300,6 +377,97 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
             task_name="sase-chat-copy-marked",
         )
 
+    def _copy_marked_file_targets(
+        self,
+        pane: Any,
+        targets: tuple[tuple[str, ...], ...],
+        target: str,
+    ) -> None:
+        if not targets:
+            return
+        entries = pane.entries_for_targets(targets)
+        if not entries:
+            self.notify(  # type: ignore[attr-defined]
+                "No marked artifact files are available to copy", severity="warning"
+            )
+            return
+
+        if target == "label":
+            self._schedule_artifacts_copy(
+                "\n".join(entry.label for entry in entries),
+                copied_message=f"Copied {len(entries)} artifact file labels",
+            )
+            return
+        if target == "json":
+            self._schedule_artifacts_copy(
+                json.dumps(
+                    [artifact_file_json_dict(entry) for entry in entries],
+                    indent=2,
+                ),
+                copied_message=f"Copied {len(entries)} metadata JSON records",
+            )
+            return
+
+        state = {"successes": 0, "failures": 0, "missing": 0}
+
+        def path_values() -> str:
+            values: list[str] = []
+            for entry in entries:
+                copy_path = (
+                    artifact_file_clipboard_path(entry)
+                    if target == "path"
+                    else artifact_file_source_clipboard_path(entry)
+                )
+                if copy_path is None:
+                    state["failures"] += 1
+                    continue
+                values.append(copy_path.text)
+                state["missing"] += int(copy_path.missing)
+            state["successes"] = len(values)
+            if not values:
+                path_kind = "stored" if target == "path" else "source"
+                raise ValueError(f"marked artifact files have no {path_kind} paths")
+            return "\n".join(values)
+
+        if target in {"path", "source"}:
+
+            def path_message() -> str:
+                path_kind = "stored" if target == "path" else "source"
+                message = f"Copied {state['successes']} {path_kind} paths"
+                if state["failures"]:
+                    message += f" — {state['failures']} unavailable"
+                if state["missing"]:
+                    message += f" — {state['missing']} no longer exist"
+                return message
+
+            self._schedule_artifacts_copy(
+                path_values,
+                copied_message=path_message,
+                task_name=f"sase-file-copy-marked-{target}",
+            )
+            return
+
+        contents: list[tuple[str, str | Callable[[], str]]] = []
+        binary_modes: list[str] = []
+        for entry in entries:
+            view_mode = artifact_file_view_mode(entry.path, kind=entry.kind)
+            if view_mode not in {"markdown", "text"}:
+                binary_modes.append(view_mode or entry.kind)
+                continue
+            contents.append((entry.label, partial(_artifact_file_contents, entry)))
+        if not contents:
+            kinds = ", ".join(dict.fromkeys(binary_modes))
+            self.notify(  # type: ignore[attr-defined]
+                f"Cannot copy marked {kinds or 'binary'} artifact-file contents",
+                severity="warning",
+            )
+            return
+        self._schedule_marked_copy(
+            contents,
+            plural_label="artifact-file contents",
+            task_name="sase-file-copy-marked-contents",
+        )
+
     def _copy_marked_bug_targets(
         self,
         pane: Any,
@@ -432,6 +600,13 @@ def _commit_plan_reference(message: str) -> str | None:
         None,
     )
     return None if tag is None else tag.label
+
+
+def _artifact_file_contents(entry: Any) -> str:
+    path = artifact_file_resolved_stored_path(entry)
+    if path is None:
+        raise ValueError(f"{entry.label} has no stored path")
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
 def _bug_prompt(pane: Any, issue: Any, project: str) -> str:

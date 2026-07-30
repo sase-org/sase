@@ -91,7 +91,14 @@ class ClipboardArtifactsMixin(
                 ),
             }
         elif subtab == "files":
-            handlers = {}
+            handlers = {
+                str(subtab_keys["contents"]): lambda: self._copy_file_target(
+                    "contents"
+                ),
+                str(subtab_keys["path"]): lambda: self._copy_file_target("path"),
+                str(subtab_keys["source"]): lambda: self._copy_file_target("source"),
+                str(subtab_keys["label"]): lambda: self._copy_file_target("label"),
+            }
         else:
             handlers = {
                 str(subtab_keys["number"]): lambda: self._copy_bug_target("number"),

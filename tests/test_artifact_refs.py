@@ -419,6 +419,14 @@ def test_reference_for_each_entry_target_shape(tmp_path: Path) -> None:
         )
         == "plans:202607/proposal.md"
     )
+    assert (
+        artifact_refs.reference_for_entry_target(
+            "files",
+            ("file", "default:0123456789abcdef01234567"),
+            context=None,
+        )
+        == "file:default:0123456789abcdef01234567"
+    )
 
 
 def test_reference_rendering_declines_unrepresentable_rows(tmp_path: Path) -> None:

@@ -96,8 +96,13 @@ class CopyModeKeymaps(ModeKeymaps):
                 "snapshot": "s",
             },
             "artifacts_files": {
+                "contents": "percent_sign",
                 "reference": "at",
                 "handoff": "exclamation_mark",
+                "path": "p",
+                "source": "o",
+                "label": "l",
+                "json": "j",
                 "snapshot": "s",
             },
             "artifacts_bugs": {
