@@ -28,8 +28,21 @@ lifecycle subcommands (`prune`, `reclaim`, `trash`) are operator tools — see
 3. Report the `id:`, `source:`, stored `path:`, and durable `ref:` printed by the command. The `ref:` line (`file:<id>`)
    is the copyable name to hand to the user or to another agent.
 
+If the artifact is evidence for a bead, persist the minted reference on that bead as part of creation:
+
+```bash
+sase artifact create -p <path> -l "<label>" --bead        # uses SASE_BEAD_ID
+sase artifact create -p <path> -l "<label>" --bead <id>   # explicit bead
+```
+
+`--bead` appends the new `file:` reference to the bead's `refs` list through the same write path as `sase bead ref add`.
+Passing bare `--bead` outside an agent run with `SASE_BEAD_ID` fails instead of silently creating an unattached
+artifact.
+
 Options:
 
+- `-b, --bead [ID]` attaches the minted `file:` reference to a bead. Bare `--bead` uses the current agent's
+  `SASE_BEAD_ID`; a value attaches to that explicit bead.
 - `-k, --kind` may be one of `chat`, `plan`, `image`, `markdown`, `pdf`, or `file`. Omit it to infer from the file
   extension.
 - `-l, --label` sets the artifact-file display name (defaults to the source file name).

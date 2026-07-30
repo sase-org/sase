@@ -18,9 +18,11 @@ DESCRIPTION:
 
   <BODY>
 PARENT: <PARENT>
-BUG: <BUG>
 PR: <PR>
+BUG: <BUG>
 STATUS: <STATUS>
+REFS:
+  <ARTIFACT_REFERENCE>
 COMMITS:
   <COMMIT_ENTRIES>
 DELTAS:
@@ -204,6 +206,33 @@ These transitions are enforced by the status state machine. Terminal statuses ar
 - Move to `Ready` when the PR is ready for review
 - Move to `Mailed` when sent out for review
 - Update status as work progresses through the lifecycle
+
+### REFS
+
+Stores durable artifact references that justify or contextualize the change. Entries are one canonical reference token
+per 2-space-indented line, without the prompt-time `@` sigil.
+
+**Entry format:**
+
+```
+REFS:
+  research:202607/artifact_capture_and_retention/artifact_capture_and_retention.md
+  file:default:0123456789abcdef01234567
+  bead:sase-b7
+```
+
+Accepted kinds include `file:`, `chat:`, `bug:`, `commit:`, `agent:`, `bead:`, and configured document roles such as
+`plans:` and `research:`. `sase changespec ref add` normalizes entries before writing, deduplicates them while
+preserving first-write order, and stores the canonical rendered form. Hand-edited entries are preserved by the parser so
+`sase doctor -C project.changespec_refs` can report malformed or unresolved references instead of silently erasing them.
+
+Use the command group instead of editing the section by hand:
+
+```bash
+sase changespec ref add -c <name> research:202607/report.md
+sase changespec ref list -c <name> --resolve
+sase changespec ref rm -c <name> research:202607/report.md
+```
 
 ### COMMITS
 

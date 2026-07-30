@@ -16,6 +16,7 @@ metadata.
   - [Status Lifecycle](#status-lifecycle)
   - [Bead Claim Lifecycle](#bead-claim-lifecycle)
   - [Dependencies](#dependencies)
+  - [Artifact References](#artifact-references)
 - [Storage](#storage)
   - [Directory Structure](#directory-structure)
   - [Event Log + Compatibility Projections](#event-log-compatibility-projections)
@@ -40,6 +41,9 @@ sase bead list --status=closed                          # List closed issues
 sase bead search auth                                   # Search issues in every status
 sase bead ready                                         # Show issues ready to work on
 sase bead show beads-001                                # View issue details
+sase bead ref add beads-001 research:202607/report.md   # Attach durable context
+sase bead ref list beads-001 --resolve                  # List references and resolution state
+sase bead ref rm beads-001 research:202607/report.md    # Detach a reference
 sase bead update beads-001.1 --status=in_progress       # Claim an issue
 sase bead note beads-001.1 "Verified with just check"   # Append an attributed note
 sase bead open beads-001.1                              # Reopen an issue
@@ -174,6 +178,26 @@ provenance in `--format full`. `sase bead dep tree` walks the same graph when a 
 Removing a dependency appends a `dependency_removed` event rather than editing or erasing the original add event, so
 history keeps both the mistake and its correction.
 
+### Artifact References
+
+Every bead can carry a `refs` list: an ordered, deduplicated set of canonical artifact references. This is distinct from
+`design`. `design` points to the one plan that produced the bead; `refs` can point to many supporting artifacts such as
+research reports, explicit files, related beads, agents, commits, bugs, chats, or configured document roles.
+
+Reference entries are stored without the prompt-time `@` sigil:
+
+```bash
+research:202607/artifact_capture_and_retention/artifact_capture_and_retention.md
+file:default:0123456789abcdef01234567
+bead:sase-b7
+```
+
+Write commands parse and normalize references before storing them, deduplicate repeated entries while preserving
+first-write order, and do not require the reference to resolve on the current machine. That matches the durable,
+cross-machine purpose of the field: a reference may be valid even when this checkout does not have the sidecar, artifact
+row, or agent history needed to resolve it locally. `sase bead doctor` performs the resolution audit and reports
+references with unknown namespaces, missing targets, or ambiguous targets.
+
 ## Storage
 
 ### Directory Structure
@@ -263,10 +287,10 @@ derives the page path from the ID without reading `issues.jsonl`, then reports t
 published. Run `sase bead pages refresh --write` to publish or repair bead pages before sharing durable `@bead:` refs.
 
 Pages are generated projections, not hand-maintained state. They are rebuilt from the canonical bead event store plus
-the primary repository's commit history, and they link to the bead's plan, parent and child beads, dependencies,
-associated agents, and commits. Current commits use a structured `SASE_BEAD=<id>` footer tag instead of a subject-line
-parenthetical; historical commits with trailing `(<bead-id>)` subjects are still recognized when the ID exists in the
-store.
+the primary repository's commit history, and they link to the bead's plan, artifact references, parent and child beads,
+dependencies, associated agents, and commits. Current commits use a structured `SASE_BEAD=<id>` footer tag instead of a
+subject-line parenthetical; historical commits with trailing `(<bead-id>)` subjects are still recognized when the ID
+exists in the store.
 
 ```bash
 sase bead pages refresh                 # dry run; writes nothing
@@ -354,6 +378,7 @@ Create a new issue.
 | `-c, --changespec`  | no       | Attach a ChangeSpec name to a plan bead                                                                                                                                                                                              |
 | `-b, --bug-id`      | no       | Bug ID for the attached ChangeSpec; requires `--changespec`                                                                                                                                                                          |
 | `-m, --model`       | no       | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase beads it is the per-phase work model. |
+| `-R, --ref`         | no       | Artifact reference to attach to the bead; repeatable and stored canonically                                                                                                                                                          |
 | `-z, --size`        | no       | Phase size: `xsmall`, `small`, `medium`, `large`, or `xlarge`. Valid only on phase beads; an omitted legacy/manual value behaves as `small`.                                                                                         |
 
 ChangeSpec metadata is valid only on plan beads. It is used by the epic-approval and `sase bead work` flows to keep plan
@@ -406,6 +431,32 @@ records `dependency_removed` events and then reports whether the source bead is 
 | `tree`     | `-L, --levels`    | non-negative integer                       | Maximum levels to descend; `0` means unlimited   |
 | `tree`     | `-s, --status`    | `open`, `claimed`, `in_progress`, `closed` | Filter by bead status (repeatable)               |
 
+### `sase bead ref`
+
+Inspect and manage artifact references attached to beads. With no child subcommand, `sase bead ref` delegates to
+`sase bead ref list`.
+
+```bash
+sase bead ref add <id> <ref> [<ref2> ...]
+sase bead ref list [<id>]
+sase bead ref list <id> --resolve
+sase bead ref rm <id> <ref> [<ref2> ...]
+```
+
+`ref add` normalizes every supplied reference, appends entries that are not already present, and reports a no-op when
+the bead already carries all of them. `ref rm` removes the supplied normalized references and leaves absent entries
+alone. Both commands record per-reference events, so concurrent agents attaching different references do not replace
+each other's entries.
+
+`ref list` prints stored canonical references. With `--resolve`, it also reports where each reference resolves from the
+current workspace, or that it resolves nowhere. The optional bead ID scopes the listing to one bead; without it, the
+command lists beads in the current store that carry references. Add `--json` for a stable machine-readable response.
+
+| Subcommand | Flag            | Description                                      |
+| ---------- | --------------- | ------------------------------------------------ |
+| `list`     | `-j, --json`    | Emit machine-readable reference data             |
+| `list`     | `-r, --resolve` | Resolve references against the current workspace |
+
 ### `sase bead doctor`
 
 Run health checks on the beads database. Checks for:
@@ -416,6 +467,8 @@ Run health checks on the beads database. Checks for:
 - Invalid events or unreduced orphan phase records
 - Uncommitted bead-state changes
 - Orphan children (phase or nested-plan beads whose parent is missing)
+- Legacy or unresolved `design` plan references
+- Artifact references with unknown namespaces, missing targets, or ambiguous targets
 - `claimed` beads whose assignee resolves to no agent artifact (reported only; run `sase bead open <id>` to clear them)
 - `open` beads owned by a live agent that has not started work yet (reported only; it means the `bead_claim_checks` chop
   is not running or is failing, since it should have claimed them)
@@ -517,10 +570,10 @@ unchanged. Overlapping or repeated selections remove and print each issue only o
 ### `sase bead search <query>`
 
 Find beads whose indexed text fields contain a case-insensitive literal substring. This is substring search, not regex
-or glob matching. Current indexed fields include ID, title, description, notes, design/plan path, owner, assignee,
-model, phase size, ChangeSpec name/bug ID, status, type, and tier; timestamps are not searched. Unlike `sase bead list`,
-search includes `open`, `claimed`, `in_progress`, and `closed` beads by default, so it is the quickest way to recover
-older context.
+or glob matching. Current indexed fields include ID, title, description, notes, design/plan path, artifact references,
+owner, assignee, model, phase size, ChangeSpec name/bug ID, status, type, and tier; timestamps are not searched. Unlike
+`sase bead list`, search includes `open`, `claimed`, `in_progress`, and `closed` beads by default, so it is the quickest
+way to recover older context.
 
 Compact output prints each matching bead with a short snippet. For multi-line fields such as descriptions or notes, the
 snippet uses the line that matched the query when possible instead of always showing the first line. JSON output exposes
@@ -546,11 +599,11 @@ sase bead search auth --type plan --tier epic
 ### `sase bead show <id>`
 
 Display complete details for an issue including status, type, tier, parent lineage, dependencies, blockers, description,
-notes, ChangeSpec metadata, model, linked plan path, and the hosted page URL when one resolves locally. Closed beads
-include their resolution, close reason, and close timestamp; legacy closures without a resolution show `(unrecorded)`.
-Phase beads show their effective size (`small` for legacy beads without a stored size). Any bead's children are grouped
-as phases (with status and size) and child epics (with tier and status), including child epics owned by a phase bead.
-Nested beads show their complete lineage back to the root plan. A `claimed` bead also prints
+notes, ChangeSpec metadata, model, linked plan path, artifact references, and the hosted page URL when one resolves
+locally. Closed beads include their resolution, close reason, and close timestamp; legacy closures without a resolution
+show `(unrecorded)`. Phase beads show their effective size (`small` for legacy beads without a stored size). Any bead's
+children are grouped as phases (with status and size) and child epics (with tier and status), including child epics
+owned by a phase bead. Nested beads show their complete lineage back to the root plan. A `claimed` bead also prints
 `Claimed by: <assignee> (agent has not started working yet)`.
 
 `full` is the default detail block. `compact` prints the same single row as `sase bead list`. `json` emits a single-bead

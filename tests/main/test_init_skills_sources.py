@@ -140,6 +140,7 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
                 "sase artifact path",
                 "sase artifact open",
                 "sase artifact doctor",
+                'sase artifact create -p <path> -l "<label>" --bead',
             ),
         ),
         (
@@ -184,6 +185,18 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
                 "${SASE_SDD_PLANS_DIR}/202605/auth.md",
                 "the description starts with that phase's slug ID followed by `: `",
                 "login: add the endpoint and its auth checks.",
+                "sase bead ref add <id> <ref> [<ref2> ...]",
+                "artifact-reference health checks",
+            ),
+        ),
+        (
+            "sase_changespecs",
+            (
+                "sase changespec current -f markdown",
+                "sase changespec search '<query>' -f markdown",
+                "ChangeSpecs can carry a `REFS:` section",
+                "sase changespec ref add -c <name>",
+                "project.changespec_refs",
             ),
         ),
         (

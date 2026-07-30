@@ -1,7 +1,8 @@
 ---
 name: sase_beads
 description:
-  Reference for sase bead commands (create, update, close, list, search, ready, show, dep). Use when working with beads.
+  Reference for sase bead commands (create, update, close, list, search, ready, show, dep, ref). Use when working with
+  beads.
 skill: true
 ---
 
@@ -92,10 +93,12 @@ sase bead create --title "Sub-plan" --type "plan(${SASE_SDD_PLANS_DIR}/202605/su
 
 # With optional fields
 sase bead create --title "..." --type "phase(<id>)" --description "Details here" --assignee alice --size medium
+sase bead create --title "..." --type "phase(<id>)" --ref research:202607/report.md
 ```
 
 `--type` / `-T` is required. Syntax: `plan(<plan_file>)`, `plan(<plan_file>,<parent_id>)`, or `phase(<parent_id>)`.
 `--size` / `-z` accepts `xsmall|small|medium|large|xlarge` and controls plan-first prompting and default model routing.
+`--ref` / `-R` attaches a durable artifact reference to the bead and can be repeated.
 
 ### update
 
@@ -265,11 +268,11 @@ sase bead show <id> --format json
 ```
 
 Displays full details: status, type, tier, owner, assignee, model, parent, children, dependencies, blocks, description,
-notes, and linked design file. A closed bead also shows its resolution, close reason, and close timestamp; use
-`sase bead history <id>` to read how any of those fields got their current value. `full` is the default; `compact`
-prints the same single row as `sase bead list`. `json` emits a single-bead envelope with `issue`, `ancestors`,
-`children`, `depends_on`, `blocks`, and `plan`. Every relationship reference has a `resolved` flag, with unresolved IDs
-retaining fixed null-valued fields.
+notes, linked design file, artifact references, and each reference's current resolution when context is available. A
+closed bead also shows its resolution, close reason, and close timestamp; use `sase bead history <id>` to read how any
+of those fields got their current value. `full` is the default; `compact` prints the same single row as
+`sase bead list`. `json` emits a single-bead envelope with `issue`, `ancestors`, `children`, `depends_on`, `blocks`, and
+`plan`. Every relationship reference has a `resolved` flag, with unresolved IDs retaining fixed null-valued fields.
 
 ### dep
 
@@ -292,17 +295,33 @@ follows what waits on the root, and `--direction both` renders both. It marks re
 on. The removal is all-or-nothing, records `dependency_removed` events, and prints whether the source bead is now ready
 or still blocked.
 
+### ref
+
+```bash
+sase bead ref list [<id>]                       # list stored artifact references
+sase bead ref list <id> --resolve               # include current resolution status
+sase bead ref list <id> --json                  # machine-readable reference data
+sase bead ref add <id> <ref> [<ref2> ...]       # attach references
+sase bead ref rm <id> <ref> [<ref2> ...]        # detach references
+```
+
+`sase bead ref` with no child subcommand delegates to `sase bead ref list`. Store references without the prompt-time `@`
+sigil, for example `research:202607/report.md`, `file:default:<id>`, or `bead:sase-b7`. Add and remove normalize
+references through the shared artifact-reference parser; they do not require the reference to resolve on this machine.
+Use `--resolve` when listing if you need the current path or unresolved marker.
+
 ### other commands
 
 - `sase bead blocked` — list blocked beads with their blockers.
 - `sase bead rm <id> [<id2> ...]` — remove beads and all their children.
 - `sase bead stats` — show project statistics.
 - `sase bead sync` — stage bead state in git.
-- `sase bead doctor` — run bead-store and plan-link health checks.
+- `sase bead doctor` — run bead-store, plan-link, and artifact-reference health checks.
 - `sase bead doctor --fix-design-refs` — preview recoverable legacy plan links and repair them only after an interactive
   default-no confirmation.
 - `sase bead doctor --fix-projection` — preview `issues.jsonl` drift against canonical event streams and repair only the
   expected projection shape after confirmation.
+- `sase bead doctor` reports artifact references with unknown namespaces, missing targets, or ambiguous targets.
 - `sase bead work <epic-id|plan.md>` — launch an epic's phase and land agents (`--dry-run` previews). Normally driven by
   plan approval; do not run it casually from a working agent.
 
