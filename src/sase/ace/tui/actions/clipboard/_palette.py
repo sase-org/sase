@@ -16,6 +16,7 @@ from ...commands import (
 )
 from ...copy_targets import copy_targets_for
 from ...keymaps import footer_key_display
+from ...models.artifact_file_clipboard import artifact_file_preferred_path_text
 
 if TYPE_CHECKING:
     from ...modals.copy_as_types import CopyAsContext
@@ -661,7 +662,7 @@ def _file_target_values(pane: Any, entry: Any | None) -> dict[str, str]:
         "contents": " · ".join(part for part in (view_mode, size) if part),
         "reference": f"@{reference}" if reference else "",
         "link": f"[{label}]({reference})" if label and reference else "",
-        "path": str(getattr(entry, "path", "") or ""),
+        "path": artifact_file_preferred_path_text(entry)[0],
         "source": str(getattr(entry, "source_path", "") or ""),
         "label": label,
         "json": metadata_hint,

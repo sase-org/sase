@@ -31,6 +31,7 @@ from ..models.artifact_file_clipboard import (
     ArtifactFilePathCopy,
     artifact_file_clipboard_path,
     artifact_file_clipboard_workspace_dir,
+    artifact_file_preferred_path_text,
     artifact_file_resolved_stored_path,
     artifact_file_source_clipboard_path,
 )
@@ -77,10 +78,7 @@ def _artifact_file_path(artifact_file: Any) -> str:
 
 
 def _artifact_file_display_path(artifact_file: Any) -> str:
-    source_path = str(getattr(artifact_file, "source_path", "") or "")
-    if getattr(artifact_file, "kind", None) == "pdf" and source_path:
-        return source_path
-    return _artifact_file_path(artifact_file)
+    return artifact_file_preferred_path_text(artifact_file)[0]
 
 
 def _artifact_file_workspace_dir(artifact_file: Any) -> str | None:

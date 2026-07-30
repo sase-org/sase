@@ -16,6 +16,7 @@ from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.copy_as_modal import CopyAsModal
 from sase.ace.tui.modals.copy_as_types import CopyAsContext, CopyAsRow
 from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
+from sase.ace.tui.models.artifact_file_clipboard import artifact_file_clipboard_path
 from sase.ace.tui.widgets import KeybindingFooter
 from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
 
@@ -261,6 +262,28 @@ def test_files_rows_filter_binary_contents_and_missing_source_from_warm_state() 
         "handoff",
         "snapshot",
     }
+
+
+def test_files_pdf_row_previews_the_source_path_its_copy_actually_yields() -> None:
+    app = _PaletteHarness()
+    app.current_artifacts_subtab = "files"
+    entry = _file_entry(
+        "explicit:aaaaaaaaaaaaaaaaaaaaaaaa",
+        label="Copy report",
+        kind="pdf",
+        path="/workspace/artifacts/report.pdf",
+        source_path="/workspace/notes/report.md",
+        size_bytes=8192,
+    )
+    app.files_pane = _file_pane((entry,), view_modes={entry.id: "pdf"})
+
+    context = build_copy_as_context(app)
+
+    assert context is not None
+    path = next(row for row in context.rows if row.target == "path")
+    copied = artifact_file_clipboard_path(entry)
+    assert copied is not None
+    assert path.preview == copied.text == "/workspace/notes/report.md"
 
 
 def test_marked_files_keep_partially_representable_targets_with_warm_counts() -> None:

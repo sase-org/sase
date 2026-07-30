@@ -21,6 +21,23 @@ class ArtifactFilePathCopy:
         return "stored path" if self.origin == "stored" else "source path"
 
 
+def artifact_file_preferred_path_text(artifact_file: Any) -> tuple[str, str]:
+    """Return the indexed path the ``Y`` verb prefers, without touching disk.
+
+    Stored paths are preferred, except that PDF records deliberately point back
+    to their live Markdown source when one is recorded. Surfaces that only name
+    or preview the path use this, so they cannot disagree with what a copy
+    yields; anchoring and liveness need :func:`artifact_file_clipboard_path`.
+    """
+
+    stored_text = str(getattr(artifact_file, "path", "") or "")
+    source_text = str(getattr(artifact_file, "source_path", "") or "")
+    prefers_source = bool(source_text and getattr(artifact_file, "kind", None) == "pdf")
+    if prefers_source or not stored_text:
+        return source_text, "source"
+    return stored_text, "stored"
+
+
 def artifact_file_clipboard_path(
     artifact_file: Any,
 ) -> ArtifactFilePathCopy | None:
@@ -32,13 +49,7 @@ def artifact_file_clipboard_path(
     is discoverable only through the agent artifact metadata.
     """
 
-    stored_text = str(getattr(artifact_file, "path", "") or "")
-    source_text = str(getattr(artifact_file, "source_path", "") or "")
-    prefers_source = bool(source_text and getattr(artifact_file, "kind", None) == "pdf")
-    if prefers_source or not stored_text:
-        path_text, origin = source_text, "source"
-    else:
-        path_text, origin = stored_text, "stored"
+    path_text, origin = artifact_file_preferred_path_text(artifact_file)
     return _path_copy(artifact_file, path_text, origin=origin)
 
 
@@ -133,6 +144,7 @@ __all__ = [
     "ArtifactFilePathCopy",
     "artifact_file_clipboard_path",
     "artifact_file_clipboard_workspace_dir",
+    "artifact_file_preferred_path_text",
     "artifact_file_resolved_stored_path",
     "artifact_file_source_clipboard_path",
 ]

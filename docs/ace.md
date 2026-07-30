@@ -364,8 +364,9 @@ described in [Navigation in Commits, Plans, Chats, Files, and Bugs](#navigation-
 `Y` copies the anchored stored path, except that PDF rows deliberately yield the live Markdown source they were rendered
 from when the index recorded one. Relative index paths are anchored to the producing workspace, so a copied path is
 always usable outside the workspace that created it, and the completion toast says when the copied path no longer
-exists. `%` adds the rest of the Files copy targets: contents, source path, label, and metadata JSON, each of which also
-operates on the marked set.
+exists. The palette previews that same preferred path, so what a PDF row shows is what `%p` copies. `%` adds the rest of
+the Files copy targets: contents, Markdown link, source path, label, and metadata JSON, each of which also operates on
+the marked set.
 
 `a` resolves the producing agent from already-loaded live and dismissed agents by artifact directory, then by raw name
 suffix, then by recorded agent name, always within the row's own project. A file whose source workspace was recycled

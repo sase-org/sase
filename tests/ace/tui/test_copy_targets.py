@@ -18,6 +18,7 @@ from sase.ace.tui.actions.clipboard._helpers import (
     cap_copy_content,
     format_multi_copy_content_capped,
 )
+from sase.ace.tui.actions.clipboard._palette import _DISPATCH_ORDER
 from sase.ace.tui.commands import build_command_catalog
 from sase.ace.tui.copy_targets import COPY_TARGETS, copy_targets_for
 from sase.ace.tui.keymaps import load_keymap_registry
@@ -53,6 +54,16 @@ def test_copy_target_registry_exactly_covers_default_keymap_targets() -> None:
         if isinstance(targets, dict)
         for target in targets
     }
+
+
+def test_palette_dispatch_order_covers_every_registered_copy_target() -> None:
+    """A target missing here loses its palette row and its accelerator."""
+
+    assert set(_DISPATCH_ORDER) == {target.group for target in COPY_TARGETS}
+    for group in _DISPATCH_ORDER:
+        assert set(_DISPATCH_ORDER[group]) == {
+            target.target for target in copy_targets_for(group)
+        }
 
 
 @pytest.mark.parametrize(
