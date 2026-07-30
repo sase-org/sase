@@ -99,9 +99,12 @@ def file_entry(
     *,
     label: str,
     kind: str,
-    path: str,
+    path: str | None,
     source_path: str | None,
     size_bytes: int,
+    vcs_repo: str | None = None,
+    vcs_sha: str | None = None,
+    vcs_relpath: str | None = None,
 ) -> Any:
     return SimpleNamespace(
         id=artifact_id,
@@ -112,6 +115,9 @@ def file_entry(
         size_bytes=size_bytes,
         project="sase",
         workspace_dir="/workspace",
+        vcs_repo=vcs_repo,
+        vcs_sha=vcs_sha,
+        vcs_relpath=vcs_relpath,
     )
 
 

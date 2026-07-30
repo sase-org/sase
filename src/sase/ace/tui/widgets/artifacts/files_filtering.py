@@ -282,7 +282,9 @@ def _file_matches(
             return False
 
     haystack = " ".join(
-        value for value in (row.label, row.path, row.source_path) if value
+        value
+        for value in (row.label, row.path, row.source_path, row.vcs_relpath)
+        if value
     ).casefold()
     return all(term.casefold() in haystack for term in values.text)
 

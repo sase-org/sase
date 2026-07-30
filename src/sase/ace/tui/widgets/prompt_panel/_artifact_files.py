@@ -38,6 +38,7 @@ class ArtifactFilePath:
     actual_path: str
     exists: bool = True
     view_mode: str = "text"
+    materializable: bool = False
 
 
 def append_artifact_file_paths(
@@ -50,14 +51,14 @@ def append_artifact_file_paths(
     """Append the selected agent's artifact-file path rows when available."""
     artifact_files = artifact_file_paths or []
     for artifact_file in artifact_files:
+        available = artifact_file.exists or artifact_file.materializable
         icon, icon_style = _artifact_file_icon(
-            artifact_file.view_mode,
-            exists=artifact_file.exists,
+            artifact_file.view_mode, exists=available
         )
         text.append(indent)
         text.append(icon, style=icon_style)
         text.append(" ")
-        if hint_state is not None:
+        if hint_state is not None and artifact_file.exists:
             text.append(f"[{hint_state.hint_counter}] ", style="bold #FFFF00")
             hint_state.hint_mappings[hint_state.hint_counter] = (
                 artifact_file.actual_path
@@ -66,10 +67,11 @@ def append_artifact_file_paths(
         append_artifact_file_path(
             text,
             artifact_file.display_path,
-            exists=artifact_file.exists,
+            exists=available,
         )
         if not artifact_file.exists:
-            text.append(" (missing)", style=_COLOR_MISSING_SUFFIX)
+            suffix = " (VCS-backed)" if artifact_file.materializable else " (missing)"
+            text.append(suffix, style=_COLOR_MISSING_SUFFIX)
         text.append("\n")
 
 
@@ -85,9 +87,12 @@ def artifact_file_paths(agent: Agent) -> list[ArtifactFilePath]:
         artifact_files = list_artifact_files(artifacts_dir)
     except Exception:
         return []
-    display_items: list[tuple[str, str | None, str | None, str]] = [
+    display_items: list[tuple[str, str | None, str | None, str, bool]] = [
         (
-            artifact_file.path,
+            artifact_file.path
+            or artifact_file.source_path
+            or artifact_file.vcs_relpath
+            or artifact_file.label,
             # Persisted default artifact files live in the global store under an
             # opaque digest-suffixed name. Their ``source_path`` records the
             # original workspace location, which is what users recognise — use
@@ -96,13 +101,17 @@ def artifact_file_paths(agent: Agent) -> list[ArtifactFilePath]:
             artifact_file.source_path if not artifact_file.explicit else None,
             artifact_file.workspace_dir,
             artifact_file_view_mode(
-                artifact_file.path,
+                artifact_file.path
+                or artifact_file.vcs_relpath
+                or artifact_file.source_path
+                or "",
                 kind=artifact_file.kind,
             )
             or "text",
+            artifact_file.is_vcs_backed,
         )
         for artifact_file in artifact_files
-        if artifact_file.path and artifact_file.kind not in {"chat", "pdf"}
+        if artifact_file.kind not in {"chat", "pdf"}
     ]
 
     # Aggregate follow-up prompt artifact files from child feedback agents onto
@@ -130,6 +139,7 @@ def artifact_file_paths(agent: Agent) -> list[ArtifactFilePath]:
                     None,
                     artifact_file.workspace_dir,
                     "markdown",
+                    False,
                 )
             )
 
@@ -137,11 +147,17 @@ def artifact_file_paths(agent: Agent) -> list[ArtifactFilePath]:
 
 
 def _dedupe_paths(
-    paths: list[tuple[str, str | None, str | None, str]],
+    paths: list[tuple[str, str | None, str | None, str, bool]],
     fallback_workspace_dir: str | None,
 ) -> list[ArtifactFilePath]:
     by_actual_path: dict[str, ArtifactFilePath] = {}
-    for path, display_source, artifact_workspace_dir, view_mode in paths:
+    for (
+        path,
+        display_source,
+        artifact_workspace_dir,
+        view_mode,
+        materializable,
+    ) in paths:
         workspace_dir = artifact_workspace_dir or fallback_workspace_dir
         actual_path = _resolve_actual_path(path, workspace_dir)
         display_path = _display_path(
@@ -153,8 +169,9 @@ def _dedupe_paths(
             ArtifactFilePath(
                 display_path=display_path,
                 actual_path=actual_path,
-                exists=os.path.exists(actual_path),
+                exists=False if materializable else os.path.exists(actual_path),
                 view_mode=view_mode,
+                materializable=materializable,
             ),
         )
     return list(by_actual_path.values())

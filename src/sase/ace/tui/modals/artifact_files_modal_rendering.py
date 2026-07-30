@@ -12,8 +12,8 @@ from sase.ace.tui.graphics import is_supported_video_path
 from ..models.artifact_file_clipboard import (
     ArtifactFilePathCopy,
     artifact_file_clipboard_workspace_dir,
+    artifact_file_materialized_stored_path,
     artifact_file_preferred_path_text,
-    artifact_file_resolved_stored_path,
 )
 
 _SELECTOR_KEYS = "1234567890abcdefghijklmnopqrstuvwxyz"
@@ -41,10 +41,6 @@ def _short_text(value: object, *, max_len: int, from_end: bool = False) -> str:
     return text[: max_len - 3] + "..."
 
 
-def artifact_file_path(artifact_file: Any) -> str:
-    return str(getattr(artifact_file, "path", "") or "")
-
-
 def _artifact_file_display_path(artifact_file: Any) -> str:
     return artifact_file_preferred_path_text(artifact_file)[0]
 
@@ -52,18 +48,6 @@ def _artifact_file_display_path(artifact_file: Any) -> str:
 def _artifact_file_workspace_dir(artifact_file: Any) -> str | None:
     workspace_dir = getattr(artifact_file, "workspace_dir", None)
     return workspace_dir if isinstance(workspace_dir, str) and workspace_dir else None
-
-
-def artifact_file_resolved_display_path(artifact_file: Any) -> Path | None:
-    path_text = _artifact_file_display_path(artifact_file)
-    if not path_text:
-        return None
-    path = Path(path_text).expanduser()
-    if not path.is_absolute():
-        workspace_dir = artifact_file_clipboard_workspace_dir(artifact_file)
-        if workspace_dir:
-            path = Path(workspace_dir).expanduser() / path
-    return path
 
 
 def _is_markdown_path(path: Path) -> bool:
@@ -92,7 +76,7 @@ def _artifact_file_kind(artifact_file: Any) -> str:
 
 
 def artifact_file_label(artifact_file: Any, *, max_len: int = _MAX_LABEL_LEN) -> str:
-    path = artifact_file_path(artifact_file)
+    path = str(getattr(artifact_file, "path", "") or "")
     fallback = Path(path).name if path else _artifact_file_kind(artifact_file)
     return _short_text(
         getattr(artifact_file, "label", None) or fallback,
@@ -130,7 +114,7 @@ def _home_relative_path(path: Path) -> str:
 def artifact_file_stored_clipboard_path(
     artifact_file: Any,
 ) -> ArtifactFilePathCopy | None:
-    path = artifact_file_resolved_stored_path(artifact_file)
+    path = artifact_file_materialized_stored_path(artifact_file)
     if path is None:
         return None
     return ArtifactFilePathCopy(_home_relative_path(path), "stored")

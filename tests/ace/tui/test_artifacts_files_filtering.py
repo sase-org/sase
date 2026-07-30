@@ -78,6 +78,24 @@ def test_repeatable_kind_is_or_while_free_text_terms_are_anded() -> None:
     assert filtered is not None and filtered.rows == (image, pdf)
 
 
+def test_free_text_filter_matches_vcs_relative_path() -> None:
+    row = replace(
+        artifact_file("tracked"),
+        path=None,
+        sha256="a" * 64,
+        vcs_repo="sase",
+        vcs_sha="b" * 40,
+        vcs_relpath="docs/build-result.png",
+    )
+
+    filtered = filter_files_snapshot(
+        snapshot((row,)),
+        parse_files_filter_query("build-result.png"),
+    )
+
+    assert filtered is not None and filtered.rows == (row,)
+
+
 def test_project_filter_accepts_display_name_without_rendering_storage_key() -> None:
     row = artifact_file("named", project="gh_sase-org__sase")
     projects = ProjectRefDisplaySnapshot(

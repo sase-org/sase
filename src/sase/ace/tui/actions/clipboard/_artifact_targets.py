@@ -10,11 +10,10 @@ from sase.core.agent_identity_facade import present_agent_name
 from sase.core.commit_footer_facade import parse_commit_footer
 from sase.artifact_refs import design_reference_for_plan_row
 
-from ...graphics._viewer_render import artifact_file_view_mode
 from ...models.artifact_file_clipboard import (
     ArtifactFilePathCopy,
     artifact_file_clipboard_path,
-    artifact_file_resolved_stored_path,
+    artifact_file_materialized_stored_path,
     artifact_file_source_clipboard_path,
 )
 from ...widgets.artifacts.chats_list import chat_row_target
@@ -452,7 +451,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
         contents: list[tuple[str, str | Callable[[], str]]] = []
         binary_modes: list[str] = []
         for entry in entries:
-            view_mode = artifact_file_view_mode(entry.path, kind=entry.kind)
+            view_mode = pane.snapshot.view_mode_for(entry)
             if view_mode not in {"markdown", "text"}:
                 binary_modes.append(view_mode or entry.kind)
                 continue
@@ -607,7 +606,7 @@ def _commit_plan_reference(message: str) -> str | None:
 
 
 def _artifact_file_contents(entry: Any) -> str:
-    path = artifact_file_resolved_stored_path(entry)
+    path = artifact_file_materialized_stored_path(entry)
     if path is None:
         raise ValueError(f"{entry.label} has no stored path")
     return path.read_text(encoding="utf-8", errors="replace")

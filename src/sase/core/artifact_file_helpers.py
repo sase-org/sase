@@ -135,6 +135,10 @@ def artifact_file_dedupe_key(artifact_file: ArtifactFile) -> str:
 
     if artifact_file.path:
         return path_key(artifact_file.path)
+    if not all(
+        (artifact_file.vcs_repo, artifact_file.vcs_relpath, artifact_file.sha256)
+    ):
+        return artifact_file.id
     return _vcs_identity(
         artifact_file.vcs_repo,
         artifact_file.vcs_relpath,

@@ -164,6 +164,11 @@ def test_marked_files_contents_report_pre_filtered_binary_rows(
         entries_for_targets=lambda requested: tuple(
             by_target[target] for target in requested if target in by_target
         ),
+        snapshot=SimpleNamespace(
+            view_mode_for=lambda entry: (
+                "markdown" if entry.kind == "markdown" else "image"
+            )
+        ),
     )
 
     assert app._handle_copy_key("percent_sign") is True

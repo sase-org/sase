@@ -149,3 +149,17 @@ def test_vcs_ids_and_dedupe_keys_are_stable_and_revision_specific() -> None:
     duplicate = ArtifactFile(**{**first.__dict__, "id": "duplicate"})
     assert artifact_file_dedupe_key(first) == artifact_file_dedupe_key(duplicate)
     assert dedupe_artifact_files([first, duplicate, second]) == [first, second]
+
+
+def test_dedupe_tolerates_byte_free_row_with_incomplete_provenance() -> None:
+    malformed = ArtifactFile(
+        id="default:malformed",
+        label="Malformed",
+        kind="image",
+        path=None,
+        vcs_repo="sase",
+        vcs_relpath="docs/malformed.png",
+    )
+
+    assert artifact_file_dedupe_key(malformed) == malformed.id
+    assert dedupe_artifact_files([malformed]) == [malformed]

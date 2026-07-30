@@ -8,7 +8,10 @@ from typing import Any
 from sase.core.commit_footer_facade import parse_commit_footer
 
 from ...copy_targets import copy_targets_for
-from ...models.artifact_file_clipboard import artifact_file_preferred_path_text
+from ...models.artifact_file_clipboard import (
+    artifact_file_has_stored_content,
+    artifact_file_preferred_path_text,
+)
 from ._palette_helpers import (
     marked_count_hint,
     marked_hint,
@@ -195,7 +198,7 @@ def _file_target_counts(pane: Any, entries: tuple[Any, ...]) -> dict[str, int]:
             bool(getattr(entry, "id", None) and getattr(entry, "label", None))
             for entry in entries
         ),
-        "path": sum(bool(getattr(entry, "path", None)) for entry in entries),
+        "path": sum(artifact_file_has_stored_content(entry) for entry in entries),
         "source": sum(bool(getattr(entry, "source_path", None)) for entry in entries),
         "label": sum(bool(getattr(entry, "label", None)) for entry in entries),
         "json": len(entries),

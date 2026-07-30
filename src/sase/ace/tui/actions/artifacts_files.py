@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Iterable
-from dataclasses import replace
 import os
 from pathlib import Path
 import subprocess
@@ -16,6 +15,8 @@ from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
 from sase.ace.tui.models.artifact_file_clipboard import (
     ArtifactFilePathCopy,
     artifact_file_clipboard_path,
+    materialize_artifact_file_entries as _materialize_artifact_file_entries,
+    materialize_artifact_file_entry as _materialize_artifact_file_entry,
 )
 from sase.ace.tui.util.external_tool import suspend_for_external_tool
 from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
@@ -504,36 +505,6 @@ def _read_artifact_file_text(path: str) -> str:
     """Read a stored text-like artifact with tolerant UTF-8 decoding."""
 
     return Path(path).expanduser().read_text(encoding="utf-8", errors="replace")
-
-
-def _materialize_artifact_file_entry(entry: ArtifactFile) -> ArtifactFile:
-    """Resolve one row to bytes; safe to call only from a worker thread."""
-
-    return _materialize_artifact_file_entries((entry,))[0]
-
-
-def _materialize_artifact_file_entries(
-    entries: Iterable[ArtifactFile],
-) -> tuple[ArtifactFile, ...]:
-    from sase.artifact_ref_context import launch_artifact_ref_context
-    from sase.core.artifact_file_vcs import materialize_artifact_file
-
-    accepted = tuple(entries)
-    if all(entry.path for entry in accepted):
-        return accepted
-    context = launch_artifact_ref_context(is_home_mode=False)
-    materialized: list[ArtifactFile] = []
-    for entry in accepted:
-        path = materialize_artifact_file(entry, repositories=context.repositories)
-        if path is None:
-            locator = (
-                f"{entry.vcs_repo}@{entry.vcs_sha}:{entry.vcs_relpath}"
-                if entry.is_vcs_backed
-                else entry.id
-            )
-            raise OSError(f"content unavailable for {locator}")
-        materialized.append(replace(entry, path=str(path)))
-    return tuple(materialized)
 
 
 __all__ = ["ArtifactsFilesActionsMixin", "FILES_ARTIFACT_ACTIONS"]

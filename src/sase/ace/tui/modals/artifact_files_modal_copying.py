@@ -18,14 +18,14 @@ from ..actions.clipboard import schedule_copy_delivery
 from ..models.artifact_file_clipboard import (
     ArtifactFilePathCopy,
     artifact_file_clipboard_path,
+    artifact_file_has_stored_content,
+    artifact_file_materialized_display_path,
     artifact_file_source_clipboard_path,
 )
 from .artifact_files_modal_rendering import (
     artifact_file_is_markdown,
     artifact_file_label,
-    artifact_file_path,
     artifact_file_reference,
-    artifact_file_resolved_display_path,
     artifact_file_stored_clipboard_path,
 )
 from .copy_as_modal import CopyAsModal
@@ -126,7 +126,8 @@ class ArtifactFileCopyingMixin(_MixinBase):
             artifact_file_is_markdown(artifact_file) for artifact_file in artifact_files
         )
         stored_count = sum(
-            bool(artifact_file_path(artifact_file)) for artifact_file in artifact_files
+            artifact_file_has_stored_content(artifact_file)
+            for artifact_file in artifact_files
         )
         source_count = sum(
             bool(getattr(artifact_file, "source_path", None))
@@ -365,7 +366,7 @@ class ArtifactFileCopyingMixin(_MixinBase):
     def _read_artifact_file_contents(artifact_file: Any) -> str:
         if not artifact_file_is_markdown(artifact_file):
             raise ValueError("artifact file is not Markdown")
-        path = artifact_file_resolved_display_path(artifact_file)
+        path = artifact_file_materialized_display_path(artifact_file)
         if path is None:
             raise ValueError("artifact file has no path")
         return path.read_text(encoding="utf-8", errors="replace")

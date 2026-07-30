@@ -28,6 +28,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_context_common import (
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
 from sase.core.artifact_file_facade import store_default_artifact_file
+from sase.core.artifact_file_types import ArtifactFile
 
 
 class _StubAgent:
@@ -143,6 +144,51 @@ def test_missing_persisted_artifact_renders_with_missing_suffix(
         and span.style == f"dim {COLOR_ARTIFACTS_SUBHEADER}"
         for span in text.spans
     )
+
+
+def test_vcs_backed_artifact_is_retained_without_inline_materialization(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "sase_42"
+    row = ArtifactFile(
+        id="default:vcs",
+        label="Tracked diagram",
+        kind="image",
+        path=None,
+        source_path=str(workspace / "docs" / "diagram.png"),
+        workspace_dir=str(workspace),
+        sha256="a" * 64,
+        vcs_repo="sase",
+        vcs_sha="b" * 40,
+        vcs_relpath="docs/diagram.png",
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_facade.list_artifact_files",
+        lambda _artifacts_dir: [row],
+    )
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.launch_artifact_ref_context",
+        lambda **_kwargs: pytest.fail("prompt header must not materialize artifacts"),
+    )
+    agent = _StubAgent(str(tmp_path / "agent"), workspace_dir=str(workspace))
+
+    [entry] = artifact_file_paths(agent)  # type: ignore[arg-type]
+
+    assert entry.display_path == "docs/diagram.png"
+    assert entry.exists is False
+    assert entry.materializable is True
+    assert entry.view_mode == "image"
+
+    hint_state = HeaderHintState(1, {}, None, {})
+    text = Text()
+    append_artifact_file_paths(
+        text,
+        artifact_file_paths=[entry],
+        hint_state=hint_state,
+    )
+    assert "Tracked diagram" not in text.plain
+    assert "docs/diagram.png (VCS-backed)" in text.plain
+    assert hint_state.hint_mappings == {}
 
 
 def test_persisted_artifact_paths_retain_authoritative_view_modes(

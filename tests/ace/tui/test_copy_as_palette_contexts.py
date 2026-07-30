@@ -149,6 +149,30 @@ def test_files_pdf_row_previews_the_source_path_its_copy_actually_yields() -> No
     assert path.preview == copied.text == "/workspace/notes/report.md"
 
 
+def test_files_vcs_row_keeps_materializable_path_and_contents_targets() -> None:
+    app = PaletteHarness()
+    app.current_artifacts_subtab = "files"
+    entry = file_entry(
+        "default:bbbbbbbbbbbbbbbbbbbbbbbb",
+        label="Tracked notes",
+        kind="markdown",
+        path=None,
+        source_path="/workspace/notes/tracked.md",
+        size_bytes=2048,
+        vcs_repo="sase",
+        vcs_sha="a" * 40,
+        vcs_relpath="docs/tracked.md",
+    )
+    app.files_pane = file_pane((entry,), view_modes={entry.id: "markdown"})
+
+    context = build_copy_as_context(app)
+
+    assert context is not None
+    rows = {row.target: row for row in context.rows}
+    assert rows["path"].preview == "docs/tracked.md"
+    assert rows["contents"].preview == "markdown · 2.0 KiB"
+
+
 def test_marked_files_keep_partially_representable_targets_with_warm_counts() -> None:
     app = PaletteHarness()
     app.current_artifacts_subtab = "files"
