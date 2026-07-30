@@ -364,7 +364,8 @@ def _upsert_commit_results_marker(
         return
 
 
-def _agent_workspace_dir(artifacts_dir: str) -> str | None:
+def agent_workspace_dir(artifacts_dir: str) -> str | None:
+    """Resolve the primary workspace recorded for an agent artifact directory."""
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     try:
         with open(meta_path, encoding="utf-8") as f:
@@ -508,7 +509,7 @@ def write_result_marker(
     if not run_id:
         run_id = os.path.basename(os.path.normpath(artifacts_dir))
     commit_cwd = os.getcwd()
-    workspace_dir = _agent_workspace_dir(artifacts_dir)
+    workspace_dir = agent_workspace_dir(artifacts_dir)
     repo_name = _external_repo_name_for_commit_cwd(commit_cwd, workspace_dir)
     if repo_name is None:
         repo_name = _sdd_repo_name_for_commit_cwd(commit_cwd, workspace_dir)

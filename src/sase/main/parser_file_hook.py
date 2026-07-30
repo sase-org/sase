@@ -30,6 +30,20 @@ def register_file_hook_parser(subparsers: argparse._SubParsersAction) -> None:
         title="subcommands",
     )
 
+    exec_batch_parser = file_hook_subparsers.add_parser(
+        "exec-batch",
+        help=argparse.SUPPRESS,
+    )
+    file_hook_subparsers._choices_actions = [
+        action
+        for action in file_hook_subparsers._choices_actions
+        if action.dest != "exec-batch"
+    ]
+    exec_batch_parser.add_argument(
+        "batch",
+        help=argparse.SUPPRESS,
+    )
+
     list_parser = file_hook_subparsers.add_parser(
         "list",
         help="List effective file hooks and their config sources",

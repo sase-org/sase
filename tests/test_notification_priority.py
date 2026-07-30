@@ -42,6 +42,12 @@ def test_user_agent_view_error_report_is_error_not_priority() -> None:
     assert not is_priority(n)
 
 
+def test_file_hook_view_error_report_is_error_not_priority() -> None:
+    n = _n(sender="file-hooks", action="ViewErrorReport")
+    assert is_error(n)
+    assert not is_priority(n)
+
+
 def test_sync_result_is_not_priority() -> None:
     assert not is_priority(_n(sender="sync", action="JumpToChangeSpec"))
 
@@ -62,6 +68,6 @@ def test_workflow_complete_is_not_priority() -> None:
 
 
 def test_view_error_report_with_other_sender_is_not_error() -> None:
-    """Only axe and user-agent error reports count as errors."""
+    """Only registered error senders' reports count as errors."""
     n = _n(sender="planner", action="ViewErrorReport")
     assert not is_error(n)

@@ -93,6 +93,10 @@ def _handle_file_hook_list_command(
 
 def handle_file_hook_command(args: argparse.Namespace) -> None:
     """Dispatch a ``sase file-hook`` subcommand."""
+    if getattr(args, "file_hook_subcommand", None) == "exec-batch":
+        from sase.file_hooks.runner import execute_batch
+
+        sys.exit(execute_batch(args.batch))
     if getattr(args, "file_hook_subcommand", None) == "list":
         sys.exit(_handle_file_hook_list_command(args))
 

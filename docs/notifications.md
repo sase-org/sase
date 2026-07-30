@@ -48,7 +48,7 @@ non-error notifications with multiple tags appear in each matching tag tab:
 | Tab       | Contents                                                                                                                         |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `HITL`    | Plan and epic approvals, user questions, workflow HITL prompts, and launch approvals.                                            |
-| `Errors`  | Axe error digests and agent error reports (sender `axe` or `user-agent` paired with the `ViewErrorReport` action).               |
+| `Errors`  | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                  |
 | `General` | Untagged non-HITL, non-error, unmuted notifications.                                                                             |
 | `Done`    | Non-HITL, non-error notifications carrying the `done` tag, pinned before other custom tags.                                      |
 | Custom    | Other normalized notification tags, sorted alphabetically after `Done`; a multi-tagged row appears in each matching tab.         |
@@ -116,6 +116,7 @@ The following events generate notifications:
 | `memory.proposed`              | A long-term memory proposal is ready for human review          |
 | `sync`                         | A sync operation completed for a ChangeSpec                    |
 | `axe`                          | Hourly error digest summarizing recent axe errors              |
+| `file-hooks`                   | A configured per-file hook completed or failed                 |
 | `mentors`                      | All mentors finished for a ChangeSpec entry (or none matched)  |
 | Workflow-specific sender label | Workflow completion (success or failure)                       |
 

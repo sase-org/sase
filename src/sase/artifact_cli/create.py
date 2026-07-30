@@ -26,6 +26,15 @@ def handle_create(args: argparse.Namespace) -> int:
     source_path = Path(args.path).expanduser().absolute()
     if not source_path.is_file():
         return _error(f"artifact source not found: {source_path}")
+    captured_file_hook_event = None
+    try:
+        from sase.config.file_hooks import get_all_file_hooks
+        from sase.file_hooks import capture_artifact_file_event
+
+        if get_all_file_hooks():
+            captured_file_hook_event = capture_artifact_file_event(source_path)
+    except Exception:
+        pass
 
     # Resolve and verify the attachment target first: an artifact created
     # without the attachment the caller asked for is worse than no artifact.
@@ -50,6 +59,11 @@ def handle_create(args: argparse.Namespace) -> int:
     print(f"source: {source_path}")
     print(f"path: {artifact_file.path}")
     print(f"ref: {reference}")
+
+    if captured_file_hook_event is not None and artifact_file.path:
+        from sase.file_hooks import emit_artifact_file_hook_event
+
+        emit_artifact_file_hook_event(captured_file_hook_event, artifact_file.path)
 
     if bead_id is not None:
         exit_code = _attach_reference_to_bead(bead_id, reference)

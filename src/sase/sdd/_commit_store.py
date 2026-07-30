@@ -38,6 +38,7 @@ def commit_sdd_files(
     paths: Iterable[str | Path] | None = None,
     artifacts_dir: str | Path | None = None,
     repo_name: str | None = None,
+    sidecar_role: str | None = None,
     record_commit_marker: bool = True,
     already_locked: bool = False,
 ) -> bool:
@@ -125,7 +126,38 @@ def commit_sdd_files(
             repo_name=repo_name,
             diff_path=diff_path,
         )
+    _emit_sdd_file_hooks(
+        sdd_dir,
+        sidecar_role=sidecar_role,
+    )
     return True
+
+
+def _emit_sdd_file_hooks(
+    sdd_dir: Path,
+    *,
+    sidecar_role: str | None,
+) -> None:
+    """Best-effort detached hooks for a newly created SDD commit."""
+    try:
+        from sase.config.file_hooks import get_all_file_hooks
+
+        hooks = get_all_file_hooks()
+        if not hooks:
+            return
+        sha = _git_head_sha(sdd_dir)
+        if not sha:
+            return
+        from sase.file_hooks import emit_commit_file_hook_events
+
+        emit_commit_file_hook_events(
+            repo_root=sdd_dir,
+            commit_sha=sha,
+            sidecar_role=sidecar_role,
+            hooks=hooks,
+        )
+    except Exception:
+        _logger.debug("failed to emit SDD file hooks", exc_info=True)
 
 
 def sdd_commit_targets(

@@ -97,6 +97,8 @@ def resume_commit_workflow(
         cp.completed_steps.append("dispatch")
         checkpoint_save(cp)
 
+    wf._run_file_hooks(cp, provider)
+
     if not wf._run_after_hook(cp):
         VCS_OPERATIONS.labels(
             provider=provider_name,

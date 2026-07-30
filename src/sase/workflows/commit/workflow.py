@@ -241,6 +241,8 @@ class CommitWorkflow(BaseWorkflow):
         cp.completed_steps.append("dispatch")
         checkpoint_save(cp)
 
+        self._run_file_hooks(cp, provider)
+
         if not self._run_after_hook(cp):
             return RunResult.FAILED
 
@@ -252,6 +254,33 @@ class CommitWorkflow(BaseWorkflow):
 
         checkpoint_delete()
         return RunResult.OK
+
+    def _run_file_hooks(self, cp: CommitCheckpoint, provider: object) -> None:
+        """Capture a committed revision once without gating the workflow."""
+        if self._method not in ("create_commit", "create_pull_request"):
+            return
+        if "file_hooks" in cp.completed_steps:
+            return
+        try:
+            from sase.config.file_hooks import get_all_file_hooks
+            from sase.file_hooks import emit_commit_file_hook_events
+
+            hooks = get_all_file_hooks()
+            if hooks:
+                commit_sha = provider.revision_id(  # type: ignore[attr-defined]
+                    "HEAD", cp.cwd
+                )
+                emit_commit_file_hook_events(
+                    repo_root=cp.cwd,
+                    commit_sha=commit_sha,
+                    provider=provider,  # type: ignore[arg-type]
+                    project_file=cp.project_file,
+                    hooks=hooks,
+                )
+        except Exception:
+            pass
+        cp.completed_steps.append("file_hooks")
+        checkpoint_save(cp)
 
     def _run_after_hook(self, cp: CommitCheckpoint) -> bool:
         """Run and checkpoint the post-dispatch hook when this method commits."""

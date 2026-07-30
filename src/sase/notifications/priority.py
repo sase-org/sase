@@ -18,14 +18,14 @@ _PRIORITY_ACTIONS = frozenset(
     }
 )
 _PRIORITY_SENDERS = frozenset({"axe", "crs"})
-_ERROR_SENDERS = frozenset({"axe", "user-agent"})
+_ERROR_SENDERS = frozenset({"axe", "file-hooks", "user-agent"})
 
 
 def is_error(notification: Notification) -> bool:
     """Return True if the notification represents an error report.
 
-    Error notifications are axe error digests and failed-agent reports —
-    sender ``axe`` or ``user-agent`` paired with action ``ViewErrorReport``.
+    Error notifications are axe error digests, failed file hooks, and
+    failed-agent reports paired with action ``ViewErrorReport``.
     """
     return (
         notification.action == "ViewErrorReport"

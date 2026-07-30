@@ -117,6 +117,7 @@ def test_run_records_completed_steps_in_order_for_create_commit(
     assert seen[0] == []  # pre-dispatch
     assert seen[-1] == [
         "dispatch",
+        "file_hooks",
         "after_hook",
         "write_result_marker",
         "publish_bead_pages",
@@ -162,6 +163,7 @@ def test_run_records_completed_steps_for_pull_request(
     assert seen[0] == []
     assert seen[-1] == [
         "dispatch",
+        "file_hooks",
         "after_hook",
         "create_changespec",
         "write_result_marker",

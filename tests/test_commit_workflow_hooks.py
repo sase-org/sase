@@ -94,7 +94,7 @@ def test_after_hook_failure_preserves_post_dispatch_checkpoint(
     assert result == RunResult.FAILED
     loaded = checkpoint.checkpoint_load(str(artifacts_dir / "commit_state.json"))
     assert loaded is not None
-    assert loaded.completed_steps == ["dispatch"]
+    assert loaded.completed_steps == ["dispatch", "file_hooks"]
     assert loaded.dispatch_result == "abc123"
     marker.assert_not_called()
     captured = capsys.readouterr()

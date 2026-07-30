@@ -75,6 +75,7 @@ def commit_sdd_store_files(
             paths=target_paths,
             artifacts_dir=artifacts_dir,
             repo_name=sdd_store_label(target_store),
+            sidecar_role=target_store.sidecar_role,
             record_commit_marker=target_store.storage
             in {SDD_STORAGE_SEPARATE_REPO, SDD_STORAGE_SIDECAR_REPOS},
             already_locked=already_locked

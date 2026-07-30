@@ -52,6 +52,20 @@ def test_file_hook_list_accepts_short_and_long_json_flags() -> None:
     assert default_list_delegation_notice(short) is None
 
 
+def test_internal_exec_batch_parses_but_is_hidden_from_help() -> None:
+    args = create_parser().parse_args(["file-hook", "exec-batch", "/tmp/batch.json"])
+    parser = create_parser()
+    file_hook_parser = next(
+        action.choices["file-hook"]
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+
+    assert args.file_hook_subcommand == "exec-batch"
+    assert args.batch == "/tmp/batch.json"
+    assert "exec-batch" not in file_hook_parser.format_help()
+
+
 def test_file_hook_list_json_is_versioned(capsys: Any) -> None:
     code = _handle_file_hook_list_command(
         argparse.Namespace(json=True),
