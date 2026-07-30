@@ -23,7 +23,7 @@ def _git_result(
     raise AssertionError(args)
 
 
-def test_family_member_commit_tag_links_to_stable_member_anchor(
+def test_family_member_commit_tag_links_to_lane_page_without_member_anchor(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -56,9 +56,9 @@ def test_family_member_commit_tag_links_to_stable_member_anchor(
     )
 
     assert value == LinkedCommitTagValue(
-        "alice.athena.foo.bar--code",
+        "alice.athena.foo.bar",
         "https://github.com/acme/project--agents/blob/main/"
-        "families/alice.athena.foo.bar.md#member-code",
+        "families/alice.athena.foo.bar.md",
     )
 
 
@@ -95,6 +95,42 @@ def test_commit_tag_falls_back_to_global_label_for_non_hosted_sidecar(
             git_runner=_git_result,
         )
         == "alice.athena.solo"
+    )
+
+
+def test_member_commit_tag_falls_back_to_lane_for_non_hosted_sidecar(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    sidecar = tmp_path / "sidecar"
+    (sidecar / ".git").mkdir(parents=True)
+    target = ProjectTarget(
+        "proj",
+        "Project",
+        primary,
+        (primary.resolve(),),
+        sidecar,
+        str(tmp_path / "remote.git"),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.links.resolve_checkout_anchor",
+        lambda path: SimpleNamespace(primary_root=path, project_name="Project"),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.links.resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+
+    assert (
+        resolve_agent_commit_tag(
+            "foo.bar--code",
+            identity=AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena")),
+            cwd=primary,
+            git_runner=_git_result,
+        )
+        == "alice.athena.foo.bar"
     )
 
 

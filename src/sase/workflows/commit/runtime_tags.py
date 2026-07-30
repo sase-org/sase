@@ -75,7 +75,8 @@ def resolve_local_agent_name() -> str | None:
                 if meta_name:
                     # Family members can replace one another inside a single
                     # process, leaving SASE_AGENT_NAME set to the lane while
-                    # this run's metadata carries its concrete member name.
+                    # this run's metadata carries the concrete member needed
+                    # to derive the lane provenance tag.
                     return meta_name
 
     return _sanitize_tag_value(os.environ.get("SASE_AGENT_NAME"))
@@ -138,9 +139,9 @@ def apply_auto_commit_tags_with_runtime(message: str, auto_commit_type: str) -> 
 
     When a SASE agent identity is available (``SASE_AGENT_NAME`` or an
     ``agent_meta.json`` ``name``), the resulting tag block also carries linked
-    ``AGENT=`` provenance so raw SDD auto-commits can be associated with the
-    agent that produced them. Legacy ``MACHINE=`` is removed but never
-    produced. Without an agent identity the result carries only
+    lane-derived ``AGENT=`` provenance so raw SDD auto-commits can be
+    associated with the lane that produced them. Legacy ``MACHINE=`` is removed
+    but never produced. Without an agent identity the result carries only
     ``TYPE=<kind>`` after stale runtime provenance is removed.
     """
     return apply_auto_commit_tags(message, auto_commit_type, include_runtime=True)

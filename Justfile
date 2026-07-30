@@ -271,8 +271,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-b8.2(AgentLaneRef)' \
-        --epic-symbol 'sase-b8.2(lane_page_path)' \
-        --epic-symbol 'sase-b8.2(lane_ref_for_agent)' \
         --epic-symbol 'sase-b8.5(lane_ref_for_lane_name)' \
         --epic-symbol 'sase-b8.7(lane_name)' \
         {{ args }}

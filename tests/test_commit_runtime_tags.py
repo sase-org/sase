@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock, patch
 
 import pytest
@@ -309,6 +310,30 @@ def test_auto_commit_tags_with_runtime_adds_agent_when_name_set(
     assert tags["TYPE"] == "sdd"
     assert tags["AGENT"] == "alice.machine_z.agent-alpha"
     assert "MACHINE" not in tags
+
+
+def test_auto_commit_tags_with_runtime_projects_family_member_to_lane(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"name": "foo.bar--code", "workflow_name": "foo.bar"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SASE_AGENT_NAME", "foo.bar")
+    monkeypatch.setattr(
+        _OWNER_TARGET,
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.links.resolve_checkout_anchor",
+        lambda path: SimpleNamespace(primary_root=path, project_name=None),
+    )
+
+    assert apply_auto_commit_tags_with_runtime("Fix bug", "sdd") == (
+        "Fix bug\n\nSASE_TYPE=sdd\nSASE_AGENT=alice.athena.foo.bar"
+    )
 
 
 def test_runtime_producer_removes_inherited_legacy_machine(
