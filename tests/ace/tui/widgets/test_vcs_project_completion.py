@@ -30,7 +30,8 @@ _ENTRIES_PATH = (
     "sase.ace.tui.widgets.vcs_project_completion.build_vcs_project_completion_entries"
 )
 _DISPLAY_NAME_PATH = (
-    "sase.ace.tui.widgets._prompt_input_bar_completion_rows.project_display_name_for"
+    "sase.ace.tui.widgets._prompt_input_bar_completion_rows_vcs."
+    "project_display_name_for"
 )
 
 
