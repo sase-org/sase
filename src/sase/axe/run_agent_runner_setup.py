@@ -249,9 +249,27 @@ def preprocess_prompt_xprompts(
     # files (see write_used_xprompts step_only). Best-effort: metadata
     # capture must never take down a detached agent launch.
     try:
-        from sase.xprompt.used_xprompts import write_used_xprompts
+        from sase.xprompt.used_xprompts import (
+            SASE_LAUNCH_SWARM_XPROMPTS,
+            write_used_xprompts,
+        )
 
-        write_used_xprompts(artifacts_dir, prompt)
+        encoded_swarm_xprompts = os.environ.get(SASE_LAUNCH_SWARM_XPROMPTS)
+        swarm_xprompts = (
+            json.loads(encoded_swarm_xprompts) if encoded_swarm_xprompts else None
+        )
+        if swarm_xprompts is not None and (
+            not isinstance(swarm_xprompts, list)
+            or not all(isinstance(name, str) for name in swarm_xprompts)
+        ):
+            raise ValueError(
+                f"{SASE_LAUNCH_SWARM_XPROMPTS} must be a JSON array of strings"
+            )
+        write_used_xprompts(
+            artifacts_dir,
+            prompt,
+            swarm_xprompts=swarm_xprompts,
+        )
     except Exception as e:
         print(f"Warning: Failed to write xprompts.json: {e}", file=sys.stderr)
 

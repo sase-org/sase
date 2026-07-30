@@ -167,6 +167,123 @@ def test_collect_used_xprompts_prefers_workflow_on_name_collision(
     ]
 
 
+def test_collect_used_xprompts_prepends_swarm_with_catalog_tags(
+    monkeypatch,
+) -> None:
+    _patch_catalogs(
+        monkeypatch,
+        parts={
+            "research": _part("research"),
+            "research_swarm": _part(
+                "research_swarm",
+                tags=frozenset({XPromptTag.crs, XPromptTag.mentor}),
+            ),
+        },
+    )
+
+    result = collect_used_xprompts(
+        "Run #research",
+        swarm_xprompts=["research_swarm"],
+    )
+
+    assert result == [
+        {
+            "name": "research_swarm",
+            "kind": "swarm",
+            "positional": [],
+            "named": {},
+            "tags": ["crs", "mentor"],
+        },
+        {
+            "name": "research",
+            "kind": "part",
+            "positional": [],
+            "named": {},
+            "tags": [],
+        },
+    ]
+
+
+def test_collect_used_xprompts_records_unknown_swarm(monkeypatch) -> None:
+    _patch_catalogs(monkeypatch)
+
+    result = collect_used_xprompts(
+        "Rendered swarm segment with no references",
+        swarm_xprompts=["removed_swarm"],
+    )
+
+    assert result == [
+        {
+            "name": "removed_swarm",
+            "kind": "swarm",
+            "positional": [],
+            "named": {},
+            "tags": [],
+        }
+    ]
+
+
+def test_collect_used_xprompts_upgrades_lexical_swarm_without_duplicate(
+    monkeypatch,
+) -> None:
+    _patch_catalogs(
+        monkeypatch,
+        parts={
+            "research_swarm": _part(
+                "research_swarm",
+                tags=frozenset({XPromptTag.crs}),
+            )
+        },
+    )
+
+    result = collect_used_xprompts(
+        "#research_swarm:large #research_swarm:small",
+        swarm_xprompts=["research_swarm"],
+    )
+
+    assert result == [
+        {
+            "name": "research_swarm",
+            "kind": "swarm",
+            "positional": [],
+            "named": {},
+            "tags": ["crs"],
+        }
+    ]
+
+
+def test_collect_used_xprompts_preserves_nested_swarm_order(monkeypatch) -> None:
+    _patch_catalogs(
+        monkeypatch,
+        parts={
+            "outer": _part("outer"),
+            "inner": _part("inner"),
+        },
+    )
+
+    result = collect_used_xprompts(
+        "Rendered nested segment",
+        swarm_xprompts=["outer", "inner", "outer"],
+    )
+
+    assert [(record["name"], record["kind"]) for record in result] == [
+        ("outer", "swarm"),
+        ("inner", "swarm"),
+    ]
+
+
+def test_collect_used_xprompts_without_swarm_provenance_is_unchanged(
+    monkeypatch,
+) -> None:
+    _patch_catalogs(monkeypatch, parts={"research": _part("research")})
+
+    result = collect_used_xprompts("Run #research")
+
+    assert [(record["name"], record["kind"]) for record in result] == [
+        ("research", "part")
+    ]
+
+
 def test_write_used_xprompts_writes_shared_and_step_files(
     monkeypatch,
     tmp_path: Path,
@@ -181,6 +298,32 @@ def test_write_used_xprompts_writes_shared_and_step_files(
 
     assert json.loads((tmp_path / "xprompts.json").read_text()) == records
     assert json.loads((tmp_path / "xprompts_main.json").read_text()) == records
+
+
+def test_write_used_xprompts_keeps_swarm_provenance_out_of_step_file(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _patch_catalogs(
+        monkeypatch,
+        parts={
+            "research": _part("research"),
+            "research_swarm": _part("research_swarm"),
+        },
+    )
+
+    records = write_used_xprompts(
+        tmp_path,
+        "#research",
+        step_name="main",
+        swarm_xprompts=["research_swarm"],
+    )
+
+    assert json.loads((tmp_path / "xprompts.json").read_text()) == records
+    assert [
+        (record["name"], record["kind"])
+        for record in json.loads((tmp_path / "xprompts_main.json").read_text())
+    ] == [("research", "part")]
 
 
 def test_write_used_xprompts_step_only_preserves_existing_shared(
@@ -261,10 +404,17 @@ def test_expand_embedded_workflows_preserves_existing_xprompt_metadata(
 ) -> None:
     _patch_catalogs(
         monkeypatch,
-        parts={"plan": _part("plan"), "review": _part("review")},
+        parts={
+            "research_swarm": _part("research_swarm"),
+            "review": _part("review"),
+        },
     )
     monkeypatch.setattr("sase.xprompt.loader.get_all_workflows", lambda: {})
-    launch_records = write_used_xprompts(tmp_path, "#plan")
+    launch_records = write_used_xprompts(
+        tmp_path,
+        "Rendered swarm segment",
+        swarm_xprompts=["research_swarm"],
+    )
 
     expanded, post_workflows = expand_embedded_workflows_in_query(
         "#review",

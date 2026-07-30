@@ -23,7 +23,7 @@ SASE_LAUNCH_SWARM_XPROMPTS = "SASE_LAUNCH_SWARM_XPROMPTS"
 
 class _UsedXPromptRecord(TypedDict):
     name: str
-    kind: Literal["workflow", "part"]
+    kind: Literal["workflow", "part", "swarm"]
     positional: list[str]
     named: dict[str, str]
     tags: list[str]
@@ -38,18 +38,22 @@ def collect_used_xprompts(
     raw_prompt: str,
     *,
     extra_xprompts: dict[str, XPrompt] | None = None,
+    swarm_xprompts: Sequence[str] | None = None,
 ) -> list[_UsedXPromptRecord]:
     """Return known top-level xprompt references from *raw_prompt*.
 
     The scan uses the shared lexical xprompt reference parser, after applying
     the same alias and VCS-underscore normalization used by expansion. Fenced
     code blocks and disabled xprompt regions are protected before scanning.
+    Launch-boundary swarm provenance is prepended and supersedes any lexical
+    records with the same name.
     """
-    if "#" not in raw_prompt:
+    swarm_names = tuple(dict.fromkeys(swarm_xprompts or ()))
+    if "#" not in raw_prompt and not swarm_names:
         return []
 
     prompt = resolve_xprompt_aliases(raw_prompt)
-    if "#" not in prompt:
+    if "#" not in prompt and not swarm_names:
         return []
 
     prompt = normalize_vcs_underscore_refs(prompt)
@@ -95,7 +99,30 @@ def collect_used_xprompts(
             }
         )
 
-    return records
+    if not swarm_names:
+        return records
+
+    swarm_records: list[_UsedXPromptRecord] = []
+    for name in swarm_names:
+        swarm_xprompt = xprompts.get(name)
+        swarm_records.append(
+            {
+                "name": name,
+                "kind": "swarm",
+                "positional": [],
+                "named": {},
+                "tags": (
+                    sorted(tag.value for tag in swarm_xprompt.tags)
+                    if swarm_xprompt is not None
+                    else []
+                ),
+            }
+        )
+
+    swarm_name_set = set(swarm_names)
+    return swarm_records + [
+        record for record in records if record["name"] not in swarm_name_set
+    ]
 
 
 def write_used_xprompts(
@@ -104,6 +131,7 @@ def write_used_xprompts(
     step_name: str | None = None,
     *,
     extra_xprompts: dict[str, XPrompt] | None = None,
+    swarm_xprompts: Sequence[str] | None = None,
     step_only: bool = False,
 ) -> list[_UsedXPromptRecord]:
     """Collect and write xprompt metadata artifacts for *raw_prompt*.
@@ -120,7 +148,11 @@ def write_used_xprompts(
     file exists yet, a ``step_only`` write still seeds it so launch paths that
     do not capture usage at their own boundary keep populating root rows.
     """
-    records = collect_used_xprompts(raw_prompt, extra_xprompts=extra_xprompts)
+    records = collect_used_xprompts(
+        raw_prompt,
+        extra_xprompts=extra_xprompts,
+        swarm_xprompts=swarm_xprompts,
+    )
     if not records or artifacts_dir is None:
         return records
 
@@ -129,7 +161,13 @@ def write_used_xprompts(
         return records
 
     if step_name:
-        _write_json(artifacts_path / f"xprompts_{step_name}.json", records)
+        step_records = (
+            collect_used_xprompts(raw_prompt, extra_xprompts=extra_xprompts)
+            if swarm_xprompts
+            else records
+        )
+        if step_records:
+            _write_json(artifacts_path / f"xprompts_{step_name}.json", step_records)
 
     shared_path = artifacts_path / "xprompts.json"
     if not (step_only and shared_path.exists()):

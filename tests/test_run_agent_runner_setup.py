@@ -108,6 +108,71 @@ def test_preprocess_prompt_xprompts_captures_launch_boundary_usage(
     assert process.call_args.kwargs["defer_xprompt_names"] == frozenset({"fork"})
 
 
+def test_preprocess_prompt_xprompts_captures_launch_swarm(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A swarm-launched child records its origin before prompt expansion."""
+    import sase.xprompt.used_xprompts as used_xprompts
+    from sase.xprompt.models import XPrompt
+    from sase.xprompt.tags import XPromptTag
+
+    monkeypatch.setenv(
+        used_xprompts.SASE_LAUNCH_SWARM_XPROMPTS,
+        '["research_swarm"]',
+    )
+    monkeypatch.setattr(
+        used_xprompts,
+        "get_all_xprompts",
+        lambda: {
+            "research": XPrompt(name="research", content="research body"),
+            "research_swarm": XPrompt(
+                name="research_swarm",
+                content="swarm body",
+                tags=frozenset({XPromptTag.crs}),
+            ),
+        },
+    )
+    monkeypatch.setattr(used_xprompts, "get_all_workflows", lambda: {})
+    monkeypatch.setattr(used_xprompts, "resolve_xprompt_aliases", lambda prompt: prompt)
+    monkeypatch.setattr(
+        used_xprompts,
+        "normalize_vcs_underscore_refs",
+        lambda prompt: prompt,
+    )
+
+    with (
+        patch(
+            "sase.xprompt.resolve_xprompt_aliases",
+            side_effect=lambda prompt: prompt,
+        ),
+        patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
+        patch(
+            "sase.xprompt.processor.process_xprompt_references",
+            return_value="expanded",
+        ),
+    ):
+        preprocess_prompt_xprompts("Run #research", str(tmp_path))
+
+    data = json.loads((tmp_path / "xprompts.json").read_text(encoding="utf-8"))
+    assert data == [
+        {
+            "name": "research_swarm",
+            "kind": "swarm",
+            "positional": [],
+            "named": {},
+            "tags": ["crs"],
+        },
+        {
+            "name": "research",
+            "kind": "part",
+            "positional": [],
+            "named": {},
+            "tags": [],
+        },
+    ]
+
+
 def test_runner_setup_artifacts_keep_project_alias_canonical(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
