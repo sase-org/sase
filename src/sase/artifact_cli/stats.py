@@ -15,6 +15,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from sase.config import (
+    get_artifact_retention_keep_per_label,
+    get_artifact_retention_max_age_days,
+)
 from sase.core.artifact_file_economics import (
     ARTIFACT_FILE_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ArtifactFileEconomics,
@@ -26,8 +30,6 @@ from sase.core.artifact_file_protection import (
     collect_protected_artifact_ids,
 )
 from sase.core.artifact_file_retention import (
-    DEFAULT_KEEP_PER_LABEL,
-    DEFAULT_MAX_AGE_DAYS,
     RetentionPlan,
     RetentionPolicy,
     plan_artifact_file_retention,
@@ -67,10 +69,12 @@ def handle_stats(args: argparse.Namespace) -> int:
         top_n=getattr(args, "top", 10),
     )
     protections = collect_protected_artifact_ids()
+    keep_per_label = get_artifact_retention_keep_per_label()
+    max_age_days = get_artifact_retention_max_age_days()
     policy = RetentionPolicy(
         now=datetime.now(UTC).isoformat(),
-        keep_per_label=DEFAULT_KEEP_PER_LABEL,
-        before=f"{DEFAULT_MAX_AGE_DAYS}d",
+        keep_per_label=keep_per_label,
+        before=None if max_age_days == 0 else f"{max_age_days}d",
         project=project,
         protected_ids=protections.ids,
     )
@@ -82,6 +86,8 @@ def handle_stats(args: argparse.Namespace) -> int:
         protections=protections,
         retention=retention,
         trash=trash,
+        keep_per_label=keep_per_label,
+        max_age_days=max_age_days,
     )
     if bool(getattr(args, "json", False)):
         json.dump(payload, sys.stdout, indent=2)
@@ -93,6 +99,8 @@ def handle_stats(args: argparse.Namespace) -> int:
         protections=protections,
         retention=retention,
         trash=trash,
+        keep_per_label=keep_per_label,
+        max_age_days=max_age_days,
         projects=projects,
     )
     return 0
@@ -104,6 +112,8 @@ def _stats_payload(
     protections: ProtectedArtifactIds,
     retention: RetentionPlan,
     trash: _TrashOccupancy,
+    keep_per_label: int,
+    max_age_days: int,
 ) -> dict[str, object]:
     return {
         "schema_version": ARTIFACT_STATS_SCHEMA_VERSION,
@@ -120,8 +130,8 @@ def _stats_payload(
         },
         "trash": asdict(trash),
         "default_policy": {
-            "keep_per_label": DEFAULT_KEEP_PER_LABEL,
-            "max_age_days": DEFAULT_MAX_AGE_DAYS,
+            "keep_per_label": keep_per_label,
+            "max_age_days": max_age_days,
             "plan": retention.to_json_dict(),
         },
     }
@@ -187,6 +197,8 @@ def _print_stats(
     protections: ProtectedArtifactIds,
     retention: RetentionPlan,
     trash: _TrashOccupancy,
+    keep_per_label: int,
+    max_age_days: int,
     projects: ProjectRefDisplaySnapshot,
 ) -> None:
     console = Console()
@@ -298,8 +310,11 @@ def _print_stats(
     console.print(Panel(trash_table, title="Trash Occupancy", border_style="cyan"))
 
     default_table = _plain_table()
-    default_table.add_row("Keep per label", str(DEFAULT_KEEP_PER_LABEL))
-    default_table.add_row("Maximum age", f"{DEFAULT_MAX_AGE_DAYS} days")
+    default_table.add_row("Keep per label", str(keep_per_label))
+    default_table.add_row(
+        "Maximum age",
+        "disabled" if max_age_days == 0 else f"{max_age_days} days",
+    )
     default_table.add_row("Candidates", str(retention.counts.candidates))
     default_table.add_row("Selected", str(retention.counts.selected))
     default_table.add_row(

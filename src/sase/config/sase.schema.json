@@ -1898,6 +1898,35 @@
               "description": "Maximum number of durable commits searched per file for an exact version-control-backed artifact revision."
             }
           }
+        },
+        "retention": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable automatic artifact retention after agent finalization. When disabled, retention removes nothing."
+            },
+            "keep_per_label": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 3,
+              "description": "Number of newest automatic captures kept per label. Set to 0 to disable generation-based retention."
+            },
+            "max_age_days": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 90,
+              "description": "Trash automatic captures older than this many days. Set to 0 to disable age-based retention."
+            },
+            "trash_grace_days": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 14,
+              "description": "Number of days artifact trash remains restorable before purge removes expired entries."
+            }
+          }
         }
       }
     },

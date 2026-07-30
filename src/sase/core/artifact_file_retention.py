@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from sase.config.core import DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL
 from sase.core.artifact_file_economics import (
     ARTIFACT_FILE_LIFECYCLE_WIRE_SCHEMA_VERSION,
 )
@@ -14,17 +15,12 @@ from sase.core.artifact_file_types import default_artifact_files_index_path
 from sase.core.rust import require_rust_binding
 
 
-DEFAULT_KEEP_PER_LABEL = 3
-DEFAULT_MAX_AGE_DAYS = 90
-DEFAULT_TRASH_GRACE_DAYS = 14
-
-
 @dataclass(frozen=True)
 class RetentionPolicy:
     """Deterministic inputs for the core retention planner."""
 
     now: str
-    keep_per_label: int = DEFAULT_KEEP_PER_LABEL
+    keep_per_label: int = DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL
     before: str | None = None
     kinds: tuple[str, ...] | None = None
     project: str | None = None
@@ -279,9 +275,6 @@ def _nonnegative(value: int, field: str) -> int:
 
 
 __all__ = [
-    "DEFAULT_KEEP_PER_LABEL",
-    "DEFAULT_MAX_AGE_DAYS",
-    "DEFAULT_TRASH_GRACE_DAYS",
     "RetentionPlan",
     "RetentionPolicy",
     "plan_artifact_file_retention",

@@ -257,6 +257,10 @@ DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS = 60
 DEFAULT_TASK_HISTORY_LIMIT = 100
 DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT = 50
 DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN = 20
+DEFAULT_ARTIFACT_RETENTION_ENABLED = False
+DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL = 3
+DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS = 90
+DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS = 14
 
 
 def get_configured_max_running_agents() -> int:
@@ -362,6 +366,56 @@ def get_artifact_capture_max_history_scan() -> int:
     if type(value) is int and value >= 1:
         return value
     return DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN
+
+
+def _artifact_retention_config() -> dict[str, Any]:
+    artifacts = load_merged_config().get("artifacts", {})
+    retention = artifacts.get("retention", {}) if isinstance(artifacts, dict) else {}
+    return retention if isinstance(retention, dict) else {}
+
+
+def get_artifact_retention_enabled() -> bool:
+    """Return whether automatic artifact retention is enabled."""
+    value = _artifact_retention_config().get(
+        "enabled",
+        DEFAULT_ARTIFACT_RETENTION_ENABLED,
+    )
+    if type(value) is bool:
+        return value
+    return DEFAULT_ARTIFACT_RETENTION_ENABLED
+
+
+def get_artifact_retention_keep_per_label() -> int:
+    """Return the validated automatic artifact generations kept per label."""
+    value = _artifact_retention_config().get(
+        "keep_per_label",
+        DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL,
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL
+
+
+def get_artifact_retention_max_age_days() -> int:
+    """Return the validated automatic artifact age bound in days."""
+    value = _artifact_retention_config().get(
+        "max_age_days",
+        DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS,
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS
+
+
+def get_artifact_retention_trash_grace_days() -> int:
+    """Return the validated artifact trash grace period in days."""
+    value = _artifact_retention_config().get(
+        "trash_grace_days",
+        DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS,
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS
 
 
 def get_max_running_agents(now: float | None = None) -> int:

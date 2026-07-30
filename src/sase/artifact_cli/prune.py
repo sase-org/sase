@@ -11,10 +11,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from sase.config import get_artifact_retention_keep_per_label
 from sase.core.artifact_file_explicit import read_artifact_file_index
 from sase.core.artifact_file_protection import collect_protected_artifact_ids
 from sase.core.artifact_file_retention import (
-    DEFAULT_KEEP_PER_LABEL,
     RetentionPlan,
     RetentionPolicy,
     plan_artifact_file_retention,
@@ -41,12 +41,13 @@ def handle_prune(args: argparse.Namespace) -> int:
 
     protections = collect_protected_artifact_ids()
     limit = getattr(args, "limit", None)
+    keep_generations = getattr(args, "keep_generations", None)
     policy = RetentionPolicy(
         now=datetime.now(UTC).isoformat(),
-        keep_per_label=getattr(
-            args,
-            "keep_generations",
-            DEFAULT_KEEP_PER_LABEL,
+        keep_per_label=(
+            get_artifact_retention_keep_per_label()
+            if keep_generations is None
+            else keep_generations
         ),
         before=getattr(args, "before", None),
         kinds=(None if getattr(args, "kind", None) is None else tuple(args.kind)),

@@ -16,7 +16,6 @@ from sase.core.artifact_file_explicit import (
     read_artifact_file_index_document_unlocked,
     write_artifact_file_index_unlocked,
 )
-from sase.core.artifact_file_retention import DEFAULT_TRASH_GRACE_DAYS
 from sase.core.artifact_file_types import (
     ArtifactFile,
     artifact_file_from_dict,
@@ -274,9 +273,14 @@ def purge_trashed_artifact_files(
 
     _require_lifecycle_schema()
     idx = _resolved_index_path(index_path)
+    from sase.config import get_artifact_retention_trash_grace_days
+
     cutoff = (
         before
-        or (datetime.now(UTC) - timedelta(days=DEFAULT_TRASH_GRACE_DAYS)).isoformat()
+        or (
+            datetime.now(UTC)
+            - timedelta(days=get_artifact_retention_trash_grace_days())
+        ).isoformat()
     )
     purge = require_rust_binding("artifact_file_trash_purge")
     data = _mapping(

@@ -210,9 +210,12 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         "-g",
         "--keep-generations",
         type=nonnegative_int,
-        default=3,
+        default=None,
         metavar="N",
-        help="Keep the newest N captures per label (default: 3)",
+        help=(
+            "Keep the newest N captures per label "
+            "(default: artifacts.retention.keep_per_label)"
+        ),
     )
     prune_parser.add_argument(
         "-j",

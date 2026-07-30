@@ -294,6 +294,76 @@ def test_capture_config_accessors_validate_values(
     assert config_core.get_artifact_capture_max_history_scan() == history
 
 
+@pytest.mark.parametrize(
+    ("config", "enabled", "keep", "age", "grace"),
+    [
+        ({}, False, 3, 90, 14),
+        (
+            {
+                "artifacts": {
+                    "retention": {
+                        "enabled": True,
+                        "keep_per_label": 7,
+                        "max_age_days": 30,
+                        "trash_grace_days": 3,
+                    }
+                }
+            },
+            True,
+            7,
+            30,
+            3,
+        ),
+        (
+            {
+                "artifacts": {
+                    "retention": {
+                        "enabled": "yes",
+                        "keep_per_label": -1,
+                        "max_age_days": True,
+                        "trash_grace_days": "14",
+                    }
+                }
+            },
+            False,
+            3,
+            90,
+            14,
+        ),
+        (
+            {
+                "artifacts": {
+                    "retention": {
+                        "keep_per_label": 0,
+                        "max_age_days": 0,
+                        "trash_grace_days": 0,
+                    }
+                }
+            },
+            False,
+            0,
+            0,
+            0,
+        ),
+        ({"artifacts": {"retention": "invalid"}}, False, 3, 90, 14),
+    ],
+)
+def test_retention_config_accessors_validate_values(
+    monkeypatch: Any,
+    config: dict[str, Any],
+    enabled: bool,
+    keep: int,
+    age: int,
+    grace: int,
+) -> None:
+    monkeypatch.setattr(config_core, "load_merged_config", lambda: config)
+
+    assert config_core.get_artifact_retention_enabled() is enabled
+    assert config_core.get_artifact_retention_keep_per_label() == keep
+    assert config_core.get_artifact_retention_max_age_days() == age
+    assert config_core.get_artifact_retention_trash_grace_days() == grace
+
+
 def test_capture_config_default_and_schema() -> None:
     root = Path(__file__).parents[1]
     defaults = yaml.safe_load(
@@ -321,3 +391,18 @@ def test_capture_config_default_and_schema() -> None:
     }
     assert capture["properties"]["max_history_scan"]["minimum"] == 1
     assert capture["properties"]["max_history_scan"]["default"] == 20
+    assert defaults["artifacts"]["retention"] == {
+        "enabled": False,
+        "keep_per_label": 3,
+        "max_age_days": 90,
+        "trash_grace_days": 14,
+    }
+    retention = schema["properties"]["artifacts"]["properties"]["retention"]
+    assert retention["additionalProperties"] is False
+    assert retention["properties"]["enabled"]["default"] is False
+    assert retention["properties"]["keep_per_label"]["minimum"] == 0
+    assert retention["properties"]["keep_per_label"]["default"] == 3
+    assert retention["properties"]["max_age_days"]["minimum"] == 0
+    assert retention["properties"]["max_age_days"]["default"] == 90
+    assert retention["properties"]["trash_grace_days"]["minimum"] == 0
+    assert retention["properties"]["trash_grace_days"]["default"] == 14

@@ -321,6 +321,80 @@ def _collect_default_artifacts(
     )
 
 
+def _enforce_artifact_retention() -> None:
+    try:
+        from datetime import UTC, datetime, timedelta
+
+        from sase.config import (
+            get_artifact_retention_enabled,
+            get_artifact_retention_keep_per_label,
+            get_artifact_retention_max_age_days,
+            get_artifact_retention_trash_grace_days,
+        )
+        from sase.core.artifact_file_explicit import read_artifact_file_index
+        from sase.core.artifact_file_protection import collect_protected_artifact_ids
+        from sase.core.artifact_file_retention import (
+            RetentionPolicy,
+            plan_artifact_file_retention,
+        )
+        from sase.core.artifact_file_trash import (
+            purge_trashed_artifact_files,
+            trash_artifact_files,
+        )
+
+        if not get_artifact_retention_enabled():
+            return
+
+        now = datetime.now(UTC)
+        protections = collect_protected_artifact_ids()
+        if protections.sources_unavailable:
+            sources = ", ".join(protections.sources_unavailable)
+            print(
+                "[artifacts] retention skipped: "
+                f"protection sources unavailable: {sources}"
+            )
+            return
+
+        max_age_days = get_artifact_retention_max_age_days()
+        policy = RetentionPolicy(
+            now=now.isoformat(),
+            keep_per_label=get_artifact_retention_keep_per_label(),
+            before=None if max_age_days == 0 else f"{max_age_days}d",
+            protected_ids=protections.ids,
+        )
+        plan = plan_artifact_file_retention(policy)
+        rows_by_id = {row.id: row for row in read_artifact_file_index()}
+        selected_rows = []
+        missing_rows = 0
+        for item in plan.selected:
+            row = rows_by_id.get(item.id)
+            if row is None:
+                missing_rows += 1
+            else:
+                selected_rows.append(row)
+        trashed = trash_artifact_files(
+            selected_rows,
+            reason="retention",
+            now=policy.now,
+        )
+        purge_cutoff = (
+            now - timedelta(days=get_artifact_retention_trash_grace_days())
+        ).isoformat()
+        purged = purge_trashed_artifact_files(before=purge_cutoff)
+        missing_note = (
+            f", skipped {missing_rows} disappeared rows" if missing_rows else ""
+        )
+        print(
+            "[artifacts] retention: "
+            f"trashed {trashed.rows_trashed} rows, "
+            f"reclaimed {trashed.bytes_reclaimed} bytes, "
+            f"purged {len(purged.purged_entry_ids)} trash entries"
+            f"{missing_note}"
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"[artifacts] retention failed: {exc}")
+
+
 def _commit_records(step_output: dict[str, Any] | None) -> list[dict[str, Any]]:
     if not step_output:
         return []
@@ -512,6 +586,7 @@ def finalize_loop(
             video_paths,
             default_artifacts_persisted,
         ) = _collect_default_artifacts(ctx, state, saved_path, diff_path, step_output)
+        _enforce_artifact_retention()
 
         completed_outcome = (
             "noop" if _is_workflow_noop(state.current_artifacts_dir) else "completed"

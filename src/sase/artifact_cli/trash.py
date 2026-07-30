@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from sase.core.artifact_file_retention import DEFAULT_TRASH_GRACE_DAYS
+from sase.config import get_artifact_retention_trash_grace_days
 from sase.core.artifact_file_trash import (
     TrashEntry,
     list_trashed_artifact_files,
@@ -47,12 +47,17 @@ def _handle_list(args: argparse.Namespace) -> int:
     limit = getattr(args, "limit", 50)
     entries = result.entries if limit == 0 else result.entries[:limit]
     now = datetime.now(UTC)
+    grace_days = get_artifact_retention_trash_grace_days()
     payload = {
         "schema_version": ARTIFACT_TRASH_SCHEMA_VERSION,
         "entries": [
             {
                 **entry.to_json_dict(),
-                "past_grace_period": _past_grace_period(entry, now=now),
+                "past_grace_period": _past_grace_period(
+                    entry,
+                    now=now,
+                    grace_days=grace_days,
+                ),
             }
             for entry in entries
         ],
@@ -78,7 +83,9 @@ def _handle_list(args: argparse.Namespace) -> int:
             entry.record.label,
             _human_size(entry.size_bytes),
             entry.trashed_at,
-            "yes" if _past_grace_period(entry, now=now) else "no",
+            "yes"
+            if _past_grace_period(entry, now=now, grace_days=grace_days)
+            else "no",
         )
     if not entries:
         table.add_row("[dim]none[/dim]", "-", "-", "-", "-", "-")
@@ -95,7 +102,9 @@ def _handle_list(args: argparse.Namespace) -> int:
 
 def _handle_purge(args: argparse.Namespace) -> int:
     purge_all = bool(getattr(args, "all", False))
-    cutoff = (datetime.now(UTC) - timedelta(days=DEFAULT_TRASH_GRACE_DAYS)).isoformat()
+    cutoff = (
+        datetime.now(UTC) - timedelta(days=get_artifact_retention_trash_grace_days())
+    ).isoformat()
     result = purge_trashed_artifact_files(
         before=cutoff,
         purge_all=purge_all,
@@ -160,12 +169,17 @@ def _handle_restore(args: argparse.Namespace) -> int:
     return 0
 
 
-def _past_grace_period(entry: TrashEntry, *, now: datetime) -> bool:
+def _past_grace_period(
+    entry: TrashEntry,
+    *,
+    now: datetime,
+    grace_days: int,
+) -> bool:
     try:
         trashed_at = datetime.fromisoformat(entry.trashed_at.replace("Z", "+00:00"))
     except ValueError:
         return False
-    return trashed_at <= now - timedelta(days=DEFAULT_TRASH_GRACE_DAYS)
+    return trashed_at <= now - timedelta(days=grace_days)
 
 
 def _human_size(size_bytes: int | None) -> str:

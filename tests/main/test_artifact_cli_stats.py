@@ -80,6 +80,17 @@ def _projects() -> ProjectRefDisplaySnapshot:
     )
 
 
+def _patch_default_retention(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.artifact_cli.stats.get_artifact_retention_keep_per_label",
+        lambda: 3,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.stats.get_artifact_retention_max_age_days",
+        lambda: 90,
+    )
+
+
 def test_stats_json_has_stable_envelope_and_builds_default_plan(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -88,6 +99,7 @@ def test_stats_json_has_stable_envelope_and_builds_default_plan(
     referenced_only = "default:111111111111111111111111"
     overlap = "default:222222222222222222222222"
     consumed_only = "explicit:333333333333333333333333"
+    _patch_default_retention(monkeypatch)
     protections = ProtectedArtifactIds(
         referenced_ids=frozenset({referenced_only, overlap}),
         consumed_ids=frozenset({overlap, consumed_only}),
@@ -168,6 +180,7 @@ def test_stats_pretty_report_has_every_section_and_warning(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    _patch_default_retention(monkeypatch)
     monkeypatch.setattr(
         "sase.artifact_cli.stats.load_project_ref_display_snapshot",
         _projects,
@@ -235,6 +248,7 @@ def test_stats_with_empty_store_never_writes(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    _patch_default_retention(monkeypatch)
     home = tmp_path / "sase-home"
     monkeypatch.setenv("SASE_HOME", str(home))
     monkeypatch.setattr(

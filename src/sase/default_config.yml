@@ -44,6 +44,19 @@ artifacts:
     # Bounded number of commits searched per file when looking for a durable
     # commit that holds its exact content.
     max_history_scan: 20
+  retention:
+    # Retention removes nothing until this is true. Explicit artifacts, artifacts
+    # referenced by a bead, plan, or ChangeSpec, and the newest capture of every
+    # label are kept regardless of the settings below.
+    enabled: false
+    # Automatic captures kept per label; older generations are trashed first.
+    # 0 disables the generation predicate.
+    keep_per_label: 3
+    # Trash automatic captures created more than this many days ago.
+    # 0 disables the age predicate.
+    max_age_days: 90
+    # Days a trashed artifact stays restorable before purging removes it.
+    trash_grace_days: 14
 
 update:
   dev_root: "~/projects/github"
