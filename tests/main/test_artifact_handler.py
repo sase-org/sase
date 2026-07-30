@@ -20,6 +20,7 @@ def _create_args(**overrides: object) -> argparse.Namespace:
         "label": None,
         "kind": None,
         "move": False,
+        "bead": None,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -121,6 +122,7 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
     subcommands = _subparser_action(artifact)
 
     assert _long_options(subcommands.choices["create"]) == [
+        "--bead",
         "--kind",
         "--label",
         "--move",

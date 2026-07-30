@@ -94,6 +94,7 @@ def bead_properties_header(
         ]
     )
     properties.extend(_plan_reference_properties(issue, snapshot, project=project))
+    properties.append(("References", _references_text(issue)))
     properties.extend(
         [
             ("Project", project_name),
@@ -221,6 +222,23 @@ def _plan_reference_properties(
     )
 
 
+def _references_text(issue: Issue) -> Text:
+    """Render the stored references verbatim, one per line.
+
+    A canonical reference is already the stable, human-legible form, and
+    resolving one walks the repo inventory, which a render path must never
+    do. Resolution, if it is ever wanted here, belongs in ``PlansSnapshot``.
+    """
+    if not issue.refs:
+        return Text("—", style="dim")
+    text = Text()
+    for index, reference in enumerate(issue.refs):
+        if index:
+            text.append("\n")
+        text.append(reference, style="white")
+    return text
+
+
 def linked_plan_for_issue(
     issue: Issue,
     snapshot: PlansSnapshot | None,
@@ -305,6 +323,9 @@ def bead_preview_markdown(
             resolved = resolved_plan_path(issue, snapshot, project=project)
             detail = resolved or PLAN_REFERENCE_MISSING_LABEL
             lines.append(f"**Resolved plan:** {PLAN_REFERENCE_ARROW} {detail}  ")
+    for index, reference in enumerate(issue.refs):
+        label = "**References:**" if index == 0 else " " * len("**References:**")
+        lines.append(f"{label} {reference}  ")
     lines.extend(["", bead_body_markdown(issue)])
     if issue.dependencies:
         lines.extend(["", "## Dependencies", ""])

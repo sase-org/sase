@@ -43,6 +43,18 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Store a file as an explicit artifact for the current agent",
     )
     create_parser.add_argument(
+        "-b",
+        "--bead",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="ID",
+        help=(
+            "Attach the new file: reference to a bead "
+            "(default when bare: the agent's SASE_BEAD_ID bead)"
+        ),
+    )
+    create_parser.add_argument(
         "-k",
         "--kind",
         choices=ARTIFACT_FILE_KINDS,

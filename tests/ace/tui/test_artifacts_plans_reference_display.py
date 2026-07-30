@@ -211,6 +211,82 @@ def test_resolved_plan_path_is_none_when_the_link_is_broken(
     )
 
 
+def _snapshot_with_refs(
+    tmp_path: Path,
+    refs: list[str],
+) -> tuple[PlansSnapshot, ProjectIssue]:
+    snapshot = _snapshot(tmp_path)
+    epic = replace(snapshot.epics[0].issue, refs=refs)
+    snapshot = replace(
+        snapshot,
+        epics=(ProjectIssue("alpha", epic),),
+        phases_by_epic={
+            ("alpha", epic.id): snapshot.phases_by_epic[("alpha", epic.id)]
+        },
+    )
+    return snapshot, ProjectIssue("alpha", epic)
+
+
+def test_properties_list_every_stored_reference_verbatim(tmp_path: Path) -> None:
+    snapshot, epic = _snapshot_with_refs(
+        tmp_path,
+        ["research:202607/capture.md", "file:explicit:4df639418219c5fa2b50bc24"],
+    )
+
+    detail = _render_detail(
+        plans_detail.bead_properties_header(
+            epic.issue,
+            snapshot,
+            project="alpha",
+            project_name="Alpha",
+        )
+    )
+    collapsed = " ".join(detail.split())
+
+    assert "References research:202607/capture.md" in collapsed
+    assert "file:explicit:4df639418219c5fa2b50bc24" in collapsed
+
+
+def test_properties_render_an_empty_reference_list_as_a_dash(tmp_path: Path) -> None:
+    snapshot, epic = _snapshot_with_refs(tmp_path, [])
+
+    detail = _render_detail(
+        plans_detail.bead_properties_header(
+            epic.issue,
+            snapshot,
+            project="alpha",
+            project_name="Alpha",
+        )
+    )
+
+    assert "References —" in " ".join(detail.split())
+
+
+def test_preview_markdown_lists_stored_references(tmp_path: Path) -> None:
+    snapshot, epic = _snapshot_with_refs(
+        tmp_path,
+        ["research:202607/capture.md", "bead:sase-bb"],
+    )
+
+    preview = plans_detail.bead_preview_markdown(
+        epic.issue,
+        snapshot,
+        project="alpha",
+    )
+
+    assert "**References:** research:202607/capture.md  " in preview
+    assert "bead:sase-bb  " in preview
+
+
+def test_filter_matches_a_stored_reference(tmp_path: Path) -> None:
+    snapshot, epic = _snapshot_with_refs(tmp_path, ["research:202607/capture.md"])
+
+    index = plans_filtering.build_plan_filter_index(snapshot)
+    record = next(item for item in index.records if item.identity == epic.issue.id)
+
+    assert any("research:202607/capture.md" in value for value in record.haystack)
+
+
 def test_filter_matches_both_the_reference_and_the_resolved_path(
     tmp_path: Path,
 ) -> None:

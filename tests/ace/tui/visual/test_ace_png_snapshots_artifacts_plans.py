@@ -189,7 +189,9 @@ async def test_artifacts_plans_populated_png_snapshot(
         await wait_for_visual_idle(page)
         for label in ("xsmall", "small", "medium", "large", "xlarge"):
             assert_page_svg_contains(page, label)
-        assert_page_svg_contains(page, "Size")
+        # At the bottom of the detail scroll the property grid starts at the
+        # References row; "Size" sits just above the viewport.
+        assert_page_svg_contains(page, "References")
         assert_page_svg_contains(page, "Reserve claimed visual state")
 
         ace_png_visual.assert_page_png(

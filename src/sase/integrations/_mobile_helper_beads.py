@@ -303,6 +303,11 @@ def _bead_detail_wire(
             project=project,
             beads_dir=representative_dir,
         ),
+        "refs": _issue_reference_displays(
+            issue,
+            project=project,
+            beads_dir=representative_dir,
+        ),
         "dependencies": [dependency.depends_on_id for dependency in issue.dependencies],
         "blocks": blocks,
         "children": children,
@@ -345,6 +350,42 @@ def _issue_plan_path(
         if resolution.resolved_path is not None
         else reference
     )
+
+
+def _issue_reference_displays(
+    issue: Issue,
+    *,
+    project: str | None,
+    beads_dir: Path | None,
+) -> list[str]:
+    """Return each stored reference, resolved where this machine can resolve it.
+
+    A reference that resolves nowhere here — an ``agent:`` from another host,
+    a document not yet pushed — still travels to the client in its stored
+    form, which is the whole point of storing references instead of paths.
+    """
+
+    if not issue.refs:
+        return []
+    workspace_dir = _plan_resolution_workspace(project, beads_dir)
+    if workspace_dir is None:
+        return list(issue.refs)
+    try:
+        from sase.artifact_ref_context import artifact_ref_context
+        from sase.artifact_ref_lists import resolve_artifact_ref_list
+
+        entries = resolve_artifact_ref_list(
+            issue.refs,
+            context=artifact_ref_context(workspace_dir, 1),
+        )
+    except Exception:
+        return list(issue.refs)
+    return [
+        entry.rendered
+        if entry.resolution.resolved_path is None
+        else str(entry.resolution.resolved_path)
+        for entry in entries
+    ]
 
 
 def _plan_resolution_workspace(

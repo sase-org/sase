@@ -198,6 +198,108 @@ def test_beads_show_bridge_returns_detail(
     assert data["bead"]["workspace_display"] == str(tmp_path / "alpha")  # type: ignore[index]
 
 
+def test_beads_show_bridge_returns_stored_references_it_cannot_resolve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.bead.project import BeadProject
+    from sase.bead.model import IssueType
+
+    alpha_root = tmp_path / "alpha"
+    alpha_dir, _, _, _ = seed_bead_project(alpha_root)
+    with BeadProject(alpha_root) as project:
+        cited = project.create(
+            "Cited",
+            IssueType.PLAN,
+            refs=["research:202607/capture.md", "bead:nowhere-1"],
+        )
+    seed_known_projects(tmp_path, {"alpha": alpha_dir})
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    code, data, stderr = run_bridge(
+        {"schema_version": 1, "project": "alpha", "bead_id": cited.id},
+        "beads-show",
+    )
+
+    assert code == 0
+    assert stderr == ""
+    assert data["bead"]["refs"] == [  # type: ignore[index]
+        "research:202607/capture.md",
+        "bead:nowhere-1",
+    ]
+
+
+def test_beads_show_bridge_omits_refs_for_a_bead_without_any(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alpha_dir, alpha_epic, _, _ = seed_bead_project(tmp_path / "alpha")
+    seed_known_projects(tmp_path, {"alpha": alpha_dir})
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    code, data, stderr = run_bridge(
+        {"schema_version": 1, "project": "alpha", "bead_id": alpha_epic.id},
+        "beads-show",
+    )
+
+    assert code == 0
+    assert stderr == ""
+    assert data["bead"]["refs"] == []  # type: ignore[index]
+
+
+def test_bead_reference_displays_prefer_the_path_a_reference_resolves_to(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.artifact_ref_lists import ArtifactRefListEntry
+    from sase.artifact_ref_models import ArtifactRefResolution
+    from sase.bead.model import Issue
+    from sase.integrations import _mobile_helper_beads as helper
+
+    resolved = tmp_path / "research" / "202607" / "capture.md"
+    entries = (
+        ArtifactRefListEntry(
+            rendered="research:202607/capture.md",
+            resolution=ArtifactRefResolution(
+                schema_version=3,
+                status="exact",
+                rendered="research:202607/capture.md",
+                locator=None,
+                resolved_path=resolved,
+                candidates=(),
+            ),
+        ),
+        ArtifactRefListEntry(
+            rendered="bead:nowhere-1",
+            resolution=ArtifactRefResolution(
+                schema_version=3,
+                status="missing",
+                rendered="bead:nowhere-1",
+                locator=None,
+                resolved_path=None,
+                candidates=(),
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        helper,
+        "_plan_resolution_workspace",
+        lambda *_args: tmp_path,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.artifact_ref_context",
+        lambda *_args: object(),
+    )
+    monkeypatch.setattr(
+        "sase.artifact_ref_lists.resolve_artifact_ref_list",
+        lambda *_args, **_kwargs: entries,
+    )
+    issue = Issue(
+        "alpha-1", "Cited", refs=["research:202607/capture.md", "bead:nowhere-1"]
+    )
+
+    displays = helper._issue_reference_displays(issue, project="alpha", beads_dir=None)
+
+    assert displays == [str(resolved), "bead:nowhere-1"]
+
+
 def test_beads_bridge_returns_resolved_plan_path_when_available(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

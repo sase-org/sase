@@ -139,6 +139,7 @@ def _artifact_create_args(
         label=label,
         kind=None,
         move=False,
+        bead=None,
     )
 
 

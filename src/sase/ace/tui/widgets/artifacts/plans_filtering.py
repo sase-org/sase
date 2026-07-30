@@ -220,6 +220,9 @@ def _issue_record(
             # query works whichever form the user has in front of them.
             issue.design,
             _resolved_plan_path(snapshot, project, issue),
+            # Stored references join the corpus for the same reason `design`
+            # does, and to match `sase bead search`, which indexes them.
+            " ".join(issue.refs),
             issue.assignee,
             issue.owner,
             issue.model,

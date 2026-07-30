@@ -13,6 +13,7 @@ from sase.bead_pages.rendering_identity import (
     PlanLinkResolver,
     render_identity,
     render_prose_sections,
+    render_references,
 )
 from sase.bead_pages.rendering_tables import (
     render_agents,
@@ -53,6 +54,7 @@ def _render_bead_page_from_detail(
     associations = association_index.for_bead(issue.id)
     lines = render_identity(detail, plan_links=link_resolver)
     lines.extend(render_prose_sections(issue))
+    lines.extend(render_references(issue, plan_links=link_resolver))
     if issue.id == bead_lineage_root(issue.id):
         lines.extend(render_phases(detail, association_index))
         lines.extend(render_lineage_graph(issue, all_issues))
