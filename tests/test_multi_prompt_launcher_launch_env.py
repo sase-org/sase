@@ -5,10 +5,13 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planned_name
 from sase.agent.output_variable_context import SASE_AGENT_VAR_UPSTREAMS_ENV
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
+from sase.xprompt.used_xprompts import SASE_LAUNCH_SWARM_XPROMPTS
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -190,6 +193,8 @@ def test_launch_multi_prompt_passes_extra_env_to_each_child(
     assert call1_env["SASE_CHOP_NAME"] == "split"
     assert call0_env["SASE_AGENT_PLANNED_NAME"] == "0"
     assert call1_env["SASE_AGENT_PLANNED_NAME"] == "1"
+    assert SASE_LAUNCH_SWARM_XPROMPTS not in call0_env
+    assert SASE_LAUNCH_SWARM_XPROMPTS not in call1_env
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -236,6 +241,65 @@ def test_launch_multi_prompt_injects_shared_multi_agent_prompt_file(
     }
     prompt_path = Path(os.path.expanduser(next(iter(prompt_paths))))
     assert prompt_path.read_text(encoding="utf-8") == submitted
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.agent.names.get_reserved_agent_names", return_value=set())
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_injects_per_segment_swarm_provenance(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_active_names: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Each spawned slot receives only its segment's ordered swarm chain."""
+    mock_spawn.return_value = MagicMock(pid=1)
+    mock_wait.return_value = "alpha"
+
+    launch_multi_prompt_agents(
+        segments=["seg1", "seg2"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.sase",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+        segment_swarm_xprompts=[
+            ("outer", "inner"),
+            ("outer",),
+        ],
+    )
+
+    envs = [call.kwargs["extra_env"] for call in mock_spawn.call_args_list]
+    assert envs[0][SASE_LAUNCH_SWARM_XPROMPTS] == '["outer","inner"]'
+    assert envs[1][SASE_LAUNCH_SWARM_XPROMPTS] == '["outer"]'
+
+
+def test_launch_multi_prompt_validates_swarm_provenance_length() -> None:
+    with pytest.raises(
+        ValueError,
+        match="segment_swarm_xprompts must have one entry per multi-prompt segment",
+    ):
+        launch_multi_prompt_agents(
+            segments=["seg1", "seg2"],
+            local_xprompts={},
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=False,
+            vcs_ref=None,
+            segment_swarm_xprompts=[("swarm",)],
+        )
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
@@ -17,6 +18,8 @@ from sase.xprompt.workflow_executor_steps_embedded_types import (
 )
 from sase.xprompt.workflow_models import Workflow
 
+SASE_LAUNCH_SWARM_XPROMPTS = "SASE_LAUNCH_SWARM_XPROMPTS"
+
 
 class _UsedXPromptRecord(TypedDict):
     name: str
@@ -24,6 +27,11 @@ class _UsedXPromptRecord(TypedDict):
     positional: list[str]
     named: dict[str, str]
     tags: list[str]
+
+
+def encode_launch_swarm_xprompts(names: Sequence[str]) -> str:
+    """Encode launch-boundary swarm provenance for a child process."""
+    return json.dumps(list(names), separators=(",", ":"))
 
 
 def collect_used_xprompts(

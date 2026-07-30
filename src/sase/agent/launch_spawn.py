@@ -57,6 +57,13 @@ def _remove_inherited_multi_agent_prompt_env(env: dict[str, str]) -> None:
     env.pop(MULTI_AGENT_PROMPT_FILE_ENV, None)
 
 
+def _remove_inherited_swarm_xprompts_env(env: dict[str, str]) -> None:
+    """Drop stale swarm provenance inherited from a parent agent."""
+    from sase.xprompt.used_xprompts import SASE_LAUNCH_SWARM_XPROMPTS
+
+    env.pop(SASE_LAUNCH_SWARM_XPROMPTS, None)
+
+
 def _remove_inherited_model_alias_overrides(
     env: dict[str, str],
     extra_env: dict[str, str] | None,
@@ -273,6 +280,7 @@ def spawn_agent_subprocess(
         _remove_inherited_agent_identity_env(subprocess_env)
         _remove_inherited_chop_context_env(subprocess_env)
         _remove_inherited_multi_agent_prompt_env(subprocess_env)
+        _remove_inherited_swarm_xprompts_env(subprocess_env)
         _remove_inherited_model_alias_overrides(subprocess_env, extra_env)
         _remove_inherited_linked_repo_env(subprocess_env)
         subprocess_env.update(prepared.env_delta)

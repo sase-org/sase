@@ -29,6 +29,7 @@ class RepeatLaunchMixin:
         ctx: PromptContext,
         vcs_ref: tuple[str, str] | None,
         has_wait: bool,
+        extra_env: dict[str, str] | None = None,
     ) -> None:
         """Launch one independent agent per ``%r:N`` iteration.
 
@@ -52,7 +53,7 @@ class RepeatLaunchMixin:
             cl_name=snap.display_name,
             project_file=snap.project_file,
             task_callable=lambda: self._run_repeat_launch(
-                prompt, snap, vcs_ref, has_wait
+                prompt, snap, vcs_ref, has_wait, extra_env
             ),
             submitted_prompt=prompt,
         )
@@ -63,6 +64,7 @@ class RepeatLaunchMixin:
         ctx: PromptContext,
         vcs_ref: tuple[str, str] | None,
         has_wait: bool,
+        extra_env: dict[str, str] | None = None,
     ) -> LaunchTaskOutcome:
         """Worker-thread body for :meth:`_launch_repeat_agents`."""
         from sase.agent.repeat_launcher import (
@@ -132,11 +134,14 @@ class RepeatLaunchMixin:
 
             def _slot_env(slot: LaunchFanoutSlotWire) -> dict[str, str]:
                 spec = specs_by_slot[slot.slot_index]
-                env = {
-                    REPEAT_NAME_ENV: spec.name,
-                    REPEAT_ITERATION_ENV: str(spec.iteration),
-                    REPEAT_TOTAL_ENV: str(spec.total),
-                }
+                env = dict(extra_env or {})
+                env.update(
+                    {
+                        REPEAT_NAME_ENV: spec.name,
+                        REPEAT_ITERATION_ENV: str(spec.iteration),
+                        REPEAT_TOTAL_ENV: str(spec.total),
+                    }
+                )
                 if spec.prev_name is not None:
                     env[REPEAT_PREV_NAME_ENV] = spec.prev_name
                 return env

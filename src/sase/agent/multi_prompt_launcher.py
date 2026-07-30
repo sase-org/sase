@@ -78,6 +78,7 @@ def launch_multi_prompt_agents(
     extra_env: dict[str, str] | None = None,
     segment_extra_env: Sequence[dict[str, str] | None] | None = None,
     segment_template_groups: Sequence[str | None] | None = None,
+    segment_swarm_xprompts: Sequence[Sequence[str]] | None = None,
     preplanned_fanout_plans: Sequence[LaunchFanoutPlanWire | None] | None = None,
     allow_reserved_family_separator_names: bool = False,
     allow_hyphenated_names: bool | None = None,
@@ -111,6 +112,7 @@ def launch_multi_prompt_agents(
             extra_env=extra_env,
             segment_extra_env=segment_extra_env,
             segment_template_groups=segment_template_groups,
+            segment_swarm_xprompts=segment_swarm_xprompts,
             preplanned_fanout_plans=preplanned_fanout_plans,
             allow_reserved_family_separator_names=(
                 allow_reserved_family_separator_names

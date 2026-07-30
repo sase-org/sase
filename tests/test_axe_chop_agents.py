@@ -22,6 +22,7 @@ from sase.axe.chop_agents import (
 from sase.linked_repos import LinkedRepoResolution
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.running_field import ClaimResult
+from sase.xprompt.used_xprompts import SASE_LAUNCH_SWARM_XPROMPTS
 
 
 @pytest.fixture(autouse=True)
@@ -349,6 +350,40 @@ def test_spawn_agent_subprocess_scopes_model_alias_override_env(
         extra_env={key: '{"coder": "opus"}'},
     )
     assert mock_spawn.call_args.kwargs["env"][key] == '{"coder": "opus"}'
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_scopes_swarm_provenance_to_explicit_launch(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A nested launch drops ambient provenance but keeps an explicit chain."""
+    monkeypatch.setenv(SASE_LAUNCH_SWARM_XPROMPTS, '["parent_swarm"]')
+    inherited_case = tmp_path / "inherited"
+    inherited_case.mkdir()
+
+    _spawn_agent_for_env_test(
+        tmp_path=inherited_case,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+    )
+    assert SASE_LAUNCH_SWARM_XPROMPTS not in mock_spawn.call_args.kwargs["env"]
+
+    explicit_case = tmp_path / "explicit"
+    explicit_case.mkdir()
+    _spawn_agent_for_env_test(
+        tmp_path=explicit_case,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+        extra_env={SASE_LAUNCH_SWARM_XPROMPTS: '["child_swarm"]'},
+    )
+    assert (
+        mock_spawn.call_args.kwargs["env"][SASE_LAUNCH_SWARM_XPROMPTS]
+        == '["child_swarm"]'
+    )
 
 
 @patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))

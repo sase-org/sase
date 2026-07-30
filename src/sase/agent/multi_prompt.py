@@ -49,6 +49,7 @@ class MultiPrompt:
     local_xprompts: dict[str, XPrompt] = field(default_factory=dict)
     segments: list[str] = field(default_factory=list)
     template_groups: list[str | None] | None = None
+    swarm_xprompts: list[tuple[str, ...]] | None = None
 
 
 _LocalXPromptNameError = LocalXPromptNameError

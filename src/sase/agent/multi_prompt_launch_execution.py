@@ -55,6 +55,7 @@ def spawn_segments_into(
     extra_env: dict[str, str] | None,
     segment_extra_env: Sequence[dict[str, str] | None] | None,
     segment_template_groups: Sequence[str | None] | None,
+    segment_swarm_xprompts: Sequence[Sequence[str]] | None,
     preplanned_fanout_plans: Sequence[LaunchFanoutPlanWire | None] | None,
     allow_reserved_family_separator_names: bool,
     default_bare_segments_to_home: bool,
@@ -98,6 +99,12 @@ def spawn_segments_into(
         raise ValueError(
             "segment_template_groups must have one entry per multi-prompt segment"
         )
+    if segment_swarm_xprompts is not None and len(segment_swarm_xprompts) != len(
+        segments
+    ):
+        raise ValueError(
+            "segment_swarm_xprompts must have one entry per multi-prompt segment"
+        )
     name_allocator = PlannedNameAllocator()
     clan_prepass = empty_clan_prepass()
     try:
@@ -138,6 +145,9 @@ def spawn_segments_into(
         )
         segment_env = (
             dict(segment_extra_env[i] or {}) if segment_extra_env is not None else {}
+        )
+        segment_swarm_names = (
+            () if segment_swarm_xprompts is None else segment_swarm_xprompts[i]
         )
         upstreams_json = encode_agent_var_upstreams(upstreams) if upstreams else None
         if default_bare_segments_to_home:
@@ -321,6 +331,15 @@ def spawn_segments_into(
                     slot_env[_GENERATED_AGENT_NAME_ENV] = "1"
                 if multi_agent_prompt_file is not None:
                     slot_env[MULTI_AGENT_PROMPT_FILE_ENV] = multi_agent_prompt_file
+                if segment_swarm_names:
+                    from sase.xprompt.used_xprompts import (
+                        SASE_LAUNCH_SWARM_XPROMPTS,
+                        encode_launch_swarm_xprompts,
+                    )
+
+                    slot_env[SASE_LAUNCH_SWARM_XPROMPTS] = encode_launch_swarm_xprompts(
+                        segment_swarm_names
+                    )
                 clan_payload = clan_prepass.membership_env_by_segment.get(i)
                 if clan_payload is not None:
                     slot_env[CLAN_MEMBERSHIP_ENV] = clan_payload

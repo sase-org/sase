@@ -81,6 +81,7 @@ class MultiPromptLaunchMixin:
                 vcs_ref=vcs_ref,
                 default_bare_segments_to_home=ctx.is_home_mode,
                 segment_template_groups=getattr(multi, "template_groups", None),
+                segment_swarm_xprompts=getattr(multi, "swarm_xprompts", None),
                 multi_agent_prompt_text=(
                     submitted_prompt
                     if submitted_prompt is not None

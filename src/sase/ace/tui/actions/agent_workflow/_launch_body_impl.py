@@ -174,6 +174,9 @@ def run_agent_launch_body(
         )
         multi.segments = [record.prompt for record in expanded_records]
         multi.template_groups = [record.template_group for record in expanded_records]
+        multi.swarm_xprompts = [
+            getattr(record, "swarm_xprompts", ()) for record in expanded_records
+        ]
         from sase.agent.agent_name_keys import resolve_agent_name_key_markers
 
         if len(multi.segments) == 1 and expanded_records[0].template_group is None:
@@ -260,6 +263,19 @@ def run_agent_launch_body(
             )
         )
 
+    single_extra_env: dict[str, str] | None = None
+    if multi.swarm_xprompts and multi.swarm_xprompts[0]:
+        from sase.xprompt.used_xprompts import (
+            SASE_LAUNCH_SWARM_XPROMPTS,
+            encode_launch_swarm_xprompts,
+        )
+
+        single_extra_env = {
+            SASE_LAUNCH_SWARM_XPROMPTS: encode_launch_swarm_xprompts(
+                multi.swarm_xprompts[0]
+            )
+        }
+
     return run_single_agent_launch_body(
         app,
         prompt=prompt,
@@ -269,4 +285,5 @@ def run_agent_launch_body(
         submitted_xprompt=submitted_xprompt,
         unresolved_warning_messages=unresolved_warning_messages,
         timer=timer,
+        extra_env=single_extra_env,
     )

@@ -102,6 +102,30 @@ def test_multi_prompt_launch_forwards_submitted_prompt_text() -> None:
     assert captured["multi_agent_prompt_text"] == submitted
 
 
+def test_multi_prompt_launch_forwards_swarm_provenance() -> None:
+    app = _MultiPromptApp()
+    multi = _FakeMultiPrompt(["one", "two"])
+    multi.swarm_xprompts = [("outer",), ("outer", "inner")]
+    captured: dict[str, Any] = {}
+
+    def _capture(**kwargs: Any) -> list[Any]:
+        captured.update(kwargs)
+        return []
+
+    with patch("sase.agent.multi_prompt.MultiPrompt", _FakeMultiPrompt, create=True):
+        with patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+            side_effect=_capture,
+        ):
+            app._launch_multi_prompt_agents(multi, _ctx(), None)
+            app._run_submitted_launch_tasks()
+
+    assert captured["segment_swarm_xprompts"] == [
+        ("outer",),
+        ("outer", "inner"),
+    ]
+
+
 def test_multi_prompt_launch_failure_records_failed_history() -> None:
     app = _MultiPromptApp()
     multi = _FakeMultiPrompt(["first prompt", "second prompt"])

@@ -34,6 +34,7 @@ def run_single_agent_launch_body(
     submitted_xprompt: str,
     unresolved_warning_messages: Sequence[str],
     timer: Any,
+    extra_env: dict[str, str] | None = None,
 ) -> LaunchTaskOutcome:
     """Run single-prompt, fan-out, repeat, workflow, and spawn launch paths."""
     from sase.project_display_names import project_display_name_for
@@ -319,6 +320,7 @@ def run_single_agent_launch_body(
             local_xprompts,
             submitted_xprompt,
             fanout_plan,
+            extra_env,
         )
         return _with_unresolved_warnings(
             LaunchTaskOutcome(
@@ -343,6 +345,7 @@ def run_single_agent_launch_body(
             ctx,
             vcs_ref,
             has_wait,
+            extra_env,
         )
         return _with_unresolved_warnings(
             LaunchTaskOutcome(
@@ -414,6 +417,7 @@ def run_single_agent_launch_body(
                 ),
                 spawn=_spawn_from_tui,
                 base_timestamp=ctx.timestamp,
+                extra_env=extra_env,
             )
         timer.finish(dispatch="single")
         return _with_unresolved_warnings(

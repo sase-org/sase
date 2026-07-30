@@ -196,7 +196,11 @@ def test_run_agent_launch_body_xprompt_swarm_history_uses_input() -> None:
         patch(
             "sase.agent.xprompt_swarm.expand_xprompt_swarms_with_metadata",
             return_value=[
-                SimpleNamespace(prompt=segment, template_group=None)
+                SimpleNamespace(
+                    prompt=segment,
+                    template_group=None,
+                    swarm_xprompts=("research_swarm",),
+                )
                 for segment in expanded_segments
             ],
         ),
@@ -222,6 +226,32 @@ def test_run_agent_launch_body_xprompt_swarm_history_uses_input() -> None:
     assert len(multi_prompt_calls) == 1
     _, args = multi_prompt_calls[0]
     assert args[0].segments == expanded_segments
+    assert args[0].swarm_xprompts == [
+        ("research_swarm",),
+        ("research_swarm",),
+    ]
+
+
+def test_run_agent_launch_body_single_segment_swarm_passes_launch_env() -> None:
+    app = _LaunchBodyApp()
+
+    with patch(
+        "sase.agent.xprompt_swarm.expand_xprompt_swarms_with_metadata",
+        return_value=[
+            SimpleNamespace(
+                prompt="Generated only step",
+                template_group="xprompt:solo_swarm:0",
+                swarm_xprompts=("solo_swarm",),
+            )
+        ],
+    ):
+        _run_launch_body_with_common_patches(app, "#solo_swarm")
+
+    assert len(app.launched) == 1
+    assert app.launched[0]["prompt"] == "Generated only step"
+    assert app.launched[0]["extra_env"]["SASE_LAUNCH_SWARM_XPROMPTS"] == (
+        '["solo_swarm"]'
+    )
 
 
 def test_run_agent_launch_body_direct_single_agent_schedules_delta_after_success() -> (

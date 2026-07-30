@@ -202,6 +202,53 @@ def test_launch_agents_from_cwd_segment_extra_env_shares_xprompt_group_counter(
         "xprompt:swarm:1",
         "xprompt:swarm:1",
     ]
+    assert kwargs["segment_swarm_xprompts"] == [
+        ("swarm",),
+        ("swarm",),
+        ("swarm",),
+        ("swarm",),
+    ]
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch(
+    "sase.main.utils.ensure_project_file_and_get_workspace_num",
+    return_value=(None, None, None),
+)
+def test_launch_agents_from_cwd_passes_single_segment_swarm_provenance(
+    mock_project: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """A one-segment swarm keeps provenance on the single-agent path."""
+    from sase.agent.launcher import launch_agents_from_cwd
+    from sase.xprompt.used_xprompts import SASE_LAUNCH_SWARM_XPROMPTS
+
+    del mock_project, mock_timestamp
+    mock_spawn.side_effect = spawn_result_with_planned_name
+    catalog = {
+        "swarm": XPrompt(
+            name="swarm",
+            content="Only one segment\n---\n",
+        )
+    }
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch("sase.agent.xprompt_swarm.get_all_xprompts", return_value=catalog),
+        patch(
+            "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
+            return_value=None,
+        ),
+    ):
+        launch_agents_from_cwd("#swarm")
+
+    assert (
+        mock_spawn.call_args.kwargs["extra_env"][SASE_LAUNCH_SWARM_XPROMPTS]
+        == '["swarm"]'
+    )
 
 
 @patch("sase.history.prompt.add_or_update_prompt")

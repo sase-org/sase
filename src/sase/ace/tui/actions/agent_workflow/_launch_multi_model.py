@@ -35,6 +35,7 @@ class MultiModelLaunchMixin:
         local_xprompts: dict[str, XPrompt] | None = None,
         submitted_xprompt: str | None = None,
         fanout_plan: LaunchFanoutPlanWire | None = None,
+        extra_env: dict[str, str] | None = None,
     ) -> None:
         """Launch one agent per slot for a prompt fan-out directive.
 
@@ -70,6 +71,7 @@ class MultiModelLaunchMixin:
                 local_xprompts,
                 submitted_xprompt,
                 fanout_plan,
+                extra_env,
             ),
             submitted_prompt=submitted_xprompt,
         )
@@ -84,6 +86,7 @@ class MultiModelLaunchMixin:
         local_xprompts: dict[str, XPrompt] | None = None,
         submitted_xprompt: str | None = None,
         fanout_plan: LaunchFanoutPlanWire | None = None,
+        extra_env: dict[str, str] | None = None,
     ) -> LaunchTaskOutcome:
         """Worker-thread body for :meth:`_launch_multi_model_agents`."""
         from sase.agent.launch_timing import LaunchTimingRecorder
@@ -124,6 +127,7 @@ class MultiModelLaunchMixin:
                     preplanned_fanout_plans=(
                         [fanout_plan] if fanout_plan is not None else None
                     ),
+                    extra_env=extra_env,
                 )
 
             msg = f"Started {len(results)} agent(s) for {ctx.display_name}"

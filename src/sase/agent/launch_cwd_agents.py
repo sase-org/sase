@@ -112,6 +112,7 @@ def launch_agents_from_cwd_impl(
     enable_known_project_vcs_refs_for_launch_prompt("\n---\n".join(multi.segments))
     expanded_segment_extra_env: list[dict[str, str] | None] | None = None
     expanded_segment_template_groups: list[str | None] = []
+    expanded_segment_swarm_xprompts: list[tuple[str, ...]] = []
     if segment_extra_env is not None:
         if len(segment_extra_env) != len(multi.segments):
             raise ValueError(
@@ -138,6 +139,9 @@ def launch_agents_from_cwd_impl(
             expanded_segment_template_groups.extend(
                 record.template_group for record in segment_expansions
             )
+            expanded_segment_swarm_xprompts.extend(
+                record.swarm_xprompts for record in segment_expansions
+            )
     else:
         expanded_records = expand_xprompt_swarms_with_metadata(
             multi.segments, multi.local_xprompts
@@ -145,6 +149,9 @@ def launch_agents_from_cwd_impl(
         expanded_segments = [record.prompt for record in expanded_records]
         expanded_segment_template_groups = [
             record.template_group for record in expanded_records
+        ]
+        expanded_segment_swarm_xprompts = [
+            record.swarm_xprompts for record in expanded_records
         ]
 
     from sase.agent.agent_name_keys import resolve_agent_name_key_markers
@@ -217,6 +224,7 @@ def launch_agents_from_cwd_impl(
                 extra_env=extra_env,
                 segment_extra_env=expanded_segment_extra_env,
                 segment_template_groups=expanded_segment_template_groups,
+                segment_swarm_xprompts=expanded_segment_swarm_xprompts,
                 allow_reserved_family_separator_names=internal_agent_name_bypass_for_launch(
                     extra_env,
                     expanded_segment_extra_env,
@@ -234,6 +242,18 @@ def launch_agents_from_cwd_impl(
     if expanded_segment_extra_env:
         segment_env = expanded_segment_extra_env[0] or {}
         extra_env = {**(extra_env or {}), **segment_env}
+    if expanded_segment_swarm_xprompts[0]:
+        from sase.xprompt.used_xprompts import (
+            SASE_LAUNCH_SWARM_XPROMPTS,
+            encode_launch_swarm_xprompts,
+        )
+
+        extra_env = {
+            **(extra_env or {}),
+            SASE_LAUNCH_SWARM_XPROMPTS: encode_launch_swarm_xprompts(
+                expanded_segment_swarm_xprompts[0]
+            ),
+        }
 
     # --- Repeat fan-out ---
     # When %r:N is present, spawn N independent agents before any further
