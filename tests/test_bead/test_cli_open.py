@@ -44,8 +44,8 @@ def test_handle_bead_open_reopens_issue(
     with BeadProject(project_dir) as proj:
         reopened = proj.show(issue.id)
         assert reopened.status == Status.OPEN
-        assert reopened.closed_at is not None
-        assert reopened.close_reason == "done"
+        assert reopened.closed_at is None
+        assert reopened.close_reason is None
         assert reopened.resolution is None
 
     assert f"○ Opened: {issue.id} — Reopen me" in capsys.readouterr().out

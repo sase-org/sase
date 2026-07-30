@@ -20,6 +20,9 @@ def handle_bead_history(args: argparse.Namespace) -> None:
     if args.restore and not args.lost_notes:
         print("Error: --restore requires --lost-notes", file=sys.stderr)
         sys.exit(2)
+    if args.yes and not args.restore:
+        print("Error: --yes requires --restore", file=sys.stderr)
+        sys.exit(2)
     if args.lost_notes:
         _handle_lost_notes(args)
         return
@@ -72,7 +75,7 @@ def _handle_lost_notes(args: argparse.Namespace) -> None:
         revision_count = _lost_revision_count(findings)
         if not revision_count:
             return
-        if not _confirm_lost_note_restore(revision_count):
+        if not args.yes and not _confirm_lost_note_restore(revision_count):
             print("Lost-note restoration cancelled; no changes applied.")
             return
         _restore_lost_notes(findings, issue_id)
@@ -209,6 +212,7 @@ def _filtered_entries(
         for entry in raw_entries
         if isinstance(entry, dict)
     ]
+    entries = _mark_redundant_close_entries(entries)
     if fields:
         selected = set(fields)
         filtered: list[dict[str, Any]] = []
@@ -224,6 +228,44 @@ def _filtered_entries(
     return entries
 
 
+def _mark_redundant_close_entries(
+    entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    closed_at: str | None = None
+    marked: list[dict[str, Any]] = []
+    for entry in entries:
+        changes = entry["changes"]
+        already_closed_at = (
+            closed_at
+            if entry.get("operation") == "issue_closed" and not changes and closed_at
+            else None
+        )
+        marked_entry = {
+            **entry,
+            "redundant": already_closed_at is not None,
+        }
+        if already_closed_at is not None:
+            marked_entry["already_closed_at"] = already_closed_at
+        marked.append(marked_entry)
+
+        for change in changes:
+            if not isinstance(change, dict) or change.get("field") != "closed_at":
+                continue
+            to_value = change.get("to")
+            closed_at = to_value if isinstance(to_value, str) else None
+    return marked
+
+
+def _operation_label(entry: dict[str, Any]) -> str:
+    operation = str(entry["operation"])
+    if entry.get("redundant") is True and operation == "issue_closed":
+        already_closed_at = entry.get("already_closed_at")
+        if already_closed_at:
+            return f"{operation} (redundant — already closed {already_closed_at})"
+        return f"{operation} (redundant — already closed)"
+    return operation
+
+
 def _render_compact(entries: list[dict[str, Any]]) -> str:
     if not entries:
         return "No history entries found.\n"
@@ -232,7 +274,7 @@ def _render_compact(entries: list[dict[str, Any]]) -> str:
         fields = ", ".join(str(change["field"]) for change in entry["changes"])
         lines.append(
             f"{entry['timestamp']} · {entry['actor']} · "
-            f"{entry['operation']} · {fields or '(no changes)'}"
+            f"{_operation_label(entry)} · {fields or '(no changes)'}"
         )
     return "\n".join(lines) + "\n"
 
@@ -243,7 +285,7 @@ def _render_full(entries: list[dict[str, Any]]) -> str:
     sections = []
     for entry in entries:
         lines = [
-            f"{entry['timestamp']} · {entry['actor']} · {entry['operation']}",
+            f"{entry['timestamp']} · {entry['actor']} · {_operation_label(entry)}",
             f"  Event: {entry['event_id']}",
         ]
         changes = entry["changes"]

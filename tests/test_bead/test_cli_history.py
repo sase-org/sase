@@ -26,6 +26,34 @@ def _revision_chain(project_dir: Path) -> str:
     return issue.id
 
 
+def _append_redundant_close_event(
+    project_dir: Path,
+    issue_id: str,
+    *,
+    timestamp: str = "2026-07-30T18:09:00Z",
+) -> None:
+    stream_path = project_dir / f"sdd/beads/events/streams/{issue_id}.jsonl"
+    lines = stream_path.read_text(encoding="utf-8").splitlines()
+    close_event = json.loads(lines[-1])
+    assert close_event["operation"] == "issue_closed"
+    close_event["event_id"] = (
+        f"{issue_id}:000003:issue_closed:{issue_id}:"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+    )
+    close_event["timestamp"] = timestamp
+    close_event["payload"]["close_reason"] = None
+    stream_path.write_text(
+        "\n".join(
+            [
+                *lines,
+                json.dumps(close_event, separators=(",", ":"), sort_keys=True),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def _run_history(
     argv: list[str],
     capsys: pytest.CaptureFixture[str],
@@ -68,10 +96,11 @@ def test_history_parser_contract_and_missing_id_error(
 def test_lost_notes_parser_contract_and_restore_requires_scan_mode(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    args = create_parser().parse_args(["bead", "history", "sase-1", "-l", "-R"])
+    args = create_parser().parse_args(["bead", "history", "sase-1", "-l", "-R", "-y"])
     assert args.id == "sase-1"
     assert args.lost_notes is True
     assert args.restore is True
+    assert args.yes is True
 
     with pytest.raises(SystemExit) as excinfo:
         bead_cli.handle_bead_history(
@@ -79,6 +108,18 @@ def test_lost_notes_parser_contract_and_restore_requires_scan_mode(
         )
     assert excinfo.value.code == 2
     assert "--restore requires --lost-notes" in capsys.readouterr().err
+
+
+def test_lost_notes_yes_requires_restore(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_history(
+            create_parser().parse_args(["bead", "history", "sase-1", "--yes"])
+        )
+
+    assert excinfo.value.code == 2
+    assert "--yes requires --restore" in capsys.readouterr().err
 
 
 def test_history_compact_lists_event_metadata_and_changed_fields(
@@ -93,6 +134,45 @@ def test_history_compact_lists_event_metadata_and_changed_fields(
     assert output.count("issue_updated") == 2
     assert "notes" in output
     assert all(line.count("·") == 3 for line in output.splitlines())
+
+
+def test_history_labels_redundant_duplicate_close_in_all_formats(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        issue = project.create("Duplicate close", IssueType.PLAN)
+        closed = project.close([issue.id], reason="first close")[0]
+    assert closed.closed_at is not None
+    _append_redundant_close_event(project_dir, issue.id)
+
+    label = f"issue_closed (redundant — already closed {closed.closed_at})"
+    compact = _run_history([issue.id], capsys)
+    assert label in compact
+
+    full = _run_history([issue.id, "--format", "full"], capsys)
+    assert label in full
+    assert "Changes: (none)" in full
+
+    payload = json.loads(_run_history([issue.id, "--format", "json"], capsys))
+    redundant = [
+        entry
+        for entry in payload["entries"]
+        if entry["operation"] == "issue_closed" and not entry["changes"]
+    ]
+    assert [entry["redundant"] for entry in payload["entries"]] == [
+        False,
+        False,
+        True,
+    ]
+    assert len(redundant) == 1
+    assert redundant[0]["event_id"] == (
+        f"{issue.id}:000003:issue_closed:{issue.id}:"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+    )
+    assert redundant[0]["timestamp"] == "2026-07-30T18:09:00Z"
+    assert redundant[0]["redundant"] is True
+    assert redundant[0]["already_closed_at"] == closed.closed_at
 
 
 def test_history_full_makes_overwritten_note_revisions_readable(
@@ -111,6 +191,26 @@ def test_history_full_makes_overwritten_note_revisions_readable(
     assert "from: second note" in output
     assert "to: third note" in output
     assert "title:" not in output
+
+
+def test_history_full_shows_reopen_clearing_closed_at(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        issue = project.create("Reopen target", IssueType.PLAN)
+        closed = project.close([issue.id], reason="finished")[0]
+        project.open(issue.id)
+
+    output = _run_history(
+        [issue.id, "--field", "closed_at", "--format", "full"],
+        capsys,
+    )
+
+    assert closed.closed_at is not None
+    assert "issue_opened" in output
+    assert f"from: {closed.closed_at}" in output
+    assert "to: (unset)" in output
 
 
 def test_history_json_envelope_field_filter_and_newest_limit(
@@ -247,6 +347,42 @@ def test_lost_notes_restore_is_provenanced_and_idempotent(
     assert "(restored 2026-07-27) lost handoff" in restored
 
     assert _run_history(["--lost-notes"], capsys) == "No lost note revisions found.\n"
+
+
+def test_lost_notes_restore_yes_skips_non_tty_confirmation(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        issue = project.create(
+            "Restore target",
+            IssueType.PLAN,
+            notes="lost handoff",
+        )
+        project.update(issue.id, notes="current summary")
+
+    monkeypatch.setattr(
+        cli_history,
+        "_confirm_lost_note_restore",
+        lambda _count: pytest.fail("confirmation prompt should be skipped"),
+    )
+    monkeypatch.setattr(
+        cli_history,
+        "_restored_date",
+        lambda: "2026-07-27",
+    )
+    monkeypatch.setattr(
+        "sase.bead.project._now",
+        lambda: "2026-07-27T19:00:00Z",
+    )
+
+    output = _run_history(["--lost-notes", "--restore", "--yes"], capsys)
+    assert "✓ Restored 1 lost note revision across 1 bead" in output
+
+    with BeadProject(project_dir) as project:
+        restored = project.show(issue.id).notes
+    assert "(restored 2026-07-27) lost handoff" in restored
 
 
 def test_lost_notes_declined_confirmation_writes_nothing(

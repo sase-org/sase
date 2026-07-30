@@ -302,6 +302,12 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="With --lost-notes, re-append dropped revisions after confirmation",
     )
+    bead_history_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="With --restore, skip the confirmation prompt",
+    )
 
     # sase bead init
     bead_subparsers.add_parser("init", help="Create the effective SDD bead store")
