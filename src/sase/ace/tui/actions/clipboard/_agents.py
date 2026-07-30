@@ -7,6 +7,7 @@ from sase.project_display_names import humanize_vcs_refs_in_text
 
 from ._base import ClipboardBase
 from ._delivery import schedule_copy_delivery
+from ._helpers import cap_copy_content
 
 
 class ClipboardAgentsMixin(ClipboardBase):
@@ -68,12 +69,16 @@ class ClipboardAgentsMixin(ClipboardBase):
             self.notify("No prompt available for this agent", severity="warning")  # type: ignore[attr-defined]
             return
 
-        display_content = humanize_vcs_refs_in_text(content).strip()
-        lines = len(display_content.split("\n"))
+        capped = cap_copy_content(humanize_vcs_refs_in_text(content).strip())
+        lines = len(capped.value.split("\n"))
         schedule_copy_delivery(
             self,
-            display_content,
-            copied_label=f"agent prompt ({lines} lines)",
+            capped.value,
+            copied_label=(
+                f"agent prompt ({lines} lines) — truncated"
+                if capped.truncated
+                else f"agent prompt ({lines} lines)"
+            ),
             task_name="sase-copy-agent-prompt",
         )
 

@@ -10,6 +10,9 @@ from unittest.mock import call, MagicMock
 import pytest
 
 from sase.ace.tui.actions.clipboard import _artifacts
+from sase.ace.tui.actions.clipboard import (
+    _artifact_reference_resolution as _resolution,
+)
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.clipboard import ClipboardMixin
 from sase.ace.tui.keymaps import load_keymap_registry
@@ -64,12 +67,14 @@ class _CopyHarness(ClipboardMixin):
         self,
         content: str | Any,
         *,
-        copied_message: str,
+        copied_message: str | Any,
         task_name: str = "sase-artifacts-copy",
+        content_shaped: bool = False,
     ) -> None:
-        del task_name
+        del task_name, content_shaped
         value = content() if callable(content) else content
-        self.copies.append((value, copied_message))
+        message = copied_message() if callable(copied_message) else copied_message
+        self.copies.append((value, message))
 
     def _commits_pane(self) -> Any:
         return self.commits_pane
@@ -439,10 +444,12 @@ def test_marked_bugs_copy_the_marked_set() -> None:
             [
                 ("%", "SHA"),
                 ("@", "@ref"),
-                ("!", "agent + @ref"),
+                ("l", "link"),
                 ("m", "message"),
                 ("r", "repo@SHA"),
                 ("p", "plan ref"),
+                ("J", "JSON"),
+                ("!", "agent + @ref"),
                 ("s", "snap"),
             ],
         ),
@@ -450,10 +457,12 @@ def test_marked_bugs_copy_the_marked_set() -> None:
             "plans",
             [
                 ("@", "@ref"),
-                ("!", "agent + @ref"),
+                ("l", "link"),
                 ("p", "path"),
                 ("t", "title"),
                 ("b", "body"),
+                ("J", "JSON"),
+                ("!", "agent + @ref"),
                 ("s", "snap"),
             ],
         ),
@@ -461,10 +470,12 @@ def test_marked_bugs_copy_the_marked_set() -> None:
             "chats",
             [
                 ("@", "@ref"),
-                ("!", "agent + @ref"),
+                ("l", "link"),
                 ("p", "path"),
                 ("a", "agent"),
                 ("t", "transcript"),
+                ("J", "JSON"),
+                ("!", "agent + @ref"),
                 ("s", "snap"),
             ],
         ),
@@ -472,11 +483,13 @@ def test_marked_bugs_copy_the_marked_set() -> None:
             "bugs",
             [
                 ("@", "@ref"),
-                ("!", "agent + @ref"),
+                ("l", "link"),
                 ("b", "issue #"),
                 ("u", "url"),
                 ("t", "title"),
                 ("p", "agent prompt"),
+                ("J", "JSON"),
+                ("!", "agent + @ref"),
                 ("s", "snap"),
             ],
         ),
@@ -512,6 +525,23 @@ def test_reference_keys_dispatch_uniformly_across_artifacts_subtabs(
     ]
 
 
+@pytest.mark.parametrize("subtab", ["commits", "plans", "chats", "bugs"])
+def test_link_and_json_keys_dispatch_uniformly_across_artifacts_subtabs(
+    subtab: str,
+) -> None:
+    app = _CopyHarness()
+    app.current_artifacts_subtab = subtab
+    app._run_artifact_representation_action = MagicMock()  # type: ignore[method-assign]
+
+    assert app._handle_copy_key("l") is True
+    assert app._handle_copy_key("J") is True
+
+    assert app._run_artifact_representation_action.call_args_list == [
+        call("link"),
+        call("json"),
+    ]
+
+
 async def test_marked_reference_handoff_seeds_one_project_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -543,8 +573,18 @@ async def test_marked_reference_handoff_seeds_one_project_prompt(
     app._capture_artifact_reference_selection = lambda: selection  # type: ignore[method-assign]
     monkeypatch.setattr(
         _artifacts,
-        "_resolve_artifact_references",
-        lambda _selection: ("@bug:Alpha#41", "@bug:Alpha#42"),
+        "_resolve_artifact_selection",
+        lambda _selection, **_kwargs: _artifacts._ResolvedArtifactSelection(
+            tuple(
+                _artifacts._ResolvedArtifactItem(item, reference, None)
+                for item, reference in zip(
+                    selection.items,
+                    ("bug:Alpha#41", "bug:Alpha#42"),
+                    strict=True,
+                )
+            ),
+            (),
+        ),
     )
     monkeypatch.setattr(
         "sase.workspace_provider.detect_workflow_type",
@@ -567,7 +607,7 @@ async def test_marked_reference_handoff_seeds_one_project_prompt(
     )
 
 
-async def test_marked_reference_copy_uses_multi_copy_format_and_count(
+async def test_marked_reference_copy_uses_paste_ready_lines_and_count(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = _CopyHarness()
@@ -597,10 +637,20 @@ async def test_marked_reference_copy_uses_multi_copy_format_and_count(
     app._capture_artifact_reference_selection = lambda: selection  # type: ignore[method-assign]
     monkeypatch.setattr(
         _artifacts,
-        "_resolve_artifact_references",
-        lambda _selection: (
-            f"@commit:sase@{'a' * 40}",
-            f"@commit:sase@{'b' * 40}",
+        "_resolve_artifact_selection",
+        lambda _selection, **_kwargs: _artifacts._ResolvedArtifactSelection(
+            tuple(
+                _artifacts._ResolvedArtifactItem(item, reference, None)
+                for item, reference in zip(
+                    selection.items,
+                    (
+                        f"commit:sase@{'a' * 40}",
+                        f"commit:sase@{'b' * 40}",
+                    ),
+                    strict=True,
+                )
+            ),
+            (),
         ),
     )
     copied: list[str] = []
@@ -618,11 +668,14 @@ async def test_marked_reference_copy_uses_multi_copy_format_and_count(
     app._run_artifact_reference_action(handoff=False)
     await pending.pop()
 
-    assert "### sase@aaaaaaa" in copied[0]
-    assert f"@commit:sase@{'a' * 40}" in copied[0]
-    assert "### sase@bbbbbbb" in copied[0]
+    assert copied[0] == "\n".join(
+        (
+            f"@commit:sase@{'a' * 40}",
+            f"@commit:sase@{'b' * 40}",
+        )
+    )
     assert app.notifications[-1] == (
-        "Copied 2 artifact references",
+        "Copied 2 references",
         "information",
     )
 
@@ -650,12 +703,13 @@ async def test_unreferenceable_chat_warns_with_the_reason(
     app._capture_artifact_reference_selection = lambda: selection  # type: ignore[method-assign]
     monkeypatch.setattr(
         _artifacts,
-        "_resolve_artifact_references",
-        lambda _selection: (_ for _ in ()).throw(
-            ValueError(
+        "_resolve_artifact_selection",
+        lambda _selection, **_kwargs: _artifacts._ResolvedArtifactSelection(
+            (),
+            (
                 "imported-chat cannot be referenced because it is an imported "
-                "transcript outside the chats root"
-            )
+                "transcript outside the chats root",
+            ),
         ),
     )
     pending: list[Any] = []
@@ -701,7 +755,7 @@ def test_reference_resolver_renders_every_artifacts_identity(
         projects=(ArtifactRefProject("Alpha", "alpha"),),
     )
     monkeypatch.setattr(
-        _artifacts,
+        _resolution,
         "artifact_ref_context",
         lambda *_args, **_kwargs: context,
     )
@@ -770,7 +824,12 @@ def test_reference_resolver_renders_every_artifacts_identity(
             prompt_display_name="Alpha",
             prompt_project_file="/tmp/alpha.sase",
         )
-        assert _artifacts._resolve_artifact_references(selection) == (expected,)
+        resolved = _artifacts._resolve_artifact_selection(
+            selection,
+            include_metadata=False,
+        )
+        assert tuple(f"@{item.reference}" for item in resolved.items) == (expected,)
+        assert resolved.failures == ()
 
 
 def test_artifacts_footer_surfaces_only_a_nonzero_mark_count() -> None:

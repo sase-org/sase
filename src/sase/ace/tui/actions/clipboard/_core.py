@@ -7,8 +7,9 @@ from ...keymaps import key_display_name
 from ._base import ClipboardBase
 from ._delivery import schedule_copy_delivery
 from ._helpers import (
+    cap_copy_content,
     capture_tmux_pane,
-    format_multi_copy_content,
+    format_multi_copy_content_capped,
 )
 
 
@@ -114,6 +115,8 @@ class ClipboardCoreMixin(ClipboardBase):
             self._copy_pr_number()  # type: ignore[attr-defined]
         elif key == cs_keys["name"]:
             self._copy_cl_name()  # type: ignore[attr-defined]
+        elif key == cs_keys.get("link"):
+            self._copy_changespec_link()  # type: ignore[attr-defined]
         elif key == cs_keys["spec"]:
             self._copy_project_spec()  # type: ignore[attr-defined]
         elif key == cs_keys["snapshot"]:
@@ -186,17 +189,23 @@ class ClipboardCoreMixin(ClipboardBase):
 
     def _copy_snapshot(self) -> None:
         """Copy the tmux pane snapshot with header and backticks (%s)."""
+        state = {"truncated": False}
 
         def snapshot_value() -> str:
             snapshot_content = capture_tmux_pane()
             if snapshot_content is None:
                 raise RuntimeError("failed to capture tmux pane")
             contents = [("`sase ace` Snapshot", snapshot_content.strip())]
-            return "\n" + format_multi_copy_content(contents)
+            capped = format_multi_copy_content_capped(contents)
+            total = cap_copy_content("\n" + capped.value)
+            state["truncated"] = capped.truncated or total.truncated
+            return total.value
 
         schedule_copy_delivery(
             self,
             snapshot_value,
-            copied_label="snapshot",
+            copied_label=lambda: (
+                "snapshot — truncated" if state["truncated"] else "snapshot"
+            ),
             task_name="sase-copy-snapshot",
         )

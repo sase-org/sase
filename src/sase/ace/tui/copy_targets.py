@@ -1,0 +1,520 @@
+"""Shared vocabulary for every ACE copy-mode target."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Literal
+
+
+CopyTargetCategory = Literal["Identity", "Location", "Content", "Data", "Actions"]
+
+
+@dataclass(frozen=True, slots=True)
+class _CopyTarget:
+    """Presentation metadata for one configured copy-mode target."""
+
+    group: str
+    target: str
+    footer_label: str
+    palette_label: str
+    category: CopyTargetCategory
+    plural_label: str
+    accepts_marks: bool = False
+
+
+def _target(
+    group: str,
+    target: str,
+    footer_label: str,
+    palette_label: str,
+    category: CopyTargetCategory,
+    plural_label: str,
+    *,
+    accepts_marks: bool = False,
+) -> _CopyTarget:
+    return _CopyTarget(
+        group=group,
+        target=target,
+        footer_label=footer_label,
+        palette_label=palette_label,
+        category=category,
+        plural_label=plural_label,
+        accepts_marks=accepts_marks,
+    )
+
+
+COPY_TARGETS: tuple[_CopyTarget, ...] = (
+    _target(
+        "changespecs",
+        "raw",
+        "raw",
+        "Copy raw line",
+        "Content",
+        "raw lines",
+    ),
+    _target(
+        "changespecs",
+        "with_snapshot",
+        "+snap",
+        "Copy line + snapshot",
+        "Actions",
+        "lines + snapshots",
+    ),
+    _target(
+        "changespecs",
+        "bug",
+        "bug",
+        "Copy bug id",
+        "Identity",
+        "bug ids",
+    ),
+    _target(
+        "changespecs",
+        "pr_number",
+        "PR#",
+        "Copy PR number",
+        "Identity",
+        "PR numbers",
+    ),
+    _target(
+        "changespecs",
+        "name",
+        "name",
+        "Copy ChangeSpec name",
+        "Identity",
+        "ChangeSpec names",
+    ),
+    _target(
+        "changespecs",
+        "link",
+        "link",
+        "Copy Markdown link",
+        "Location",
+        "Markdown links",
+    ),
+    _target(
+        "changespecs",
+        "spec",
+        "spec",
+        "Copy spec text",
+        "Content",
+        "spec texts",
+    ),
+    _target(
+        "changespecs",
+        "snapshot",
+        "snap",
+        "Copy snapshot",
+        "Actions",
+        "snapshots",
+    ),
+    _target(
+        "artifacts_commits",
+        "sha",
+        "SHA",
+        "Copy commit SHA",
+        "Identity",
+        "commit SHAs",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_commits",
+        "reference",
+        "@ref",
+        "Copy artifact reference",
+        "Identity",
+        "artifact references",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_commits",
+        "link",
+        "link",
+        "Copy Markdown link",
+        "Location",
+        "Markdown links",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_commits",
+        "message",
+        "message",
+        "Copy commit message",
+        "Content",
+        "commit messages",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_commits",
+        "repo_sha",
+        "repo@SHA",
+        "Copy repo@SHA",
+        "Identity",
+        "repository commit references",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_commits",
+        "plan",
+        "plan ref",
+        "Copy linked plan reference",
+        "Location",
+        "linked plan references",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_commits",
+        "json",
+        "JSON",
+        "Copy metadata JSON",
+        "Data",
+        "metadata JSON records",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_commits",
+        "handoff",
+        "agent + @ref",
+        "Reference in new agent prompt",
+        "Actions",
+        "references in a new agent prompt",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_commits",
+        "snapshot",
+        "snap",
+        "Copy Artifacts snapshot",
+        "Actions",
+        "Artifacts snapshots",
+    ),
+    _target(
+        "artifacts_plans",
+        "reference",
+        "@ref",
+        "Copy artifact reference",
+        "Identity",
+        "artifact references",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_plans",
+        "link",
+        "link",
+        "Copy Markdown link",
+        "Location",
+        "Markdown links",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_plans",
+        "path",
+        "path",
+        "Copy plan path",
+        "Location",
+        "plan paths",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_plans",
+        "title",
+        "title",
+        "Copy plan title",
+        "Identity",
+        "plan titles",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_plans",
+        "body",
+        "body",
+        "Copy plan body",
+        "Content",
+        "plan bodies",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_plans",
+        "json",
+        "JSON",
+        "Copy metadata JSON",
+        "Data",
+        "metadata JSON records",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_plans",
+        "handoff",
+        "agent + @ref",
+        "Reference in new agent prompt",
+        "Actions",
+        "references in a new agent prompt",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_plans",
+        "snapshot",
+        "snap",
+        "Copy Artifacts snapshot",
+        "Actions",
+        "Artifacts snapshots",
+    ),
+    _target(
+        "artifacts_chats",
+        "reference",
+        "@ref",
+        "Copy artifact reference",
+        "Identity",
+        "artifact references",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_chats",
+        "link",
+        "link",
+        "Copy Markdown link",
+        "Location",
+        "Markdown links",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_chats",
+        "path",
+        "path",
+        "Copy chat path",
+        "Location",
+        "chat paths",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_chats",
+        "agent",
+        "agent",
+        "Copy chat agent name",
+        "Identity",
+        "chat agent names",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_chats",
+        "transcript",
+        "transcript",
+        "Copy chat transcript",
+        "Content",
+        "chat transcripts",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_chats",
+        "json",
+        "JSON",
+        "Copy metadata JSON",
+        "Data",
+        "metadata JSON records",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_chats",
+        "handoff",
+        "agent + @ref",
+        "Reference in new agent prompt",
+        "Actions",
+        "references in a new agent prompt",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_chats",
+        "snapshot",
+        "snap",
+        "Copy Artifacts snapshot",
+        "Actions",
+        "Artifacts snapshots",
+    ),
+    _target(
+        "artifacts_files",
+        "reference",
+        "@ref",
+        "Copy artifact reference",
+        "Identity",
+        "artifact references",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_files",
+        "handoff",
+        "agent + @ref",
+        "Reference in new agent prompt",
+        "Actions",
+        "references in a new agent prompt",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_files",
+        "snapshot",
+        "snap",
+        "Copy Artifacts snapshot",
+        "Actions",
+        "Artifacts snapshots",
+    ),
+    _target(
+        "artifacts_bugs",
+        "reference",
+        "@ref",
+        "Copy artifact reference",
+        "Identity",
+        "artifact references",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_bugs",
+        "link",
+        "link",
+        "Copy Markdown link",
+        "Location",
+        "Markdown links",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_bugs",
+        "number",
+        "issue #",
+        "Copy issue number",
+        "Identity",
+        "issue numbers",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_bugs",
+        "url",
+        "url",
+        "Copy issue URL",
+        "Location",
+        "issue URLs",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_bugs",
+        "title",
+        "title",
+        "Copy issue title",
+        "Identity",
+        "issue titles",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_bugs",
+        "prompt",
+        "agent prompt",
+        "Copy issue agent prompt",
+        "Content",
+        "issue agent prompts",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_bugs",
+        "json",
+        "JSON",
+        "Copy metadata JSON",
+        "Data",
+        "metadata JSON records",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_bugs",
+        "handoff",
+        "agent + @ref",
+        "Reference in new agent prompt",
+        "Actions",
+        "references in a new agent prompt",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_bugs",
+        "snapshot",
+        "snap",
+        "Copy Artifacts snapshot",
+        "Actions",
+        "Artifacts snapshots",
+    ),
+    _target("agents", "chat", "chat", "Copy chat path", "Location", "chat paths"),
+    _target(
+        "agents",
+        "file_path",
+        "file path",
+        "Copy file path",
+        "Location",
+        "file paths",
+    ),
+    _target(
+        "agents",
+        "name",
+        "name",
+        "Copy agent name",
+        "Identity",
+        "agent names",
+    ),
+    _target(
+        "agents",
+        "prompt",
+        "prompt",
+        "Copy prompt",
+        "Content",
+        "prompts",
+    ),
+    _target(
+        "agents",
+        "snapshot",
+        "snap",
+        "Copy snapshot",
+        "Actions",
+        "snapshots",
+    ),
+    _target(
+        "axe",
+        "visible",
+        "visible",
+        "Copy visible output",
+        "Content",
+        "visible outputs",
+    ),
+    _target(
+        "axe",
+        "full",
+        "full",
+        "Copy full output",
+        "Content",
+        "full outputs",
+    ),
+    _target(
+        "axe",
+        "snapshot",
+        "snap",
+        "Copy snapshot",
+        "Actions",
+        "snapshots",
+    ),
+)
+
+_TARGETS_BY_KEY = {(item.group, item.target): item for item in COPY_TARGETS}
+
+
+def copy_targets_for(group: str) -> tuple[_CopyTarget, ...]:
+    """Return the registry entries for *group* in presentation order."""
+
+    return tuple(item for item in COPY_TARGETS if item.group == group)
+
+
+def copy_target_for(group: str, target: str) -> _CopyTarget | None:
+    """Return one target, preserving the legacy ChangeSpec alias."""
+
+    if group == "changespecs" and target == "cl_number":
+        target = "pr_number"
+    return _TARGETS_BY_KEY.get((group, target))
+
+
+__all__ = [
+    "COPY_TARGETS",
+    "CopyTargetCategory",
+    "copy_target_for",
+    "copy_targets_for",
+]

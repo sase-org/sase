@@ -60,6 +60,7 @@ class CopyModeKeymaps(ModeKeymaps):
                 "bug": "b",
                 "pr_number": "c",
                 "name": "n",
+                "link": "l",
                 "spec": "p",
                 "snapshot": "s",
             },
@@ -70,6 +71,8 @@ class CopyModeKeymaps(ModeKeymaps):
                 "message": "m",
                 "repo_sha": "r",
                 "plan": "p",
+                "link": "l",
+                "json": "J",
                 "snapshot": "s",
             },
             "artifacts_plans": {
@@ -78,6 +81,8 @@ class CopyModeKeymaps(ModeKeymaps):
                 "path": "p",
                 "title": "t",
                 "body": "b",
+                "link": "l",
+                "json": "J",
                 "snapshot": "s",
             },
             "artifacts_chats": {
@@ -86,6 +91,8 @@ class CopyModeKeymaps(ModeKeymaps):
                 "path": "p",
                 "agent": "a",
                 "transcript": "t",
+                "link": "l",
+                "json": "J",
                 "snapshot": "s",
             },
             "artifacts_files": {
@@ -100,6 +107,8 @@ class CopyModeKeymaps(ModeKeymaps):
                 "url": "u",
                 "title": "t",
                 "prompt": "p",
+                "link": "l",
+                "json": "J",
                 "snapshot": "s",
             },
             "agents": {

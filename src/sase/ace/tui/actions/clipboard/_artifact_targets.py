@@ -13,7 +13,7 @@ from ...widgets.artifacts.chats_list import chat_row_target
 from ...widgets.artifacts.plans_list import plan_row_target
 from ._base import ClipboardBase
 from ._delivery import schedule_copy_delivery
-from ._helpers import format_multi_copy_content
+from ._helpers import cap_copy_content, format_multi_copy_content_capped
 
 
 class ClipboardArtifactTargetsMixin(ClipboardBase):
@@ -47,7 +47,11 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
                     severity="warning",
                 )
                 return
-        self._schedule_artifacts_copy(value, copied_message=f"Copied {label}")
+        self._schedule_artifacts_copy(
+            value,
+            copied_message=f"Copied {label}",
+            content_shaped=target == "message",
+        )
 
     def _copy_plan_target(self, target: str) -> None:
         pane = self._plans_pane()  # type: ignore[attr-defined]
@@ -92,6 +96,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
         self._schedule_artifacts_copy(
             value,
             copied_message=f"Copied plan {target}",
+            content_shaped=target == "body",
         )
 
     def _copy_chat_target(self, target: str) -> None:
@@ -129,6 +134,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
             lambda: read_full_chat(entry),
             copied_message="Copied chat transcript",
             task_name="sase-chat-copy-transcript",
+            content_shaped=True,
         )
 
     def _copy_bug_target(self, target: str) -> None:
@@ -166,6 +172,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
                 lambda: _bug_prompt(pane, issue, project),
                 copied_message=f"Copied issue #{issue.number} agent prompt",
                 task_name="sase-bug-copy-prompt",
+                content_shaped=True,
             )
 
     def _visible_marked_targets(
@@ -230,7 +237,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
                 )
                 for entry in selected
             ],
-            copied_message=f"Copied {len(selected)} {labels[target]}",
+            plural_label=labels[target],
         )
 
     def _copy_marked_plan_targets(
@@ -253,7 +260,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
                 )
                 for row in rows
             ],
-            copied_message=f"Copied {len(rows)} plan {_plural(target)}",
+            plural_label=f"plan {_plural(target)}",
         )
 
     def _copy_marked_chat_targets(
@@ -289,7 +296,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
         }
         self._schedule_marked_copy(
             [(entry.basename, partial(value, entry)) for entry in entries],
-            copied_message=f"Copied {len(entries)} {labels[target]}",
+            plural_label=labels[target],
             task_name="sase-chat-copy-marked",
         )
 
@@ -327,7 +334,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
         }
         self._schedule_marked_copy(
             [(f"#{issue.number}", partial(value, issue)) for issue in issues],
-            copied_message=f"Copied {len(issues)} {labels[target]}",
+            plural_label=labels[target],
             task_name="sase-bug-copy-marked",
         )
 
@@ -335,7 +342,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
         self,
         contents: list[tuple[str, str | Callable[[], str]]],
         *,
-        copied_message: str,
+        plural_label: str,
         task_name: str = "sase-artifacts-copy-marked",
     ) -> None:
         """Resolve a marked set off-thread and format it consistently."""
@@ -343,13 +350,36 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
             self.notify("No marked entries are available to copy", severity="warning")  # type: ignore[attr-defined]
             return
 
+        state = {"successes": 0, "failures": 0, "truncated": False}
+
         def resolve() -> str:
-            return format_multi_copy_content(
-                [
-                    (name, content() if callable(content) else content)
-                    for name, content in contents
-                ]
+            values: list[tuple[str, str]] = []
+            errors: list[Exception] = []
+            for name, content in contents:
+                try:
+                    values.append((name, content() if callable(content) else content))
+                except Exception as exc:
+                    errors.append(exc)
+            if not values:
+                if errors:
+                    raise errors[0]
+                raise ValueError("No marked entries are available to copy")
+            capped = format_multi_copy_content_capped(values)
+            state.update(
+                successes=len(values),
+                failures=len(errors),
+                truncated=capped.truncated,
             )
+            return capped.value
+
+        def copied_message() -> str:
+            message = f"Copied {state['successes']} {plural_label}"
+            if state["failures"]:
+                noun = "entry" if state["failures"] == 1 else "entries"
+                message += f" — {state['failures']} {noun} unavailable"
+            if state["truncated"]:
+                message += " — truncated"
+            return message
 
         self._schedule_artifacts_copy(
             resolve,
@@ -361,14 +391,32 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
         self,
         content: str | Callable[[], str],
         *,
-        copied_message: str,
+        copied_message: str | Callable[[], str],
         task_name: str = "sase-artifacts-copy",
+        content_shaped: bool = False,
     ) -> None:
         """Resolve and copy content without blocking Textual's message pump."""
+        value = content
+        state = {"truncated": False}
+        if content_shaped:
+
+            def bounded_value() -> str:
+                resolved = content() if callable(content) else content
+                capped = cap_copy_content(resolved)
+                state["truncated"] = capped.truncated
+                return capped.value
+
+            value = bounded_value
+
+        def copied_label() -> str:
+            message = copied_message() if callable(copied_message) else copied_message
+            label = message.removeprefix("Copied ")
+            return f"{label} — truncated" if state["truncated"] else label
+
         schedule_copy_delivery(
             self,
-            content,
-            copied_label=copied_message.removeprefix("Copied "),
+            value,
+            copied_label=copied_label,
             task_name=task_name,
         )
 

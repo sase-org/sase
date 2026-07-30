@@ -414,81 +414,17 @@ class KeybindingModesMixin:
         tab_keys = self._kr().copy_mode.keys.get(key_group, {})
         assert isinstance(tab_keys, dict)
 
-        def k(name: str) -> str:
-            lookup = (
-                "cl_number" if name == "pr_number" and name not in tab_keys else name
-            )
-            v = tab_keys[lookup]
-            assert isinstance(v, str)
-            return d(v)
+        from ..copy_targets import copy_targets_for
 
-        if key_group == "artifacts_commits":
-            bindings = [
-                (k("sha"), "SHA"),
-                (k("reference"), "@ref"),
-                (k("handoff"), "agent + @ref"),
-                (k("message"), "message"),
-                (k("repo_sha"), "repo@SHA"),
-                (k("plan"), "plan ref"),
-                (k("snapshot"), "snap"),
-            ]
-        elif key_group == "artifacts_plans":
-            bindings = [
-                (k("reference"), "@ref"),
-                (k("handoff"), "agent + @ref"),
-                (k("path"), "path"),
-                (k("title"), "title"),
-                (k("body"), "body"),
-                (k("snapshot"), "snap"),
-            ]
-        elif key_group == "artifacts_chats":
-            bindings = [
-                (k("reference"), "@ref"),
-                (k("handoff"), "agent + @ref"),
-                (k("path"), "path"),
-                (k("agent"), "agent"),
-                (k("transcript"), "transcript"),
-                (k("snapshot"), "snap"),
-            ]
-        elif key_group == "artifacts_files":
-            bindings = [
-                (k("reference"), "@ref"),
-                (k("handoff"), "agent + @ref"),
-                (k("snapshot"), "snap"),
-            ]
-        elif key_group == "artifacts_bugs":
-            bindings = [
-                (k("reference"), "@ref"),
-                (k("handoff"), "agent + @ref"),
-                (k("number"), "issue #"),
-                (k("url"), "url"),
-                (k("title"), "title"),
-                (k("prompt"), "agent prompt"),
-                (k("snapshot"), "snap"),
-            ]
-        elif tab == "changespecs":
-            bindings = [
-                (k("raw"), "raw"),
-                (k("with_snapshot"), "+snap"),
-                (k("bug"), "bug"),
-                (k("pr_number"), "PR#"),
-                (k("name"), "name"),
-                (k("spec"), "spec"),
-                (k("snapshot"), "snap"),
-            ]
-        elif tab == "agents":
-            bindings = [
-                (k("chat"), "chat"),
-                (k("name"), "name"),
-                (k("prompt"), "prompt"),
-                (k("snapshot"), "snap"),
-            ]
-            if file_visible:
-                bindings.append((k("file_path"), "file path"))
-        else:  # axe
-            bindings = [
-                (k("visible"), "visible"),
-                (k("full"), "full"),
-                (k("snapshot"), "snap"),
-            ]
+        bindings: list[tuple[str, str]] = []
+        for target in copy_targets_for(key_group):
+            lookup = target.target
+            if lookup == "pr_number" and lookup not in tab_keys:
+                lookup = "cl_number"
+            key = tab_keys.get(lookup)
+            if not isinstance(key, str):
+                continue
+            if key_group == "agents" and lookup == "file_path" and not file_visible:
+                continue
+            bindings.append((d(key), target.footer_label))
         self._update_display(bindings, mode_label="COPY")

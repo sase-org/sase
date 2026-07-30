@@ -109,18 +109,22 @@ open; the second completes the jump. Hints remain case-sensitive.
 Press `%` on any non-PR Artifacts sub-tab to open that pane's copy menu. The next key copies from the visible entry;
 `Esc` cancels, and `%s` captures the current `sase ace` tmux pane on every sub-tab.
 
-| Sub-tab | Keys                                                                                                                      |
-| ------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Commits | `%@` artifact ref · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan · `%s` snapshot |
-| Plans   | `%@` artifact ref · `%!` ref in agent prompt · `%p` path · `%t` title · `%b` body · `%s` snapshot                         |
-| Chats   | `%@` artifact ref · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript · `%s` snapshot                   |
-| Bugs    | `%@` artifact ref · `%!` ref in agent prompt · `%b` `#N` · `%u` URL · `%t` title · `%p` agent prompt · `%s` snapshot      |
+| Sub-tab | Keys                                                                                                                                                |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Commits | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan |
+| Plans   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%t` title · `%b` body                         |
+| Chats   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript                   |
+| Bugs    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%b` `#N` · `%u` URL · `%t` title · `%p` agent prompt      |
+
+`%s` captures the current `sase ace` tmux pane on every sub-tab.
 
 The menu and copied value follow the active sub-tab, even though Artifacts uses the internal `changespecs` tab id. Thus,
 for example, `%n` on Chats reports the Chats key set instead of copying the hidden PR's name. After a copy, cancel, or
 invalid key, the footer returns to the active pane's normal bindings.
 
-When entries are marked, `%@` copies all visible marked references and `%!` seeds one prompt with the marked set.
+When entries are marked, `%@` copies newline-separated prompt references, `%l` copies a Markdown bullet list, `%J`
+copies one JSON array, and `%!` seeds one prompt with the marked set. Entries that cannot produce the selected
+representation are skipped; the completion toast reports both the copied and skipped counts.
 
 ### Marks in Commits, Plans, Chats, and Bugs
 
@@ -129,8 +133,9 @@ independent stable-target mark set, so marks survive refreshes and switching pan
 Changing the shared Artifacts project scope clears the non-PR marks.
 
 When marks exist, the pane's `%` copy targets operate on marked entries in visible order instead of only the selected
-entry. The clipboard text uses a labeled section for each entry, and the completion toast reports the copied count. The
-footer shows the active pane's mark count only while that count is nonzero.
+entry. Identity, location, and data representations use paste-ready forms; content dumps retain labeled fenced sections.
+Content-shaped targets are capped at 512,000 bytes per item and per assembled payload, with an explicit truncation
+banner and toast. The footer shows the active pane's mark count only while that count is nonzero.
 
 ### Filtering Commits and Plans
 
@@ -524,6 +529,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `%b` | Copy bug number            |
 | `%c` | Copy PR number             |
 | `%n` | Copy PR name               |
+| `%l` | Copy Markdown link         |
 | `%p` | Copy project spec file     |
 | `%s` | Copy sase ace snapshot     |
 

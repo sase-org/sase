@@ -7,10 +7,63 @@ ChangeSpec text formatter.
 from __future__ import annotations
 
 import subprocess
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec
+
+
+# Match the established ACE preview-read ceiling. Copy targets may read the
+# entire backing artifact, so both individual values and assembled marked sets
+# must remain bounded.
+MAX_COPY_CONTENT_BYTES = 512_000
+
+
+@dataclass(frozen=True, slots=True)
+class _CappedCopyContent:
+    """One bounded copy value and whether any input was truncated."""
+
+    value: str
+    truncated: bool
+
+
+def cap_copy_content(
+    content: str,
+    *,
+    max_bytes: int = MAX_COPY_CONTENT_BYTES,
+) -> _CappedCopyContent:
+    """Bound UTF-8 content and append an explicit truncation banner."""
+
+    encoded = content.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return _CappedCopyContent(content, False)
+
+    banner = f"\n\n[Truncated at {max_bytes:,} bytes]"
+    banner_bytes = banner.encode("utf-8")
+    available = max(0, max_bytes - len(banner_bytes))
+    clipped = encoded[:available].decode("utf-8", errors="ignore")
+    return _CappedCopyContent(f"{clipped}{banner}", True)
+
+
+def format_multi_copy_content_capped(
+    contents: list[tuple[str, str]],
+    *,
+    max_bytes: int = MAX_COPY_CONTENT_BYTES,
+) -> _CappedCopyContent:
+    """Format a bounded, fenced multi-item content dump."""
+
+    parts: list[str] = []
+    truncated = False
+    for target_name, content in contents:
+        capped = cap_copy_content(content, max_bytes=max_bytes)
+        truncated = truncated or capped.truncated
+        parts.append(f"### {target_name}")
+        parts.append("```")
+        parts.append(capped.value)
+        parts.append("```")
+    combined = cap_copy_content("\n".join(parts), max_bytes=max_bytes)
+    return _CappedCopyContent(combined.value, truncated or combined.truncated)
 
 
 def capture_tmux_pane() -> str | None:
@@ -31,22 +84,11 @@ def capture_tmux_pane() -> str | None:
         return None
 
 
-def format_multi_copy_content(contents: list[tuple[str, str]]) -> str:
-    """Format multiple copy targets with headers and code blocks.
+def format_markdown_link(label: str, target: str) -> str:
+    """Render a Markdown link while escaping label delimiters."""
 
-    Args:
-        contents: List of (target_name, content) tuples.
-
-    Returns:
-        Formatted string with each target prefixed by ### header and wrapped in code blocks.
-    """
-    parts: list[str] = []
-    for target_name, content in contents:
-        parts.append(f"### {target_name}")
-        parts.append("```")
-        parts.append(content)
-        parts.append("```")
-    return "\n".join(parts)
+    safe_label = label.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
+    return f"[{safe_label}]({target})"
 
 
 def format_changespec_for_clipboard(cs: ChangeSpec) -> str:

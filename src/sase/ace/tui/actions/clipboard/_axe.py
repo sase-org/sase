@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ._base import ClipboardBase
 from ._delivery import schedule_copy_delivery
-from ._helpers import format_multi_copy_content
+from ._helpers import format_multi_copy_content_capped
 
 
 class ClipboardAxeMixin(ClipboardBase):
@@ -33,9 +33,10 @@ class ClipboardAxeMixin(ClipboardBase):
             visible_height = 0
 
         lines = 0
+        truncated = False
 
         def content() -> str:
-            nonlocal lines
+            nonlocal lines, truncated
             full_output = (
                 warm_output if view == "axe" else read_slot_output_tail(view, 10000)
             )
@@ -48,12 +49,18 @@ class ClipboardAxeMixin(ClipboardBase):
             if not output.strip():
                 raise RuntimeError("no visible output is available")
             lines = len(output.strip().split("\n"))
-            return format_multi_copy_content([(source, output.strip())])
+            capped = format_multi_copy_content_capped([(source, output.strip())])
+            truncated = capped.truncated
+            return capped.value
 
         schedule_copy_delivery(
             self,
             content,
-            copied_label=lambda: f"{source.lower()} ({lines} lines)",
+            copied_label=lambda: (
+                f"{source.lower()} ({lines} lines) — truncated"
+                if truncated
+                else f"{source.lower()} ({lines} lines)"
+            ),
             task_name="sase-copy-axe-visible",
         )
 
@@ -70,20 +77,27 @@ class ClipboardAxeMixin(ClipboardBase):
             source = f"Command #{view} Output (Full)"
 
         lines = 0
+        truncated = False
 
         def content() -> str:
-            nonlocal lines
+            nonlocal lines, truncated
             output = (
                 warm_output if view == "axe" else read_slot_output_tail(view, 10000)
             )
             if not output or not output.strip():
                 raise RuntimeError("no output is available")
             lines = len(output.strip().split("\n"))
-            return format_multi_copy_content([(source, output.strip())])
+            capped = format_multi_copy_content_capped([(source, output.strip())])
+            truncated = capped.truncated
+            return capped.value
 
         schedule_copy_delivery(
             self,
             content,
-            copied_label=lambda: f"{source.lower()} ({lines} lines)",
+            copied_label=lambda: (
+                f"{source.lower()} ({lines} lines) — truncated"
+                if truncated
+                else f"{source.lower()} ({lines} lines)"
+            ),
             task_name="sase-copy-axe-full",
         )

@@ -448,6 +448,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Copy @commit reference",
                 ),
                 (
+                    key_sequence_display(cm.prefix, commits_copy["link"]),
+                    "Copy Markdown link",
+                ),
+                (
                     key_sequence_display(cm.prefix, commits_copy["handoff"]),
                     "Reference in new agent prompt",
                 ),
@@ -468,6 +472,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Copy linked plan reference",
                 ),
                 (
+                    key_sequence_display(cm.prefix, commits_copy["json"]),
+                    "Copy metadata JSON",
+                ),
+                (
                     key_sequence_display(cm.prefix, commits_copy["snapshot"]),
                     "Copy sase ace snapshot",
                 ),
@@ -479,6 +487,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (
                     key_sequence_display(cm.prefix, plans_copy["reference"]),
                     "Copy @document reference",
+                ),
+                (
+                    key_sequence_display(cm.prefix, plans_copy["link"]),
+                    "Copy Markdown link",
                 ),
                 (
                     key_sequence_display(cm.prefix, plans_copy["handoff"]),
@@ -497,6 +509,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Copy plan body",
                 ),
                 (
+                    key_sequence_display(cm.prefix, plans_copy["json"]),
+                    "Copy metadata JSON",
+                ),
+                (
                     key_sequence_display(cm.prefix, plans_copy["snapshot"]),
                     "Copy sase ace snapshot",
                 ),
@@ -508,6 +524,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (
                     key_sequence_display(cm.prefix, chats_copy["reference"]),
                     "Copy @chat reference",
+                ),
+                (
+                    key_sequence_display(cm.prefix, chats_copy["link"]),
+                    "Copy Markdown link",
                 ),
                 (
                     key_sequence_display(cm.prefix, chats_copy["handoff"]),
@@ -524,6 +544,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (
                     key_sequence_display(cm.prefix, chats_copy["transcript"]),
                     "Copy transcript contents",
+                ),
+                (
+                    key_sequence_display(cm.prefix, chats_copy["json"]),
+                    "Copy metadata JSON",
                 ),
                 (
                     key_sequence_display(cm.prefix, chats_copy["snapshot"]),
@@ -556,6 +580,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Copy @bug reference",
                 ),
                 (
+                    key_sequence_display(cm.prefix, bugs_copy["link"]),
+                    "Copy Markdown link",
+                ),
+                (
                     key_sequence_display(cm.prefix, bugs_copy["handoff"]),
                     "Reference in new agent prompt",
                 ),
@@ -576,6 +604,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Copy agent-ready prompt",
                 ),
                 (
+                    key_sequence_display(cm.prefix, bugs_copy["json"]),
+                    "Copy metadata JSON",
+                ),
+                (
                     key_sequence_display(cm.prefix, bugs_copy["snapshot"]),
                     "Copy sase ace snapshot",
                 ),
@@ -592,6 +624,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (f"{d(cm.prefix)}{d(cs_copy['bug'])}", "Copy bug number"),
                 (f"{d(cm.prefix)}{d(pr_copy_key)}", "Copy PR number"),
                 (f"{d(cm.prefix)}{d(cs_copy['name'])}", "Copy ChangeSpec name"),
+                (f"{d(cm.prefix)}{d(cs_copy['link'])}", "Copy Markdown link"),
                 (f"{d(cm.prefix)}{d(cs_copy['spec'])}", "Copy project spec file"),
                 (f"{d(cm.prefix)}{d(cs_copy['snapshot'])}", "Copy sase ace snapshot"),
             ],

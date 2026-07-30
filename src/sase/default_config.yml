@@ -383,6 +383,7 @@ ace:
             bug: "b"
             pr_number: "c"
             name: "n"
+            link: "l"
             spec: "p"
             snapshot: "s"
           artifacts_commits:
@@ -392,6 +393,8 @@ ace:
             message: "m"
             repo_sha: "r"
             plan: "p"
+            link: "l"
+            json: "J"
             snapshot: "s"
           artifacts_plans:
             reference: "at"
@@ -399,6 +402,8 @@ ace:
             path: "p"
             title: "t"
             body: "b"
+            link: "l"
+            json: "J"
             snapshot: "s"
           artifacts_chats:
             reference: "at"
@@ -406,6 +411,8 @@ ace:
             path: "p"
             agent: "a"
             transcript: "t"
+            link: "l"
+            json: "J"
             snapshot: "s"
           artifacts_files:
             reference: "at"
@@ -418,6 +425,8 @@ ace:
             url: "u"
             title: "t"
             prompt: "p"
+            link: "l"
+            json: "J"
             snapshot: "s"
           agents:
             chat: "c"

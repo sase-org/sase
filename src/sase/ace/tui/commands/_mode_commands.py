@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from sase.ace.tui.commands._formatting import format_key_sequence
 from sase.ace.tui.commands._tabs import ALL_TABS, CL_AGENTS, CL_ONLY, AGENTS_ONLY
 from sase.ace.tui.commands.types import CommandExecutor, CommandSpec, CommandTab
+from sase.ace.tui.copy_targets import copy_target_for
 from sase.ace.tui.keymaps.mode_keymaps import BUILTIN_MODE_NAMES
 
 if TYPE_CHECKING:
@@ -44,70 +45,6 @@ _AGENT_FOLD_LABELS: dict[str, str] = {
     "set_level_2": "Set metadata panel fold level 2",
     "set_level_3": "Set metadata panel fold level 3",
     "set_level_4": "Set metadata panel fold level 4",
-}
-
-_COPY_LABELS: dict[str, dict[str, str]] = {
-    "changespecs": {
-        "raw": "Copy raw line",
-        "with_snapshot": "Copy line + snapshot",
-        "bug": "Copy bug id",
-        "pr_number": "Copy PR number",
-        "cl_number": "Copy PR number",
-        "name": "Copy ChangeSpec name",
-        "spec": "Copy spec text",
-        "snapshot": "Copy snapshot",
-    },
-    "artifacts_commits": {
-        "sha": "Copy commit SHA",
-        "reference": "Copy artifact reference",
-        "handoff": "Reference in new agent prompt",
-        "message": "Copy commit message",
-        "repo_sha": "Copy repo@SHA",
-        "plan": "Copy linked plan reference",
-        "snapshot": "Copy Artifacts snapshot",
-    },
-    "artifacts_plans": {
-        "reference": "Copy artifact reference",
-        "handoff": "Reference in new agent prompt",
-        "path": "Copy plan path",
-        "title": "Copy plan title",
-        "body": "Copy plan body",
-        "snapshot": "Copy Artifacts snapshot",
-    },
-    "artifacts_chats": {
-        "reference": "Copy artifact reference",
-        "handoff": "Reference in new agent prompt",
-        "path": "Copy chat path",
-        "agent": "Copy chat agent name",
-        "transcript": "Copy chat transcript",
-        "snapshot": "Copy Artifacts snapshot",
-    },
-    "artifacts_files": {
-        "reference": "Copy artifact reference",
-        "handoff": "Reference in new agent prompt",
-        "snapshot": "Copy Artifacts snapshot",
-    },
-    "artifacts_bugs": {
-        "reference": "Copy artifact reference",
-        "handoff": "Reference in new agent prompt",
-        "number": "Copy issue number",
-        "url": "Copy issue URL",
-        "title": "Copy issue title",
-        "prompt": "Copy issue agent prompt",
-        "snapshot": "Copy Artifacts snapshot",
-    },
-    "agents": {
-        "chat": "Copy chat path",
-        "file_path": "Copy file path",
-        "name": "Copy agent name",
-        "prompt": "Copy prompt",
-        "snapshot": "Copy snapshot",
-    },
-    "axe": {
-        "visible": "Copy visible output",
-        "full": "Copy full output",
-        "snapshot": "Copy snapshot",
-    },
 }
 
 _LEADER_LABELS: dict[str, str] = {
@@ -228,11 +165,15 @@ def _iter_copy_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
         ctab = tab_to_command_tab.get(tab_name)
         if ctab is None:
             continue
-        labels = _COPY_LABELS.get(tab_name, {})
         for command_id, subkey in sub.items():
             if not isinstance(subkey, str):
                 continue
-            label = labels.get(command_id, command_id.replace("_", " ").title())
+            target = copy_target_for(tab_name, command_id)
+            label = (
+                target.palette_label
+                if target is not None
+                else command_id.replace("_", " ").title()
+            )
             seq = (prefix, subkey)
             yield CommandSpec(
                 id=f"copy.{tab_name}.{command_id}",

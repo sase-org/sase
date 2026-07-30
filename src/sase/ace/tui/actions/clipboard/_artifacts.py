@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-
-from sase.artifact_refs import artifact_ref_context
+from typing import Literal
 
 from ...keymaps import key_display_name
 from ...tab_order import ARTIFACTS_TAB
@@ -14,11 +13,18 @@ from ._artifact_references import (
     ArtifactReferenceItem as _ArtifactReferenceItem,
     ArtifactReferenceSelection as _ArtifactReferenceSelection,
     ClipboardArtifactReferencesMixin,
-    resolve_artifact_references,
+)
+from ._artifact_reference_resolution import (
+    resolve_artifact_selection as _resolve_artifact_selection,
 )
 from ._artifact_targets import ClipboardArtifactTargetsMixin
 from ._delivery import deliver_copy
-from ._helpers import format_multi_copy_content
+from ._representations import (
+    ResolvedArtifactItem as _ResolvedArtifactItem,
+    ResolvedArtifactSelection as _ResolvedArtifactSelection,
+    artifact_representation_label as _artifact_representation_label,
+    format_artifact_representation as _format_artifact_representation,
+)
 
 
 class ClipboardArtifactsMixin(
@@ -42,14 +48,20 @@ class ClipboardArtifactsMixin(
         subtab_keys = self._keymap_registry.copy_mode.keys.get(group_name, {})
         assert isinstance(subtab_keys, dict)
 
-        if key == subtab_keys["snapshot"]:
+        if key == subtab_keys.get("snapshot"):
             self._copy_snapshot()  # type: ignore[attr-defined]
             return True
-        if key == subtab_keys["reference"]:
+        if key == subtab_keys.get("reference"):
             self._run_artifact_reference_action(handoff=False)
             return True
-        if key == subtab_keys["handoff"]:
+        if key == subtab_keys.get("handoff"):
             self._run_artifact_reference_action(handoff=True)
+            return True
+        if key == subtab_keys.get("link"):
+            self._run_artifact_representation_action("link")
+            return True
+        if key == subtab_keys.get("json"):
+            self._run_artifact_representation_action("json")
             return True
 
         handlers: dict[str, Callable[[], None]]
@@ -104,15 +116,24 @@ class ClipboardArtifactsMixin(
         return True
 
     def _run_artifact_reference_action(self, *, handoff: bool) -> None:
+        self._run_artifact_representation_action("reference", handoff=handoff)
+
+    def _run_artifact_representation_action(
+        self,
+        representation: Literal["reference", "link", "json"],
+        *,
+        handoff: bool = False,
+    ) -> None:
         selection = self._capture_artifact_reference_selection()
         if selection is None:
             return
 
         async def act() -> None:
             try:
-                references = await asyncio.to_thread(
-                    _resolve_artifact_references,
+                resolved = await asyncio.to_thread(
+                    _resolve_artifact_selection,
                     selection,
+                    include_metadata=representation == "json",
                 )
             except Exception as exc:
                 self.notify(  # type: ignore[attr-defined]
@@ -121,6 +142,16 @@ class ClipboardArtifactsMixin(
                 )
                 return
 
+            if not resolved.items:
+                message = (
+                    resolved.failures[0]
+                    if resolved.failures
+                    else f"No {selection.subtab} entries have a reference"
+                )
+                self.notify(message, severity="warning")  # type: ignore[attr-defined]
+                return
+
+            references = tuple(f"@{item.reference}" for item in resolved.items)
             if handoff:
                 project = selection.prompt_project
                 display_name = selection.prompt_display_name
@@ -156,31 +187,31 @@ class ClipboardArtifactsMixin(
                     display_name=f"{display_name} artifact reference",
                     history_sort_key=project,
                 )
+                if resolved.failures:
+                    count = len(resolved.failures)
+                    noun = "entry" if count == 1 else "entries"
+                    self.notify(  # type: ignore[attr-defined]
+                        f"Prepared {len(resolved.items)} references — "
+                        f"{count} {noun} have no reference",
+                        severity="warning",
+                    )
                 return
 
-            content = (
-                references[0]
-                if not selection.marked
-                else format_multi_copy_content(
-                    [
-                        (item.label, reference)
-                        for item, reference in zip(
-                            selection.items,
-                            references,
-                            strict=True,
-                        )
-                    ]
-                )
+            content = _format_artifact_representation(
+                representation,
+                resolved.items,
+                marked=selection.marked,
             )
-            count = len(references)
+            copied_label = _artifact_representation_label(
+                representation,
+                resolved.items,
+                marked=selection.marked,
+                failure_count=len(resolved.failures),
+            )
             await deliver_copy(
                 self,
                 content,
-                copied_label=(
-                    "artifact reference"
-                    if count == 1
-                    else f"{count} artifact references"
-                ),
+                copied_label=copied_label,
             )
 
         spawn_pump_free_task(
@@ -189,20 +220,10 @@ class ClipboardArtifactsMixin(
             name=(
                 "sase-artifact-reference-handoff"
                 if handoff
-                else "sase-artifact-reference-copy"
+                else f"sase-artifact-{representation}-copy"
             ),
             registry_attr="_pump_free_async_tasks",
         )
-
-
-def _resolve_artifact_references(
-    selection: _ArtifactReferenceSelection,
-) -> tuple[str, ...]:
-    """Compatibility wrapper around the extracted reference resolver."""
-    return resolve_artifact_references(
-        selection,
-        context_factory=artifact_ref_context,
-    )
 
 
 __all__ = ["ClipboardArtifactsMixin"]
