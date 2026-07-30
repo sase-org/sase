@@ -1877,6 +1877,30 @@
         }
       }
     },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_stored_per_agent": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 50,
+              "description": "Maximum number of automatic artifact captures whose bytes are copied per agent run. Version-control-backed references are not counted and are not capped."
+            },
+            "max_history_scan": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20,
+              "description": "Maximum number of durable commits searched per file for an exact version-control-backed artifact revision."
+            }
+          }
+        }
+      }
+    },
     "timezone": {
       "type": "string",
       "description": "IANA timezone name governing all SASE wall-clock display and timestamp generation (e.g., 'America/New_York', 'US/Pacific'). Defaults to the system timezone when unset.",

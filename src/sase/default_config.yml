@@ -36,6 +36,15 @@ tasks:
   # finished tasks (and their logs) are removed first.
   history_limit: 100
 
+artifacts:
+  capture:
+    # Maximum byte-copying automatic captures per agent run. Version-control-
+    # backed reference rows cost no bytes, are not counted, and are never capped.
+    max_stored_per_agent: 50
+    # Bounded number of commits searched per file when looking for a durable
+    # commit that holds its exact content.
+    max_history_scan: 20
+
 update:
   dev_root: "~/projects/github"
 

@@ -255,6 +255,8 @@ DEFAULT_MAX_RUNNING_AGENTS = 10
 DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP = 3
 DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS = 60
 DEFAULT_TASK_HISTORY_LIMIT = 100
+DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT = 50
+DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN = 20
 
 
 def get_configured_max_running_agents() -> int:
@@ -326,6 +328,40 @@ def get_task_history_limit() -> int:
     if type(value) is int and value >= 1:
         return value
     return DEFAULT_TASK_HISTORY_LIMIT
+
+
+def get_artifact_capture_max_stored_per_agent() -> int:
+    """Return the validated per-run automatic artifact byte-copy cap."""
+    artifacts = load_merged_config().get("artifacts", {})
+    capture = artifacts.get("capture", {}) if isinstance(artifacts, dict) else {}
+    value = (
+        capture.get(
+            "max_stored_per_agent",
+            DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT,
+        )
+        if isinstance(capture, dict)
+        else DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT
+    )
+    if type(value) is int and value >= 1:
+        return value
+    return DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT
+
+
+def get_artifact_capture_max_history_scan() -> int:
+    """Return the validated VCS history-search bound for artifact capture."""
+    artifacts = load_merged_config().get("artifacts", {})
+    capture = artifacts.get("capture", {}) if isinstance(artifacts, dict) else {}
+    value = (
+        capture.get(
+            "max_history_scan",
+            DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN,
+        )
+        if isinstance(capture, dict)
+        else DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN
+    )
+    if type(value) is int and value >= 1:
+        return value
+    return DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN
 
 
 def get_max_running_agents(now: float | None = None) -> int:
