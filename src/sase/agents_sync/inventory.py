@@ -158,6 +158,7 @@ def build_project_hood_inventory(
         tuple(sorted(unique_runs, key=lambda item: item.source_run_id)),
         tuple(diagnostics),
         primary_remote_url,
+        target.primary_repo_name,
     )
 
 

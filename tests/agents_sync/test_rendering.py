@@ -186,6 +186,7 @@ def test_commit_tables_link_escape_and_format_utc(
             (manifest,),
             {("alice", "athena", "foo"): snapshot},
             commit_url_base=commit_url_base,
+            commit_repo_name="project",
         )
         agent_page = payload["agents/alice.athena.foo.bar--code/README.md"].decode()
         family_page = payload["families/alice.athena.foo.bar.md"].decode()
@@ -194,10 +195,13 @@ def test_commit_tables_link_escape_and_format_utc(
             "[`aaaaaaa`](https://github.com/acme/project/commit/" + sha + ")"
         )
         assert "- Commits: [1](#commits)" in agent_page
+        assert "| Repo | Commit | Subject | Committed (UTC) |" in agent_page
+        assert "| project | " + expected_commit in agent_page
         assert expected_commit in agent_page
         assert "unsafe \\| \\`tick\\` \\<tag\\>" in agent_page
         assert "1970-01-01 00:00:01" in agent_page
-        assert "| code | " + expected_commit in family_page
+        assert "| Role | Repo | Commit | Subject | Committed (UTC) |" in family_page
+        assert "| code | project | " + expected_commit in family_page
         assert (
             "[1](../agents/alice.athena.foo.bar--code/README.md#commits)" in family_page
         )
@@ -249,9 +253,11 @@ def test_unrecognized_remote_keeps_commits_unlinked(
         (manifest,),
         {("alice", "athena", "foo"): snapshot},
         commit_url_base=None,
+        commit_repo_name=None,
     )["agents/alice.athena.foo/README.md"].decode()
 
-    assert "| `bbbbbbb` | subject | 1970-01-01 00:00:01 |" in page
+    assert "| Repo | Commit | Subject | Committed (UTC) |" in page
+    assert "| — | `bbbbbbb` | subject | 1970-01-01 00:00:01 |" in page
     assert "https://" not in page
 
 
@@ -291,6 +297,7 @@ def test_commit_rendering_is_bounded_and_validates_link_shas() -> None:
         (manifest,),
         {("alice", "athena", "foo"): snapshot},
         commit_url_base=None,
+        commit_repo_name="project",
     )["agents/alice.athena.foo/README.md"].decode()
 
     assert "… and 1 more commits" in page
@@ -300,6 +307,7 @@ def test_commit_rendering_is_bounded_and_validates_link_shas() -> None:
         (manifest,),
         {("alice", "athena", "foo"): snapshot},
         commit_url_base=None,
+        commit_repo_name="project",
     )["families/alice.athena.foo.md"].decode()
     assert "… and 1 more commits" in family_page
     assert (

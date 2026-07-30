@@ -190,6 +190,7 @@ def _publish_hoods(
             manifests,
             snapshots,
             commit_url_base=_commit_url_base(inventory.primary_remote_url),
+            commit_repo_name=inventory.primary_repo_name,
         )
     )
     apply_payload_atomic(repo_root, payload)

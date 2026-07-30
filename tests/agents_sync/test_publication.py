@@ -385,6 +385,7 @@ def test_publication_links_commits_for_github_primary_remote(tmp_path: Path) -> 
     inventory = replace(
         _inventory(AgentOwnerIdentity("alice", "athena")),
         primary_remote_url="git@github.com:acme/project.git",
+        primary_repo_name="project",
     )
 
     publish_agent_hood(
@@ -401,6 +402,7 @@ def test_publication_links_commits_for_github_primary_remote(tmp_path: Path) -> 
     assert (
         "[`aaaaaaa`](https://github.com/acme/project/commit/" + "a" * 39 + "3)" in page
     )
+    assert "| project | [`aaaaaaa`]" in page
 
 
 def test_two_owner_manifests_coexist_and_indexes_converge(tmp_path: Path) -> None:

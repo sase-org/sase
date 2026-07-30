@@ -26,6 +26,7 @@ def render_browsing_payload(
     snapshots: dict[tuple[str, str, str], V2HoodSnapshot],
     *,
     commit_url_base: str | None = None,
+    commit_repo_name: str | None = None,
 ) -> dict[str, bytes]:
     """Render every derived page from validated manifests and snapshots."""
 
@@ -63,6 +64,7 @@ def render_browsing_payload(
                     _render_run_pages(
                         snapshot,
                         commit_url_base=commit_url_base,
+                        commit_repo_name=commit_repo_name,
                     )
                 )
     return payload
@@ -72,6 +74,7 @@ def _render_run_pages(
     snapshot: V2HoodSnapshot,
     *,
     commit_url_base: str | None,
+    commit_repo_name: str | None,
 ) -> dict[str, bytes]:
     payload: dict[str, bytes] = {}
     by_id = {run.source_run_id: run for run in snapshot.runs}
@@ -88,6 +91,7 @@ def _render_run_pages(
                 container,
                 by_id,
                 commit_url_base=commit_url_base,
+                commit_repo_name=commit_repo_name,
                 kinship=kinship,
             )
         )
@@ -98,6 +102,7 @@ def _render_run_pages(
                 run,
                 family=families_by_member.get(run.source_run_id),
                 commit_url_base=commit_url_base,
+                commit_repo_name=commit_repo_name,
                 kinship=kinship,
             )
         )

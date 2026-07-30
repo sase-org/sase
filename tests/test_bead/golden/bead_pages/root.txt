@@ -42,6 +42,6 @@ flowchart TD
 
 ## Commits
 
-| Commit | Subject | Bead | Committed (UTC) |
-|---|---|---|---|
-| [`9701511`](https://github.com/sase-org/sase/commit/9701511abcdef) | feat(bead): render \| pages | [sase-ai.1](sase-ai.1.md) | 2024-07-28 14:22:07 |
+| Repo | Commit | Subject | Bead | Committed (UTC) |
+|---|---|---|---|---|
+| sase | [`9701511`](https://github.com/sase-org/sase/commit/9701511abcdef) | feat(bead): render \| pages | [sase-ai.1](sase-ai.1.md) | 2024-07-28 14:22:07 |

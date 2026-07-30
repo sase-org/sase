@@ -22,9 +22,9 @@ The diagram is an optional enhancement; the ordered table below contains the sam
 
 ## Commits
 
-| Role | Commit | Subject | Committed (UTC) |
-|---|---|---|---|
-| code | `aaaaaaa` | foo.bar.baz--code | 1970-01-01 00:00:01 |
+| Role | Repo | Commit | Subject | Committed (UTC) |
+|---|---|---|---|---|
+| code | — | `aaaaaaa` | foo.bar.baz--code | 1970-01-01 00:00:01 |
 
 ## Variables
 

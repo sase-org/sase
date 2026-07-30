@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from sase.agents_sync import commit_publication
+from sase.agents_sync import commit_publication, targets
 from sase.agents_sync.commit_publication import (
     _resolve_publication_project_key,
     publish_committed_agent_hood,
@@ -35,9 +35,12 @@ def _repo_record(
     kind: RepoKind,
     project_key: str,
     clones: tuple[RepoCloneRecord, ...] = (),
+    name: str | None = None,
+    slug: str | None = None,
+    remote_url: str | None = None,
 ) -> RepoRecord:
     return RepoRecord(
-        name=path.name,
+        name=name or path.name,
         kind=kind,
         project=project_key.removeprefix("key-"),
         project_key=project_key,
@@ -47,6 +50,8 @@ def _repo_record(
         description=None,
         source="test",
         env_name=None,
+        slug=slug,
+        remote_url=remote_url,
         clones=clones,
     )
 
@@ -73,6 +78,56 @@ def test_resolves_known_repository_kinds(
             _resolve_publication_project_key(Path(record.path) / "nested")
             == record.project_key
         )
+
+
+def test_sync_targets_use_primary_slug_or_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    records: list[RepoRecord] = []
+    for suffix, primary_name, primary_slug in (
+        ("slugged", "inventory-name", "hosted-name"),
+        ("named", "plain-name", None),
+    ):
+        project_key = f"key-{suffix}"
+        primary = tmp_path / f"{suffix}-primary"
+        agents = tmp_path / f"{suffix}-agents"
+        primary.mkdir()
+        agents.mkdir()
+        records.extend(
+            (
+                _repo_record(
+                    primary,
+                    kind="primary",
+                    project_key=project_key,
+                    name=primary_name,
+                    slug=primary_slug,
+                ),
+                _repo_record(
+                    agents,
+                    kind="sidecar",
+                    project_key=project_key,
+                    name="agents",
+                    remote_url=f"git@example.test:{project_key}-agents.git",
+                ),
+            )
+        )
+    monkeypatch.setattr(targets, "list_project_records", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        targets,
+        "collect_repo_inventory",
+        lambda *_args, **_kwargs: RepoInventory(tuple(records)),
+    )
+
+    selection = targets.resolve_sync_targets(projects_root=tmp_path)
+
+    assert selection.outcomes == ()
+    assert {
+        target.project_key: target.primary_repo_name for target in selection.targets
+    } == {
+        "key-named": "plain-name",
+        "key-slugged": "hosted-name",
+    }
 
 
 def test_resolves_numbered_sidecar_clone(

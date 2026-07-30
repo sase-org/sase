@@ -14,6 +14,7 @@ def render_agent_commits(
     commits: tuple[CommitRecord, ...],
     *,
     commit_url_base: str | None,
+    commit_repo_name: str | None,
 ) -> list[str]:
     """Render one run's bounded commit table."""
 
@@ -27,6 +28,7 @@ def render_agent_commits(
     return _render_commit_table(
         rows,
         commit_url_base=commit_url_base,
+        repo_name=commit_repo_name,
         include_role=False,
     )
 
@@ -35,6 +37,7 @@ def render_family_commits(
     commits: tuple[tuple[CommitRecord, str], ...],
     *,
     commit_url_base: str | None,
+    commit_repo_name: str | None,
 ) -> list[str]:
     """Render a family's bounded, role-attributed commit table."""
 
@@ -47,6 +50,7 @@ def render_family_commits(
     return _render_commit_table(
         rows,
         commit_url_base=commit_url_base,
+        repo_name=commit_repo_name,
         include_role=True,
     )
 
@@ -55,17 +59,18 @@ def _render_commit_table(
     rows: tuple[tuple[CommitRecord, str | None], ...],
     *,
     commit_url_base: str | None,
+    repo_name: str | None,
     include_role: bool,
 ) -> list[str]:
     lines = (
         [
-            "| Role | Commit | Subject | Committed (UTC) |",
-            "|---|---|---|---|",
+            "| Role | Repo | Commit | Subject | Committed (UTC) |",
+            "|---|---|---|---|---|",
         ]
         if include_role
         else [
-            "| Commit | Subject | Committed (UTC) |",
-            "|---|---|---|",
+            "| Repo | Commit | Subject | Committed (UTC) |",
+            "|---|---|---|---|",
         ]
     )
     for commit, role in rows[:MAX_RENDERED_COMMITS]:
@@ -76,6 +81,7 @@ def _render_commit_table(
             "%Y-%m-%d %H:%M:%S"
         )
         cells = [
+            md_cell(repo_name) if repo_name else "—",
             commit_cell,
             md_cell(commit.subject),
             committed,

@@ -8,13 +8,12 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Protocol
 
-from sase._repo_inventory_models import RepoRecord
 from sase.agents_sync.git import GitRunner, run_git
 from sase.bead.model import Issue
 from sase.bead.store_locator import open_bead_project_for_beads_dir
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
-from sase.repo_inventory import collect_repo_inventory
+from sase.repo_inventory import collect_repo_inventory, repo_display_name
 from sase.sdd.hosted_links import hosted_link_resolver
 from sase.sdd.plan_refs import workspace_context_for_plan_resolution
 from sase.sdd.store import SddStore
@@ -168,7 +167,7 @@ def _history_repositories(
         None,
     )
     primary_name = (
-        _repository_name(primary_record)
+        repo_display_name(primary_record)
         if primary_record is not None
         else fallback.name
     )
@@ -188,24 +187,20 @@ def _history_repositories(
         if not root.is_dir():
             if expected_to_exist:
                 diagnostics.append(
-                    f"repository clone for {_repository_name(record)} "
+                    f"repository clone for {repo_display_name(record)} "
                     f"is missing: {root}"
                 )
             continue
         seen.add(root)
         repositories.append(
             BeadCommitRepository(
-                _repository_name(record),
+                repo_display_name(record),
                 root,
                 record.kind,
                 False,
             )
         )
     return tuple(repositories)
-
-
-def _repository_name(record: RepoRecord) -> str:
-    return record.slug or record.name
 
 
 def _merge_history(

@@ -136,6 +136,7 @@ class ProjectTarget:
     primary_roots: tuple[Path, ...]
     sidecar_path: Path
     remote_url: str
+    primary_repo_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

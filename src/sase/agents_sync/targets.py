@@ -17,6 +17,7 @@ from sase.repo_inventory import (
     RepoInventory,
     RepoInventoryProjectNotFoundError,
     collect_repo_inventory,
+    repo_display_name,
 )
 
 
@@ -173,6 +174,7 @@ def resolve_sync_targets(
                 primary_roots=resolved_roots,
                 sidecar_path=Path(agents.path).expanduser(),
                 remote_url=agents.remote_url,
+                primary_repo_name=repo_display_name(primary),
             )
 
         for issue in inventory.issues:

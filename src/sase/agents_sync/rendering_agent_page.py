@@ -30,6 +30,7 @@ def render_agent_page(
     *,
     family: V2ContainerRecord | None,
     commit_url_base: str | None,
+    commit_repo_name: str | None,
     kinship: HoodKinshipProjection,
 ) -> str:
     """Render one agent run page."""
@@ -83,6 +84,7 @@ def render_agent_page(
                 *render_agent_commits(
                     run.commits,
                     commit_url_base=commit_url_base,
+                    commit_repo_name=commit_repo_name,
                 ),
                 "",
             ]

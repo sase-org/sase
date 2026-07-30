@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 import subprocess
 
@@ -13,7 +14,7 @@ from sase._linked_repo_config import (
     DEFAULT_BEADS_DESCRIPTION,
 )
 from sase.linked_repos import external_repo_clone_dir, hidden_sidecar_clone_dir
-from sase.repo_inventory import collect_repo_inventory
+from sase.repo_inventory import RepoRecord, collect_repo_inventory, repo_display_name
 from sase.sdd.store import write_sdd_store_record
 from sase.workspace_provider.registry import (
     WorkspaceEntry,
@@ -67,6 +68,24 @@ def _project_record(
         is_project=True,
         vcs_kind="gh",
     )
+
+
+def test_repo_display_name_prefers_slug_then_name() -> None:
+    record = RepoRecord(
+        name="inventory-name",
+        kind="primary",
+        project="widget",
+        project_key="widget",
+        path="/repos/widget",
+        exists=True,
+        auto_clone=False,
+        description=None,
+        source="test",
+        env_name=None,
+    )
+
+    assert repo_display_name(record) == "inventory-name"
+    assert repo_display_name(replace(record, slug="hosted-slug")) == "hosted-slug"
 
 
 def test_inventory_collects_all_repo_kinds_and_sidecar_wins_overlap(

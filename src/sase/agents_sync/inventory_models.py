@@ -50,6 +50,7 @@ class ProjectHoodInventory:
     runs: tuple[InventoryRun, ...]
     diagnostics: tuple[str, ...] = ()
     primary_remote_url: str | None = None
+    primary_repo_name: str | None = None
     _selection_exclusions: frozenset[str] = field(
         default_factory=frozenset,
         init=False,

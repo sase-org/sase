@@ -20,9 +20,9 @@
 
 ## Commits
 
-| Commit | Subject | Committed (UTC) |
-|---|---|---|
-| `aaaaaaa` | foo.bar.baz--code | 1970-01-01 00:00:01 |
+| Repo | Commit | Subject | Committed (UTC) |
+|---|---|---|---|
+| — | `aaaaaaa` | foo.bar.baz--code | 1970-01-01 00:00:01 |
 
 ## Variables
 

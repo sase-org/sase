@@ -121,6 +121,7 @@ def _fixtures() -> tuple[_View, Issue, Issue, BeadAssociationIndex]:
         1_722_176_527,
         (1_722_176_527, "sase", "9701511abcdef"),
         "9701511abcdef",
+        BeadCommitRepository("sase", Path("/repos/sase"), "primary", True),
     )
     phase_associations = BeadAssociations((agent,), (commit,))
     index = BeadAssociationIndex(
@@ -227,6 +228,7 @@ def test_unhosted_page_keeps_labels_and_omits_broken_urls() -> None:
                 row.committed_at,
                 row.sort_key,
                 row.sha,
+                row.repository,
             )
             for row in hosted.commits
         ),
@@ -244,7 +246,7 @@ def test_unhosted_page_keeps_labels_and_omits_broken_urls() -> None:
     assert "https://" not in rendered
 
 
-def test_non_primary_commit_is_qualified_without_changing_primary_bytes(
+def test_commit_repo_is_rendered_in_its_own_column(
     tmp_path: Path,
 ) -> None:
     view, _root, phase, index = _fixtures()
@@ -295,12 +297,48 @@ def test_non_primary_commit_is_qualified_without_changing_primary_bytes(
         view,
         phase,
         BeadAssociationIndex(
-            MappingProxyType({phase.id: BeadAssociations(commits=(linked,))})
+            MappingProxyType(
+                {
+                    phase.id: BeadAssociations(
+                        agents=original_associations.agents,
+                        commits=(linked,),
+                    )
+                }
+            )
         ),
     )
 
     assert primary_page == original_page
-    assert "`sase-core@9701511`" in linked_page
+    assert "| sase | [`9701511`]" in primary_page
+    assert "| sase-core | [`9701511`]" in linked_page
+    assert "@9701511" not in primary_page
+    assert "@9701511" not in linked_page
+    assert primary_page.replace("| sase |", "| sase-core |") == linked_page
+
+
+def test_commit_repo_column_has_unknown_fallback() -> None:
+    view, _root, phase, index = _fixtures()
+    original = index.for_bead(phase.id).commits[0]
+    unknown = BeadCommitAssociation(
+        original.label,
+        original.target,
+        original.bead_id,
+        original.subject,
+        original.committed_at,
+        original.sort_key,
+        original.sha,
+    )
+
+    rendered = _render(
+        view,
+        phase,
+        BeadAssociationIndex(
+            MappingProxyType({phase.id: BeadAssociations(commits=(unknown,))})
+        ),
+    )
+
+    assert "| Repo | Commit | Subject | Bead | Committed (UTC) |" in rendered
+    assert "| — | [`9701511`]" in rendered
 
 
 def test_empty_optional_sections_are_omitted() -> None:

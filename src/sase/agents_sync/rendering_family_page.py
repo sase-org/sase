@@ -35,6 +35,7 @@ def render_family_page(
     by_id: dict[str, V2RunRecord],
     *,
     commit_url_base: str | None,
+    commit_repo_name: str | None,
     kinship: HoodKinshipProjection,
 ) -> str:
     """Render one family container and its member lineage."""
@@ -111,6 +112,7 @@ def render_family_page(
                 *render_family_commits(
                     family_commits,
                     commit_url_base=commit_url_base,
+                    commit_repo_name=commit_repo_name,
                 ),
                 "",
             ]

@@ -66,6 +66,12 @@ _KIND_ORDER: dict[RepoKind, int] = {
 _ENV_INVALID_CHARS = re.compile(r"[^A-Za-z0-9]+")
 
 
+def repo_display_name(record: RepoRecord) -> str:
+    """Return the repository name readers recognize."""
+
+    return record.slug or record.name
+
+
 def collect_repo_inventory(
     projects_root: Path | str | None = None,
     *,
@@ -519,4 +525,5 @@ __all__ = [
     "RepoKind",
     "RepoRecord",
     "collect_repo_inventory",
+    "repo_display_name",
 ]

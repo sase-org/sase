@@ -24,6 +24,7 @@ def _target(tmp_path: Path) -> ProjectTarget:
         (primary.resolve(),),
         tmp_path / "sidecar",
         "unused",
+        "primary",
     )
 
 
@@ -131,6 +132,7 @@ def test_inventory_keeps_active_and_dismissed_states_but_rejects_imports(
     assert active.commits[0].sha == sha
     assert dict(active.metadata) == {"model": "gpt"}
     assert result.eligible_hoods() == ("foo",)
+    assert result.primary_repo_name == "primary"
 
 
 def test_portable_metadata_sanitizes_output_variables() -> None:
