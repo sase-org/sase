@@ -57,8 +57,8 @@ The xprompt language server is focused on prompt and xprompt editing:
 | VCS repositories        | Completes repository names after namespace slashes such as `#gh:owner/` through the owning workspace provider.                                                     |
 | Argument assistance     | Completes named arguments, path inputs, and bool values for typed xprompt inputs where the catalog exposes input metadata.                                         |
 | Directive completion    | Completes SASE prompt directives and fixed directive values, including `%model:` values from the live model catalog.                                               |
-| Artifact references     | Completes known kinds after `@` and local document, chat, and indexed-file payloads after `@kind:` for the active project.                                         |
-| File completion         | Completes path-like tokens and recent file-history entries for prompt references.                                                                                  |
+| Artifact references     | Completes bare `@` and `@query` tokens as one grouped artifact-kind plus local-path response, then local document, chat, and indexed-file payloads after `@kind:`. |
+| File completion         | Completes path-like tokens and recent file-history entries; `@`-prefixed local paths also appear in the grouped artifact-reference response.                       |
 | Snippets                | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                                                      |
 | Hover                   | Shows xprompt metadata, descriptions, previews, source display paths, tags, and active input hints.                                                                |
 | Diagnostics             | Reports xprompt/directive issues plus malformed or unresolved known artifact references outside prompt literal zones.                                              |
@@ -70,10 +70,12 @@ Snippet completions come from the same registry ACE uses: xprompts with `snippet
 authoritative registry and falls back to native Rust loading only for simple xprompt snippets and configured
 `ace.snippets` when the helper is unavailable.
 
-Artifact assistance is local-only. Document-role kinds (including dynamic sidecar roles), chats, and indexed artifact
-files are enumerated or resolved from the selected project's catalog roots. `commit` and `bug` references receive shape
-validation but no completion enumeration or resolution request, and the LSP never contacts git hosts, issue trackers, or
-other network providers. Unknown `@kind:` text remains ordinary prose.
+Artifact assistance is local-only. Before a `:` appears, `@` completion returns artifact-kind rows first and local file
+rows second; completion labels and filter text include the sigil, such as `@plans:` and `@src/`, so editors filtering
+the typed word keep both groups visible. Document-role kinds (including dynamic sidecar roles), chats, and indexed
+artifact files are enumerated or resolved from the selected project's catalog roots. `commit` and `bug` references
+receive shape validation but no completion enumeration or resolution request, and the LSP never contacts git hosts,
+issue trackers, or other network providers. Unknown `@kind:` text remains ordinary prose.
 
 Artifact-reference semantic tokens use the standard LSP legend: `namespace` for the kind, `string` for the payload, and
 `number` for the fragment. Dynamic document-role references carry the standard `documentation` modifier; builtin

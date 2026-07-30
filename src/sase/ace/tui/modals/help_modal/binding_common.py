@@ -27,7 +27,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("Ctrl+L in panel", "Keep placeholder literal"),
         ("Ctrl+D in panel", "Delete saved completion entry"),
         ("#name / #!name", "Auto-open xprompt menu"),
-        ("@kind:payload", "Complete artifact references"),
+        ("@", "Artifact kinds + local files"),
         ("%model: / %auto: / %effort:", "Auto-open directive values"),
         ("%model:@", "Model aliases only"),
         ("%wait: / #fork:", "Complete agents, real @tribes"),

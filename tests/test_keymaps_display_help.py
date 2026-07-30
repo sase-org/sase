@@ -269,13 +269,13 @@ def test_help_modal_lists_prompt_pane_focus_and_reorder() -> None:
         assert ("g-", "Add prompt pane") in pairs
 
 
-def test_help_modal_lists_artifact_reference_completion() -> None:
+def test_help_modal_lists_at_reference_completion() -> None:
     reg = load_keymap_registry({})
     for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
         pairs = {
             (key, label) for _section, bindings in sections for key, label in bindings
         }
-        assert ("@kind:payload", "Complete artifact references") in pairs
+        assert ("@", "Artifact kinds + local files") in pairs
 
 
 def test_help_modal_lists_frontmatter_panel_toggle() -> None:
