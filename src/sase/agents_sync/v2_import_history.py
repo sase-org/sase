@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 from typing import Any
 
+from sase.agent_lanes import lane_name
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_import_package import (
@@ -241,8 +242,18 @@ def _matching_primary_commit_evidence(
                 global_name = globalize_agent_name(local_name, owner)
             except (ValueError, RuntimeError):
                 continue
-            if global_name in expected[sha]:
-                matched.add((global_name, sha))
+            for expected_global_name in expected[sha]:
+                try:
+                    same_lane = lane_name(global_name) == lane_name(
+                        expected_global_name
+                    )
+                except (ValueError, RuntimeError):
+                    same_lane = False
+                if global_name == expected_global_name or same_lane:
+                    # Evidence is indexed under the imported run identity, not
+                    # under the footer's lane label, so callers can resolve the
+                    # exact member payload that the lane proves.
+                    matched.add((expected_global_name, sha))
         unresolved -= present
     return frozenset(matched)
 

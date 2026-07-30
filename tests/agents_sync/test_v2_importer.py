@@ -95,9 +95,18 @@ def test_exact_current_owner_commit_evidence_observes_without_duplicate(
     )
 
 
+@pytest.mark.parametrize(
+    "footer_names",
+    (
+        ("crew--plan", "crew--code"),
+        ("crew", "crew"),
+    ),
+    ids=("legacy-member-tags", "lane-tags"),
+)
 def test_exact_current_owner_primary_history_observes_cleaned_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    footer_names: tuple[str, str],
 ) -> None:
     target, package = published_package(tmp_path, owner=LOCAL_OWNER)
     artifact_root, groups, claims = isolate_local_state(
@@ -119,9 +128,9 @@ def test_exact_current_owner_primary_history_observes_cleaned_run(
         if op == "agents_sync.v2_primary_commit_messages":
             stdout = "".join(
                 (
-                    f"{'1' * 40}\x00SASE_AGENT=alice.athena.crew--plan\n"
+                    f"{'1' * 40}\x00SASE_AGENT=alice.athena.{footer_names[0]}\n"
                     "SASE_MACHINE=athena\n\x00\n",
-                    f"{'2' * 40}\x00SASE_AGENT=alice.athena.crew--code\n"
+                    f"{'2' * 40}\x00SASE_AGENT=alice.athena.{footer_names[1]}\n"
                     "SASE_MACHINE=athena\n\x00\n",
                 )
             )

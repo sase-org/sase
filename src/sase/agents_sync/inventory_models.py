@@ -7,9 +7,11 @@ from typing import Any
 
 from sase.agents_sync.models import CommitRecord
 from sase.core.agent_identity_facade import (
+    AgentFamilyNameKind,
     AgentOwnerIdentity,
     agent_local_hood,
     agent_name_in_hood,
+    parse_agent_family_name,
 )
 
 
@@ -19,6 +21,15 @@ class InventoryRelationship:
     target: str
     target_kind: str
     required: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class InventoryLaneCommitHistory:
+    """Primary commit history attributed to one lane-valued footer label."""
+
+    local_name: str
+    is_family: bool
+    commits: tuple[CommitRecord, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +62,7 @@ class ProjectHoodInventory:
     diagnostics: tuple[str, ...] = ()
     primary_remote_url: str | None = None
     primary_repo_name: str | None = None
+    lane_commits: tuple[InventoryLaneCommitHistory, ...] = ()
     _selection_exclusions: frozenset[str] = field(
         default_factory=frozenset,
         init=False,
@@ -81,7 +93,46 @@ class ProjectHoodInventory:
                 hoods.add(agent_local_hood(run.local_name))
             except Exception as exc:  # noqa: BLE001 - defensive history boundary.
                 self._record_selection_exclusion(run, exc)
+        for history in self.lane_commits:
+            if (
+                not history.is_family
+                or not history.commits
+                or not self._family_lane_has_member(history.local_name)
+            ):
+                continue
+            try:
+                hoods.add(agent_local_hood(history.local_name))
+            except Exception:
+                continue
         return tuple(sorted(hoods))
+
+    def family_lane_commits(
+        self,
+        hood: str,
+    ) -> tuple[InventoryLaneCommitHistory, ...]:
+        """Return commit-bearing family lanes selected by *hood*."""
+
+        selected: list[InventoryLaneCommitHistory] = []
+        for history in self.lane_commits:
+            if not history.is_family or not history.commits:
+                continue
+            try:
+                in_hood = agent_name_in_hood(history.local_name, hood)
+            except Exception:
+                continue
+            if in_hood:
+                selected.append(history)
+        return tuple(selected)
+
+    def _family_lane_has_member(self, lane: str) -> bool:
+        for run in self.runs:
+            try:
+                parsed = parse_agent_family_name(run.local_name)
+            except Exception:
+                continue
+            if parsed.kind is AgentFamilyNameKind.MEMBER and parsed.family_name == lane:
+                return True
+        return False
 
     def _record_selection_exclusion(self, run: InventoryRun, exc: Exception) -> None:
         source = run.source_label or run.source_run_id

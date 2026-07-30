@@ -386,6 +386,128 @@ def test_inventory_synthesizes_run_for_linked_commit_without_local_artifact(
     assert (repo / "agents" / "alice.athena.missing.agent" / "README.md").is_file()
 
 
+def test_inventory_diagnoses_unrepresentable_family_history_without_phantom_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(inventory, "_indexed_records", lambda _target: ((), []))
+    monkeypatch.setattr(inventory, "_dismissed_records", lambda _target: ())
+    sha = "c" * 40
+    log = (
+        f"{sha}\x001\x00family lane\x00family lane\n\n"
+        "SASE_AGENT=[alice.athena.crew][2]\n\n"
+        "[2]: https://github.com/acme/project--agents/blob/main/"
+        "families/alice.athena.crew.md\x00"
+    )
+
+    def runner(
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        if args[0] == "log":
+            return subprocess.CompletedProcess(args, 0, log, "")
+        return subprocess.CompletedProcess(args, 1, "", "unused")
+
+    owner = AgentOwnerIdentity("alice", "athena")
+    identity = AgentIdentitySnapshot(owner)
+    target = _target(tmp_path)
+    result = inventory.build_project_hood_inventory(
+        target,
+        identity,
+        git_runner=runner,
+    )
+
+    assert result.runs == ()
+    assert result.eligible_hoods() == ()
+    assert result.lane_commits == (
+        inventory_models.InventoryLaneCommitHistory(
+            "crew",
+            True,
+            (CommitRecord(sha, "family lane", 1),),
+        ),
+    )
+    assert result.diagnostics == (
+        "primary commit history for family lane alice.athena.crew: retained "
+        "1 commit(s), but no family member run remains and v2 family containers "
+        "require at least one member",
+    )
+
+
+def test_inventory_preserves_legacy_member_attribution_beside_family_lane_history(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("SASE_HOME", str(home))
+    artifacts = home / "projects" / "proj" / "artifacts" / "ace-run"
+    artifact = _write_artifact(artifacts, "20260723120000", "crew--code")
+    monkeypatch.setattr(
+        inventory,
+        "_indexed_records",
+        lambda _target: ((_record(artifact, "20260723120000"),), []),
+    )
+    monkeypatch.setattr(inventory, "_dismissed_records", lambda _target: ())
+    legacy_sha = "d" * 40
+    lane_sha = "e" * 40
+    log = "".join(
+        (
+            f"{legacy_sha}\x001\x00legacy member\x00legacy member\n\n"
+            "SASE_AGENT=alice.athena.crew--code\x00",
+            f"{lane_sha}\x002\x00family lane\x00family lane\n\n"
+            "SASE_AGENT=[alice.athena.crew][2]\n\n"
+            "[2]: https://github.com/acme/project--agents/blob/main/"
+            "families/alice.athena.crew.md\x00",
+        )
+    )
+
+    def runner(
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        if args[0] == "log":
+            return subprocess.CompletedProcess(args, 0, log, "")
+        return subprocess.CompletedProcess(args, 1, "", "unused")
+
+    owner = AgentOwnerIdentity("alice", "athena")
+    identity = AgentIdentitySnapshot(owner)
+    target = _target(tmp_path)
+    result = inventory.build_project_hood_inventory(
+        target,
+        identity,
+        git_runner=runner,
+    )
+
+    assert [run.local_name for run in result.runs] == ["crew--code"]
+    assert result.runs[0].commits == (CommitRecord(legacy_sha, "legacy member", 1),)
+
+    repo = target.sidecar_path
+    repo.mkdir()
+    reconcile_agent_hoods(target, repo, identity=identity, inventory=result)
+    snapshot = read_hood_snapshot(
+        repo
+        / "users"
+        / "alice"
+        / "machines"
+        / "athena"
+        / "hoods"
+        / "crew"
+        / "snapshot.json"
+    )
+
+    assert snapshot.runs[0].commits == (CommitRecord(legacy_sha, "legacy member", 1),)
+    assert snapshot.containers[0].commits == (CommitRecord(lane_sha, "family lane", 2),)
+    assert {run.local_name for run in snapshot.runs} == {"crew--code"}
+
+
 def test_inventory_disambiguates_historical_runs_that_share_a_timestamp_id(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

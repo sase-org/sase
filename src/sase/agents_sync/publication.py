@@ -14,9 +14,10 @@ from sase.agents_sync.inventory import (
     ProjectHoodInventory,
     build_project_hood_inventory,
 )
+from sase.agents_sync.inventory_models import InventoryLaneCommitHistory
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.links import hosted_provider
-from sase.agents_sync.models import ProjectTarget
+from sase.agents_sync.models import CommitRecord, ProjectTarget
 from sase.agents_sync.rendering import render_browsing_payload
 from sase.agents_sync.v2_io import (
     apply_payload_atomic,
@@ -243,6 +244,7 @@ def _build_hood_snapshot(
     previous: V2HoodSnapshot | None,
 ) -> tuple[V2HoodSnapshot, dict[str, bytes]]:
     current = inventory.hood_runs(hood)
+    family_history = inventory.family_lane_commits(hood)
     if not current and previous is None:
         raise AgentsSyncFormatError(f"hood {hood!r} has no publishable runs")
     payload: dict[str, bytes] = {}
@@ -266,7 +268,12 @@ def _build_hood_snapshot(
     combined = tuple(
         sorted((*prior_records, *current_records), key=lambda item: item.source_run_id)
     )
-    containers = _build_containers(combined, owner)
+    containers = _build_containers(
+        combined,
+        owner,
+        family_history,
+        previous.containers if previous is not None else (),
+    )
     relationships = _build_relationships(
         current,
         combined,
@@ -360,9 +367,12 @@ def _published_run(
 def _build_containers(
     runs: tuple[V2RunRecord, ...],
     owner: AgentOwnerIdentity,
+    lane_commits: tuple[InventoryLaneCommitHistory, ...] = (),
+    previous: tuple[V2ContainerRecord, ...] = (),
 ) -> tuple[V2ContainerRecord, ...]:
     families: dict[str, set[str]] = {}
     clans: dict[str, set[str]] = {}
+    family_commits: dict[str, dict[str, CommitRecord]] = {}
     for run in runs:
         metadata = dict(run.metadata)
         parsed = parse_agent_family_name(run.local_name)
@@ -376,16 +386,51 @@ def _build_containers(
         clan = _text(metadata.get("agent_clan"))
         if clan:
             clans.setdefault(clan, set()).add(run.source_run_id)
+    for history in lane_commits:
+        if history.local_name not in families:
+            # The v2 relationship contract requires at least one member per
+            # family container. Inventory retains and diagnoses this history;
+            # publication must not fabricate a member run to carry it.
+            continue
+        families.setdefault(history.local_name, set())
+        commits = family_commits.setdefault(history.local_name, {})
+        commits.update({commit.sha: commit for commit in history.commits})
     containers = [
         V2ContainerRecord(
             cast(ContainerKind, kind),
             globalize_agent_name(name, owner),
             tuple(sorted(members)),
+            (
+                tuple(
+                    sorted(
+                        family_commits.get(name, {}).values(),
+                        key=lambda item: (item.committed_at, item.sha),
+                    )
+                )
+                if kind == "family"
+                else ()
+            ),
         )
         for kind, groups in (("family", families), ("clan", clans))
         for name, members in sorted(groups.items())
     ]
-    return tuple(sorted(containers, key=lambda item: (item.kind, item.global_name)))
+    by_key = {(item.kind, item.global_name): item for item in containers}
+    for item in previous:
+        key = (item.kind, item.global_name)
+        current = by_key.get(key)
+        if current is None:
+            by_key[key] = item
+            continue
+        commits = {commit.sha: commit for commit in (*item.commits, *current.commits)}
+        by_key[key] = replace(
+            current,
+            commits=tuple(
+                sorted(commits.values(), key=lambda row: (row.committed_at, row.sha))
+            ),
+        )
+    return tuple(
+        sorted(by_key.values(), key=lambda item: (item.kind, item.global_name))
+    )
 
 
 def _build_relationships(

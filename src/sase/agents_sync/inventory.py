@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import hashlib
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
+from sase.agent_lanes import AgentLaneRef, lane_ref_for_lane_name
 from sase.agents_sync.bundles import (
     commit_markers,
     commit_record,
@@ -33,6 +35,7 @@ from sase.agents_sync.inventory_io import (
     time_text as _time_text,
 )
 from sase.agents_sync.inventory_models import (
+    InventoryLaneCommitHistory,
     InventoryRelationship,
     InventoryRun,
     ProjectHoodInventory,
@@ -56,12 +59,19 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
+from sase.core.commit_footer_facade import CommitTagValue, LinkedCommitTagValue
 from sase.core.paths import sase_projects_dir
-from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
+from sase.workflows.commit.runtime_tags import parse_trailing_commit_tag_values
 
 # Preserve the existing test/support import while keeping the shared model public
 # in its defining module.
 _InventoryRelationship = InventoryRelationship
+
+
+@dataclass(frozen=True, slots=True)
+class _HistoricalAssociations:
+    run_commits: dict[str, tuple[CommitRecord, ...]]
+    lane_commits: tuple[InventoryLaneCommitHistory, ...]
 
 
 def build_project_hood_inventory(
@@ -138,7 +148,7 @@ def build_project_hood_inventory(
         )
     _add_commit_only_runs(
         by_global,
-        history,
+        history.run_commits,
         target.project_key,
         owner,
         diagnostics,
@@ -152,13 +162,20 @@ def build_project_hood_inventory(
         target.project_key,
         diagnostics,
     )
-    return ProjectHoodInventory(
+    _diagnose_unrepresented_family_history(
+        unique_runs,
+        history.lane_commits,
         owner,
-        target.project_key,
-        tuple(sorted(unique_runs, key=lambda item: item.source_run_id)),
-        tuple(diagnostics),
-        primary_remote_url,
-        target.primary_repo_name,
+        diagnostics,
+    )
+    return ProjectHoodInventory(
+        owner=owner,
+        project_key=target.project_key,
+        runs=tuple(sorted(unique_runs, key=lambda item: item.source_run_id)),
+        diagnostics=tuple(diagnostics),
+        primary_remote_url=primary_remote_url,
+        primary_repo_name=target.primary_repo_name,
+        lane_commits=history.lane_commits,
     )
 
 
@@ -214,7 +231,7 @@ def _run_from_artifact(
     target: ProjectTarget,
     record: AgentArtifactRecordWire,
     identity: AgentIdentitySnapshot,
-    history: dict[str, tuple[CommitRecord, ...]],
+    history: _HistoricalAssociations,
     root_cache: dict[str, Path | None],
     git_runner: GitRunner,
 ) -> InventoryRun | None:
@@ -239,7 +256,7 @@ def _run_from_artifact(
         record.workflow_dir_name,
         _text(meta.get("artifact_agent_id")) or timestamp,
     )
-    commits = {item.sha: item for item in history.get(local_name, ())}
+    commits = {item.sha: item for item in history.run_commits.get(local_name, ())}
     for marker in commit_markers(artifact):
         sha = _text(marker.get("result")) or _text(marker.get("commit_result"))
         cwd = _text(marker.get("cwd"))
@@ -311,7 +328,7 @@ def _run_from_dismissed(
     source_label: str,
     project_key: str,
     identity: AgentIdentitySnapshot,
-    history: dict[str, tuple[CommitRecord, ...]],
+    history: _HistoricalAssociations,
 ) -> InventoryRun | None:
     if _is_imported(raw, raw):
         return None
@@ -345,7 +362,7 @@ def _run_from_dismissed(
         _time_text(raw.get("stop_time")),
         _time_text(raw.get("stop_time")),
         metadata,
-        history.get(local_name, ()),
+        history.run_commits.get(local_name, ()),
         prompt,
         chat,
         family,
@@ -360,40 +377,106 @@ def _historical_associations(
     target: ProjectTarget,
     identity: AgentIdentitySnapshot,
     git_runner: GitRunner,
-) -> dict[str, tuple[CommitRecord, ...]]:
+) -> _HistoricalAssociations:
     result = git_runner(
         target.primary_checkout,
         ["log", "--format=%H%x00%ct%x00%s%x00%B%x00"],
         op="agents_sync.v2_history",
     )
     if result.returncode != 0:
-        return {}
-    commits: dict[str, dict[str, CommitRecord]] = defaultdict(dict)
+        return _HistoricalAssociations({}, ())
+    exact_runs: dict[str, dict[str, CommitRecord]] = defaultdict(dict)
+    lanes: dict[str, dict[str, CommitRecord]] = defaultdict(dict)
+    family_lanes: dict[str, bool] = {}
     chunks = result.stdout.split("\x00")
     for index in range(0, len(chunks) - 3, 4):
         sha = chunks[index].lstrip("\r\n").strip().lower()
         subject = chunks[index + 2].rstrip("\r\n")
         try:
             committed_at = int(chunks[index + 1].strip())
-            tags = parse_trailing_commit_tags(chunks[index + 3].rstrip("\r\n"))
+            tags = parse_trailing_commit_tag_values(chunks[index + 3].rstrip("\r\n"))
         except (ValueError, TypeError, RuntimeError):
             continue
-        raw_name = tags.get("AGENT")
+        value = tags.get("AGENT")
+        raw_name = value.label if isinstance(value, LinkedCommitTagValue) else value
+        machine_value = tags.get("MACHINE")
+        footer_machine = (
+            machine_value.label
+            if isinstance(machine_value, LinkedCommitTagValue)
+            else machine_value
+        )
         if not raw_name or not _footer_is_current_owner(
-            raw_name, tags.get("MACHINE"), identity
+            raw_name, footer_machine, identity
         ):
             continue
         try:
             local_name = _canonical_local_name(raw_name, identity)
-        except AgentsSyncFormatError:
+            parsed = parse_agent_family_name(local_name)
+        except (AgentsSyncFormatError, ValueError, RuntimeError):
             continue
-        commits[local_name][sha] = CommitRecord(sha, subject, committed_at)
-    return {
-        name: tuple(
-            sorted(rows.values(), key=lambda item: (item.committed_at, item.sha))
+        commit = CommitRecord(sha, subject, committed_at)
+        if parsed.member_role is not None:
+            # Legacy footers named the concrete family member. Preserve that
+            # exact run attribution forever; only lane-valued footers belong
+            # to the family container.
+            exact_runs[local_name][sha] = commit
+            continue
+        try:
+            lane = lane_ref_for_lane_name(local_name, identity)
+        except Exception:  # noqa: BLE001 - best-effort history boundary.
+            continue
+        if value is None:
+            continue
+        is_family = _lane_tag_is_family(value, lane)
+        lanes[lane.local_name][sha] = commit
+        family_lanes[lane.local_name] = (
+            family_lanes.get(lane.local_name, False) or is_family
         )
-        for name, rows in commits.items()
-    }
+
+    lane_commits = tuple(
+        InventoryLaneCommitHistory(
+            name,
+            family_lanes[name],
+            _sorted_commit_rows(rows),
+        )
+        for name, rows in sorted(lanes.items())
+    )
+    run_rows = dict(exact_runs)
+    for history in lane_commits:
+        if history.is_family:
+            continue
+        current = run_rows.setdefault(history.local_name, {})
+        current.update({commit.sha: commit for commit in history.commits})
+    return _HistoricalAssociations(
+        {
+            name: tuple(
+                sorted(rows.values(), key=lambda item: (item.committed_at, item.sha))
+            )
+            for name, rows in run_rows.items()
+        },
+        lane_commits,
+    )
+
+
+def _sorted_commit_rows(
+    rows: dict[str, CommitRecord],
+) -> tuple[CommitRecord, ...]:
+    return tuple(sorted(rows.values(), key=lambda item: (item.committed_at, item.sha)))
+
+
+def _destination_is_family_page(destination: str) -> bool:
+    """Return whether a linked footer destination names a family page."""
+
+    path = unquote(urlsplit(destination).path)
+    return "families" in {part for part in path.split("/") if part}
+
+
+def _lane_tag_is_family(value: CommitTagValue, lane: AgentLaneRef) -> bool:
+    """Classify an ambiguous lane label from its own footer evidence first."""
+
+    if isinstance(value, LinkedCommitTagValue):
+        return _destination_is_family_page(value.destination)
+    return lane.is_family
 
 
 def _primary_remote_url(
@@ -611,6 +694,35 @@ def _normalize_historical_family_metadata(
         family_name=canonical_family,
         metadata=tuple(sorted(metadata.items())),
     )
+
+
+def _diagnose_unrepresented_family_history(
+    runs: tuple[InventoryRun, ...],
+    lane_commits: tuple[InventoryLaneCommitHistory, ...],
+    owner: AgentOwnerIdentity,
+    diagnostics: list[str],
+) -> None:
+    member_families: set[str] = set()
+    for run in runs:
+        try:
+            parsed = parse_agent_family_name(run.local_name)
+        except Exception:
+            continue
+        if parsed.member_role is not None:
+            member_families.add(parsed.family_name)
+    for history in lane_commits:
+        if (
+            not history.is_family
+            or not history.commits
+            or history.local_name in member_families
+        ):
+            continue
+        global_name = globalize_agent_name(history.local_name, owner)
+        diagnostics.append(
+            f"primary commit history for family lane {global_name}: retained "
+            f"{len(history.commits)} commit(s), but no family member run remains "
+            "and v2 family containers require at least one member"
+        )
 
 
 def _disambiguate_source_run_ids(
