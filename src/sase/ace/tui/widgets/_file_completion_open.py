@@ -264,6 +264,11 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         self._file_completion_index = 0
         self._completion_selection_moved = False
         self._artifact_ref_completion_force = force
+        self._artifact_ref_completion_stats = (
+            result.payload_count,
+            result.payload_total,
+            result.truncated_payloads,
+        )
         self._update_file_completion_panel(context.prefix)
         if force and at_reference_leading_match_count(result.candidates) == 1:
             self._accept_artifact_ref_completion(result.candidates[0])

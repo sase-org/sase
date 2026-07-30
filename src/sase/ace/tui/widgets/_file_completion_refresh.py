@@ -73,6 +73,11 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                 self._clear_file_completion()
                 return
             self._replace_completion_candidates_preserving_selection(result.candidates)
+            self._artifact_ref_completion_stats = (
+                result.payload_count,
+                result.payload_total,
+                result.truncated_payloads,
+            )
             self._update_file_completion_panel(context.prefix)
             if self._artifact_ref_completion_force:
                 if at_reference_leading_match_count(result.candidates) == 1:

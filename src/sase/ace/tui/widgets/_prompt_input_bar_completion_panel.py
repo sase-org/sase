@@ -37,6 +37,7 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     AtReferenceFileCompletionMetadata,
     AtReferenceLoadingCompletionMetadata,
     ArtifactRefKindCompletionMetadata,
+    ArtifactRefPayloadCompletionMetadata,
 )
 from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import (
@@ -102,6 +103,45 @@ def _model_completion_subtitle(
         return text
     text.truncate(inner_width, overflow="ellipsis")
     return text
+
+
+def _artifact_ref_completion_subtitle(
+    visible: list[CompletionCandidate],
+    payload_count: int,
+    payload_total: int,
+    truncated_payloads: int,
+    inner_width: int,
+) -> Text:
+    """Return match-mode and catalog-coverage context for an ``@`` menu."""
+    fuzzy = any(
+        isinstance(
+            candidate.metadata,
+            (
+                ArtifactRefKindCompletionMetadata,
+                AtReferenceFileCompletionMetadata,
+                ArtifactRefPayloadCompletionMetadata,
+            ),
+        )
+        and candidate.metadata.match_tier >= 2
+        for candidate in visible
+    )
+    subtitle = Text(no_wrap=True, overflow="ellipsis")
+    if fuzzy:
+        subtitle.append("~ fuzzy")
+    if payload_total:
+        if subtitle:
+            subtitle.append(" · ")
+        subtitle.append(f"{payload_count} of {payload_total}")
+    if truncated_payloads:
+        if subtitle:
+            subtitle.append(" · ")
+        subtitle.append(
+            f"⚠ {truncated_payloads} not scanned",
+            style="bold #FF8C00",
+        )
+    if inner_width > 0:
+        subtitle.truncate(inner_width, overflow="ellipsis")
+    return subtitle
 
 
 def _reserved_panel_rows(
@@ -207,6 +247,9 @@ class PromptInputBarCompletionMixin(_MixinBase):
         completion_kind: str = "file",
         group_rule: bool = False,
         group_directory: str = "",
+        artifact_ref_payload_count: int = 0,
+        artifact_ref_payload_total: int = 0,
+        artifact_ref_truncated_payloads: int = 0,
     ) -> None:
         """Show the shared manual-completion panel with Rich styling.
 
@@ -381,6 +424,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
                     candidate,
                     is_selected,
                     artifact_kind_width,
+                    panel_inner_width,
                 )
             elif is_arg_completion:
                 content.append(
@@ -477,6 +521,14 @@ class PromptInputBarCompletionMixin(_MixinBase):
         delete_subtitle = _completion_delete_subtitle(completion_kind, visible)
         if delete_subtitle:
             panel.border_subtitle = delete_subtitle
+        elif is_artifact_ref:
+            panel.border_subtitle = _artifact_ref_completion_subtitle(
+                visible,
+                artifact_ref_payload_count,
+                artifact_ref_payload_total,
+                artifact_ref_truncated_payloads,
+                panel_inner_width,
+            )
         elif is_model_completion:
             panel.border_subtitle = _model_completion_subtitle(
                 rows,

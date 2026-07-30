@@ -125,6 +125,7 @@ class PromptTextArea(
         self._completion_kind: str = "file"
         self._completion_selection_moved: bool = False
         self._artifact_ref_completion_force: bool = False
+        self._artifact_ref_completion_stats: tuple[int, int, int] = (0, 0, 0)
         self._placeholder_completion_trigger: str | None = None
         self._agent_completion_candidates: list[AgentCompletionCandidate] | None = None
         self._vcs_project_catalog_warmed: bool = False

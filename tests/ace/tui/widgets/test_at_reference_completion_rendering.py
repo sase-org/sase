@@ -7,9 +7,11 @@ from rich.text import Text
 from textual.widgets import Static
 
 from sase.ace.tui.widgets._prompt_input_bar_completion_panel import (
+    _artifact_ref_completion_subtitle,
     _at_reference_group_rule_needed,
     _at_reference_panel_title,
 )
+from sase.ace.tui.widgets._completion_match_highlight import append_highlighted
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_artifact_ref_completion_row,
     append_at_reference_group_rule,
@@ -129,8 +131,166 @@ def test_file_rows_reuse_file_menu_glyph_and_color_anatomy() -> None:
 
     assert directory.plain == "📁 src/"
     assert regular_file.plain == "📄 Justfile"
-    assert any(str(span.style) == "bold cyan" for span in directory.spans)
+    assert any(str(span.style) == "bold #87D7FF" for span in directory.spans)
     assert any(str(span.style) == "bold" for span in regular_file.spans)
+
+
+def test_shared_highlight_helper_splits_directory_basename_and_match_runs() -> None:
+    rendered = Text()
+
+    append_highlighted(
+        rendered,
+        "202607/bundle/site.md",
+        ((14, 18),),
+        base_style="bold",
+        segment_split=14,
+    )
+
+    assert rendered.plain == "202607/bundle/site.md"
+    assert [
+        (rendered.plain[span.start : span.end], str(span.style))
+        for span in rendered.spans
+    ] == [
+        ("202607/bundle/", "dim"),
+        ("site", "bold #FFD700"),
+        (".md", "bold"),
+    ]
+
+
+def test_payload_row_is_path_first_with_highlighted_path_and_title() -> None:
+    path = "202607/sase_sites_hub/sase_sites_hub.md"
+    candidate = CompletionCandidate(
+        display=path,
+        insertion=f"@research:{path}",
+        is_dir=False,
+        name="sase_sites_hub.md",
+        metadata=ArtifactRefPayloadCompletionMetadata(
+            kind="research",
+            payload=path,
+            source="document",
+            label="SASE Sites Hub",
+            detail="research",
+            age="3d",
+            label_match=((27, 31),),
+            title_match=((5, 9),),
+            match_tier=2,
+        ),
+    )
+
+    rendered = _render_row(candidate)
+    gold = [
+        rendered.plain[span.start : span.end]
+        for span in rendered.spans
+        if str(span.style) == "bold #FFD700"
+    ]
+
+    assert rendered.plain == (
+        "[D] 202607/sase_sites_hub/sase_sites_hub.md"
+        "  SASE Sites Hub  ·  research  ·  3d"
+    )
+    assert gold == ["site", "Site"]
+    assert any(
+        rendered.plain[span.start : span.end] == "202607/sase_sites_hub/"
+        and str(span.style) == "dim"
+        for span in rendered.spans
+    )
+
+
+def test_payload_tail_truncates_without_eliding_the_reference_path() -> None:
+    path = "202607/bundle/important.md"
+    candidate = CompletionCandidate(
+        display=path,
+        insertion=f"@plans:{path}",
+        is_dir=False,
+        name="important.md",
+        metadata=ArtifactRefPayloadCompletionMetadata(
+            kind="plans",
+            payload=path,
+            source="document",
+            label="An intentionally long plan title",
+            detail="plans",
+            age="now",
+        ),
+    )
+    content = Text()
+
+    append_artifact_ref_completion_row(
+        content,
+        candidate,
+        False,
+        inner_width=42,
+    )
+
+    assert path in content.plain
+    assert content.plain.endswith("...")
+    assert content.cell_len <= 40
+
+
+def test_kind_and_file_rows_highlight_wire_runs() -> None:
+    kind = _kind("research")
+    kind = CompletionCandidate(
+        display=kind.display,
+        insertion=kind.insertion,
+        is_dir=kind.is_dir,
+        name=kind.name,
+        metadata=ArtifactRefKindCompletionMetadata(
+            "research",
+            False,
+            "document",
+            ((0, 1), (2, 3), (5, 8)),
+            3,
+        ),
+    )
+    file_row = CompletionCandidate(
+        display="_file_completion_base.py",
+        insertion="@_file_completion_base.py",
+        is_dir=False,
+        name="_file_completion_base.py",
+        metadata=AtReferenceFileCompletionMetadata(
+            False,
+            "",
+            ((1, 2), (6, 7), (17, 18)),
+            3,
+        ),
+    )
+
+    assert [
+        _render_row(kind).plain[span.start : span.end]
+        for span in _render_row(kind).spans
+        if str(span.style) == "bold #FFD700"
+    ] == ["r", "s", "rch"]
+    assert [
+        _render_row(file_row).plain[span.start : span.end]
+        for span in _render_row(file_row).spans
+        if str(span.style) == "bold #FFD700"
+    ] == ["f", "c", "b"]
+
+
+def test_artifact_subtitle_reports_fuzzy_matches_and_unscanned_rows() -> None:
+    row = CompletionCandidate(
+        display="site.md",
+        insertion="@research:site.md",
+        is_dir=False,
+        name="site.md",
+        metadata=ArtifactRefPayloadCompletionMetadata(
+            "research",
+            "site.md",
+            "document",
+            match_tier=2,
+        ),
+    )
+
+    subtitle = _artifact_ref_completion_subtitle([row], 3, 305, 1203, 80)
+    prefix_subtitle = _artifact_ref_completion_subtitle(
+        [_payload("202607/plan.md")],
+        1,
+        305,
+        0,
+        80,
+    )
+
+    assert subtitle.plain == "~ fuzzy · 3 of 305 · ⚠ 1203 not scanned"
+    assert prefix_subtitle.plain == "1 of 305"
 
 
 @pytest.mark.parametrize(

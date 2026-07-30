@@ -93,6 +93,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         _completion_kind: str
         _completion_selection_moved: bool
         _artifact_ref_completion_force: bool
+        _artifact_ref_completion_stats: tuple[int, int, int]
         # ``"auto"`` or ``"manual"``, recorded for the lifetime of an open
         # placeholder menu so refresh and accept keep resolving the same
         # candidate set the user is looking at.
@@ -229,6 +230,9 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             completion_kind=self._completion_kind,
             group_rule=group_rule,
             group_directory=group_directory,
+            artifact_ref_payload_count=self._artifact_ref_completion_stats[0],
+            artifact_ref_payload_total=self._artifact_ref_completion_stats[1],
+            artifact_ref_truncated_payloads=self._artifact_ref_completion_stats[2],
         )
 
     def _completion_group_rule_reserved(self) -> bool:
@@ -258,6 +262,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         self._completion_kind = "file"
         self._completion_selection_moved = False
         self._artifact_ref_completion_force = False
+        self._artifact_ref_completion_stats = (0, 0, 0)
         self._placeholder_completion_trigger = None
         self._agent_completion_candidates = None
         self._vcs_repo_completion_key = None

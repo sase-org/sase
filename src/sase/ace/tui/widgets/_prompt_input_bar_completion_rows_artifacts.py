@@ -6,6 +6,14 @@ import os
 
 from rich.text import Text
 
+from sase.ace.tui.widgets._completion_match_highlight import (
+    DIR_STYLE,
+    FILE_BASENAME_STYLE,
+    append_highlighted,
+)
+from sase.ace.tui.widgets._prompt_input_bar_completion_rows_utils import (
+    truncate_cell,
+)
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefKindCompletionMetadata,
     ArtifactRefPayloadCompletionMetadata,
@@ -30,6 +38,7 @@ def append_artifact_ref_completion_row(
     candidate: CompletionCandidate,
     is_selected: bool,
     kind_width: int = 0,
+    inner_width: int = 0,
 ) -> None:
     """Append one kind, local-file, or provider-specific payload row."""
     metadata = candidate.metadata
@@ -38,22 +47,34 @@ def append_artifact_ref_completion_row(
         return
     if isinstance(metadata, ArtifactRefKindCompletionMetadata):
         content.append("@  ", style="bold #5FD7AF")
-        content.append(
-            metadata.kind.ljust(max(kind_width, len(metadata.kind))),
-            style="bold green" if is_selected else "green",
+        append_highlighted(
+            content,
+            metadata.kind,
+            metadata.label_match,
+            base_style="bold green" if is_selected else "green",
         )
+        content.append(" " * max(0, kind_width - len(metadata.kind)))
         content.append(f"  {metadata.source_label}", style="dim")
         return
     if isinstance(metadata, AtReferenceFileCompletionMetadata):
         if metadata.is_dir:
             content.append("\U0001f4c1 ")
-            content.append(
+            append_highlighted(
+                content,
                 candidate.display,
-                style="bold cyan" if is_selected else "cyan",
+                metadata.label_match,
+                base_style=DIR_STYLE,
+                segment_split=_basename_start(candidate.display),
             )
         else:
             content.append("\U0001f4c4 ")
-            content.append(candidate.display, style="bold" if is_selected else "")
+            append_highlighted(
+                content,
+                candidate.display,
+                metadata.label_match,
+                base_style=FILE_BASENAME_STYLE,
+                segment_split=_basename_start(candidate.display),
+            )
         return
     if not isinstance(metadata, ArtifactRefPayloadCompletionMetadata):
         content.append(candidate.display, style="bold" if is_selected else "")
@@ -61,17 +82,57 @@ def append_artifact_ref_completion_row(
 
     badge, badge_style = _ARTIFACT_SOURCE_BADGES[metadata.source]
     content.append(badge, style=badge_style)
-    content.append(
+    append_highlighted(
+        content,
         candidate.display,
-        style="bold" if is_selected else "",
+        metadata.label_match,
+        base_style=FILE_BASENAME_STYLE,
+        segment_split=_basename_start(candidate.display),
     )
     details = [
-        value
-        for value in (metadata.label, metadata.detail, metadata.age)
+        (value, metadata.title_match if index == 0 else ())
+        for index, value in enumerate((metadata.label, metadata.detail, metadata.age))
         if value and value != candidate.display
     ]
     if details:
-        content.append(f"  {'  ·  '.join(details)}", style="dim")
+        available = None
+        if inner_width > 0:
+            row_width = 4 + Text(candidate.display).cell_len
+            available = max(0, inner_width - 2 - row_width)
+        _append_payload_tail(content, details, available)
+
+
+def _basename_start(text: str) -> int:
+    """Return the basename character offset, ignoring a trailing slash."""
+    core = text[:-1] if text.endswith("/") else text
+    return core.rfind("/") + 1
+
+
+def _append_payload_tail(
+    content: Text,
+    details: list[tuple[str, tuple[tuple[int, int], ...]]],
+    available: int | None,
+) -> None:
+    """Append a dim, match-aware payload tail within the remaining row width."""
+    if available is not None and available <= 3:
+        return
+    tail = Text("  ", style="dim")
+    for index, (value, runs) in enumerate(details):
+        if index:
+            tail.append("  ·  ", style="dim")
+        append_highlighted(tail, value, runs, base_style="dim")
+
+    if available is None or tail.cell_len <= available:
+        content.append_text(tail)
+        return
+
+    truncated = truncate_cell(tail.plain, available)
+    if available <= 3:
+        content.append(truncated, style="dim")
+        return
+    prefix_length = max(0, len(truncated) - 3)
+    content.append_text(tail[:prefix_length])
+    content.append("...", style="dim")
 
 
 def artifact_ref_kind_label_width(rows: list[CompletionCandidate]) -> int:

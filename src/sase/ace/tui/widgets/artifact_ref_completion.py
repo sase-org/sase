@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
@@ -69,6 +69,8 @@ class ArtifactRefKindCompletionMetadata:
     kind: str
     builtin: bool
     detail: str = ""
+    label_match: tuple[tuple[int, int], ...] = ()
+    match_tier: int = 0
 
     @property
     def source_label(self) -> str:
@@ -85,6 +87,9 @@ class ArtifactRefPayloadCompletionMetadata:
     label: str = ""
     detail: str = ""
     age: str = ""
+    label_match: tuple[tuple[int, int], ...] = ()
+    title_match: tuple[tuple[int, int], ...] = ()
+    match_tier: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +98,8 @@ class AtReferenceFileCompletionMetadata:
 
     is_dir: bool
     directory: str
+    label_match: tuple[tuple[int, int], ...] = ()
+    match_tier: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,6 +210,7 @@ class ArtifactRefCompletionResult:
     candidates: list[CompletionCandidate]
     shared_extension: str
     payload_count: int = 0
+    payload_total: int = 0
     truncated_payloads: int = 0
 
 
@@ -349,17 +357,28 @@ def build_artifact_ref_completion_result(
                 kind=label,
                 builtin=bool(raw_row.get("builtin", False)),
                 detail=str(raw_row.get("detail", "")),
+                label_match=_wire_match_runs(raw_row.get("label_match")),
+                match_tier=int(raw_row.get("match_tier", 0)),
             )
         elif group == "file":
             metadata = AtReferenceFileCompletionMetadata(
                 is_dir=bool(raw_row.get("is_dir", False)),
                 directory=context.path_directory or "",
+                label_match=_wire_match_runs(raw_row.get("label_match")),
+                match_tier=int(raw_row.get("match_tier", 0)),
             )
         else:
             payload = insertion.removeprefix(f"@{context.kind or ''}:")
             metadata = payload_metadata.get(payload)
             if metadata is None:
                 continue
+            metadata = replace(
+                metadata,
+                label=str(raw_row.get("title", metadata.label)),
+                label_match=_wire_match_runs(raw_row.get("label_match")),
+                title_match=_wire_match_runs(raw_row.get("title_match")),
+                match_tier=int(raw_row.get("match_tier", 0)),
+            )
         candidates.append(
             CompletionCandidate(
                 display=label,
@@ -384,8 +403,25 @@ def build_artifact_ref_completion_result(
         candidates,
         str(menu.get("shared_extension", "")),
         int(menu.get("payload_count", 0)),
+        len(payload_metadata) + truncated_payloads,
         int(menu.get("truncated_payloads", 0)),
     )
+
+
+def _wire_match_runs(value: object) -> tuple[tuple[int, int], ...]:
+    """Return validated half-open character ranges from one wire value."""
+    if not isinstance(value, (list, tuple)):
+        return ()
+    runs: list[tuple[int, int]] = []
+    for raw_run in value:
+        if not isinstance(raw_run, (list, tuple)) or len(raw_run) != 2:
+            continue
+        start, end = raw_run
+        if not isinstance(start, int) or not isinstance(end, int):
+            continue
+        if 0 <= start < end:
+            runs.append((start, end))
+    return tuple(runs)
 
 
 def load_artifact_ref_completion_catalog(

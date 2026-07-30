@@ -9,6 +9,7 @@ from sase.ace.tui.widgets import artifact_ref_completion as artifact_completion
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefCommitCandidate,
     ArtifactRefCompletionCatalog,
+    ArtifactRefPayloadCompletionMetadata,
     _ArtifactRefDocumentCandidate,
     build_artifact_ref_completion_result,
     detect_artifact_ref_completion_context,
@@ -110,6 +111,11 @@ def test_document_catalog_loads_each_role_without_prompt_corpus_starvation(
     assert [candidate.insertion for candidate in result.candidates] == [
         "@research:202607/sase_sites_hub_and_pages/sase_sites_hub_and_pages.md"
     ]
+    metadata = result.candidates[0].metadata
+    assert isinstance(metadata, ArtifactRefPayloadCompletionMetadata)
+    assert metadata.label_match == ((37, 41),)
+    assert metadata.title_match == ((5, 9),)
+    assert metadata.match_tier == 2
     assert result.truncated_payloads == 0
 
 
@@ -163,6 +169,7 @@ def test_payload_counts_and_truncation_are_propagated_from_catalog() -> None:
     result = build_artifact_ref_completion_result(context, catalog)
 
     assert result.payload_count == 2
+    assert result.payload_total == 19
     assert result.truncated_payloads == 17
 
 
