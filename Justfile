@@ -270,6 +270,11 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-b8.2(AgentLaneRef)' \
+        --epic-symbol 'sase-b8.2(lane_page_path)' \
+        --epic-symbol 'sase-b8.2(lane_ref_for_agent)' \
+        --epic-symbol 'sase-b8.5(lane_ref_for_lane_name)' \
+        --epic-symbol 'sase-b8.7(lane_name)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
