@@ -8,6 +8,7 @@ use_chezmoi: false
 commit_hooks:
   before: ""
   after: ""
+file_hooks: []
 # SASE-managed projects receive <project>--plans and <project>--beads sidecars
 # unless project-local configuration disables them. Research sidecars are
 # config-declared only.

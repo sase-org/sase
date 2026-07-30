@@ -263,6 +263,52 @@
         }
       ]
     },
+    "fileHook": {
+      "type": "object",
+      "required": ["name", "command"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "description": "Unique lowercase slug shown in notifications and file-hook listings."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional human-readable purpose for the hook."
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Shell command whose final argument is the matched file path."
+        },
+        "projects": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional user-facing project names; omitted means every project."
+        },
+        "sidecars": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional sidecar role names; omitted means any repository."
+        },
+        "globs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional repo-relative path globs, including !-prefixed exclusions."
+        },
+        "ops": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["ADD", "MODIFY", "REMOVE"] },
+          "description": "Optional file operations; omitted means all operations."
+        },
+        "timeout": {
+          "type": "string",
+          "pattern": "^[0-9]+(ms|s|m|h)$",
+          "description": "Per-run timeout duration (default: 120s)."
+        }
+      }
+    },
     "xpromptInputDefinitions": {
       "description": "Input argument definitions (array or object shorthand)",
       "oneOf": [
@@ -1840,6 +1886,11 @@
           "default": ""
         }
       }
+    },
+    "file_hooks": {
+      "type": "array",
+      "description": "Non-gating commands matched to repository file events.",
+      "items": { "$ref": "#/definitions/fileHook" }
     },
     "max_running_agents": {
       "type": "integer",

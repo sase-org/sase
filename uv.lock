@@ -56,6 +56,15 @@ wheels = [
 ]
 
 [[package]]
+name = "bracex"
+version = "3.0.1"
+source = { registry = "https://pypi.org/simple/" }
+sdist = { url = "https://files.pythonhosted.org/packages/ac/01/5f394b8bcd6e5b92f73130990960423bbb19711f906bd9fe9ea5557c667c/bracex-3.0.1.tar.gz", hash = "sha256:4e38e32392e4a4780fe15d644bfc7c8514057cfc3861e060b11814ce829c25e4", size = 44019, upload-time = "2026-07-20T13:43:00.335Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/8f/6f7273a7adb8d73fc8d21ede4376a3e475e52f98435c6007f69100dec8ca/bracex-3.0.1-py3-none-any.whl", hash = "sha256:6523ad83aeb5098a4ee597cff0f964442ff74e460bd3fafaffab6a013ff2288c", size = 11940, upload-time = "2026-07-20T13:42:59.268Z" },
+]
+
+[[package]]
 name = "build"
 version = "1.4.0"
 source = { registry = "https://pypi.org/simple/" }
@@ -1885,7 +1894,7 @@ wheels = [
 
 [[package]]
 name = "sase"
-version = "0.13.3"
+version = "0.14.0"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
@@ -1900,6 +1909,7 @@ dependencies = [
     { name = "sase-core-rs" },
     { name = "schedule" },
     { name = "textual", extra = ["syntax"] },
+    { name = "wcmatch" },
 ]
 
 [package.optional-dependencies]
@@ -1996,7 +2006,7 @@ requires-dist = [
     { name = "rich", marker = "extra == 'visual'", specifier = "==14.3.3" },
     { name = "ruamel-yaml", specifier = ">=0.18,<1.0" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "sase-core-rs", specifier = ">=0.13.1,<0.14.0" },
+    { name = "sase-core-rs", specifier = ">=0.14.0,<0.15.0" },
     { name = "schedule" },
     { name = "symvision", marker = "extra == 'dev'", specifier = ">=0.1.0,<0.2.0" },
     { name = "textual", marker = "extra == 'visual'", specifier = "==8.0.1" },
@@ -2020,19 +2030,20 @@ requires-dist = [
     { name = "tree-sitter-xml", marker = "extra == 'visual'", specifier = "==0.7.0" },
     { name = "tree-sitter-yaml", marker = "extra == 'visual'", specifier = "==0.7.2" },
     { name = "twine", marker = "extra == 'dev'" },
+    { name = "wcmatch" },
 ]
 provides-extras = ["dev", "visual", "terminal-smoke", "docs", "docs-pdf"]
 
 [[package]]
 name = "sase-core-rs"
-version = "0.13.1"
+version = "0.14.1"
 source = { registry = "https://pypi.org/simple/" }
-sdist = { url = "https://files.pythonhosted.org/packages/61/8d/98554f74d5630a717eca488032a5bb534ab084b618040bf5911ccecaf4da/sase_core_rs-0.13.1.tar.gz", hash = "sha256:d92962c113bc922fd1221f8512215ff5ceada7e4f4fb16361fb9447d4f9937e0", size = 709566, upload-time = "2026-07-30T15:12:24.759Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/6e/5034cb983a6021c86a99a786f0902f48491d8a82d3e11ead03f147ab59bb/sase_core_rs-0.14.1.tar.gz", hash = "sha256:03d8378438b9fe669f07ba7a811b4aae684f19c8df548b8747d25ede9d0f33f3", size = 730111, upload-time = "2026-07-30T17:01:42.22Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/a2/71cf4139493f8e3b1be317c4b27c989c86a7f00772b0f03728c0dc3df68f/sase_core_rs-0.13.1-cp312-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:345000a8bd94cd56395dadc339838404f7b7e23f2ab18cede655caec226ac6ae", size = 9273608, upload-time = "2026-07-30T15:12:16.476Z" },
-    { url = "https://files.pythonhosted.org/packages/a4/db/f0b6de4149257e5738a82e5e5d3ca56b38290fac952e5b281a2f5296342b/sase_core_rs-0.13.1-cp312-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:7430a827996416dec166eaa5a9efe76dd2076d73bcf590473bdd75c1b58b0c54", size = 4480043, upload-time = "2026-07-30T15:12:18.888Z" },
-    { url = "https://files.pythonhosted.org/packages/67/55/dbf7ef7d2edfeb5f1ab5d35f3518f8accc285e980a3254ea7456db798d79/sase_core_rs-0.13.1-cp312-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:21ee1ef6f96f3192019a7a97b67b44b753dbcfbee88e2ef3ea1abb9e82b14133", size = 5051007, upload-time = "2026-07-30T15:12:20.908Z" },
-    { url = "https://files.pythonhosted.org/packages/1c/77/e269f24ea39220c12458d6c5f06150a9ceee8ea15b78cc5db965ed94a959/sase_core_rs-0.13.1-cp312-abi3-win_amd64.whl", hash = "sha256:20976804a50843f4dccfef2045b55ad426660c8475dd95ce1bf66411e039520f", size = 5212567, upload-time = "2026-07-30T15:12:22.784Z" },
+    { url = "https://files.pythonhosted.org/packages/20/04/157098e8dafc42e6cfb71973335821f96844ec6e6161d88e74fb9bd3662f/sase_core_rs-0.14.1-cp312-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:e927656a20dce66b548e0dfc903764e16e9da76fb9af83cd88c3efa6192679a0", size = 9569424, upload-time = "2026-07-30T17:01:34.256Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/20/ec70e4d7b1d2b1169b554592e1aa216b81f7e880b1168f9860bda8c8742b/sase_core_rs-0.14.1-cp312-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:1c27bdbbf29bd3019d33054f088a096ca1daa03ca399e183edb2dc8dc515a67d", size = 4618903, upload-time = "2026-07-30T17:01:36.808Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/8e/8707d9e4f4b2535a4f705805f0a84cd2b605b97910042e9e8bc59a360567/sase_core_rs-0.14.1-cp312-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:01586a5e13aa11718f88da713350d74b2ff1af69a613e39e39fcb39f76034710", size = 5211998, upload-time = "2026-07-30T17:01:38.415Z" },
+    { url = "https://files.pythonhosted.org/packages/45/7d/fe59d4cc6e6800a7324ef3e99ca6987629fe5c66216a8fb4a4bab894872f/sase_core_rs-0.14.1-cp312-abi3-win_amd64.whl", hash = "sha256:ba2a2fa95665d2a410a5fc745bd71c3281516d8e8c25e70e19b635aa504e10ac", size = 5380198, upload-time = "2026-07-30T17:01:40.571Z" },
 ]
 
 [[package]]
@@ -2524,6 +2535,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/07/f6/d0e5b343768e8bcb4cda79f0f2f55051bf26177ecd5651f84c07567461cf/watchdog-6.0.0-py3-none-win32.whl", hash = "sha256:07df1fdd701c5d4c8e55ef6cf55b8f0120fe1aef7ef39a1c6fc6bc2e606d517a", size = 79065, upload-time = "2024-11-01T14:07:09.525Z" },
     { url = "https://files.pythonhosted.org/packages/db/d9/c495884c6e548fce18a8f40568ff120bc3a4b7b99813081c8ac0c936fa64/watchdog-6.0.0-py3-none-win_amd64.whl", hash = "sha256:cbafb470cf848d93b5d013e2ecb245d4aa1c8fd0504e863ccefa32445359d680", size = 79070, upload-time = "2024-11-01T14:07:10.686Z" },
     { url = "https://files.pythonhosted.org/packages/33/e8/e40370e6d74ddba47f002a32919d91310d6074130fe4e17dabcafc15cbf1/watchdog-6.0.0-py3-none-win_ia64.whl", hash = "sha256:a1914259fa9e1454315171103c6a30961236f508b9b623eae470268bbcc6a22f", size = 79067, upload-time = "2024-11-01T14:07:11.845Z" },
+]
+
+[[package]]
+name = "wcmatch"
+version = "11.0"
+source = { registry = "https://pypi.org/simple/" }
+dependencies = [
+    { name = "bracex" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/16/25/1da725838132221e33568973da484ff43813662ccc06ebf7f6e3abddfcd5/wcmatch-11.0.tar.gz", hash = "sha256:55d95c2447789712774b198ceec72939e88b5618f1f8f0a9b605bf7740b63b96", size = 141360, upload-time = "2026-07-10T05:50:24.183Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/28/12/f38b6fee116274d7221743caab07d765032e1370bb54cad8714f87aeb0e8/wcmatch-11.0-py3-none-any.whl", hash = "sha256:3a5977ace27e075eef67eb03d539563f1a19018b62881949a42932cf66926934", size = 42914, upload-time = "2026-07-10T05:50:22.995Z" },
 ]
 
 [[package]]

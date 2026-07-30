@@ -46,6 +46,7 @@ dependencies = [
     "sase-core-rs>=0.14.0,<0.15.0",
     "schedule",
     "textual[syntax]>=0.45.0",
+    "wcmatch",
 ]
 
 [project.urls]

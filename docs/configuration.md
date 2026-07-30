@@ -27,6 +27,7 @@ and CLI flags.
   - [vcs_repo_completion](#vcs_repo_completion)
   - [vcs_ref_completion](#vcs_ref_completion)
   - [axe](#axe)
+  - [file_hooks](#file_hooks)
   - [mentor_profiles](#mentor_profiles)
   - [metahooks](#metahooks)
   - [xprompts](#xprompts)
@@ -1612,6 +1613,57 @@ CLI flags on `sase axe start` override `max_hook_runners`, `max_agent_runners`, 
 for a single run (see [CLI Flags](#cli-flags)).
 
 Source: `src/sase/axe/config.py`, `src/sase/default_config.yml`
+
+### file_hooks
+
+Defines non-gating commands that run once per matching file event. Use `sase file-hook list` to inspect the effective
+hooks, including the config layer that contributed each entry; add `-j/--json` for machine-readable output.
+
+```yaml
+file_hooks:
+  - name: research-highlights
+    description: Render new research reports into Highlights PDFs.
+    command: bob highlights create
+    projects: [sase]
+    sidecars: [research]
+    globs: ["20*/*/*.md", "!20*/*/*__*.md"]
+    ops: [ADD]
+    timeout: 120s
+```
+
+| Field         | Type         | Required | Default        | Description                                                                 |
+| ------------- | ------------ | -------- | -------------- | --------------------------------------------------------------------------- |
+| `name`        | string       | yes      | —              | Unique lowercase slug shown in notifications and `sase file-hook list`.     |
+| `description` | string       | no       | —              | Human-readable purpose for the hook.                                        |
+| `command`     | string       | yes      | —              | Shell command; the matched absolute file path is appended as its final arg. |
+| `projects`    | list[string] | no       | all projects   | User-facing project names.                                                  |
+| `sidecars`    | list[string] | no       | all repos      | Sidecar role names such as `research`, `plans`, or `beads`.                 |
+| `globs`       | list[string] | no       | all files      | Repo-relative POSIX globs; `!` prefixes a veto exclusion.                   |
+| `ops`         | list[string] | no       | all operations | Any subset of `ADD`, `MODIFY`, and `REMOVE`.                                |
+| `timeout`     | duration     | no       | `120s`         | Per-run integer duration with an `ms`, `s`, `m`, or `h` suffix.             |
+
+Matching semantics:
+
+- **Event sources.** Hooks receive files from commits created by `sase commit`, commits written through the SDD sidecar
+  commit path, and `sase artifact create` (treated as `ADD`).
+- **Ops.** Commit operations come from `git diff --name-status`; renames split into `REMOVE` plus `ADD`, root-commit
+  files are `ADD`, and unknown status letters fold to `MODIFY`.
+- **Glob matching.** Globs match the file's repo-root-relative POSIX path. Positive globs are OR-ed, while any matching
+  `!` negative veto-excludes the file. `*` does not cross `/`; `**` does. A negative-only list means “everything
+  except.” Dotfiles are eligible.
+- **Filters.** All configured dimensions are AND-ed. `projects` compares alias-resolved, user-facing project names,
+  never ProjectSpec keys. `sidecars` compares sidecar role names. A project-local `sase/sase.yml` declaration without
+  `projects` is automatically scoped to the detected project.
+- **Execution.** Runs are post-commit and non-gating. Hook failures never fail or block a commit. Each matched command
+  runs with the absolute path appended as a shell-quoted final argument and reports success or failure through a SASE
+  notification.
+
+The user layer (`~/.config/sase/sase.yml`) replaces the bundled/default `file_hooks` list. Selected machine overlays
+(`sase_*.yml`) and project-local `sase/sase.yml` concatenate entries onto the effective list, matching `mentor_profiles`
+merge behavior. Hook names must remain unique across the effective list; invalid or duplicate entries are warned about
+and skipped.
+
+Source: `src/sase/config/file_hooks.py`, `src/sase/config/sase.schema.json`
 
 ### mentor_profiles
 

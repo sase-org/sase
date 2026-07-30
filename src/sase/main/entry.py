@@ -194,6 +194,12 @@ def main() -> NoReturn:
 
         handle_file_history_command(args)
 
+    # --- file-hook ---
+    if args.command == "file-hook":
+        from .file_hook_handler import handle_file_hook_command
+
+        handle_file_hook_command(args)
+
     # --- gate ---
     if args.command == "gate":
         from .gate_handler import handle_gate_command

@@ -39,6 +39,7 @@ from sase.main.parser_commit import (
 from sase.main.parser_core import register_core_parser
 from sase.main.parser_doctor import register_doctor_parser
 from sase.main.parser_editor import register_editor_parser
+from sase.main.parser_file_hook import register_file_hook_parser
 from sase.main.parser_gate import register_gate_parser
 from sase.main.parser_init import register_init_parser
 from sase.main.parser_launch import register_launch_parser
@@ -476,6 +477,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_editor_parser(top_level_subparsers)
     register_file_parser(top_level_subparsers)
     register_file_history_parser(top_level_subparsers)
+    register_file_hook_parser(top_level_subparsers)
     register_gate_parser(top_level_subparsers)
     register_init_parser(top_level_subparsers)
     register_launch_parser(top_level_subparsers)

@@ -254,6 +254,48 @@ def test_config_schema_validates_runner_slot_deference() -> None:
             Draft7Validator(schema()).validate({"runner_slots": invalid})
 
 
+def test_config_schema_accepts_file_hooks() -> None:
+    Draft7Validator(schema()).validate(
+        {
+            "file_hooks": [
+                {
+                    "name": "research-highlights",
+                    "description": "Render new research reports.",
+                    "command": "bob highlights create",
+                    "projects": ["sase"],
+                    "sidecars": ["research"],
+                    "globs": ["20*/*/*.md", "!20*/*/*__*.md"],
+                    "ops": ["ADD"],
+                    "timeout": "120s",
+                },
+                {
+                    "name": "quick_check",
+                    "command": "check-file",
+                    "timeout": "250ms",
+                },
+            ]
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "hook",
+    [
+        {},
+        {"name": "valid"},
+        {"command": "run"},
+        {"name": "Not A Slug", "command": "run"},
+        {"name": "valid", "command": ""},
+        {"name": "valid", "command": "run", "ops": ["CREATE"]},
+        {"name": "valid", "command": "run", "timeout": "2 days"},
+        {"name": "valid", "command": "run", "unknown": True},
+    ],
+)
+def test_config_schema_rejects_invalid_file_hooks(hook: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate({"file_hooks": [hook]})
+
+
 def test_configured_max_running_agents_reads_merged_config(monkeypatch) -> None:
     from sase.config import core as config_core
 

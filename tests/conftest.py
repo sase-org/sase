@@ -409,6 +409,7 @@ def _clear_config_caches() -> None:
     sase.yml files between runs.
     """
     from sase.config import core as config_core
+    from sase.config import file_hooks as file_hooks_config
     from sase.config import mentor as mentor_config
     from sase.llm_provider import config as llm_provider_config
     from sase.llm_provider.registry import provider_cli_available
@@ -421,6 +422,9 @@ def _clear_config_caches() -> None:
     mentor_config._mentor_profiles_cache_value = None
     mentor_config._local_profile_names_cache_token = None
     mentor_config._local_profile_names_cache_value = None
+
+    file_hooks_config._file_hooks_cache_token = None
+    file_hooks_config._file_hooks_cache_value = None
 
 
 @pytest.fixture(autouse=True)
