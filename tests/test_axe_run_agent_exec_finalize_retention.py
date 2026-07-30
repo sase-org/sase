@@ -139,7 +139,15 @@ def test_finalization_retention_enabled_trashes_selection_and_purges_expired(
 ) -> None:
     index, old, new, explicit, expired = _seed_store(tmp_path, monkeypatch)
     _patch_retention_config(monkeypatch, enabled=True)
-    _patch_protections(monkeypatch, ProtectedArtifactIds(frozenset(), (), ()))
+    _patch_protections(
+        monkeypatch,
+        ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=(),
+            sources_unavailable=(),
+        ),
+    )
     trash_artifact_files(
         [expired],
         reason="test",
@@ -171,9 +179,10 @@ def test_finalization_retention_unavailable_protection_source_skips_all_work(
     _patch_protections(
         monkeypatch,
         ProtectedArtifactIds(
-            frozenset(),
-            (),
-            ("proj:plans",),
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=(),
+            sources_unavailable=("proj:plans",),
         ),
     )
     expired_trash = trash_artifact_files(
