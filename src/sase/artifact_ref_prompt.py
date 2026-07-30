@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+import logging
 from pathlib import Path
 import sys
+from typing import cast
 
 from sase.artifact_ref_context import launch_artifact_ref_context
 from sase.artifact_ref_models import (
@@ -18,11 +20,22 @@ from sase.artifact_ref_models import (
 )
 from sase.artifact_ref_operations import (
     parse_artifact_ref,
+    render_artifact_ref,
     resolve_artifact_ref,
     scan_artifact_refs,
 )
+from sase.core.artifact_consumption import (
+    ArtifactConsumptionEvent,
+    ArtifactConsumptionResolutionStatus,
+    append_artifact_consumption_events,
+    artifact_consumption_role,
+    build_artifact_consumption_event,
+)
 from sase.core.artifact_file_query_facade import query_artifact_files
 from sase.core.artifact_file_vcs import materialize_artifact_file
+
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +98,7 @@ def _expand_artifact_references(
     literal_ranges = literal_zone_ranges(prompt)
     byte_to_char = _byte_to_character_offsets(prompt)
     replacements: list[tuple[int, int, str]] = []
+    consumptions: list[tuple[ArtifactRef, ArtifactRefResolution, Path | None]] = []
     failures: list[_ArtifactRefFailure] = []
     known_kinds = set(context.known_kinds)
     for candidate in candidates:
@@ -119,7 +133,7 @@ def _expand_artifact_references(
             )
             continue
         try:
-            replacement_text = _artifact_ref_replacement(
+            replacement_text, resolved_path = _artifact_ref_replacement(
                 parsed,
                 resolution,
                 context=context,
@@ -128,6 +142,7 @@ def _expand_artifact_references(
             failures.append(_ArtifactRefFailure(candidate.text, "missing", str(exc)))
             continue
         replacements.append((start, end, replacement_text))
+        consumptions.append((parsed, resolution, resolved_path))
 
     if failures:
         _print_artifact_ref_failures(failures)
@@ -138,6 +153,7 @@ def _expand_artifact_references(
     expanded = prompt
     for start, end, replacement_text in reversed(replacements):
         expanded = f"{expanded[:start]}{replacement_text}{expanded[end:]}"
+    _record_artifact_ref_consumption(consumptions)
     return expanded
 
 
@@ -174,7 +190,7 @@ def _artifact_ref_replacement(
     resolution: ArtifactRefResolution,
     *,
     context: ArtifactRefContext,
-) -> str:
+) -> tuple[str, Path | None]:
     if reference.kind_type in {"document", "chat", "file", "bead", "agent"}:
         if reference.kind_type == "file" and resolution.status == "vcs_backed":
             path = _materialize_vcs_file_reference(reference, context=context)
@@ -183,26 +199,82 @@ def _artifact_ref_replacement(
                     "VCS-backed artifact content is unavailable"
                     + ("" if resolution.locator is None else f" ({resolution.locator})")
                 )
-            return f"@{path}{_fragment_annotation(reference.fragment)}"
+            return f"@{path}{_fragment_annotation(reference.fragment)}", path
         if resolution.resolved_path is None:
             raise RuntimeError("resolver returned no artifact path")
-        return f"@{resolution.resolved_path}{_fragment_annotation(reference.fragment)}"
+        return (
+            f"@{resolution.resolved_path}{_fragment_annotation(reference.fragment)}",
+            resolution.resolved_path,
+        )
     if reference.kind_type == "commit":
         if resolution.locator is None:
             raise RuntimeError("resolver returned no commit locator")
         repository = _repository_for_ref(reference.payload.repo or "", context)
         if repository is None or repository.checkout_path is None:
             raise RuntimeError("repository checkout is unavailable")
-        return f"{resolution.locator} (checkout: {repository.checkout_path})"
+        return (
+            f"{resolution.locator} (checkout: {repository.checkout_path})",
+            repository.checkout_path,
+        )
     if reference.kind_type == "bug":
         if resolution.locator is None or reference.payload.number is None:
             raise RuntimeError("resolver returned no bug locator")
         project = resolution.locator.rsplit("#", 1)[0]
         return (
-            f"#{reference.payload.number} "
-            f"{_resolved_bug_url(project, reference.payload.number)}"
+            (
+                f"#{reference.payload.number} "
+                f"{_resolved_bug_url(project, reference.payload.number)}"
+            ),
+            None,
         )
     raise RuntimeError(f"unsupported artifact reference kind: {reference.kind}")
+
+
+def _record_artifact_ref_consumption(
+    consumptions: list[tuple[ArtifactRef, ArtifactRefResolution, Path | None]],
+) -> None:
+    try:
+        events: list[ArtifactConsumptionEvent] = []
+        seen_refs: set[str] = set()
+        for parsed, resolution, resolved_path in consumptions:
+            fragment_free = replace(parsed, fragment=None)
+            reference = render_artifact_ref(fragment_free)
+            if reference in seen_refs:
+                continue
+            seen_refs.add(reference)
+            fragment = (
+                None
+                if parsed.fragment is None
+                else parsed.rendered[len(reference) + 1 :]
+            )
+            artifact_id = None
+            if (
+                parsed.kind_type == "file"
+                and parsed.payload.source is not None
+                and parsed.payload.digest is not None
+            ):
+                artifact_id = f"{parsed.payload.source}:{parsed.payload.digest}"
+            events.append(
+                build_artifact_consumption_event(
+                    ref=reference,
+                    ref_kind=parsed.kind,
+                    fragment=fragment,
+                    role=artifact_consumption_role(
+                        parsed.kind_type,
+                        parsed.kind,
+                        resolved_path,
+                    ),
+                    artifact_id=artifact_id,
+                    resolved_path=resolved_path,
+                    resolution_status=cast(
+                        ArtifactConsumptionResolutionStatus,
+                        resolution.status,
+                    ),
+                )
+            )
+        append_artifact_consumption_events(events)
+    except Exception as exc:
+        log.debug("Could not record artifact-reference consumption: %s", exc)
 
 
 def _materialize_vcs_file_reference(

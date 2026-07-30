@@ -168,6 +168,14 @@ def resolve_artifact_ref(
     )
 
 
+def render_artifact_ref(reference: ArtifactRef) -> str:
+    """Render a parsed artifact reference through the shared Rust grammar."""
+
+    _require_artifact_ref_schema()
+    binding = require_rust_binding("artifact_ref_render")
+    return str(binding(reference.to_wire()))
+
+
 def scan_artifact_refs(text: str) -> tuple[ArtifactRefPromptCandidate, ...]:
     _require_artifact_ref_schema()
     binding = require_rust_binding("artifact_ref_scan_prompt")
@@ -194,6 +202,7 @@ __all__ = [
     "at_reference_menu",
     "canonicalize_artifact_ref",
     "parse_artifact_ref",
+    "render_artifact_ref",
     "resolve_artifact_ref",
     "scan_artifact_ref_prompt",
     "scan_artifact_refs",

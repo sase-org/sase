@@ -23,6 +23,17 @@ from sase.artifact_refs import (
 from sase.llm_provider.preprocessing import preprocess_prompt_late
 
 
+@pytest.fixture(autouse=True)
+def _disable_consumption_ledger_writes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "append_artifact_consumption_events",
+        lambda _events: None,
+    )
+
+
 def _context(tmp_path: Path) -> ArtifactRefContext:
     return ArtifactRefContext(
         document_roots=(
@@ -160,6 +171,16 @@ def test_expands_vcs_backed_file_to_materialized_cache_path(
         "sase.core.artifact_file_vcs.default_artifact_files_root",
         lambda: cache_root,
     )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_query_facade.ARTIFACT_FILE_QUERY_WIRE_SCHEMA_VERSION",
+        3,
+    )
+    recorded = []
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "append_artifact_consumption_events",
+        lambda events: recorded.extend(events),
+    )
 
     expanded = process_artifact_references(
         f"Read @file:{artifact_id}.",
@@ -169,6 +190,11 @@ def test_expands_vcs_backed_file_to_materialized_cache_path(
     materialized = Path(expanded.removeprefix("Read @").removesuffix("."))
     assert materialized.read_bytes() == content
     assert materialized.is_relative_to(cache_root / "vcs-cache")
+    assert len(recorded) == 1
+    assert recorded[0].ref == f"file:{artifact_id}"
+    assert recorded[0].artifact_id == artifact_id
+    assert recorded[0].resolved_path == str(materialized)
+    assert recorded[0].role == "report"
 
 
 def test_expands_bead_and_agent_pages(tmp_path: Path) -> None:
@@ -312,6 +338,184 @@ def test_bug_expands_to_number_and_resolved_url(
             context=_context(tmp_path),
         )
         == "#42 https://bugs.test/sase/42"
+    )
+
+
+def test_rewrite_records_one_edge_per_expanded_reference(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    chat = tmp_path / "chats" / "agent.md"
+    plan.parent.mkdir(parents=True)
+    chat.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+    chat.write_text("# Chat\n", encoding="utf-8")
+    recorded = []
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "append_artifact_consumption_events",
+        lambda events: recorded.extend(events),
+    )
+
+    process_artifact_references(
+        "Read @plans:report.md and @chat:agent.md.",
+        context=context,
+    )
+
+    assert [event.ref for event in recorded] == [
+        "plans:report.md",
+        "chat:agent.md",
+    ]
+    assert [event.ref_kind for event in recorded] == ["plans", "chat"]
+    assert [event.role for event in recorded] == ["report", "report"]
+    assert [event.resolved_path for event in recorded] == [
+        str(plan),
+        str(chat),
+    ]
+
+
+def test_fragment_is_recorded_separately_from_fragment_free_ref(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+    recorded = []
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "append_artifact_consumption_events",
+        lambda events: recorded.extend(events),
+    )
+
+    process_artifact_references(
+        "@plans:report.md#L2-L4",
+        context=context,
+    )
+
+    assert len(recorded) == 1
+    assert recorded[0].ref == "plans:report.md"
+    assert recorded[0].fragment == "L2-L4"
+
+
+def test_bug_payload_hash_is_preserved_in_recorded_ref(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    recorded = []
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "_resolved_bug_url",
+        lambda project, number: f"https://bugs.test/{project}/{number}",
+    )
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "append_artifact_consumption_events",
+        lambda events: recorded.extend(events),
+    )
+
+    process_artifact_references(
+        "@bug:gh_sase-org__sase#42",
+        context=_context(tmp_path),
+    )
+
+    assert len(recorded) == 1
+    assert recorded[0].ref == "bug:gh_sase-org__sase#42"
+    assert recorded[0].fragment is None
+    assert recorded[0].role == "source"
+
+
+def test_duplicate_refs_in_one_prompt_record_one_event(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+    recorded = []
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "append_artifact_consumption_events",
+        lambda events: recorded.extend(events),
+    )
+
+    process_artifact_references(
+        "@plans:report.md and @plans:report.md#L2",
+        context=context,
+    )
+
+    assert len(recorded) == 1
+    assert recorded[0].ref == "plans:report.md"
+
+
+def test_validation_records_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+    append_calls = []
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "append_artifact_consumption_events",
+        lambda events: append_calls.append(tuple(events)),
+    )
+
+    validate_artifact_references("@plans:report.md", context=context)
+
+    assert append_calls == []
+
+
+def test_failed_expansion_records_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    append_calls = []
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "append_artifact_consumption_events",
+        lambda events: append_calls.append(tuple(events)),
+    )
+
+    with pytest.raises(SystemExit, match="1"):
+        process_artifact_references(
+            "@plans:missing.md",
+            context=_context(tmp_path),
+        )
+
+    assert append_calls == []
+
+
+def test_recorder_failure_does_not_change_expansion(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+
+    def fail(_events: object) -> None:
+        raise OSError("ledger unavailable")
+
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "append_artifact_consumption_events",
+        fail,
+    )
+
+    assert (
+        process_artifact_references(
+            "Read @plans:report.md.",
+            context=context,
+        )
+        == f"Read @{plan}."
     )
 
 

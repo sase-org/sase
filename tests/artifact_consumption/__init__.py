@@ -1,0 +1,1 @@
+"""Artifact-consumption ledger tests."""
