@@ -25,7 +25,9 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase artifact\n"
             "  sase artifact list --kind image --project sase\n"
+            "  sase artifact prune --keep-generations 3\n"
             "  sase artifact show file:explicit:0123456789abcdef01234567\n"
+            "  sase artifact trash\n"
             "  sase artifact path plans:202607/example.md\n"
             "  sase artifact-file create --path report.md"
         ),
@@ -180,6 +182,74 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Artifact reference or a bare default:/explicit: file id",
     )
 
+    prune_parser = artifact_subparsers.add_parser(
+        "prune",
+        help="Plan retention and optionally move selected rows to trash",
+        description=(
+            "Plan removal of old automatic artifact captures. This command is "
+            "a dry run unless --apply is passed; explicit and referenced "
+            "artifacts and every label's newest generation are protected."
+        ),
+    )
+    prune_parser.add_argument(
+        "-a",
+        "--apply",
+        action="store_true",
+        help="Move planned rows into restorable trash",
+    )
+    prune_parser.add_argument(
+        "-b",
+        "--before",
+        type=plan_date_arg,
+        default=None,
+        metavar="DATE",
+        help="Require selected rows to be older than DATE",
+    )
+    prune_parser.add_argument(
+        "-g",
+        "--keep-generations",
+        type=nonnegative_int,
+        default=3,
+        metavar="N",
+        help="Keep the newest N captures per label (default: 3)",
+    )
+    prune_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one machine-readable plan and execution envelope",
+    )
+    prune_parser.add_argument(
+        "-k",
+        "--kind",
+        action="append",
+        choices=ARTIFACT_FILE_KINDS,
+        default=None,
+        help="Require this artifact kind (repeatable)",
+    )
+    prune_parser.add_argument(
+        "-l",
+        "--limit",
+        type=nonnegative_int,
+        default=None,
+        metavar="N",
+        help="Maximum rows to select (0 means unlimited)",
+    )
+    prune_parser.add_argument(
+        "-m",
+        "--min-size",
+        type=nonnegative_int,
+        default=None,
+        metavar="BYTES",
+        help="Require at least this many stored bytes",
+    )
+    prune_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Only prune a project by display name, alias, or canonical key",
+    )
+
     show_parser = artifact_subparsers.add_parser(
         "show",
         help="Show artifact metadata, resolution details, and consumption",
@@ -227,6 +297,70 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         default=10,
         metavar="N",
         help="Maximum agent groups to show (default: 10)",
+    )
+
+    trash_parser = artifact_subparsers.add_parser(
+        "trash",
+        help="List, permanently purge, or restore artifact trash",
+        description=(
+            "Manage restorable artifact trash. Bare `sase artifact trash` "
+            "defaults to `sase artifact trash list`."
+        ),
+    )
+    trash_subparsers = trash_parser.add_subparsers(
+        dest="trash_subcommand",
+        help="Trash subcommands",
+    )
+
+    trash_list_parser = trash_subparsers.add_parser(
+        "list",
+        help="List restorable trash entries",
+    )
+    trash_list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one machine-readable trash listing",
+    )
+    trash_list_parser.add_argument(
+        "-l",
+        "--limit",
+        type=nonnegative_int,
+        default=50,
+        metavar="N",
+        help="Maximum entries to show (default: 50; 0 means unlimited)",
+    )
+
+    trash_purge_parser = trash_subparsers.add_parser(
+        "purge",
+        help="Permanently delete trash entries past the grace period",
+    )
+    trash_purge_parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Ignore the grace period and permanently delete every entry",
+    )
+    trash_purge_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one machine-readable purge result",
+    )
+
+    trash_restore_parser = trash_subparsers.add_parser(
+        "restore",
+        help="Restore one trash entry's payload and complete index row",
+    )
+    trash_restore_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one machine-readable restore result",
+    )
+    trash_restore_parser.add_argument(
+        "reference",
+        help="Trash entry id or file artifact reference",
     )
 
 
