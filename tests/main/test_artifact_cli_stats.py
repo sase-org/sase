@@ -85,8 +85,12 @@ def test_stats_json_has_stable_envelope_and_builds_default_plan(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     calls: dict[str, object] = {}
+    referenced_only = "default:111111111111111111111111"
+    overlap = "default:222222222222222222222222"
+    consumed_only = "explicit:333333333333333333333333"
     protections = ProtectedArtifactIds(
-        ids=frozenset({"default:111111111111111111111111"}),
+        referenced_ids=frozenset({referenced_only, overlap}),
+        consumed_ids=frozenset({overlap, consumed_only}),
         sources_scanned=("/plans", "/beads"),
         sources_unavailable=("/missing",),
     )
@@ -134,8 +138,11 @@ def test_stats_json_has_stable_envelope_and_builds_default_plan(
     assert payload["economics"]["total_rows"] == 4
     assert payload["protections"] == {
         "explicit_rows": 1,
-        "referenced_ids": 1,
-        "ids": ["default:111111111111111111111111"],
+        "referenced_ids": 2,
+        "consumed_ids": 2,
+        "overlap_ids": 1,
+        "total_ids": 3,
+        "ids": [referenced_only, overlap, consumed_only],
         "sources_scanned": ["/plans", "/beads"],
         "sources_unavailable": ["/missing"],
     }
@@ -172,7 +179,8 @@ def test_stats_pretty_report_has_every_section_and_warning(
     monkeypatch.setattr(
         "sase.artifact_cli.stats.collect_protected_artifact_ids",
         lambda: ProtectedArtifactIds(
-            ids=frozenset(),
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
             sources_scanned=(),
             sources_unavailable=("sase:beads",),
         ),
@@ -201,6 +209,10 @@ def test_stats_pretty_report_has_every_section_and_warning(
         "What the Default Policy Would Select",
     ):
         assert title in output
+    assert "Referenced ids" in output
+    assert "Consumed ids" in output
+    assert "Overlap ids" in output
+    assert "Total protected ids" in output
     assert "sase:beads" in output
     assert "sase" in output
 
@@ -231,7 +243,12 @@ def test_stats_with_empty_store_never_writes(
     )
     monkeypatch.setattr(
         "sase.artifact_cli.stats.collect_protected_artifact_ids",
-        lambda: ProtectedArtifactIds(frozenset(), (), ()),
+        lambda: ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=(),
+            sources_unavailable=(),
+        ),
     )
 
     assert handle_stats(argparse.Namespace(json=True, project=None, top=10)) == 0

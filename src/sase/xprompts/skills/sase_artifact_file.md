@@ -92,7 +92,10 @@ reference kind, optional fragment, resolution status, and a v1 role: `report`, `
 
 Use `sase artifact show <ref>` to see `consumption_count`, `consumed_by_agents`, `consuming_agents`, and
 `last_consumed_at` for any resolved reference. Use `sase artifact list --unused` to find indexed `file:` artifacts with
-no recorded consumption.
+no recorded consumption. Once a canonical, fragment-free `file:` reference is recorded, the shared artifact lifecycle
+collector protects its ID from retention and `sase artifact prune`, even if no ProjectSpec, plan, bead, or research
+document persistently names it. A missing ledger is harmless; if the ledger exists but cannot be queried, destructive
+prune apply is refused rather than risking the artifact.
 
 ## Resolve a Reference You Were Handed
 

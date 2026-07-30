@@ -110,7 +110,10 @@ def _stats_payload(
         "economics": economics.to_json_dict(),
         "protections": {
             "explicit_rows": economics.explicit_rows,
-            "referenced_ids": len(protections.ids),
+            "referenced_ids": len(protections.referenced_ids),
+            "consumed_ids": len(protections.consumed_ids),
+            "overlap_ids": len(protections.overlap_ids),
+            "total_ids": len(protections.ids),
             "ids": sorted(protections.ids),
             "sources_scanned": list(protections.sources_scanned),
             "sources_unavailable": list(protections.sources_unavailable),
@@ -271,7 +274,10 @@ def _print_stats(
 
     protection_table = _plain_table()
     protection_table.add_row("Explicit rows", str(economics.explicit_rows))
-    protection_table.add_row("Referenced ids", str(len(protections.ids)))
+    protection_table.add_row("Referenced ids", str(len(protections.referenced_ids)))
+    protection_table.add_row("Consumed ids", str(len(protections.consumed_ids)))
+    protection_table.add_row("Overlap ids", str(len(protections.overlap_ids)))
+    protection_table.add_row("Total protected ids", str(len(protections.ids)))
     protection_table.add_row(
         "Sources scanned",
         str(len(protections.sources_scanned)),

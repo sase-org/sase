@@ -255,8 +255,12 @@ events because they are separate consumptions.
 `sase artifact list --unused` filters artifact files to rows with no recorded `file:<id>` consumption; the filter is
 applied before `--limit`, so `-u -l 50` asks for 50 unused artifacts, not for unused rows among the newest 50.
 
-Ledger retention and pruning protection are not implemented yet. The current file is the durable signal those later
-retention rules will use.
+Every canonical, fragment-free `file:` key in the ledger is a hard lifecycle protection. The shared protection collector
+unions those consumed IDs with IDs found in persistent ProjectSpec, plan, bead, and research references before
+`sase artifact stats` projects the default policy or `sase artifact prune` plans and applies work. Overlap is
+deduplicated, while stats reports referenced, consumed, overlap, and total counts separately. A missing ledger is an
+empty optional source; if a present ledger cannot be queried, reporting surfaces show it as unavailable and destructive
+apply refuses to remove artifacts.
 
 Sources:
 
@@ -265,6 +269,9 @@ Sources:
 - `src/sase/artifact_ref_prompt.py`
 - `src/sase/artifact_cli/show.py`
 - `src/sase/artifact_cli/listing.py`
+- `src/sase/core/artifact_file_protection.py`
+- `src/sase/artifact_cli/stats.py`
+- `src/sase/artifact_cli/prune.py`
 
 ## Markdown PDF Attachment Contract
 

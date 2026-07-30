@@ -187,8 +187,9 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Plan retention and optionally move selected rows to trash",
         description=(
             "Plan removal of old automatic artifact captures. This command is "
-            "a dry run unless --apply is passed; explicit and referenced "
-            "artifacts and every label's newest generation are protected."
+            "a dry run unless --apply is passed; explicit, referenced, and "
+            "consumed artifacts and every label's newest generation are "
+            "protected."
         ),
     )
     prune_parser.add_argument(
@@ -273,9 +274,9 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         "stats",
         help="Report artifact-store economics and default retention selection",
         description=(
-            "Report artifact-store economics, reference protections, trash "
-            "occupancy, and what the default retention policy would select. "
-            "This command is read-only."
+            "Report artifact-store economics, durable-reference and "
+            "consumption protections, trash occupancy, and what the default "
+            "retention policy would select. This command is read-only."
         ),
     )
     stats_parser.add_argument(

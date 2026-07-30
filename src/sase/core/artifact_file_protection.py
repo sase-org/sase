@@ -1,4 +1,4 @@
-"""Collect artifact ids protected by durable SASE references."""
+"""Collect artifact ids protected by durable references or consumption."""
 
 from __future__ import annotations
 
@@ -8,11 +8,14 @@ from pathlib import Path
 import re
 
 from sase._repo_inventory_models import RepoRecord
+from sase.core.artifact_consumption import default_artifact_consumption_log_path
+from sase.core.artifact_consumption_query import summarize_artifact_consumption
 from sase.core.paths import sase_projects_dir
 from sase.repo_inventory import collect_repo_inventory
 
 
 _ARTIFACT_ID_RE = re.compile(r"(?:file:)?(?P<id>(?:default|explicit):[0-9a-f]{24})")
+_CONSUMED_FILE_REF_RE = re.compile(r"file:(?P<id>(?:default|explicit):[0-9a-f]{24})")
 _TEXT_SUFFIXES = frozenset({".json", ".md", ".sase", ".txt", ".yml"})
 _REQUIRED_SIDECAR_ROLES = ("beads", "plans")
 _OPPORTUNISTIC_SIDECAR_ROLES = ("research",)
@@ -20,24 +23,38 @@ _OPPORTUNISTIC_SIDECAR_ROLES = ("research",)
 
 @dataclass(frozen=True)
 class ProtectedArtifactIds:
-    """Reference-protected ids plus scan coverage evidence."""
+    """Protected ids by source plus collection coverage evidence."""
 
-    ids: frozenset[str]
+    referenced_ids: frozenset[str]
+    consumed_ids: frozenset[str]
     sources_scanned: tuple[str, ...]
     sources_unavailable: tuple[str, ...]
 
+    @property
+    def ids(self) -> frozenset[str]:
+        """Return the deduplicated union accepted by retention planners."""
+
+        return self.referenced_ids | self.consumed_ids
+
+    @property
+    def overlap_ids(self) -> frozenset[str]:
+        """Return ids protected by both durable references and consumption."""
+
+        return self.referenced_ids & self.consumed_ids
+
 
 def collect_protected_artifact_ids() -> ProtectedArtifactIds:
-    """Scan ProjectSpecs and live SDD sidecars for artifact references."""
+    """Collect durable-reference and recorded-consumption protections."""
 
-    ids: set[str] = set()
+    referenced_ids: set[str] = set()
+    consumed_ids: set[str] = set()
     scanned: set[str] = set()
     unavailable: set[str] = set()
 
     projects_root = sase_projects_dir()
     _scan_root(
         projects_root,
-        ids=ids,
+        ids=referenced_ids,
         scanned=scanned,
         unavailable=unavailable,
         required=True,
@@ -65,7 +82,7 @@ def collect_protected_artifact_ids() -> ProtectedArtifactIds:
                     continue
                 _scan_root(
                     root,
-                    ids=ids,
+                    ids=referenced_ids,
                     scanned=scanned,
                     unavailable=unavailable,
                     required=True,
@@ -77,18 +94,53 @@ def collect_protected_artifact_ids() -> ProtectedArtifactIds:
                     continue
                 _scan_root(
                     root,
-                    ids=ids,
+                    ids=referenced_ids,
                     scanned=scanned,
                     unavailable=unavailable,
                     required=False,
                     suffixes=_TEXT_SUFFIXES,
                 )
 
+    _collect_consumed_ids(
+        ids=consumed_ids,
+        scanned=scanned,
+        unavailable=unavailable,
+    )
+
     return ProtectedArtifactIds(
-        ids=frozenset(ids),
+        referenced_ids=frozenset(referenced_ids),
+        consumed_ids=frozenset(consumed_ids),
         sources_scanned=tuple(sorted(scanned)),
         sources_unavailable=tuple(sorted(unavailable)),
     )
+
+
+def _collect_consumed_ids(
+    *,
+    ids: set[str],
+    scanned: set[str],
+    unavailable: set[str],
+) -> None:
+    ledger = default_artifact_consumption_log_path().expanduser().resolve(strict=False)
+    try:
+        ledger_exists = ledger.exists()
+    except OSError as exc:
+        unavailable.add(f"{ledger}: {exc}")
+        return
+    if not ledger_exists:
+        return
+
+    try:
+        summaries = summarize_artifact_consumption(log_path=ledger)
+    except Exception as exc:
+        unavailable.add(f"{ledger}: {exc}")
+        return
+
+    scanned.add(str(ledger))
+    for reference in summaries:
+        match = _CONSUMED_FILE_REF_RE.fullmatch(reference)
+        if match is not None:
+            ids.add(match.group("id"))
 
 
 def _live_sidecar_root(

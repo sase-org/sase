@@ -99,7 +99,12 @@ def test_prune_dry_run_writes_nothing_and_apply_trashes_only_plan(
     index, old, new, explicit = _seed_prune_store(tmp_path, monkeypatch)
     monkeypatch.setattr(
         "sase.artifact_cli.prune.collect_protected_artifact_ids",
-        lambda: ProtectedArtifactIds(frozenset(), ("projects",), ()),
+        lambda: ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=("projects",),
+            sources_unavailable=(),
+        ),
     )
     before = index.read_bytes()
     store_before = {
@@ -139,9 +144,10 @@ def test_unavailable_protection_source_blocks_apply_but_not_dry_run(
     monkeypatch.setattr(
         "sase.artifact_cli.prune.collect_protected_artifact_ids",
         lambda: ProtectedArtifactIds(
-            frozenset(),
-            ("projects",),
-            ("proj:plans",),
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=("projects",),
+            sources_unavailable=("proj:plans",),
         ),
     )
     before = index.read_bytes()
@@ -168,7 +174,12 @@ def test_prune_json_contains_plan_and_apply_execution(
     _seed_prune_store(tmp_path, monkeypatch)
     monkeypatch.setattr(
         "sase.artifact_cli.prune.collect_protected_artifact_ids",
-        lambda: ProtectedArtifactIds(frozenset(), ("projects",), ()),
+        lambda: ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=("projects",),
+            sources_unavailable=(),
+        ),
     )
 
     assert handle_prune(_prune_args(apply=True, json=True)) == 0
@@ -188,7 +199,12 @@ def test_trash_cli_lists_and_restores_by_artifact_reference(
     _index, old, _new, _explicit = _seed_prune_store(tmp_path, monkeypatch)
     monkeypatch.setattr(
         "sase.artifact_cli.prune.collect_protected_artifact_ids",
-        lambda: ProtectedArtifactIds(frozenset(), ("projects",), ()),
+        lambda: ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=("projects",),
+            sources_unavailable=(),
+        ),
     )
     assert handle_prune(_prune_args(apply=True)) == 0
     capsys.readouterr()
@@ -220,3 +236,39 @@ def test_trash_cli_lists_and_restores_by_artifact_reference(
     restored = json.loads(capsys.readouterr().out)
     assert restored["artifact_id"] == old.id
     assert Path(restored["restored_path"]).read_text(encoding="utf-8") == "old"
+
+
+def test_prune_dry_run_and_apply_exclude_consumed_only_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    index, old, new, explicit = _seed_prune_store(tmp_path, monkeypatch)
+    protections = ProtectedArtifactIds(
+        referenced_ids=frozenset(),
+        consumed_ids=frozenset({old.id}),
+        sources_scanned=(str(tmp_path / "artifacts" / "consumption.jsonl"),),
+        sources_unavailable=(),
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.prune.collect_protected_artifact_ids",
+        lambda: protections,
+    )
+    before = index.read_bytes()
+
+    assert handle_prune(_prune_args(json=True)) == 0
+    dry_run = json.loads(capsys.readouterr().out)
+    assert dry_run["plan"]["counts"]["selected"] == 0
+    assert dry_run["policy"]["protected_ids"] == [old.id]
+    assert index.read_bytes() == before
+
+    assert handle_prune(_prune_args(apply=True, json=True)) == 0
+    apply = json.loads(capsys.readouterr().out)
+    assert apply["plan"]["counts"]["selected"] == 0
+    assert apply["execution"]["rows_trashed"] == 0
+    assert index.read_bytes() == before
+    assert {row.id for row in read_artifact_file_index(index)} == {
+        old.id,
+        new.id,
+        explicit.id,
+    }
