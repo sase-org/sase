@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 
 import pytest
@@ -11,8 +12,6 @@ from sase.core.output_variable_values import (
     MAX_OUTPUT_VARIABLE_NODES,
     MAX_OUTPUT_VARIABLE_VALUE_BYTES,
     coerce_var_map,
-    coerce_var_value,
-    decode_var_value,
     encode_var_value,
     normalize_var_value,
 )
@@ -34,7 +33,8 @@ from sase.core.output_variable_values import (
 def test_every_json_shape_round_trips(value: object) -> None:
     normalized = normalize_var_value("result", value)
 
-    assert decode_var_value(encode_var_value(normalized)) == normalized
+    decoded = normalize_var_value("result", json.loads(encode_var_value(normalized)))
+    assert decoded == normalized
 
 
 def test_normalization_sorts_maps_preserves_lists_and_normalizes_nested_strings() -> (
@@ -136,18 +136,9 @@ def test_coercion_drops_bad_entries_but_preserves_json_null() -> None:
         "nested": {"ok": [1, True]},
         "null_value": None,
     }
-    assert coerce_var_value(object()) is None
-    assert coerce_var_value(None) is None
 
 
 def test_encoding_is_compact_unicode_and_sorted() -> None:
     assert encode_var_value({"z": "é", "a": [True, None]}) == (
         '{"a":[true,null],"z":"é"}'
     )
-
-
-def test_decode_rejects_invalid_json_and_unsupported_json_numbers() -> None:
-    with pytest.raises(ValueError, match="invalid output variable JSON"):
-        decode_var_value("{")
-    with pytest.raises(ValueError, match="finite"):
-        decode_var_value("NaN")

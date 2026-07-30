@@ -42,19 +42,6 @@ def normalize_var_value(key: str, value: object) -> VarValue:
     return normalized
 
 
-def coerce_var_value(value: object) -> VarValue | None:
-    """Return a supported value from persisted data, or ``None`` if invalid.
-
-    JSON ``null`` is itself represented by ``None``. Callers that need to
-    distinguish valid null from invalid data should use :func:`coerce_var_map`,
-    which performs coercion without relying on that sentinel.
-    """
-    try:
-        return normalize_var_value("value", value)
-    except (TypeError, ValueError):
-        return None
-
-
 def coerce_var_map(raw: object) -> dict[str, VarValue]:
     """Tolerantly coerce a persisted output-variable mapping.
 
@@ -78,15 +65,6 @@ def coerce_var_map(raw: object) -> dict[str, VarValue]:
 def encode_var_value(value: VarValue) -> str:
     """Return the compact, sorted-key canonical JSON encoding of *value*."""
     return _encode_normalized_value(normalize_var_value("value", value))
-
-
-def decode_var_value(text: str) -> VarValue:
-    """Decode and validate a canonical output-variable JSON value."""
-    try:
-        value = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"invalid output variable JSON: {exc.msg}") from exc
-    return normalize_var_value("value", value)
 
 
 def _normalize_value(
@@ -217,8 +195,6 @@ __all__ = [
     "MAX_OUTPUT_VARIABLE_VALUE_BYTES",
     "VarValue",
     "coerce_var_map",
-    "coerce_var_value",
-    "decode_var_value",
     "encode_var_value",
     "normalize_var_value",
 ]
