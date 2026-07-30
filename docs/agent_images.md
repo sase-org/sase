@@ -80,7 +80,7 @@ to the global artifact index during finalization; legacy runs can still synthesi
 loads the row. Downstream notification plugins should continue to use `done.json.image_paths` and
 `done.json.video_paths` for the generated-media notification contract.
 
-Source: `src/sase/core/agent_artifact_defaults.py`
+Source: `src/sase/core/artifact_file_defaults.py`
 
 ## Markdown PDF Attachment Contract
 
@@ -137,7 +137,7 @@ Agents can save a generated file explicitly with:
 sase artifact create -p <path> [-l <label>] [-k <kind>]
 ```
 
-`sase artifact create` remains a compatibility alias for the same command.
+`sase artifact-file create` remains a compatibility alias for the same command.
 
 `-p/--path` is required. `-l/--label` sets the display label and defaults to the source file name. `-k/--kind` is one of
 `chat`, `plan`, `image`, `markdown`, `pdf`, or `file`, and defaults to a kind inferred from the file extension. On
@@ -159,7 +159,7 @@ notification delivery, SASE appends existing explicit artifact files after chat,
 generated image attachments, and generated video attachments. Duplicate paths and missing files are ignored, and
 explicit-artifact index failures do not fail the completion path.
 
-Source: `src/sase/core/agent_artifact_facade.py`
+Source: `src/sase/core/artifact_file_facade.py`
 
 ## Notification Delivery
 

@@ -107,37 +107,38 @@ startup, large search results, axe lumberjack scans), so it was the first operat
 
 The facade lives at `src/sase/core/`:
 
-| Module                         | Purpose                                                                                                            |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `rust.py`                      | Strict `sase_core_rs` loader (`require_rust_extension`, `require_rust_binding`)                                    |
-| `health.py`                    | `sase core health` Rust-extension probe + report                                                                   |
-| `parser_facade.py`             | `parse_project_file` Python API + Rust-backed `parse_project_bytes`                                                |
-| `project_lifecycle_facade.py`  | Rust-backed ProjectSpec lifecycle parse/update/list helpers                                                        |
-| `project_lifecycle_wire.py`    | Project lifecycle and project-record wire dataclasses                                                              |
-| `wire.py`                      | Stable wire record types that cross the Python ↔ Rust boundary                                                     |
-| `wire_conversion.py`           | Python `ChangeSpec` ↔ wire record serialization                                                                    |
-| `query_facade.py`              | `parse_query` (Rust); per-row query context/eval (Python host logic); batch compatibility wrapper over Rust corpus |
-| `query_corpus_facade.py`       | Persistent Rust query corpus wrapper for cached batch evaluation                                                   |
-| `notification_store_facade.py` | Notification JSONL snapshot, append, rewrite, and state mutation facade (Rust)                                     |
-| `notification_store_wire.py`   | Stable notification snapshot/update wire records across the Rust boundary                                          |
-| `status_facade.py`             | Status line helpers + planner (Rust); side-effecting transition (Python host logic)                                |
-| `graph_index_facade.py`        | `build_changespec_graph_index()` facade (Python host logic)                                                        |
-| `agent_scan_facade.py`         | Agent artifact scan plus persistent index query/rebuild/update/delete facade (Rust)                                |
-| `agent_scan_wire.py`           | Stable wire records for agent-artifact scans and index maintenance                                                 |
-| `agent_artifact_facade.py`     | Compatibility import surface for explicit/default agent-artifact helpers (Python host logic)                       |
-| `agent_cleanup_wire.py`        | Stable cleanup planning and side-effect intent wires                                                               |
-| `agent_cleanup_facade.py`      | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
-| `agent_cleanup_execution.py`   | Host-safe wrappers for Rust-backed deterministic cleanup mutations                                                 |
-| `agent_launch_wire.py`         | Stable launch, workspace-claim, and fan-out wire records                                                           |
-| `agent_launch_facade.py`       | Rust-backed launch preparation, spawn, timestamp allocation, and fan-out planning                                  |
-| `agent_launch_claims.py`       | Rust-backed RUNNING-field claim planning/mutation helpers                                                          |
-| `bead_read_facade.py`          | Rust-backed bead read facade for one active bead store                                                             |
-| `bead_mutation_facade.py`      | Rust-backed bead mutation facade                                                                                   |
-| `bead_wire.py`                 | Stable bead issue/dependency conversion helpers across the Rust boundary                                           |
-| `status_wire.py`               | Stable wire records for the status state machine                                                                   |
-| `status_wire_conversion.py`    | Python plan reference + project-file → request-wire converter                                                      |
-| `git_query_facade.py`          | Pure Git query parsers facade (Rust)                                                                               |
-| `git_query_wire.py`            | Stable wire records for the Git query parsers                                                                      |
+| Module                          | Purpose                                                                                                            |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `rust.py`                       | Strict `sase_core_rs` loader (`require_rust_extension`, `require_rust_binding`)                                    |
+| `health.py`                     | `sase core health` Rust-extension probe + report                                                                   |
+| `parser_facade.py`              | `parse_project_file` Python API + Rust-backed `parse_project_bytes`                                                |
+| `project_lifecycle_facade.py`   | Rust-backed ProjectSpec lifecycle parse/update/list helpers                                                        |
+| `project_lifecycle_wire.py`     | Project lifecycle and project-record wire dataclasses                                                              |
+| `wire.py`                       | Stable wire record types that cross the Python ↔ Rust boundary                                                     |
+| `wire_conversion.py`            | Python `ChangeSpec` ↔ wire record serialization                                                                    |
+| `query_facade.py`               | `parse_query` (Rust); per-row query context/eval (Python host logic); batch compatibility wrapper over Rust corpus |
+| `query_corpus_facade.py`        | Persistent Rust query corpus wrapper for cached batch evaluation                                                   |
+| `notification_store_facade.py`  | Notification JSONL snapshot, append, rewrite, and state mutation facade (Rust)                                     |
+| `notification_store_wire.py`    | Stable notification snapshot/update wire records across the Rust boundary                                          |
+| `status_facade.py`              | Status line helpers + planner (Rust); side-effecting transition (Python host logic)                                |
+| `graph_index_facade.py`         | `build_changespec_graph_index()` facade (Python host logic)                                                        |
+| `agent_scan_facade.py`          | Agent artifact scan plus persistent index query/rebuild/update/delete facade (Rust)                                |
+| `agent_scan_wire.py`            | Stable wire records for agent-artifact scans and index maintenance                                                 |
+| `artifact_file_facade.py`       | Compatibility import surface for explicit/default artifact-file helpers (Python host logic)                        |
+| `artifact_file_query_facade.py` | Rust-backed query facade for the persistent artifact-file index                                                    |
+| `agent_cleanup_wire.py`         | Stable cleanup planning and side-effect intent wires                                                               |
+| `agent_cleanup_facade.py`       | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
+| `agent_cleanup_execution.py`    | Host-safe wrappers for Rust-backed deterministic cleanup mutations                                                 |
+| `agent_launch_wire.py`          | Stable launch, workspace-claim, and fan-out wire records                                                           |
+| `agent_launch_facade.py`        | Rust-backed launch preparation, spawn, timestamp allocation, and fan-out planning                                  |
+| `agent_launch_claims.py`        | Rust-backed RUNNING-field claim planning/mutation helpers                                                          |
+| `bead_read_facade.py`           | Rust-backed bead read facade for one active bead store                                                             |
+| `bead_mutation_facade.py`       | Rust-backed bead mutation facade                                                                                   |
+| `bead_wire.py`                  | Stable bead issue/dependency conversion helpers across the Rust boundary                                           |
+| `status_wire.py`                | Stable wire records for the status state machine                                                                   |
+| `status_wire_conversion.py`     | Python plan reference + project-file → request-wire converter                                                      |
+| `git_query_facade.py`           | Pure Git query parsers facade (Rust)                                                                               |
+| `git_query_wire.py`             | Stable wire records for the Git query parsers                                                                      |
 
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace with a PyO3 crate at
 `crates/sase_core_py/`.

@@ -32,7 +32,7 @@ renders" check the plan calls for.
    when it's really an order of magnitude broader.
 
 2. **`agent_facade` is not a real module.** No file by that name exists in `src/sase/core/`. The closest matches are
-   `agent_scan_facade.py`, `agent_cleanup_facade.py`, `agent_launch_facade.py`, `agent_artifact_facade.py`, and
+   `agent_scan_facade.py`, `agent_cleanup_facade.py`, `agent_launch_facade.py`, `artifact_file_facade.py`, and
    `agent_launch_claims.py`. Picking a single composite label hides that "agent" spans four distinct facades with
    different responsibilities.
 
@@ -74,7 +74,8 @@ renders" check the plan calls for.
    - `status_facade` (status read + transition planner)
    - `git_query_facade` (git output parsers)
    - `notification_store_facade` (JSONL notifications)
-   - `agent_scan_facade` (artifact scan + persistent index)
+   - `agent_scan_facade` (agent scan + persistent agent index)
+   - `artifact_file_facade` + `artifact_file_query_facade` (artifact-file storage + Rust-backed index queries)
    - `agent_cleanup_facade` + `agent_cleanup_execution` (cleanup planning + deterministic mutations)
    - `agent_launch_facade` + `agent_launch_claims` (launch prep, spawn, fan-out, RUNNING-field claims)
    - `bead_read_facade` + `bead_mutation_facade` (bead data ops)

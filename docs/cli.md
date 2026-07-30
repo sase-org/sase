@@ -293,6 +293,14 @@ GitHub pull requests, and other provider plugins.
 | `sase mobile agent-bridge`          | Fixed JSON bridge used by the mobile gateway for agent operations.                                                                                                                                                     | [Mobile gateway](mobile_gateway.md)                                                                                  |
 | `sase mobile helper-bridge`         | Fixed JSON bridge used by the mobile gateway for workflow helper operations.                                                                                                                                           | [Mobile gateway](mobile_gateway.md)                                                                                  |
 
+Artifact commands take the logical reference without a leading `@`, for example
+`sase artifact show file:default:<digest>`. In a launch prompt, add the sigil:
+`sase run "review @file:default:<digest>"`. The same rule applies to document roles, chats, beads, agents, commits, and
+bugs. `sase artifact list` inventories only filesystem artifact-file rows; use ACE's grouped `@` completion or
+contextual **Copy as…** palette to discover the other reference kinds. See
+[Getting Started](getting_started.md#step-6-hand-off-existing-work-with-artifact-references) for the handoff workflow
+and [prompt preprocessing](llms.md#prompt-preprocessing-pipeline) for launch-time resolution.
+
 Operational commands are intentionally narrow. Helper bridges expose fixed JSON operations for editor and mobile
 clients; they are not general shell or filesystem APIs.
 

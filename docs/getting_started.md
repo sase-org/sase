@@ -1,8 +1,8 @@
 ---
 title: "Getting Started: Your First 15 Minutes"
 description: >-
-  A hands-on tour: install SASE, check provider readiness, launch a safe first agent run, find the agent record, and
-  pick up the vocabulary you'll keep bumping into in about 15 minutes.
+  A hands-on tour: install SASE, check provider readiness, launch a safe first agent run, find and reuse its artifacts,
+  and pick up the vocabulary you'll keep bumping into in about 15 minutes.
 ---
 
 # Getting Started: Your First 15 Minutes
@@ -10,8 +10,8 @@ description: >-
 SASE (pronounced "sassy" — yes, really) is a coordination layer that sits above coding-agent CLIs like Claude Code,
 Codex, Antigravity CLI (`agy`), Qwen Code, or OpenCode. This guide is the practical on-ramp: by the end you'll have
 installed `sase`, checked that a provider CLI is ready, launched a safe read-only agent run, found the resulting agent
-record, and picked up the vocabulary you'll keep bumping into in the rest of the docs. Plan on roughly fifteen minutes
-at a terminal, plus however long your favorite model takes to think.
+record, handed one durable artifact to another run, and picked up the vocabulary you'll keep bumping into in the rest of
+the docs. Plan on roughly fifteen minutes at a terminal, plus however long your favorite model takes to think.
 
 ## Step 1 — Install SASE
 
@@ -113,7 +113,59 @@ existing bare repository. Provider plugins add other workspace references, such 
 **What you just did.** Moved from a read-only run to a small editable task after confirming where SASE records agent
 state.
 
-## Step 6 — Reuse The Prompt As An XPrompt
+## Step 6 — Hand Off Existing Work With Artifact References
+
+An agent handoff is more reliable when it names the exact prior artifact instead of describing it loosely. After the
+editable run finishes, list the files SASE indexed for `home`:
+
+```bash
+sase artifact list --project home --limit 10
+```
+
+The `REF` column contains durable file references such as `file:default:0123456789abcdef01234567`. The `default:` source
+means SASE captured the file from normal run output; files registered deliberately with `sase artifact create` use
+`explicit:` instead. Inspect a reference without launching an agent:
+
+```bash
+sase artifact show file:default:0123456789abcdef01234567
+```
+
+Then add `@` when the same reference appears inside a prompt:
+
+```bash
+sase run "#git:home read @file:default:0123456789abcdef01234567 and summarize it"
+```
+
+Replace the sample reference with one from your own `REF` column. This leading-`@` distinction is intentional:
+`sase artifact show`, `path`, and `open` accept the bare logical reference, while launch prompts use `@kind:payload` so
+SASE can find and expand references embedded in ordinary prose.
+
+Artifact references cover more than indexed files:
+
+| Prompt form                                  | What it identifies                                |
+| -------------------------------------------- | ------------------------------------------------- |
+| `@file:<source>:<digest>`                    | One file in the persistent artifact index         |
+| `@plans:<path>` or `@<document-role>:<path>` | One SDD document in a configured document sidecar |
+| `@chat:<path>`                               | One saved chat transcript                         |
+| `@bead:<id>`                                 | One generated bead page                           |
+| `@agent:<global-name>`                       | One generated agent page                          |
+| `@commit:<repo>@<sha>`                       | One repository revision                           |
+| `@bug:<project>#<number>`                    | One issue in the project's configured tracker     |
+
+ACE can supply these without memorizing the grammar. Type `@` in the prompt bar for the grouped reference menu, or press
+`%` on an Artifacts entry and choose **Reference in new agent prompt** to copy the prompt-ready form. Document, chat,
+file, bead, and agent references resolve to local paths before the provider starts; commit and bug references resolve to
+source-control and tracker locators. A malformed or missing known reference stops the launch with a diagnostic instead
+of silently giving the agent bad context. Inline-code and fenced-code examples stay literal.
+
+See the [`sase artifact` command reference](configuration.md#sase-artifact) for inspection, path, viewer, and repair
+commands. The [prompt preprocessing reference](llms.md#prompt-preprocessing-pipeline) explains expansion order and
+literal regions.
+
+**What you just did.** Passed one durable output from a completed run to a new agent without depending on chat history
+or a recycled workspace path.
+
+## Step 7 — Reuse The Prompt As An XPrompt
 
 A one-off prompt is fine once. The second time you find yourself reaching for it, wrap it as an **XPrompt** so you're
 not retyping the same paragraph forever. Create `sase/xprompts/til.md` at the project root where you run `sase`:
@@ -138,7 +190,7 @@ multi-agent dispatch. The [XPrompts guide](xprompt.md) covers the full surface, 
 **What you just did.** Turned a one-off prompt into a reusable XPrompt, the smallest unit of repeatable agent work in
 SASE.
 
-## Step 7 — Plan Bigger Work With SDD And Beads
+## Step 8 — Plan Bigger Work With SDD And Beads
 
 When a task is too big to hand to a single agent and hope, SASE asks you to write a plan first. **Spec-Driven
 Development (SDD)** keeps those plans as first-class artifacts on disk under three (admittedly whimsical) names:
@@ -177,6 +229,8 @@ The names you'll keep bumping into, in one place:
   touching your primary checkout.
 - **[ChangeSpecs](change_spec.md)** — durable PR-sized review records: status lifecycle, commits, hooks, comments,
   mentors.
+- **Artifact references** — durable `@kind:payload` names that hand files, documents, chats, beads, agents, commits, and
+  bugs from one run to another. Inspect them with `sase artifact`; complete or copy them from [ACE](ace.md).
 - **[Beads](beads.md)** — dependency-aware, git-portable work units. Powers epic execution.
 - **[XPrompts](xprompt.md)** — reusable prompt templates and YAML workflows with typed inputs and multi-agent fan-out.
   See also [workflow specs](workflow_spec.md).
