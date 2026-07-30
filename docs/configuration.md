@@ -822,8 +822,8 @@ controls automatic opening of the grouped menu from bare `@`, narrowed artifact-
 and `@src/`, and `@kind:` payload contexts; manual `Ctrl+T` remains available. Before a `:` appears, artifact kinds are
 shown first and local file rows second. File rows preserve the `@` sigil on insertion, directories drill down, and
 dotfiles are hidden unless the typed path segment starts with `.`. A cold path inventory can briefly show a loading row
-while ACE refreshes it off-thread. Commit and bug candidates are projected only from already-loaded Artifacts-pane
-snapshots.
+while ACE refreshes it off-thread. Document, chat, indexed-file, bead, and agent payloads use bounded project-scoped
+catalogs; commit and bug candidates are projected only from already-loaded Artifacts-pane snapshots.
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists inline-typable model names,
 implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_lander`, `@big_epic_lander`,
@@ -3228,13 +3228,20 @@ means unlimited; `-p/--project` accepts a display name, alias, or canonical key 
 with KIND, REF, LABEL, PROJECT (display name), AGENT, SIZE, and CREATED columns; `-j/--json` emits every record field —
 including `sha256`, `size_bytes`, and `mime_type` — plus the rendered `ref`.
 
-`show`, `path`, and `open` accept any artifact reference (`file:`, `chat:`, `bug:`, `commit:`, and document roles such
-as `plans:`, `research:`, `designs:`), with `#L`, `#page=`, and `#t=` fragments preserved. A bare `default:<hash>` or
-`explicit:<hash>` index id is accepted as sugar for `file:<id>`. `path` exits 0 on success, 1 when the reference is
-malformed, missing, or ambiguous (status and candidates go to stderr), and 2 for kinds with no filesystem identity
-(`commit:`, `bug:`), pointing at `show` instead. `open` refuses `commit:` refs the same way and opens `bug:` refs in a
-browser. `doctor` exits 1 when it finds missing enrichment fields, missing stored files, duplicate ids, unsupported
-schema versions, malformed rows, or digest mismatches, and 0 on a clean bill of health.
+`show`, `path`, and `open` accept any artifact reference (`file:`, `chat:`, `bug:`, `commit:`, `bead:`, `agent:`, and
+document roles such as `plans:`, `research:`, `designs:`). Document roles, `chat:`, and `file:` preserve supported `#L`,
+`#page=`, and `#t=` fragments; `bead:` and `agent:` reject fragments because they resolve to regenerated pages whose
+anchors can drift. `bead:` resolves to the generated bead page in the current project's beads sidecar, and `agent:`
+resolves to the generated `agents/<global-name>/README.md` page in the current project's agents sidecar, so `path` and
+`open` work for both after `sase bead pages refresh` or `sase agent sync` has published the page. Bead and agent
+resolution is intentionally scoped to the reference context's single project; foreign bead prefixes report
+`unknown_project` instead of scanning every enabled project.
+
+A bare `default:<hash>` or `explicit:<hash>` index id is accepted as sugar for `file:<id>`. `path` exits 0 on success, 1
+when the reference is malformed, missing, or ambiguous (status and candidates go to stderr), and 2 for kinds with no
+filesystem identity (`commit:`, `bug:`), pointing at `show` instead. `open` refuses `commit:` refs the same way and
+opens `bug:` refs in a browser. `doctor` exits 1 when it finds missing enrichment fields, missing stored files,
+duplicate ids, unsupported schema versions, malformed rows, or digest mismatches, and 0 on a clean bill of health.
 
 ### `sase questions`
 

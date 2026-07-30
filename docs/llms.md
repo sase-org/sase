@@ -1429,8 +1429,8 @@ file, template, and formatting work.
 The pipeline runs in strict order. Prompt directives are extracted after xprompt expansion, so directives embedded in
 xprompts are honored. Late-phase command substitution and reference processing run with fenced blocks protected, so
 examples inside code fences are not executed or rewritten. Artifact references are expanded before file references:
-document-role, chat, and artifact-file references become `@path` tokens; commit and bug references become local
-locators. Unknown kinds remain unchanged as prose. Inline-code references also remain literal.
+document-role, chat, artifact-file, bead, and agent references become `@path` tokens; commit and bug references become
+local locators. Unknown kinds remain unchanged as prose. Inline-code references also remain literal.
 
 ### Home Mode
 

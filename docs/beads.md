@@ -247,6 +247,11 @@ Projects with a hosted beads sidecar can publish one Markdown page per bead. Pag
 under `pages/<root>/`, where `<root>` is the bead ID segment before the first dot. The root bead renders as
 `pages/<root>/README.md`; descendants render as `pages/<root>/<bead-id>.md`.
 
+An artifact reference such as `@bead:sase-9z` addresses that generated page directly. The payload is the exact bead ID,
+with no prefix-less shorthand and no `#L`, `#page=`, or `#t=` fragment support. Addressing is lexical and offline: SASE
+derives the page path from the ID without reading `issues.jsonl`, then reports the page missing if it has not yet been
+published. Run `sase bead pages refresh --write` to publish or repair bead pages before sharing durable `@bead:` refs.
+
 Pages are generated projections, not hand-maintained state. They are rebuilt from the canonical bead event store plus
 the primary repository's commit history, and they link to the bead's plan, parent and child beads, dependencies,
 associated agents, and commits. Current commits use a structured `SASE_BEAD=<id>` footer tag instead of a subject-line

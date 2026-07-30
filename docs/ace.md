@@ -3235,12 +3235,14 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   directory, while path-shaped tokens such as `@src/` naturally show only files. Accepting an artifact kind inserts
   `@kind:` and immediately opens its payload rows; accepting a directory inserts the `@`-prefixed directory and drills
   down; accepting a file inserts the `@`-prefixed path. Dotfiles are hidden unless the typed path segment starts with
-  `.`. Documents, explicit artifact files, and chats come from a bounded project-scoped catalog warmed off-thread.
-  Commit and bug rows appear only from snapshots the mounted Artifacts panes have already loaded, so typing never
-  launches Git, contacts a tracker, or scans the filesystem. Payload acceptance replaces the complete `@kind:payload`
-  context, including when the cursor is in the middle of it. On an un-narrowed bare-`@` menu, `Enter` submits and
-  dismisses the menu until you type a query character or move the selection; `Ctrl+L` always accepts the highlighted
-  row.
+  `.`. Documents, explicit artifact files, chats, beads, and agents come from bounded project-scoped catalogs warmed
+  off-thread. Bead rows are loaded from an mtime-cached bead-store snapshot, and agent rows come from a bounded scan of
+  the project's agents sidecar. Agent rows display the readable local name when possible but insert the durable global
+  `@agent:<username>.<machine>.<name>` spelling. Commit and bug rows appear only from snapshots the mounted Artifacts
+  panes have already loaded, so typing never launches Git, contacts a tracker, or performs unbounded filesystem scans.
+  Payload acceptance replaces the complete `@kind:payload` context, including when the cursor is in the middle of it. On
+  an un-narrowed bare-`@` menu, `Enter` submits and dismisses the menu until you type a query character or move the
+  selection; `Ctrl+L` always accepts the highlighted row.
 - **Placeholder completion**: When the cursor is inside an incomplete `<foobar>` tag, completion suggests matching
   placeholders from the current prompt first, then saved common placeholders learned from tags you have written before.
   Within the current-prompt group, live tags keep document order and literal-zone tags follow in document order.

@@ -47,6 +47,12 @@ agents/<global-name>/
 families/<global-family>.md
 ```
 
+An artifact reference such as `@agent:foo` or `@agent:<username>.<machine>.foo` addresses
+`agents/<global-name>/README.md` in the selected project's agents sidecar. Local semantic names are accepted in the
+current owner's context and canonicalized to the durable global name; published prompts, plans, and bead descriptions
+should prefer the global spelling. Agent references do not accept `#L`, `#page=`, or `#t=` fragments. If the page has
+not been published yet, run `sase agent sync` for the project before sharing the `@agent:` reference.
+
 Owner manifests map each hood to the snapshot digest and its complete referenced-file set. Snapshot and per-run JSON is
 strictly versioned, canonically encoded, size/count bounded, and content-addressed with SHA-256. Names and paths are
 validated as single components, and every relationship/container batch passes through the Rust identity facade before
