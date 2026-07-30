@@ -63,9 +63,14 @@ def test_success_completion_notification_includes_output_variables(base_kwargs):
         json.dumps(
             {
                 "output_variables": {
-                    "status": "ok",
-                    "STOP": "1",
                     "report_path": "dist/report.md",
+                    "results": {
+                        "passed": True,
+                        "scores": [98, 100],
+                        "summary": None,
+                    },
+                    "status": "ok",
+                    "STOP": {"reason": "reserved control value"},
                 }
             }
         )
@@ -76,10 +81,16 @@ def test_success_completion_notification_includes_output_variables(base_kwargs):
 
     action_data = mock_notify.call_args.kwargs["action_data"]
     assert action_data["output_variables"] == (
-        '{"report_path": "dist/report.md", "status": "ok"}'
+        '{"report_path": "dist/report.md", "results": {"passed": true, '
+        '"scores": [98, 100], "summary": null}, "status": "ok"}'
     )
     assert json.loads(action_data["output_variables"]) == {
         "report_path": "dist/report.md",
+        "results": {
+            "passed": True,
+            "scores": [98, 100],
+            "summary": None,
+        },
         "status": "ok",
     }
 

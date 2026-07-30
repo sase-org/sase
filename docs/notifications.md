@@ -148,7 +148,9 @@ unless they also appear in `done.json.image_paths` / `done.json.video_paths` or 
 `sase artifact create`.
 
 When an agent sets output variables with `sase var set`, non-reserved variables are snapshotted into the completion
-notification and rendered in Telegram agent-completion messages. The reserved repeat-control variable `STOP` is omitted
+notification as sorted JSON and rendered in Telegram agent-completion messages. The snapshot preserves structured values
+(including nested lists and maps); each value is already bounded by the 64 KiB encoded-variable limit, and the
+notification store does not impose a smaller `action_data` limit. The reserved repeat-control variable `STOP` is omitted
 from Telegram completion summaries.
 
 The Agents tab also treats user-agent completions as unread work items. When a terminal agent is selected after it has

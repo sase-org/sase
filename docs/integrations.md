@@ -99,8 +99,9 @@ By default the helper returns active agents. `include_recent=True` includes rece
 using the same cap as `sase agent list -a`; `project` filters by exact project key after projection. Each
 `AgentListEntry` includes the basic CLI fields plus status bucket/glyph, provider and VCS display labels, retry and wait
 metadata, family role, parent, tribe, bead and ChangeSpec names, direct-child counts, output variables, artifact and
-commit counts, and error text when available. The nested wait/retry/children objects are frozen dataclasses, not raw
-JSON; bridge commands should convert them into their own wire shape.
+commit counts, and error text when available. Output-variable values retain their JSON scalar, list, and map shapes, so
+integrations should not coerce containers to strings before rendering or transport. The nested wait/retry/children
+objects are frozen dataclasses, not raw JSON; bridge commands should convert them into their own wire shape.
 
 Every live runner-slot waiter is promoted in memory from the scan-level `WAITING` state to `QUEUED`; the status is never
 persisted. `entry.wait.runner_slot_queue_position` and `runner_slot_queue_size` describe the same set in admission
