@@ -86,9 +86,12 @@ and chat refresh the same stable run; absence does not create an implicit deleti
 produce byte-identical files and a no-op publication.
 
 After each pull/rebase, SASE rebuilds root, user, machine, hood, family, and agent Markdown from every validated owner
-manifest. Family member links use stable `member-<role>` anchors; solo links target the corresponding agent README.
-Because owners mutate disjoint authority files, a bounded non-fast-forward retry can pull a competing owner, recompute
-the shared views, and converge without overwriting either snapshot.
+manifest. Index and neighbor pages link a _specific run_, so their family member links use stable `member-<role>`
+anchors; solo links target the corresponding agent README. Commit footers are the other case: they identify an agent
+_lane_ rather than a run, so they link the family page with no member anchor (see
+[runtime provenance](commit_workflows.md#cli-inputs-and-internal-payload)). Because owners mutate disjoint authority
+files, a bounded non-fast-forward retry can pull a competing owner, recompute the shared views, and converge without
+overwriting either snapshot.
 
 ## Browsing page anatomy
 
@@ -110,6 +113,13 @@ A family page keeps the `Lineage` diagram and accessible member table first, the
 `Commits`, `Variables`, and `Neighbors`. Family commit and variable tables include the member role so each row can be
 traced back to a member. Family neighbor rows describe the family lane itself and never list its own members, which are
 already present in the member table.
+
+The family page is the durable home of a family's commits. Because a commit footer names the lane rather than the
+member, family-lane commit history is owned by the family container itself and is carried in the published snapshot
+alongside the per-member rows. The `Commits` table unions both sources: rows recovered from a member's own artifact keep
+that member's role, and lane-level rows — including commits whose member artifact has since been cleaned up — render
+with a `—` role. Rows are deduplicated by SHA with the member-attributed row winning, then sorted and capped like every
+other commit table. Clan containers never accumulate commits this way; only families do.
 
 Commit cells link to hosted commit pages only when the project primary repository has a recognized GitHub remote. If the
 primary remote is missing, not GitHub, or cannot be read, pages still render the same commit rows with plain short SHAs.
@@ -141,10 +151,13 @@ Classification of a non-empty, path-safe historical name is best effort and must
 publication. A record that is genuinely unsafe or cannot be contained is excluded with its artifact path and reason in
 the publication diagnostics. Historical records that share an old timestamp-derived run ID are assigned distinct,
 deterministic IDs and reported instead of invalidating the hood. Stale family metadata is likewise diagnosed and
-reconciled to the canonical name-derived classification. If a linked primary commit remains after its local artifact has
-been cleaned up, publication synthesizes a minimal completed run from the commit association so its `SASE_AGENT` page
-does not become a permanent dead link. This read tolerance does not relax write validation: newly generated solo,
-family, and clan names must still satisfy the current strict naming rules.
+reconciled to the canonical name-derived classification. If a linked primary commit for a _solo_ lane remains after its
+local artifact has been cleaned up, publication synthesizes a minimal completed run from the commit association so its
+`SASE_AGENT` page does not become a permanent dead link. A family lane is never synthesized into a run: doing so would
+invent an `agents/<family>/README.md` page next to the real family page, so those commits reach the sidecar through the
+family container instead. When a family lane has commits that no published container can carry, the history is reported
+in the publication diagnostics rather than dropped silently. This read tolerance does not relax write validation: newly
+generated solo, family, and clan names must still satisfy the current strict naming rules.
 
 ## Importing shared history
 
@@ -166,7 +179,10 @@ and permanent-name claims as a staged transaction, then applies and finalizes it
 ignore a transaction until it is complete. A later v2 import pass discards an interrupted prepared transaction or
 finishes one that had begun applying. Re-importing the same snapshot is a no-op; a new digest refreshes the existing
 imported records. When the package describes the current owner and SASE can match a local run by durable ID or primary
-commit evidence, it treats that run as already observed instead of creating a duplicate.
+commit evidence, it treats that run as already observed instead of creating a duplicate. Because a modern `SASE_AGENT`
+tag names a lane, commit evidence is matched at lane granularity: both the tag value and each expected run's global name
+are projected to their lane before comparison, so a family member's commit still proves that member ran. An exact
+member-name match is also still accepted, so legacy member-tagged commits remain valid evidence.
 
 ## Commands and status
 

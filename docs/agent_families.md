@@ -319,6 +319,22 @@ The attached member waits for the in-batch parent to complete successfully. This
 such as `%i:foo` or `%i(foo)`; template-named and auto-named parents must already have an artifact before they can be
 used as attachment targets.
 
+### Lanes, families, and commit provenance
+
+An agent _lane_ is either a family or a single agent that does not belong to one — the family is the lane its members
+share, and a solo agent is its own lane. Commit provenance is anchored on the lane, not on the member that happened to
+be running: a commit by `fam--code` is tagged `SASE_AGENT=<username>.<machine>.fam` and links to
+`families/<username>.<machine>.fam.md` with no member anchor, while a solo agent's footer is exactly what it has always
+been. The same projection is used for the sidecar publication identity and for the agent rows on plan headers and bead
+pages, so a family appears once as itself instead of once per member.
+
+The practical consequence is that the **family page is the durable home of a family's commits**. Members come and go — a
+member's artifact can be cleaned up long before the family is done — but the lane outlives them, so its commit history
+is carried on the family container and rendered on the family page, with member-attributed rows keeping their role and
+lane-level rows showing `—`. Commits made before this change name a concrete member and are still read that way forever;
+nothing is rewritten. See [runtime provenance](commit_workflows.md#cli-inputs-and-internal-payload) and
+[browsing page anatomy](agents_sidecar.md#browsing-page-anatomy).
+
 ## Agent Tribes
 
 An agent tribe is a user-facing label for related agents across clans and families. Assign one at launch with the

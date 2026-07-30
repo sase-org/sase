@@ -192,12 +192,16 @@ Resolution is local-only and best-effort. Conflict resumes reuse the already-tag
 checkpoint.
 
 Runtime provenance tags are also not user-supplied CLI flags. For `create_commit` and `create_pull_request`,
-`CommitWorkflow` appends or updates a trailing `SASE_AGENT=<username>.<machine>.<agent>` line. When the configured
-agents sidecar is hosted on GitHub, the value is a Markdown reference link to the solo-agent page or the family member's
-stable anchor. `AGENT` comes from `SASE_AGENT_NAME`, falling back to `SASE_ARTIFACTS_DIR/agent_meta.json`; it is omitted
-for manual non-agent commits. New commits never produce `SASE_MACHINE`, while cleanup still removes inherited `AGENT`
-and historical `MACHINE` values. `create_proposal` does not get runtime commit tags because it saves a diff instead of
-creating a VCS commit.
+`CommitWorkflow` appends or updates a trailing `SASE_AGENT=<username>.<machine>.<lane>` line. The value is the
+committing agent's **lane**, not the concrete agent that ran: a family member commits as its family (`pc--code` is
+tagged `<username>.<machine>.pc`), and a solo agent is tagged with its own name exactly as before. When the configured
+agents sidecar is hosted on GitHub, the value is a Markdown reference link to the lane's page — the family page for a
+family lane and the agent README for a solo lane — with no `#member-<role>` fragment. Every fallback path (no owner, no
+project, unresolvable or non-hosted sidecar) still emits the lane label unlinked. `AGENT` comes from `SASE_AGENT_NAME`,
+falling back to `SASE_ARTIFACTS_DIR/agent_meta.json` — the concrete member name is resolved first only so its lane can
+be derived — and it is omitted for manual non-agent commits. New commits never produce `SASE_MACHINE`, while cleanup
+still removes inherited `AGENT` and historical `MACHINE` values. `create_proposal` does not get runtime commit tags
+because it saves a diff instead of creating a VCS commit.
 
 After an agent-backed primary operation and its first durable result marker, the workflow first refreshes the committed
 bead's generated page lineage when the message carries `SASE_BEAD=`. It then resolves the immutable primary revision
@@ -212,6 +216,14 @@ or inherited PR tag keys) are written with a `SASE_` prefix — for example `SAS
 Readers (agent-commit/revert discovery, parent-PR tag inheritance, ChangeSpec description stripping) still accept
 historical `MACHINE` tags and the unprefixed spelling, so commit history is not rewritten and old commits remain
 readable. External consumers should accept both historical and `SASE_`-prefixed spellings.
+
+**Legacy `SASE_AGENT` values:** commits written before provenance moved to the lane carry a concrete member name and a
+`#member-<role>` anchor — for example `SASE_AGENT=[bbugyi200.athena.pc--code][2]` pointing at
+`families/bbugyi200.athena.pc.md#member-code`. History is never rewritten, so every reader (inventory history, import
+evidence, revert discovery, image-attachment scanning, plan and bead associations, the PR body footer) accepts both
+spellings permanently: a member-named tag keeps its exact per-run attribution, while a lane-named tag is attributed to
+the lane. Readers that need a link for a tag prefer the destination recorded in the footer itself, because that URL
+already distinguishes a family page from a solo agent page for commits from either era.
 
 Internal fields added by `CommitWorkflow`:
 
