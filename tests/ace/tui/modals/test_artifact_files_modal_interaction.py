@@ -11,6 +11,8 @@ from sase.ace.tui.modals.artifact_files_modal import (
     _artifact_file_option_text,
     _artifact_file_selector_keys,
 )
+from sase.ace.tui.keymaps import load_keymap_registry
+from sase.ace.tui.modals.copy_as_modal import CopyAsModal
 from tests.ace.tui.modals.artifact_files_modal_test_helpers import (
     _TestApp,
     _artifact,
@@ -288,6 +290,29 @@ async def test_artifact_file_modal_hint_includes_open_all_and_mark_count() -> No
         assert "y: copy" in modal._hint_text()
         assert "Y: path" in modal._hint_text()
         assert modal._hint_text().endswith("marked: 1")
+
+
+async def test_artifact_file_modal_uses_configured_copy_prefix() -> None:
+    async with _TestApp().run_test() as pilot:
+        pilot.app._keymap_registry = load_keymap_registry(
+            {
+                "keymaps": {
+                    "modes": {
+                        "copy_mode": {
+                            "prefix": ";",
+                        }
+                    }
+                }
+            }
+        )
+        modal = ArtifactFileSelectionModal([_artifact(1)])
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        assert ";: Copy as…" in modal._hint_text()
+        await pilot.press(";")
+
+        assert isinstance(pilot.app.screen, CopyAsModal)
 
 
 async def test_artifact_file_modal_title_shows_agent_count_when_multiple() -> None:

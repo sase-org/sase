@@ -9,7 +9,9 @@ import pytest
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.artifacts import _ArtifactsProjectChoices
+from sase.ace.tui.modals.artifact_files_modal import ArtifactFileSelectionModal
 from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
+from sase.core.artifact_file_types import ArtifactFile
 from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
 from sase.ace.tui.widgets.artifacts import CommitsPane
 from tests.ace.tui._commits_pane_helpers import _DIFF, _result
@@ -154,4 +156,53 @@ async def test_copy_as_over_preview_panel_png_snapshot(
             page,
             "copy_as_over_preview_panel_dark_120x40",
             title="ACE Copy as palette — stacked over preview panel",
+        )
+
+
+async def test_copy_as_over_artifact_files_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    _patch_commits(monkeypatch)
+    artifact_files = [
+        ArtifactFile(
+            id="explicit:111111111111111111111111",
+            label="Copy as palette design",
+            kind="markdown",
+            path="/home/visual/.sase/artifacts/copy_as_palette.md",
+            source_path="docs/copy_as_palette.md",
+            workspace_dir="/home/visual/workspace",
+            project="sase",
+            explicit=True,
+            sha256="a" * 64,
+            size_bytes=4096,
+            mime_type="text/markdown",
+        ),
+        ArtifactFile(
+            id="explicit:222222222222222222222222",
+            label="Palette preview",
+            kind="image",
+            path="/home/visual/.sase/artifacts/copy_as_palette.png",
+            project="sase",
+            explicit=True,
+            sha256="b" * 64,
+            size_bytes=24_576,
+            mime_type="image/png",
+        ),
+    ]
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(ArtifactFileSelectionModal(artifact_files))
+        await page.expect_modal("ArtifactFileSelectionModal")
+        await page.press("m", "m", "%")
+        await page.expect_modal("CopyAsModal")
+        await wait_for_svg_contains(page, "marked artifact files")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "copy_as_over_artifact_files_modal_dark_120x40",
+            title="ACE Copy as palette — artifact file representations",
         )

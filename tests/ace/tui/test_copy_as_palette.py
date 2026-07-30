@@ -322,6 +322,30 @@ async def test_modal_navigation_enter_unknown_and_cancel_behavior() -> None:
     assert app.results == [second]
 
 
+async def test_disabled_accelerator_explains_reason_and_keeps_palette_open() -> None:
+    row = CopyAsRow(
+        key="c",
+        key_display="c",
+        target="contents",
+        label="Copy contents",
+        category="Content",
+        preview="unavailable",
+        disabled_reason="Contents copy is unavailable",
+    )
+    app = _CopyAsModalApp(_modal_context(row))
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("c")
+
+        assert isinstance(app.screen_stack[-1], CopyAsModal)
+        assert app.messages == [("Contents copy is unavailable", "warning")]
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+    assert app.results == [None]
+
+
 async def test_modal_mouse_selection_dispatches_highlighted_row() -> None:
     first = _row("x", "name")
     app = _CopyAsModalApp(_modal_context(first))

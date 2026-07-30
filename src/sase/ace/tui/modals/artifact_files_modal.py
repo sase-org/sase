@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,14 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.tui.actions.clipboard._helpers import (
+    cap_copy_content,
+    format_markdown_link,
+    format_multi_copy_content_capped,
+)
+from sase.ace.tui.keymaps import footer_key_display
+from sase.artifact_cli.references import artifact_file_json_dict
+
 from sase.ace.tui.graphics import is_supported_video_path
 
 from ..actions.clipboard import schedule_copy_delivery
@@ -21,8 +31,12 @@ from ..models.artifact_file_clipboard import (
     ArtifactFilePathCopy,
     artifact_file_clipboard_path,
     artifact_file_clipboard_workspace_dir,
+    artifact_file_resolved_stored_path,
+    artifact_file_source_clipboard_path,
 )
 from .base import OptionListNavigationMixin
+from .copy_as_modal import CopyAsModal
+from .copy_as_types import CopyAsContext, CopyAsRow
 
 
 _SELECTOR_KEYS = "1234567890abcdefghijklmnopqrstuvwxyz"
@@ -90,6 +104,19 @@ def _is_markdown_path(path: Path) -> bool:
     return path.suffix.lower() in _MARKDOWN_SUFFIXES
 
 
+def _artifact_file_is_markdown(artifact_file: Any) -> bool:
+    path = _artifact_file_display_path(artifact_file)
+    return bool(path and _is_markdown_path(Path(path)))
+
+
+def _artifact_file_reference(artifact_file: Any, *, prompt_form: bool) -> str:
+    artifact_id = str(getattr(artifact_file, "id", "") or "")
+    if not artifact_id:
+        raise ValueError("artifact file has no durable reference")
+    prefix = "@" if prompt_form else ""
+    return f"{prefix}file:{artifact_id}"
+
+
 def _artifact_file_kind(artifact_file: Any) -> str:
     if is_supported_video_path(_artifact_file_display_path(artifact_file)):
         return "video"
@@ -132,6 +159,15 @@ def _home_relative_path(path: Path) -> str:
         return str(path)
     text = relative.as_posix()
     return "~" if not text else f"~/{text}"
+
+
+def _artifact_file_stored_clipboard_path(
+    artifact_file: Any,
+) -> ArtifactFilePathCopy | None:
+    path = artifact_file_resolved_stored_path(artifact_file)
+    if path is None:
+        return None
+    return ArtifactFilePathCopy(_home_relative_path(path), "stored")
 
 
 def _short_path(
@@ -265,6 +301,12 @@ class ArtifactFileSelectionModal(
         self.query_one(f"#{self._option_list_id}", OptionList).focus()
 
     def on_key(self, event: events.Key) -> None:
+        copy_prefix = self._copy_prefix()
+        if event.key == copy_prefix or event.character == copy_prefix:
+            self.action_open_copy_as()
+            event.prevent_default()
+            event.stop()
+            return
         if event.key in self._index_by_selector:
             self.dismiss(self._artifact_files[self._index_by_selector[event.key]])
             event.prevent_default()
@@ -311,68 +353,402 @@ class ArtifactFileSelectionModal(
         return [self._artifact_files[index]]
 
     def action_copy_contents(self) -> None:
-        """Copy the highlighted Markdown artifact-file contents."""
-        artifact_file = self._selected_artifact_file()
-        if artifact_file is None:
+        """Copy selected Markdown contents; marks use a bounded fenced set."""
+        artifact_files = self._selected_artifact_files()
+        if artifact_files is None:
             self.notify("No artifact file selected", severity="warning")
             return
 
-        display_path = _artifact_file_display_path(artifact_file)
-        if display_path is None:
-            self.notify("Selected artifact file has no path", severity="warning")
-            return
-        if not _is_markdown_path(Path(display_path)):
+        markdown_files = [
+            artifact_file
+            for artifact_file in artifact_files
+            if _artifact_file_is_markdown(artifact_file)
+        ]
+        if not markdown_files:
             self.notify("Selected artifact file is not Markdown", severity="warning")
             return
-
-        line_count = 0
-
-        # Keep the file read and clipboard subprocess off the message pump.
-        def value() -> str:
-            nonlocal line_count
-            path = _artifact_file_resolved_display_path(artifact_file)
-            if path is None:
-                raise RuntimeError("selected artifact file has no path")
-            content = path.read_text(encoding="utf-8", errors="replace")
-            line_count = len(content.splitlines()) if content else 0
-            return content
-
-        schedule_copy_delivery(
-            self,
-            value,
-            copied_label=lambda: (
-                f"{_artifact_file_label(artifact_file)} ({line_count} lines)"
+        self._schedule_file_copy(
+            artifact_files,
+            resolve_one=self._read_artifact_file_contents,
+            format_marked=lambda values: format_multi_copy_content_capped(values),
+            singular_label=lambda artifact_file, value: (
+                f"{_artifact_file_label(artifact_file)} "
+                f"({len(value.splitlines()) if value else 0} lines)"
             ),
+            singular_noun="artifact file's contents",
+            plural_noun="artifact file contents",
+            unavailable_noun="non-Markdown",
             task_name="sase-copy-artifact-file-contents",
         )
 
     def action_copy_path(self) -> None:
-        """Copy the highlighted artifact file's anchored stored or source path."""
-        artifact_file = self._selected_artifact_file()
-        if artifact_file is None:
+        """Copy the selected file's legacy stored-or-source anchored path."""
+        artifact_files = self._selected_artifact_files()
+        if artifact_files is None:
             self.notify("No artifact file selected", severity="warning")
             return
+        self._copy_paths(
+            artifact_files,
+            resolver=artifact_file_clipboard_path,
+            plural_noun="artifact file paths",
+            unavailable_noun="without a path",
+            task_name="sase-copy-artifact-file-path",
+        )
 
-        copy_path: ArtifactFilePathCopy | None = None
+    def action_open_copy_as(self) -> None:
+        """Open the modal-local file representation palette."""
+        artifact_files = self._selected_artifact_files()
+        if artifact_files is None:
+            self.notify("No artifact file selected", severity="warning")
+            return
+        context = self._copy_as_context(artifact_files)
 
-        def value() -> str:
-            nonlocal copy_path
-            copy_path = artifact_file_clipboard_path(artifact_file)
+        def on_dismiss(row: CopyAsRow | None) -> None:
+            if row is None:
+                return
+            if row.captures_snapshot:
+
+                def callback() -> None:
+                    self._dispatch_copy_as_target(row.target)
+
+                call_after_refresh = getattr(self.app, "call_after_refresh", None)
+                if callable(call_after_refresh):
+                    call_after_refresh(callback)
+                else:
+                    callback()
+                return
+            self._dispatch_copy_as_target(row.target)
+
+        self.app.push_screen(CopyAsModal(context), callback=on_dismiss)
+
+    def _copy_as_context(self, artifact_files: list[Any]) -> CopyAsContext:
+        marked = bool(self._marked_indexes)
+        count = len(artifact_files)
+        first = artifact_files[0]
+        reference_count = sum(
+            bool(getattr(artifact_file, "id", None)) for artifact_file in artifact_files
+        )
+        markdown_count = sum(
+            _artifact_file_is_markdown(artifact_file)
+            for artifact_file in artifact_files
+        )
+        stored_count = sum(
+            bool(_artifact_file_path(artifact_file)) for artifact_file in artifact_files
+        )
+        source_count = sum(
+            bool(getattr(artifact_file, "source_path", None))
+            for artifact_file in artifact_files
+        )
+        subtitle = (
+            f"{count} marked artifact files" if marked else _artifact_file_label(first)
+        )
+
+        def marked_preview(available: int, noun: str) -> str:
+            if not marked:
+                return noun
+            missing = count - available
+            suffix = f" · {missing} unavailable" if missing else ""
+            return f"{available} {noun}{suffix}"
+
+        rows = (
+            CopyAsRow(
+                key="at",
+                key_display=footer_key_display("at"),
+                target="reference",
+                label=(
+                    "artifact file references"
+                    if marked
+                    else "Copy artifact file reference"
+                ),
+                category="Identity",
+                preview=marked_preview(reference_count, "references"),
+                disabled_reason=(
+                    None
+                    if reference_count
+                    else "Artifact file has no durable reference"
+                ),
+            ),
+            CopyAsRow(
+                key="l",
+                key_display=footer_key_display("l"),
+                target="link",
+                label="Markdown links" if marked else "Copy Markdown link",
+                category="Location",
+                preview=marked_preview(reference_count, "links"),
+                disabled_reason=(
+                    None
+                    if reference_count
+                    else "Artifact file has no durable reference"
+                ),
+            ),
+            CopyAsRow(
+                key="p",
+                key_display=footer_key_display("p"),
+                target="stored_path",
+                label="stored paths" if marked else "Copy stored path",
+                category="Location",
+                preview=marked_preview(stored_count, "stored paths"),
+                disabled_reason=(
+                    None if stored_count else "Artifact file has no stored path"
+                ),
+            ),
+            CopyAsRow(
+                key="P",
+                key_display=footer_key_display("P"),
+                target="source_path",
+                label="source paths" if marked else "Copy source path",
+                category="Location",
+                preview=(
+                    marked_preview(source_count, "source paths")
+                    if source_count
+                    else "not recorded"
+                ),
+                disabled_reason=(
+                    None
+                    if source_count
+                    else "Artifact file source path was not recorded"
+                ),
+            ),
+            CopyAsRow(
+                key="c",
+                key_display=footer_key_display("c"),
+                target="contents",
+                label=(
+                    "Markdown file contents" if marked else "Copy Markdown contents"
+                ),
+                category="Content",
+                preview=(
+                    marked_preview(markdown_count, "Markdown files")
+                    if marked
+                    else (
+                        "Markdown contents"
+                        if markdown_count
+                        else "unavailable for non-Markdown files"
+                    )
+                ),
+                disabled_reason=(
+                    None
+                    if markdown_count
+                    else "Contents copy is available only for Markdown files"
+                ),
+            ),
+            CopyAsRow(
+                key="J",
+                key_display=footer_key_display("J"),
+                target="json",
+                label="metadata JSON records" if marked else "Copy metadata JSON",
+                category="Data",
+                preview=f"{count} records" if marked else "artifact file metadata",
+            ),
+            CopyAsRow(
+                key="s",
+                key_display=footer_key_display("s"),
+                target="snapshot",
+                label="Copy snapshot",
+                category="Actions",
+                preview="artifact files modal",
+            ),
+        )
+        return CopyAsContext(
+            group="artifact_files_modal",
+            subtitle=subtitle,
+            unknown_context="artifact files",
+            rows=rows,
+        )
+
+    def _dispatch_copy_as_target(self, target: str) -> None:
+        artifact_files = self._selected_artifact_files()
+        if artifact_files is None:
+            self.notify("No artifact file selected", severity="warning")
+            return
+        if target == "reference":
+            self._schedule_file_copy(
+                artifact_files,
+                resolve_one=lambda artifact_file: _artifact_file_reference(
+                    artifact_file, prompt_form=True
+                ),
+                format_marked=lambda values: "\n".join(value for _, value in values),
+                singular_label=lambda _artifact_file, _value: "artifact file reference",
+                singular_noun="artifact file reference",
+                plural_noun="artifact file references",
+                unavailable_noun="without a reference",
+                task_name="sase-copy-artifact-file-reference",
+            )
+        elif target == "link":
+            self._schedule_file_copy(
+                artifact_files,
+                resolve_one=lambda artifact_file: format_markdown_link(
+                    _artifact_file_label(artifact_file),
+                    _artifact_file_reference(artifact_file, prompt_form=False),
+                ),
+                format_marked=lambda values: "\n".join(
+                    f"- {value}" for _, value in values
+                ),
+                singular_label=lambda _artifact_file, _value: (
+                    "artifact file Markdown link"
+                ),
+                singular_noun="artifact file Markdown link",
+                plural_noun="artifact file Markdown links",
+                unavailable_noun="without a reference",
+                task_name="sase-copy-artifact-file-link",
+            )
+        elif target == "contents":
+            self.action_copy_contents()
+        elif target == "stored_path":
+            self._copy_paths(
+                artifact_files,
+                resolver=_artifact_file_stored_clipboard_path,
+                plural_noun="stored paths",
+                unavailable_noun="without a stored path",
+                task_name="sase-copy-artifact-file-stored-path",
+            )
+        elif target == "source_path":
+            self._copy_paths(
+                artifact_files,
+                resolver=artifact_file_source_clipboard_path,
+                plural_noun="source paths",
+                unavailable_noun="without a recorded source path",
+                task_name="sase-copy-artifact-file-source-path",
+            )
+        elif target == "json":
+            self._schedule_file_copy(
+                artifact_files,
+                resolve_one=artifact_file_json_dict,
+                format_single=lambda value: json.dumps(value, indent=2),
+                format_marked=lambda values: json.dumps(
+                    [value for _, value in values],
+                    indent=2,
+                ),
+                singular_label=lambda _artifact_file, _value: (
+                    "artifact file metadata JSON"
+                ),
+                singular_noun="artifact file metadata JSON record",
+                plural_noun="artifact file metadata JSON records",
+                unavailable_noun="with unavailable metadata",
+                task_name="sase-copy-artifact-file-json",
+            )
+        elif target == "snapshot":
+            copy_snapshot = getattr(self.app, "_copy_snapshot", None)
+            if callable(copy_snapshot):
+                copy_snapshot()
+            else:
+                self.notify("Snapshot copy is unavailable", severity="warning")
+
+    def _copy_paths(
+        self,
+        artifact_files: list[Any],
+        *,
+        resolver: Callable[[Any], ArtifactFilePathCopy | None],
+        plural_noun: str,
+        unavailable_noun: str,
+        task_name: str,
+    ) -> None:
+        path_state: dict[int, ArtifactFilePathCopy] = {}
+
+        def resolve_one(artifact_file: Any) -> str:
+            copy_path = resolver(artifact_file)
             if copy_path is None:
-                raise RuntimeError("selected artifact file has no path")
+                raise ValueError("artifact file has no path")
+            path_state[id(artifact_file)] = copy_path
             return copy_path.text
 
-        def copied_label() -> str:
-            assert copy_path is not None
+        def singular_label(artifact_file: Any, _value: Any) -> str:
+            copy_path = path_state[id(artifact_file)]
             suffix = " (no longer exists)" if copy_path.missing else ""
             return f"{copy_path.label}{suffix}: {copy_path.text}"
+
+        self._schedule_file_copy(
+            artifact_files,
+            resolve_one=resolve_one,
+            format_marked=lambda values: "\n".join(value for _, value in values),
+            singular_label=singular_label,
+            singular_noun=plural_noun.removesuffix("s"),
+            plural_noun=plural_noun,
+            unavailable_noun=unavailable_noun,
+            task_name=task_name,
+        )
+
+    @staticmethod
+    def _read_artifact_file_contents(artifact_file: Any) -> str:
+        if not _artifact_file_is_markdown(artifact_file):
+            raise ValueError("artifact file is not Markdown")
+        path = _artifact_file_resolved_display_path(artifact_file)
+        if path is None:
+            raise ValueError("artifact file has no path")
+        return path.read_text(encoding="utf-8", errors="replace")
+
+    def _schedule_file_copy(
+        self,
+        artifact_files: list[Any],
+        *,
+        resolve_one: Callable[[Any], Any],
+        singular_label: Callable[[Any, Any], str],
+        singular_noun: str,
+        plural_noun: str,
+        unavailable_noun: str,
+        task_name: str,
+        format_marked: Callable[[list[tuple[str, Any]]], Any],
+        format_single: Callable[[Any], str] = str,
+    ) -> None:
+        marked = bool(self._marked_indexes)
+        state = {"successes": 0, "failures": 0, "truncated": False}
+        resolved_values: list[tuple[str, Any]] = []
+
+        def value() -> str:
+            failures = 0
+            for artifact_file in artifact_files:
+                try:
+                    resolved = resolve_one(artifact_file)
+                except Exception:
+                    failures += 1
+                    continue
+                resolved_values.append((_artifact_file_label(artifact_file), resolved))
+            if not resolved_values:
+                raise ValueError(f"no selected artifact files are {unavailable_noun}")
+
+            state["successes"] = len(resolved_values)
+            state["failures"] = failures
+            if marked:
+                formatted = format_marked(resolved_values)
+                if hasattr(formatted, "value") and hasattr(formatted, "truncated"):
+                    state["truncated"] = bool(formatted.truncated)
+                    return str(formatted.value)
+                return str(formatted)
+
+            formatted = format_single(resolved_values[0][1])
+            if isinstance(formatted, str):
+                capped = cap_copy_content(formatted)
+                state["truncated"] = capped.truncated
+                return capped.value
+            return str(formatted)
+
+        def copied_label() -> str:
+            if not marked:
+                label = singular_label(artifact_files[0], resolved_values[0][1])
+            else:
+                noun = singular_noun if state["successes"] == 1 else plural_noun
+                label = f"{state['successes']} {noun}"
+                if state["failures"]:
+                    label += f" — {state['failures']} {unavailable_noun}"
+            if state["truncated"]:
+                label += " — truncated"
+            return label
 
         schedule_copy_delivery(
             self,
             value,
             copied_label=copied_label,
-            task_name="sase-copy-artifact-file-path",
+            task_name=task_name,
         )
+
+    def _copy_prefix(self) -> str:
+        try:
+            registry = getattr(self.app, "_keymap_registry", None)
+        except Exception:
+            registry = None
+        copy_mode = getattr(registry, "copy_mode", None)
+        prefix = getattr(copy_mode, "prefix", "%")
+        return prefix if isinstance(prefix, str) and prefix else "%"
 
     def action_open_all(self) -> None:
         self.dismiss(list(self._artifact_files))
@@ -414,7 +790,8 @@ class ArtifactFileSelectionModal(
 
     def _hint_text(self) -> str:
         base = (
-            "key/enter: open  z: zoom open  y: copy  Y: path  m: mark  "
+            f"key/enter: open  {footer_key_display(self._copy_prefix())}: Copy as…  "
+            "z: zoom open  y: copy  Y: path  m: mark  "
             "A: open all  j/k: navigate  q/esc: close"
         )
         mark_count = len(self._marked_indexes)

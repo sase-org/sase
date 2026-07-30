@@ -17,6 +17,7 @@ class CopyAsRow:
     label: str
     category: CopyTargetCategory
     preview: str = ""
+    disabled_reason: str | None = None
 
     @property
     def captures_snapshot(self) -> bool:

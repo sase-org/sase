@@ -332,6 +332,18 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            "Artifact Files Modal",
+            [
+                (d(cm.prefix), "Open file Copy as… palette"),
+                ("@ / l", "Copy @file ref / Markdown link"),
+                ("c / y", "Copy Markdown contents"),
+                ("p / P", "Copy stored / source path"),
+                ("J", "Copy artifact-file metadata JSON"),
+                ("Y", "Copy preferred stored/source path"),
+                ("s", "Copy sase ace snapshot"),
+            ],
+        ),
+        (
             "Zoom Modal",
             [
                 ("] / [", "Next / previous panel tab"),

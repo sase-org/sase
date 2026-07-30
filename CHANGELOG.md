@@ -6,6 +6,7 @@
 ### Features
 
 * **ace:** add a context-aware Copy as palette
+* **ace:** add file-kind representations to the artifact-files Copy as palette
 * **ace:** add paste-ready link and metadata JSON copy representations
 * **ace:** add copy mode to artifact sub-tabs ([7d41d17](https://github.com/sase-org/sase/commit/7d41d17a02a44aea76dbe7f19d800bb24d0889c9))
 * **ace:** browse all document sidecars ([880c9c8](https://github.com/sase-org/sase/commit/880c9c891757ac2c1e3a29e6fc98f3ef2b056c31))

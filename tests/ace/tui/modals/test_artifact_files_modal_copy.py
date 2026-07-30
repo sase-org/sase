@@ -6,8 +6,11 @@ import json
 from pathlib import Path
 
 import pytest
+from textual.widgets import OptionList
 
 from sase.ace.tui.modals.artifact_files_modal import ArtifactFileSelectionModal
+from sase.ace.tui.modals.copy_as_modal import CopyAsModal
+from sase.artifact_cli.references import artifact_file_json_dict
 from tests.ace.tui.modals.artifact_files_modal_test_helpers import (
     _TestApp,
     _artifact,
@@ -456,4 +459,160 @@ async def test_artifact_file_modal_y_warns_for_non_markdown_artifact_file_withou
     assert copied == []
     assert notifications == [
         ("Selected artifact file is not Markdown", "warning"),
+    ]
+
+
+async def test_artifact_file_modal_copy_palette_copies_every_single_representation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    stored = home / "artifacts" / "report.md"
+    source = home / "workspace" / "docs" / "report.md"
+    stored.parent.mkdir(parents=True)
+    source.parent.mkdir(parents=True)
+    stored.write_text("# Stored\n", encoding="utf-8")
+    source.write_text("# Source\nbody\n", encoding="utf-8")
+    artifact = _artifact(
+        7,
+        label="Report [final].md",
+        path=str(stored),
+        source_path=str(source),
+        workspace_dir=str(home / "workspace"),
+        sha256="a" * 64,
+        size_bytes=14,
+        mime_type="text/markdown",
+    )
+    copied: list[str] = []
+
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
+        lambda content: copied.append(content) or True,
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ArtifactFileSelectionModal([artifact])
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        for key in ("@", "l", "c", "p", "P", "J"):
+            await pilot.press("%")
+            assert isinstance(pilot.app.screen, CopyAsModal)
+            await pilot.press(key)
+            await pilot.pause()
+            assert pilot.app.screen is modal
+
+    assert copied == [
+        f"@file:{artifact.id}",
+        f"[Report \\[final\\].md](file:{artifact.id})",
+        "# Stored\n",
+        "~/artifacts/report.md",
+        "~/workspace/docs/report.md",
+        json.dumps(artifact_file_json_dict(artifact), indent=2),
+    ]
+
+
+async def test_artifact_file_modal_copy_palette_formats_marked_sets_and_skips(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_path = tmp_path / "first.md"
+    second_path = tmp_path / "second.txt"
+    first_path.write_text("# First\n", encoding="utf-8")
+    second_path.write_text("second\n", encoding="utf-8")
+    first = _artifact(
+        1,
+        label="First",
+        path=str(first_path),
+        source_path=str(first_path),
+    )
+    second = _artifact(
+        2,
+        label="Second",
+        path=str(second_path),
+        kind="file",
+    )
+    copied: list[str] = []
+    notifications: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
+        lambda content: copied.append(content) or True,
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ArtifactFileSelectionModal([first, second])
+        modal.notify = (  # type: ignore[method-assign]
+            lambda message, *, severity="information": notifications.append(
+                (message, severity)
+            )
+        )
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-artifact-files-list", OptionList)
+        option_list.highlighted = 0
+        await pilot.press("m")
+        option_list.highlighted = 1
+        await pilot.press("m")
+
+        for key in ("@", "l", "c", "P", "J"):
+            await pilot.press("%", key)
+            await pilot.pause()
+
+    assert copied[0] == f"@file:{first.id}\n@file:{second.id}"
+    assert copied[1] == (f"- [First](file:{first.id})\n- [Second](file:{second.id})")
+    assert copied[2] == "### First\n```\n# First\n\n```"
+    assert copied[3] == str(first_path)
+    assert json.loads(copied[4]) == [
+        artifact_file_json_dict(first),
+        artifact_file_json_dict(second),
+    ]
+    assert (
+        "Copied 1 artifact file's contents — 1 non-Markdown",
+        "information",
+    ) in notifications
+    assert (
+        "Copied 1 source path — 1 without a recorded source path",
+        "information",
+    ) in notifications
+
+
+async def test_artifact_file_modal_copy_palette_disables_unavailable_contents_and_source(
+    tmp_path: Path,
+) -> None:
+    artifact = _artifact(
+        1,
+        label="image.png",
+        path=str(tmp_path / "image.png"),
+        kind="image",
+    )
+    notifications: list[tuple[str, str]] = []
+
+    async with _TestApp().run_test() as pilot:
+        pilot.app.notify = (  # type: ignore[method-assign]
+            lambda message, *, severity="information", **_kwargs: notifications.append(
+                (message, severity)
+            )
+        )
+        modal = ArtifactFileSelectionModal([artifact])
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("%")
+        palette = pilot.app.screen
+        assert isinstance(palette, CopyAsModal)
+        rows = {row.target: row for row in palette.context.rows}
+        assert rows["contents"].disabled_reason is not None
+        assert rows["source_path"].preview == "not recorded"
+
+        await pilot.press("c", "P")
+        assert pilot.app.screen is palette
+        await pilot.press("escape")
+        await pilot.pause()
+
+    assert notifications == [
+        ("Contents copy is available only for Markdown files", "warning"),
+        ("Artifact file source path was not recorded", "warning"),
     ]

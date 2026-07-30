@@ -59,7 +59,13 @@ class CopyAsModal(ModalScreen[CopyAsRow | None]):
                 option_id = f"copy-as-row-{len(self._rows_by_option_id)}"
                 self._rows_by_option_id[option_id] = row
                 self._rows_by_key.setdefault(row.key, row)
-                options.append(Option(_render_row(row), id=option_id))
+                options.append(
+                    Option(
+                        _render_row(row),
+                        id=option_id,
+                        disabled=row.disabled_reason is not None,
+                    )
+                )
 
         with Container(id="copy-as-container"):
             yield Static("Copy as…", id="copy-as-title")
@@ -95,6 +101,9 @@ class CopyAsModal(ModalScreen[CopyAsRow | None]):
         row = self._rows_by_key.get(key)
         if row is not None:
             self._consume(event)
+            if row.disabled_reason is not None:
+                self.app.notify(row.disabled_reason, severity="warning")
+                return True
             self.dismiss(row)
             return True
 
@@ -154,11 +163,14 @@ class CopyAsModal(ModalScreen[CopyAsRow | None]):
 
 def _render_row(row: CopyAsRow) -> Text:
     text = Text(no_wrap=True, overflow="ellipsis")
-    text.append(f"{row.key_display:<9}", style="bold #00D7AF")
-    text.append(row.label, style="bold")
+    key_style = "dim" if row.disabled_reason is not None else "bold #00D7AF"
+    label_style = "dim" if row.disabled_reason is not None else "bold"
+    text.append(f"{row.key_display:<9}", style=key_style)
+    text.append(row.label, style=label_style)
     if row.preview:
         text.append("  ")
-        text.append(row.preview, style="dim")
+        preview_style = "yellow" if row.disabled_reason is not None else "dim"
+        text.append(row.preview, style=preview_style)
     return text
 
 

@@ -866,11 +866,19 @@ Artifact panel controls:
 | selector    | Open the artifact with that one-key selector (`1`-`0`, then letters)    |
 | `j` / `k`   | Move through artifact rows                                              |
 | `m`         | Mark / unmark the highlighted artifact and advance to the next row      |
-| `y`         | Copy highlighted Markdown artifact contents                             |
-| `Y`         | Copy the highlighted artifact path, workspace-relative when possible    |
+| `%`         | Open the file-kind **Copy as…** palette                                 |
+| `y`         | Copy Markdown contents (an accelerator for the palette's `c` row)       |
+| `Y`         | Copy the preferred anchored stored/source path                          |
 | `Enter`     | Open marked artifacts in list order, or the highlighted row if unmarked |
 | `A`         | Open all artifacts in list order, ignoring marks                        |
 | `q` / `Esc` | Close the panel                                                         |
+
+The file palette offers `@` prompt-form references, `l` Markdown links, `c` Markdown contents, `p` stored paths, `P`
+source paths, `J` metadata JSON, and `s` snapshots. Stored and source paths are separate, anchored answers; an absent
+source is labeled “not recorded,” and copying a stale source keeps the “no longer exists” warning. With marks, the
+palette copies rows in visible order: references and paths are newline-separated, links form a Markdown list, metadata
+is a JSON array, and Markdown contents use bounded fenced sections. Unavailable rows are skipped with an explicit count.
+The legacy `y` and `Y` accelerators remain available and apply to the same marked set.
 
 When ACE is running inside tmux, artifact viewing opens in a right-side tmux pane so the TUI remains visible. The Agents
 list collapses while the tracked pane is live, row-changing navigation shows a warning instead of moving to a different
