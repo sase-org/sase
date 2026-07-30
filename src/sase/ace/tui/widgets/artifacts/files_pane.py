@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterable
 from typing import Any, cast
 
 from rich.console import RenderableType
@@ -42,7 +43,7 @@ from .files_detail import (
 )
 from .files_filter_session import FilesFilterSessionMixin
 from .files_filtering import filter_files_snapshot
-from .files_list import build_file_options
+from .files_list import build_file_options, file_row_target
 from .files_navigation import FilesNavigationMixin, FilesOptionList
 from .files_rendering import (
     build_files_hints,
@@ -190,6 +191,25 @@ class ArtifactsFilesPane(
     def selected_entry(self) -> ArtifactFile | None:
         row = self.selected_row()
         return None if row is None else row.entry
+
+    @property
+    def selected_view_mode(self) -> ArtifactViewMode | None:
+        """Return the selected row's cached terminal-viewer classification."""
+
+        entry = self.selected_entry
+        snapshot = self._current_snapshot()
+        if entry is None or snapshot is None:
+            return None
+        return snapshot.view_mode_for(entry)
+
+    def entries_for_targets(
+        self,
+        targets: Iterable[ArtifactEntryTarget],
+    ) -> tuple[ArtifactFile, ...]:
+        """Resolve visible stable targets to rows while preserving caller order."""
+
+        entries = {file_row_target(row): row.entry for row in self._rows.values()}
+        return tuple(entries[target] for target in targets if target in entries)
 
     def _request_load(self, *, force: bool, full: bool) -> None:
         """Coalesce one off-thread load with last-request-wins semantics."""
@@ -403,12 +423,7 @@ class ArtifactsFilesPane(
             self.query_one(selector, Static).update(content)
 
     def _scope_text(self) -> RenderableType:
-        snapshot = (
-            self._snapshot
-            if self._snapshot is not None
-            and self._snapshot.project == self.project_scope
-            else None
-        )
+        snapshot = self._current_snapshot()
         return build_files_info(
             self._registry,
             snapshot,
@@ -419,18 +434,19 @@ class ArtifactsFilesPane(
         )
 
     def _status_text(self) -> RenderableType:
-        snapshot = (
-            self._snapshot
-            if self._snapshot is not None
-            and self._snapshot.project == self.project_scope
-            else None
-        )
+        snapshot = self._current_snapshot()
         return build_files_status(
             snapshot,
             loading=self._loading,
             load_error=self._load_error,
             extending=self._loading_full,
         )
+
+    def _current_snapshot(self) -> FilesSnapshot | None:
+        snapshot = self._snapshot
+        if snapshot is None or snapshot.project != self.project_scope:
+            return None
+        return snapshot
 
     def _hints_text(self) -> RenderableType:
         entry = self.selected_entry
