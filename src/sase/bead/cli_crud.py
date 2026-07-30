@@ -269,7 +269,10 @@ def _print_close_result_row(
 
 
 def handle_bead_close(args: argparse.Namespace) -> None:
-    with bead_store_mutation(auto_commit_bead_store) as mutation:
+    with bead_store_mutation(
+        auto_commit_bead_store,
+        no_push=getattr(args, "no_push", False),
+    ) as mutation:
         try:
             resolved_ids = _resolve_close_ids(args, mutation.project)
             note = getattr(args, "note", None)

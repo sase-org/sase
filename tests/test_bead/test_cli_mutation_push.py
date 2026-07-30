@@ -1,0 +1,203 @@
+"""Deferred push coverage for mutating ``sase bead`` commands."""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+
+from sase.bead import cli as bead_cli
+from sase.bead.cli_common import _push_committed_bead_store, bead_store_mutation
+from sase.bead.cli_location import BeadsLocation
+from sase.bead.model import IssueType
+from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BEADS_DIRNAME_ROOT
+from sase.bead.project import BeadProject
+from sase.main.parser import create_parser
+from sase.sdd.store import SddStore
+
+
+def test_deferred_push_routes_split_beads_to_beads_sidecar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plans = tmp_path / "project--plans"
+    beads = tmp_path / "project--beads"
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        remote_url="git@example.com:acme/project--plans.git",
+        beads_dir=beads,
+        beads_remote_url="git@example.com:acme/project--beads.git",
+    )
+    location = BeadsLocation(
+        root=beads,
+        beads_dirname=BEADS_DIRNAME_ROOT,
+        storage=store.storage,
+        store=store,
+    )
+    push = MagicMock()
+    monkeypatch.setattr(
+        "sase.bead.cli_common.resolve_beads_location",
+        lambda **_kwargs: location,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._commit_store.push_sdd_store_after_commit",
+        push,
+    )
+
+    _push_committed_bead_store()
+
+    push.assert_called_once()
+    pushed_store = push.call_args.args[0]
+    assert pushed_store.repo_root == beads
+    assert pushed_store.sidecar_role == "beads"
+    assert push.call_args.kwargs == {"push_after_commit": None}
+
+
+def test_deferred_push_keeps_separate_repo_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "project--sdd"
+    store = SddStore(
+        storage="separate_repo",
+        sdd_dir=repo,
+        repo_root=repo,
+    )
+    location = BeadsLocation(
+        root=repo,
+        beads_dirname=BEADS_DIRNAME_NON_VC,
+        storage=store.storage,
+        store=store,
+    )
+    push = MagicMock()
+    monkeypatch.setattr(
+        "sase.bead.cli_common.resolve_beads_location",
+        lambda **_kwargs: location,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._commit_store.push_sdd_store_after_commit",
+        push,
+    )
+
+    _push_committed_bead_store()
+
+    push.assert_called_once_with(store, push_after_commit=None)
+
+
+def test_deferred_push_still_skips_in_tree_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = SddStore(
+        storage="in_tree",
+        sdd_dir=tmp_path / "sdd",
+        repo_root=tmp_path,
+    )
+    location = BeadsLocation(
+        root=tmp_path,
+        beads_dirname=BEADS_DIRNAME,
+        storage=store.storage,
+        store=store,
+    )
+    push = MagicMock()
+    monkeypatch.setattr(
+        "sase.bead.cli_common.resolve_beads_location",
+        lambda **_kwargs: location,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._commit_store.push_sdd_store_after_commit",
+        push,
+    )
+
+    _push_committed_bead_store()
+
+    push.assert_not_called()
+
+
+def test_bead_store_mutation_no_push_still_commits(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    auto_commit = MagicMock(return_value=True)
+    push = MagicMock()
+    monkeypatch.setattr(
+        "sase.bead.cli_common._push_committed_bead_store",
+        push,
+    )
+
+    with bead_store_mutation(auto_commit, no_push=True) as mutation:
+        issue = mutation.project.create("Local close", IssueType.PLAN)
+        mutation.commit(f"chore(beads): create {issue.id}")
+
+    auto_commit.assert_called_once_with(
+        f"chore(beads): create {issue.id}",
+        push_after_commit=False,
+        already_locked=False,
+    )
+    push.assert_not_called()
+
+
+def test_handle_bead_close_no_push_commits_without_push(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with BeadProject(project_dir) as project:
+        issue = project.create("Local close", IssueType.PLAN)
+    auto_commit = MagicMock(return_value=True)
+    push = MagicMock()
+    monkeypatch.setattr("sase.bead.cli_crud.auto_commit_bead_store", auto_commit)
+    monkeypatch.setattr(
+        "sase.bead.cli_common._push_committed_bead_store",
+        push,
+    )
+
+    bead_cli.handle_bead_close(
+        argparse.Namespace(ids=[issue.id], reason="done", no_push=True)
+    )
+
+    auto_commit.assert_called_once_with(
+        f"chore(beads): close {issue.id}",
+        push_after_commit=False,
+        already_locked=False,
+    )
+    push.assert_not_called()
+
+
+def test_handle_bead_close_legacy_namespace_still_pushes(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with BeadProject(project_dir) as project:
+        issue = project.create("Published close", IssueType.PLAN)
+    auto_commit = MagicMock(return_value=True)
+    push = MagicMock()
+    monkeypatch.setattr("sase.bead.cli_crud.auto_commit_bead_store", auto_commit)
+    monkeypatch.setattr(
+        "sase.bead.cli_common._push_committed_bead_store",
+        push,
+    )
+
+    bead_cli.handle_bead_close(argparse.Namespace(ids=[issue.id], reason="done"))
+
+    auto_commit.assert_called_once_with(
+        f"chore(beads): close {issue.id}",
+        push_after_commit=False,
+        already_locked=False,
+    )
+    push.assert_called_once_with()
+
+
+def test_close_parser_accepts_no_push_short_and_long_options() -> None:
+    parser = create_parser()
+
+    short_args = parser.parse_args(["bead", "close", "sase-1", "-P"])
+    long_args = parser.parse_args(["bead", "close", "sase-1", "--no-push"])
+    default_args = parser.parse_args(["bead", "close", "sase-1"])
+
+    assert short_args.no_push is True
+    assert long_args.no_push is True
+    assert default_args.no_push is False

@@ -327,9 +327,14 @@ This upward cascade continues only through phase parents and never auto-closes a
 retains that responsibility. Removing a child epic does not trigger the cascade, so its phase stays open and can be
 scheduled again on retry.
 
+When a close changes the store, SASE commits it and then publishes it according to `sdd.push_after_commit` (default:
+`async`). Use `--no-push` to keep the commit local while batching bead mutations, then publish the batch with a later
+`sase bead sync`.
+
 | Flag               | Description                                                                                                  |
 | ------------------ | ------------------------------------------------------------------------------------------------------------ |
 | `-f, --force`      | Sweep unfinished descendants; requires a reason and `canceled` or `superseded`                               |
+| `-P, --no-push`    | Commit the close locally but skip the post-commit push                                                       |
 | `-n, --note`       | Append this attributed note to each listed issue before closing it                                           |
 | `-p, --phases`     | Close numbered phases of one epic; accepts comma-separated numbers and ranges                                |
 | `-r, --reason`     | Optional close reason text; required with `--force`                                                          |

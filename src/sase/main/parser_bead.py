@@ -55,6 +55,12 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     bead_close_parser.add_argument(
+        "-P",
+        "--no-push",
+        action="store_true",
+        help="Commit the close locally but skip the post-commit push",
+    )
+    bead_close_parser.add_argument(
         "-n",
         "--note",
         help="Append this attributed note to each issue before closing it",

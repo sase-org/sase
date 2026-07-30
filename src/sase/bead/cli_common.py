@@ -168,6 +168,8 @@ def auto_commit_bead_store(
 @contextmanager
 def bead_store_mutation(
     auto_commit: Callable[..., bool] = auto_commit_bead_store,
+    *,
+    no_push: bool = False,
 ) -> Iterator[_BeadStoreMutation]:
     """Keep one CLI bead mutation and its commit under one store lock."""
     from sase.bead.sync import bead_store_write_lock
@@ -186,14 +188,17 @@ def bead_store_mutation(
                     push_after_commit=False,
                     already_locked=already_locked,
                 )
-    if committed:
+    if committed and not no_push:
         _push_committed_bead_store()
 
 
 def _push_committed_bead_store() -> None:
     """Apply the configured push policy after the mutation lock is released."""
     try:
-        from sase.sdd._commit_store import push_sdd_store_after_commit
+        from sase.sdd._commit_store import (
+            push_sdd_store_after_commit,
+            sdd_commit_targets,
+        )
         from sase.sdd.store import SddStore
 
         location = resolve_beads_location(require_existing=True)
@@ -204,7 +209,11 @@ def _push_committed_bead_store() -> None:
             sdd_dir=location.root,
             repo_root=location.root,
         )
-        push_sdd_store_after_commit(store, push_after_commit=None)
+        for target_store, _paths in sdd_commit_targets(
+            store,
+            [location.beads_dir],
+        ):
+            push_sdd_store_after_commit(target_store, push_after_commit=None)
     except Exception:
         _logger.warning(
             "Failed to synchronize committed SDD bead store changes",
