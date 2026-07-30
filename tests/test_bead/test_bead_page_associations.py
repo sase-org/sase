@@ -10,6 +10,12 @@ import pytest
 from sase.bead.model import Issue, IssueType
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.bead_pages.associations import build_bead_association_index
+from sase._repo_inventory_models import (
+    RepoCloneRecord,
+    RepoInventory,
+    RepoKind,
+    RepoRecord,
+)
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
@@ -45,6 +51,41 @@ class _FakeLinks:
 
     def commit_url(self, sha: str) -> str | None:
         return f"https://commits.example/{sha}"
+
+    def commit_url_for_repository(
+        self,
+        repository_root: Path | str,
+        sha: str,
+    ) -> str | None:
+        return f"https://commits.example/{Path(repository_root).name}/{sha}"
+
+
+class _RepoGit:
+    def __init__(
+        self,
+        outputs: dict[Path, str],
+        *,
+        failures: frozenset[Path] = frozenset(),
+    ) -> None:
+        self.outputs = outputs
+        self.failures = failures
+        self.calls: list[Path] = []
+
+    def __call__(
+        self,
+        cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        root = Path(cwd)
+        self.calls.append(root)
+        assert args == ["log", "--format=%H%x00%ct%x00%s%x00%B%x00"]
+        if root in self.failures:
+            return subprocess.CompletedProcess(args, 1, "", "unreadable")
+        return subprocess.CompletedProcess(args, 0, self.outputs.get(root, ""), "")
 
 
 def _store(plans: Path, beads: Path) -> SddStore:
@@ -177,7 +218,7 @@ def test_builds_associations_with_one_store_read_and_history_walk(
     assert tagged_agent.commit_count == 1
     assert tagged_agent.target == f"https://agents.example/{tagged_agent.label}"
     assert root_associations.commits[0].target == (
-        f"https://commits.example/{legacy_sha}"
+        f"https://commits.example/{tmp_path.name}/{legacy_sha}"
     )
 
     phase_associations = index.for_bead(phase.id)
@@ -265,5 +306,121 @@ def test_source_failures_are_diagnostics_instead_of_exceptions(
         "could not read bead store: "
         f"No missing/ directory found at {tmp_path}. "
         "Run 'sase bead init' first.",
-        "could not read git history: bad",
+        f"could not read git history for {tmp_path.name} ({tmp_path}): bad",
+    )
+
+
+def test_builds_associations_across_project_owned_repositories(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "sase"
+    plans = primary / "sase" / "repos" / "plans"
+    linked = primary / "sase" / "repos" / "linked" / "sase-core"
+    external = primary / "sase" / "repos" / "external" / "research"
+    missing = primary / "sase" / "repos" / "linked" / "missing"
+    for root in (primary, plans, linked, external):
+        root.mkdir(parents=True, exist_ok=True)
+
+    issue = Issue("sase-multi.1", "Multi", issue_type=IssueType.PHASE)
+    shared_sha = "a" * 40
+    linked_sha = "b" * 40
+    body = f"subject\n\nSASE_BEAD={issue.id}\nSASE_AGENT={issue.id}--code"
+    git = _RepoGit(
+        {
+            primary: _history_entry(shared_sha, 10, "primary", body),
+            plans: _history_entry(shared_sha, 10, "plans", body),
+            linked: _history_entry(linked_sha, 10, "linked", body),
+            external: _history_entry("c" * 40, 10, "external", body),
+        }
+    )
+    inventory = RepoInventory(
+        (
+            _repo_record("sase", "primary", primary, workspace_num=7),
+            _repo_record(
+                "plans",
+                "sidecar",
+                plans,
+                workspace_num=7,
+                slug="sase--plans",
+            ),
+            _repo_record("sase-core", "linked", linked, workspace_num=7),
+            _repo_record(
+                "missing",
+                "linked",
+                missing,
+                workspace_num=7,
+                clone_exists=False,
+            ),
+            _repo_record("research", "external", external, workspace_num=7),
+        )
+    )
+    monkeypatch.setattr(
+        "sase.bead_pages.associations._build.collect_repo_inventory",
+        lambda *, project: inventory if project == "sase" else RepoInventory(()),
+    )
+    monkeypatch.setattr(
+        "sase.bead_pages.associations._build.workspace_context_for_plan_resolution",
+        lambda _root: (primary, 7),
+    )
+
+    index = build_bead_association_index(
+        _store(tmp_path / "plans-store", tmp_path / "missing-beads"),
+        primary_root=primary,
+        project="sase",
+        git_runner=git,
+        link_resolver=_FakeLinks(),
+        artifact_records=(),
+        bead_issues=(issue,),
+        identity=_identity(),
+    )
+
+    associations = index.for_bead(issue.id)
+    assert git.calls == [primary, plans, linked]
+    assert [
+        (row.repository.name, row.sha, row.subject)
+        for row in associations.commits
+        if row.repository is not None
+    ] == [
+        ("sase", shared_sha, "primary"),
+        ("sase--plans", shared_sha, "plans"),
+        ("sase-core", linked_sha, "linked"),
+    ]
+    assert [row.target for row in associations.commits] == [
+        f"https://commits.example/sase/{shared_sha}",
+        f"https://commits.example/plans/{shared_sha}",
+        f"https://commits.example/sase-core/{linked_sha}",
+    ]
+    assert associations.agents[0].commit_count == 3
+    assert index.diagnostics == ()
+
+
+def _repo_record(
+    name: str,
+    kind: RepoKind,
+    path: Path,
+    *,
+    workspace_num: int,
+    slug: str | None = None,
+    clone_exists: bool = True,
+) -> RepoRecord:
+    return RepoRecord(
+        name=name,
+        kind=kind,
+        project="sase",
+        project_key="sase",
+        path=str(path),
+        exists=clone_exists,
+        auto_clone=False,
+        description=None,
+        source="test",
+        env_name=None,
+        slug=slug,
+        clones=(
+            RepoCloneRecord(
+                workspace_num,
+                str(path),
+                clone_exists,
+            ),
+        ),
     )

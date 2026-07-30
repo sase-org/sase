@@ -12,6 +12,7 @@ from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.commit_footer_facade import parse_commit_footer
 
 from ._agent_names import commit_tag_label, global_agent_name
+from .models import BeadCommitRepository
 
 _LOG_FORMAT = "--format=%H%x00%ct%x00%s%x00%B%x00"
 _LEGACY_BEAD_SUBJECT_RE = re.compile(r" \(([^()\s]+)\)$")
@@ -24,6 +25,7 @@ class HistoricalBeadCommit:
     sha: str
     committed_at: int
     subject: str
+    repository: BeadCommitRepository
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,22 +33,22 @@ class _HistoryAssociations:
     """Direct associations derived from one primary ``git log`` walk."""
 
     agents: dict[str, set[str]]
-    agent_commits: dict[str, dict[str, set[str]]]
-    commits: dict[str, dict[str, HistoricalBeadCommit]]
+    agent_commits: dict[str, dict[str, set[tuple[str, str]]]]
+    commits: dict[str, dict[tuple[str, str], HistoricalBeadCommit]]
     diagnostics: tuple[str, ...] = ()
 
 
 def read_history_associations(
-    primary_root: Path,
+    repository: BeadCommitRepository,
     known_bead_ids: frozenset[str],
     identity: AgentIdentitySnapshot,
     git_runner: GitRunner,
 ) -> _HistoryAssociations:
-    """Walk primary history once and group footer tags by known bead."""
+    """Walk one repository's history and group footer tags by known bead."""
 
     try:
         result = git_runner(
-            primary_root,
+            repository.root,
             ["log", _LOG_FORMAT],
             op="bead_pages.associations.history",
         )
@@ -55,7 +57,7 @@ def read_history_associations(
             {},
             {},
             {},
-            (f"could not read git history: {exc}",),
+            (_history_diagnostic(repository, str(exc)),),
         )
     if result.returncode != 0:
         detail = result.stderr.strip() or f"git exited {result.returncode}"
@@ -63,16 +65,19 @@ def read_history_associations(
             {},
             {},
             {},
-            (f"could not read git history: {detail}",),
+            (_history_diagnostic(repository, detail),),
         )
 
     agents: defaultdict[str, set[str]] = defaultdict(set)
-    agent_commits: defaultdict[str, dict[str, set[str]]] = defaultdict(dict)
-    commits: defaultdict[str, dict[str, HistoricalBeadCommit]] = defaultdict(dict)
+    agent_commits: defaultdict[str, dict[str, set[tuple[str, str]]]] = defaultdict(dict)
+    commits: defaultdict[str, dict[tuple[str, str], HistoricalBeadCommit]] = (
+        defaultdict(dict)
+    )
     chunks = result.stdout.split("\x00")
     for index in range(0, len(chunks) - 3, 4):
         _index_history_entry(
             chunks[index : index + 4],
+            repository,
             known_bead_ids,
             identity,
             agents,
@@ -88,11 +93,12 @@ def read_history_associations(
 
 def _index_history_entry(
     chunks: list[str],
+    repository: BeadCommitRepository,
     known_bead_ids: frozenset[str],
     identity: AgentIdentitySnapshot,
     agents: defaultdict[str, set[str]],
-    agent_commits: defaultdict[str, dict[str, set[str]]],
-    commits: defaultdict[str, dict[str, HistoricalBeadCommit]],
+    agent_commits: defaultdict[str, dict[str, set[tuple[str, str]]]],
+    commits: defaultdict[str, dict[tuple[str, str], HistoricalBeadCommit]],
 ) -> None:
     sha = chunks[0].lstrip("\r\n").strip().casefold()
     subject = chunks[2].rstrip("\r\n")
@@ -107,12 +113,28 @@ def _index_history_entry(
     if bead_id is None:
         return
 
-    commits[bead_id][sha] = HistoricalBeadCommit(sha, committed_at, subject)
+    commit_key = (repository.name, sha)
+    commits[bead_id][commit_key] = HistoricalBeadCommit(
+        sha,
+        committed_at,
+        subject,
+        repository,
+    )
     agent_name = global_agent_name(commit_tag_label(tags.get("AGENT")), identity)
     if agent_name is None:
         return
     agents[bead_id].add(agent_name)
-    agent_commits[bead_id].setdefault(agent_name, set()).add(sha)
+    agent_commits[bead_id].setdefault(agent_name, set()).add(commit_key)
+
+
+def _history_diagnostic(
+    repository: BeadCommitRepository,
+    detail: str,
+) -> str:
+    return (
+        f"could not read git history for {repository.name} "
+        f"({repository.root}): {detail}"
+    )
 
 
 def _associated_bead_id(

@@ -124,7 +124,10 @@ def render_commits(
         "|---|---|---|---|",
     ]
     for row in rows[:MAX_RENDERED_COMMITS]:
-        label = f"`{md_code(row.label)}`"
+        display_label = row.label
+        if row.repository is not None and not row.repository.is_primary:
+            display_label = f"{row.repository.name}@{display_label}"
+        label = f"`{md_code(display_label)}`"
         commit = f"[{label}]({row.target})" if row.target else label
         committed = datetime.fromtimestamp(row.committed_at, tz=UTC).strftime(
             "%Y-%m-%d %H:%M:%S"

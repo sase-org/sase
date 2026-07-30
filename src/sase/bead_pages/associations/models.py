@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +19,16 @@ class BeadAgentAssociation:
 
 
 @dataclass(frozen=True, slots=True)
+class BeadCommitRepository:
+    """The project-owned repository that contains one associated commit."""
+
+    name: str
+    root: Path
+    kind: str
+    is_primary: bool
+
+
+@dataclass(frozen=True, slots=True)
 class BeadCommitAssociation:
     """One commit entry ready for bead-page rendering."""
 
@@ -26,8 +37,9 @@ class BeadCommitAssociation:
     bead_id: str
     subject: str
     committed_at: int
-    sort_key: tuple[int, str]
+    sort_key: tuple[int, str, str]
     sha: str
+    repository: BeadCommitRepository | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,4 +68,5 @@ __all__ = [
     "BeadAssociationIndex",
     "BeadAssociations",
     "BeadCommitAssociation",
+    "BeadCommitRepository",
 ]

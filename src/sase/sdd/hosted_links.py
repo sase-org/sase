@@ -161,7 +161,17 @@ class HostedLinkResolver:
     def commit_url(self, sha: str) -> str | None:
         """Return the primary repository's commit URL for *sha*."""
 
-        coordinates = self._primary_remote()
+        return self.commit_url_for_repository(self._primary_root, sha)
+
+    def commit_url_for_repository(
+        self,
+        repository_root: Path | str,
+        sha: str,
+    ) -> str | None:
+        """Return *sha*'s URL against the owning repository's remote."""
+
+        root = Path(repository_root).expanduser().resolve(strict=False)
+        coordinates = self._repository_remote(root)
         if coordinates is None:
             return None
         return github_commit_url(
@@ -180,7 +190,13 @@ class HostedLinkResolver:
         return self._memoized("agents", self._resolve_agents_remote)
 
     def _primary_remote(self) -> _RemoteCoordinates | None:
-        return self._memoized("primary", self._resolve_primary_remote)
+        return self._repository_remote(self._primary_root)
+
+    def _repository_remote(self, root: Path) -> _RemoteCoordinates | None:
+        return self._memoized(
+            f"commit:{root}",
+            lambda: self._resolve_repository_remote(root),
+        )
 
     def _memoized(
         self,
@@ -245,10 +261,13 @@ class HostedLinkResolver:
             branch,
         )
 
-    def _resolve_primary_remote(self) -> _RemoteCoordinates | None:
+    def _resolve_repository_remote(
+        self,
+        root: Path,
+    ) -> _RemoteCoordinates | None:
         from sase.agents_sync.links import hosted_provider
 
-        remote = _origin_remote_url(self._primary_root, self._git_runner)
+        remote = _origin_remote_url(root, self._git_runner)
         if not remote:
             return None
         # Commit URLs name an immutable object, so no branch is resolved.

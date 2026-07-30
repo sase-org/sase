@@ -21,6 +21,7 @@ from sase.bead_pages.associations import (
     BeadAssociationIndex,
     BeadAssociations,
     BeadCommitAssociation,
+    BeadCommitRepository,
 )
 from sase.bead_pages.rendering import render_bead_page, render_bead_page_bytes
 from sase.bead_pages.rendering_graph import MAX_RENDERED_LINEAGE_NODES
@@ -118,7 +119,7 @@ def _fixtures() -> tuple[_View, Issue, Issue, BeadAssociationIndex]:
         phase_one.id,
         "feat(bead): render | pages",
         1_722_176_527,
-        (1_722_176_527, "9701511abcdef"),
+        (1_722_176_527, "sase", "9701511abcdef"),
         "9701511abcdef",
     )
     phase_associations = BeadAssociations((agent,), (commit,))
@@ -187,7 +188,7 @@ def test_lists_are_visibly_bounded_at_the_shared_commit_cap() -> None:
             phase.id,
             f"subject {number}",
             number,
-            (number, f"{number:040d}"),
+            (number, "sase", f"{number:040d}"),
             f"{number:040d}",
         )
         for number in range(52)
@@ -241,6 +242,65 @@ def test_unhosted_page_keeps_labels_and_omits_broken_urls() -> None:
     assert "`9701511`" in rendered
     assert "202607/bead\\_pages.md" in rendered
     assert "https://" not in rendered
+
+
+def test_non_primary_commit_is_qualified_without_changing_primary_bytes(
+    tmp_path: Path,
+) -> None:
+    view, _root, phase, index = _fixtures()
+    original = index.for_bead(phase.id).commits[0]
+    primary = BeadCommitAssociation(
+        original.label,
+        original.target,
+        original.bead_id,
+        original.subject,
+        original.committed_at,
+        original.sort_key,
+        original.sha,
+        BeadCommitRepository("sase", tmp_path / "sase", "primary", True),
+    )
+    linked = BeadCommitAssociation(
+        original.label,
+        original.target,
+        original.bead_id,
+        original.subject,
+        original.committed_at,
+        original.sort_key,
+        original.sha,
+        BeadCommitRepository(
+            "sase-core",
+            tmp_path / "sase-core",
+            "linked",
+            False,
+        ),
+    )
+
+    original_page = _render(view, phase, index)
+    original_associations = index.for_bead(phase.id)
+    primary_page = _render(
+        view,
+        phase,
+        BeadAssociationIndex(
+            MappingProxyType(
+                {
+                    phase.id: BeadAssociations(
+                        agents=original_associations.agents,
+                        commits=(primary,),
+                    )
+                }
+            )
+        ),
+    )
+    linked_page = _render(
+        view,
+        phase,
+        BeadAssociationIndex(
+            MappingProxyType({phase.id: BeadAssociations(commits=(linked,))})
+        ),
+    )
+
+    assert primary_page == original_page
+    assert "`sase-core@9701511`" in linked_page
 
 
 def test_empty_optional_sections_are_omitted() -> None:

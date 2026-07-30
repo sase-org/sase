@@ -297,6 +297,37 @@ def test_commit_url_uses_the_primary_checkout_origin(tmp_path: Path) -> None:
     )
 
 
+def test_commit_url_uses_and_memoizes_each_repository_origin(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "sase"
+    linked = tmp_path / "sase-core"
+    for root in (primary, linked):
+        (root / ".git").mkdir(parents=True)
+    git = _FakeGit(
+        remotes={
+            primary: _GITHUB_PRIMARY_REMOTE,
+            linked: "git@github.com:sase-org/sase-core.git",
+        }
+    )
+    resolver = HostedLinkResolver(
+        _plans_store(tmp_path / "plans"),
+        primary_root=primary,
+        git_runner=git,
+    )
+    sha = "699456a521e25e0aaa38f4e289db38e71a6488a6"
+
+    assert resolver.commit_url_for_repository(linked, sha) == (
+        f"https://github.com/sase-org/sase-core/commit/{sha}"
+    )
+    assert resolver.commit_url_for_repository(linked, sha) == (
+        f"https://github.com/sase-org/sase-core/commit/{sha}"
+    )
+    assert git.calls == [
+        (linked, ("remote", "get-url", "origin")),
+    ]
+
+
 def test_commit_url_degrades_for_a_malformed_sha_and_missing_origin(
     tmp_path: Path,
 ) -> None:

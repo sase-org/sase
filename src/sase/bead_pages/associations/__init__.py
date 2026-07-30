@@ -6,6 +6,7 @@ from sase.bead_pages.associations.models import (
     BeadAssociationIndex,
     BeadAssociations,
     BeadCommitAssociation,
+    BeadCommitRepository,
 )
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     "BeadAssociationIndex",
     "BeadAssociations",
     "BeadCommitAssociation",
+    "BeadCommitRepository",
     "build_bead_association_index",
 ]

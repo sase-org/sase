@@ -225,7 +225,12 @@ def test_sidecar_publication_anchors_associations_and_commit_links_to_primary(
         "feat: primary association",
         phase_id,
     )
-    _commit_bead(plans, "plan.txt", "docs: sidecar association", phase_id)
+    sidecar_sha = _commit_bead(
+        plans,
+        "plan.txt",
+        "docs: sidecar association",
+        phase_id,
+    )
     store = SddStore(
         storage="sidecar_repos",
         sdd_dir=plans,
@@ -273,8 +278,15 @@ def test_sidecar_publication_anchors_associations_and_commit_links_to_primary(
     assert sidecar_payload == primary_payload
     assert f"https://github.com/sase-org/sase/commit/{primary_sha}" in sidecar_payload
     assert "feat: primary association" in sidecar_payload
-    assert "docs: sidecar association" not in sidecar_payload
-    assert "sase--plans/commit/" not in sidecar_payload
+    assert (
+        f"https://github.com/sase-org/sase--plans/commit/{sidecar_sha}"
+        in sidecar_payload
+    )
+    assert "docs: sidecar association" in sidecar_payload
+    assert (
+        f"https://github.com/sase-org/sase--plans/commit/{primary_sha}"
+        not in sidecar_payload
+    )
 
 
 def test_missing_sidecar_and_missing_tag_skip_without_error(

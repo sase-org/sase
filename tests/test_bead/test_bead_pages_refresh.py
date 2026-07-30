@@ -87,7 +87,7 @@ def _index() -> BeadAssociationIndex:
         "sase-ai.7",
         "feat: refresh",
         1,
-        (1, "abcdef012345"),
+        (1, "sase", "abcdef012345"),
         "abcdef012345",
     )
     return BeadAssociationIndex(

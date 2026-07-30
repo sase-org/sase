@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from types import MappingProxyType
 from typing import Protocol
 
+from sase._repo_inventory_models import RepoRecord
 from sase.agents_sync.git import GitRunner, run_git
 from sase.bead.model import Issue
 from sase.bead.store_locator import open_bead_project_for_beads_dir
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
+from sase.repo_inventory import collect_repo_inventory
 from sase.sdd.hosted_links import hosted_link_resolver
+from sase.sdd.plan_refs import workspace_context_for_plan_resolution
 from sase.sdd.store import SddStore
 
 from ._artifacts import artifact_associations, load_artifact_records
@@ -23,6 +27,7 @@ from .models import (
     BeadAssociationIndex,
     BeadAssociations,
     BeadCommitAssociation,
+    BeadCommitRepository,
 )
 
 
@@ -30,6 +35,12 @@ class _LinkResolver(Protocol):
     def agent_url(self, agent_name: str) -> str | None: ...
 
     def commit_url(self, sha: str) -> str | None: ...
+
+    def commit_url_for_repository(
+        self,
+        repository_root: Path | str,
+        sha: str,
+    ) -> str | None: ...
 
 
 def build_bead_association_index(
@@ -50,18 +61,37 @@ def build_bead_association_index(
     anchor = resolve_checkout_anchor(primary_root or Path.cwd())
     primary = anchor.primary_root
     snapshot = identity or AgentIdentitySnapshot.current()
-    selected_project = project or anchor.project_name or _current_project()
+    inventory_project = project or anchor.project_name
+    selected_project = inventory_project or _current_project()
     diagnostics: list[str] = []
     issues = _read_issues(store, bead_issues, diagnostics)
     known_bead_ids = frozenset(issue.id for issue in issues)
-    history = read_history_associations(
+    repositories = _history_repositories(
         primary,
-        known_bead_ids,
-        snapshot,
-        git_runner,
+        inventory_project,
+        diagnostics,
     )
-    diagnostics.extend(history.diagnostics)
-    direct_agents = {key: set(values) for key, values in history.agents.items()}
+    direct_agents: defaultdict[str, set[str]] = defaultdict(set)
+    agent_commits: defaultdict[str, dict[str, set[tuple[str, str]]]] = defaultdict(dict)
+    commits: defaultdict[str, dict[tuple[str, str], HistoricalBeadCommit]] = (
+        defaultdict(dict)
+    )
+    for repository in repositories:
+        history = read_history_associations(
+            repository,
+            known_bead_ids,
+            snapshot,
+            git_runner,
+        )
+        diagnostics.extend(history.diagnostics)
+        _merge_history(
+            history.agents,
+            history.agent_commits,
+            history.commits,
+            direct_agents,
+            agent_commits,
+            commits,
+        )
 
     try:
         records = (
@@ -88,8 +118,8 @@ def build_bead_association_index(
         bead_id: _rendering_records(
             source_beads[bead_id],
             direct_agents,
-            history.agent_commits,
-            history.commits,
+            agent_commits,
+            commits,
             resolver,
         )
         for bead_id in sorted(source_beads)
@@ -98,6 +128,102 @@ def build_bead_association_index(
         MappingProxyType(by_bead),
         tuple(diagnostics),
     )
+
+
+def _history_repositories(
+    primary_root: Path,
+    project: str | None,
+    diagnostics: list[str],
+) -> tuple[BeadCommitRepository, ...]:
+    """Return existing project-owned clones for this workspace."""
+
+    fallback = BeadCommitRepository(
+        primary_root.name,
+        primary_root,
+        "primary",
+        True,
+    )
+    if not project:
+        return (fallback,)
+
+    try:
+        inventory = collect_repo_inventory(project=project)
+    except Exception as exc:  # noqa: BLE001 - best-effort inventory boundary.
+        diagnostics.append(f"could not collect repository inventory: {exc}")
+        return (fallback,)
+
+    diagnostics.extend(
+        f"repository inventory for {issue.project}: {issue.message}"
+        for issue in inventory.issues
+    )
+    try:
+        _workspace_root, workspace_num = workspace_context_for_plan_resolution(
+            primary_root
+        )
+    except Exception:
+        workspace_num = 1
+
+    primary_record = next(
+        (record for record in inventory.records if record.kind == "primary"),
+        None,
+    )
+    primary_name = (
+        _repository_name(primary_record)
+        if primary_record is not None
+        else fallback.name
+    )
+    repositories = [BeadCommitRepository(primary_name, primary_root, "primary", True)]
+    seen = {primary_root.resolve(strict=False)}
+    for record in inventory.records:
+        if record.kind not in {"sidecar", "linked"}:
+            continue
+        clone = record.clone_for_workspace(workspace_num)
+        raw_path = clone.path if clone is not None else record.path
+        if not raw_path:
+            continue
+        root = Path(raw_path).expanduser().resolve(strict=False)
+        if root in seen:
+            continue
+        expected_to_exist = clone.exists if clone is not None else record.exists
+        if not root.is_dir():
+            if expected_to_exist:
+                diagnostics.append(
+                    f"repository clone for {_repository_name(record)} "
+                    f"is missing: {root}"
+                )
+            continue
+        seen.add(root)
+        repositories.append(
+            BeadCommitRepository(
+                _repository_name(record),
+                root,
+                record.kind,
+                False,
+            )
+        )
+    return tuple(repositories)
+
+
+def _repository_name(record: RepoRecord) -> str:
+    return record.slug or record.name
+
+
+def _merge_history(
+    agents: Mapping[str, set[str]],
+    source_agent_commits: Mapping[str, Mapping[str, set[tuple[str, str]]]],
+    source_commits: Mapping[str, Mapping[tuple[str, str], HistoricalBeadCommit]],
+    target_agents: defaultdict[str, set[str]],
+    target_agent_commits: defaultdict[str, dict[str, set[tuple[str, str]]]],
+    target_commits: defaultdict[str, dict[tuple[str, str], HistoricalBeadCommit]],
+) -> None:
+    for bead_id, names in agents.items():
+        target_agents[bead_id].update(names)
+    for bead_id, by_agent in source_agent_commits.items():
+        target = target_agent_commits[bead_id]
+        for agent_name, commit_keys in by_agent.items():
+            target.setdefault(agent_name, set()).update(commit_keys)
+    for bead_id, by_commit in source_commits.items():
+        target_commits[bead_id].update(by_commit)
 
 
 def _read_issues(
@@ -119,8 +245,8 @@ def _read_issues(
 def _rendering_records(
     source_beads: tuple[str, ...],
     agents: Mapping[str, set[str]],
-    agent_commits: Mapping[str, Mapping[str, set[str]]],
-    commits: Mapping[str, Mapping[str, HistoricalBeadCommit]],
+    agent_commits: Mapping[str, Mapping[str, set[tuple[str, str]]]],
+    commits: Mapping[str, Mapping[tuple[str, str], HistoricalBeadCommit]],
     resolver: _LinkResolver,
 ) -> BeadAssociations:
     agent_rows = tuple(
@@ -140,12 +266,17 @@ def _rendering_records(
     commit_rows = tuple(
         BeadCommitAssociation(
             label=commit.sha[:7],
-            target=resolver.commit_url(commit.sha),
+            target=_commit_url(resolver, commit),
             bead_id=bead_id,
             subject=commit.subject,
             committed_at=commit.committed_at,
-            sort_key=(commit.committed_at, commit.sha),
+            sort_key=(
+                commit.committed_at,
+                commit.repository.name,
+                commit.sha,
+            ),
             sha=commit.sha,
+            repository=commit.repository,
         )
         for commit, bead_id in sorted(
             (
@@ -153,10 +284,26 @@ def _rendering_records(
                 for bead_id in source_beads
                 for commit in commits.get(bead_id, {}).values()
             ),
-            key=lambda item: (item[0].committed_at, item[0].sha),
+            key=lambda item: (
+                item[0].committed_at,
+                item[0].repository.name,
+                item[0].sha,
+            ),
         )
     )
     return BeadAssociations(agent_rows, commit_rows)
+
+
+def _commit_url(
+    resolver: _LinkResolver,
+    commit: HistoricalBeadCommit,
+) -> str | None:
+    per_repository = getattr(resolver, "commit_url_for_repository", None)
+    if callable(per_repository):
+        return per_repository(commit.repository.root, commit.sha)
+    if commit.repository.is_primary:
+        return resolver.commit_url(commit.sha)
+    return None
 
 
 def _current_project() -> str | None:
