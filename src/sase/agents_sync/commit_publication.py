@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.agent.names._registry import name_registry_load_session
+from sase.agent_lanes import lane_ref_for_agent
 from sase.agents_sync.bundles import repository_root
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.incoming_integration import (
@@ -34,7 +35,6 @@ from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
     agent_local_hood,
-    globalize_owned_agent_name,
     normalize_agent_archive_name,
     normalize_owned_agent_name,
 )
@@ -109,13 +109,19 @@ def publish_committed_agent_hood(
     normalized = normalize_agent_archive_name(
         normalize_owned_agent_name(local_agent, identity)
     )
+    # The request's identity is the committing agent's *lane*: a family member
+    # publishes as its family, a solo agent as itself.  The publication scope is
+    # unchanged either way -- it was already whole-hood, and a member and its
+    # lane share a hood -- but the recorded identity flows into the request's
+    # logical key and notification subject.
+    lane = lane_ref_for_agent(normalized, identity)
     item = AgentPublicationOutboxItem(
         project_key=target.project_key,
         project=target.project,
-        local_agent=normalized,
-        global_agent=globalize_owned_agent_name(normalized, identity),
+        local_agent=lane.local_name,
+        global_agent=lane.global_name,
         primary_revision=primary_revision,
-        local_hood=agent_local_hood(normalized),
+        local_hood=agent_local_hood(lane.local_name),
     )
     try:
         enqueue_agent_publication(item)

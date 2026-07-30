@@ -336,6 +336,75 @@ def test_targeted_publication_accepts_family_container_request(
     ).is_file()
 
 
+def test_family_lane_and_member_requests_publish_identical_payloads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.agent.names.get_reserved_family_names",
+        lambda: frozenset({"foo.rootless"}),
+    )
+    inventory = _inventory(AgentOwnerIdentity("alice", "athena"))
+
+    def _publish(committing_agent: str, name: str) -> dict[str, bytes]:
+        root = tmp_path / name
+        primary = root / "primary"
+        primary.mkdir(parents=True)
+        repo = root / "sidecar"
+        repo.mkdir()
+        target = ProjectTarget(
+            "proj",
+            "Project",
+            primary,
+            (primary.resolve(),),
+            repo,
+            "unused",
+        )
+        publish_agent_hood(
+            target,
+            repo,
+            committing_agent,
+            identity=_identity(),
+            inventory=inventory,
+        )
+        return {
+            path.relative_to(repo).as_posix(): path.read_bytes()
+            for path in repo.rglob("*")
+            if path.is_file()
+        }
+
+    assert _publish("foo.rootless--left", "member") == _publish("foo.rootless", "lane")
+
+
+def test_registered_family_lane_without_runs_is_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.agent.names.get_reserved_family_names",
+        lambda: frozenset({"missing"}),
+    )
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+
+    with pytest.raises(
+        AgentsSyncFormatError,
+        match="hood 'missing' has no publishable runs",
+    ):
+        publish_agent_hood(
+            target,
+            repo,
+            "missing",
+            identity=_identity(),
+            inventory=ProjectHoodInventory(
+                AgentOwnerIdentity("alice", "athena"),
+                "proj",
+                (),
+            ),
+        )
+
+
 def test_targeted_publication_rejects_request_for_empty_hood(
     tmp_path: Path,
 ) -> None:

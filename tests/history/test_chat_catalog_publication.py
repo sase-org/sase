@@ -120,6 +120,37 @@ def test_retired_publication_is_neither_pending_nor_quarantined(
     assert entry.publication_last_error == reason
 
 
+def test_family_member_chat_finds_its_lane_publication_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = _setup_home(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        sidecars,
+        "resolve_sync_targets",
+        lambda: TargetSelection(),
+    )
+    chat = _chat(home, "member-260724_160400")
+    _artifact(home, "20260724160400", chat, name="alpha--code")
+    _write_outbox(
+        home,
+        [
+            _publication_row(
+                local_agent="alpha",
+                global_agent="bryan.athena.alpha",
+                attempts=1,
+                last_error="network down",
+            )
+        ],
+    )
+
+    entry = load_chat_catalog(force=True).entries[0]
+
+    assert entry.publication_disposition == "queued"
+    assert entry.publication_attempts == 1
+    assert entry.publication_last_error == "network down"
+
+
 def test_malformed_publication_state_becomes_catalog_diagnostic(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

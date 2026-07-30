@@ -286,6 +286,70 @@ def test_push_failure_is_queued_and_next_commit_drains_idempotently(
     assert (verify / "README.md").read_text() == "# Published hood\n"
 
 
+@pytest.mark.parametrize(
+    ("committing_agent", "lane"),
+    [
+        ("foo--code", "foo"),
+        ("foo.bar--plan", "foo.bar"),
+        ("foo.solo", "foo.solo"),
+    ],
+)
+def test_publication_request_records_the_committing_lane(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    committing_agent: str,
+    lane: str,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, _remote = _setup_target(tmp_path)
+    owner = AgentOwnerIdentity("alice", "athena")
+    monkeypatch.setattr(
+        commit_publication,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        commit_publication,
+        "require_agent_owner_identity",
+        lambda: owner,
+    )
+    monkeypatch.setattr(
+        commit_publication,
+        "integrate_agent_imports_with_receipts",
+        lambda *_args, **_kwargs: IntegrationCounts(),
+    )
+    monkeypatch.setattr(
+        commit_publication,
+        "build_project_hood_inventory",
+        lambda *_args, **_kwargs: ProjectHoodInventory(owner, "proj", ()),
+    )
+    published_agents: list[str] = []
+
+    def publish(
+        _target: ProjectTarget,
+        _repo: Path,
+        agent: str,
+        **_kwargs: object,
+    ) -> V2PublicationCounts:
+        published_agents.append(agent)
+        raise RuntimeError("stop before pushing")
+
+    monkeypatch.setattr(commit_publication, "publish_agent_hood", publish)
+
+    publish_committed_agent_hood(
+        committing_agent,
+        "a" * 40,
+        project="Project",
+        git_runner=run_git,
+    )
+
+    [pending] = list_agent_publications("proj")
+    assert pending.local_agent == lane
+    assert pending.global_agent == f"alice.athena.{lane}"
+    assert pending.local_hood == "foo"
+    assert published_agents == [lane]
+
+
 def test_failed_targeted_publish_cleans_uncommitted_payload(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

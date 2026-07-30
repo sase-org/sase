@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import cast
 
 from sase._git_remote import github_commit_url
+from sase.agent_lanes import AgentLaneRef, lane_ref_for_lane_name
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.inventory import (
     InventoryRun,
@@ -74,7 +75,13 @@ def publish_agent_hood(
     inventory: ProjectHoodInventory | None = None,
     git_runner: GitRunner = run_git,
 ) -> V2PublicationCounts:
-    """Refresh exactly the committing agent's complete top-level local hood."""
+    """Refresh exactly the committing lane's complete top-level local hood.
+
+    ``committing_agent`` names an agent *lane*: either a solo agent, which is
+    also a run, or a family container, which never is.  Both spellings are
+    accepted deliberately, and a concrete member name is still tolerated for
+    legacy callers.
+    """
 
     snapshot = identity or AgentIdentitySnapshot.current()
     owner = _owner(snapshot)
@@ -84,11 +91,20 @@ def publish_agent_hood(
     project_inventory = inventory or build_project_hood_inventory(
         target, snapshot, git_runner=git_runner
     )
-    hood = agent_local_hood(local_name)
-    if not any(run.local_name == local_name for run in project_inventory.runs):
-        hood_runs = project_inventory.hood_runs(hood)
-        if not hood_runs:
-            raise AgentsSyncFormatError(f"hood {hood!r} has no publishable runs")
+    lane: AgentLaneRef = lane_ref_for_lane_name(local_name, snapshot)
+    hood = agent_local_hood(lane.local_name)
+    if lane.is_family:
+        # A family lane is a container, not a run, so it can never name a run of
+        # its own; only its hood decides whether there is anything to publish.
+        publishable = bool(project_inventory.hood_runs(hood))
+    else:
+        publishable = any(
+            run.local_name == local_name for run in project_inventory.runs
+        ) or bool(project_inventory.hood_runs(hood))
+    if not publishable:
+        # Load-bearing message: _prepare_publications() matches on it to retire
+        # a request whose hood will never become publishable.
+        raise AgentsSyncFormatError(f"hood {hood!r} has no publishable runs")
     return _publish_hoods(
         target,
         repo_root,
