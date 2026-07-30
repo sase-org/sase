@@ -43,11 +43,6 @@ An agent neighbor is any agent that is in the same agent hood as another agent. 
 An agent tribe is a user-facing label for related agents across clans and families. Tribes are assigned with
 `%tribe:<name>` (alias `%t`), managed with `sase agent tribe`, and displayed with an `@` prefix.
 
-**Agents-Tab Nesting**  
-Rows in the `sase ace` Agents tab nest as clan → direct members (agents, families, or workflow python/bash steps) →
-family members. Press `l` once to expand one level and twice to reveal hidden steps and family members; `h` collapses
-one level at a time.
-
 **ChangeSpec**  
 Represents a single CL/PR. Active specs live in ProjectSpec `<key>.sase` (directory key `<key>`; see Projects, Repos,
 and Workspaces); terminal ones (Submitted, Archived, Reverted) in `<key>-archive.sase`. Sections: NAME, DESCRIPTION,
