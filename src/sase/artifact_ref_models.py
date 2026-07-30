@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 
-ARTIFACT_REF_WIRE_SCHEMA_VERSION = 2
+ARTIFACT_REF_WIRE_SCHEMA_VERSION = 3
 BUILTIN_ARTIFACT_REF_KINDS = ("commit", "chat", "bug", "file", "bead", "agent")
 
 ArtifactRefKindType = Literal[
@@ -25,6 +25,7 @@ ArtifactRefFragmentType = Literal["lines", "page", "time"]
 ArtifactRefResolutionStatus = Literal[
     "exact",
     "drifted",
+    "vcs_backed",
     "ambiguous",
     "missing",
     "unknown_kind",
@@ -210,12 +211,14 @@ class ArtifactRefRepository:
     aliases: tuple[str, ...] = ()
     shas: tuple[str, ...] = ()
     checkout_path: Path | None = None
+    checkout_paths: tuple[Path, ...] = ()
 
     def to_wire(self) -> dict[str, object]:
         return {
             "name": self.name,
             "aliases": list(self.aliases),
             "shas": list(self.shas),
+            "checkout_paths": [str(path) for path in self.checkout_paths],
         }
 
 

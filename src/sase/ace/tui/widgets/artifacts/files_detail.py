@@ -28,7 +28,7 @@ class FileDetailData:
     """Filesystem facts loaded without blocking Textual's message pump."""
 
     file_id: str
-    resolved_stored_path: str
+    resolved_stored_path: str | None
     stored_live: bool
     stored_mtime_ns: int | None
     stored_size: int | None
@@ -51,8 +51,8 @@ def load_file_detail(
 ) -> FileDetailData:
     """Resolve paths, stat them, and read a bounded text preview off-thread."""
 
-    stored_path = Path(row.path).expanduser().resolve(strict=False)
-    stored_stat = _stat(stored_path)
+    stored_path = _materialized_path(row)
+    stored_stat = None if stored_path is None else _stat(stored_path)
     source_path = (
         None
         if not row.source_path
@@ -62,10 +62,11 @@ def load_file_detail(
     preview = ""
     truncated = False
     if view_mode in _TEXT_VIEW_MODES and stored_stat is not None:
+        assert stored_path is not None
         preview, truncated = _read_preview(stored_path)
     return FileDetailData(
         file_id=row.id,
-        resolved_stored_path=str(stored_path),
+        resolved_stored_path=None if stored_path is None else str(stored_path),
         stored_live=stored_stat is not None,
         stored_mtime_ns=(None if stored_stat is None else stored_stat.st_mtime_ns),
         stored_size=None if stored_stat is None else stored_stat.st_size,
@@ -91,10 +92,13 @@ def build_file_detail(
 
     mode = view_mode or "text"
     stored_path = detail.resolved_stored_path if detail is not None else row.path
+    reference_target = stored_path or (
+        f"{row.vcs_repo}@{row.vcs_sha}:{row.vcs_relpath}" if row.is_vcs_backed else "-"
+    )
     text = Text()
     _heading(text, "REFERENCE")
     text.append(f"file:{row.id}", style="bold")
-    text.append(f"  →  {stored_path}\n", style="dim")
+    text.append(f"  →  {reference_target}\n", style="dim")
 
     _heading(text, "FILE")
     _field(text, "Label", row.label)
@@ -125,14 +129,32 @@ def build_file_detail(
     _field(text, "Agent", agent)
     _field(text, "Artifacts dir", row.agent_artifacts_dir or "-")
 
-    _heading(text, "PATHS")
-    _path_field(
-        text,
-        "Stored",
-        stored_path,
-        live=None if detail is None else detail.stored_live,
-        loading=loading,
-    )
+    if row.is_vcs_backed:
+        _heading(text, "PROVENANCE")
+        _field(text, "Repo", row.vcs_repo)
+        _field(text, "Commit", row.vcs_sha, value_style="dim")
+        _field(text, "Path", row.vcs_relpath, value_style="dim")
+        _field(
+            text,
+            "Cached",
+            (
+                "checking…"
+                if detail is None and loading
+                else "yes"
+                if detail is not None and detail.stored_live
+                else "no"
+            ),
+        )
+        _heading(text, "PATHS")
+    else:
+        _heading(text, "PATHS")
+        _path_field(
+            text,
+            "Stored",
+            stored_path,
+            live=None if detail is None else detail.stored_live,
+            loading=loading,
+        )
     source_path = detail.resolved_source_path if detail is not None else row.source_path
     _path_field(
         text,
@@ -157,6 +179,18 @@ def build_file_detail(
                 style="dim italic",
             )
     return text
+
+
+def _materialized_path(row: ArtifactFile) -> Path | None:
+    if row.path:
+        return Path(row.path).expanduser().resolve(strict=False)
+    if not row.is_vcs_backed:
+        return None
+    from sase.artifact_ref_context import launch_artifact_ref_context
+    from sase.core.artifact_file_vcs import materialize_artifact_file
+
+    context = launch_artifact_ref_context(is_home_mode=False)
+    return materialize_artifact_file(row, repositories=context.repositories)
 
 
 def _stat(path: Path) -> stat_result | None:

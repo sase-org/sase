@@ -2,6 +2,8 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from sase.core.artifact_file_facade import (
     ArtifactFile,
     artifact_file_from_dict,
@@ -42,6 +44,49 @@ def test_new_fields_round_trip_and_old_rows_default_to_none(tmp_path: Path) -> N
     assert old.sha256 is None
     assert old.size_bytes is None
     assert old.mime_type is None
+
+
+def test_vcs_backed_row_round_trips_without_coercing_null_path() -> None:
+    artifact = ArtifactFile(
+        id="default:vcs",
+        label="Report",
+        kind="markdown",
+        path=None,
+        sha256="a" * 64,
+        size_bytes=42,
+        mime_type="text/markdown",
+        vcs_repo="sase",
+        vcs_sha="b" * 40,
+        vcs_relpath="docs/report.md",
+    )
+
+    restored = artifact_file_from_dict(artifact_file_to_dict(artifact))
+
+    assert restored == artifact
+    assert restored.path is None
+    assert restored.is_vcs_backed
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"path": None},
+        {"path": None, "vcs_repo": "sase"},
+        {"path": None, "vcs_repo": "sase", "vcs_sha": "b" * 40},
+    ],
+)
+def test_row_without_path_requires_complete_vcs_provenance(
+    payload: dict[str, object],
+) -> None:
+    data = {
+        "id": "default:invalid",
+        "label": "Invalid",
+        "kind": "file",
+        **payload,
+    }
+
+    with pytest.raises(ValueError, match="stored path or complete VCS"):
+        artifact_file_from_dict(data)
 
 
 def test_reader_accepts_supported_schema_range(tmp_path: Path) -> None:

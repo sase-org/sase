@@ -13,6 +13,7 @@ import webbrowser
 from sase.artifact_cli.references import (
     ResolvedArtifactReference,
     resolution_error_lines,
+    resolved_file_path,
     resolve_cli_reference,
 )
 
@@ -44,15 +45,22 @@ def handle_open(args: argparse.Namespace) -> int:
         return 2
     if result.parsed.kind_type == "bug":
         return _open_bug(result)
-    if (
-        result.resolution.status not in {"exact", "drifted"}
-        or result.resolution.resolved_path is None
-    ):
+    try:
+        path = resolved_file_path(result)
+    except (ImportError, OSError, RuntimeError, ValueError) as exc:
+        print(
+            f"Error: failed to materialize {result.canonical_reference}: {exc}",
+            file=sys.stderr,
+        )
+        for line in resolution_error_lines(result)[1:]:
+            print(line, file=sys.stderr)
+        return 1
+    if path is None:
         for line in resolution_error_lines(result):
             print(line, file=sys.stderr)
         return 1
 
-    path = Path(result.resolution.resolved_path).expanduser().resolve(strict=False)
+    path = Path(path).expanduser().resolve(strict=False)
     command = _viewer_command(path, result)
     if command is None:
         return 1

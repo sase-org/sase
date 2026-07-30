@@ -91,6 +91,44 @@ def test_paths_keep_stored_and_missing_source_liveness_distinct(
     assert rendered.index("Stored:") < rendered.index("Source:")
 
 
+def test_vcs_backed_detail_materializes_and_renders_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cached = tmp_path / "vcs-cache" / "report.md"
+    cached.parent.mkdir()
+    cached.write_text("# cached\n", encoding="utf-8")
+    row = replace(
+        artifact_file("vcs", kind="markdown"),
+        path=None,
+        vcs_repo="sase",
+        vcs_sha="b" * 40,
+        vcs_relpath="docs/report.md",
+        sha256="a" * 64,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.files_detail._materialized_path",
+        lambda _row: cached,
+    )
+
+    detail = load_file_detail(row, view_mode="markdown")
+    rendered = build_file_detail(
+        row,
+        detail,
+        view_mode="markdown",
+        projects=_projects(),
+    ).plain
+
+    assert detail.resolved_stored_path == str(cached)
+    assert detail.preview == "# cached"
+    assert "PROVENANCE" in rendered
+    assert "Repo: sase" in rendered
+    assert f"Commit: {'b' * 40}" in rendered
+    assert "Path: docs/report.md" in rendered
+    assert "Cached: yes" in rendered
+    assert "Stored:" not in rendered
+
+
 def test_missing_enrichment_uses_dashes_and_names_doctor_fix() -> None:
     row = artifact_file(
         "unenriched",

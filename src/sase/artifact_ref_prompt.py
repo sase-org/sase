@@ -21,6 +21,8 @@ from sase.artifact_ref_operations import (
     resolve_artifact_ref,
     scan_artifact_refs,
 )
+from sase.core.artifact_file_query_facade import query_artifact_files
+from sase.core.artifact_file_vcs import materialize_artifact_file
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,7 +105,7 @@ def _expand_artifact_references(
         except (RuntimeError, ValueError) as exc:
             failures.append(_ArtifactRefFailure(candidate.text, "malformed", str(exc)))
             continue
-        if resolution.status not in {"exact", "drifted"}:
+        if resolution.status not in {"exact", "drifted", "vcs_backed"}:
             failures.append(
                 _ArtifactRefFailure(
                     candidate.text,
@@ -174,6 +176,14 @@ def _artifact_ref_replacement(
     context: ArtifactRefContext,
 ) -> str:
     if reference.kind_type in {"document", "chat", "file", "bead", "agent"}:
+        if reference.kind_type == "file" and resolution.status == "vcs_backed":
+            path = _materialize_vcs_file_reference(reference, context=context)
+            if path is None:
+                raise RuntimeError(
+                    "VCS-backed artifact content is unavailable"
+                    + ("" if resolution.locator is None else f" ({resolution.locator})")
+                )
+            return f"@{path}{_fragment_annotation(reference.fragment)}"
         if resolution.resolved_path is None:
             raise RuntimeError("resolver returned no artifact path")
         return f"@{resolution.resolved_path}{_fragment_annotation(reference.fragment)}"
@@ -193,6 +203,32 @@ def _artifact_ref_replacement(
             f"{_resolved_bug_url(project, reference.payload.number)}"
         )
     raise RuntimeError(f"unsupported artifact reference kind: {reference.kind}")
+
+
+def _materialize_vcs_file_reference(
+    reference: ArtifactRef,
+    *,
+    context: ArtifactRefContext,
+) -> Path | None:
+    source = reference.payload.source
+    digest = reference.payload.digest
+    if source is None or digest is None:
+        return None
+    artifact_id = f"{source}:{digest}"
+    row = next(
+        (
+            candidate
+            for candidate in query_artifact_files(
+                context.artifact_index_path,
+                limit=None,
+            )
+            if candidate.id == artifact_id
+        ),
+        None,
+    )
+    if row is None:
+        return None
+    return materialize_artifact_file(row, repositories=context.repositories)
 
 
 def _fragment_annotation(fragment: ArtifactRefFragment | None) -> str:

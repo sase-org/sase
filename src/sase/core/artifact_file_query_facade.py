@@ -15,7 +15,7 @@ from sase.core.artifact_file_types import (
 from sase.core.rust import require_rust_binding
 
 
-ARTIFACT_FILE_QUERY_WIRE_SCHEMA_VERSION = 1
+ARTIFACT_FILE_QUERY_WIRE_SCHEMA_VERSION = 2
 
 
 def query_artifact_files(
@@ -99,13 +99,24 @@ def _artifact_file_from_wire(raw: object, *, row_number: int) -> ArtifactFile:
 
 
 def _validate_wire_row(row: Mapping[str, Any], *, row_number: int) -> None:
-    for field in ("id", "kind", "label", "path"):
+    for field in ("id", "kind", "label"):
         value = row.get(field)
         if not isinstance(value, str) or not value:
             raise RuntimeError(
                 "sase_core_rs returned an incomplete artifact-file query row "
                 f"{row_number}: {field} must be a non-empty string"
             )
+    path = row.get("path")
+    vcs_fields = tuple(
+        row.get(field) for field in ("vcs_repo", "vcs_sha", "vcs_relpath")
+    )
+    has_path = isinstance(path, str) and bool(path)
+    has_vcs = all(isinstance(value, str) and bool(value) for value in vcs_fields)
+    if not has_path and not has_vcs:
+        raise RuntimeError(
+            "sase_core_rs returned an incomplete artifact-file query row "
+            f"{row_number}: path or complete VCS provenance is required"
+        )
     for field in (
         "agent_artifacts_dir",
         "agent_name",
@@ -117,6 +128,10 @@ def _validate_wire_row(row: Mapping[str, Any], *, row_number: int) -> None:
         "source_path",
         "workflow",
         "workspace_dir",
+        "path",
+        "vcs_relpath",
+        "vcs_repo",
+        "vcs_sha",
     ):
         value = row.get(field)
         if value is not None and not isinstance(value, str):

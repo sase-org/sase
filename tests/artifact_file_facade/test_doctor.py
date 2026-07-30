@@ -11,7 +11,7 @@ from sase.core.artifact_file_facade import (
 
 
 def _envelope(
-    path: Path,
+    path: Path | None,
     *,
     artifact_id: str,
     source_path: Path | None = None,
@@ -23,9 +23,9 @@ def _envelope(
         "schema_version": 1,
         "artifact": {
             "id": artifact_id,
-            "label": path.name,
+            "label": "artifact" if path is None else path.name,
             "kind": "file",
-            "path": str(path),
+            "path": None if path is None else str(path),
             "source_path": str(source_path) if source_path is not None else None,
             "explicit": False,
             "sha256": sha256,
@@ -33,6 +33,28 @@ def _envelope(
             "mime_type": mime_type,
         },
     }
+
+
+def _vcs_envelope(
+    *,
+    artifact_id: str,
+    sha256: str,
+) -> dict:
+    row = _envelope(
+        None,
+        artifact_id=artifact_id,
+        sha256=sha256,
+        size_bytes=4,
+        mime_type="text/plain",
+    )
+    row["schema_version"] = 2
+    row["artifact"].update(
+        vcs_repo="sase",
+        vcs_sha="b" * 40,
+        vcs_relpath="docs/report.txt",
+    )
+    row["artifact"]["label"] = "report.txt"
+    return row
 
 
 def _write_lines(index_path: Path, rows: list[dict | str]) -> None:
@@ -157,3 +179,69 @@ def test_verify_detects_tampered_stored_file(tmp_path: Path) -> None:
     assert mismatch.id == "default:artifact"
     assert mismatch.expected_sha256 == original_digest
     assert mismatch.actual_sha256 == hashlib.sha256(b"tampered").hexdigest()
+
+
+def test_vcs_rows_are_healthy_and_verify_by_materialization(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    materialized = tmp_path / "cache" / "report.txt"
+    materialized.parent.mkdir()
+    materialized.write_bytes(b"live")
+    digest = hashlib.sha256(b"live").hexdigest()
+    index_path = tmp_path / "index.jsonl"
+    _write_lines(
+        index_path,
+        [_vcs_envelope(artifact_id="default:vcs", sha256=digest)],
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_vcs.materialize_artifact_file",
+        lambda _row, *, repositories: materialized,
+    )
+
+    inspection = inspect_artifact_file_index(index_path)
+    backfill = backfill_artifact_file_index(index_path)
+    verification = verify_artifact_file_index(index_path, repositories=())
+
+    assert inspection.vcs_reference_rows == 1
+    assert inspection.missing_stored_path_ids == ()
+    assert inspection.vcs_provenance_incomplete_ids == ()
+    assert backfill.changed is False
+    assert backfill.missing_stored_path_ids == ()
+    assert verification.verified_ids == ("default:vcs",)
+    assert verification.unresolvable_vcs_ids == ()
+
+
+def test_verify_reports_unresolvable_vcs_row(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    index_path = tmp_path / "index.jsonl"
+    _write_lines(
+        index_path,
+        [_vcs_envelope(artifact_id="default:missing-vcs", sha256="a" * 64)],
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_vcs.materialize_artifact_file",
+        lambda _row, *, repositories: None,
+    )
+
+    report = verify_artifact_file_index(index_path, repositories=())
+
+    assert report.unresolvable_vcs_ids == ("default:missing-vcs",)
+    assert report.missing_stored_path_ids == ()
+
+
+def test_inspect_names_byte_free_row_with_partial_vcs_provenance(
+    tmp_path: Path,
+) -> None:
+    index_path = tmp_path / "index.jsonl"
+    row = _vcs_envelope(artifact_id="default:partial-vcs", sha256="a" * 64)
+    del row["artifact"]["vcs_relpath"]
+    _write_lines(index_path, [row])
+
+    report = inspect_artifact_file_index(index_path)
+
+    assert report.supported_rows == 0
+    assert report.vcs_provenance_incomplete_ids == ("default:partial-vcs",)
+    assert report.malformed_rows == 1

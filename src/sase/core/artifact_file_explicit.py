@@ -105,6 +105,12 @@ def store_default_artifact_file(
     index_path: Path | str | None = None,
     workspace_dir: str | None = None,
     created_at: str | None = None,
+    vcs_repo: str | None = None,
+    vcs_sha: str | None = None,
+    vcs_relpath: str | None = None,
+    sha256: str | None = None,
+    size_bytes: int | None = None,
+    mime_type: str | None = None,
 ) -> ArtifactFile | None:
     """Persist an auto-discovered (default) artifact file to the global store.
 
@@ -128,12 +134,32 @@ def store_default_artifact_file(
         if kind is not None
         else infer_artifact_file_kind(source)
     )
-    stored_path, sha256 = _store_file(source, root, association, move=False)
+    reference_mode = all((vcs_repo, vcs_sha, vcs_relpath))
+    if any((vcs_repo, vcs_sha, vcs_relpath)) and not reference_mode:
+        raise ValueError("reference mode requires complete VCS provenance")
+    if reference_mode and (sha256 is None or size_bytes is None):
+        raise ValueError("reference mode requires precomputed digest and size")
+    stored_path: Path | None
+    if reference_mode:
+        stored_path = None
+    else:
+        stored_path, sha256 = _store_file(source, root, association, move=False)
+        size_bytes = stored_path.stat().st_size
+        mime_type = mime_type or artifact_file_mime_type(stored_path)
+    identity_label = label or source.name
     artifact_file = ArtifactFile(
-        id=artifact_file_id("default", association, stored_path, label or source.name),
-        label=label or source.name,
+        id=artifact_file_id(
+            "default",
+            association,
+            stored_path,
+            identity_label,
+            vcs_repo=vcs_repo,
+            vcs_relpath=vcs_relpath,
+            sha256=sha256,
+        ),
+        label=identity_label,
         kind=artifact_file_kind,
-        path=str(stored_path),
+        path=None if stored_path is None else str(stored_path),
         source_path=str(source),
         workspace_dir=workspace_dir,
         created_at=created_at or file_created_at(source) or now_iso(),
@@ -144,8 +170,11 @@ def store_default_artifact_file(
         agent_name=association.agent_name,
         explicit=False,
         sha256=sha256,
-        size_bytes=stored_path.stat().st_size,
-        mime_type=artifact_file_mime_type(stored_path),
+        size_bytes=size_bytes,
+        mime_type=mime_type or artifact_file_mime_type(source),
+        vcs_repo=vcs_repo,
+        vcs_sha=vcs_sha,
+        vcs_relpath=vcs_relpath,
     )
     _upsert_index_row(idx, artifact_file)
     return artifact_file

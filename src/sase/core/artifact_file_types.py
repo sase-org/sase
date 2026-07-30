@@ -11,9 +11,8 @@ from sase.core.paths import sase_home as _sase_home
 
 ArtifactFileKind = Literal["chat", "plan", "image", "markdown", "pdf", "file"]
 
-# The version written by this package. Keep this at v1 while older SASE
-# installations may still rewrite the shared index.
-ARTIFACT_FILE_INDEX_SCHEMA_VERSION = 1
+# The version written by this package.
+ARTIFACT_FILE_INDEX_SCHEMA_VERSION = 2
 # Versions this package can safely deserialize and rewrite.
 ARTIFACT_FILE_INDEX_SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2})
 ARTIFACT_FILE_KINDS: tuple[ArtifactFileKind, ...] = (
@@ -58,7 +57,7 @@ class ArtifactFile:
     id: str
     label: str
     kind: ArtifactFileKind
-    path: str
+    path: str | None
     source_path: str | None = None
     workspace_dir: str | None = None
     created_at: str | None = None
@@ -71,6 +70,15 @@ class ArtifactFile:
     sha256: str | None = None
     size_bytes: int | None = None
     mime_type: str | None = None
+    vcs_repo: str | None = None
+    vcs_sha: str | None = None
+    vcs_relpath: str | None = None
+
+    @property
+    def is_vcs_backed(self) -> bool:
+        """Return whether version control, rather than stored bytes, backs this row."""
+
+        return not self.path and all((self.vcs_repo, self.vcs_sha, self.vcs_relpath))
 
 
 def default_artifact_files_root(sase_home: Path | str | None = None) -> Path:
@@ -96,11 +104,19 @@ def artifact_file_from_dict(data: dict[str, Any]) -> ArtifactFile:
     """Rehydrate an artifact-file model from a JSON-safe dict."""
 
     kind = coerce_artifact_file_kind(data.get("kind"))
+    path = _optional_str(data.get("path"))
+    vcs_repo = _optional_str(data.get("vcs_repo"))
+    vcs_sha = _optional_str(data.get("vcs_sha"))
+    vcs_relpath = _optional_str(data.get("vcs_relpath"))
+    if not path and not all((vcs_repo, vcs_sha, vcs_relpath)):
+        raise ValueError(
+            "artifact-file row requires a stored path or complete VCS provenance"
+        )
     return ArtifactFile(
         id=str(data["id"]),
         label=str(data["label"]),
         kind=kind,
-        path=str(data["path"]),
+        path=path,
         source_path=_optional_str(data.get("source_path")),
         workspace_dir=_optional_str(data.get("workspace_dir")),
         created_at=_optional_str(data.get("created_at")),
@@ -113,6 +129,9 @@ def artifact_file_from_dict(data: dict[str, Any]) -> ArtifactFile:
         sha256=_optional_str(data.get("sha256")),
         size_bytes=_optional_int(data.get("size_bytes")),
         mime_type=_optional_str(data.get("mime_type")),
+        vcs_repo=vcs_repo,
+        vcs_sha=vcs_sha,
+        vcs_relpath=vcs_relpath,
     )
 
 

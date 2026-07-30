@@ -82,7 +82,7 @@ def dedupe_artifact_files(artifact_files: list[ArtifactFile]) -> list[ArtifactFi
     seen: set[str] = set()
     deduped: list[ArtifactFile] = []
     for artifact_file in artifact_files:
-        key = path_key(artifact_file.path)
+        key = artifact_file_dedupe_key(artifact_file)
         if key in seen:
             continue
         seen.add(key)
@@ -107,20 +107,49 @@ def matches_association(
 def artifact_file_id(
     prefix: str,
     association: ArtifactFileAssociation,
-    path: Path | str,
+    path: Path | str | None,
     label: str,
+    *,
+    vcs_repo: str | None = None,
+    vcs_relpath: str | None = None,
+    sha256: str | None = None,
 ) -> str:
+    path_identity = (
+        path_key(path) if path else _vcs_identity(vcs_repo, vcs_relpath, sha256)
+    )
     identity = "|".join(
         [
             association.project or "",
             association.workflow or "",
             association.raw_timestamp or "",
             association.agent_artifacts_dir,
-            path_key(path),
+            path_identity,
             label,
         ]
     )
     return f"{prefix}:{hash_text(identity)[:24]}"
+
+
+def artifact_file_dedupe_key(artifact_file: ArtifactFile) -> str:
+    """Return a stable identity for stored and byte-free artifact rows."""
+
+    if artifact_file.path:
+        return path_key(artifact_file.path)
+    return _vcs_identity(
+        artifact_file.vcs_repo,
+        artifact_file.vcs_relpath,
+        artifact_file.sha256,
+    )
+
+
+def _vcs_identity(
+    vcs_repo: str | None,
+    vcs_relpath: str | None,
+    sha256: str | None,
+) -> str:
+    if not all((vcs_repo, vcs_relpath, sha256)):
+        raise ValueError("VCS artifact identity requires repo, path, and digest")
+    return f"vcs:{vcs_repo}:{vcs_relpath}:{sha256}"
 
 
 def path_key(path: Path | str) -> str:

@@ -22,6 +22,7 @@ from sase.core.rust import require_rust_binding
 _RESOLUTION_STATUSES = {
     "exact",
     "drifted",
+    "vcs_backed",
     "ambiguous",
     "missing",
     "unknown_kind",

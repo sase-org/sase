@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Iterable
+from dataclasses import replace
 import os
 from pathlib import Path
 import subprocess
@@ -77,20 +78,27 @@ class ArtifactsFilesActionsMixin:
         if selection is None:
             return
         pane, entry, view_mode = selection
-        if view_mode not in {"markdown", "text"}:
+        if entry.path and view_mode not in {"markdown", "text"}:
             self._open_artifact_file(entry)  # type: ignore[attr-defined]
             return
-
         selected_id = entry.id
-        stored_path = entry.path
 
         async def open_preview() -> None:
             try:
+                materialized = await asyncio.to_thread(
+                    _materialize_artifact_file_entry,
+                    entry,
+                )
+                assert materialized.path is not None
+                stored_path = materialized.path
+                if view_mode not in {"markdown", "text"}:
+                    self._open_artifact_file(materialized)  # type: ignore[attr-defined]
+                    return
                 content = await asyncio.to_thread(
                     _read_artifact_file_text,
                     stored_path,
                 )
-            except OSError as exc:
+            except (OSError, RuntimeError) as exc:
                 self.notify(  # type: ignore[attr-defined]
                     f"Could not read artifact file: {exc}",
                     severity="warning",
@@ -165,7 +173,30 @@ class ArtifactsFilesActionsMixin:
                 self._notify_no_file_selected()
                 return
             entries = (entry,)
-        self._open_artifact_files(list(entries))  # type: ignore[attr-defined]
+        if all(entry.path for entry in entries):
+            self._open_artifact_files(list(entries))  # type: ignore[attr-defined]
+            return
+
+        async def open_entries() -> None:
+            try:
+                materialized = await asyncio.to_thread(
+                    _materialize_artifact_file_entries,
+                    entries,
+                )
+            except (OSError, RuntimeError) as exc:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Could not materialize artifact file: {exc}",
+                    severity="warning",
+                )
+                return
+            self._open_artifact_files(list(materialized))  # type: ignore[attr-defined]
+
+        spawn_pump_free_task(
+            self,
+            open_entries(),
+            name="sase-artifact-file-viewer",
+            registry_attr="_pump_free_async_tasks",
+        )
 
     def action_files_open_external(self) -> None:
         """Open text in the configured editor and media via xdg-open."""
@@ -174,23 +205,62 @@ class ArtifactsFilesActionsMixin:
         if selection is None:
             return
         _pane, entry, view_mode = selection
-        stored_path = str(Path(entry.path).expanduser())
-        if view_mode in {"markdown", "text"}:
-            editor = os.environ.get("EDITOR") or "nvim"
-            command = build_editor_args(editor, ["--", stored_path])
+        if entry.path:
+            stored_path = str(Path(entry.path).expanduser())
+            if view_mode in {"markdown", "text"}:
+                editor = os.environ.get("EDITOR") or "nvim"
+                command = build_editor_args(editor, ["--", stored_path])
+                self._run_external_command(
+                    command,
+                    action="files_open_external",
+                    tool_kind="editor",
+                    status_message="Opening artifact file in editor…",
+                )
+                return
             self._run_external_command(
-                command,
+                ["xdg-open", "--", stored_path],
                 action="files_open_external",
-                tool_kind="editor",
-                status_message="Opening artifact file in editor…",
+                tool_kind="external_opener",
+                status_message="Opening artifact file externally…",
             )
             return
 
-        self._run_external_command(
-            ["xdg-open", "--", stored_path],
-            action="files_open_external",
-            tool_kind="external_opener",
-            status_message="Opening artifact file externally…",
+        async def open_external() -> None:
+            try:
+                materialized = await asyncio.to_thread(
+                    _materialize_artifact_file_entry,
+                    entry,
+                )
+            except (OSError, RuntimeError) as exc:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Could not materialize artifact file: {exc}",
+                    severity="warning",
+                )
+                return
+            assert materialized.path is not None
+            stored_path = str(Path(materialized.path).expanduser())
+            if view_mode in {"markdown", "text"}:
+                editor = os.environ.get("EDITOR") or "nvim"
+                command = build_editor_args(editor, ["--", stored_path])
+                self._run_external_command(
+                    command,
+                    action="files_open_external",
+                    tool_kind="editor",
+                    status_message="Opening artifact file in editor…",
+                )
+                return
+            self._run_external_command(
+                ["xdg-open", "--", stored_path],
+                action="files_open_external",
+                tool_kind="external_opener",
+                status_message="Opening artifact file externally…",
+            )
+
+        spawn_pump_free_task(
+            self,
+            open_external(),
+            name="sase-artifact-file-external",
+            registry_attr="_pump_free_async_tasks",
         )
 
     def action_files_open_agent(self) -> None:
@@ -266,7 +336,9 @@ class ArtifactsFilesActionsMixin:
 
         def value() -> str:
             nonlocal copy_path
-            copy_path = artifact_file_clipboard_path(entry)
+            copy_path = artifact_file_clipboard_path(
+                _materialize_artifact_file_entry(entry)
+            )
             if copy_path is None:
                 raise RuntimeError("selected artifact file has no path")
             return copy_path.text
@@ -432,6 +504,36 @@ def _read_artifact_file_text(path: str) -> str:
     """Read a stored text-like artifact with tolerant UTF-8 decoding."""
 
     return Path(path).expanduser().read_text(encoding="utf-8", errors="replace")
+
+
+def _materialize_artifact_file_entry(entry: ArtifactFile) -> ArtifactFile:
+    """Resolve one row to bytes; safe to call only from a worker thread."""
+
+    return _materialize_artifact_file_entries((entry,))[0]
+
+
+def _materialize_artifact_file_entries(
+    entries: Iterable[ArtifactFile],
+) -> tuple[ArtifactFile, ...]:
+    from sase.artifact_ref_context import launch_artifact_ref_context
+    from sase.core.artifact_file_vcs import materialize_artifact_file
+
+    accepted = tuple(entries)
+    if all(entry.path for entry in accepted):
+        return accepted
+    context = launch_artifact_ref_context(is_home_mode=False)
+    materialized: list[ArtifactFile] = []
+    for entry in accepted:
+        path = materialize_artifact_file(entry, repositories=context.repositories)
+        if path is None:
+            locator = (
+                f"{entry.vcs_repo}@{entry.vcs_sha}:{entry.vcs_relpath}"
+                if entry.is_vcs_backed
+                else entry.id
+            )
+            raise OSError(f"content unavailable for {locator}")
+        materialized.append(replace(entry, path=str(path)))
+    return tuple(materialized)
 
 
 __all__ = ["ArtifactsFilesActionsMixin", "FILES_ARTIFACT_ACTIONS"]

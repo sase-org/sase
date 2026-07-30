@@ -46,7 +46,7 @@ def test_query_checks_handshake_and_passes_complete_filter_dict(
 
     def fake_require(name: str) -> Any:
         if name == "artifact_file_query_wire_schema_version":
-            return lambda: 1
+            return lambda: 2
         if name == "artifact_files_query":
 
             def query(path: str, filters: dict[str, object]) -> list[object]:
@@ -95,10 +95,10 @@ def test_query_rejects_stale_handshake(
 ) -> None:
     monkeypatch.setattr(
         "sase.core.artifact_file_query_facade.require_rust_binding",
-        lambda _name: lambda: 2,
+        lambda _name: lambda: 1,
     )
 
-    with pytest.raises(RuntimeError, match="expected 1, got 2"):
+    with pytest.raises(RuntimeError, match="expected 2, got 1"):
         query_artifact_files("/tmp/index.jsonl")
 
 
@@ -117,7 +117,7 @@ def test_query_rejects_incompatible_rows(
 ) -> None:
     def fake_require(name: str) -> Any:
         if name == "artifact_file_query_wire_schema_version":
-            return lambda: 1
+            return lambda: 2
         return lambda *_args: [row]
 
     monkeypatch.setattr(
@@ -159,3 +159,49 @@ def test_real_rust_query_matches_python_reader_for_v1_v2_fixture(
     python_rows = read_artifact_file_index(index)
 
     assert rust_rows == python_rows
+
+
+def test_query_accepts_complete_vcs_row_without_stored_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    row = _wire_row()
+    row.update(
+        path=None,
+        vcs_repo="sase",
+        vcs_sha="b" * 40,
+        vcs_relpath="docs/report.md",
+    )
+
+    def fake_require(name: str) -> Any:
+        if name == "artifact_file_query_wire_schema_version":
+            return lambda: 2
+        return lambda *_args: [row]
+
+    monkeypatch.setattr(
+        "sase.core.artifact_file_query_facade.require_rust_binding",
+        fake_require,
+    )
+
+    [artifact] = query_artifact_files("/tmp/index.jsonl")
+    assert artifact.path is None
+    assert artifact.is_vcs_backed
+
+
+def test_query_rejects_partial_vcs_row_without_stored_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    row = _wire_row()
+    row.update(path=None, vcs_repo="sase")
+
+    def fake_require(name: str) -> Any:
+        if name == "artifact_file_query_wire_schema_version":
+            return lambda: 2
+        return lambda *_args: [row]
+
+    monkeypatch.setattr(
+        "sase.core.artifact_file_query_facade.require_rust_binding",
+        fake_require,
+    )
+
+    with pytest.raises(RuntimeError, match="complete VCS provenance"):
+        query_artifact_files("/tmp/index.jsonl")

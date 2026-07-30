@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from pathlib import Path
 import re
 from typing import Any
 
@@ -20,6 +21,7 @@ from sase.core.artifact_file_types import (
     ArtifactFile,
     artifact_file_to_dict,
 )
+from sase.core.artifact_file_vcs import materialize_artifact_file
 
 
 _BARE_FILE_ID_RE = re.compile(r"^(?:default|explicit):[0-9a-f]{24}$")
@@ -134,6 +136,26 @@ def resolution_error_lines(result: ResolvedArtifactReference) -> list[str]:
     return lines
 
 
+def resolved_file_path(result: ResolvedArtifactReference) -> Path | None:
+    """Return a live path, materializing a VCS-backed file row on demand."""
+
+    if (
+        result.resolution.status in {"exact", "drifted"}
+        and result.resolution.resolved_path is not None
+    ):
+        return result.resolution.resolved_path
+    if (
+        result.resolution.status == "vcs_backed"
+        and result.file is not None
+        and result.context is not None
+    ):
+        return materialize_artifact_file(
+            result.file,
+            repositories=result.context.repositories,
+        )
+    return None
+
+
 def _find_file_record(
     reference: ArtifactRef,
     *,
@@ -161,5 +183,6 @@ __all__ = [
     "ResolvedArtifactReference",
     "artifact_file_json_dict",
     "resolution_error_lines",
+    "resolved_file_path",
     "resolve_cli_reference",
 ]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -31,6 +32,8 @@ class ArtifactFileIndexInspection:
     duplicate_ids: tuple[str, ...]
     unrecognized_schema_versions: tuple[int, ...]
     malformed_rows: int
+    vcs_reference_rows: int = 0
+    vcs_provenance_incomplete_ids: tuple[str, ...] = ()
 
     @property
     def rows_missing_enrichment(self) -> int:
@@ -83,6 +86,7 @@ class ArtifactFileVerifyReport:
     missing_stored_path_ids: tuple[str, ...]
     mismatches: tuple[ArtifactFileDigestMismatch, ...]
     unrecognized_schema_versions: tuple[int, ...]
+    unresolvable_vcs_ids: tuple[str, ...] = ()
 
 
 def inspect_artifact_file_index(
@@ -101,6 +105,8 @@ def inspect_artifact_file_index(
             duplicate_ids=(),
             unrecognized_schema_versions=(),
             malformed_rows=0,
+            vcs_reference_rows=0,
+            vcs_provenance_incomplete_ids=(),
         )
     with artifact_file_index_lock(idx, exclusive=False):
         rows, preserved_lines = read_artifact_file_index_document_unlocked(idx)
@@ -117,7 +123,9 @@ def inspect_artifact_file_index(
         missing_enrichment_ids=tuple(
             row.id for row in rows if _is_missing_enrichment(row)
         ),
-        missing_stored_path_ids=tuple(row.id for row in rows if not _is_file(row.path)),
+        missing_stored_path_ids=tuple(
+            row.id for row in rows if not row.is_vcs_backed and not _is_file(row.path)
+        ),
         missing_source_path_ids=tuple(
             row.id
             for row in rows
@@ -126,6 +134,11 @@ def inspect_artifact_file_index(
         duplicate_ids=tuple(sorted(duplicate_ids)),
         unrecognized_schema_versions=versions,
         malformed_rows=malformed_rows,
+        vcs_reference_rows=sum(row.is_vcs_backed for row in rows),
+        vcs_provenance_incomplete_ids=(
+            *(row.id for row in rows if _has_incomplete_vcs_provenance(row)),
+            *_preserved_incomplete_vcs_ids(preserved_lines),
+        ),
     )
 
 
@@ -143,6 +156,13 @@ def backfill_artifact_file_index(
         updated_ids: list[str] = []
         missing_stored_path_ids: list[str] = []
         for row in rows:
+            if row.is_vcs_backed:
+                updated_rows.append(row)
+                continue
+            if not row.path:
+                missing_stored_path_ids.append(row.id)
+                updated_rows.append(row)
+                continue
             path = Path(row.path).expanduser()
             if not _is_file(path):
                 missing_stored_path_ids.append(row.id)
@@ -169,6 +189,8 @@ def backfill_artifact_file_index(
 
 def verify_artifact_file_index(
     index_path: Path | str | None = None,
+    *,
+    repositories: Iterable[object] | None = None,
 ) -> ArtifactFileVerifyReport:
     """Re-hash live stored artifacts and report digest mismatches."""
 
@@ -180,8 +202,43 @@ def verify_artifact_file_index(
         verified_ids: list[str] = []
         missing_sha256_ids: list[str] = []
         missing_stored_path_ids: list[str] = []
+        unresolvable_vcs_ids: list[str] = []
         mismatches: list[ArtifactFileDigestMismatch] = []
+        resolved_repositories = repositories
         for row in rows:
+            if row.is_vcs_backed:
+                if row.sha256 is None:
+                    missing_sha256_ids.append(row.id)
+                    continue
+                if resolved_repositories is None:
+                    resolved_repositories = _default_repositories()
+                from sase.core.artifact_file_vcs import materialize_artifact_file
+
+                try:
+                    path = materialize_artifact_file(
+                        row,
+                        repositories=resolved_repositories,
+                    )
+                except (ImportError, OSError, RuntimeError, ValueError):
+                    path = None
+                if path is None:
+                    unresolvable_vcs_ids.append(row.id)
+                    continue
+                actual_sha256 = hash_file(path)
+                verified_ids.append(row.id)
+                if actual_sha256 != row.sha256:
+                    mismatches.append(
+                        ArtifactFileDigestMismatch(
+                            id=row.id,
+                            path=str(path),
+                            expected_sha256=row.sha256,
+                            actual_sha256=actual_sha256,
+                        )
+                    )
+                continue
+            if not row.path:
+                missing_stored_path_ids.append(row.id)
+                continue
             path = Path(row.path).expanduser()
             if not _is_file(path):
                 missing_stored_path_ids.append(row.id)
@@ -208,6 +265,7 @@ def verify_artifact_file_index(
         missing_stored_path_ids=tuple(missing_stored_path_ids),
         mismatches=tuple(mismatches),
         unrecognized_schema_versions=versions,
+        unresolvable_vcs_ids=tuple(unresolvable_vcs_ids),
     )
 
 
@@ -235,11 +293,24 @@ def _backfilled_row(row: ArtifactFile, path: Path) -> ArtifactFile:
     )
 
 
-def _is_file(path: Path | str) -> bool:
+def _is_file(path: Path | str | None) -> bool:
+    if path is None:
+        return False
     try:
         return Path(path).expanduser().is_file()
     except OSError:
         return False
+
+
+def _has_incomplete_vcs_provenance(row: ArtifactFile) -> bool:
+    fields = (row.vcs_repo, row.vcs_sha, row.vcs_relpath)
+    return any(fields) and not all(fields)
+
+
+def _default_repositories() -> tuple[object, ...]:
+    from sase.artifact_ref_context import launch_artifact_ref_context
+
+    return launch_artifact_ref_context(is_home_mode=False).repositories
 
 
 def _preserved_line_summary(lines: list[str]) -> tuple[tuple[int, ...], int]:
@@ -257,3 +328,29 @@ def _preserved_line_summary(lines: list[str]) -> tuple[tuple[int, ...], int]:
         else:
             malformed_rows += 1
     return tuple(versions), malformed_rows
+
+
+def _preserved_incomplete_vcs_ids(lines: list[str]) -> tuple[str, ...]:
+    ids: list[str] = []
+    for line in lines:
+        try:
+            envelope = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(envelope, dict):
+            continue
+        artifact = envelope.get("artifact")
+        if not isinstance(artifact, dict):
+            continue
+        fields = tuple(
+            artifact.get(field) for field in ("vcs_repo", "vcs_sha", "vcs_relpath")
+        )
+        artifact_id = artifact.get("id")
+        if (
+            any(isinstance(value, str) and value for value in fields)
+            and not all(isinstance(value, str) and value for value in fields)
+            and isinstance(artifact_id, str)
+            and artifact_id
+        ):
+            ids.append(artifact_id)
+    return tuple(ids)

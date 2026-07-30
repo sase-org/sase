@@ -45,6 +45,7 @@ def _inspection_healthy(report: ArtifactFileIndexInspection) -> bool:
         (
             report.missing_enrichment_ids,
             report.missing_stored_path_ids,
+            report.vcs_provenance_incomplete_ids,
             report.duplicate_ids,
             report.unrecognized_schema_versions,
             report.malformed_rows,
@@ -57,6 +58,7 @@ def _verification_healthy(report: ArtifactFileVerifyReport) -> bool:
         (
             report.missing_sha256_ids,
             report.missing_stored_path_ids,
+            report.unresolvable_vcs_ids,
             report.mismatches,
             report.unrecognized_schema_versions,
         )
@@ -78,8 +80,14 @@ def _print_report(
     )
     table.add_row("Rows", str(inspection.total_rows))
     table.add_row("Supported rows", str(inspection.supported_rows))
+    table.add_row("VCS reference rows", str(inspection.vcs_reference_rows))
     _add_ids(table, "Missing enrichment", inspection.missing_enrichment_ids)
     _add_ids(table, "Missing stored files", inspection.missing_stored_path_ids)
+    _add_ids(
+        table,
+        "Incomplete VCS provenance",
+        inspection.vcs_provenance_incomplete_ids,
+    )
     _add_ids(
         table,
         "Missing source files (informational)",
@@ -111,6 +119,11 @@ def _print_report(
             table,
             "Verification missing files",
             verification.missing_stored_path_ids,
+        )
+        _add_ids(
+            table,
+            "Unresolvable VCS references",
+            verification.unresolvable_vcs_ids,
         )
         _add_ids(
             table,

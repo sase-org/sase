@@ -154,6 +154,9 @@ def test_list_json_contains_every_record_field_and_ref(
         "sha256",
         "size_bytes",
         "mime_type",
+        "vcs_repo",
+        "vcs_sha",
+        "vcs_relpath",
         "ref",
     ]
     assert payload["project"] == "gh_sase-org__sase"

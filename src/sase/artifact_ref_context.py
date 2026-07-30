@@ -74,6 +74,7 @@ def artifact_ref_context(
                 )
             ),
             checkout_path=_repository_checkout_path(record, workspace_num),
+            checkout_paths=_repository_checkout_paths(record, workspace_num),
         )
         for record in repository_records
     )
@@ -154,18 +155,40 @@ def launch_artifact_ref_context(
 
 
 def _repository_checkout_path(record: object, workspace_num: int) -> Path | None:
+    paths = _repository_checkout_paths(record, workspace_num)
+    return paths[0] if paths else None
+
+
+def _repository_checkout_paths(
+    record: object,
+    workspace_num: int,
+) -> tuple[Path, ...]:
+    candidates: list[object] = []
     clone_for_workspace = getattr(record, "clone_for_workspace", None)
     clone = (
         clone_for_workspace(workspace_num) if callable(clone_for_workspace) else None
     )
-    raw_path = getattr(clone, "path", None)
-    exists = bool(getattr(clone, "exists", False))
-    if raw_path is None and workspace_num in {0, 1}:
-        raw_path = getattr(record, "path", None)
-        exists = bool(getattr(record, "exists", False))
-    if not raw_path or not exists:
-        return None
-    return Path(str(raw_path)).expanduser().resolve(strict=False)
+    if clone is not None and bool(getattr(clone, "exists", False)):
+        candidates.append(getattr(clone, "path", None))
+    candidates.extend(
+        getattr(candidate, "path", None)
+        for candidate in getattr(record, "clones", ())
+        if candidate is not clone and bool(getattr(candidate, "exists", False))
+    )
+    if bool(getattr(record, "exists", False)):
+        candidates.append(getattr(record, "path", None))
+
+    paths: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        if not candidate:
+            continue
+        path = Path(str(candidate)).expanduser().resolve(strict=False)
+        if path in seen:
+            continue
+        seen.add(path)
+        paths.append(path)
+    return tuple(paths)
 
 
 def _append_document_root(

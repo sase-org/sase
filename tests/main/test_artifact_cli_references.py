@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import json
 from pathlib import Path
 import subprocess
@@ -353,6 +354,42 @@ def test_path_malformed_reference(
 
     assert handle_path(argparse.Namespace(reference="bad")) == 1
     assert "malformed" in capsys.readouterr().err
+
+
+def test_path_materializes_vcs_backed_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cache_path = tmp_path / "vcs-cache" / "report.md"
+    cache_path.parent.mkdir()
+    cache_path.write_text("# report\n", encoding="utf-8")
+    file = replace(
+        _artifact(tmp_path / "unused"),
+        path=None,
+        vcs_repo="sase",
+        vcs_sha="b" * 40,
+        vcs_relpath="docs/report.md",
+    )
+    result = _result(
+        None,
+        reference=f"file:explicit:{_DIGEST}",
+        status="vcs_backed",
+        file=file,
+        locator=f"sase@{'b' * 40}:docs/report.md",
+        context=_context(tmp_path),
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.path.resolve_cli_reference",
+        lambda _value: result,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.path.resolved_file_path",
+        lambda _result: cache_path,
+    )
+
+    assert handle_path(argparse.Namespace(reference=result.input)) == 0
+    assert capsys.readouterr().out.strip() == str(cache_path)
 
 
 def test_resolution_errors_include_entity_publication_hints(

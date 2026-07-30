@@ -55,7 +55,11 @@ def _print_file(result: ResolvedArtifactReference) -> None:
         table.add_row(key, _display_value(value))
     table.add_row(
         "stored_path_status",
-        _path_status(result.file.path),
+        (
+            f"vcs-backed ({result.resolution.locator or 'locator unavailable'})"
+            if result.file.is_vcs_backed
+            else _path_status(result.file.path)
+        ),
     )
     table.add_row(
         "source_path_status",
@@ -129,7 +133,9 @@ def _display_value(value: object) -> str:
     return str(value)
 
 
-def _path_status(path: str) -> str:
+def _path_status(path: str | None) -> str:
+    if not path:
+        return "not recorded"
     try:
         return "live" if Path(path).expanduser().is_file() else "missing"
     except OSError:

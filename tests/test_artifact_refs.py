@@ -105,7 +105,7 @@ def test_entity_references_round_trip_through_python_facade(
 ) -> None:
     parsed = artifact_refs.parse_artifact_ref(reference)
 
-    assert parsed.schema_version == ARTIFACT_REF_WIRE_SCHEMA_VERSION == 2
+    assert parsed.schema_version == ARTIFACT_REF_WIRE_SCHEMA_VERSION == 3
     assert parsed.kind == parsed.kind_type == kind
     assert getattr(parsed.payload, payload_field) == payload_value
     assert parsed.to_wire()["payload"] == {
@@ -749,6 +749,6 @@ def test_schema_gate_fails_before_operation(
 
 
 def test_record_schema_rejects_schema_one() -> None:
-    assert ARTIFACT_REF_WIRE_SCHEMA_VERSION == 2
+    assert ARTIFACT_REF_WIRE_SCHEMA_VERSION == 3
     with pytest.raises(RuntimeError, match="unsupported test wire: 1"):
         check_record_schema({"schema_version": 1}, record="test")

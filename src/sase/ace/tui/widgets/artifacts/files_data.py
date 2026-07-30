@@ -55,7 +55,10 @@ def _files_snapshot(
     view_modes: dict[str, ArtifactViewMode] = {}
     counts: Counter[ArtifactViewMode] = Counter()
     for row in accepted_rows:
-        mode = artifact_file_view_mode(row.path, kind=row.kind) or "text"
+        mode = (
+            artifact_file_view_mode(row.path or row.vcs_relpath or "", kind=row.kind)
+            or "text"
+        )
         view_modes[row.id] = mode
         counts[mode] += 1
     return FilesSnapshot(

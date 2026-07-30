@@ -41,11 +41,15 @@ from sase.core.artifact_file_types import (
     default_artifact_files_root,
     infer_artifact_file_kind,
 )
-from sase.core.artifact_file_helpers import artifact_file_mime_type
+from sase.core.artifact_file_helpers import (
+    artifact_file_dedupe_key,
+    artifact_file_mime_type,
+)
 from sase.core.artifact_file_query_facade import (
     ARTIFACT_FILE_QUERY_WIRE_SCHEMA_VERSION,
     query_artifact_files,
 )
+from sase.core.artifact_file_vcs import materialize_artifact_file
 
 __all__ = [
     "ARTIFACT_FILE_INDEX_SCHEMA_VERSION",
@@ -60,6 +64,7 @@ __all__ = [
     "ArtifactFileAssociation",
     "ArtifactFileKind",
     "artifact_file_from_dict",
+    "artifact_file_dedupe_key",
     "artifact_file_to_dict",
     "artifact_file_association_from_dir",
     "artifact_file_mime_type",
@@ -71,6 +76,7 @@ __all__ = [
     "list_artifact_files",
     "list_explicit_artifact_files",
     "list_indexed_artifact_files",
+    "materialize_artifact_file",
     "persist_default_artifact_files",
     "query_artifact_files",
     "read_artifact_file_index",

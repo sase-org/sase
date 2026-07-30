@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -94,6 +96,79 @@ def test_expands_document_chat_file_and_fragments(tmp_path: Path) -> None:
     assert process_artifact_references(prompt, context=context) == (
         f"Read @{plan} (lines 2-4), @{chat} (time 30s), and @{artifact} (page 2)."
     )
+
+
+def test_expands_vcs_backed_file_to_materialized_cache_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(tmp_path)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    subprocess.run(["git", "-C", str(workspace), "init"], check=True)
+    subprocess.run(
+        ["git", "-C", str(workspace), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(workspace), "config", "user.name", "Test"],
+        check=True,
+    )
+    source = workspace / "docs" / "report.md"
+    source.parent.mkdir()
+    content = b"# exact report\n"
+    source.write_bytes(content)
+    subprocess.run(
+        ["git", "-C", str(workspace), "add", "docs/report.md"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(workspace), "commit", "-m", "add report"],
+        check=True,
+    )
+    sha = subprocess.run(
+        ["git", "-C", str(workspace), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    artifact_id = "default:52895d68931185056fd0e49f"
+    context.artifact_index_path.parent.mkdir(parents=True)
+    context.artifact_index_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "artifact": {
+                    "id": artifact_id,
+                    "label": "report.md",
+                    "kind": "markdown",
+                    "path": None,
+                    "sha256": hashlib.sha256(content).hexdigest(),
+                    "size_bytes": len(content),
+                    "mime_type": "text/markdown",
+                    "vcs_repo": "sase",
+                    "vcs_sha": sha,
+                    "vcs_relpath": "docs/report.md",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    cache_root = tmp_path / "artifact-cache"
+    monkeypatch.setattr(
+        "sase.core.artifact_file_vcs.default_artifact_files_root",
+        lambda: cache_root,
+    )
+
+    expanded = process_artifact_references(
+        f"Read @file:{artifact_id}.",
+        context=context,
+    )
+
+    materialized = Path(expanded.removeprefix("Read @").removesuffix("."))
+    assert materialized.read_bytes() == content
+    assert materialized.is_relative_to(cache_root / "vcs-cache")
 
 
 def test_expands_bead_and_agent_pages(tmp_path: Path) -> None:

@@ -137,7 +137,7 @@ def test_store_explicit_artifact_file_preserves_jsonl_wire_format(
     )
 
     row = json.loads(index_path.read_text(encoding="utf-8"))
-    assert row["schema_version"] == 1
+    assert row["schema_version"] == 2
     assert set(row) == {"schema_version", "artifact"}
     assert set(row["artifact"]) == {
         "agent_artifacts_dir",
@@ -156,6 +156,9 @@ def test_store_explicit_artifact_file_preserves_jsonl_wire_format(
         "mime_type",
         "workflow",
         "workspace_dir",
+        "vcs_relpath",
+        "vcs_repo",
+        "vcs_sha",
     }
     assert row["artifact"]["agent_artifacts_dir"] == str(artifacts_dir)
     assert row["artifact"]["path"] == stored.path
