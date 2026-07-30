@@ -17,6 +17,7 @@ from sase.artifact_refs import (
     resolve_artifact_ref,
 )
 from sase.core.artifact_file_query_facade import query_artifact_files
+from sase.core.artifact_consumption_query import ArtifactConsumptionSummary
 from sase.core.artifact_file_types import (
     ArtifactFile,
     artifact_file_to_dict,
@@ -37,6 +38,7 @@ class ResolvedArtifactReference:
     resolution: ArtifactRefResolution
     file: ArtifactFile | None
     context: ArtifactRefContext | None = None
+    consumption: ArtifactConsumptionSummary | None = None
 
     @property
     def is_filesystem_backed(self) -> bool:
@@ -51,6 +53,9 @@ class ResolvedArtifactReference:
             ),
             "file": (None if self.file is None else artifact_file_json_dict(self.file)),
             "resolution": _resolution_json_dict(self.resolution),
+            "consumption": (
+                None if self.consumption is None else self.consumption.to_json_dict()
+            ),
         }
 
 

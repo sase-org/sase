@@ -10,6 +10,10 @@ import pytest
 
 from sase.core.artifact_file_facade import read_artifact_file_index
 from sase.core.artifact_file_query_facade import query_artifact_files
+from sase.core.artifact_consumption import (
+    ArtifactConsumptionEvent,
+    append_artifact_consumption_events,
+)
 
 
 def _wire_row(
@@ -46,7 +50,7 @@ def test_query_checks_handshake_and_passes_complete_filter_dict(
 
     def fake_require(name: str) -> Any:
         if name == "artifact_file_query_wire_schema_version":
-            return lambda: 2
+            return lambda: 3
         if name == "artifact_files_query":
 
             def query(path: str, filters: dict[str, object]) -> list[object]:
@@ -69,6 +73,7 @@ def test_query_checks_handshake_and_passes_complete_filter_dict(
         agent="agent.one",
         since="14d",
         explicit_only=True,
+        unused_only=True,
         query="diagram",
         limit=7,
     )
@@ -85,6 +90,12 @@ def test_query_checks_handshake_and_passes_complete_filter_dict(
                 "project": "project-key",
                 "query": "diagram",
                 "since": "14d",
+                "unused_only": True,
+                "consumption_log_path": str(
+                    (Path.home() / ".sase" / "artifacts" / "consumption.jsonl").resolve(
+                        strict=False
+                    )
+                ),
             },
         )
     ]
@@ -98,7 +109,7 @@ def test_query_rejects_stale_handshake(
         lambda _name: lambda: 1,
     )
 
-    with pytest.raises(RuntimeError, match="expected 2, got 1"):
+    with pytest.raises(RuntimeError, match="expected 3, got 1"):
         query_artifact_files("/tmp/index.jsonl")
 
 
@@ -117,7 +128,7 @@ def test_query_rejects_incompatible_rows(
 ) -> None:
     def fake_require(name: str) -> Any:
         if name == "artifact_file_query_wire_schema_version":
-            return lambda: 2
+            return lambda: 3
         return lambda *_args: [row]
 
     monkeypatch.setattr(
@@ -174,7 +185,7 @@ def test_query_accepts_complete_vcs_row_without_stored_path(
 
     def fake_require(name: str) -> Any:
         if name == "artifact_file_query_wire_schema_version":
-            return lambda: 2
+            return lambda: 3
         return lambda *_args: [row]
 
     monkeypatch.setattr(
@@ -195,7 +206,7 @@ def test_query_rejects_partial_vcs_row_without_stored_path(
 
     def fake_require(name: str) -> Any:
         if name == "artifact_file_query_wire_schema_version":
-            return lambda: 2
+            return lambda: 3
         return lambda *_args: [row]
 
     monkeypatch.setattr(
@@ -205,3 +216,66 @@ def test_query_rejects_partial_vcs_row_without_stored_path(
 
     with pytest.raises(RuntimeError, match="complete VCS provenance"):
         query_artifact_files("/tmp/index.jsonl")
+
+
+def test_unused_filter_reaches_rust_before_limit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index = tmp_path / "index.jsonl"
+    log_path = tmp_path / "consumption.jsonl"
+    rows = [
+        _wire_row("explicit:111111111111111111111111"),
+        _wire_row("explicit:222222222222222222222222"),
+        _wire_row("explicit:333333333333333333333333"),
+    ]
+    for offset, row in enumerate(rows):
+        row["created_at"] = f"2026-07-0{3 - offset}T00:00:00Z"
+    index.write_text(
+        "\n".join(
+            json.dumps(
+                {
+                    "schema_version": row["schema_version"],
+                    "artifact": {
+                        key: value
+                        for key, value in row.items()
+                        if key != "schema_version"
+                    },
+                }
+            )
+            for row in rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    append_artifact_consumption_events(
+        (
+            ArtifactConsumptionEvent(
+                id="event-1",
+                timestamp="2026-07-30T14:00:00Z",
+                ref="file:explicit:111111111111111111111111",
+                ref_kind="file",
+                fragment=None,
+                role="report",
+                artifact_id="explicit:111111111111111111111111",
+                resolved_path="/stored/report.md",
+                resolution_status="exact",
+                agent_name="agent.one",
+                agent_source="SASE_AGENT_NAME",
+                artifacts_dir=None,
+                project=None,
+            ),
+        ),
+        log_path=log_path,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_query_facade.default_artifact_consumption_log_path",
+        lambda: log_path,
+    )
+
+    result = query_artifact_files(index, unused_only=True, limit=2)
+
+    assert [row.id for row in result] == [
+        "explicit:222222222222222222222222",
+        "explicit:333333333333333333333333",
+    ]

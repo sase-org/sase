@@ -33,6 +33,7 @@ def _list_args(**overrides: object) -> argparse.Namespace:
         "project": None,
         "query": None,
         "since": None,
+        "unused": False,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -97,6 +98,7 @@ def test_list_resolves_project_passes_filters_and_renders_display_name(
                 project="ss",
                 query="report",
                 since="14d",
+                unused=True,
             )
         )
         == 0
@@ -117,6 +119,7 @@ def test_list_resolves_project_passes_filters_and_renders_display_name(
             "explicit_only": True,
             "query": "report",
             "limit": 3,
+            "unused_only": True,
         }
     ]
 
@@ -180,6 +183,32 @@ def test_list_empty_output_and_unknown_project_usage_error(
     assert "No artifacts found." in capsys.readouterr().out
     assert handle_list(_list_args(project="unknown")) == 2
     assert "unknown project reference" in capsys.readouterr().err
+
+
+def test_list_unused_filter_is_named_in_empty_panel(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "sase.artifact_cli.listing.load_project_ref_display_snapshot",
+        _projects,
+    )
+
+    def fake_query(**kwargs: object) -> list[ArtifactFile]:
+        calls.append(dict(kwargs))
+        return []
+
+    monkeypatch.setattr(
+        "sase.artifact_cli.listing.query_artifact_files",
+        fake_query,
+    )
+
+    assert handle_list(_list_args(unused=True)) == 0
+
+    output = capsys.readouterr().out
+    assert "Artifacts (0, unused)" in output
+    assert calls[0]["unused_only"] is True
 
 
 def _inspection(**overrides: object) -> ArtifactFileIndexInspection:

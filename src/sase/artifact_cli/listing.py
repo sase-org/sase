@@ -41,6 +41,7 @@ def handle_list(args: argparse.Namespace) -> int:
         agent=getattr(args, "agent", None),
         since=getattr(args, "since", None),
         explicit_only=bool(getattr(args, "explicit", False)),
+        unused_only=bool(getattr(args, "unused", False)),
         query=getattr(args, "query", None),
         limit=getattr(args, "limit", 50),
     )
@@ -53,7 +54,11 @@ def handle_list(args: argparse.Namespace) -> int:
         sys.stdout.write("\n")
         return 0
 
-    _print_pretty(rows, projects)
+    _print_pretty(
+        rows,
+        projects,
+        unused_only=bool(getattr(args, "unused", False)),
+    )
     return 0
 
 
@@ -69,9 +74,11 @@ def _resolve_project_filter(
 def _print_pretty(
     rows: list[ArtifactFile],
     projects: ProjectRefDisplaySnapshot,
+    *,
+    unused_only: bool = False,
 ) -> None:
     console = Console()
-    title = f"Artifacts ({len(rows)})"
+    title = f"Artifacts ({len(rows)}{', unused' if unused_only else ''})"
     if not rows:
         console.print(
             Panel(

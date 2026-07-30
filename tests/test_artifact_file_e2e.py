@@ -17,11 +17,15 @@ from sase._repo_inventory_models import RepoCloneRecord, RepoInventory, RepoReco
 from sase.ace.tui.actions.agents._panels import AgentPanelsMixin
 from sase.ace.tui.graphics import ArtifactFileViewerResult
 from sase.artifact_cli.create import handle_create
+from sase.artifact_cli.show import handle_show
 from sase.artifact_ref_models import ArtifactRefContext, ArtifactRefRepository
 from sase.artifact_ref_operations import resolve_artifact_ref
+from sase.artifact_ref_prompt import process_artifact_references
 from sase.core.artifact_file_facade import ArtifactFile, list_artifact_files
 from sase.core.artifact_file_facade import materialize_artifact_file
 from sase.core.artifact_file_facade import persist_default_artifact_files
+from sase.core.artifact_file_query_facade import query_artifact_files
+from sase.core.artifact_file_types import artifact_file_to_dict
 from tests._sdd_commit_helpers import init_test_git_repo
 
 
@@ -271,6 +275,75 @@ def test_vcs_backed_default_capture_resolves_to_verified_content(
     materialized = materialize_artifact_file(row, repositories=context.repositories)
     assert materialized is not None
     assert materialized.read_bytes() == image.read_bytes()
+
+
+def test_reference_expansion_updates_unused_and_show_consumption(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    artifact_root = home / ".sase" / "artifacts"
+    artifact_root.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SASE_AGENT_NAME", "e2e.consumer")
+    monkeypatch.delenv("SASE_AGENT", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+
+    stored = _write_text(artifact_root / "stored" / "report.md", "# Report\n")
+    row = ArtifactFile(
+        id="explicit:0123456789abcdef01234567",
+        label="Report",
+        kind="markdown",
+        path=str(stored),
+        source_path=None,
+        workspace_dir=None,
+        created_at="2026-07-30T12:00:00Z",
+        agent_artifacts_dir=None,
+        project=None,
+        workflow=None,
+        raw_timestamp=None,
+        agent_name="producer",
+        explicit=True,
+        sha256=_digest(stored),
+        size_bytes=stored.stat().st_size,
+        mime_type="text/markdown",
+    )
+    index_path = artifact_root / "index.jsonl"
+    index_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "artifact": artifact_file_to_dict(row),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    context = ArtifactRefContext(
+        document_roots=(),
+        chats_root=home / ".sase" / "chats",
+        artifact_index_path=index_path,
+        repositories=(),
+        projects=(),
+    )
+    reference = f"file:{row.id}"
+
+    assert [item.id for item in query_artifact_files(index_path, unused_only=True)] == [
+        row.id
+    ]
+    expanded = process_artifact_references(
+        f"Read @{reference}",
+        context=context,
+    )
+    assert str(stored) in expanded
+    assert query_artifact_files(index_path, unused_only=True) == []
+
+    assert handle_show(argparse.Namespace(reference=reference, json=True)) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["consumption"]["consumption_count"] == 1
+    assert payload["consumption"]["distinct_agent_count"] == 1
+    assert payload["consumption"]["agent_names"] == ["e2e.consumer"]
 
 
 class _SuspendRecorder:

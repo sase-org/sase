@@ -30,6 +30,7 @@ from sase.artifact_refs import (
     parse_artifact_ref,
 )
 from sase.core.artifact_file_facade import ArtifactFile
+from sase.core.artifact_consumption_query import ArtifactConsumptionSummary
 
 
 _DIGEST = "0123456789abcdef01234567"
@@ -216,9 +217,11 @@ def test_show_json_uses_common_envelope(
         "fragment",
         "file",
         "resolution",
+        "consumption",
     ]
     assert payload["reference"] == "plans:doc.md#L3"
     assert payload["kind"] == "plans"
+    assert payload["consumption"] is None
     assert payload["fragment"]["start"] == 3
     assert payload["resolution"]["status"] == "exact"
 
@@ -252,6 +255,86 @@ def test_show_file_pretty_reports_every_field_and_liveness(
     assert "source_path_status" in output
     assert "live" in output
     assert "missing" in output
+
+
+def test_show_reports_consumption_in_pretty_and_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = _result(tmp_path / "report.md", reference="plans:report.md")
+    summary = ArtifactConsumptionSummary(
+        consumption_count=7,
+        distinct_agent_count=6,
+        agent_names=("alpha", "beta", "delta", "epsilon", "gamma", "zeta"),
+        roles=("report",),
+        first_consumed_at="2026-07-30T10:00:00Z",
+        last_consumed_at="2026-07-30T12:00:00Z",
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.show.resolve_cli_reference",
+        lambda _value: result,
+    )
+    calls: list[list[str]] = []
+
+    def summarize(refs: list[str]) -> dict[str, ArtifactConsumptionSummary]:
+        calls.append(refs)
+        return {result.canonical_reference: summary}
+
+    monkeypatch.setattr(
+        "sase.artifact_cli.show.summarize_artifact_consumption",
+        summarize,
+    )
+
+    assert handle_show(argparse.Namespace(reference=result.input, json=False)) == 0
+    pretty = capsys.readouterr().out
+    assert "consumption_count" in pretty
+    assert "7" in pretty
+    assert "consumed_by_agents" in pretty
+    assert "6" in pretty
+    assert "alpha, beta, delta, epsilon, gamma +1 more" in pretty
+    assert "2026-07-30T12:00:00Z" in pretty
+
+    assert handle_show(argparse.Namespace(reference=result.input, json=True)) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["consumption"] == {
+        "consumption_count": 7,
+        "distinct_agent_count": 6,
+        "agent_names": ["alpha", "beta", "delta", "epsilon", "gamma", "zeta"],
+        "roles": ["report"],
+        "first_consumed_at": "2026-07-30T10:00:00Z",
+        "last_consumed_at": "2026-07-30T12:00:00Z",
+    }
+    assert calls == [
+        ["plans:report.md"],
+        ["plans:report.md"],
+    ]
+
+
+def test_show_joins_fragment_reference_to_fragment_free_consumption_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = _result(tmp_path / "report.md", reference="plans:report.md#L3")
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        "sase.artifact_cli.show.resolve_cli_reference",
+        lambda _value: result,
+    )
+
+    def summarize(refs: list[str]) -> dict[str, ArtifactConsumptionSummary]:
+        calls.append(refs)
+        return {}
+
+    monkeypatch.setattr(
+        "sase.artifact_cli.show.summarize_artifact_consumption",
+        summarize,
+    )
+
+    assert handle_show(argparse.Namespace(reference=result.input, json=True)) == 0
+    assert json.loads(capsys.readouterr().out)["consumption"] is None
+    assert calls == [["plans:report.md"]]
 
 
 @pytest.mark.parametrize("status", ["ambiguous", "missing", "unknown_kind"])

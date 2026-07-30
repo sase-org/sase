@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import json
 from pathlib import Path
 import sys
@@ -11,10 +12,15 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from sase.artifact_refs import render_artifact_ref
 from sase.artifact_cli.references import (
     ResolvedArtifactReference,
     artifact_file_json_dict,
     resolve_cli_reference,
+)
+from sase.core.artifact_consumption_query import (
+    ArtifactConsumptionSummary,
+    summarize_artifact_consumption,
 )
 
 
@@ -26,6 +32,12 @@ def handle_show(args: argparse.Namespace) -> int:
     except (RuntimeError, ValueError) as exc:
         print(f"Error: malformed artifact reference: {exc}", file=sys.stderr)
         return 1
+
+    consumption_reference = render_artifact_ref(replace(result.parsed, fragment=None))
+    summary = summarize_artifact_consumption([consumption_reference]).get(
+        consumption_reference
+    )
+    result = replace(result, consumption=summary)
 
     if bool(getattr(args, "json", False)):
         json.dump(result.to_json_dict(), sys.stdout, indent=2)
@@ -74,6 +86,7 @@ def _print_file(result: ResolvedArtifactReference) -> None:
         "resolution_candidates",
         "\n".join(result.resolution.candidates) or "-",
     )
+    _add_consumption_rows(table, result.consumption)
     Console().print(
         Panel(
             table,
@@ -109,6 +122,7 @@ def _print_resolution(result: ResolvedArtifactReference) -> None:
         "candidates",
         "\n".join(result.resolution.candidates) or "-",
     )
+    _add_consumption_rows(table, result.consumption)
     Console().print(
         Panel(
             table,
@@ -123,6 +137,28 @@ def _metadata_table() -> Table:
     table.add_column("Field", style="bold")
     table.add_column("Value")
     return table
+
+
+def _add_consumption_rows(
+    table: Table,
+    summary: ArtifactConsumptionSummary | None,
+) -> None:
+    if summary is None:
+        table.add_row("consumption_count", "never consumed")
+        table.add_row("consumed_by_agents", "-")
+        table.add_row("consuming_agents", "-")
+        table.add_row("last_consumed_at", "-")
+        return
+
+    names = list(summary.agent_names[:5])
+    remaining = len(summary.agent_names) - len(names)
+    consuming_agents = ", ".join(names)
+    if remaining:
+        consuming_agents = f"{consuming_agents} +{remaining} more"
+    table.add_row("consumption_count", str(summary.consumption_count))
+    table.add_row("consumed_by_agents", str(summary.distinct_agent_count))
+    table.add_row("consuming_agents", consuming_agents or "-")
+    table.add_row("last_consumed_at", summary.last_consumed_at or "-")
 
 
 def _display_value(value: object) -> str:

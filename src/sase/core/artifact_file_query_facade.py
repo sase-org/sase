@@ -12,10 +12,11 @@ from sase.core.artifact_file_types import (
     artifact_file_from_dict,
     default_artifact_files_index_path,
 )
+from sase.core.artifact_consumption import default_artifact_consumption_log_path
 from sase.core.rust import require_rust_binding
 
 
-ARTIFACT_FILE_QUERY_WIRE_SCHEMA_VERSION = 2
+ARTIFACT_FILE_QUERY_WIRE_SCHEMA_VERSION = 3
 
 
 def query_artifact_files(
@@ -26,6 +27,7 @@ def query_artifact_files(
     agent: str | None = None,
     since: str | None = None,
     explicit_only: bool = False,
+    unused_only: bool = False,
     query: str | None = None,
     limit: int | None = None,
 ) -> list[ArtifactFile]:
@@ -45,7 +47,12 @@ def query_artifact_files(
         "project": project,
         "query": query,
         "since": since,
+        "unused_only": bool(unused_only),
     }
+    if unused_only:
+        filters["consumption_log_path"] = str(
+            default_artifact_consumption_log_path().expanduser().resolve(strict=False)
+        )
     binding = require_rust_binding("artifact_files_query")
     raw_rows = binding(str(resolved_index), filters)
     if not isinstance(raw_rows, list):

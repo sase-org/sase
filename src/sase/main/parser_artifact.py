@@ -155,6 +155,12 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Only show artifacts created on or after DATE",
         metavar="DATE",
     )
+    list_parser.add_argument(
+        "-u",
+        "--unused",
+        action="store_true",
+        help="Only show artifacts no agent has ever referenced",
+    )
 
     open_parser = artifact_subparsers.add_parser(
         "open",

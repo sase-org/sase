@@ -95,6 +95,7 @@ def test_parser_list_filters_and_repeated_kinds() -> None:
         "project": "SASE",
         "query": "diagram",
         "since": "2026-07",
+        "unused": False,
         "_default_list_group": None,
     }
 
@@ -135,6 +136,7 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
         "--project",
         "--query",
         "--since",
+        "--unused",
     ]
     assert _long_options(subcommands.choices["show"]) == ["--json"]
     for child in subcommands.choices.values():
