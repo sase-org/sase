@@ -29,6 +29,11 @@ from sase.agents_sync.v2_run_io import (
 )
 from sase.core import agent_output_variables
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.core.output_variable_values import (
+    MAX_OUTPUT_VARIABLE_DEPTH,
+    MAX_OUTPUT_VARIABLE_ENCODED_BYTES,
+    MAX_OUTPUT_VARIABLE_NODES,
+)
 
 
 OWNER = AgentOwnerIdentity("alice", "athena")
@@ -177,11 +182,20 @@ def test_output_variable_limits_are_shared_with_storage() -> None:
         v2_validation.MAX_OUTPUT_VARIABLE_VALUE_BYTES
         is agent_output_variables.MAX_OUTPUT_VARIABLE_VALUE_BYTES
     )
+    assert v2_validation.MAX_OUTPUT_VARIABLE_DEPTH is MAX_OUTPUT_VARIABLE_DEPTH
+    assert (
+        v2_validation.MAX_OUTPUT_VARIABLE_ENCODED_BYTES
+        is MAX_OUTPUT_VARIABLE_ENCODED_BYTES
+    )
+    assert v2_validation.MAX_OUTPUT_VARIABLE_NODES is MAX_OUTPUT_VARIABLE_NODES
     assert v2_io.MAX_OUTPUT_VARIABLES is agent_output_variables.MAX_OUTPUT_VARIABLES
     assert (
         v2_io.MAX_OUTPUT_VARIABLE_VALUE_BYTES
         is agent_output_variables.MAX_OUTPUT_VARIABLE_VALUE_BYTES
     )
+    assert v2_io.MAX_OUTPUT_VARIABLE_DEPTH is MAX_OUTPUT_VARIABLE_DEPTH
+    assert v2_io.MAX_OUTPUT_VARIABLE_ENCODED_BYTES is MAX_OUTPUT_VARIABLE_ENCODED_BYTES
+    assert v2_io.MAX_OUTPUT_VARIABLE_NODES is MAX_OUTPUT_VARIABLE_NODES
 
 
 def test_owner_manifest_and_path_validation_are_strict() -> None:
@@ -243,7 +257,14 @@ def test_per_run_payloads_reject_unknown_or_host_local_fields() -> None:
 
 
 def test_output_variables_are_accepted_by_snapshot_and_per_run_decoders() -> None:
-    variables = {"z_path": "reports/z.md", "a_status": "ready"}
+    variables = {
+        "z_path": "reports/z.md",
+        "a_config": {
+            "enabled": True,
+            "limits": [1, 2.5, None],
+        },
+        "empty": [],
+    }
     snapshot = _snapshot().to_json_dict()
     snapshot["runs"][0]["metadata"] = {"output_variables": variables}  # type: ignore[index]
     decoded_snapshot = _hood_snapshot_from_json(snapshot)
@@ -260,8 +281,23 @@ def test_output_variables_are_accepted_by_snapshot_and_per_run_decoders() -> Non
     (
         (["not", "an", "object"], "must be a JSON object"),
         ({"bad-key": "value"}, "invalid key.*bad-key"),
-        ({"valid_key": 1}, "valid_key.*must be a string"),
-        ({"valid_key": "x" * 8_193}, "valid_key.*8192 UTF-8 bytes"),
+        ({"valid_key": object()}, "valid_key.*must be a JSON value"),
+        (
+            {"valid_key": {"nested": "x" * 8_193}},
+            r"valid_key.*valid_key\.nested.*8192",
+        ),
+        (
+            {"valid_key": {"": "value"}},
+            "valid_key.*map key at valid_key must not be empty",
+        ),
+        (
+            {"valid_key": 2**63},
+            "valid_key.*valid_key.*signed 64-bit range",
+        ),
+        (
+            {"valid_key": float("nan")},
+            "valid_key.*valid_key.*must be finite",
+        ),
         (
             {f"key_{index}": "value" for index in range(257)},
             "256 entry limit",
@@ -279,6 +315,33 @@ def test_output_variables_are_strictly_validated_in_both_decoders(
 
     with pytest.raises(AgentsSyncFormatError, match=message):
         run_metadata_from_json(_run_metadata({"output_variables": variables}))
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    (
+        (
+            [[[[[[[[[0]]]]]]]]],
+            "maximum depth 8",
+        ),
+        (
+            [0] * MAX_OUTPUT_VARIABLE_NODES,
+            "1024-node limit",
+        ),
+        (
+            ["x" * 8_192] * 8,
+            "encoded UTF-8 bytes.*limit is 65536",
+        ),
+    ),
+)
+def test_output_variable_structural_caps_are_strictly_validated(
+    value: object,
+    message: str,
+) -> None:
+    with pytest.raises(AgentsSyncFormatError, match=message):
+        run_metadata_from_json(
+            _run_metadata({"output_variables": {"valid_key": value}})
+        )
 
 
 def test_payload_apply_rolls_back_every_prior_write(

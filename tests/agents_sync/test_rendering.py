@@ -492,8 +492,8 @@ def test_agent_and_family_pages_render_sorted_escaped_and_truncated_variables() 
 
     assert "- Variables: [2](#variables)" in agent_page
     assert agent_page.index("| `a_long` |") < agent_page.index("| `z_notes` |")
-    assert f"| `a_long` | {'x' * 200}… |" in agent_page
-    assert "| `z_notes` | line \\| one<br>line two |" in agent_page
+    assert f"| `a_long` | {'x' * 199}… |" in agent_page
+    assert r'| `z_notes` | "line \| one\\nline two" |' in agent_page
     assert (
         "Values are truncated for display; see [meta.json](meta.json) "
         "for the full values." in agent_page

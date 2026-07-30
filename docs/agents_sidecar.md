@@ -126,9 +126,11 @@ primary remote is missing, not GitHub, or cannot be read, pages still render the
 The sidecar wire does not store commit URL bases.
 
 Published variables are the sanitized `sase var set KEY=VALUE` values stored in `agent_meta.json["output_variables"]`.
-Only string keys matching SASE's output-variable identifier rule and string values are published. Values over the
-8,192-byte UTF-8 limit are rejected by `sase var set` at write time rather than being silently dropped during
-publication. They are visible to anyone who can read the agents sidecar, so do not use output variables for secrets,
+Variable names must match SASE's output-variable identifier rule, while values may be any supported JSON scalar, list,
+or map. Nested map keys are rendered in sorted order and list order is preserved. Table cells show bounded inline
+previews; lists and maps also receive fenced YAML-shaped detail blocks below the table. Values still use SASE's shared
+structural limits, including 8,192 UTF-8 bytes per string leaf, depth and node caps, and a 65,536-byte encoded-value
+cap. They are visible to anyone who can read the agents sidecar, so do not use output variables for secrets,
 credentials, private tokens, or other sensitive values.
 
 Neighbor rosters are lane-scoped and owner-scoped. A sequential family is one lane, and each family member page renders
@@ -137,8 +139,8 @@ groups, with links to solo-agent pages, family pages, and the hood roster when a
 cross-machine relationships are intentionally excluded.
 
 Compatibility note: snapshots published with `output_variables` metadata require readers from this version or newer.
-Older strict v2 readers that do not allow that metadata key fail loudly with `AgentsSyncFormatError` until they are
-upgraded.
+Readers that understand the metadata key but predate structured values may omit or reject non-string values; older
+strict v2 readers that do not allow the metadata key fail loudly with `AgentsSyncFormatError` until they are upgraded.
 
 ### Historical-name tolerance
 

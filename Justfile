@@ -273,9 +273,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-bf(coerce_var_value)' \
         --epic-symbol 'sase-bf(decode_var_value)' \
         --epic-symbol 'sase-bf(encode_var_value)' \
-        --epic-symbol 'sase-bf(format_var_value_block)' \
-        --epic-symbol 'sase-bf(format_var_value_inline)' \
-        --epic-symbol 'sase-bf(var_value_is_container)' \
         --epic-symbol 'sase-bf(var_value_preview)' \
         {{ args }}
 

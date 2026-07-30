@@ -10,9 +10,13 @@ from typing import Any
 
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.v2_models import V2ProjectIdentity, V2_SCHEMA_VERSION
-from sase.core.agent_output_variables import (
+from sase.core.output_variable_values import (
+    MAX_OUTPUT_VARIABLE_DEPTH,
+    MAX_OUTPUT_VARIABLE_ENCODED_BYTES,
+    MAX_OUTPUT_VARIABLE_NODES,
     MAX_OUTPUT_VARIABLES,
     MAX_OUTPUT_VARIABLE_VALUE_BYTES,
+    normalize_var_value,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity, validate_agent_owner
 
@@ -109,21 +113,12 @@ def validate_output_variables(metadata: Mapping[str, Any], *, label: str) -> Non
             raise AgentsSyncFormatError(
                 f"{label} output_variables has an invalid key: {key!r}"
             )
-        if not isinstance(value, str):
-            raise AgentsSyncFormatError(
-                f"{label} output_variables value for {key!r} must be a string"
-            )
         try:
-            size = len(value.encode("utf-8"))
-        except UnicodeEncodeError as exc:
+            normalize_var_value(key, value)
+        except (TypeError, ValueError) as exc:
             raise AgentsSyncFormatError(
-                f"{label} output_variables value for {key!r} is not valid UTF-8"
+                f"{label} output_variables value for {key!r} is invalid: {exc}"
             ) from exc
-        if size > MAX_OUTPUT_VARIABLE_VALUE_BYTES:
-            raise AgentsSyncFormatError(
-                f"{label} output_variables value for {key!r} exceeds "
-                f"{MAX_OUTPUT_VARIABLE_VALUE_BYTES} UTF-8 bytes"
-            )
 
 
 def read_json(path: Path, label: str) -> object:

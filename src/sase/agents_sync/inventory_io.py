@@ -13,7 +13,6 @@ from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.v2_io import (
     MAX_JSON_BYTES,
     MAX_OUTPUT_VARIABLES,
-    MAX_OUTPUT_VARIABLE_VALUE_BYTES,
     MAX_TEXT_BYTES,
     V2_METADATA_FIELDS,
     is_valid_output_variable_key,
@@ -24,6 +23,7 @@ from sase.core.agent_identity_facade import (
     normalize_agent_archive_name,
     normalize_owned_agent_name,
 )
+from sase.core.output_variable_values import VarValue, coerce_var_map
 
 
 def portable_metadata(raw: dict[str, Any]) -> tuple[tuple[str, Any], ...]:
@@ -46,23 +46,14 @@ def portable_metadata(raw: dict[str, Any]) -> tuple[tuple[str, Any], ...]:
     return tuple(sorted(metadata.items()))
 
 
-def _portable_output_variables(value: object) -> dict[str, str]:
-    if not isinstance(value, dict):
-        return {}
-    result: dict[str, str] = {}
-    for key, item in sorted(value.items(), key=lambda row: str(row[0])):
-        if (
-            len(result) >= MAX_OUTPUT_VARIABLES
-            or not is_valid_output_variable_key(key)
-            or not isinstance(item, str)
-        ):
+def _portable_output_variables(value: object) -> dict[str, VarValue]:
+    result: dict[str, VarValue] = {}
+    for key, item in coerce_var_map(value).items():
+        if len(result) >= MAX_OUTPUT_VARIABLES:
+            break
+        if not is_valid_output_variable_key(key):
             continue
-        try:
-            size = len(item.encode("utf-8"))
-        except UnicodeEncodeError:
-            continue
-        if size <= MAX_OUTPUT_VARIABLE_VALUE_BYTES:
-            result[key] = item
+        result[key] = item
     return result
 
 

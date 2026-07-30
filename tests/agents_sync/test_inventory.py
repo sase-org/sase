@@ -117,6 +117,11 @@ def test_portable_metadata_sanitizes_output_variables() -> None:
                     "bad-key": "drop",
                     "wrong_type": 7,
                     "a_status": "ready",
+                    "config": {
+                        "z_enabled": True,
+                        "a_limits": [1, 2.5, None],
+                    },
+                    "invalid_nested": {"": "drop"},
                     "too_large": "x" * 8_193,
                 },
             }
@@ -127,6 +132,11 @@ def test_portable_metadata_sanitizes_output_variables() -> None:
         "model": "gpt",
         "output_variables": {
             "a_status": "ready",
+            "config": {
+                "a_limits": [1, 2.5, None],
+                "z_enabled": True,
+            },
+            "wrong_type": 7,
             "z_path": "reports/z.md",
         },
     }
