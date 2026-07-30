@@ -9,7 +9,7 @@ import pytest
 
 from sase.agents_sync.models import ProjectTarget, TargetSelection
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
-from sase.sdd.checkout_anchor import CheckoutAnchor
+from sase.sdd.checkout_anchor import _CheckoutAnchor
 from sase.sdd.hosted_links import (
     HostedLinkResolver,
     hosted_link_resolver,
@@ -220,9 +220,9 @@ def test_agent_url_resolves_project_from_sidecar_anchor(
     monkeypatch.setattr(
         "sase.sdd.hosted_links.resolve_checkout_anchor",
         lambda path: (
-            CheckoutAnchor(primary, "sase")
+            _CheckoutAnchor(primary, "sase")
             if path == sidecar_checkout
-            else CheckoutAnchor(path, None)
+            else _CheckoutAnchor(path, None)
         ),
     )
     monkeypatch.setattr(

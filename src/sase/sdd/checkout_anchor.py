@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
-class CheckoutAnchor:
+class _CheckoutAnchor:
     """Best-effort checkout identity for a path inside a SASE workspace."""
 
     primary_root: Path
@@ -17,7 +17,7 @@ class CheckoutAnchor:
 
 def resolve_checkout_anchor(
     path: str | os.PathLike[str] | None = None,
-) -> CheckoutAnchor:
+) -> _CheckoutAnchor:
     """Resolve *path* to its owning checkout root and canonical project name.
 
     The resolver is intentionally best-effort: it never raises, and when no
@@ -29,7 +29,7 @@ def resolve_checkout_anchor(
     primary_root = _marker_checkout_root(start) or _sase_repos_checkout_root(start)
     if primary_root is None:
         primary_root = start
-    return CheckoutAnchor(
+    return _CheckoutAnchor(
         primary_root=primary_root,
         project_name=_project_name_for_path(start),
     )
@@ -81,6 +81,5 @@ def _project_name_for_path(path: Path) -> str | None:
 
 
 __all__ = [
-    "CheckoutAnchor",
     "resolve_checkout_anchor",
 ]

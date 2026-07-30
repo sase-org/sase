@@ -270,7 +270,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-b5(CheckoutAnchor)" \
         --epic-symbol "sase-b7(CaptureCandidate)" \
         --epic-symbol "sase-b7(CaptureDecision)" \
         --epic-symbol "sase-b7(CaptureLimits)" \
