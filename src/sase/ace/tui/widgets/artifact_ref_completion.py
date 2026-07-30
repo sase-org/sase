@@ -64,10 +64,11 @@ class ArtifactRefKindCompletionMetadata:
 
     kind: str
     builtin: bool
+    detail: str = ""
 
     @property
     def source_label(self) -> str:
-        return "builtin" if self.builtin else "document"
+        return self.detail or ("builtin" if self.builtin else "document")
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,6 +151,7 @@ class ArtifactRefCompletionCatalog:
     documents: tuple[_ArtifactRefDocumentCandidate, ...] = ()
     artifact_files: tuple[_ArtifactRefFileCandidate, ...] = ()
     chats: tuple[_ArtifactRefChatCandidate, ...] = ()
+    kind_details: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -256,7 +258,7 @@ def build_artifact_ref_completion_result(
     wire = context.wire
     if wire is None:
         return ArtifactRefCompletionResult(context, [], "")
-    kinds = _kind_inventory(catalog.kinds)
+    kinds = _kind_inventory(catalog)
     payloads, payload_metadata = _payload_inventory(
         context,
         catalog,
@@ -280,6 +282,7 @@ def build_artifact_ref_completion_result(
             metadata: object = ArtifactRefKindCompletionMetadata(
                 kind=label,
                 builtin=bool(raw_row.get("builtin", False)),
+                detail=str(raw_row.get("detail", "")),
             )
         elif group == "file":
             metadata = AtReferenceFileCompletionMetadata(
@@ -327,24 +330,50 @@ def load_artifact_ref_completion_catalog(
         documents=_load_document_candidates(context),
         artifact_files=_load_artifact_file_candidates(project, context),
         chats=_load_chat_candidates(context),
+        kind_details=_document_kind_details(context),
     )
 
 
-def _kind_inventory(kinds: Sequence[str]) -> list[dict[str, object]]:
+def _kind_inventory(
+    catalog: ArtifactRefCompletionCatalog,
+) -> list[dict[str, object]]:
     """Project the warm kind catalog into shared-core inventory rows."""
     builtin = {kind.casefold() for kind in BUILTIN_ARTIFACT_REF_KINDS}
+    detail_by_kind = {kind.casefold(): detail for kind, detail in catalog.kind_details}
     return [
         {
             "kind": kind,
             "builtin": kind.casefold() in builtin,
-            "detail": (
-                "builtin artifact kind"
-                if kind.casefold() in builtin
-                else "document artifact"
+            "detail": detail_by_kind.get(
+                kind.casefold(),
+                "builtin" if kind.casefold() in builtin else "document",
             ),
         }
-        for kind in dict.fromkeys((*BUILTIN_ARTIFACT_REF_KINDS, *kinds))
+        for kind in dict.fromkeys((*BUILTIN_ARTIFACT_REF_KINDS, *catalog.kinds))
     ]
+
+
+def _document_kind_details(
+    context: ArtifactRefContext,
+) -> tuple[tuple[str, str], ...]:
+    """Return one display detail per project-defined document kind."""
+    details: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    home = Path.home()
+    for root in context.document_roots:
+        folded = root.kind.casefold()
+        if folded in seen:
+            continue
+        seen.add(folded)
+        path = Path(root.root)
+        try:
+            relative = path.relative_to(home)
+        except ValueError:
+            display = str(path)
+        else:
+            display = "~" if relative == Path(".") else f"~/{relative.as_posix()}"
+        details.append((root.kind, f"document · {display}"))
+    return tuple(details)
 
 
 def _payload_inventory(

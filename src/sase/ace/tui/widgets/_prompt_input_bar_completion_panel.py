@@ -13,6 +13,7 @@ from sase.ace.tui.models.tribe_display import named_tribe_identity_colors
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_agent_completion_row,
     append_artifact_ref_completion_row,
+    append_at_reference_group_rule,
     append_directive_arg_completion_row,
     append_directive_completion_row,
     append_jinja_completion_row,
@@ -23,6 +24,8 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_vcs_ref_completion_row,
     append_vcs_repo_completion_row,
     append_xprompt_completion_row,
+    artifact_ref_kind_label_width,
+    at_reference_directory_display,
     is_agent_completion_candidate,
     model_completion_column_widths,
     vcs_project_label_width,
@@ -31,6 +34,9 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
+    AtReferenceFileCompletionMetadata,
+    AtReferenceLoadingCompletionMetadata,
+    ArtifactRefKindCompletionMetadata,
 )
 from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import (
@@ -132,6 +138,46 @@ def _completion_delete_subtitle(
     return ""
 
 
+def _at_reference_group_rule_needed(rows: list[CompletionCandidate]) -> bool:
+    """Return whether *rows* contain both Kind-stage menu groups."""
+    has_artifacts = any(
+        isinstance(candidate.metadata, ArtifactRefKindCompletionMetadata)
+        for candidate in rows
+    )
+    has_files = any(
+        isinstance(candidate.metadata, AtReferenceFileCompletionMetadata)
+        for candidate in rows
+    )
+    return has_artifacts and has_files
+
+
+def _at_reference_panel_title(
+    token: str,
+    rows: list[CompletionCandidate],
+    directory: str,
+) -> str:
+    """Return the adaptive title for an ``@`` Kind-stage menu."""
+    has_artifacts = any(
+        isinstance(candidate.metadata, ArtifactRefKindCompletionMetadata)
+        for candidate in rows
+    )
+    has_files = any(
+        isinstance(candidate.metadata, AtReferenceFileCompletionMetadata)
+        for candidate in rows
+    )
+    is_loading = any(
+        isinstance(candidate.metadata, AtReferenceLoadingCompletionMetadata)
+        for candidate in rows
+    )
+    if has_artifacts and has_files:
+        return "@ reference"
+    if has_artifacts:
+        return "@ artifact kinds"
+    if has_files or is_loading:
+        return f"@ {at_reference_directory_display(directory)}"
+    return token
+
+
 class PromptInputBarCompletionMixin(_MixinBase):
     """Completion panel, soft-completion subtitle, and argument hint rendering."""
 
@@ -160,6 +206,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         scroll_offset: int = 0,
         completion_kind: str = "file",
         group_rule: bool = False,
+        group_directory: str = "",
     ) -> None:
         """Show the shared manual-completion panel with Rich styling.
 
@@ -171,11 +218,14 @@ class PromptInputBarCompletionMixin(_MixinBase):
             completion_kind: Named provider kind used to render rows and title.
             group_rule: True when a group rule line is drawn between groups,
                 which claims one of the panel's content lines.
+            group_directory: Resolved directory named by an ``@`` group rule.
         """
         panel = self._completion_panel()
         if panel is None:
             return
         total = len(rows)
+        if completion_kind == ARTIFACT_REF_COMPLETION_KIND:
+            group_rule = group_rule and _at_reference_group_rule_needed(rows)
         row_budget = completion_visible_rows(total, group_rule=group_rule)
         visible = rows[scroll_offset : scroll_offset + row_budget]
 
@@ -240,11 +290,37 @@ class PromptInputBarCompletionMixin(_MixinBase):
         model_widths = (
             model_completion_column_widths(visible) if is_model_completion else (0, 0)
         )
+        artifact_kind_width = (
+            artifact_ref_kind_label_width(visible) if is_artifact_ref else 0
+        )
+        # A hidden panel has no measured width on its first open. The prompt
+        # bar is already laid out; subtract the panel's two border and two
+        # padding columns to recover the content size used after layout.
+        panel_width = panel.size.width or max(0, self.size.width - 4)
+        panel_inner_width = max(0, panel_width - 2)
         _clear_jinja_panel_classes(panel)
         content = Text()
+        group_rule_drawn = False
         for i, candidate in enumerate(visible):
             actual_idx = scroll_offset + i
             is_selected = actual_idx == selected_index
+
+            if (
+                is_artifact_ref
+                and group_rule
+                and not group_rule_drawn
+                and isinstance(
+                    candidate.metadata,
+                    AtReferenceFileCompletionMetadata,
+                )
+            ):
+                append_at_reference_group_rule(
+                    content,
+                    group_directory,
+                    panel_inner_width,
+                )
+                content.append("\n")
+                group_rule_drawn = True
 
             if is_selected:
                 content.append("\u25b8 ", style="bold")
@@ -304,6 +380,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
                     content,
                     candidate,
                     is_selected,
+                    artifact_kind_width,
                 )
             elif is_arg_completion:
                 content.append(
@@ -336,6 +413,15 @@ class PromptInputBarCompletionMixin(_MixinBase):
             if i < len(visible) - 1:
                 content.append("\n")
 
+        if is_artifact_ref and group_rule and not group_rule_drawn:
+            if content:
+                content.append("\n")
+            append_at_reference_group_rule(
+                content,
+                group_directory,
+                panel_inner_width,
+            )
+
         remaining = total - (scroll_offset + len(visible))
         if remaining > 0:
             content.append(f"\n  \u2193 {remaining} more\u2026", style="dim")
@@ -360,7 +446,11 @@ class PromptInputBarCompletionMixin(_MixinBase):
         elif is_vcs_repo:
             panel.border_title = token
         elif is_artifact_ref:
-            panel.border_title = token
+            panel.border_title = _at_reference_panel_title(
+                token,
+                rows,
+                group_directory,
+            )
         elif is_xprompt_arg_agent:
             panel.border_title = "fork targets"
         elif completion_kind == "xprompt_arg_name":

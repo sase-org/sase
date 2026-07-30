@@ -10,10 +10,12 @@ from textual.worker import Worker, WorkerState
 from sase.ace.tui.widgets._file_completion_context import FileCompletionContextMixin
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
+    AtReferenceFileCompletionMetadata,
     ArtifactRefBugCandidate,
     ArtifactRefCommitCandidate,
     ArtifactRefCompletionCatalog,
     ArtifactRefCompletionResult,
+    ArtifactRefKindCompletionMetadata,
     build_artifact_ref_completion_result,
 )
 from sase.ace.tui.widgets.file_completion import (
@@ -185,6 +187,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             group_rule=group_rule,
         )
         display_token = token
+        group_directory = ""
         if self._completion_kind == VCS_REF_COMPLETION_KIND:
             ref_trigger = self._get_vcs_ref_trigger()
             if ref_trigger is not None:
@@ -204,6 +207,13 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             artifact_ctx = self._get_artifact_ref_completion_context()
             if artifact_ctx is not None:
                 display_token = artifact_ctx.panel_title
+                if artifact_ctx.stage == "kind":
+                    group_directory = (
+                        self._prompt_path_completion_directory_key
+                        or self._prompt_path_directory_key(
+                            artifact_ctx.path_directory or ""
+                        )
+                    )
 
         bar.show_file_completions(
             display_token,
@@ -212,6 +222,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             scroll_offset,
             completion_kind=self._completion_kind,
             group_rule=group_rule,
+            group_directory=group_directory,
         )
 
     def _completion_group_rule_reserved(self) -> bool:
@@ -219,9 +230,19 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
 
         The rule costs one of the panel's content lines, so the row budget has
         to know about it before any rows are windowed. Providers that render
-        grouped menus override this.
+        grouped menus identify themselves through their row metadata.
         """
-        return False
+        if self._completion_kind != ARTIFACT_REF_COMPLETION_KIND:
+            return False
+        has_artifacts = any(
+            isinstance(candidate.metadata, ArtifactRefKindCompletionMetadata)
+            for candidate in self._file_completion_candidates
+        )
+        has_files = any(
+            isinstance(candidate.metadata, AtReferenceFileCompletionMetadata)
+            for candidate in self._file_completion_candidates
+        )
+        return has_artifacts and has_files
 
     def _clear_file_completion(self, *, clear_xprompt_arg_hint: bool = True) -> None:
         """Reset manual completion state and hide its panel."""
