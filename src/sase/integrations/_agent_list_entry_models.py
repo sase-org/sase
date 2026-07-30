@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from sase.agent.status_buckets import agent_is_asking
+from sase.core.output_variable_values import VarValue
 
 
 _TERMINAL_BUCKETS = {"Done", "Failed"}
@@ -126,7 +127,7 @@ class AgentListEntry:
     retry: AgentRetryInfo = field(default_factory=AgentRetryInfo)
     children: AgentChildrenSummary = field(default_factory=AgentChildrenSummary)
     activity: str | None = None
-    output_variables: Mapping[str, str] = field(default_factory=dict)
+    output_variables: Mapping[str, VarValue] = field(default_factory=dict)
     artifact_count: int = 0
     commit_count: int = 0
     error: str | None = None

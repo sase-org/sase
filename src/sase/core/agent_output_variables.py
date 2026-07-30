@@ -15,9 +15,13 @@ from sase.core.artifact_file_helpers import read_json_object
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
-
-MAX_OUTPUT_VARIABLES = 256
-MAX_OUTPUT_VARIABLE_VALUE_BYTES = 8_192
+from sase.core.output_variable_values import (
+    MAX_OUTPUT_VARIABLES,
+    MAX_OUTPUT_VARIABLE_VALUE_BYTES,
+    VarValue,
+    coerce_var_map,
+    normalize_var_value,
+)
 
 _KEY_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _OUTPUT_VARIABLES_FIELD = "output_variables"
@@ -35,37 +39,42 @@ def parse_output_variable_assignments(assignments: list[str]) -> dict[str, str]:
             )
         key, value = assignment.split("=", 1)
         _validate_output_variable_key(key)
-        variables[key] = _normalize_output_variable_value(key, value)
+        normalized = normalize_var_value(key, value)
+        assert isinstance(normalized, str)
+        variables[key] = normalized
     return variables
 
 
-def read_agent_output_variables(artifacts_dir: Path | str) -> dict[str, str]:
-    """Read string output variables from an agent artifact directory."""
+def read_agent_output_variables(artifacts_dir: Path | str) -> dict[str, VarValue]:
+    """Read structured output variables from an agent artifact directory."""
     artifacts_path = Path(artifacts_dir).expanduser()
     meta = read_json_object(artifacts_path / "agent_meta.json")
-    return _string_output_variables(meta.get(_OUTPUT_VARIABLES_FIELD))
+    return coerce_var_map(meta.get(_OUTPUT_VARIABLES_FIELD))
 
 
 def set_agent_output_variables(
     artifacts_dir: Path | str,
-    variables: Mapping[str, str],
-) -> dict[str, str]:
+    variables: Mapping[str, VarValue],
+) -> dict[str, VarValue]:
     """Merge output variables into ``agent_meta.json`` and return the stored map."""
     artifacts_path = Path(artifacts_dir).expanduser()
     if not artifacts_path.is_dir():
         raise ValueError(f"agent artifacts directory not found: {artifacts_path}")
-    normalized: dict[str, str] = {}
+    normalized: dict[str, VarValue] = {}
     for key, value in variables.items():
         _validate_output_variable_key(key)
-        if not isinstance(value, str):
-            raise ValueError(f"output variable value must be a string: {key}")
-        normalized[key] = _normalize_output_variable_value(key, value)
+        normalized[key] = normalize_var_value(key, value)
 
     meta_path = artifacts_path / "agent_meta.json"
     with _locked_agent_meta(meta_path):
         meta = read_json_object(meta_path)
-        merged = {**_string_output_variables(meta.get(_OUTPUT_VARIABLES_FIELD))}
+        merged = {**coerce_var_map(meta.get(_OUTPUT_VARIABLES_FIELD))}
         merged.update(normalized)
+        if len(merged) > MAX_OUTPUT_VARIABLES:
+            raise ValueError(
+                f"output variables contain {len(merged)} entries; "
+                f"limit is {MAX_OUTPUT_VARIABLES}"
+            )
         meta[_OUTPUT_VARIABLES_FIELD] = merged
         _write_json_object_atomic(meta_path, meta)
 
@@ -74,6 +83,8 @@ def set_agent_output_variables(
 
 
 def _validate_output_variable_key(key: str) -> None:
+    if not isinstance(key, str):
+        raise ValueError("output variable key must be a string")
     if not key:
         raise ValueError("output variable key must not be empty")
     if _KEY_RE.fullmatch(key) is None:
@@ -81,32 +92,6 @@ def _validate_output_variable_key(key: str) -> None:
             "output variable key must be a valid Jinja attribute identifier "
             f"([A-Za-z_][A-Za-z0-9_]*): {key}"
         )
-
-
-def _normalize_output_variable_value(key: str, value: str) -> str:
-    if "\x00" in value:
-        raise ValueError(f"output variable value for {key} must not contain NUL bytes")
-    normalized = value.replace("\r\n", "\n").replace("\r", "\n")
-    try:
-        size = len(normalized.encode("utf-8"))
-    except UnicodeEncodeError as exc:
-        raise ValueError(f"output variable value for {key} is not valid UTF-8") from exc
-    if size > MAX_OUTPUT_VARIABLE_VALUE_BYTES:
-        raise ValueError(
-            f"output variable value for {key} is {size} UTF-8 bytes; "
-            f"limit is {MAX_OUTPUT_VARIABLE_VALUE_BYTES}"
-        )
-    return normalized
-
-
-def _string_output_variables(value: Any) -> dict[str, str]:
-    if not isinstance(value, dict):
-        return {}
-    return {
-        str(key): item
-        for key, item in value.items()
-        if isinstance(key, str) and isinstance(item, str)
-    }
 
 
 @contextmanager

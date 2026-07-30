@@ -80,6 +80,7 @@ sdd/plans/202607/perf_artifacts/view_hints_regression_check.json
 
 # Override global gitignore rule that ignores 'core'
 !src/sase/core/
+!tests/core/
 
 # Phase 7 perf artifacts that capture private home-tree data; keep raw
 # JSON local and link to it from the surface's handoff per

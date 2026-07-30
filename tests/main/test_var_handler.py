@@ -186,15 +186,55 @@ def test_set_agent_output_variables_merges_metadata_and_refreshes_index(
     update_index.assert_called_once_with(artifacts_dir)
 
 
-def test_read_agent_output_variables_returns_string_values_only(tmp_path: Path) -> None:
+def test_read_agent_output_variables_returns_structured_json_values(
+    tmp_path: Path,
+) -> None:
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
     (artifacts_dir / "agent_meta.json").write_text(
-        json.dumps({"output_variables": {"ok": "yes", "skip": 123}}),
+        json.dumps(
+            {
+                "output_variables": {
+                    "ok": "yes",
+                    "count": 123,
+                    "cfg": {"enabled": True, "hosts": ["a", "b"]},
+                    "missing": None,
+                }
+            }
+        ),
         encoding="utf-8",
     )
 
-    assert read_agent_output_variables(artifacts_dir) == {"ok": "yes"}
+    assert read_agent_output_variables(artifacts_dir) == {
+        "cfg": {"enabled": True, "hosts": ["a", "b"]},
+        "count": 123,
+        "missing": None,
+        "ok": "yes",
+    }
+
+
+def test_set_agent_output_variables_round_trips_structured_values(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text("{}", encoding="utf-8")
+    values = {
+        "report": {
+            "passed": True,
+            "duration": 2.5,
+            "suites": ["unit", {"name": "integration", "failures": None}],
+        }
+    }
+
+    with patch(
+        "sase.core.agent_output_variables."
+        "update_agent_artifact_index_for_marker_mutation"
+    ):
+        stored = set_agent_output_variables(artifacts_dir, values)
+
+    assert stored == values
+    assert read_agent_output_variables(artifacts_dir) == values
 
 
 def test_var_set_requires_agent_env(

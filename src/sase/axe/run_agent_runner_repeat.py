@@ -1,6 +1,6 @@
 """Repeat-chain finalization helpers for ``run_agent_runner``."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from sase.axe.run_agent_exec_markers import (
@@ -14,6 +14,7 @@ from sase.axe.run_agent_repeat_stop import (
 from sase.core.agent_output_variables import (
     set_agent_output_variables as _set_agent_output_variables,
 )
+from sase.core.output_variable_values import VarValue
 
 
 def finalize_repeat_stop(
@@ -32,7 +33,7 @@ def finalize_repeat_stop(
     agent_llm_provider: str | None,
     agent_vcs_provider: str | None,
     agent_hidden: bool,
-    set_output_variables: Callable[[str, dict[str, str]], Any] = (
+    set_output_variables: Callable[[str, Mapping[str, VarValue]], Any] = (
         _set_agent_output_variables
     ),
     write_done_marker: Callable[[str, dict[str, Any]], Any] = (

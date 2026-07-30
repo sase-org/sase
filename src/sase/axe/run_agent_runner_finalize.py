@@ -22,6 +22,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_output_variables import read_agent_output_variables
+from sase.core.output_variable_values import VarValue
 from sase.telemetry.metrics import (
     AGENT_ACTIVE,
     AGENT_RUN_DURATION,
@@ -190,7 +191,7 @@ def _completion_explicit_artifact_paths(
 
 def _completion_output_variables(
     current_artifacts_dir: str | None,
-) -> dict[str, str]:
+) -> dict[str, VarValue]:
     """Return user-facing output variables for completion notifications."""
     if not current_artifacts_dir:
         return {}

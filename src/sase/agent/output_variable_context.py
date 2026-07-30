@@ -7,6 +7,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from sase.core.output_variable_values import VarValue
+
 SASE_AGENT_VAR_UPSTREAMS_ENV = "SASE_AGENT_VAR_UPSTREAMS_JSON"
 
 # Single top-level Jinja variable holding every producer's output variables,
@@ -95,7 +97,7 @@ def build_agent_output_variable_context(
     variables, else ``{}`` (so nothing is injected when there is nothing to
     render). Later producers override earlier ones for the same key.
     """
-    agents: dict[str, dict[str, str]] = {}
+    agents: dict[str, dict[str, VarValue]] = {}
     seen_artifacts_dirs: set[str] = set()
 
     for upstream in _decode_upstreams(upstreams_json):
@@ -185,7 +187,7 @@ def _agent_key_from_upstream(upstream: Mapping[str, Any]) -> str:
     )
 
 
-def _read_variables_if_present(artifacts_dir: str) -> dict[str, str]:
+def _read_variables_if_present(artifacts_dir: str) -> dict[str, VarValue]:
     from sase.core.agent_output_variables import read_agent_output_variables
 
     try:
@@ -194,7 +196,7 @@ def _read_variables_if_present(artifacts_dir: str) -> dict[str, str]:
         return {}
 
 
-def _variables_with_plan_file(artifacts_dir: str) -> dict[str, str]:
+def _variables_with_plan_file(artifacts_dir: str) -> dict[str, VarValue]:
     """Return stored output variables plus a synthesized ``plan_file`` entry.
 
     When *artifacts_dir* is a submitted-and-waiting planner row, the proposed
@@ -288,7 +290,7 @@ def _plan_meta_from_wire(meta: Any) -> dict[str, Any]:
     }
 
 
-def read_waited_agent_output_variables(wait_name: str) -> dict[str, str] | None:
+def read_waited_agent_output_variables(wait_name: str) -> dict[str, VarValue] | None:
     """Return a waited agent's output variables, or ``None`` if unresolvable.
 
     Resolves *wait_name* the same way :func:`build_agent_output_variable_context`
@@ -324,9 +326,9 @@ def _resolve_waited_agent(
 
 
 def _merge_agent_variables(
-    agents: dict[str, dict[str, str]],
+    agents: dict[str, dict[str, VarValue]],
     key: str,
-    variables: Mapping[str, str],
+    variables: Mapping[str, VarValue],
 ) -> None:
     """Merge ``variables`` into ``agents[key]``, later writes overriding."""
     existing = agents.get(key)

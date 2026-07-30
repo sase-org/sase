@@ -66,7 +66,7 @@ def detect_repeat_stop() -> RepeatStopDecision | None:
         return None
 
     stop_value = variables.get(STOP_OUTPUT_VARIABLE)
-    if stop_value is None or not _is_stop_value(stop_value):
+    if not isinstance(stop_value, str) or not _is_stop_value(stop_value):
         return None
 
     return RepeatStopDecision(producer_name=prev_name, stop_value=stop_value)

@@ -270,6 +270,15 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-bf(VarLine)' \
+        --epic-symbol 'sase-bf(coerce_var_value)' \
+        --epic-symbol 'sase-bf(decode_var_value)' \
+        --epic-symbol 'sase-bf(encode_var_value)' \
+        --epic-symbol 'sase-bf(format_var_value_block)' \
+        --epic-symbol 'sase-bf(format_var_value_inline)' \
+        --epic-symbol 'sase-bf(format_var_value_lines)' \
+        --epic-symbol 'sase-bf(var_value_is_container)' \
+        --epic-symbol 'sase-bf(var_value_preview)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
