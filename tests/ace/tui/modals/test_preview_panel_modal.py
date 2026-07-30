@@ -349,14 +349,16 @@ async def test_preview_modal_oversized_markdown_falls_back_to_source_and_warns_o
 
 async def test_preview_modal_forwards_percent_to_app_copy_mode() -> None:
     async with AcePage() as page:
-        page.app.current_artifacts_subtab = "chats"
-        await page.expect_state("artifacts_subtab", "chats")
+        page.app.current_artifacts_subtab = "prs"
+        await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(PreviewPanelModal(_payload()))
         await page.expect_modal("PreviewPanelModal")
 
         await page.press("%")
 
+        await page.expect_modal("CopyAsModal")
         assert page.app._copy_mode_active is True
+        assert isinstance(page.app.screen_stack[-2], PreviewPanelModal)
 
 
 async def test_preview_modal_search_input_accepts_percent_as_query_text() -> None:

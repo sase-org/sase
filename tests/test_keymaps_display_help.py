@@ -308,6 +308,22 @@ def test_help_modal_lists_global_restore_prompt_stash() -> None:
         assert ("@", "Restore stashed prompt") in pairs
 
 
+def test_help_copy_sections_advertise_copy_as_palette() -> None:
+    reg = load_keymap_registry({})
+    expected_section_counts = (
+        (cls_bindings(reg), 6),
+        (agents_bindings(reg), 1),
+        (axe_bindings(reg), 1),
+    )
+
+    for sections, expected_count in expected_section_counts:
+        copy_sections = [
+            bindings for title, bindings in sections if title.startswith("Copy Mode")
+        ]
+        assert len(copy_sections) == expected_count
+        assert all(("%", "Open Copy as… palette") in rows for rows in copy_sections)
+
+
 def test_help_modal_lists_configured_leader_prompt_stash_panel() -> None:
     """All main tabs resolve the stash-panel sequence from the registry."""
     reg = load_keymap_registry(

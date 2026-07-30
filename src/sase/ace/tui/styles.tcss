@@ -6967,6 +6967,70 @@ CommandPaletteModal #command-palette-position {
     text-align: right;
 }
 
+/* ===== Copy As Modal Styling ===== */
+
+CopyAsModal {
+    align: center middle;
+}
+
+CopyAsModal > #copy-as-container {
+    width: 72;
+    max-width: 92%;
+    height: auto;
+    max-height: 82%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+CopyAsModal #copy-as-title {
+    height: 1;
+    text-align: center;
+    text-style: bold;
+    color: $accent;
+}
+
+CopyAsModal #copy-as-subtitle {
+    height: 1;
+    margin-bottom: 1;
+    text-align: center;
+    color: $text-muted;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+CopyAsModal #copy-as-list {
+    height: auto;
+    max-height: 24;
+    border: solid $secondary;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+    scrollbar-gutter: stable;
+}
+
+CopyAsModal #copy-as-footer {
+    height: 1;
+    margin-top: 1;
+    text-align: center;
+    color: $text-muted;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+CopyAsModal.-narrow > #copy-as-container {
+    width: 94%;
+    max-height: 90%;
+    padding: 1;
+}
+
+CopyAsModal.-narrow #copy-as-list {
+    max-height: 14;
+}
+
+CopyAsModal.-narrow #copy-as-footer {
+    margin-top: 0;
+}
+
 /* ===== Project Select Modal (@) Styling ===== */
 
 ProjectSelectModal {

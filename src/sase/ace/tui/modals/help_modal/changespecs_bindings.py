@@ -195,7 +195,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             [
                 ("j/k · Ctrl+D/U · g/G", "Line / page / edge scrolling"),
                 ("y / Y", "Copy contents / source path"),
-                ("%", "Open active pane copy menu"),
+                ("%", "Open active pane Copy as… palette"),
                 ("R", "Toggle Markdown rendered/source view"),
                 ("/ · n/N", "Search source · next/previous match"),
                 ("o / Z", "Open editor / rich viewer"),
@@ -443,6 +443,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
         (
             f"Copy Mode · Commits ({d(cm.prefix)})",
             [
+                (d(cm.prefix), "Open Copy as… palette"),
                 (
                     key_sequence_display(cm.prefix, commits_copy["reference"]),
                     "Copy @commit reference",
@@ -484,6 +485,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
         (
             f"Copy Mode · Plans ({d(cm.prefix)})",
             [
+                (d(cm.prefix), "Open Copy as… palette"),
                 (
                     key_sequence_display(cm.prefix, plans_copy["reference"]),
                     "Copy @document reference",
@@ -521,6 +523,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
         (
             f"Copy Mode · Chats ({d(cm.prefix)})",
             [
+                (d(cm.prefix), "Open Copy as… palette"),
                 (
                     key_sequence_display(cm.prefix, chats_copy["reference"]),
                     "Copy @chat reference",
@@ -558,6 +561,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
         (
             f"Copy Mode · Files ({d(cm.prefix)})",
             [
+                (d(cm.prefix), "Open Copy as… palette"),
                 (
                     key_sequence_display(cm.prefix, files_copy["reference"]),
                     "Copy @file reference",
@@ -575,6 +579,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
         (
             f"Copy Mode · Bugs ({d(cm.prefix)})",
             [
+                (d(cm.prefix), "Open Copy as… palette"),
                 (
                     key_sequence_display(cm.prefix, bugs_copy["reference"]),
                     "Copy @bug reference",
@@ -616,6 +621,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
         (
             f"Copy Mode ({d(cm.prefix)})",
             [
+                (d(cm.prefix), "Open Copy as… palette"),
                 (f"{d(cm.prefix)}{d(cs_copy['raw'])}", "Copy ChangeSpec"),
                 (
                     f"{d(cm.prefix)}{d(cs_copy['with_snapshot'])}",

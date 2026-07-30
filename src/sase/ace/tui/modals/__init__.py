@@ -75,6 +75,8 @@ from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
 from .bead_edit_modal import BeadEditModal, BeadEditResult
 from .command_palette_modal import CommandPaletteModal
+from .copy_as_modal import CopyAsModal
+from .copy_as_types import CopyAsContext, CopyAsRow
 from .commit_view_modal import CommitViewModal
 from .confirm_action_modal import ConfirmActionModal
 from .confirm_delete_modal import ConfirmDeleteModal
@@ -289,6 +291,9 @@ __all__ = [
     "BeadEditModal",
     "BeadEditResult",
     "CommandPaletteModal",
+    "CopyAsContext",
+    "CopyAsModal",
+    "CopyAsRow",
     "CommitViewModal",
     "CustomModelInputModal",
     "ConfirmDeleteModal",

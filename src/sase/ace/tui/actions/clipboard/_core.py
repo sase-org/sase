@@ -11,6 +11,7 @@ from ._helpers import (
     capture_tmux_pane,
     format_multi_copy_content_capped,
 )
+from ._palette import build_copy_as_context
 
 
 class ClipboardCoreMixin(ClipboardBase):
@@ -21,17 +22,36 @@ class ClipboardCoreMixin(ClipboardBase):
         self.action_start_copy_mode()
 
     def action_start_copy_mode(self) -> None:
-        """Start copy mode - wait for second key to determine copy action."""
-        if (
-            self.current_tab == "changespecs"
-            and getattr(self, "current_artifacts_subtab", "prs") == "prs"
-            and not self.changespecs
-        ):
-            self.notify("No ChangeSpec to copy", severity="warning")  # type: ignore[attr-defined]
+        """Paint the legacy footer and open the warm-only Copy as palette."""
+        context = build_copy_as_context(self)
+        if context is None:
             return
 
         self._copy_mode_active = True  # type: ignore[attr-defined]
         self._update_copy_footer()
+
+        from ...modals.copy_as_modal import CopyAsModal
+        from ...modals.copy_as_types import CopyAsRow
+
+        def _on_dismiss(row: CopyAsRow | None) -> None:
+            if row is None:
+                self._handle_copy_key("escape")
+                return
+
+            def dispatch() -> None:
+                self._handle_copy_key(row.key)
+
+            if row.captures_snapshot:
+                call_after_refresh = getattr(self, "call_after_refresh", None)
+                if callable(call_after_refresh):
+                    call_after_refresh(dispatch)
+                    return
+            dispatch()
+
+        self.push_screen(  # type: ignore[attr-defined]
+            CopyAsModal(context),
+            callback=_on_dismiss,
+        )
 
     def _handle_copy_key(self, key: str) -> bool:
         """Handle the second key in copy mode sequence.

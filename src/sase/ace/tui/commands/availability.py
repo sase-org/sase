@@ -237,7 +237,13 @@ def _get_base_status(status: str) -> str:
 
 def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id.startswith("copy.artifacts_"):
-        return spec.id.startswith(f"copy.artifacts_{ctx.artifacts_subtab}.")
+        if not spec.id.startswith(f"copy.artifacts_{ctx.artifacts_subtab}."):
+            return False
+        if ctx.artifact_selection_present is False:
+            return False
+        if ctx.artifact_available_targets is not None:
+            return spec.id.rsplit(".", 1)[-1] in ctx.artifact_available_targets
+        return True
     if spec.id == "app.edit_query":
         return ctx.artifacts_subtab in {"prs", "commits", "plans"}
     if spec.id in _BUG_COMMANDS:
@@ -310,10 +316,12 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return False
         if (
             spec.id in {"copy.changespecs.pr_number", "copy.changespecs.cl_number"}
-            and cs.pr_url is None
+            and not cs.pr_url
         ):
             return False
-        if spec.id == "copy.changespecs.bug" and getattr(cs, "bug", None) is None:
+        if spec.id == "copy.changespecs.link" and not cs.pr_url:
+            return False
+        if spec.id == "copy.changespecs.bug" and not getattr(cs, "bug", None):
             return False
         return True
 
@@ -460,8 +468,13 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id in _REQUIRES_AGENT and agent is None:
         return False
 
-    # Copy-mode agent commands need a focused agent.
+    # Copy-mode agent commands need a focused agent. Row-specific warm state
+    # further filters paths that the visible detail pane cannot currently copy.
     if spec.id.startswith("copy.agents."):
+        if spec.id == "copy.agents.chat":
+            return agent is not None and bool(getattr(agent, "response_path", None))
+        if spec.id == "copy.agents.file_path":
+            return agent is not None and ctx.file_panel_visible
         return agent is not None
 
     # Leader commands scoped to agents.

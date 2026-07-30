@@ -104,27 +104,36 @@ Shared entry-jump surfaces allocate hints from the zero-based alphabet `0`–`9`
 `01`, …, `0Z`, `10` and ending at the fixed `ZZ` capacity. The first character of a two-character hint keeps jump mode
 open; the second completes the jump. Hints remain case-sensitive.
 
-### Copy Mode in Commits, Plans, Chats, and Bugs
+### Copy Mode in Commits, Plans, Chats, Files, and Bugs
 
-Press `%` on any non-PR Artifacts sub-tab to open that pane's copy menu. The next key copies from the visible entry;
-`Esc` cancels, and `%s` captures the current `sase ace` tmux pane on every sub-tab.
+Press `%` on any non-PR Artifacts sub-tab to open the context-aware **Copy as…** palette for the visible entry. Rows are
+grouped by representation, show their configured accelerator and a warm preview, and can be selected with the mouse,
+arrow keys or `j`/`k` plus `Enter`, or the accelerator directly. `q`/`Esc` cancels. If an accelerator is configured as
+`j`, `k`, or `q`, the configured copy target wins over navigation or cancellation.
 
 | Sub-tab | Keys                                                                                                                                                |
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Commits | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan |
 | Plans   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%t` title · `%b` body                         |
 | Chats   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript                   |
+| Files   | `%@` artifact ref · `%!` ref in agent prompt                                                                                                        |
 | Bugs    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%b` `#N` · `%u` URL · `%t` title · `%p` agent prompt      |
 
 `%s` captures the current `sase ace` tmux pane on every sub-tab.
 
-The menu and copied value follow the active sub-tab, even though Artifacts uses the internal `changespecs` tab id. Thus,
-for example, `%n` on Chats reports the Chats key set instead of copying the hidden PR's name. After a copy, cancel, or
-invalid key, the footer returns to the active pane's normal bindings.
+The palette and copied value follow the active sub-tab, even though Artifacts uses the internal `changespecs` tab id.
+Thus, for example, `%n` on Chats reports the Chats key set instead of copying the hidden PR's name. After selection or
+cancellation, the footer returns to the active pane's normal bindings. An unknown printable key warns but leaves the
+palette open so another choice can be made.
 
 When entries are marked, `%@` copies newline-separated prompt references, `%l` copies a Markdown bullet list, `%J`
 copies one JSON array, and `%!` seeds one prompt with the marked set. Entries that cannot produce the selected
-representation are skipped; the completion toast reports both the copied and skipped counts.
+representation are skipped; the completion toast reports both the copied and skipped counts. The palette title reports
+the visible marked count and applicable rows use plural labels such as **commit SHAs**.
+
+The same `%` prefix opens the palette above copy-forwarding readers and modals, including the preview panel. Dismissing
+the palette returns to the underlying modal. Snapshot choices dismiss the palette before capture, so the palette itself
+is not included in the copied pane.
 
 ### Marks in Commits, Plans, Chats, and Bugs
 
@@ -219,7 +228,7 @@ knows a canonical artifact reference, the title shows that logical reference bes
 | `g` / `G`           | Jump to the top / bottom                                   |
 | `y`                 | Copy the complete preview contents                         |
 | `Y`                 | Copy the local source path, when available                 |
-| `%`                 | Open the active Artifacts sub-tab's copy menu              |
+| `%`                 | Open the active Artifacts sub-tab's **Copy as…** palette   |
 | `R`                 | Toggle Markdown previews between rendered and source views |
 | `/`                 | Open source search (smartcase substring matching)          |
 | `n` / `N`           | Jump to the next / previous match with wraparound          |
@@ -521,6 +530,10 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `Esc` / `q`         | Close modal                                              |
 
 ### Copy Mode (`%` prefix)
+
+Press `%` to open the **Copy as…** palette for the selected ChangeSpec. Select a row with the mouse, arrows or `j`/`k`
+and `Enter`, or complete any configured two-key accelerator directly. `q`/`Esc` cancels; configured target keys take
+precedence if rebound to `j`, `k`, or `q`.
 
 | Key  | Action                     |
 | ---- | -------------------------- |
@@ -1359,6 +1372,10 @@ warning toast. It does not write a new bundle every refresh while the same viola
 
 ### Copy Mode (`%` prefix)
 
+Press `%` to open the **Copy as…** palette for the focused agent. It supports mouse selection, arrows or `j`/`k` plus
+`Enter`, and every configured direct accelerator below. `q`/`Esc` cancels unless that key is itself configured for a
+copy target, in which case the target wins.
+
 | Key  | Action                                                                                      |
 | ---- | ------------------------------------------------------------------------------------------- |
 | `%c` | Copy chat file path                                                                         |
@@ -1561,6 +1578,9 @@ entry opens in cell mode on its first required property.
 | `!x` | Start / stop axe (or select process) |
 
 ### Copy Mode (`%` prefix)
+
+Press `%` to open the **Copy as…** palette for the selected AXE row. Choose with the mouse, arrows or `j`/`k` plus
+`Enter`, or use a configured direct accelerator. `q`/`Esc` cancels, with configured target keys taking precedence.
 
 | Key  | Action                 |
 | ---- | ---------------------- |

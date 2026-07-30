@@ -195,10 +195,17 @@ class CommandContext:
     """
 
     tab: CommandTab = "changespecs"
-    artifacts_subtab: Literal["prs", "commits", "bugs", "plans", "chats"] = "prs"
+    artifacts_subtab: Literal["prs", "commits", "bugs", "plans", "chats", "files"] = (
+        "prs"
+    )
     changespec: ChangeSpec | None = None
     agent: Agent | None = None
     axe_item: AxeItem | None = None
+    # Warm-only Artifacts copy-palette selection state. ``None`` means the
+    # caller did not capture this specialized context and preserves the
+    # command catalog's conservative legacy behavior.
+    artifact_selection_present: bool | None = None
+    artifact_available_targets: frozenset[str] | None = None
     # ChangeSpecs tab state
     mark_count: int = 0
     # Agents tab state

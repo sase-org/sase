@@ -324,6 +324,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         (
             f"Copy Mode ({d(cm.prefix)})",
             [
+                (d(cm.prefix), "Open Copy as… palette"),
                 (f"{d(cm.prefix)}{d(ag_copy['chat'])}", "Copy chat file path"),
                 (f"{d(cm.prefix)}{d(ag_copy['name'])}", "Copy agent name"),
                 (f"{d(cm.prefix)}{d(ag_copy['prompt'])}", "Copy agent prompt"),

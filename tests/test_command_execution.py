@@ -96,6 +96,7 @@ def test_execute_copy_mode_sets_active_then_handles() -> None:
     execute_command(app, spec)
     assert app._copy_mode_active is True
     app._handle_copy_key.assert_called_once_with("n")
+    app.push_screen.assert_not_called()
 
 
 def test_execute_leader_mode_sets_active_then_handles() -> None:

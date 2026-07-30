@@ -13,22 +13,21 @@ from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from tests.ace.tui._artifacts_copy_helpers import CopyHarness
 
 
-def test_copy_mode_opens_without_a_hidden_pr_selection_and_restores_subtab() -> None:
+def test_copy_mode_rejects_empty_artifacts_without_using_hidden_pr_state() -> None:
     app = CopyHarness()
     assert app.changespecs == []
 
     app.action_start_copy_mode()
 
-    assert app._copy_mode_active is True
-    assert app.copy_footer_updates == 1
-
-    assert app._handle_copy_key("escape") is True
-    assert app.artifacts_footer_restores == 1
+    assert app._copy_mode_active is False
+    assert app.copy_footer_updates == 0
+    assert app.notifications == [("No commits entry to copy", "warning")]
+    assert app.artifacts_footer_restores == 0
     assert app.tab_footer_restores == 0
 
 
 @pytest.mark.parametrize("subtab", ["chats", "files"])
-async def test_percent_opens_and_escape_restores_copy_footer_on_real_artifacts_app(
+async def test_percent_rejects_empty_real_artifacts_panes(
     subtab: str,
 ) -> None:
     async with AcePage() as page:
@@ -37,18 +36,6 @@ async def test_percent_opens_and_escape_restores_copy_footer_on_real_artifacts_a
         footer = page.query_one_widget("#keybinding-footer", KeybindingFooter)
 
         await page.press("%")
-
-        assert page.app._copy_mode_active is True
-        assert footer._last_layout_inputs is not None
-        assert footer._last_layout_inputs[1] == "COPY"
-        if subtab == "files":
-            assert footer._last_layout_inputs[0] == [
-                ("@", "@ref"),
-                ("!", "agent + @ref"),
-                ("s", "snap"),
-            ]
-
-        await page.press("escape")
 
         assert page.app._copy_mode_active is False
         assert footer._last_layout_inputs is not None
