@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 from sase._git_remote import github_blob_url, github_commit_url
+from sase.sdd.checkout_anchor import resolve_checkout_anchor
 
 if TYPE_CHECKING:
     from sase.agents_sync.git import GitRunner
@@ -217,7 +218,8 @@ class HostedLinkResolver:
         from sase.agents_sync.links import hosted_provider
         from sase.agents_sync.targets import resolve_sync_targets
 
-        project = self._project or _current_project()
+        anchor = resolve_checkout_anchor(self._primary_root)
+        project = self._project or anchor.project_name
         if not project:
             return None
         selection = resolve_sync_targets((project,))
@@ -225,7 +227,7 @@ class HostedLinkResolver:
             return None
         target = selection.targets[0]
         if target.primary_roots and not any(
-            self._primary_root == root or self._primary_root.is_relative_to(root)
+            anchor.primary_root == root or anchor.primary_root.is_relative_to(root)
             for root in target.primary_roots
         ):
             return None
@@ -317,15 +319,6 @@ def _plan_repo_relative_path(store: SddStore, plan_ref: str) -> str | None:
     if not resolved.is_relative_to(repo_root):
         return None
     return resolved.relative_to(repo_root).as_posix()
-
-
-def _current_project() -> str | None:
-    try:
-        from sase.workflows.utils import get_project_from_workspace
-
-        return get_project_from_workspace()
-    except Exception:
-        return None
 
 
 def _default_git_runner() -> GitRunner:

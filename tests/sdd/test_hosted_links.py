@@ -9,6 +9,7 @@ import pytest
 
 from sase.agents_sync.models import ProjectTarget, TargetSelection
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+from sase.sdd.checkout_anchor import CheckoutAnchor
 from sase.sdd.hosted_links import (
     HostedLinkResolver,
     hosted_link_resolver,
@@ -204,6 +205,48 @@ def test_agent_url_links_family_member_anchor(tmp_path: Path, monkeypatch) -> No
     assert resolver.agent_url("foo.bar--code") == (
         "https://github.com/sase-org/sase--agents/blob/main/"
         "families/alice.athena.foo.bar.md#member-code"
+    )
+
+
+def test_agent_url_resolves_project_from_sidecar_anchor(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    primary = tmp_path / "primary"
+    sidecar_checkout = primary / "sase" / "repos" / "plans"
+    sidecar_checkout.mkdir(parents=True)
+    agents_sidecar = tmp_path / "agents"
+    target = _agents_target(primary, agents_sidecar, _GITHUB_AGENTS_REMOTE)
+    monkeypatch.setattr(
+        "sase.sdd.hosted_links.resolve_checkout_anchor",
+        lambda path: (
+            CheckoutAnchor(primary, "sase")
+            if path == sidecar_checkout
+            else CheckoutAnchor(path, None)
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.targets.resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(
+            lambda _cls: AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena"))
+        ),
+    )
+    git = _FakeGit(branches={agents_sidecar: "main"})
+
+    resolver = HostedLinkResolver(
+        _plans_store(tmp_path / "plans"),
+        primary_root=sidecar_checkout,
+        git_runner=git,
+    )
+
+    assert resolver.agent_url("foo.bar") == (
+        "https://github.com/sase-org/sase--agents/blob/main/"
+        "agents/alice.athena.foo.bar/README.md"
     )
 
 

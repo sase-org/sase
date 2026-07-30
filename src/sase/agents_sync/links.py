@@ -16,6 +16,7 @@ from sase.core.agent_identity_facade import (
     normalize_owned_agent_name,
 )
 from sase.core.commit_footer_facade import LinkedCommitTagValue
+from sase.sdd.checkout_anchor import resolve_checkout_anchor
 from sase.sdd.hosted_links import resolve_hosted_branch
 
 
@@ -40,12 +41,9 @@ def resolve_agent_commit_tag(
     local_name = normalize_owned_agent_name(agent_name, snapshot)
     global_name = globalize_owned_agent_name(local_name, snapshot)
 
-    try:
-        from sase.workflows.utils import get_project_from_workspace
-
-        project = get_project_from_workspace()
-    except Exception:
-        return global_name
+    current = Path(cwd or os.getcwd()).resolve(strict=False)
+    anchor = resolve_checkout_anchor(current)
+    project = anchor.project_name
     if not project:
         return global_name
 
@@ -56,9 +54,9 @@ def resolve_agent_commit_tag(
     if len(selection.targets) != 1:
         return global_name
     target = selection.targets[0]
-    current = Path(cwd or os.getcwd()).resolve(strict=False)
     if target.primary_roots and not any(
-        current == root or current.is_relative_to(root) for root in target.primary_roots
+        anchor.primary_root == root or anchor.primary_root.is_relative_to(root)
+        for root in target.primary_roots
     ):
         return global_name
     if not (target.sidecar_path / ".git").exists():

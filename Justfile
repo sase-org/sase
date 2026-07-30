@@ -271,7 +271,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-b5(CheckoutAnchor)" \
-        --epic-symbol "sase-b5(resolve_checkout_anchor)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
