@@ -19,6 +19,7 @@ and CLI flags.
   - [id](#id)
   - [machine_name (deprecated)](#machine_name-deprecated)
   - [ace](#ace)
+  - [artifacts](#artifacts)
   - [llm_provider](#llm_provider)
   - [commit](#commit)
   - [repos](#repos)
@@ -867,6 +868,33 @@ Source: `src/sase/agent/prompt_placeholder_inputs.py`, `src/sase/ace/tui/actions
 `src/sase/ace/tui/actions/agent_workflow/_prompt_bar_save_xprompt.py`,
 `src/sase/ace/tui/widgets/_prompt_input_bar_local_xprompt_actions.py`,
 `src/sase/ace/tui/widgets/_local_xprompt_conversion.py`
+
+### artifacts
+
+Bounds on automatic artifact capture at agent finalization. Capture keeps bytes only for files a run authored that
+version control cannot reproduce; content already reachable from a durable commit becomes a byte-free reference row. See
+[VCS-Backed Artifact Files](agent_images.md#vcs-backed-artifact-files) for the decision matrix and the `vcs-cache`
+directory.
+
+```yaml
+artifacts:
+  capture:
+    max_stored_per_agent: 50
+    max_history_scan: 20
+```
+
+| Field                                    | Type | Default | Minimum | Description                                                                                                       |
+| ---------------------------------------- | ---- | ------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `artifacts.capture.max_stored_per_agent` | int  | `50`    | `1`     | Maximum byte-copying automatic captures per agent run. Reference rows cost no bytes, are uncounted, and uncapped. |
+| `artifacts.capture.max_history_scan`     | int  | `20`    | `1`     | Durable commits searched per file when looking for one holding its exact content.                                 |
+
+Both fields are read fail-open: a missing, non-integer, or out-of-range value falls back to the built-in default rather
+than failing capture. Once `max_stored_per_agent` is reached, the remaining byte-copy candidates are skipped and
+finalization reports `cap_fired=true` on its `[artifacts] default capture:` summary line. Raising `max_history_scan`
+widens the bounded search that recovers content whose recorded commit was squash-rewritten, at the cost of a longer walk
+per file.
+
+Source: `src/sase/config/core.py`, `src/sase/core/artifact_capture_policy.py`
 
 ### llm_provider
 
@@ -3214,14 +3242,14 @@ it with `A`, even after the agent has been dismissed and revived. `-k/--kind` ac
 artifact's `id:`, stored `path:`, and durable `ref:` (`file:<id>`). The read subcommands (`doctor`, `list`, `open`,
 `path`, `show`) are not agent-gated.
 
-| Form                   | Flags                                                                                                             | Description                                                    |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `sase artifact create` | `-k/--kind`, `-l/--label`, `-p/--path`                                                                            | Store one explicit artifact for the current agent              |
-| `sase artifact doctor` | `-f/--fix`, `-v/--verify`                                                                                         | Report index health, backfill enrichment fields, verify hashes |
-| `sase artifact list`   | `-a/--agent`, `-e/--explicit`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-p/--project`, `-q/--query`, `-s/--since` | List indexed artifacts newest-first                            |
-| `sase artifact open`   | (positional `reference`)                                                                                          | Open a resolved reference with a kind-appropriate viewer       |
-| `sase artifact path`   | (positional `reference`)                                                                                          | Print the one absolute path a reference resolves to            |
-| `sase artifact show`   | `-j/--json`, (positional `reference`)                                                                             | Show metadata plus a reference-resolution report               |
+| Form                   | Flags                                                                                                             | Description                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `sase artifact create` | `-k/--kind`, `-l/--label`, `-p/--path`                                                                            | Store one explicit artifact for the current agent                                               |
+| `sase artifact doctor` | `-f/--fix`, `-v/--verify`                                                                                         | Report index health (including VCS reference counts), backfill enrichment fields, verify hashes |
+| `sase artifact list`   | `-a/--agent`, `-e/--explicit`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-p/--project`, `-q/--query`, `-s/--since` | List indexed artifacts newest-first                                                             |
+| `sase artifact open`   | (positional `reference`)                                                                                          | Open a resolved reference with a kind-appropriate viewer                                        |
+| `sase artifact path`   | (positional `reference`)                                                                                          | Print the one absolute path a reference resolves to                                             |
+| `sase artifact show`   | `-j/--json`, (positional `reference`)                                                                             | Show metadata plus a reference-resolution report                                                |
 
 `list` filters: `-k/--kind` is repeatable and accepts the artifact kinds above; `-l/--limit` defaults to `50` and `0`
 means unlimited; `-p/--project` accepts a display name, alias, or canonical key and exits 2 for an unknown project;

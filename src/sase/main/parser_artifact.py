@@ -63,6 +63,18 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
     doctor_parser = artifact_subparsers.add_parser(
         "doctor",
         help="Inspect, repair, and verify the artifact index",
+        description=(
+            "Inspect, repair, and verify the artifact index. Exits 1 when the\n"
+            "index is unhealthy.\n\n"
+            "Byte-free version-control-backed rows are healthy, not missing:\n"
+            "  VCS reference rows          how many rows carry provenance\n"
+            "                              instead of stored bytes\n"
+            "  Incomplete VCS provenance   rows with a partial vcs_repo /\n"
+            "                              vcs_sha / vcs_relpath triple\n"
+            "  Unresolvable VCS references rows --verify could not\n"
+            "                              materialize from any checkout"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     doctor_parser.add_argument(
         "-f",
@@ -74,7 +86,10 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         "-v",
         "--verify",
         action="store_true",
-        help="Re-hash live stored files and verify recorded digests",
+        help=(
+            "Re-hash live stored files and materialize VCS-backed rows to "
+            "verify recorded digests"
+        ),
     )
 
     list_parser = artifact_subparsers.add_parser(

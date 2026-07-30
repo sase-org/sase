@@ -15,11 +15,11 @@ attachments, and the separate `a` artifact viewer for opening completed agent ar
 
 ACE can also surface media files referenced in saved prompt artifacts (`raw_xprompt.md` and `*_prompt.md`) even when the
 media itself was not part of the agent's git diff. For current successful runs, those prompt-referenced media files are
-copied into persistent SASE artifact storage with the other default generated-media artifacts so the Agents-tab artifact
-picker can still open them after a workspace is cleaned up. Legacy runs without persisted default artifacts fall back to
-prompt-file discovery at view time. Prompt-referenced media are not notification delivery attachments unless they also
-appear in `done.json.image_paths`, appear in `done.json.video_paths`, or were saved explicitly with
-`sase artifact create`.
+persisted alongside the other default generated-media artifacts — as byte copies or as byte-free version-control
+references, per [VCS-Backed Artifact Files](#vcs-backed-artifact-files) — so the Agents-tab artifact picker can still
+open them after a workspace is cleaned up. Legacy runs without persisted default artifacts fall back to prompt-file
+discovery at view time. Prompt-referenced media are not notification delivery attachments unless they also appear in
+`done.json.image_paths`, appear in `done.json.video_paths`, or were saved explicitly with `sase artifact create`.
 
 Supported image extensions are:
 
@@ -68,9 +68,10 @@ Default artifact persistence also scans the saved prompt files in the agent arti
 
 Any path-like token ending in a common image suffix or supported video suffix is resolved as an absolute, home-relative,
 or workspace-relative path. Existing files are added after `done.json.image_paths` and `done.json.video_paths`,
-duplicates are removed, and the file does not need to appear in the agent's git diff. Images and GIFs are added as
-`image` artifacts. Prompt-referenced videos are added as ordinary `file` artifacts; ACE detects the video suffix at view
-time and opens them with the video preview path.
+duplicates are removed, and the file does not need to appear in the agent's git diff. These candidates carry origin
+`mentioned` into the capture policy, so a mentioned repo file the run neither authored nor can reproduce from version
+control gets no row at all. Images and GIFs are added as `image` artifacts. Prompt-referenced videos are added as
+ordinary `file` artifacts; ACE detects the video suffix at view time and opens them with the video preview path.
 
 This is useful when a prompt asks an agent to inspect or transform an existing screenshot, mockup, reference image, or
 reference video and the resulting run should keep that source media one keypress away in ACE.
@@ -81,6 +82,110 @@ loads the row. Downstream notification plugins should continue to use `done.json
 `done.json.video_paths` for the generated-media notification contract.
 
 Source: `src/sase/core/artifact_file_defaults.py`
+
+## VCS-Backed Artifact Files
+
+Automatic capture at agent finalization means _authorship_, and it never copies what version control already stores.
+Every candidate discovered by generated-media and prompt-referenced-media discovery is classified by
+`src/sase/core/artifact_capture_policy.py` before anything is written.
+
+### The decision matrix
+
+`origin` distinguishes candidates the run **changed** (`done.json.image_paths` / `video_paths`, which come from
+`git diff HEAD`, untracked files, and the run's own commit) from candidates merely **mentioned** in a saved prompt file.
+The first matching rule wins:
+
+| #   | Condition                                                                                                             | Outcome                                                             | Reason slug                              |
+| :-- | :-------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------ | :--------------------------------------- |
+| 1   | The exact content is reproducible from a durable commit                                                               | `reference` — byte-free row with `vcs_repo`/`vcs_sha`/`vcs_relpath` | `vcs_reproducible`                       |
+| 2   | Authored by this run: inside the agent's artifacts directory, `origin == changed`, or mtime at or after the run start | `store` — copy bytes                                                | `artifacts_dir`, `changed`, `run_window` |
+| 3   | Mentioned only, and outside every known repo working tree                                                             | `store` — the user-supplied input case                              | `mentioned_external`                     |
+| 4   | Otherwise (mentioned only, inside a known repo, not reproducible)                                                     | `skip` — no row is written                                          | `mentioned_repo`                         |
+
+Three invariants make this safe:
+
+- **No silent substitution.** A `reference` row is written only after the candidate's bytes have been reproduced from
+  `<vcs_sha>:<vcs_relpath>` and the reproduction's SHA-256 verified equal to the candidate's. A tracked file with
+  uncommitted edits therefore fails rule 1 and is stored instead.
+- **Durability.** `vcs_sha` is reachable from a remote-tracking ref at capture time. An unpushed local commit does not
+  qualify, because the numbered workspace holding it is reset on next open.
+- **Fail-safe.** Any git failure, timeout, unknown repo, or ambiguity downgrades a would-be `reference` to `store`
+  (reason `vcs_probe_failed`). Capture can never lose bytes.
+
+Explicit artifacts created with `sase artifact create` never enter this matrix and always store their own bytes.
+
+Finalization prints one summary line beside the other `[artifacts]` output:
+
+```text
+[artifacts] default capture: stored=3 referenced=12 skipped=1 cap_fired=false
+```
+
+`cap_fired` reports whether `artifacts.capture.max_stored_per_agent` was reached; once it is, remaining `store`
+candidates become `skip` with reason `capture_cap`. Reference rows cost no bytes, are not counted, and are never capped.
+See [`configuration.md`](configuration.md#artifacts) for the `artifacts.capture` block.
+
+### The record fields
+
+A VCS-backed row carries `path: null` plus three provenance fields:
+
+| Field         | Meaning                                                       |
+| ------------- | ------------------------------------------------------------- |
+| `vcs_repo`    | Repo inventory name (`record.name`) the content belongs to.   |
+| `vcs_sha`     | A durable commit that held the exact content at capture time. |
+| `vcs_relpath` | Path of the file relative to that repo's toplevel.            |
+
+`sha256`, `size_bytes`, and `mime_type` are recorded exactly as they are for byte-backed rows, so a byte-free row loses
+no integrity metadata. Index rows are written at schema version 2; the reader accepts versions 1 and 2.
+
+### Materialization and the `vcs-cache` directory
+
+Reference resolution stays pure — it never shells out to git — so read-only callers (`sase lsp`, `@`-completion, TUI
+hover) stay cheap. A VCS-backed row resolves with status `vcs_backed` and locator `<vcs_repo>@<vcs_sha>:<vcs_relpath>`
+and no `resolved_path`. Callers that need bytes materialize explicitly through `src/sase/core/artifact_file_vcs.py`'s
+`materialize_artifact_file()`, which is the single Python entry point:
+
+- `sase artifact path` prints the materialized cache path, and `sase artifact open` continues into the usual viewer.
+- `@file:` references in a prompt expand to a materialized path; a failure fails the launch loudly rather than handing
+  an agent a dangling path.
+- The ACE Files pane renders a `PROVENANCE` section instead of a stored path and materializes off the UI thread.
+- `sase artifact show` and `sase artifact list` need no materialization; `show` reports
+  `stored_path_status: vcs-backed (<locator>)`.
+
+Materialized content lands in a content-keyed cache:
+
+```text
+~/.sase/artifacts/vcs-cache/<sha256[:2]>/<sha256><suffix>
+```
+
+Lookup order is cache hit (re-hashed before it is trusted), then `git cat-file blob <vcs_sha>:<vcs_relpath>` in each
+known checkout of the repo in turn, then a bounded walk of at most `artifacts.capture.max_history_scan` durable commits
+touching the path — which recovers content whose recorded sha was squash-rewritten or pruned. The cache is transient:
+deleting it costs only re-materialization.
+
+### Diagnosing an unresolvable reference
+
+If `sase artifact path` on a VCS-backed row exits 1, the content could not be reproduced from any known checkout. Work
+through it in this order:
+
+1. `sase artifact show <ref>` — read the locator to get the repo, commit, and relpath.
+2. `sase repo list` — confirm the `vcs_repo` name still exists in the inventory and has at least one existing clone. An
+   unknown repo name leaves the resolver with no checkout to try.
+3. In a checkout of that repo, `git fetch` and retry. Resolution measures reachability from remote-tracking refs, so a
+   stale clone is the common cause.
+4. `git cat-file blob <vcs_sha>:<vcs_relpath>` — if the object is gone (a rewritten or pruned commit), the bounded
+   history walk is the fallback; raise `artifacts.capture.max_history_scan` if the content is deeper in history than the
+   current bound.
+5. `sase artifact doctor -v` — audits every VCS-backed row and lists the unresolvable ones under
+   `Unresolvable VCS references`, so a systemic problem shows up as a bucket rather than one failing command.
+
+A failure always names the repo, commit, path, and digest. SASE never substitutes different bytes and never returns an
+empty file.
+
+Sources:
+
+- `src/sase/core/artifact_capture_policy.py`
+- `src/sase/core/artifact_file_vcs.py`
+- `src/sase/core/artifact_file_defaults.py`
 
 ## Markdown PDF Attachment Contract
 
