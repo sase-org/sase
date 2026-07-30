@@ -197,12 +197,13 @@ class ArtifactsView(Vertical):
         project_files: dict[str, str],
         project_ref_display: ProjectRefDisplaySnapshot,
     ) -> None:
-        """Forward the already loaded inventory to the Commits filter bar."""
+        """Forward the already loaded inventory to project-backed renderers."""
         self.query_one(CommitsPane).set_project_completion_sources(
             projects,
             project_files=project_files,
             project_ref_display=project_ref_display,
         )
+        self.query_one(ArtifactsFilesPane).set_project_ref_display(project_ref_display)
 
     @on(PanelTabStrip.TabClicked)
     def _on_subtab_clicked(self, event: PanelTabStrip.TabClicked) -> None:

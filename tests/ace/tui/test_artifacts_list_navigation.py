@@ -13,6 +13,8 @@ from textual.widgets import OptionList, Static
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets import ArtifactsBugsPane
 from sase.ace.tui.widgets.artifacts import BugIssueList, BugLinkList, CommitsPane
+from sase.ace.tui.widgets.artifacts import files_pane as files_pane_module
+from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.ace.tui.widgets.artifacts.plans_data import PlansSnapshot
 import sase.ace.tui.widgets.artifacts.commits as commits_module
@@ -22,6 +24,10 @@ from tests.ace.tui.test_artifacts_bugs import _issue, _snapshot as _bugs_snapsho
 from tests.ace.tui._artifacts_plans_helpers import (
     _choices,
     _snapshot as _plans_snapshot,
+)
+from tests.ace.tui._artifacts_files_helpers import (
+    artifact_file,
+    snapshot as _files_snapshot,
 )
 
 
@@ -364,6 +370,55 @@ async def test_plans_fast_navigation_skips_headings_and_includes_expanded_phases
         assert pane.selected_row() is not None
         assert pane.selected_row().kind == "epic"  # type: ignore[union-attr]
         pane.clear_entry_jump_hints()
+
+
+async def test_files_implements_shared_stable_target_navigation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = tuple(
+        artifact_file(
+            f"file-{index:02d}",
+            created_at=f"2026-07-24T{23 - index // 3:02d}:{index % 60:02d}:00-04:00",
+        )
+        for index in range(50)
+    )
+    snapshot = _files_snapshot(rows)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        files_pane_module,
+        "load_files_snapshot",
+        lambda _project, _limit: snapshot,
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("6")
+        pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
+        await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        targets = pane.entry_targets()
+        assert len(targets) == 50
+        assert pane.selected_entry_target() == targets[0]
+
+        await page.press("ctrl+f")
+        assert pane.selected_entry_target() == targets[10]
+        await page.press("ctrl+b")
+        assert pane.selected_entry_target() == targets[0]
+        await page.press("G")
+        assert pane.selected_entry_target() == targets[-1]
+        await page.press("g")
+        assert pane.selected_entry_target() == targets[0]
+
+        pane.apply_entry_jump_hints({targets[1]: "A"})
+        option_list = pane.query_one("#files-list", OptionList)
+        assert any(
+            option_list.get_option_at_index(index).prompt.plain.startswith("[A] ")
+            for index in range(option_list.option_count)
+        )
+        assert pane.selected_entry_target() == targets[0]
+        pane.clear_entry_jump_hints()
+        assert pane.selected_entry_target() == targets[0]
 
 
 async def test_non_pr_jump_history_is_isolated_and_model_changes_cancel_hints(
