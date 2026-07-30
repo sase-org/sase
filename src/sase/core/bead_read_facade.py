@@ -123,6 +123,23 @@ def doctor(
     return [str(message) for message in raw_messages]
 
 
+def doctor_report(
+    beads_dir: Path | str,
+    plan_roots: tuple[Path, ...] | None = None,
+    reference_context: ArtifactRefContext | None = None,
+) -> dict[str, Any]:
+    binding = require_rust_binding("bead_doctor_report")
+    if plan_roots is None and reference_context is None:
+        payload: dict[str, Any] = binding(str(beads_dir))
+    else:
+        payload = binding(
+            str(beads_dir),
+            (None if plan_roots is None else [str(root) for root in plan_roots]),
+            (None if reference_context is None else reference_context.to_wire()),
+        )
+    return dict(payload)
+
+
 def get_epic_children(beads_dir: Path | str, epic_id: str) -> list[Issue]:
     binding = require_rust_binding("bead_get_epic_children")
     payload: list[dict[str, Any]] = binding(str(beads_dir), epic_id)
@@ -137,6 +154,7 @@ def _raise_key_error_for_missing_issue(issue_id: str, exc: ValueError) -> None:
 __all__ = [
     "blocked",
     "doctor",
+    "doctor_report",
     "get_epic_children",
     "history",
     "list_issues",

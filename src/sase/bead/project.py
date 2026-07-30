@@ -6,6 +6,7 @@ import sqlite3
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead import db as db_mod
@@ -545,6 +546,42 @@ class BeadProject:
             messages = []
         messages.extend(sync_messages)
         return messages
+
+    def doctor_report(
+        self,
+        plan_roots: tuple[Path, ...] | None = None,
+        reference_context: ArtifactRefContext | None = None,
+    ) -> dict[str, Any]:
+        """Run diagnostics and return structured projection details."""
+        from sase.core import bead_read_facade as rust_beads
+        from sase.bead.sync import bead_sync_diagnostics
+
+        report = rust_beads.doctor_report(
+            self.beads_dir,
+            plan_roots,
+            reference_context,
+        )
+        messages = [str(message) for message in report["messages"]]
+        if not self.sync_is_clean():
+            ok_message = "OK: no issues found"
+            if messages == [ok_message]:
+                messages = []
+            messages.append("WARNING: bead state has uncommitted changes")
+        sync_messages = bead_sync_diagnostics(self.beads_dir)
+        if sync_messages and messages == ["OK: no issues found"]:
+            messages = []
+        messages.extend(sync_messages)
+        report["messages"] = messages
+        return report
+
+    def reproject_from_events(self) -> dict[str, object]:
+        """Rewrite issues.jsonl from the canonical event streams."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        outcome = rust_beads.export_jsonl(self.beads_dir)
+        self._record_mutation_outcome(outcome)
+        self._refresh_db_from_jsonl()
+        return outcome
 
     def get_epic_children(self, epic_id: str) -> list[Issue]:
         """Get all child issues of an epic."""

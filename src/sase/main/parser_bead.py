@@ -256,6 +256,20 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
             "Preview and, after confirmation, repair recoverable bead design references"
         ),
     )
+    bead_doctor_parser.add_argument(
+        "-P",
+        "--fix-projection",
+        action="store_true",
+        help=(
+            "Preview and, after confirmation, rewrite issues.jsonl from canonical events"
+        ),
+    )
+    bead_doctor_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Apply requested repairs without an interactive confirmation",
+    )
 
     # sase bead history
     bead_history_parser = bead_subparsers.add_parser(

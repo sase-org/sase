@@ -140,9 +140,9 @@ def test_event_store_wins_over_stale_jsonl_projection(tmp_path: Path) -> None:
     )
 
     assert rust_beads.show(beads_dir, "beads-1").title == "Canonical Epic"
-    assert (
-        "WARNING: issues.jsonl projection drift from bead events"
-        in rust_beads.doctor(beads_dir)
+    assert any(
+        "issues.jsonl is 1 row(s) stale" in message and "--fix-projection" in message
+        for message in rust_beads.doctor(beads_dir)
     )
 
 
