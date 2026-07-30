@@ -46,10 +46,11 @@ class _XpromptSwarmDepthError(_XpromptSwarmError):
 
 @dataclass(frozen=True)
 class _ExpandedXpromptSwarmSegment:
-    """Expanded segment plus optional template-allocation group metadata."""
+    """Expanded segment plus dispatch metadata."""
 
     prompt: str
     template_group: str | None = None
+    swarm_xprompts: tuple[str, ...] = ()
 
 
 def _expand_embedded_xprompt_swarm_reference(
@@ -59,6 +60,7 @@ def _expand_embedded_xprompt_swarm_reference(
     local_xprompts: dict[str, XPrompt] | None,
     max_depth: int,
     template_group: str | None,
+    swarm_xprompts: tuple[str, ...],
     group_counter: Iterator[int],
     qualification_counter: Iterator[int],
 ) -> list[_ExpandedXpromptSwarmSegment]:
@@ -70,6 +72,7 @@ def _expand_embedded_xprompt_swarm_reference(
 
     call = build_xprompt_call(ref, [])
     group = template_group or _next_template_group(call.name, group_counter)
+    current_swarm_xprompts = _append_swarm_xprompt(swarm_xprompts, call.name)
     sub_segments = render_xprompt_swarm(
         catalog[call.name],
         call.positional_args,
@@ -79,7 +82,7 @@ def _expand_embedded_xprompt_swarm_reference(
     if not sub_segments:
         reconstructed = segment[: ref.start] + segment[ref.end :]
         return (
-            [_ExpandedXpromptSwarmSegment(reconstructed, group)]
+            [_ExpandedXpromptSwarmSegment(reconstructed, group, current_swarm_xprompts)]
             if reconstructed.strip()
             else []
         )
@@ -93,6 +96,7 @@ def _expand_embedded_xprompt_swarm_reference(
         local_xprompts=local_xprompts,
         max_depth=max_depth - 1,
         template_group=group,
+        swarm_xprompts=current_swarm_xprompts,
         group_counter=group_counter,
         qualification_counter=qualification_counter,
     )
@@ -105,6 +109,7 @@ def _expand_multiple_embedded_xprompt_swarm_references(
     local_xprompts: dict[str, XPrompt] | None,
     max_depth: int,
     strict_segment_check: bool,
+    swarm_xprompts: tuple[str, ...],
     group_counter: Iterator[int],
     qualification_counter: Iterator[int],
 ) -> list[_ExpandedXpromptSwarmSegment]:
@@ -126,6 +131,7 @@ def _expand_multiple_embedded_xprompt_swarm_references(
     for index, ref in enumerate(refs):
         call = build_xprompt_call(ref, [])
         group = _next_template_group(call.name, group_counter)
+        current_swarm_xprompts = _append_swarm_xprompt(swarm_xprompts, call.name)
         sub_segments = render_xprompt_swarm(
             catalog[call.name],
             call.positional_args,
@@ -149,6 +155,7 @@ def _expand_multiple_embedded_xprompt_swarm_references(
                 max_depth=max_depth - 1,
                 strict_segment_check=strict_segment_check,
                 template_group=group,
+                swarm_xprompts=current_swarm_xprompts,
                 group_counter=group_counter,
                 qualification_counter=qualification_counter,
             )
@@ -201,6 +208,7 @@ def expand_xprompt_swarms_with_metadata(
         local_xprompts=local_xprompts,
         max_depth=max_depth,
         strict_segment_check=_strict_segment_check,
+        swarm_xprompts=(),
         group_counter=group_counter if group_counter is not None else count(),
         qualification_counter=(
             qualification_counter if qualification_counter is not None else count()
@@ -215,12 +223,16 @@ def _expand_xprompt_swarms_with_metadata(
     max_depth: int,
     strict_segment_check: bool = True,
     template_group: str | None = None,
+    swarm_xprompts: tuple[str, ...],
     group_counter: Iterator[int],
     qualification_counter: Iterator[int],
 ) -> list[_ExpandedXpromptSwarmSegment]:
     # Fast path: if no segment contains '#', no xprompt reference is possible.
     if not any("#" in seg for seg in segments):
-        return [_ExpandedXpromptSwarmSegment(seg, template_group) for seg in segments]
+        return [
+            _ExpandedXpromptSwarmSegment(seg, template_group, swarm_xprompts)
+            for seg in segments
+        ]
 
     catalog: dict[str, XPrompt] = dict(get_all_xprompts())
     if local_xprompts:
@@ -241,6 +253,7 @@ def _expand_xprompt_swarms_with_metadata(
                     f"#{call.name} (possible self-reference)"
                 )
             group = template_group or _next_template_group(call.name, group_counter)
+            current_swarm_xprompts = _append_swarm_xprompt(swarm_xprompts, call.name)
             xp = catalog[call.name]
             sub_segments = render_xprompt_swarm(
                 xp,
@@ -263,6 +276,7 @@ def _expand_xprompt_swarms_with_metadata(
                 max_depth=max_depth - 1,
                 strict_segment_check=strict_segment_check,
                 template_group=group,
+                swarm_xprompts=current_swarm_xprompts,
                 group_counter=group_counter,
                 qualification_counter=qualification_counter,
             )
@@ -299,6 +313,7 @@ def _expand_xprompt_swarms_with_metadata(
                             local_xprompts,
                             max_depth,
                             template_group,
+                            swarm_xprompts,
                             group_counter,
                             qualification_counter,
                         )
@@ -313,18 +328,29 @@ def _expand_xprompt_swarms_with_metadata(
                             local_xprompts,
                             max_depth,
                             strict_segment_check,
+                            swarm_xprompts,
                             group_counter,
                             qualification_counter,
                         )
                     )
                     continue
-            expanded.append(_ExpandedXpromptSwarmSegment(segment, template_group))
+            expanded.append(
+                _ExpandedXpromptSwarmSegment(segment, template_group, swarm_xprompts)
+            )
 
     return expanded
 
 
 def _next_template_group(name: str, group_counter: Iterator[int]) -> str:
     return f"xprompt:{name}:{next(group_counter)}"
+
+
+def _append_swarm_xprompt(
+    swarm_xprompts: tuple[str, ...], name: str
+) -> tuple[str, ...]:
+    if name in swarm_xprompts:
+        return swarm_xprompts
+    return (*swarm_xprompts, name)
 
 
 __all__ = [

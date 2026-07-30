@@ -31,6 +31,14 @@ def expand_xprompt_swarms(segments: list[str], **kwargs) -> list[str]:
     ]
 
 
+def test_plain_segment_metadata_has_empty_swarm_chain() -> None:
+    out = expand_xprompt_swarms_with_metadata(["plain segment"])
+
+    assert [record.prompt for record in out] == ["plain segment"]
+    assert [record.template_group for record in out] == [None]
+    assert [record.swarm_xprompts for record in out] == [()]
+
+
 def test_expand_single_segment_xprompt_unchanged() -> None:
     """Xprompt with no separators in body → segments untouched."""
     catalog = {"single": xp("single", "just one body")}
@@ -65,6 +73,11 @@ def test_expand_three_segment_xprompt_metadata_groups_one_invocation() -> None:
         "xprompt:three:0",
         "xprompt:three:0",
         "xprompt:three:0",
+    ]
+    assert [record.swarm_xprompts for record in out] == [
+        ("three",),
+        ("three",),
+        ("three",),
     ]
 
 
@@ -185,8 +198,18 @@ def test_expand_mixed_with_prose_embeds_first_segment() -> None:
     """Xprompt swarm referenced mid-prose embeds its first sub-prompt."""
     catalog = {"three": xp("three", "a\n---\nb\n---\nc")}
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["Hello #three world"])
-    assert out == ["Hello a world", "b", "c"]
+        out = expand_xprompt_swarms_with_metadata(["Hello #three world"])
+    assert [record.prompt for record in out] == ["Hello a world", "b", "c"]
+    assert [record.template_group for record in out] == [
+        "xprompt:three:0",
+        "xprompt:three:0",
+        "xprompt:three:0",
+    ]
+    assert [record.swarm_xprompts for record in out] == [
+        ("three",),
+        ("three",),
+        ("three",),
+    ]
 
 
 def test_expand_inline_with_shorthand_args() -> None:
@@ -378,6 +401,12 @@ def test_multiple_xprompt_swarm_references_keep_distinct_args_and_groups() -> No
         "xprompt:b:1",
         "xprompt:b:1",
     ]
+    assert [record.swarm_xprompts for record in out] == [
+        ("a",),
+        ("a",),
+        ("b",),
+        ("b",),
+    ]
 
 
 def test_three_xprompt_swarm_references_expand_sequentially() -> None:
@@ -464,6 +493,31 @@ def test_expand_recursive_bare_reference() -> None:
     with patch_catalog(catalog):
         out = expand_xprompt_swarms(["#!outer"])
     assert out == ["before", "x1", "x2", "after"]
+
+
+def test_nested_xprompt_swarm_metadata_records_outer_to_inner_chain() -> None:
+    catalog = {
+        "outer": xp("outer", "outer first\n---\n#!inner"),
+        "inner": xp("inner", "inner first\n---\ninner second"),
+    }
+    with patch_catalog(catalog):
+        out = expand_xprompt_swarms_with_metadata(["#!outer"])
+
+    assert [record.prompt for record in out] == [
+        "outer first",
+        "inner first",
+        "inner second",
+    ]
+    assert [record.template_group for record in out] == [
+        "xprompt:outer:0",
+        "xprompt:outer:0",
+        "xprompt:outer:0",
+    ]
+    assert [record.swarm_xprompts for record in out] == [
+        ("outer",),
+        ("outer", "inner"),
+        ("outer", "inner"),
+    ]
 
 
 def test_expand_separator_inside_fenced_block_in_body() -> None:

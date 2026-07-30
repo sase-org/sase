@@ -308,6 +308,8 @@ def test_link_and_json_keys_dispatch_uniformly_across_artifacts_subtabs(
         call("link"),
         call("json"),
     ]
+
+
 def test_artifacts_footer_surfaces_only_a_nonzero_mark_count() -> None:
     footer = KeybindingFooter()
     footer.set_keymap_registry(load_keymap_registry({}))
