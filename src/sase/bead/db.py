@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS issues (
     description TEXT,
     notes       TEXT,
     design      TEXT,
+    refs        TEXT NOT NULL DEFAULT '',
     model       TEXT NOT NULL DEFAULT '',
     size        TEXT
                   CHECK(size IN ('xsmall', 'small', 'medium', 'large', 'xlarge')),
@@ -96,13 +97,13 @@ _STATUS_CHECK_RELAX_MIGRATION_SQL = (
 INSERT INTO _issues_new (
     id, title, status, issue_type, tier, parent_id, owner, assignee,
     created_at, created_by, updated_at, closed_at, close_reason, resolution,
-    description, notes, design, model, size, is_ready_to_work,
+    description, notes, design, refs, model, size, is_ready_to_work,
     changespec_name, changespec_bug_id
 )
 SELECT
     id, title, status, issue_type, tier, parent_id, owner, assignee,
     created_at, created_by, updated_at, closed_at, close_reason, resolution,
-    description, notes, design, model, size, is_ready_to_work,
+    description, notes, design, refs, model, size, is_ready_to_work,
     changespec_name, changespec_bug_id
 FROM issues;
 DROP TABLE issues;
@@ -163,6 +164,17 @@ def _migrate_add_model(conn: sqlite3.Connection) -> None:
     if not columns or "model" in columns:
         return
     conn.execute("ALTER TABLE issues ADD COLUMN model TEXT NOT NULL DEFAULT ''")
+    conn.commit()
+
+
+def _migrate_add_refs(conn: sqlite3.Connection) -> None:
+    """Add artifact-reference storage to a pre-existing issues table."""
+    columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
+    }
+    if not columns or "refs" in columns:
+        return
+    conn.execute("ALTER TABLE issues ADD COLUMN refs TEXT NOT NULL DEFAULT ''")
     conn.commit()
 
 
@@ -300,6 +312,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _migrate_add_changespec_metadata(conn)
     _migrate_add_tier(conn)
     _migrate_add_model(conn)
+    _migrate_add_refs(conn)
     _migrate_add_size(conn)
     _migrate_add_resolution(conn)
     _migrate_relax_size_check(conn)
@@ -327,6 +340,7 @@ def _row_to_issue(row: sqlite3.Row) -> Issue:
         description=row["description"] or "",
         notes=row["notes"] or "",
         design=row["design"] or "",
+        refs=(row["refs"] or "").splitlines(),
         model=row["model"] or "",
         size=PhaseSize(row["size"]) if row["size"] else None,
         is_ready_to_work=bool(row["is_ready_to_work"]),
@@ -364,9 +378,9 @@ def create_issue(
         "(id, title, status, issue_type, parent_id, owner, assignee, "
         "tier, created_at, created_by, updated_at, closed_at, close_reason, "
         "resolution, "
-        "description, notes, design, model, size, is_ready_to_work, "
+        "description, notes, design, refs, model, size, is_ready_to_work, "
         "changespec_name, changespec_bug_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -385,6 +399,7 @@ def create_issue(
             issue.description,
             issue.notes,
             issue.design,
+            "\n".join(issue.refs),
             issue.model,
             issue.size.value if issue.size else None,
             int(issue.is_ready_to_work),
@@ -457,6 +472,7 @@ def update_issue(
         "description",
         "notes",
         "design",
+        "refs",
         "model",
         "size",
         "tier",

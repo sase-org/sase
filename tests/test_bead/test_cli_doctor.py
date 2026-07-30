@@ -42,14 +42,23 @@ def test_plain_doctor_forwards_roots_without_planning_or_writing(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     roots = (tmp_path / "store", tmp_path / "local")
-    calls: list[tuple[Path, ...]] = []
+    calls: list[tuple[tuple[Path, ...], object | None]] = []
 
     class Project:
-        def doctor(self, plan_roots: tuple[Path, ...]) -> list[str]:
-            calls.append(plan_roots)
+        def doctor(
+            self,
+            plan_roots: tuple[Path, ...],
+            reference_context: object | None,
+        ) -> list[str]:
+            calls.append((plan_roots, reference_context))
             return ["OK"]
 
     monkeypatch.setattr(cli_admin, "_resolve_doctor_plan_roots", lambda: roots)
+    monkeypatch.setattr(
+        cli_admin,
+        "_resolve_doctor_reference_context",
+        lambda: None,
+    )
     monkeypatch.setattr(cli_admin, "get_project", lambda: nullcontext(Project()))
     monkeypatch.setattr(
         cli_admin,
@@ -64,7 +73,7 @@ def test_plain_doctor_forwards_roots_without_planning_or_writing(
 
     cli_admin.handle_bead_doctor(argparse.Namespace(fix_design_refs=False))
 
-    assert calls == [roots]
+    assert calls == [(roots, None)]
     assert capsys.readouterr().out == "OK\n"
 
 
@@ -96,10 +105,15 @@ def test_fix_preview_cancellation_never_opens_mutation(
         unrepaired=(),
     )
     project = SimpleNamespace(
-        doctor=lambda _roots: ["WARNING"],
+        doctor=lambda _roots, _context: ["WARNING"],
         list_issues=lambda: [issue],
     )
     monkeypatch.setattr(cli_admin, "_resolve_doctor_plan_roots", lambda: ())
+    monkeypatch.setattr(
+        cli_admin,
+        "_resolve_doctor_reference_context",
+        lambda: None,
+    )
     monkeypatch.setattr(cli_admin, "get_project", lambda: nullcontext(project))
     monkeypatch.setattr(
         cli_admin,
@@ -191,7 +205,7 @@ def test_stale_preview_performs_no_updates_or_commit(
     )
     stale = DesignRefRepairPreview(repairs=(), unrepaired=())
     project = SimpleNamespace(
-        doctor=lambda _roots: ["WARNING"],
+        doctor=lambda _roots, _context: ["WARNING"],
         list_issues=lambda: [],
         update=lambda *_args, **_kwargs: pytest.fail("stale preview updated"),
     )

@@ -121,6 +121,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 description=args.description or "",
                 assignee=args.assignee or "",
                 design=design,
+                refs=getattr(args, "ref", None) or (),
                 tier=tier,
                 changespec_name=changespec_name,
                 changespec_bug_id=changespec_bug_id,

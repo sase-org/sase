@@ -10,8 +10,9 @@ from sase.bead.mutation_commit import mutation_commit_message
 
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
-_MUTATING_VERBS = frozenset({"create", "open", "update", "close", "rm"})
+_MUTATING_VERBS = frozenset({"close", "create", "open", "ref", "rm", "update"})
 _READ_ONLY_DEP_ACTIONS = frozenset({"list", "tree"})
+_READ_ONLY_REF_ACTIONS = frozenset({"list"})
 
 
 def try_handle_bead_fast_path(argv: list[str]) -> int | None:
@@ -82,9 +83,11 @@ def _is_mutating_verb(argv: list[str]) -> bool:
     """Classify writes conservatively before invoking the Rust fast path."""
     if not argv:
         return False
-    if argv[0] != "dep":
-        return argv[0] in _MUTATING_VERBS
-    return len(argv) < 2 or argv[1] not in _READ_ONLY_DEP_ACTIONS
+    if argv[0] == "dep":
+        return len(argv) < 2 or argv[1] not in _READ_ONLY_DEP_ACTIONS
+    if argv[0] == "ref":
+        return len(argv) < 2 or argv[1] not in _READ_ONLY_REF_ACTIONS
+    return argv[0] in _MUTATING_VERBS
 
 
 class _FastPathContext:

@@ -134,6 +134,30 @@ class TestExport:
         data = json.loads(jsonl_path.read_text())
         assert data["model"] == ""
 
+    def test_export_refs_only_when_nonempty(
+        self, conn: sqlite3.Connection, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        without_refs = _epic("e-1")
+        with_refs = _epic("e-2")
+        with_refs.refs = ["research:202607/report.md", "bead:sase-bb.1"]
+        create_issue(conn, without_refs)
+        create_issue(conn, with_refs)
+        jsonl_path = tmp_path / "issues.jsonl"
+
+        export_to_jsonl(conn, jsonl_path)
+
+        rows = {
+            row["id"]: row
+            for row in (
+                json.loads(line) for line in jsonl_path.read_text().splitlines()
+            )
+        }
+        assert "refs" not in rows["e-1"]
+        assert rows["e-2"]["refs"] == with_refs.refs
+
     def test_export_empty_db(self, conn: sqlite3.Connection, tmp_path: object) -> None:
         from pathlib import Path
 
@@ -235,6 +259,41 @@ class TestImport:
         issue = get_issue(conn, "e-1")
         assert issue is not None
         assert issue.title == "Imported Epic"
+
+    def test_import_refs_and_tolerates_missing_field(
+        self, conn: sqlite3.Connection, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        jsonl_path = tmp_path / "issues.jsonl"
+        with_refs = {
+            "id": "e-1",
+            "title": "With refs",
+            "status": "open",
+            "issue_type": "plan",
+            "created_at": NOW,
+            "updated_at": NOW,
+            "refs": ["research:202607/report.md", "bead:sase-bb.1"],
+        }
+        without_refs = {
+            "id": "e-2",
+            "title": "Without refs",
+            "status": "open",
+            "issue_type": "plan",
+            "created_at": NOW,
+            "updated_at": NOW,
+        }
+        jsonl_path.write_text(
+            "\n".join(json.dumps(row) for row in (with_refs, without_refs)) + "\n"
+        )
+
+        import_from_jsonl(jsonl_path, conn)
+
+        first = get_issue(conn, "e-1")
+        second = get_issue(conn, "e-2")
+        assert first is not None and first.refs == with_refs["refs"]
+        assert second is not None and second.refs == []
 
     def test_import_changespec_metadata(
         self, conn: sqlite3.Connection, tmp_path: object

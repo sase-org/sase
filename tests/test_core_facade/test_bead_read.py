@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead.model import BeadSearchMatch, Issue, IssueType, Status
 from sase.bead.project import BeadProject
 from sase.core import bead_read_facade as rust_beads
@@ -88,7 +89,7 @@ def test_doctor_reads_jsonl_without_requiring_sqlite(tmp_path: Path) -> None:
     assert rust_beads.doctor(beads_dir) == ["WARNING: beads.db missing"]
 
 
-def test_doctor_forwards_optional_plan_roots(
+def test_doctor_forwards_optional_reference_context(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -105,14 +106,23 @@ def test_doctor_forwards_optional_plan_roots(
     )
     beads_dir = tmp_path / "beads"
     root = tmp_path / "plans"
+    context = ArtifactRefContext(
+        document_roots=(),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifacts/index.jsonl",
+        repositories=(),
+        projects=(),
+    )
 
     assert rust_beads.doctor(beads_dir) == ["OK"]
     assert rust_beads.doctor(beads_dir, (root,)) == ["OK"]
     assert rust_beads.doctor(beads_dir, ()) == ["OK"]
+    assert rust_beads.doctor(beads_dir, None, context) == ["OK"]
     assert calls == [
         (str(beads_dir),),
-        (str(beads_dir), [str(root)]),
-        (str(beads_dir), []),
+        (str(beads_dir), [str(root)], None),
+        (str(beads_dir), [], None),
+        (str(beads_dir), None, context.to_wire()),
     ]
 
 

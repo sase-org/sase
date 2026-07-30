@@ -7,11 +7,13 @@ import json
 import sys
 from pathlib import Path
 
+from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead.cli_common import get_read_view, status_icon
 from sase.bead.cli_detail import (
+    artifact_reference_context,
     design_paths_are_relative,
-    plan_reference_roots,
     issue_to_wire_dict,
+    plan_reference_roots,
     render_issue_detail,
     render_issue_detail_json,
     resolve_bead_page_url,
@@ -89,6 +91,11 @@ def handle_bead_list(args: argparse.Namespace) -> None:
                         issues,
                         relativize_design=design_paths_are_relative(),
                         plan_roots=plan_reference_roots(),
+                        reference_context=(
+                            artifact_reference_context()
+                            if any(issue.refs for issue in issues)
+                            else None
+                        ),
                     ),
                     end="",
                 )
@@ -118,11 +125,13 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                 )
             case "full":
                 detail = resolve_issue_detail(view, issue)
+                reference_context = artifact_reference_context() if issue.refs else None
                 print(
                     render_issue_detail(
                         detail,
                         relativize_design=design_paths_are_relative(),
                         plan_roots=plan_reference_roots(),
+                        reference_context=reference_context,
                         page_url=resolve_bead_page_url(issue.id),
                     ),
                     end="",
@@ -220,12 +229,14 @@ def _render_list_full(
     *,
     relativize_design: bool,
     plan_roots: tuple[Path, ...],
+    reference_context: ArtifactRefContext | None = None,
 ) -> str:
     sections = [
         render_issue_detail(
             resolve_issue_detail(view, issue),
             relativize_design=relativize_design,
             plan_roots=plan_roots,
+            reference_context=reference_context,
         ).rstrip("\n")
         for issue in issues
     ]
@@ -313,6 +324,7 @@ def _search_field_value(issue: Issue, field: str) -> str:
         "description": issue.description,
         "notes": issue.notes,
         "design": issue.design,
+        "refs": "\n".join(issue.refs),
         "owner": issue.owner,
         "assignee": issue.assignee,
         "model": issue.model,
@@ -352,11 +364,17 @@ def _render_search_full(
     if not matches:
         return f'No beads match "{query}".\n'
 
+    reference_context = (
+        artifact_reference_context()
+        if any(match.issue.refs for match in matches)
+        else None
+    )
     sections = [
         render_issue_detail(
             resolve_issue_detail(view, match.issue),
             relativize_design=relativize_design,
             plan_roots=plan_roots,
+            reference_context=reference_context,
         ).rstrip("\n")
         for match in matches
     ]

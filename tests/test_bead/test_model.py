@@ -67,6 +67,10 @@ class TestIssueValidation:
         issue = Issue(id="test-1", title="Test")
         assert issue.model == ""
 
+    def test_default_refs_empty(self) -> None:
+        issue = Issue(id="test-1", title="Test")
+        assert issue.refs == []
+
     def test_default_size_none(self) -> None:
         issue = Issue(id="test-1", title="Test")
         assert issue.size is None
@@ -101,6 +105,18 @@ class TestIssueValidation:
         )
         assert issue.model == "codex/gpt-5.5"
         issue.validate()
+
+    def test_refs_assignment(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="Test",
+            issue_type=IssueType.PLAN,
+            refs=["research:202607/report.md", "bead:sase-bb.1"],
+        )
+        assert issue.refs == [
+            "research:202607/report.md",
+            "bead:sase-bb.1",
+        ]
 
     def test_phase_with_is_ready_to_work_raises(self) -> None:
         issue = Issue(

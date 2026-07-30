@@ -64,6 +64,7 @@ class Issue:
     description: str = ""
     notes: str = ""
     design: str = ""
+    refs: list[str] = field(default_factory=list)
     model: str = ""
     size: PhaseSize | None = None
     is_ready_to_work: bool = False

@@ -101,6 +101,12 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     bead_create_parser.add_argument(
+        "-R",
+        "--ref",
+        action="append",
+        help="Artifact reference to attach (repeatable)",
+    )
+    bead_create_parser.add_argument(
         "-z",
         "--size",
         choices=["xsmall", "small", "medium", "large", "xlarge"],
@@ -237,7 +243,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase bead doctor
     bead_doctor_parser = bead_subparsers.add_parser(
         "doctor",
-        help="Validate bead-store health and design references",
+        help="Validate bead-store health, design links, and artifact references",
     )
     bead_doctor_parser.add_argument(
         "-F",
@@ -454,6 +460,47 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
 
     # sase bead ready
     bead_subparsers.add_parser("ready", help="Show issues ready to work")
+
+    # sase bead ref
+    bead_ref_parser = bead_subparsers.add_parser(
+        "ref",
+        help="Inspect and manage artifact references",
+        description=(
+            "Inspect and manage artifact references. Invoking 'sase bead ref' "
+            "without a subcommand delegates to 'sase bead ref list'."
+        ),
+    )
+    bead_ref_subparsers = bead_ref_parser.add_subparsers(dest="ref_action")
+    bead_ref_add_parser = bead_ref_subparsers.add_parser(
+        "add", help="Attach artifact references"
+    )
+    bead_ref_add_parser.add_argument("id", help="Issue ID")
+    bead_ref_add_parser.add_argument(
+        "refs", nargs="+", help="Artifact references to attach"
+    )
+    bead_ref_list_parser = bead_ref_subparsers.add_parser(
+        "list", help="List artifact references"
+    )
+    bead_ref_list_parser.add_argument("id", nargs="?", help="Issue ID")
+    bead_ref_list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit machine-readable reference data",
+    )
+    bead_ref_list_parser.add_argument(
+        "-r",
+        "--resolve",
+        action="store_true",
+        help="Resolve references against the current workspace",
+    )
+    bead_ref_rm_parser = bead_ref_subparsers.add_parser(
+        "rm", help="Detach artifact references"
+    )
+    bead_ref_rm_parser.add_argument("id", help="Issue ID")
+    bead_ref_rm_parser.add_argument(
+        "refs", nargs="+", help="Artifact references to detach"
+    )
 
     # sase bead resolve-conflicts
     bead_subparsers.add_parser(

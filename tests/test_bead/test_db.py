@@ -45,6 +45,16 @@ class TestCreateAndGet:
         assert issue is not None
         assert issue.title == "Epic"
 
+    def test_refs_round_trip(self, conn: sqlite3.Connection) -> None:
+        epic = _epic()
+        epic.refs = ["research:202607/report.md", "bead:sase-bb.1"]
+        create_issue(conn, epic)
+
+        issue = get_issue(conn, epic.id)
+
+        assert issue is not None
+        assert issue.refs == epic.refs
+
     def test_get_nonexistent_returns_none(self, conn: sqlite3.Connection) -> None:
         assert get_issue(conn, "no-such") is None
 

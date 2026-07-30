@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 import sys
 
+from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead.conflict_resolver import handle_resolve_conflicts_command
 from sase.bead.cli_common import (
     auto_commit_bead_store,
@@ -33,8 +34,9 @@ def handle_bead_sync(args: argparse.Namespace) -> None:
 
 def handle_bead_doctor(args: argparse.Namespace) -> None:
     plan_roots = _resolve_doctor_plan_roots()
+    reference_context = _resolve_doctor_reference_context()
     with get_project() as proj:
-        messages = proj.doctor(plan_roots)
+        messages = proj.doctor(plan_roots, reference_context)
         for msg in messages:
             print(msg)
         if not bool(getattr(args, "fix_design_refs", False)):
@@ -91,6 +93,17 @@ def _resolve_doctor_plan_roots() -> tuple[Path, ...]:
         return resolve_plan_roots(workspace_dir, workspace_num)
     except Exception:
         return ()
+
+
+def _resolve_doctor_reference_context() -> ArtifactRefContext | None:
+    try:
+        from sase.artifact_ref_context import artifact_ref_context
+        from sase.sdd.plan_refs import workspace_context_for_plan_resolution
+
+        workspace_dir, workspace_num = workspace_context_for_plan_resolution(Path.cwd())
+        return artifact_ref_context(workspace_dir, workspace_num)
+    except Exception:
+        return None
 
 
 def _render_design_ref_repair_preview(
@@ -161,7 +174,7 @@ Quick Start:
   sase bead blocked                              Show blocked issues
   sase bead sync                                 Stage bead state in git
   sase bead stats                                Project statistics
-  sase bead doctor                               Health check
+  sase bead doctor                               Health and reference checks
   sase bead doctor --fix-design-refs             Repair legacy plan links
   sase bead work <epic-id>                       Launch epic phase agents""")
 

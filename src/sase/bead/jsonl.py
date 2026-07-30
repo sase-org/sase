@@ -25,6 +25,12 @@ def _optional_str(value: object) -> str:
     return "" if value is None else str(value)
 
 
+def _optional_str_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(entry) for entry in value if entry is not None]
+
+
 def _issue_to_dict(issue: Issue) -> dict[str, object]:
     return {
         "id": issue.id,
@@ -44,6 +50,7 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
         "description": issue.description,
         "notes": issue.notes,
         "design": issue.design,
+        **({"refs": issue.refs} if issue.refs else {}),
         "model": issue.model,
         "is_ready_to_work": issue.is_ready_to_work,
         "changespec_name": issue.changespec_name,
@@ -92,6 +99,7 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
         description=_optional_str(data.get("description", "")),
         notes=_optional_str(data.get("notes", "")),
         design=_optional_str(data.get("design", "")),
+        refs=_optional_str_list(data.get("refs")),
         model=_optional_str(data.get("model", "")),
         is_ready_to_work=bool(data.get("is_ready_to_work", False)),
         changespec_name=_optional_str(data.get("changespec_name", "")),
@@ -171,6 +179,7 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                     description=issue.description,
                     notes=issue.notes,
                     design=issue.design,
+                    refs="\n".join(issue.refs),
                     model=issue.model,
                     tier=issue.tier.value if issue.tier else None,
                     is_ready_to_work=int(issue.is_ready_to_work),

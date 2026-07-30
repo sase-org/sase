@@ -117,7 +117,7 @@ def test_query_rejects_stale_handshake(
     ("row", "match"),
     [
         ({"schema_version": 1}, "incomplete"),
-        (_wire_row(schema_version=3), "unsupported"),
+        (_wire_row(schema_version=4), "unsupported"),
         ("not-an-object", "expected an object"),
     ],
 )

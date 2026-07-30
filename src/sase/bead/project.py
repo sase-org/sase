@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
+from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead import db as db_mod
 from sase.bead.config import get_default_config, load_config, save_config
 from sase.bead.ids import IdGenerator, max_top_level_counter
@@ -138,6 +139,7 @@ class BeadProject:
         description: str = "",
         notes: str = "",
         design: str = "",
+        refs: list[str] | tuple[str, ...] = (),
         assignee: str = "",
         tier: BeadTier | str | None = None,
         changespec_name: str | int | None = "",
@@ -162,6 +164,7 @@ class BeadProject:
             description=description,
             notes=notes,
             design=design,
+            refs=refs,
             assignee=assignee,
             changespec_name=changespec_name,
             changespec_bug_id=changespec_bug_id,
@@ -512,15 +515,20 @@ class BeadProject:
     def doctor(
         self,
         plan_roots: tuple[Path, ...] | None = None,
+        reference_context: ArtifactRefContext | None = None,
     ) -> list[str]:
         """Run diagnostics and return messages."""
         from sase.core import bead_read_facade as rust_beads
         from sase.bead.sync import bead_sync_diagnostics
 
-        if plan_roots is None:
+        if plan_roots is None and reference_context is None:
             messages = rust_beads.doctor(self.beads_dir)
         else:
-            messages = rust_beads.doctor(self.beads_dir, plan_roots)
+            messages = rust_beads.doctor(
+                self.beads_dir,
+                plan_roots,
+                reference_context,
+            )
         if not self.sync_is_clean():
             ok_message = "OK: no issues found"
             if messages == [ok_message]:

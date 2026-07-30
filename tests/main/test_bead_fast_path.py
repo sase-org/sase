@@ -140,6 +140,39 @@ def test_fast_path_dep_write_guard_is_closed_except_for_read_verbs(
             try_handle_bead_fast_path(argv)
 
 
+def test_fast_path_ref_write_guard_is_closed_except_for_list(
+    tmp_path: Path, monkeypatch
+) -> None:
+    read_dir = tmp_path / "production" / "beads"
+    context = bead_fast_path._FastPathContext(
+        read_beads_dirs=[read_dir],
+        write_beads_dir=read_dir,
+        relativize_design_paths=False,
+    )
+
+    monkeypatch.setattr(
+        bead_fast_path,
+        "_resolve_fast_path_context",
+        lambda _argv: context,
+    )
+    monkeypatch.setattr(
+        "sase.core.rust.require_rust_binding",
+        lambda _name: lambda *_args: {"handled": True, "exit_code": 0},
+    )
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "ref fast-path write guard")
+    monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(tmp_path / "sandbox"))
+
+    assert try_handle_bead_fast_path(["ref", "list"]) == 0
+    for argv in (
+        ["ref"],
+        ["ref", "add", "beads-1", "plans:one.md"],
+        ["ref", "rm", "beads-1", "plans:one.md"],
+        ["ref", "future-write"],
+    ):
+        with pytest.raises(RuntimeError, match="fast-path ref"):
+            try_handle_bead_fast_path(argv)
+
+
 def test_fast_path_refuses_unsafe_resolved_location_before_rust(
     tmp_path: Path, monkeypatch
 ) -> None:

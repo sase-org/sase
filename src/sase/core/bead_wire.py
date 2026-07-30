@@ -86,6 +86,11 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
         ),
         notes="" if data.get("notes") is None else str(data.get("notes", "")),
         design="" if data.get("design") is None else str(data.get("design", "")),
+        refs=[
+            str(reference)
+            for reference in data.get("refs") or []
+            if reference is not None
+        ],
         model="" if data.get("model") is None else str(data.get("model", "")),
         size=PhaseSize(str(data["size"])) if data.get("size") else None,
         is_ready_to_work=bool(data.get("is_ready_to_work", False)),

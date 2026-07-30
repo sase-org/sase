@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead.model import BeadSearchMatch, BeadTier, Issue, IssueType, Status
 from sase.core.bead_wire import (
     issue_from_dict,
@@ -108,14 +109,16 @@ def stats(beads_dir: Path | str) -> dict[str, int]:
 def doctor(
     beads_dir: Path | str,
     plan_roots: tuple[Path, ...] | None = None,
+    reference_context: ArtifactRefContext | None = None,
 ) -> list[str]:
     binding = require_rust_binding("bead_doctor")
-    if plan_roots is None:
+    if plan_roots is None and reference_context is None:
         raw_messages = binding(str(beads_dir))
     else:
         raw_messages = binding(
             str(beads_dir),
-            [str(root) for root in plan_roots],
+            (None if plan_roots is None else [str(root) for root in plan_roots]),
+            (None if reference_context is None else reference_context.to_wire()),
         )
     return [str(message) for message in raw_messages]
 

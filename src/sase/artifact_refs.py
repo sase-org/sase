@@ -16,6 +16,13 @@ from sase.artifact_ref_entries import (
     reference_for_agent_name,
     reference_for_entry_target,
 )
+from sase.artifact_ref_lists import (
+    ARTIFACT_REF_LIST_RESOLUTION_WIRE_SCHEMA_VERSION,
+    ArtifactRefListEntry,
+    artifact_ref_list_display_lines,
+    normalize_artifact_ref_list,
+    resolve_artifact_ref_list,
+)
 from sase.artifact_ref_models import (
     ARTIFACT_REF_WIRE_SCHEMA_VERSION,
     BUILTIN_ARTIFACT_REF_KINDS,
@@ -54,6 +61,7 @@ from sase.artifact_ref_prompt import (
 
 
 __all__ = [
+    "ARTIFACT_REF_LIST_RESOLUTION_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_LSP_CATALOG_SCHEMA_VERSION",
     "ARTIFACT_REF_WIRE_SCHEMA_VERSION",
     "BUILTIN_ARTIFACT_REF_KINDS",
@@ -64,6 +72,7 @@ __all__ = [
     "ArtifactRefContext",
     "ArtifactRefDocumentRoot",
     "ArtifactRefFragment",
+    "ArtifactRefListEntry",
     "ArtifactRefPayload",
     "ArtifactRefProject",
     "ArtifactRefPromptCandidate",
@@ -73,6 +82,7 @@ __all__ = [
     "ArtifactRefSpan",
     "ParsedArtifactRef",
     "artifact_ref_context",
+    "artifact_ref_list_display_lines",
     "artifact_ref_lsp_catalog_payload",
     "artifact_ref_resolution_hint",
     "at_reference_context",
@@ -81,12 +91,14 @@ __all__ = [
     "canonicalize_artifact_ref",
     "design_reference_for_plan_row",
     "launch_artifact_ref_context",
+    "normalize_artifact_ref_list",
     "parse_artifact_ref",
     "process_artifact_references",
     "reference_for_agent_name",
     "reference_for_entry_target",
     "render_artifact_ref",
     "resolve_artifact_ref",
+    "resolve_artifact_ref_list",
     "scan_artifact_ref_prompt",
     "scan_artifact_refs",
     "validate_artifact_references",

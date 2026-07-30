@@ -32,6 +32,7 @@ from sase.bead.cli_query import (
     handle_bead_show,
     handle_bead_stats,
 )
+from sase.bead.cli_refs import handle_bead_ref
 
 _parse_type_arg = parse_type_arg
 
@@ -51,6 +52,7 @@ __all__ = [
     "handle_bead_onboard",
     "handle_bead_open",
     "handle_bead_ready",
+    "handle_bead_ref",
     "handle_bead_resolve_conflicts",
     "handle_bead_rm",
     "handle_bead_search",

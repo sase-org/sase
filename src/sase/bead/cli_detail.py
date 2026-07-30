@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 from typing import Literal
 
+from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead.cli_common import status_icon
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
 from sase.bead.project import BeadProject
@@ -153,6 +154,7 @@ def render_issue_detail(
     *,
     relativize_design: bool,
     plan_roots: tuple[Path, ...] = (),
+    reference_context: ArtifactRefContext | None = None,
     page_url: str | None = None,
 ) -> str:
     """Render the established human-readable bead detail block."""
@@ -284,6 +286,27 @@ def render_issue_detail(
             )
         )
 
+    if issue.refs:
+        from sase.artifact_ref_lists import (
+            ArtifactRefListEntry,
+            artifact_ref_list_display_lines,
+            resolve_artifact_ref_list,
+        )
+
+        resolved_refs: Iterable[ArtifactRefListEntry | str] = issue.refs
+        if reference_context is not None:
+            try:
+                resolved_refs = resolve_artifact_ref_list(
+                    issue.refs,
+                    context=reference_context,
+                )
+            except (OSError, RuntimeError, ValueError):
+                pass
+        lines.extend(["", "REFS"])
+        lines.extend(
+            f"  {line}" for line in artifact_ref_list_display_lines(resolved_refs)
+        )
+
     return "\n".join(lines) + "\n"
 
 
@@ -337,6 +360,7 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "description": issue.description,
         "notes": issue.notes,
         "design": issue.design,
+        **({"refs": list(issue.refs)} if issue.refs else {}),
         "model": issue.model,
         "is_ready_to_work": issue.is_ready_to_work,
         "changespec_name": issue.changespec_name,
@@ -376,6 +400,19 @@ def plan_reference_roots() -> tuple[Path, ...]:
         return resolve_plan_roots(workspace_dir, workspace_num)
     except Exception:
         return ()
+
+
+def artifact_reference_context() -> ArtifactRefContext | None:
+    """Build the current workspace's reference context without failing a read."""
+
+    from sase.artifact_ref_context import artifact_ref_context
+    from sase.sdd.plan_refs import workspace_context_for_plan_resolution
+
+    try:
+        workspace_dir, workspace_num = workspace_context_for_plan_resolution(Path.cwd())
+        return artifact_ref_context(workspace_dir, workspace_num)
+    except Exception:
+        return None
 
 
 def resolve_bead_page_url(bead_id: str) -> str | None:
