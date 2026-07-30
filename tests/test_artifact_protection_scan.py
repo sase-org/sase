@@ -115,6 +115,92 @@ def test_collects_and_normalizes_project_plan_bead_and_research_refs(
     assert result.sources_unavailable == ()
 
 
+def test_bead_store_projection_protects_refs_without_a_published_page(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    projects = tmp_path / "projects"
+    plans = tmp_path / "plans"
+    beads = tmp_path / "beads"
+    for path in (projects, plans, beads):
+        path.mkdir()
+    stored_id = "default:111111111111111111111111"
+    detached_id = "explicit:222222222222222222222222"
+    (beads / "issues.jsonl").write_text(
+        f'{{"id":"sase-1","refs":["file:{stored_id}"]}}\n',
+        encoding="utf-8",
+    )
+    streams = beads / "events" / "streams"
+    streams.mkdir(parents=True)
+    (streams / "sase-1.jsonl").write_text(
+        f'{{"operation":"ReferenceRemoved","reference":"file:{detached_id}"}}\n',
+        encoding="utf-8",
+    )
+    inventory = RepoInventory(
+        (
+            _record("sase", tmp_path, kind="primary"),
+            _record("plans", plans),
+            _record("beads", beads),
+        )
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.sase_projects_dir",
+        lambda: projects,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.collect_repo_inventory",
+        lambda: inventory,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.default_artifact_consumption_log_path",
+        lambda: tmp_path / "missing-consumption.jsonl",
+    )
+
+    result = collect_protected_artifact_ids()
+
+    assert result.referenced_ids == frozenset({stored_id})
+    assert detached_id not in result.ids
+    assert result.sources_unavailable == ()
+
+
+def test_bead_store_projection_is_not_scanned_under_other_sidecar_roles(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    projects = tmp_path / "projects"
+    plans = tmp_path / "plans"
+    beads = tmp_path / "beads"
+    for path in (projects, plans, beads):
+        path.mkdir()
+    (plans / "issues.jsonl").write_text(
+        '{"refs":["file:default:333333333333333333333333"]}\n',
+        encoding="utf-8",
+    )
+    inventory = RepoInventory(
+        (
+            _record("sase", tmp_path, kind="primary"),
+            _record("plans", plans),
+            _record("beads", beads),
+        )
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.sase_projects_dir",
+        lambda: projects,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.collect_repo_inventory",
+        lambda: inventory,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.default_artifact_consumption_log_path",
+        lambda: tmp_path / "missing-consumption.jsonl",
+    )
+
+    result = collect_protected_artifact_ids()
+
+    assert result.referenced_ids == frozenset()
+
+
 def test_missing_required_sidecar_is_unavailable_but_research_is_optional(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

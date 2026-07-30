@@ -19,6 +19,12 @@ _CONSUMED_FILE_REF_RE = re.compile(r"file:(?P<id>(?:default|explicit):[0-9a-f]{2
 _TEXT_SUFFIXES = frozenset({".json", ".md", ".sase", ".txt", ".yml"})
 _REQUIRED_SIDECAR_ROLES = ("beads", "plans")
 _OPPORTUNISTIC_SIDECAR_ROLES = ("research",)
+# Beads carry canonical artifact references in their `refs` list, and page
+# publication can lag a `sase bead ref add`, so the store's current-state
+# projection is scanned by name rather than by suffix. The append-only event
+# streams under `events/` stay excluded: a `ReferenceRemoved` payload still
+# names the id it detached, so replaying them would protect artifacts forever.
+_ROLE_FILENAMES = {"beads": frozenset({"issues.jsonl"})}
 
 
 @dataclass(frozen=True)
@@ -87,6 +93,7 @@ def collect_protected_artifact_ids() -> ProtectedArtifactIds:
                     unavailable=unavailable,
                     required=True,
                     suffixes=_TEXT_SUFFIXES,
+                    extra_filenames=_ROLE_FILENAMES.get(role, frozenset()),
                 )
             for role in _OPPORTUNISTIC_SIDECAR_ROLES:
                 root = _live_sidecar_root(records, role)
@@ -173,6 +180,7 @@ def _scan_root(
     unavailable: set[str],
     required: bool,
     suffixes: frozenset[str],
+    extra_filenames: frozenset[str] = frozenset(),
 ) -> None:
     resolved = root.expanduser().resolve(strict=False)
     if not resolved.is_dir():
@@ -194,7 +202,12 @@ def _scan_root(
             ]
             for filename in filenames:
                 path = Path(directory) / filename
-                if path.suffix.lower() not in suffixes or path.is_symlink():
+                if (
+                    path.suffix.lower() not in suffixes
+                    and filename not in extra_filenames
+                ):
+                    continue
+                if path.is_symlink():
                     continue
                 try:
                     text = path.read_text(encoding="utf-8", errors="ignore")
