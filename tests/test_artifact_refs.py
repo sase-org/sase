@@ -7,8 +7,13 @@ from typing import Any
 
 import pytest
 
-from sase import artifact_refs
+from sase import artifact_ref_entity_context, artifact_refs
+from sase.artifact_ref_models import check_record_schema
 from sase.artifact_refs import (
+    ARTIFACT_REF_WIRE_SCHEMA_VERSION,
+    ArtifactRefAgentOwner,
+    ArtifactRefAgentRoot,
+    ArtifactRefBeadStore,
     ArtifactRefContext,
     ArtifactRefDocumentRoot,
     ArtifactRefProject,
@@ -36,6 +41,23 @@ def _context(
                 aliases=("core-ui",),
             ),
         ),
+        bead_stores=(
+            ArtifactRefBeadStore(
+                project="sase",
+                prefix="sase",
+                root=tmp_path / "beads",
+            ),
+        ),
+        agent_roots=(
+            ArtifactRefAgentRoot(
+                project="sase",
+                root=tmp_path / "agents-sidecar",
+            ),
+        ),
+        agent_owner=ArtifactRefAgentOwner(
+            username="alice",
+            machine_name="athena",
+        ),
     )
 
 
@@ -56,6 +78,44 @@ def test_parse_render_and_scan_wrappers_round_trip() -> None:
     assert candidates[0].reference == parsed.rendered
     assert candidates[0].candidate_span.start == len("é ".encode())
     assert candidates[0].fragment_span is not None
+
+
+@pytest.mark.parametrize(
+    ("reference", "kind", "payload_field", "payload_value"),
+    [
+        ("bead:sase-9z.1", "bead", "id", "sase-9z.1"),
+        (
+            "agent:alice.athena.9w--code",
+            "agent",
+            "name",
+            "alice.athena.9w--code",
+        ),
+    ],
+)
+def test_entity_references_round_trip_through_python_facade(
+    reference: str,
+    kind: str,
+    payload_field: str,
+    payload_value: str,
+) -> None:
+    parsed = artifact_refs.parse_artifact_ref(reference)
+
+    assert parsed.schema_version == ARTIFACT_REF_WIRE_SCHEMA_VERSION == 2
+    assert parsed.kind == parsed.kind_type == kind
+    assert getattr(parsed.payload, payload_field) == payload_value
+    assert parsed.to_wire()["payload"] == {
+        "type": kind,
+        payload_field: payload_value,
+    }
+
+
+@pytest.mark.parametrize(
+    "reference",
+    ["bead:sase-9z#L1", "agent:9w#L1"],
+)
+def test_entity_references_reject_fragments(reference: str) -> None:
+    with pytest.raises(ValueError, match="references do not support fragments"):
+        artifact_refs.parse_artifact_ref(reference)
 
 
 def test_context_assembles_dynamic_document_role_and_namespaces(
@@ -80,6 +140,9 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
         display_name="sase",
         aliases=["core-ui"],
     )
+    bead_store = ArtifactRefBeadStore("sase", "sase", tmp_path / "beads")
+    agent_root = ArtifactRefAgentRoot("sase", tmp_path / "agents")
+    agent_owner = ArtifactRefAgentOwner("alice", "athena")
     monkeypatch.setattr(artifact_refs, "resolve_sdd_store", lambda *_: _Store())
     monkeypatch.setattr(
         artifact_refs,
@@ -106,6 +169,15 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
         "default_artifact_files_index_path",
         lambda: tmp_path / "artifact-index.jsonl",
     )
+    monkeypatch.setattr(
+        artifact_refs,
+        "collect_entity_context",
+        lambda store, project_ref, projects: (
+            (bead_store,),
+            (agent_root,),
+            agent_owner,
+        ),
+    )
 
     context = artifact_refs.artifact_ref_context(tmp_path / "workspace", 7)
 
@@ -119,6 +191,8 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
         "chat",
         "bug",
         "file",
+        "bead",
+        "agent",
         "plans",
         "designs",
     )
@@ -127,6 +201,86 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
         name="sase",
         key="gh_sase-org__sase",
         aliases=("core-ui",),
+    )
+    assert context.bead_stores == (bead_store,)
+    assert context.agent_roots == (agent_root,)
+    assert context.agent_owner == agent_owner
+
+
+def test_entity_context_discovers_only_available_local_sidecars(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    beads = tmp_path / "beads"
+    agents = tmp_path / "agents"
+    beads.mkdir()
+    agents.mkdir()
+    (beads / "config.json").write_text(
+        json.dumps({"issue_prefix": "sase"}),
+        encoding="utf-8",
+    )
+    (beads / "issues.jsonl").write_text(
+        "not read by context discovery", encoding="utf-8"
+    )
+
+    store = SimpleNamespace(kind_root=lambda role: beads)
+    monkeypatch.setattr(
+        artifact_ref_entity_context,
+        "hidden_sidecar_clone_dir",
+        lambda project_key, role: str(agents),
+    )
+    monkeypatch.setattr(
+        "sase.config.get_agent_owner_identity",
+        lambda: SimpleNamespace(username="alice", machine_name="athena"),
+    )
+
+    assert artifact_ref_entity_context.collect_bead_stores(store, "sase") == (
+        ArtifactRefBeadStore("sase", "sase", beads),
+    )
+    assert artifact_ref_entity_context.collect_agent_roots(
+        "gh_sase-org__sase",
+        "sase",
+    ) == (ArtifactRefAgentRoot("sase", agents),)
+    assert artifact_ref_entity_context.local_agent_owner() == ArtifactRefAgentOwner(
+        "alice",
+        "athena",
+    )
+    projects = (
+        ArtifactRefProject(
+            name="sase",
+            key="gh_sase-org__sase",
+            aliases=("core-ui",),
+        ),
+    )
+    assert artifact_ref_entity_context.collect_entity_context(
+        store,
+        "core-ui",
+        projects,
+    ) == (
+        (ArtifactRefBeadStore("sase", "sase", beads),),
+        (ArtifactRefAgentRoot("sase", agents),),
+        ArtifactRefAgentOwner("alice", "athena"),
+    )
+
+    missing_store = SimpleNamespace(kind_root=lambda role: tmp_path / "missing")
+    monkeypatch.setattr(
+        artifact_ref_entity_context,
+        "hidden_sidecar_clone_dir",
+        lambda project_key, role: str(tmp_path / "missing-agents"),
+    )
+    assert (
+        artifact_ref_entity_context.collect_bead_stores(
+            missing_store,
+            "sase",
+        )
+        == ()
+    )
+    assert (
+        artifact_ref_entity_context.collect_agent_roots(
+            "gh_sase-org__sase",
+            "sase",
+        )
+        == ()
     )
 
 
@@ -359,6 +513,82 @@ def test_bug_resolution_accepts_key_and_renders_display_name(tmp_path: Path) -> 
     assert resolution.locator == "sase#42"
 
 
+def test_bead_resolution_statuses_and_candidates(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    page = context.bead_stores[0].root / "pages" / "sase-9z" / "README.md"
+    page.parent.mkdir(parents=True)
+    page.write_text("# Bead\n", encoding="utf-8")
+
+    exact = artifact_refs.resolve_artifact_ref("bead:sase-9z", context=context)
+    assert exact.status == "exact"
+    assert exact.resolved_path == page
+    assert exact.locator == "sase/sase-9z"
+
+    unknown = artifact_refs.resolve_artifact_ref("bead:other-9z", context=context)
+    assert unknown.status == "unknown_project"
+
+    missing = artifact_refs.resolve_artifact_ref("bead:sase-aa", context=context)
+    assert missing.status == "missing"
+    assert missing.candidates == (
+        str(context.bead_stores[0].root / "pages" / "sase-aa" / "README.md"),
+    )
+
+
+def test_agent_resolution_globalizes_local_name_and_reports_missing(
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    page = (
+        context.agent_roots[0].root / "agents" / "alice.athena.9w--code" / "README.md"
+    )
+    page.parent.mkdir(parents=True)
+    page.write_text("# Agent\n", encoding="utf-8")
+
+    exact = artifact_refs.resolve_artifact_ref("agent:9w--code", context=context)
+    assert exact.status == "exact"
+    assert exact.resolved_path == page
+    assert exact.rendered == "agent:alice.athena.9w--code"
+    assert exact.locator == "sase/alice.athena.9w--code"
+
+    missing = artifact_refs.resolve_artifact_ref("agent:missing", context=context)
+    assert missing.status == "missing"
+    assert missing.candidates
+
+
+def test_context_without_entity_sidecars_preserves_other_resolution(
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    context = ArtifactRefContext(
+        document_roots=context.document_roots,
+        chats_root=context.chats_root,
+        artifact_index_path=context.artifact_index_path,
+        repositories=context.repositories,
+        projects=context.projects,
+    )
+    document = context.document_roots[0].root / "design.md"
+    chat = context.chats_root / "agent.md"
+    document.parent.mkdir(parents=True)
+    chat.parent.mkdir(parents=True)
+    document.write_text("# Design\n", encoding="utf-8")
+    chat.write_text("# Chat\n", encoding="utf-8")
+
+    assert (
+        artifact_refs.resolve_artifact_ref(
+            "designs:design.md",
+            context=context,
+        ).status
+        == "exact"
+    )
+    assert (
+        artifact_refs.resolve_artifact_ref(
+            "chat:agent.md",
+            context=context,
+        ).status
+        == "exact"
+    )
+
+
 def test_reference_for_each_entry_target_shape(tmp_path: Path) -> None:
     context = _context(tmp_path)
     chat = context.chats_root / "202607" / "agent.md"
@@ -467,3 +697,9 @@ def test_schema_gate_fails_before_operation(
     with pytest.raises(RuntimeError, match="wire is stale"):
         artifact_refs.parse_artifact_ref("plans:202607/plan.md")
     assert requested == ["artifact_ref_wire_schema_version"]
+
+
+def test_record_schema_rejects_schema_one() -> None:
+    assert ARTIFACT_REF_WIRE_SCHEMA_VERSION == 2
+    with pytest.raises(RuntimeError, match="unsupported test wire: 1"):
+        check_record_schema({"schema_version": 1}, record="test")

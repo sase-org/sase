@@ -8,10 +8,18 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 
-ARTIFACT_REF_WIRE_SCHEMA_VERSION = 1
-BUILTIN_ARTIFACT_REF_KINDS = ("commit", "chat", "bug", "file")
+ARTIFACT_REF_WIRE_SCHEMA_VERSION = 2
+BUILTIN_ARTIFACT_REF_KINDS = ("commit", "chat", "bug", "file", "bead", "agent")
 
-ArtifactRefKindType = Literal["commit", "chat", "bug", "file", "document"]
+ArtifactRefKindType = Literal[
+    "commit",
+    "chat",
+    "bug",
+    "file",
+    "bead",
+    "agent",
+    "document",
+]
 ArtifactRefPayloadType = ArtifactRefKindType
 ArtifactRefFragmentType = Literal["lines", "page", "time"]
 ArtifactRefResolutionStatus = Literal[
@@ -37,11 +45,21 @@ class ArtifactRefPayload:
     number: int | None = None
     source: str | None = None
     digest: str | None = None
+    id: str | None = None
+    name: str | None = None
 
     @classmethod
     def from_wire(cls, raw: Mapping[str, Any]) -> ArtifactRefPayload:
         payload_type = str(raw["type"])
-        if payload_type not in {"commit", "chat", "bug", "file", "document"}:
+        if payload_type not in {
+            "commit",
+            "chat",
+            "bug",
+            "file",
+            "bead",
+            "agent",
+            "document",
+        }:
             raise RuntimeError(
                 "sase_core_rs returned an unknown artifact-reference payload "
                 f"type: {payload_type}"
@@ -55,6 +73,8 @@ class ArtifactRefPayload:
             number=_optional_int(raw.get("number")),
             source=optional_str(raw.get("source")),
             digest=optional_str(raw.get("digest")),
+            id=optional_str(raw.get("id")),
+            name=optional_str(raw.get("name")),
         )
 
     def to_wire(self) -> dict[str, object]:
@@ -67,6 +87,8 @@ class ArtifactRefPayload:
             "number",
             "source",
             "digest",
+            "id",
+            "name",
         ):
             value = getattr(self, name)
             if value is not None:
@@ -125,7 +147,15 @@ class ArtifactRef:
         check_record_schema(raw, record="artifact-reference parse")
         raw_kind = cast(Mapping[str, Any], raw["kind"])
         kind_type = str(raw_kind["type"])
-        if kind_type not in {"commit", "chat", "bug", "file", "document"}:
+        if kind_type not in {
+            "commit",
+            "chat",
+            "bug",
+            "file",
+            "bead",
+            "agent",
+            "document",
+        }:
             raise RuntimeError(
                 "sase_core_rs returned an unknown artifact-reference kind "
                 f"type: {kind_type}"
@@ -204,6 +234,41 @@ class ArtifactRefProject:
 
 
 @dataclass(frozen=True, slots=True)
+class ArtifactRefBeadStore:
+    project: str
+    prefix: str
+    root: Path
+
+    def to_wire(self) -> dict[str, str]:
+        return {
+            "project": self.project,
+            "prefix": self.prefix,
+            "root": str(self.root),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactRefAgentRoot:
+    project: str
+    root: Path
+
+    def to_wire(self) -> dict[str, str]:
+        return {"project": self.project, "root": str(self.root)}
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactRefAgentOwner:
+    username: str
+    machine_name: str
+
+    def to_wire(self) -> dict[str, str]:
+        return {
+            "username": self.username,
+            "machine_name": self.machine_name,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ArtifactRefContext:
     """Caller-supplied local namespaces used by the Rust resolver."""
 
@@ -212,6 +277,9 @@ class ArtifactRefContext:
     artifact_index_path: Path
     repositories: tuple[ArtifactRefRepository, ...]
     projects: tuple[ArtifactRefProject, ...]
+    bead_stores: tuple[ArtifactRefBeadStore, ...] = ()
+    agent_roots: tuple[ArtifactRefAgentRoot, ...] = ()
+    agent_owner: ArtifactRefAgentOwner | None = None
 
     @property
     def known_kinds(self) -> tuple[str, ...]:
@@ -231,6 +299,11 @@ class ArtifactRefContext:
             "artifact_index_path": str(self.artifact_index_path),
             "repositories": [repository.to_wire() for repository in self.repositories],
             "projects": [project.to_wire() for project in self.projects],
+            "bead_stores": [store.to_wire() for store in self.bead_stores],
+            "agent_roots": [root.to_wire() for root in self.agent_roots],
+            "agent_owner": (
+                None if self.agent_owner is None else self.agent_owner.to_wire()
+            ),
         }
 
 

@@ -17,6 +17,9 @@ from sase.artifact_ref_models import (
     ARTIFACT_REF_WIRE_SCHEMA_VERSION,
     BUILTIN_ARTIFACT_REF_KINDS,
     ArtifactRef,
+    ArtifactRefAgentOwner,
+    ArtifactRefAgentRoot,
+    ArtifactRefBeadStore,
     ArtifactRefContext,
     ArtifactRefDocumentRoot,
     ArtifactRefFragment,
@@ -30,6 +33,9 @@ from sase.artifact_ref_models import (
     ParsedArtifactRef,
     check_record_schema as _check_record_schema,
     optional_str as _optional_str,
+)
+from sase.artifact_ref_entity_context import (
+    collect_entity_context,
 )
 from sase.core.artifact_file_facade import default_artifact_files_index_path
 from sase.core.paths import sase_projects_dir, sase_subdir
@@ -192,6 +198,11 @@ def artifact_ref_context(
         )
         for record in project_records
     )
+    bead_stores, agent_roots, agent_owner = collect_entity_context(
+        store,
+        project_filter,
+        projects,
+    )
     return ArtifactRefContext(
         document_roots=tuple(document_roots),
         chats_root=sase_subdir("chats").expanduser().resolve(strict=False),
@@ -200,6 +211,9 @@ def artifact_ref_context(
         .resolve(strict=False),
         repositories=repositories,
         projects=projects,
+        bead_stores=bead_stores,
+        agent_roots=agent_roots,
+        agent_owner=agent_owner,
     )
 
 
@@ -729,6 +743,9 @@ __all__ = [
     "ARTIFACT_REF_WIRE_SCHEMA_VERSION",
     "BUILTIN_ARTIFACT_REF_KINDS",
     "ArtifactRef",
+    "ArtifactRefAgentOwner",
+    "ArtifactRefAgentRoot",
+    "ArtifactRefBeadStore",
     "ArtifactRefContext",
     "ArtifactRefDocumentRoot",
     "ArtifactRefFragment",
