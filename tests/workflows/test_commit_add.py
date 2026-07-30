@@ -36,6 +36,21 @@ def test_get_next_commit_number_wrong_changespec() -> None:
     assert next_num == 1
 
 
+def test_commit_number_scanners_stop_at_deltas_boundary() -> None:
+    lines = [
+        "NAME: test_cl\n",
+        "STATUS: Ready\n",
+        "COMMITS:\n",
+        "  (1) First commit\n",
+        "DELTAS:\n",
+        "  (99) Numeric-looking delta payload\n",
+        "  (1z) Proposal-looking delta payload\n",
+    ]
+
+    assert get_next_commit_number(lines, "test_cl") == 2
+    assert _get_next_proposal_letter(lines, "test_cl", 1) == "a"
+
+
 # Tests for add_commit_entry
 def test_add_commit_entry_new_history_field(tmp_path: Path) -> None:
     """Test adding history entry when COMMITS field doesn't exist."""

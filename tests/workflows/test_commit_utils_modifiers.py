@@ -89,6 +89,23 @@ MENTORS:
         project_file.unlink()
 
 
+def test_reject_proposals_stops_at_deltas_section(tmp_path: Path) -> None:
+    content = """NAME: test-cl
+STATUS: Ready
+COMMITS:
+  (1) First commit
+DELTAS:
+  (2a) Delta payload - (!: NEW PROPOSAL)
+"""
+    project_file = _create_test_project_file(tmp_path, content)
+    try:
+        assert reject_proposals_and_set_status_atomic(str(project_file), "test-cl", "")
+
+        assert "(2a) Delta payload - (!: NEW PROPOSAL)" in project_file.read_text()
+    finally:
+        project_file.unlink()
+
+
 def test_mark_proposal_broken_already_rejected(tmp_path: Path) -> None:
     """Test when the entry is already rejected (~!: NEW PROPOSAL)."""
     content = """NAME: test-cl

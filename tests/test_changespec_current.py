@@ -137,6 +137,22 @@ def test_changespec_current_matches_provider_url(monkeypatch: Any, capsys: Any) 
     assert json.loads(out)["name"] == "proj_feature"
 
 
+def test_changespec_current_json_includes_refs(monkeypatch: Any, capsys: Any) -> None:
+    changespec = _cs("proj_feature")
+    changespec.refs = ["research:202607/report.md"]
+
+    code, out, err = _run_current(
+        monkeypatch,
+        capsys,
+        changespecs=[changespec],
+        provider=_FakeProvider(branch="proj_feature"),
+    )
+
+    assert code == 0
+    assert err == ""
+    assert json.loads(out)["refs"] == ["research:202607/report.md"]
+
+
 def test_changespec_current_humanizes_plain_and_markdown_not_json(
     monkeypatch: Any,
     capsys: Any,

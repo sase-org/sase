@@ -158,6 +158,7 @@ def python_wire_records_as_dicts(file_path: str, _data: bytes) -> list[dict]:
             "pr_url": w.pr_url,
             "bug": w.bug,
             "description": w.description,
+            "refs": w.refs,
             "commits": [],
             "hooks": [],
             "comments": [],

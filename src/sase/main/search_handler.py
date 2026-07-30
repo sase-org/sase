@@ -157,6 +157,10 @@ def _display_plain(
         if cs.pr_url:
             print(f"PR: {cs.pr_url}")
         print(f"STATUS: {cs.status}")
+        if cs.refs:
+            print("REFS:")
+            for reference in cs.refs:
+                print(f"  {reference}")
         if cs.commits:
             print("COMMITS:")
             for entry in cs.commits:
@@ -333,6 +337,12 @@ def _md_changespec(
     for para_line in cs.description.split("\n"):
         lines.append(f"> {para_line}" if para_line else ">")
     lines.append("")
+
+    if cs.refs:
+        lines.append("### References")
+        lines.append("")
+        lines.extend(f"- `{reference}`" for reference in cs.refs)
+        lines.append("")
 
     # Commits table
     if cs.commits:

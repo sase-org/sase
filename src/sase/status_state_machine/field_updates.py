@@ -8,6 +8,7 @@ DESCRIPTION fields.
 import logging
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
+from sase.ace.changespec.section_order import CHANGESPEC_SECTION_ORDER
 from sase.ace.changespec.review_field import (
     REVIEW_URL_PREFIXES,
     format_review_url_line,
@@ -334,19 +335,7 @@ def update_parent_references_atomic(
         )
 
 
-_FIELD_HEADERS = (
-    "NAME:",
-    "DESCRIPTION:",
-    "PARENT:",
-    *REVIEW_URL_PREFIXES,
-    "BUG:",
-    "STATUS:",
-    "COMMITS:",
-    "HOOKS:",
-    "COMMENTS:",
-    "MENTORS:",
-    "TIMESTAMPS:",
-)
+_FIELD_HEADERS = CHANGESPEC_SECTION_ORDER
 
 
 def _is_field_or_section_header(line: str) -> bool:

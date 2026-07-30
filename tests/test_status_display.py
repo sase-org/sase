@@ -106,3 +106,24 @@ def test_display_changespec_omits_deltas_when_empty() -> None:
     console2 = Console(file=buf2, force_terminal=False, color_system=None, width=200)
     display_changespec(changespec, console2)
     assert "DELTAS:" not in buf2.getvalue()
+
+
+def test_display_changespec_renders_stored_refs() -> None:
+    changespec = ChangeSpec(
+        name="test_spec",
+        description="Test description",
+        parent=None,
+        cl=None,
+        status="Ready",
+        file_path="/tmp/test.sase",
+        line_number=1,
+        refs=["research:202607/report.md"],
+    )
+    buf = StringIO()
+    console = Console(file=buf, force_terminal=False, color_system=None, width=200)
+
+    display_changespec(changespec, console)
+
+    output = buf.getvalue()
+    assert "REFS:" in output
+    assert "research:202607/report.md" in output

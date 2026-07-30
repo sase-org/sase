@@ -4,7 +4,7 @@ import os
 import re
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
-from sase.ace.changespec.review_field import REVIEW_URL_PREFIXES
+from sase.ace.changespec.section_order import CHANGESPEC_SECTION_ORDER
 from sase.core.time import generate_timestamp
 
 
@@ -116,15 +116,7 @@ def get_next_commit_number(lines: list[str], cl_name: str) -> int:
         elif in_target_changespec:
             if line.startswith("COMMITS:"):
                 in_commits = True
-            elif line.startswith(
-                (
-                    "NAME:",
-                    "DESCRIPTION:",
-                    "PARENT:",
-                    *REVIEW_URL_PREFIXES,
-                    "STATUS:",
-                )
-            ):
+            elif line.startswith(CHANGESPEC_SECTION_ORDER):
                 in_commits = False
                 if line.startswith("NAME:"):
                     in_target_changespec = False
@@ -175,15 +167,7 @@ def _get_next_proposal_letter(lines: list[str], cl_name: str, base_number: int) 
         elif in_target_changespec:
             if line.startswith("COMMITS:"):
                 in_commits = True
-            elif line.startswith(
-                (
-                    "NAME:",
-                    "DESCRIPTION:",
-                    "PARENT:",
-                    *REVIEW_URL_PREFIXES,
-                    "STATUS:",
-                )
-            ):
+            elif line.startswith(CHANGESPEC_SECTION_ORDER):
                 in_commits = False
                 if line.startswith("NAME:"):
                     in_target_changespec = False

@@ -3,7 +3,7 @@
 import re
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
-from sase.ace.changespec.review_field import REVIEW_URL_PREFIXES
+from sase.ace.changespec.section_order import CHANGESPEC_SECTION_ORDER
 
 
 def reject_proposals_and_set_status_atomic(
@@ -48,17 +48,7 @@ def reject_proposals_and_set_status_atomic(
                         in_commits = False
                     elif line.startswith("COMMITS:"):
                         in_commits = True
-                    elif line.startswith(
-                        (
-                            "NAME:",
-                            "DESCRIPTION:",
-                            "PARENT:",
-                            *REVIEW_URL_PREFIXES,
-                            "HOOKS:",
-                            "COMMENTS:",
-                            "MENTORS:",
-                        )
-                    ):
+                    elif line.startswith(CHANGESPEC_SECTION_ORDER):
                         in_commits = False
                         if line.startswith("NAME:"):
                             in_target_changespec = False
@@ -138,17 +128,7 @@ def reject_all_new_proposals(
                 elif in_target_changespec:
                     if line.startswith("COMMITS:"):
                         in_commits = True
-                    elif line.startswith(
-                        (
-                            "NAME:",
-                            "DESCRIPTION:",
-                            "PARENT:",
-                            *REVIEW_URL_PREFIXES,
-                            "STATUS:",
-                            "HOOKS:",
-                            "COMMENTS:",
-                        )
-                    ):
+                    elif line.startswith(CHANGESPEC_SECTION_ORDER):
                         in_commits = False
                         if line.startswith("NAME:"):
                             in_target_changespec = False
@@ -227,17 +207,7 @@ def update_commit_entry_suffix(
                 elif in_target_changespec:
                     if line.startswith("COMMITS:"):
                         in_commits = True
-                    elif line.startswith(
-                        (
-                            "NAME:",
-                            "DESCRIPTION:",
-                            "PARENT:",
-                            *REVIEW_URL_PREFIXES,
-                            "STATUS:",
-                            "HOOKS:",
-                            "COMMENTS:",
-                        )
-                    ):
+                    elif line.startswith(CHANGESPEC_SECTION_ORDER):
                         in_commits = False
                         if line.startswith("NAME:"):
                             in_target_changespec = False
@@ -323,18 +293,7 @@ def mark_proposal_broken(
                 elif in_target_changespec:
                     if line.startswith("COMMITS:"):
                         in_commits = True
-                    elif line.startswith(
-                        (
-                            "NAME:",
-                            "DESCRIPTION:",
-                            "PARENT:",
-                            *REVIEW_URL_PREFIXES,
-                            "STATUS:",
-                            "HOOKS:",
-                            "COMMENTS:",
-                            "MENTORS:",
-                        )
-                    ):
+                    elif line.startswith(CHANGESPEC_SECTION_ORDER):
                         in_commits = False
                         if line.startswith("NAME:"):
                             in_target_changespec = False

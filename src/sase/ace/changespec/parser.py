@@ -35,6 +35,7 @@ class _ParserState:
         self.pr_url: str | None = None
         self.bug: str | None = None
         self.status: str | None = None
+        self.refs: list[str] = []
 
         # Entry collections
         self.commit_entries: list[CommitEntry] = []
@@ -53,6 +54,7 @@ class _ParserState:
 
         # Section flags
         self.in_description = False
+        self.in_refs = False
         self.in_commits = False
         self.in_hooks = False
         self.in_comments = False
@@ -63,6 +65,7 @@ class _ParserState:
     def reset_section_flags(self) -> None:
         """Reset all section flags to False."""
         self.in_description = False
+        self.in_refs = False
         self.in_commits = False
         self.in_hooks = False
         self.in_comments = False
@@ -97,6 +100,7 @@ class _ParserState:
                 file_path=self.file_path,
                 line_number=self.line_number,
                 bug=self.bug,
+                refs=self.refs if self.refs else None,
                 commits=self.commit_entries if self.commit_entries else None,
                 hooks=self.hook_entries if self.hook_entries else None,
                 comments=self.comment_entries if self.comment_entries else None,
@@ -163,6 +167,12 @@ def _parse_section_header(state: _ParserState, line: str) -> bool:
 
     Returns True if a section header was parsed, False otherwise.
     """
+    if line.startswith("REFS:"):
+        state.save_pending_entries()
+        state.reset_section_flags()
+        state.in_refs = True
+        return True
+
     if line.startswith("COMMITS:"):
         state.save_pending_entries()
         state.reset_section_flags()
@@ -206,7 +216,10 @@ def _parse_section_content(state: _ParserState, line: str) -> None:
     """Parse content within the current section."""
     stripped = line.strip()
 
-    if state.in_timestamps:
+    if state.in_refs:
+        if stripped:
+            state.refs.append(stripped)
+    elif state.in_timestamps:
         state.timestamp_entries = parse_timestamps_line(
             line, stripped, state.timestamp_entries
         )

@@ -480,6 +480,7 @@ class ChangeSpec:
     timestamps: list[TimestampEntry] | None = None
     deltas: list[DeltaEntry] | None = None
     project_display_name: str | None = None
+    refs: list[str] | None = None
 
     def __init__(
         self,
@@ -498,6 +499,7 @@ class ChangeSpec:
         timestamps: list[TimestampEntry] | None = None,
         deltas: list[DeltaEntry] | None = None,
         project_display_name: str | None = None,
+        refs: list[str] | None = None,
         *,
         cl: str | None = None,
     ) -> None:
@@ -521,6 +523,7 @@ class ChangeSpec:
         self.timestamps = timestamps
         self.deltas = deltas
         self.project_display_name = project_display_name
+        self.refs = refs
 
     @property
     def cl(self) -> str | None:

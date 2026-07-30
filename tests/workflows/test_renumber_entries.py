@@ -5,12 +5,29 @@ import tempfile
 from pathlib import Path
 
 from sase.workflows.accept import renumber_commit_entries
+from sase.workflows.accept.renumber import _reject_remaining_proposals_unlocked
 
 
 def test_renumber_commit_entries_nonexistent_file() -> None:
     """Test renumbering with non-existent file."""
     result = renumber_commit_entries("/nonexistent/file.sase", "test_cl", [(1, "a")])
     assert result is False
+
+
+def test_reject_remaining_proposals_stops_at_deltas_boundary() -> None:
+    lines = [
+        "NAME: test_cl\n",
+        "STATUS: Ready\n",
+        "COMMITS:\n",
+        "  (1a) Proposal - (!: NEW PROPOSAL)\n",
+        "DELTAS:\n",
+        "  (2a) Delta payload - (!: NEW PROPOSAL)\n",
+    ]
+
+    updated = _reject_remaining_proposals_unlocked(lines, "test_cl")
+
+    assert "  (1a) Proposal - (~!: NEW PROPOSAL)\n" in updated
+    assert "  (2a) Delta payload - (!: NEW PROPOSAL)\n" in updated
 
 
 def test_renumber_commit_entries_no_history_section(tmp_path: Path) -> None:

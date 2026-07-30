@@ -62,6 +62,25 @@ def test_parse_project_bytes_preserves_refs_verbatim(tmp_path: Path) -> None:
     ]
 
 
+def test_python_parser_preserves_refs_verbatim(tmp_path: Path) -> None:
+    project = tmp_path / "refs.sase"
+    project.write_text(
+        "NAME: refs\n"
+        "STATUS: WIP\n"
+        "REFS:\n"
+        "  research:202607/report.md\n"
+        "  definitely not a reference\n",
+        encoding="utf-8",
+    )
+
+    changespecs = raw_parse_project_file(str(project))
+
+    assert changespecs[0].refs == [
+        "research:202607/report.md",
+        "definitely not a reference",
+    ]
+
+
 def test_parse_project_bytes_uses_rust_binding(
     sample_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

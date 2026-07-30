@@ -57,6 +57,15 @@ def test_format_changespec_with_bug() -> None:
     assert "BUG: b/123456" in result
 
 
+def test_format_changespec_with_refs() -> None:
+    cs = _make_basic_changespec()
+    cs.refs = ["research:202607/report.md", "file:default:abc123"]
+
+    result = format_changespec_for_clipboard(cs)
+
+    assert ("REFS:\n  research:202607/report.md\n  file:default:abc123") in result
+
+
 def test_format_changespec_commits_with_plain_suffix() -> None:
     """Test formatting commits with plain suffix (no type)."""
     commits = [

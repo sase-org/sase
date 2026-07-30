@@ -10,7 +10,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.ace.changespec import ChangeSpec, find_all_changespecs
+from sase.ace.changespec.refs_persistence import update_changespec_refs_field
 from sase.ace.deltas import refresh_deltas_for_changespec
+from sase.artifact_ref_lists import (
+    ArtifactRefListEntry,
+    artifact_ref_list_display_lines,
+    normalize_artifact_ref_list,
+    resolve_artifact_ref_list,
+)
+from sase.artifact_ref_models import ArtifactRefContext
 from sase.core.changespec import (
     changespec_name_to_branch,
     changespec_name_to_branch_with_suffix,
@@ -208,6 +216,7 @@ def _changespec_payload(cs: ChangeSpec) -> dict[str, object]:
         "status": cs.status,
         "parent": cs.parent,
         "cl": cs.pr_url,
+        "refs": list(cs.refs or ()),
         "file_path": cs.file_path,
         "line_number": cs.line_number,
     }
@@ -224,6 +233,12 @@ def _display_current_markdown(cs: ChangeSpec) -> None:
     print(f"- **Parent:** {humanize_cl_name(cs.parent) if cs.parent else 'None'}")
     print(f"- **PR:** {cs.pr_url or 'None'}")
     print(f"- **Location:** `{_file_location(cs)}`")
+    if cs.refs:
+        print("")
+        print("## References")
+        print("")
+        for reference in cs.refs:
+            print(f"- `{reference}`")
 
 
 def _display_current_plain(cs: ChangeSpec) -> None:
@@ -233,6 +248,10 @@ def _display_current_plain(cs: ChangeSpec) -> None:
     print(f"STATUS: {cs.status}")
     print(f"PARENT: {humanize_cl_name(cs.parent) if cs.parent else 'None'}")
     print(f"PR: {cs.pr_url or 'None'}")
+    if cs.refs:
+        print("REFS:")
+        for reference in cs.refs:
+            print(f"  {reference}")
     print(f"FILE: {cs.file_path}")
     print(f"LINE: {cs.line_number}")
 
@@ -293,6 +312,168 @@ def _handle_current(args: argparse.Namespace) -> int:
         _display_current_plain(cs)
     else:
         _display_current_markdown(cs)
+    return 0
+
+
+def _resolve_ref_changespec(name: str | None) -> ChangeSpec | None:
+    """Resolve an explicit name or the current checkout to one ChangeSpec."""
+
+    changespecs = find_all_changespecs()
+    if name:
+        matches = [changespec for changespec in changespecs if changespec.name == name]
+        if not matches:
+            print(
+                f"[sase changespec ref] ChangeSpec not found: {name}",
+                file=sys.stderr,
+            )
+            return None
+        if len(matches) > 1:
+            print(
+                f"[sase changespec ref] multiple ChangeSpecs are named {name}:",
+                file=sys.stderr,
+            )
+            for changespec in matches:
+                print(f"  {_file_location(changespec)}", file=sys.stderr)
+            return None
+        return matches[0]
+
+    project, project_file = _resolve_project_context(None)
+    cwd = os.getcwd()
+    provider = _get_current_provider(cwd)
+    context = _CurrentContext(
+        project=project,
+        project_file=project_file,
+        branch=_get_current_branch(provider, cwd),
+        change_url=_get_current_change_url(provider, cwd),
+    )
+    matches = _find_current_changespec(changespecs, context, provider)
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        print(
+            "[sase changespec ref] could not find a ChangeSpec for the "
+            "current checkout; pass -c/--changespec.",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            "[sase changespec ref] multiple ChangeSpecs match the current "
+            "checkout; pass -c/--changespec.",
+            file=sys.stderr,
+        )
+    return None
+
+
+def _artifact_reference_context(project: str) -> ArtifactRefContext | None:
+    """Build the current workspace's reference context without failing a read."""
+
+    from sase.artifact_ref_context import artifact_ref_context
+    from sase.sdd.plan_refs import workspace_context_for_plan_resolution
+
+    try:
+        workspace_dir, workspace_num = workspace_context_for_plan_resolution(Path.cwd())
+        return artifact_ref_context(workspace_dir, workspace_num, project)
+    except Exception:
+        return None
+
+
+def _render_ref_list(changespec: ChangeSpec, *, resolve: bool, as_json: bool) -> int:
+    refs = tuple(changespec.refs or ())
+    entries: tuple[ArtifactRefListEntry | str, ...]
+    if resolve and refs:
+        context = _artifact_reference_context(changespec.project_basename)
+        entries = (
+            resolve_artifact_ref_list(refs, context=context)
+            if context is not None
+            else refs
+        )
+    else:
+        entries = refs
+
+    if as_json:
+        rendered_entries: list[object]
+        if resolve:
+            rendered_entries = [
+                (
+                    entry.to_wire()
+                    if isinstance(entry, ArtifactRefListEntry)
+                    else {"rendered": entry, "resolution": None}
+                )
+                for entry in entries
+            ]
+        else:
+            rendered_entries = list(entries)
+        print(
+            json.dumps(
+                {
+                    "count": len(entries),
+                    "results": [
+                        {
+                            "changespec": changespec.name,
+                            "refs": rendered_entries,
+                        }
+                    ],
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    lines = (
+        artifact_ref_list_display_lines(entries)
+        if resolve
+        else tuple(str(entry) for entry in entries)
+    )
+    print("\n".join(lines) if lines else "No artifact references found.")
+    return 0
+
+
+def _handle_ref(args: argparse.Namespace) -> int:
+    changespec = _resolve_ref_changespec(args.changespec)
+    if changespec is None:
+        return 1
+
+    if args.ref_action == "list":
+        return _render_ref_list(
+            changespec,
+            resolve=bool(args.resolve),
+            as_json=bool(args.json),
+        )
+
+    existing = tuple(changespec.refs or ())
+    try:
+        requested = normalize_artifact_ref_list(args.refs)
+        if args.ref_action == "add":
+            updated = normalize_artifact_ref_list((*existing, *requested))
+            verb = "Attached"
+            changed = [reference for reference in updated if reference not in existing]
+        else:
+            removed = set(requested)
+            updated = tuple(
+                reference for reference in existing if reference not in removed
+            )
+            verb = "Detached"
+            changed = [reference for reference in existing if reference in removed]
+    except ValueError as exc:
+        print(f"[sase changespec ref] {exc}", file=sys.stderr)
+        return 1
+
+    if not update_changespec_refs_field(
+        changespec.file_path,
+        changespec.name,
+        updated,
+    ):
+        print(
+            f"[sase changespec ref] failed to update {changespec.name}",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(
+        f"{verb} {len(changed)} artifact reference"
+        f"{'' if len(changed) == 1 else 's'} "
+        f"{'to' if args.ref_action == 'add' else 'from'} {changespec.name}."
+    )
     return 0
 
 
@@ -359,12 +540,15 @@ def handle_changespec_command(args: argparse.Namespace) -> None:
 
         handle_search_command(args)
         return
+    if sub == "ref":
+        sys.exit(_handle_ref(args))
     if sub == "sync-deltas":
         sys.exit(_handle_sync_deltas(args))
     if sub == "migrate-extension":
         sys.exit(_handle_migrate_extension(args))
     print(
-        "Usage: sase changespec {current,search,sync-deltas,migrate-extension} [-h]",
+        "Usage: sase changespec "
+        "{current,migrate-extension,ref,search,sync-deltas} [-h]",
         file=sys.stderr,
     )
     sys.exit(1)

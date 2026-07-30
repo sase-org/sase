@@ -4,7 +4,7 @@ import re
 from typing import Any
 
 from sase.ace.changespec import changespec_lock, get_entry_id, write_changespec_atomic
-from sase.ace.changespec.review_field import REVIEW_URL_PREFIXES
+from sase.ace.changespec.section_order import CHANGESPEC_SECTION_ORDER
 from sase.workflows.renumber_utils import (
     build_commits_section,
     find_commits_section,
@@ -315,18 +315,7 @@ def _reject_remaining_proposals_unlocked(
             if line.startswith("COMMITS:"):
                 in_commits = True
                 updated_lines.append(line)
-            elif line.startswith(
-                (
-                    "NAME:",
-                    "DESCRIPTION:",
-                    "PARENT:",
-                    *REVIEW_URL_PREFIXES,
-                    "STATUS:",
-                    "HOOKS:",
-                    "COMMENTS:",
-                    "MENTORS:",
-                )
-            ):
+            elif line.startswith(CHANGESPEC_SECTION_ORDER):
                 in_commits = False
                 if line.startswith("NAME:"):
                     in_target_changespec = False

@@ -126,6 +126,12 @@ def display_changespec(
     status_color = get_status_color(changespec.status)
     text.append(f"{changespec.status}\n", style=f"bold {status_color}")
 
+    # REFS field (only display if present; resolution stays off ACE paths)
+    if changespec.refs:
+        text.append("REFS:\n", style="bold #87D7FF")
+        for reference in changespec.refs:
+            text.append(f"  {reference}\n", style="#87AFFF")
+
     # COMMITS field (only display if present)
     # Determine if we should show hints for history entries
     show_history_hints = with_hints and hints_for in (None, "all")

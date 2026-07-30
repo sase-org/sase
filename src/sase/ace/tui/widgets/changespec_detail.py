@@ -26,6 +26,7 @@ from .section_builders import (
     build_deltas_section,
     build_hooks_section,
     build_mentors_section,
+    build_refs_section,
     build_timestamps_section,
 )
 
@@ -278,6 +279,9 @@ class ChangeSpecDetail(Static):
 
         # Build basic ChangeSpec fields
         self._build_basic_fields(text, changespec)
+
+        # REFS is a flat stored list; rendering performs no resolution or I/O.
+        build_refs_section(text, changespec)
 
         # Build COMMITS section
         hint_tracker = HintTracker(

@@ -56,6 +56,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
     from sase.doctor.checks_agent_publication import agent_publication_check_specs
     from sase.doctor.checks_axe import axe_check_specs
     from sase.doctor.checks_beads import bead_check_specs
+    from sase.doctor.checks_changespec_refs import changespec_ref_check_specs
     from sase.doctor.checks_config import config_check_specs
     from sase.doctor.checks_deep import deep_check_specs
     from sase.doctor.checks_integrations import integration_check_specs
@@ -77,6 +78,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
             *resource_check_specs(context),
             *axe_check_specs(context),
             *project_check_specs(context),
+            *changespec_ref_check_specs(context),
             *workspace_check_specs(context),
             *agent_index_check_specs(context),
             *agent_publication_check_specs(context),

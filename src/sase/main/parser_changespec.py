@@ -7,7 +7,7 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'changespec' subcommand parser."""
     cs_parser = subparsers.add_parser(
         "changespec",
-        help="ChangeSpec maintenance commands (DELTAS sync, etc.)",
+        help="Inspect and maintain ChangeSpecs",
     )
     cs_subparsers = cs_parser.add_subparsers(
         dest="changespec_subcommand", help="ChangeSpec subcommands"
@@ -31,6 +31,61 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="project_file",
         default=None,
         help="Path to the project .sase file (default: inferred from current workspace)",
+    )
+
+    # sase changespec ref
+    ref_parser = cs_subparsers.add_parser(
+        "ref",
+        help="Inspect and manage artifact references",
+        description=(
+            "Inspect and manage ChangeSpec artifact references. Invoking "
+            "'sase changespec ref' without a subcommand delegates to "
+            "'sase changespec ref list'."
+        ),
+    )
+    ref_subparsers = ref_parser.add_subparsers(dest="ref_action")
+
+    ref_add_parser = ref_subparsers.add_parser("add", help="Attach artifact references")
+    ref_add_parser.add_argument(
+        "-c",
+        "--changespec",
+        help="Target ChangeSpec (default: current checkout)",
+    )
+    ref_add_parser.add_argument(
+        "refs",
+        nargs="+",
+        help="Artifact references to attach",
+    )
+
+    ref_list_parser = ref_subparsers.add_parser("list", help="List artifact references")
+    ref_list_parser.add_argument(
+        "-c",
+        "--changespec",
+        help="Target ChangeSpec (default: current checkout)",
+    )
+    ref_list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit machine-readable reference data",
+    )
+    ref_list_parser.add_argument(
+        "-r",
+        "--resolve",
+        action="store_true",
+        help="Resolve references against the current workspace",
+    )
+
+    ref_rm_parser = ref_subparsers.add_parser("rm", help="Detach artifact references")
+    ref_rm_parser.add_argument(
+        "-c",
+        "--changespec",
+        help="Target ChangeSpec (default: current checkout)",
+    )
+    ref_rm_parser.add_argument(
+        "refs",
+        nargs="+",
+        help="Artifact references to detach",
     )
 
     # sase changespec search <query> [-f FORMAT]

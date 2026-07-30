@@ -9,26 +9,8 @@ from ..changespec import (
     write_changespec_atomic,
 )
 from ..changespec.deltas_format import format_deltas_field
-from ..changespec.review_field import REVIEW_URL_PREFIXES
+from ..changespec.section_order import CHANGESPEC_SECTION_ORDER
 
-
-# Canonical ChangeSpec section order. DELTAS sits between COMMITS and HOOKS;
-# any insertion of a missing DELTAS section uses this order to find the slot
-# (insert before the first section that comes *after* DELTAS in this list).
-CHANGESPEC_SECTION_ORDER: tuple[str, ...] = (
-    "NAME:",
-    "DESCRIPTION:",
-    "PARENT:",
-    *REVIEW_URL_PREFIXES,
-    "BUG:",
-    "STATUS:",
-    "COMMITS:",
-    "DELTAS:",
-    "HOOKS:",
-    "COMMENTS:",
-    "MENTORS:",
-    "TIMESTAMPS:",
-)
 
 _DELTAS_INDEX = CHANGESPEC_SECTION_ORDER.index("DELTAS:")
 _POST_DELTAS_HEADERS: tuple[str, ...] = CHANGESPEC_SECTION_ORDER[_DELTAS_INDEX + 1 :]

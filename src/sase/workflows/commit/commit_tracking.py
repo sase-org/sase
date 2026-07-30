@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.ace.changespec.review_field import REVIEW_URL_PREFIXES
+from sase.ace.changespec.section_order import CHANGESPEC_SECTION_ORDER
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -170,14 +170,7 @@ def _commits_drawer_has_entry_id(
         if line.startswith("COMMITS:"):
             in_commits = True
             continue
-        if line.startswith(
-            (
-                "DESCRIPTION:",
-                "PARENT:",
-                *REVIEW_URL_PREFIXES,
-                "STATUS:",
-            )
-        ):
+        if line.startswith(CHANGESPEC_SECTION_ORDER):
             in_commits = False
             continue
         if in_commits and pattern.match(line):

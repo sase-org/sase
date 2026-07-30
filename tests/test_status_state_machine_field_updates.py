@@ -360,6 +360,24 @@ def test__apply_description_update_preserves_timestamps_after_description() -> N
     assert "STATUS: Draft\n" in result
 
 
+def test__apply_description_update_preserves_refs_and_deltas_boundaries() -> None:
+    lines = [
+        "NAME: Test Feature\n",
+        "DESCRIPTION:\n",
+        "  Old description\n",
+        "REFS:\n",
+        "  research:202607/report.md\n",
+        "DELTAS:\n",
+        "  ~ src/example.py\n",
+        "STATUS: Draft\n",
+    ]
+
+    result = _apply_description_update(lines, "Test Feature", "New description")
+
+    assert "REFS:\n  research:202607/report.md\n" in result
+    assert "DELTAS:\n  ~ src/example.py\n" in result
+
+
 # === BUG field update tests ===
 
 

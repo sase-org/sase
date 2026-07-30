@@ -112,6 +112,9 @@ def format_changespec_for_clipboard(cs: ChangeSpec) -> str:
     lines.append(f"STATUS: {cs.status}")
     if cs.bug:
         lines.append(f"BUG: {cs.bug}")
+    if cs.refs:
+        lines.append("REFS:")
+        lines.extend(f"  {reference}" for reference in cs.refs)
     # COMMITS section
     if cs.commits:
         lines.append("")

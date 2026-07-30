@@ -255,6 +255,22 @@ def testapply_hooks_update_stops_at_field_header() -> None:
     assert "new_command" in result_str
 
 
+def testapply_hooks_update_preserves_deltas_boundary() -> None:
+    """A DELTAS section after HOOKS is never absorbed into the hook body."""
+    from sase.ace.hooks.formatting import apply_hooks_update
+
+    lines = [
+        "NAME: test_cl\n",
+        "HOOKS:\n",
+        "  old_command\n",
+        "DELTAS:\n",
+        "  ~ src/example.py\n",
+    ]
+    result = apply_hooks_update(lines, "test_cl", [_make_hook(command="new_command")])
+
+    assert "DELTAS:\n  ~ src/example.py\n" in "".join(result)
+
+
 # Tests for update_changespec_hooks_field
 def test_update_changespec_hooks_field_clear_status(tmp_path: Path) -> None:
     """Test clearing hook status (for rerun)."""
