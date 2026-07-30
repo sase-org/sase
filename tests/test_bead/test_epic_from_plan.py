@@ -16,6 +16,7 @@ from sase.sdd.plan_header_block import (
     PlanHeaderSectionKind,
     parse_plan_header_block,
 )
+from sase.sdd.store import SddStore
 
 from .cli_work_helpers import FakeLaunchResult
 
@@ -148,6 +149,37 @@ def test_create_and_launch_maps_frontmatter_in_order(
     )
     assert linked_frontmatter["bead_id"] == result.epic.id
     assert launched == [result.epic.id]
+
+
+def test_bead_link_write_reprojects_prompt_section(
+    project_dir: Path,
+) -> None:
+    plans_root = project_dir / "repo--plans"
+    plan_path = plans_root / "202607" / "rollout.md"
+    prompt_path = plan_path.parent / "prompts" / plan_path.name
+    prompt_path.parent.mkdir(parents=True)
+    prompt_path.write_text("# Prompt\n", encoding="utf-8")
+    plan_path.write_text(EPIC_PLAN, encoding="utf-8")
+    store = SddStore("sidecar_repos", plans_root, plans_root)
+
+    with BeadProject(project_dir) as proj:
+        create_and_launch_epic_from_plan(
+            proj,
+            plan_path=plan_path,
+            plan_ref="plans:202607/rollout.md",
+            commit_plan_update=_write_plan_update,
+            launch_work=lambda _project, _epic_id: True,
+            store=store,
+            primary_root=project_dir,
+        )
+
+    sections = parse_plan_header_block(plan_path.read_text(encoding="utf-8")).sections
+    assert [section.kind for section in sections] == [
+        PlanHeaderSectionKind.PROMPT,
+        PlanHeaderSectionKind.BEAD,
+    ]
+    assert sections[0].label == "202607/prompts/rollout.md"
+    assert sections[0].target == "prompts/rollout.md"
 
 
 def test_creation_failure_removes_epic_and_restores_plan(

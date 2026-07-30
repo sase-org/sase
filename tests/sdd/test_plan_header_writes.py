@@ -10,7 +10,10 @@ from sase.sdd.plan_header_block import (
     PlanHeaderSectionKind,
     parse_plan_header_block,
 )
-from sase.sdd.plan_header_writes import refresh_bead_plan_section
+from sase.sdd.plan_header_writes import (
+    project_plan_header_sections,
+    refresh_bead_plan_section,
+)
 from sase.sdd.store import SddStore
 
 _BEAD_URL = (
@@ -177,3 +180,47 @@ def test_refresh_bead_section_omits_and_removes_without_frontmatter() -> None:
 
     assert "BEAD" not in updated
     assert parse_plan_header_block(updated).sections == ()
+
+
+def test_project_plan_header_sections_skips_absent_prompt_path(
+    tmp_path: Path,
+) -> None:
+    plans_root = tmp_path / "repo--plans"
+    plan_path = plans_root / "202607" / "child.md"
+    document = (
+        "- **PROMPT:** [202607/prompts/existing.md](prompts/existing.md)\n\n# Plan\n"
+    )
+
+    unchanged = project_plan_header_sections(
+        document,
+        sdd_dir=plans_root,
+        plan_path=plan_path,
+        plans_root=plans_root,
+        prompt_path=None,
+    )
+
+    link = parse_plan_header_block(unchanged).sections[0]
+    assert link.kind is PlanHeaderSectionKind.PROMPT
+    assert link.label == "202607/prompts/existing.md"
+    assert link.target == "prompts/existing.md"
+
+
+def test_project_plan_header_sections_installs_supplied_prompt_path(
+    tmp_path: Path,
+) -> None:
+    plans_root = tmp_path / "repo--plans"
+    plan_path = plans_root / "202607" / "child.md"
+    prompt_path = plans_root / "202607" / "prompts" / "child.md"
+
+    updated = project_plan_header_sections(
+        "# Plan\n",
+        sdd_dir=plans_root,
+        plan_path=plan_path,
+        plans_root=plans_root,
+        prompt_path=prompt_path,
+    )
+
+    link = parse_plan_header_block(updated).sections[0]
+    assert link.kind is PlanHeaderSectionKind.PROMPT
+    assert link.label == "202607/prompts/child.md"
+    assert link.target == "prompts/child.md"

@@ -56,6 +56,8 @@ def archive_plan_file(
     yyyymm: str | None = None,
     destination_name: str | None = None,
     preserve_existing: bool = True,
+    primary_root: Path | None = None,
+    prompt_path: Path | None = None,
 ) -> _PlanArchiveResult:
     """Prepare *source* and copy it into the canonical plan archive.
 
@@ -88,11 +90,23 @@ def archive_plan_file(
     from sase.file_references import format_with_prettier
     from sase.llm_provider._plan_utils import add_create_time_frontmatter
     from sase.sdd.committed_plan_validation import validate_plan_for_commit
+    from sase.sdd.checkout_anchor import resolve_checkout_anchor
     from sase.sdd.frontmatter import set_frontmatter_fields
+    from sase.sdd.plan_header_writes import project_plan_header_sections
 
     content = format_with_prettier(source.read_text(encoding="utf-8"))
     content = add_create_time_frontmatter(content)
     content = set_frontmatter_fields(content, {"tier": tier})
+    content = project_plan_header_sections(
+        content,
+        sdd_dir=store.sdd_dir,
+        plan_path=destination,
+        plans_root=plans_root,
+        prompt_path=_resolved_prompt_path(destination, prompt_path),
+        store=store,
+        primary_root=primary_root or resolve_checkout_anchor().primary_root,
+    )
+    content = format_with_prettier(content)
     validate_plan_for_commit(
         content,
         tier=tier,
@@ -102,6 +116,19 @@ def archive_plan_file(
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(content, encoding="utf-8")
     return _PlanArchiveResult(path=destination, written=True)
+
+
+def _resolved_prompt_path(
+    destination: Path,
+    prompt_path: Path | None,
+) -> Path | None:
+    if prompt_path is not None:
+        return prompt_path
+
+    from sase.sdd.plan_header_writes import archived_prompt_path_for_plan
+
+    archived_prompt = archived_prompt_path_for_plan(destination)
+    return archived_prompt if archived_prompt.is_file() else None
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:

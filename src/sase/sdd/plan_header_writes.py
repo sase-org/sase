@@ -27,6 +27,53 @@ _LEGACY_PLAN_MARKERS = (
 )
 
 
+def archived_prompt_path_for_plan(plan_path: Path) -> Path:
+    """Return the canonical prompt snapshot path paired with *plan_path*."""
+
+    return plan_path.parent / "prompts" / plan_path.name
+
+
+def project_plan_header_sections(
+    document: str,
+    *,
+    sdd_dir: Path,
+    plan_path: Path,
+    plans_root: Path,
+    prompt_path: Path | None,
+    store: SddStore | None = None,
+    primary_root: Path | None = None,
+) -> str:
+    """Apply every derived header section a canonical plan owns."""
+
+    updated = document
+    if prompt_path is not None:
+        from sase.sdd.artifact_links import (
+            SddArtifactLinkType,
+            update_source_aware_artifact_link,
+        )
+
+        updated = update_source_aware_artifact_link(
+            updated,
+            sdd_dir,
+            plan_path,
+            prompt_path,
+            SddArtifactLinkType.PROMPT,
+            remove_legacy=True,
+        )
+    updated = refresh_existing_parent_section(
+        updated,
+        source_path=plan_path,
+        plans_root=plans_root,
+        store=store,
+        primary_root=primary_root,
+    )
+    return refresh_bead_plan_section(
+        updated,
+        store=store,
+        primary_root=primary_root,
+    )
+
+
 def upsert_parent_plan_section(
     document: str,
     parent_ref: str,
@@ -278,6 +325,8 @@ def _relative_parent_target(
 
 
 __all__ = [
+    "archived_prompt_path_for_plan",
+    "project_plan_header_sections",
     "refresh_association_sections",
     "refresh_bead_plan_section",
     "refresh_existing_parent_section",

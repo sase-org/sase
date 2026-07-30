@@ -97,28 +97,14 @@ def write_sdd_files(
         plan_content = format_with_prettier(plan_content)
         plan_content = add_create_time_frontmatter(plan_content)
         plan_content = set_frontmatter_fields(plan_content, {"tier": tier})
-        plan_content = update_source_aware_artifact_link(
-            plan_content,
-            sdd_dir,
-            plan_path,
-            prompt_path,
-            SddArtifactLinkType.PROMPT,
-            remove_legacy=True,
-        )
-        from sase.sdd.plan_header_writes import (
-            refresh_bead_plan_section,
-            refresh_existing_parent_section,
-        )
+        from sase.sdd.plan_header_writes import project_plan_header_sections
 
-        plan_content = refresh_existing_parent_section(
+        plan_content = project_plan_header_sections(
             plan_content,
-            source_path=plan_path,
+            sdd_dir=sdd_dir,
+            plan_path=plan_path,
             plans_root=plans_dir.parent,
-            store=store,
-            primary_root=Path.cwd(),
-        )
-        plan_content = refresh_bead_plan_section(
-            plan_content,
+            prompt_path=prompt_path,
             store=store,
             primary_root=Path.cwd(),
         )

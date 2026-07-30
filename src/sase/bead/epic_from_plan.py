@@ -152,10 +152,19 @@ def create_and_launch_epic_from_plan(
             original_content,
             {"bead_id": epic.id},
         )
-        from sase.sdd.plan_header_writes import refresh_bead_plan_section
+        from sase.sdd.plan_header_writes import (
+            archived_prompt_path_for_plan,
+            project_plan_header_sections,
+        )
 
-        linked_content = refresh_bead_plan_section(
+        archived_prompt = archived_prompt_path_for_plan(plan_path)
+        plans_root = store.kind_root("plans") if store is not None else plan_path.parent
+        linked_content = project_plan_header_sections(
             linked_content,
+            sdd_dir=store.sdd_dir if store is not None else plans_root,
+            plan_path=plan_path,
+            plans_root=plans_root,
+            prompt_path=archived_prompt if archived_prompt.is_file() else None,
             store=store,
             primary_root=primary_root,
         )
