@@ -3,7 +3,15 @@ from __future__ import annotations
 import re
 from unittest.mock import patch
 
+from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
 from sase.xprompt.models import InputArg, XPrompt
+
+
+def expand_xprompt_swarms(segments: list[str], **kwargs) -> list[str]:
+    return [
+        segment.prompt
+        for segment in expand_xprompt_swarms_with_metadata(segments, **kwargs)
+    ]
 
 
 def xp(name: str, content: str, *, inputs: list[InputArg] | None = None) -> XPrompt:
