@@ -2,113 +2,19 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import call, MagicMock
 
 import pytest
 
-from sase.ace.tui.actions.clipboard import _artifacts
-from sase.ace.tui.actions.clipboard import (
-    _artifact_reference_resolution as _resolution,
-)
 from sase.ace.testing import AcePage
-from sase.ace.tui.actions.clipboard import ClipboardMixin
 from sase.ace.tui.keymaps import load_keymap_registry
-from sase.ace.tui.widgets.artifacts.chats_list import ChatRow, chat_row_target
-from sase.ace.tui.widgets.artifacts.plans_list import PlanRow, plan_row_target
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
-
-
-class _CopyHarness(ClipboardMixin):
-    """Small synchronous harness around the copy dispatch mixins."""
-
-    def __init__(self) -> None:
-        self.current_tab = "changespecs"
-        self.current_artifacts_subtab = "commits"
-        self.changespecs: list[Any] = []
-        self._keymap_registry = load_keymap_registry({})
-        self._copy_mode_active = False
-        self.copies: list[tuple[str, str]] = []
-        self.notifications: list[tuple[str, str]] = []
-        self.copy_footer_updates = 0
-        self.artifacts_footer_restores = 0
-        self.tab_footer_restores = 0
-        self.snapshot_copies = 0
-        self.commits_pane: Any = None
-        self.plans_pane: Any = None
-        self.chats_pane: Any = None
-        self.bugs_pane: Any = None
-        self.files_pane: Any = None
-
-    def notify(
-        self,
-        message: str,
-        *,
-        severity: str = "information",
-        **_kwargs: Any,
-    ) -> None:
-        self.notifications.append((message, severity))
-
-    def _update_copy_footer(self) -> None:
-        self.copy_footer_updates += 1
-
-    def _sync_active_artifacts_entry_state(self) -> None:
-        self.artifacts_footer_restores += 1
-
-    def _refresh_current_tab(self) -> None:
-        self.tab_footer_restores += 1
-
-    def _copy_snapshot(self) -> None:
-        self.snapshot_copies += 1
-
-    def _schedule_artifacts_copy(
-        self,
-        content: str | Any,
-        *,
-        copied_message: str | Any,
-        task_name: str = "sase-artifacts-copy",
-        content_shaped: bool = False,
-    ) -> None:
-        del task_name, content_shaped
-        value = content() if callable(content) else content
-        message = copied_message() if callable(copied_message) else copied_message
-        self.copies.append((value, message))
-
-    def _commits_pane(self) -> Any:
-        return self.commits_pane
-
-    def action_commits_copy_sha(self) -> None:
-        entry = self.commits_pane._selected_entry()
-        self.copies.append((entry.commit.full_id, "Copied commit SHA"))
-
-    def _plans_pane(self) -> Any:
-        return self.plans_pane
-
-    def _chats_pane(self) -> Any:
-        return self.chats_pane
-
-    def action_chats_copy_path(self) -> None:
-        self.copies.append(
-            (self.chats_pane.selected_entry.absolute_path, "Copied chat path")
-        )
-
-    def _bugs_pane(self) -> Any:
-        return self.bugs_pane
-
-    def _files_pane(self) -> Any:
-        return self.files_pane
-
-    def _selected_bug_copy_context(self) -> Any:
-        pane = self.bugs_pane
-        if pane is None or pane.selected_issue is None or pane.project_scope is None:
-            return None
-        return pane, pane.selected_issue, pane.project_scope
+from tests.ace.tui._artifacts_copy_helpers import CopyHarness
 
 
 def test_copy_mode_opens_without_a_hidden_pr_selection_and_restores_subtab() -> None:
-    app = _CopyHarness()
+    app = CopyHarness()
     assert app.changespecs == []
 
     app.action_start_copy_mode()
@@ -153,7 +59,7 @@ async def test_percent_opens_and_escape_restores_copy_footer_on_real_artifacts_a
 def test_each_artifacts_copy_menu_supports_snapshot_and_names_unknown_keys(
     subtab: str,
 ) -> None:
-    app = _CopyHarness()
+    app = CopyHarness()
     app.current_artifacts_subtab = subtab
 
     assert app._handle_copy_key("s") is True
@@ -166,7 +72,7 @@ def test_each_artifacts_copy_menu_supports_snapshot_and_names_unknown_keys(
 
 
 def test_chats_percent_n_never_copies_a_changespec_name() -> None:
-    app = _CopyHarness()
+    app = CopyHarness()
     app.current_artifacts_subtab = "chats"
     app.changespecs = [SimpleNamespace(name="hidden-pr")]
     app._copy_cl_name = MagicMock()  # type: ignore[method-assign]
@@ -178,7 +84,7 @@ def test_chats_percent_n_never_copies_a_changespec_name() -> None:
 
 
 def test_files_percent_unknown_key_never_reaches_changespec_dispatch() -> None:
-    app = _CopyHarness()
+    app = CopyHarness()
     app.current_artifacts_subtab = "files"
     app.changespecs = [SimpleNamespace(name="hidden-pr")]
     app._copy_cl_name = MagicMock()  # type: ignore[method-assign]
@@ -193,7 +99,7 @@ def test_files_percent_unknown_key_never_reaches_changespec_dispatch() -> None:
 def test_files_generic_reference_keys_degrade_safely_on_empty_scaffold(
     key: str,
 ) -> None:
-    app = _CopyHarness()
+    app = CopyHarness()
     app.current_artifacts_subtab = "files"
 
     assert app._handle_copy_key(key) is True
@@ -202,7 +108,7 @@ def test_files_generic_reference_keys_degrade_safely_on_empty_scaffold(
 
 
 def test_commits_copy_targets_use_the_visible_commit_and_terminal_plan_tag() -> None:
-    app = _CopyHarness()
+    app = CopyHarness()
     entry = SimpleNamespace(
         repo="sase",
         commit=SimpleNamespace(full_id="a" * 40),
@@ -227,7 +133,7 @@ def test_commits_copy_targets_use_the_visible_commit_and_terminal_plan_tag() -> 
 
 
 def test_plans_copy_targets_use_the_selected_plan_payload() -> None:
-    app = _CopyHarness()
+    app = CopyHarness()
     app.current_artifacts_subtab = "plans"
     proposal = SimpleNamespace(
         plan_path="/tmp/plan.md",
@@ -253,7 +159,7 @@ def test_plans_copy_targets_use_the_selected_plan_payload() -> None:
 def test_chats_copy_targets_use_path_agent_and_full_transcript(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    app = _CopyHarness()
+    app = CopyHarness()
     app.current_artifacts_subtab = "chats"
     entry = SimpleNamespace(
         absolute_path="/tmp/chat.md",
@@ -279,7 +185,7 @@ def test_chats_copy_targets_use_path_agent_and_full_transcript(
 def test_bugs_copy_targets_include_an_agent_ready_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    app = _CopyHarness()
+    app = CopyHarness()
     app.current_artifacts_subtab = "bugs"
     issue = SimpleNamespace(
         number=42,
@@ -309,131 +215,6 @@ def test_bugs_copy_targets_include_an_agent_ready_prompt(
     prompt = app.copies[3][0]
     assert prompt.startswith("#gh:Alpha Work on external bug #42")
     assert "bug_id: 42" in prompt
-
-
-def test_marked_commits_copy_in_visual_order_with_labeled_sections() -> None:
-    app = _CopyHarness()
-    entries = tuple(
-        SimpleNamespace(
-            repo="sase",
-            commit=SimpleNamespace(
-                full_id=character * 40,
-                short_id=character * 7,
-            ),
-        )
-        for character in ("a", "b")
-    )
-    targets = tuple(("commit", entry.repo, entry.commit.full_id) for entry in entries)
-    app._artifacts_marked_targets = {"commits": set(targets)}
-    app.commits_pane = SimpleNamespace(
-        result=SimpleNamespace(commits=entries),
-        entry_targets=lambda: targets,
-    )
-
-    assert app._handle_copy_key("percent_sign") is True
-
-    assert app.copies == [
-        (
-            "\n".join(
-                (
-                    "### sase@aaaaaaa",
-                    "```",
-                    "a" * 40,
-                    "```",
-                    "### sase@bbbbbbb",
-                    "```",
-                    "b" * 40,
-                    "```",
-                )
-            ),
-            "Copied 2 commit SHAs",
-        )
-    ]
-
-
-def test_marked_plans_copy_the_marked_set() -> None:
-    app = _CopyHarness()
-    app.current_artifacts_subtab = "plans"
-    rows = tuple(
-        PlanRow(
-            "proposal",
-            f"proposal-{index}",
-            "alpha",
-            proposal=SimpleNamespace(
-                notification=SimpleNamespace(id=f"notice-{index}"),
-                plan_path=f"/tmp/plan-{index}.md",
-                title=f"Plan {index}",
-                body=f"Body {index}",
-            ),
-        )
-        for index in (1, 2)
-    )
-    targets = tuple(plan_row_target(row) for row in rows)
-    app._artifacts_marked_targets = {"plans": set(targets)}
-    app.plans_pane = SimpleNamespace(
-        _rows={row.row_id: row for row in rows},
-        entry_targets=lambda: targets,
-    )
-
-    assert app._handle_copy_key("t") is True
-
-    copied, message = app.copies[0]
-    assert "### proposal-1\n```\nPlan 1\n```" in copied
-    assert "### proposal-2\n```\nPlan 2\n```" in copied
-    assert message == "Copied 2 plan titles"
-
-
-def test_marked_chats_copy_the_marked_set() -> None:
-    app = _CopyHarness()
-    app.current_artifacts_subtab = "chats"
-    entries = tuple(
-        SimpleNamespace(
-            absolute_path=f"/tmp/chat-{index}.md",
-            basename=f"chat-{index}",
-        )
-        for index in (1, 2)
-    )
-    rows = tuple(
-        ChatRow(f"chat-{index}", entry) for index, entry in enumerate(entries, start=1)
-    )
-    targets = tuple(chat_row_target(row) for row in rows)
-    app._artifacts_marked_targets = {"chats": set(targets)}
-    app.chats_pane = SimpleNamespace(
-        _rows={row.option_id: row for row in rows},
-        entry_targets=lambda: targets,
-    )
-
-    assert app._handle_copy_key("p") is True
-
-    copied, message = app.copies[0]
-    assert "### chat-1\n```\n/tmp/chat-1.md\n```" in copied
-    assert "### chat-2\n```\n/tmp/chat-2.md\n```" in copied
-    assert message == "Copied 2 chat paths"
-
-
-def test_marked_bugs_copy_the_marked_set() -> None:
-    app = _CopyHarness()
-    app.current_artifacts_subtab = "bugs"
-    issues = tuple(SimpleNamespace(number=number) for number in (41, 42))
-
-    def issue_target(issue: Any) -> tuple[str, ...]:
-        return ("bug", "alpha", str(issue.number))
-
-    targets = tuple(issue_target(issue) for issue in issues)
-    app._artifacts_marked_targets = {"bugs": set(targets)}
-    app.bugs_pane = SimpleNamespace(
-        project_scope="alpha",
-        issues=issues,
-        entry_targets=lambda: targets,
-        _issue_target=issue_target,
-    )
-
-    assert app._handle_copy_key("b") is True
-
-    copied, message = app.copies[0]
-    assert "### #41\n```\n#41\n```" in copied
-    assert "### #42\n```\n#42\n```" in copied
-    assert message == "Copied 2 issue numbers"
 
 
 @pytest.mark.parametrize(
@@ -512,7 +293,7 @@ def test_copy_footer_uses_the_active_artifacts_subtab(
 def test_reference_keys_dispatch_uniformly_across_artifacts_subtabs(
     subtab: str,
 ) -> None:
-    app = _CopyHarness()
+    app = CopyHarness()
     app.current_artifacts_subtab = subtab
     app._run_artifact_reference_action = MagicMock()  # type: ignore[method-assign]
 
@@ -529,7 +310,7 @@ def test_reference_keys_dispatch_uniformly_across_artifacts_subtabs(
 def test_link_and_json_keys_dispatch_uniformly_across_artifacts_subtabs(
     subtab: str,
 ) -> None:
-    app = _CopyHarness()
+    app = CopyHarness()
     app.current_artifacts_subtab = subtab
     app._run_artifact_representation_action = MagicMock()  # type: ignore[method-assign]
 
@@ -540,298 +321,6 @@ def test_link_and_json_keys_dispatch_uniformly_across_artifacts_subtabs(
         call("link"),
         call("json"),
     ]
-
-
-async def test_marked_reference_handoff_seeds_one_project_prompt(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    app = _CopyHarness()
-    app._show_prompt_input_bar_for_home = MagicMock()  # type: ignore[attr-defined]
-    selection = _artifacts._ArtifactReferenceSelection(
-        subtab="bugs",
-        items=(
-            _artifacts._ArtifactReferenceItem(
-                "#41",
-                ("bug", "alpha", "41"),
-                None,
-                "alpha",
-                "/tmp",
-            ),
-            _artifacts._ArtifactReferenceItem(
-                "#42",
-                ("bug", "alpha", "42"),
-                None,
-                "alpha",
-                "/tmp",
-            ),
-        ),
-        marked=True,
-        prompt_project="alpha",
-        prompt_display_name="Alpha",
-        prompt_project_file="/tmp/alpha.sase",
-    )
-    app._capture_artifact_reference_selection = lambda: selection  # type: ignore[method-assign]
-    monkeypatch.setattr(
-        _artifacts,
-        "_resolve_artifact_selection",
-        lambda _selection, **_kwargs: _artifacts._ResolvedArtifactSelection(
-            tuple(
-                _artifacts._ResolvedArtifactItem(item, reference, None)
-                for item, reference in zip(
-                    selection.items,
-                    ("bug:Alpha#41", "bug:Alpha#42"),
-                    strict=True,
-                )
-            ),
-            (),
-        ),
-    )
-    monkeypatch.setattr(
-        "sase.workspace_provider.detect_workflow_type",
-        lambda _project_file: "gh",
-    )
-    pending: list[Any] = []
-    monkeypatch.setattr(
-        _artifacts,
-        "spawn_pump_free_task",
-        lambda _owner, coroutine, **_kwargs: pending.append(coroutine),
-    )
-
-    app._run_artifact_reference_action(handoff=True)
-    await pending.pop()
-
-    app._show_prompt_input_bar_for_home.assert_called_once_with(
-        initial_text="#gh:Alpha @bug:Alpha#41 @bug:Alpha#42 ",
-        display_name="Alpha artifact reference",
-        history_sort_key="alpha",
-    )
-
-
-async def test_marked_reference_copy_uses_paste_ready_lines_and_count(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    app = _CopyHarness()
-    selection = _artifacts._ArtifactReferenceSelection(
-        subtab="commits",
-        items=(
-            _artifacts._ArtifactReferenceItem(
-                "sase@aaaaaaa",
-                ("commit", "sase", "a" * 40),
-                None,
-                "alpha",
-                "/tmp",
-            ),
-            _artifacts._ArtifactReferenceItem(
-                "sase@bbbbbbb",
-                ("commit", "sase", "b" * 40),
-                None,
-                "alpha",
-                "/tmp",
-            ),
-        ),
-        marked=True,
-        prompt_project="alpha",
-        prompt_display_name="Alpha",
-        prompt_project_file="/tmp/alpha.sase",
-    )
-    app._capture_artifact_reference_selection = lambda: selection  # type: ignore[method-assign]
-    monkeypatch.setattr(
-        _artifacts,
-        "_resolve_artifact_selection",
-        lambda _selection, **_kwargs: _artifacts._ResolvedArtifactSelection(
-            tuple(
-                _artifacts._ResolvedArtifactItem(item, reference, None)
-                for item, reference in zip(
-                    selection.items,
-                    (
-                        f"commit:sase@{'a' * 40}",
-                        f"commit:sase@{'b' * 40}",
-                    ),
-                    strict=True,
-                )
-            ),
-            (),
-        ),
-    )
-    copied: list[str] = []
-    monkeypatch.setattr(
-        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
-        lambda content: copied.append(content) or True,
-    )
-    pending: list[Any] = []
-    monkeypatch.setattr(
-        _artifacts,
-        "spawn_pump_free_task",
-        lambda _owner, coroutine, **_kwargs: pending.append(coroutine),
-    )
-
-    app._run_artifact_reference_action(handoff=False)
-    await pending.pop()
-
-    assert copied[0] == "\n".join(
-        (
-            f"@commit:sase@{'a' * 40}",
-            f"@commit:sase@{'b' * 40}",
-        )
-    )
-    assert app.notifications[-1] == (
-        "Copied 2 references",
-        "information",
-    )
-
-
-async def test_unreferenceable_chat_warns_with_the_reason(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    app = _CopyHarness()
-    selection = _artifacts._ArtifactReferenceSelection(
-        subtab="chats",
-        items=(
-            _artifacts._ArtifactReferenceItem(
-                "imported-chat",
-                ("chat", "/imports/chat.md"),
-                None,
-                "alpha",
-                "/tmp",
-            ),
-        ),
-        marked=False,
-        prompt_project="alpha",
-        prompt_display_name="Alpha",
-        prompt_project_file="/tmp/alpha.sase",
-    )
-    app._capture_artifact_reference_selection = lambda: selection  # type: ignore[method-assign]
-    monkeypatch.setattr(
-        _artifacts,
-        "_resolve_artifact_selection",
-        lambda _selection, **_kwargs: _artifacts._ResolvedArtifactSelection(
-            (),
-            (
-                "imported-chat cannot be referenced because it is an imported "
-                "transcript outside the chats root",
-            ),
-        ),
-    )
-    pending: list[Any] = []
-    monkeypatch.setattr(
-        _artifacts,
-        "spawn_pump_free_task",
-        lambda _owner, coroutine, **_kwargs: pending.append(coroutine),
-    )
-
-    app._run_artifact_reference_action(handoff=False)
-    await pending.pop()
-
-    assert app.notifications[-1] == (
-        "imported-chat cannot be referenced because it is an imported "
-        "transcript outside the chats root",
-        "warning",
-    )
-
-
-def test_reference_resolver_renders_every_artifacts_identity(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    from sase.artifact_refs import (
-        ArtifactRefContext,
-        ArtifactRefDocumentRoot,
-        ArtifactRefProject,
-    )
-
-    plans_root = tmp_path / "plans"
-    chats_root = tmp_path / "chats"
-    plan_path = plans_root / "202607" / "artifact.md"
-    chat_path = chats_root / "202607" / "agent.md"
-    plan_path.parent.mkdir(parents=True)
-    chat_path.parent.mkdir(parents=True)
-    plan_path.write_text("# Artifact")
-    chat_path.write_text("# Chat")
-    context = ArtifactRefContext(
-        document_roots=(ArtifactRefDocumentRoot("plans", plans_root),),
-        chats_root=chats_root,
-        artifact_index_path=tmp_path / "index.jsonl",
-        repositories=(),
-        projects=(ArtifactRefProject("Alpha", "alpha"),),
-    )
-    monkeypatch.setattr(
-        _resolution,
-        "artifact_ref_context",
-        lambda *_args, **_kwargs: context,
-    )
-    sha = "a" * 40
-    proposal = SimpleNamespace(plan_path=str(plan_path))
-    row = SimpleNamespace(
-        row_id="proposal",
-        project="alpha",
-        kind="proposal",
-        proposal=proposal,
-        archive=None,
-        issue=None,
-    )
-    cases = (
-        (
-            "commits",
-            _artifacts._ArtifactReferenceItem(
-                "commit",
-                ("commit", "sase", sha),
-                None,
-                "alpha",
-                str(tmp_path),
-            ),
-            f"@commit:sase@{sha}",
-        ),
-        (
-            "plans",
-            _artifacts._ArtifactReferenceItem(
-                "plan",
-                ("plan", "alpha", "proposal", "proposal"),
-                row,
-                "alpha",
-                str(tmp_path),
-            ),
-            "@plans:202607/artifact.md",
-        ),
-        (
-            "chats",
-            _artifacts._ArtifactReferenceItem(
-                "chat",
-                ("chat", str(chat_path)),
-                None,
-                "alpha",
-                str(tmp_path),
-            ),
-            "@chat:202607/agent.md",
-        ),
-        (
-            "bugs",
-            _artifacts._ArtifactReferenceItem(
-                "bug",
-                ("bug", "alpha", "42"),
-                None,
-                "alpha",
-                str(tmp_path),
-            ),
-            "@bug:Alpha#42",
-        ),
-    )
-    for subtab, item, expected in cases:
-        selection = _artifacts._ArtifactReferenceSelection(
-            subtab=subtab,
-            items=(item,),
-            marked=False,
-            prompt_project="alpha",
-            prompt_display_name="Alpha",
-            prompt_project_file="/tmp/alpha.sase",
-        )
-        resolved = _artifacts._resolve_artifact_selection(
-            selection,
-            include_metadata=False,
-        )
-        assert tuple(f"@{item.reference}" for item in resolved.items) == (expected,)
-        assert resolved.failures == ()
-
-
 def test_artifacts_footer_surfaces_only_a_nonzero_mark_count() -> None:
     footer = KeybindingFooter()
     footer.set_keymap_registry(load_keymap_registry({}))
