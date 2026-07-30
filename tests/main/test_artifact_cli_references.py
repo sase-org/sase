@@ -14,10 +14,14 @@ from sase.artifact_cli.open import handle_open
 from sase.artifact_cli.path import handle_path
 from sase.artifact_cli.references import (
     ResolvedArtifactReference,
+    resolution_error_lines,
     resolve_cli_reference,
 )
 from sase.artifact_cli.show import handle_show
 from sase.artifact_refs import (
+    ArtifactRefAgentOwner,
+    ArtifactRefAgentRoot,
+    ArtifactRefBeadStore,
     ArtifactRefContext,
     ArtifactRefDocumentRoot,
     ArtifactRefProject,
@@ -41,6 +45,23 @@ def _context(tmp_path: Path) -> ArtifactRefContext:
         artifact_index_path=tmp_path / "index.jsonl",
         repositories=(),
         projects=(ArtifactRefProject("sase", "gh_sase-org__sase"),),
+        bead_stores=(
+            ArtifactRefBeadStore(
+                project="sase",
+                prefix="sase",
+                root=tmp_path / "beads",
+            ),
+        ),
+        agent_roots=(
+            ArtifactRefAgentRoot(
+                project="sase",
+                root=tmp_path / "agents-sidecar",
+            ),
+        ),
+        agent_owner=ArtifactRefAgentOwner(
+            username="alice",
+            machine_name="athena",
+        ),
     )
 
 
@@ -75,6 +96,7 @@ def _result(
     candidates: tuple[str, ...] = (),
     file: ArtifactFile | None = None,
     locator: str | None = None,
+    context: ArtifactRefContext | None = None,
 ) -> ResolvedArtifactReference:
     parsed = parse_artifact_ref(reference)
     return ResolvedArtifactReference(
@@ -90,6 +112,7 @@ def _result(
             candidates=candidates,
         ),
         file=file,
+        context=context,
     )
 
 
@@ -119,6 +142,34 @@ def test_shared_resolver_supports_bare_file_id_and_full_record(
     assert result.file == row
     envelope = result.to_json_dict()
     assert envelope["file"]["ref"] == f"file:explicit:{_DIGEST}"  # type: ignore[index]
+
+
+def test_shared_resolver_supports_entity_page_references(
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    bead_page = context.bead_stores[0].root / "pages" / "sase-9z" / "README.md"
+    agent_page = (
+        context.agent_roots[0].root / "agents" / "alice.athena.9w" / "README.md"
+    )
+    bead_page.parent.mkdir(parents=True)
+    agent_page.parent.mkdir(parents=True)
+    bead_page.write_text("# Bead\n", encoding="utf-8")
+    agent_page.write_text("# Agent\n", encoding="utf-8")
+
+    bead = resolve_cli_reference("bead:sase-9z", context=context)
+    agent = resolve_cli_reference("agent:9w", context=context)
+
+    assert bead.is_filesystem_backed is True
+    assert bead.resolution.status == "exact"
+    assert bead.resolution.resolved_path == bead_page
+    assert bead.to_json_dict()["resolution"]["resolved_path"] == str(bead_page)  # type: ignore[index]
+
+    assert agent.is_filesystem_backed is True
+    assert agent.canonical_reference == "agent:alice.athena.9w"
+    assert agent.resolution.status == "exact"
+    assert agent.resolution.resolved_path == agent_page
+    assert agent.to_json_dict()["reference"] == "agent:alice.athena.9w"
 
 
 def test_shared_resolver_serializes_fragment_and_drift_candidates(
@@ -248,6 +299,30 @@ def test_path_prints_exactly_one_absolute_path(
 @pytest.mark.parametrize(
     "reference",
     [
+        "bead:sase-9z",
+        "agent:alice.athena.9w",
+    ],
+)
+def test_path_accepts_entity_page_references(
+    tmp_path: Path,
+    reference: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = tmp_path / "README.md"
+    result = _result(path, reference=reference)
+    monkeypatch.setattr(
+        "sase.artifact_cli.path.resolve_cli_reference",
+        lambda _value: result,
+    )
+
+    assert handle_path(argparse.Namespace(reference=reference)) == 0
+    assert capsys.readouterr().out == f"{path.resolve()}\n"
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
         "commit:sase@0123456789abcdef0123456789abcdef01234567",
         "bug:sase#123",
     ],
@@ -280,6 +355,54 @@ def test_path_malformed_reference(
     assert "malformed" in capsys.readouterr().err
 
 
+def test_resolution_errors_include_entity_publication_hints(
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    candidate = context.bead_stores[0].root / "pages" / "sase-missing" / "README.md"
+    bead = _result(
+        None,
+        reference="bead:sase-missing",
+        status="missing",
+        candidates=(str(candidate),),
+        context=context,
+    )
+    agent = _result(
+        None,
+        reference="agent:missing",
+        status="missing",
+        candidates=(
+            str(context.agent_roots[0].root / "agents" / "alice.athena.missing"),
+        ),
+        context=context,
+    )
+    foreign = _result(
+        None,
+        reference="bead:other-1",
+        status="unknown_project",
+        context=ArtifactRefContext(
+            document_roots=context.document_roots,
+            chats_root=context.chats_root,
+            artifact_index_path=context.artifact_index_path,
+            repositories=context.repositories,
+            projects=(ArtifactRefProject("other", "gh_other__repo"),),
+        ),
+    )
+
+    assert "hint: no published page for sase-missing" in "\n".join(
+        resolution_error_lines(bead)
+    )
+    assert "sase bead page refresh" in "\n".join(resolution_error_lines(bead))
+    assert "hint: no published page for missing" in "\n".join(
+        resolution_error_lines(agent)
+    )
+    assert "sase agent sync" in "\n".join(resolution_error_lines(agent))
+    assert (
+        "hint: project other has no bead store in this reference context"
+        in "\n".join(resolution_error_lines(foreign))
+    )
+
+
 def test_open_text_falls_back_without_bat_and_preserves_safe_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -304,6 +427,49 @@ def test_open_text_falls_back_without_bat_and_preserves_safe_path(
     )
 
     assert handle_open(argparse.Namespace(reference=result.input)) == 0
+    assert commands == [
+        [
+            sys.executable,
+            "-m",
+            "sase.ace.tui.graphics.artifact_text_dump",
+            "--",
+            str(path.resolve()),
+        ]
+    ]
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "bead:sase-9z",
+        "agent:alice.athena.9w",
+    ],
+)
+def test_open_entity_pages_use_text_viewer(
+    tmp_path: Path,
+    reference: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "README.md"
+    path.write_text("# Entity\n", encoding="utf-8")
+    result = _result(path, reference=reference)
+    commands: list[list[str]] = []
+    monkeypatch.setattr(
+        "sase.artifact_cli.open.resolve_cli_reference",
+        lambda _value: result,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.open.shutil.which",
+        lambda _command: None,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.open.subprocess.run",
+        lambda command, **_kwargs: (
+            commands.append(list(command)) or subprocess.CompletedProcess(command, 0)
+        ),
+    )
+
+    assert handle_open(argparse.Namespace(reference=reference)) == 0
     assert commands == [
         [
             sys.executable,

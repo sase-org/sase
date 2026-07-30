@@ -8,6 +8,9 @@ import pytest
 
 from sase import artifact_refs
 from sase.artifact_refs import (
+    ArtifactRefAgentOwner,
+    ArtifactRefAgentRoot,
+    ArtifactRefBeadStore,
     ArtifactRefContext,
     ArtifactRefDocumentRoot,
     ArtifactRefProject,
@@ -38,6 +41,23 @@ def _context(tmp_path: Path) -> ArtifactRefContext:
                 name="sase",
                 key="gh_sase-org__sase",
             ),
+        ),
+        bead_stores=(
+            ArtifactRefBeadStore(
+                project="sase",
+                prefix="sase",
+                root=tmp_path / "beads",
+            ),
+        ),
+        agent_roots=(
+            ArtifactRefAgentRoot(
+                project="sase",
+                root=tmp_path / "agents-sidecar",
+            ),
+        ),
+        agent_owner=ArtifactRefAgentOwner(
+            username="alice",
+            machine_name="athena",
         ),
     )
 
@@ -73,6 +93,26 @@ def test_expands_document_chat_file_and_fragments(tmp_path: Path) -> None:
 
     assert process_artifact_references(prompt, context=context) == (
         f"Read @{plan} (lines 2-4), @{chat} (time 30s), and @{artifact} (page 2)."
+    )
+
+
+def test_expands_bead_and_agent_pages(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    bead_page = context.bead_stores[0].root / "pages" / "sase-9z" / "README.md"
+    agent_page = (
+        context.agent_roots[0].root / "agents" / "alice.athena.9w" / "README.md"
+    )
+    bead_page.parent.mkdir(parents=True)
+    agent_page.parent.mkdir(parents=True)
+    bead_page.write_text("# Bead\n", encoding="utf-8")
+    agent_page.write_text("# Agent\n", encoding="utf-8")
+
+    assert (
+        process_artifact_references(
+            "Read @bead:sase-9z and @agent:9w.",
+            context=context,
+        )
+        == f"Read @{bead_page} and @{agent_page}."
     )
 
 
@@ -126,6 +166,19 @@ def test_known_reference_failure_exits_clearly(
     output = capsys.readouterr().out
     assert reference in output
     assert status in output
+
+
+def test_unpublished_entity_reference_failure_includes_publication_hint(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit, match="1"):
+        validate_artifact_references("@bead:sase-missing", context=_context(tmp_path))
+
+    output = capsys.readouterr().out
+    assert "@bead:sase-missing" in output
+    assert "hint: no published page for sase-missing" in output
+    assert "sase bead page refresh" in output
 
 
 def test_ambiguous_document_drift_fails_with_status(

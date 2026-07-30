@@ -378,7 +378,17 @@ def _expand_artifact_references(
             failures.append(_ArtifactRefFailure(candidate.text, "malformed", str(exc)))
             continue
         if resolution.status not in {"exact", "drifted"}:
-            failures.append(_ArtifactRefFailure(candidate.text, resolution.status))
+            failures.append(
+                _ArtifactRefFailure(
+                    candidate.text,
+                    resolution.status,
+                    artifact_ref_resolution_hint(
+                        parsed,
+                        resolution,
+                        context=context,
+                    ),
+                )
+            )
             continue
         try:
             replacement_text = _artifact_ref_replacement(
@@ -437,7 +447,7 @@ def _artifact_ref_replacement(
     *,
     context: ArtifactRefContext,
 ) -> str:
-    if reference.kind_type in {"document", "chat", "file"}:
+    if reference.kind_type in {"document", "chat", "file", "bead", "agent"}:
         if resolution.resolved_path is None:
             raise RuntimeError("resolver returned no artifact path")
         return f"@{resolution.resolved_path}{_fragment_annotation(reference.fragment)}"
@@ -584,6 +594,56 @@ def _print_artifact_ref_failures(
         detail = f": {failure.detail}" if failure.detail else ""
         print(f"  - {failure.reference} ({failure.status}{detail})")
     print("\n⚠️ Artifact reference validation failed. Terminating workflow.\n")
+
+
+def artifact_ref_resolution_hint(
+    reference: ArtifactRef,
+    resolution: ArtifactRefResolution,
+    *,
+    context: ArtifactRefContext | None = None,
+) -> str | None:
+    """Return an actionable publication hint for unresolved entity pages."""
+
+    if resolution.status in {"exact", "drifted"}:
+        return None
+    if reference.kind_type == "bead":
+        bead_id = reference.payload.id
+        if not bead_id:
+            return None
+        if resolution.status == "unknown_project" and context is not None:
+            project = _known_project_for_bead_id(bead_id, context)
+            if project is not None:
+                return (
+                    f"hint: project {project} has no bead store in this "
+                    "reference context"
+                )
+        return f"hint: no published page for {bead_id}; run `sase bead page refresh`"
+    if reference.kind_type == "agent":
+        name = reference.payload.name
+        if not name:
+            return None
+        return f"hint: no published page for {name}; run `sase agent sync`"
+    return None
+
+
+def _known_project_for_bead_id(
+    bead_id: str,
+    context: ArtifactRefContext,
+) -> str | None:
+    matches: list[tuple[int, str]] = []
+    for project in context.projects:
+        refs = (project.name, project.key, *project.aliases)
+        for ref in refs:
+            if not ref:
+                continue
+            if bead_id == ref or bead_id.startswith(f"{ref}-"):
+                matches.append((len(ref), project.name))
+                break
+    if not matches:
+        return None
+    longest = max(length for length, _project in matches)
+    names = {project for length, project in matches if length == longest}
+    return next(iter(names)) if len(names) == 1 else None
 
 
 def reference_for_entry_target(
@@ -757,6 +817,7 @@ __all__ = [
     "ArtifactRefResolutionStatus",
     "ArtifactRefSpan",
     "ParsedArtifactRef",
+    "artifact_ref_resolution_hint",
     "artifact_ref_context",
     "artifact_ref_lsp_catalog_payload",
     "launch_artifact_ref_context",

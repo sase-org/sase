@@ -10,6 +10,7 @@ from sase.artifact_refs import (
     ArtifactRef,
     ArtifactRefContext,
     ArtifactRefResolution,
+    artifact_ref_resolution_hint,
     launch_artifact_ref_context,
     parse_artifact_ref,
     resolve_artifact_ref,
@@ -33,10 +34,11 @@ class ResolvedArtifactReference:
     parsed: ArtifactRef
     resolution: ArtifactRefResolution
     file: ArtifactFile | None
+    context: ArtifactRefContext | None = None
 
     @property
     def is_filesystem_backed(self) -> bool:
-        return self.parsed.kind_type in {"chat", "document", "file"}
+        return self.parsed.kind_type in {"chat", "document", "file", "bead", "agent"}
 
     def to_json_dict(self) -> dict[str, Any]:
         return {
@@ -68,9 +70,9 @@ def resolve_cli_reference(
 
     normalized = _normalize_artifact_reference(value)
     parsed = parse_artifact_ref(normalized)
-    canonical = parsed.rendered
     resolved_context = context or launch_artifact_ref_context(is_home_mode=False)
     resolution = resolve_artifact_ref(parsed, context=resolved_context)
+    canonical = resolution.rendered
     file_record = (
         _find_file_record(parsed, context=resolved_context)
         if parsed.kind_type == "file"
@@ -82,6 +84,7 @@ def resolve_cli_reference(
         parsed=parsed,
         resolution=resolution,
         file=file_record,
+        context=resolved_context,
     )
 
 
@@ -121,6 +124,13 @@ def resolution_error_lines(result: ResolvedArtifactReference) -> list[str]:
     if result.resolution.candidates:
         lines.append("candidates:")
         lines.extend(f"  {candidate}" for candidate in result.resolution.candidates)
+    hint = artifact_ref_resolution_hint(
+        result.parsed,
+        result.resolution,
+        context=result.context,
+    )
+    if hint is not None:
+        lines.append(hint)
     return lines
 
 
