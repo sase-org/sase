@@ -57,11 +57,11 @@ works, ACE opens the generated text in a read-only fallback view so it can still
 
 ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
-| Tab           | Description                                                          |
-| ------------- | -------------------------------------------------------------------- |
-| **Agents**    | View running and completed agents, their files and prompts           |
-| **Artifacts** | Browse commits, plans, chats, bugs, and PRs in five focused sub-tabs |
-| **Axe**       | Monitor the Axe daemon and background commands                       |
+| Tab           | Description                                                                |
+| ------------- | -------------------------------------------------------------------------- |
+| **Agents**    | View running and completed agents, their files and prompts                 |
+| **Artifacts** | Browse commits, plans, chats, bugs, PRs, and files in six focused sub-tabs |
+| **Axe**       | Monitor the Axe daemon and background commands                             |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press `,?` (leader mode) to open the Help
 modal on its **Keymaps** view, then `]` to switch to the tab's **Guide** view. While Help is open, the configured
@@ -74,14 +74,14 @@ project/ChangeSpec launch hint appears only when a launchable target exists — 
 the Admin Center when no third-party plugins are installed. Onboarding cards carry "learn more" links into the published
 docs.
 
-Within Artifacts, the strip is numbered **1 Commits · 2 Plans · 3 Chats · 4 Bugs · 5 PRs**. Press `1`–`5` to jump
-directly to a sub-tab, or use `[` / `]` to cycle. These digits act only while Artifacts is visible. Press `p` in
-Commits, Plans, Chats, or Bugs to change the shared project scope, or use the command palette to jump directly to any
-sub-tab. PRs remains query-scoped and retains the existing ChangeSpec workflow.
+Within Artifacts, the strip is numbered **1 Commits · 2 Plans · 3 Chats · 4 Bugs · 5 PRs · 6 Files**. Press `1`–`6` to
+jump directly to a sub-tab, or use `[` / `]` to cycle. These digits act only while Artifacts is visible. Press `p` in
+Commits, Plans, Chats, Bugs, or Files to change the shared project scope, or use the command palette to jump directly to
+any sub-tab. PRs remains query-scoped and retains the existing ChangeSpec workflow.
 
-### Navigation in Commits, Plans, Chats, and Bugs
+### Navigation in Commits, Plans, Chats, Files, and Bugs
 
-The four non-PR panes share fast navigation over their selectable left-panel entries. Commits and Chats skip day
+The five non-PR panes share fast navigation over their selectable left-panel entries. Commits, Chats, and Files skip day
 headings, Plans skip section and empty-state rows, and Bugs always targets the issue list rather than its separately
 focusable Linked work list. Movement clamps at the first or last entry and silently does nothing when a list is empty.
 
@@ -94,10 +94,10 @@ focusable Linked work list. Movement clamps at the first or last entry and silen
 | `'`                       | Show adaptive entry hints; press `'` again for the first entry or the last jump origin  |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the pane's jump stack; back falls through to first hint |
 
-Hint keys select an entry without activating it. Jump-back history is kept separately for Commits, Plans, and Bugs, and
-stale origins disappear automatically after filtering, changing project scope, refreshing data, or collapsing an
-expanded plan tree. Escape or an invalid hint exits jump mode. These actions use the configured keymap values; the keys
-above are the defaults.
+Hint keys select an entry without activating it. Jump-back history is kept separately for each non-PR pane, and stale
+origins disappear automatically after filtering, changing project scope, refreshing data, or collapsing an expanded plan
+tree. Escape or an invalid hint exits jump mode. These actions use the configured keymap values; the keys above are the
+defaults.
 
 Shared entry-jump surfaces allocate hints from the zero-based alphabet `0`–`9`, `a`–`z`, `A`–`Z`. A session with at most
 62 targets uses one character (`0` through `Z`). A larger session uses two characters for every target, beginning `00`,
@@ -116,7 +116,7 @@ arrow keys or `j`/`k` plus `Enter`, or the accelerator directly. `q`/`Esc` cance
 | Commits | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan |
 | Plans   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%t` title · `%b` body                         |
 | Chats   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript                   |
-| Files   | `%@` artifact ref · `%!` ref in agent prompt                                                                                                        |
+| Files   | `%@` artifact ref · `%!` ref in agent prompt · `%%` contents · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON                |
 | Bugs    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%b` `#N` · `%u` URL · `%t` title · `%p` agent prompt      |
 
 `%s` captures the current `sase ace` tmux pane on every sub-tab.
@@ -135,7 +135,7 @@ The same `%` prefix opens the palette above copy-forwarding readers and modals, 
 the palette returns to the underlying modal. Snapshot choices dismiss the palette before capture, so the palette itself
 is not included in the copied pane.
 
-### Marks in Commits, Plans, Chats, and Bugs
+### Marks in Commits, Plans, Chats, Files, and Bugs
 
 Press `m` to mark or unmark the selected entry and `u` to clear the active pane's marks. Each non-PR sub-tab keeps an
 independent stable-target mark set, so marks survive refreshes and switching panes without affecting marked PRs.
@@ -284,7 +284,7 @@ These are the default keymap values; the nine Chats actions are remappable under
 [`ace.keymaps.app`](configuration.md#acekeymaps) as `chats_next`, `chats_prev`, `chats_view_selected`, `chats_filters`,
 `chats_cycle_provenance`, `chats_open_agent`, `chats_open_external`, `chats_copy_path`, and `chats_refresh`. The pane
 also shares the navigation and jump keys described in
-[Navigation in Commits, Plans, Chats, and Bugs](#navigation-in-commits-plans-chats-and-bugs).
+[Navigation in Commits, Plans, Chats, Files, and Bugs](#navigation-in-commits-plans-chats-files-and-bugs).
 
 `a` matches a transcript to an agent by artifact directory, then by raw name suffix, then by recorded local agent name,
 always within the transcript's own project. When nothing matches, ACE warns rather than guessing — a transcript imported
@@ -308,6 +308,85 @@ rather than excluding a match.
 closes an open edit session and sets `provenance:` to the next single value, and reopening the query row shows that
 value. `s` steps through the cycle only when exactly one provenance is selected; a query listing several is treated like
 `All`, so the next press selects `local`.
+
+### Files Pane
+
+The Files sub-tab (`6`) browses the whole artifact-file store — the same index that backs [`sase artifact list`](cli.md)
+— instead of reaching one agent run at a time through the Agents tab's artifact panel. Rows are newest first under day
+headings, and each row shows a view-mode glyph, the local time, the project, the producing agent, an origin badge for
+explicitly registered files, the label, and the indexed size.
+
+| Glyph | View mode  | Opens with                                                 |
+| ----- | ---------- | ---------------------------------------------------------- |
+| `▨`   | `image`    | The rich terminal viewer (`kitten icat`)                   |
+| `▶`   | `video`    | The rich terminal viewer (`mpv`)                           |
+| `▤`   | `pdf`      | The rich terminal viewer (PDF pages rendered to PNG)       |
+| `▤`   | `markdown` | The [preview reader](#preview-reader), rendered by default |
+| `•`   | `text`     | The [preview reader](#preview-reader), as source           |
+
+The glyph comes from the same classifier that chooses the viewer, so it can never disagree with what `Enter` actually
+opens. A `◆` badge marks files registered explicitly with `sase artifact create`; everything else was captured
+automatically from an agent run.
+
+The info line above the list summarizes the loaded snapshot as kind chips —
+`▨ images · ▤ documents · ▶ videos · • files · ◆ explicit` — where `documents` totals PDFs and Markdown. The index loads
+off the message pump in two pages: a first bounded page paints immediately, then the full index replaces it, and the
+status line reports both the loaded row count and any in-flight extension.
+
+Selecting a row loads its detail panel off-thread: the durable `file:<id>` reference beside the resolved stored path,
+file metadata (label, kind and view mode, MIME type, size, short SHA-256, creation time), an origin sentence naming the
+agent and workflow, `live` / `missing` badges for the stored and source paths, and — for Markdown and text rows — a
+bounded preview. Rows whose index entry predates metadata backfill render `-` for the missing values and add a hint to
+run `sase artifact doctor --fix` instead of guessing.
+
+| Key       | Action                                                                          |
+| --------- | ------------------------------------------------------------------------------- |
+| `j` / `k` | Select the next / previous file, skipping day headings                          |
+| `Enter`   | View the file: preview reader for Markdown and text, rich viewer for media      |
+| `Z`       | Hand the marked visible rows — or the selection — to the rich terminal viewer   |
+| `o`       | Open text in `$EDITOR` (falling back to `nvim`); open media with `xdg-open`     |
+| `a`       | Jump to the producing agent on the Agents tab, reviving it first when dismissed |
+| `f`       | Edit the pane's filter query                                                    |
+| `s`       | Cycle the kind filter through All and the stored kinds present in the snapshot  |
+| `y`       | Copy the row's durable `file:<id>` reference                                    |
+| `Y`       | Copy the row's anchored stored path                                             |
+| `m` / `u` | Mark / unmark the selected file · clear this pane's marks                       |
+| `%`       | Open the Files **Copy as…** palette                                             |
+| `R`       | Refresh the index                                                               |
+| `p`       | Change the shared Artifacts project scope                                       |
+
+These are the default keymap values; the eleven Files actions are remappable under
+[`ace.keymaps.app`](configuration.md#acekeymaps) as `files_next`, `files_prev`, `files_view_selected`,
+`files_open_viewer`, `files_open_external`, `files_open_agent`, `files_filters`, `files_cycle_kind`,
+`files_copy_reference`, `files_copy_path`, and `files_refresh`. The pane also shares the navigation and jump keys
+described in [Navigation in Commits, Plans, Chats, Files, and Bugs](#navigation-in-commits-plans-chats-files-and-bugs).
+
+`Y` copies the anchored stored path, except that PDF rows deliberately yield the live Markdown source they were rendered
+from when the index recorded one. Relative index paths are anchored to the producing workspace, so a copied path is
+always usable outside the workspace that created it, and the completion toast says when the copied path no longer
+exists. `%` adds the rest of the Files copy targets: contents, source path, label, and metadata JSON, each of which also
+operates on the marked set.
+
+`a` resolves the producing agent from already-loaded live and dismissed agents by artifact directory, then by raw name
+suffix, then by recorded agent name, always within the row's own project. A file whose source workspace was recycled
+still opens and still copies — only its `Source` path reports `missing`.
+
+#### Filtering Files
+
+`f` opens the same live filter row Plans and Chats use, visible only during an edit session, and `/` opens it too.
+Filtering is purely in-memory over the loaded snapshot, so a query narrows ~4,000 rows without a re-query. Files accepts
+`kind:`, `project:`, `agent:`, `workflow:`, `origin:`, `since:`, and `until:`, plus free text matched against the label,
+stored path, and source path. Tokens from different facets combine with AND semantics, while comma-separated or repeated
+values within `kind:`, `project:`, `agent:`, `workflow:`, and `origin:` combine with OR semantics. `kind:` accepts the
+stored kinds `chat`, `plan`, `image`, `markdown`, `pdf`, and `file`; `origin:` accepts `explicit` and `default`;
+`since:` and `until:` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or a relative `Nd` / `Nw` / `Nm` offset and may each
+appear once.
+
+Like Chats, **Files filters do not support negation**; a leading `-` is rejected with an explicit error rather than
+excluding a match. `s` and the `kind:` token drive the same filter state: cycling with `s` closes an open edit session
+and sets `kind:` to the next stored kind actually present in the snapshot, wrapping back to All. A query listing several
+kinds is treated like All, so the next press selects the first present kind. When a filter hides every row, the pane
+says so and names the key that reopens the query row.
 
 ### Epic phase sizes across plan surfaces
 
@@ -879,6 +958,11 @@ source is labeled “not recorded,” and copying a stale source keeps the “no
 palette copies rows in visible order: references and paths are newline-separated, links form a Markdown list, metadata
 is a JSON array, and Markdown contents use bounded fenced sections. Unavailable rows are skipped with an explicit count.
 The legacy `y` and `Y` accelerators remain available and apply to the same marked set.
+
+`Y` shares one helper with the [Files sub-tab](#files-pane), so both copy the same anchored path: the stored path,
+except that PDF rows yield the live Markdown source they were rendered from when the index recorded one. Relative index
+paths are anchored to the producing workspace — including legacy rows whose workspace is discoverable only through the
+agent's artifact metadata — and the completion toast says when the copied path no longer exists.
 
 When ACE is running inside tmux, artifact viewing opens in a right-side tmux pane so the TUI remains visible. The Agents
 list collapses while the tracked pane is live, row-changing navigation shows a warning instead of moving to a different
@@ -1607,14 +1691,17 @@ Press `%` to open the **Copy as…** palette for the selected AXE row. Choose wi
 ### Editing Queries
 
 Press `/` on PRs or Axe to open the current query editor; the canonical query is pre-filled. The same app-level key
-opens the inline filter bar on Commits and Plans and remains inert on Bugs. Agents reserves bare `/` for forward inline
-metadata search, so its structured query editor uses the independent `,/` leader chord. Help remains `,?` on every tab.
+opens the inline filter bar on Commits, Plans, Chats, and Files and remains inert on Bugs. Agents reserves bare `/` for
+forward inline metadata search, so its structured query editor uses the independent `,/` leader chord. Help remains `,?`
+on every tab.
 
 | Context                 | Default query key  |
 | ----------------------- | ------------------ |
 | PRs                     | `/`                |
 | Commits                 | `/` (or local `f`) |
 | Plans                   | `/` (or local `f`) |
+| Chats                   | `/` (or local `f`) |
+| Files                   | `/` (or local `f`) |
 | Bugs                    | none               |
 | Agents structured query | `,/`               |
 | Axe                     | `/`                |
