@@ -3232,17 +3232,32 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
 - **`@` reference completion**: A bare `@` opens one grouped menu before a `:` appears. Artifact-kind rows such as
   `@plans:` appear first, followed by local file rows such as `@src/` and `@Justfile` from the prompt-selected base
   directory. The same query filters both groups, so `@pl` can show both a `plans` artifact kind and a `plans/`
-  directory, while path-shaped tokens such as `@src/` naturally show only files. Accepting an artifact kind inserts
-  `@kind:` and immediately opens its payload rows; accepting a directory inserts the `@`-prefixed directory and drills
-  down; accepting a file inserts the `@`-prefixed path. Dotfiles are hidden unless the typed path segment starts with
-  `.`. Documents, explicit artifact files, chats, beads, and agents come from bounded project-scoped catalogs warmed
-  off-thread. Bead rows are loaded from an mtime-cached bead-store snapshot, and agent rows come from a bounded scan of
-  the project's agents sidecar. Agent rows display the readable local name when possible but insert the durable global
-  `@agent:<username>.<machine>.<name>` spelling. Commit and bug rows appear only from snapshots the mounted Artifacts
-  panes have already loaded, so typing never launches Git, contacts a tracker, or performs unbounded filesystem scans.
-  Payload acceptance replaces the complete `@kind:payload` context, including when the cursor is in the middle of it. On
-  an un-narrowed bare-`@` menu, `Enter` submits and dismisses the menu until you type a query character or move the
-  selection; `Ctrl+L` always accepts the highlighted row.
+  directory, while path-shaped tokens such as `@src/` naturally show only files. Matching is fuzzy, so a payload is
+  reachable by any memorable fragment of its path or title — `@research:site` finds
+  `@research:202607/sase_sites_hub_and_pages/sase_sites_hub_and_pages.md` — and `@rsch` finds the `research` kind. Rows
+  are tiered so a fuzzy hit never outranks a literal one (prefix, then basename prefix, then contiguous substring, then
+  ordered subsequence), then ranked by score, shorter text, and case-insensitive text; see
+  [Artifact references](editor.md#lsp-features) for the shared tier table. An empty query is not ranked at all, so
+  opening a menu keeps each group's provider order. `Ctrl+T` extends the token to the shared prefix only while every
+  leading row is a literal prefix match; once the query is fuzzy-only there is no shared prefix to insert, so a single
+  remaining row is accepted outright instead. Directory navigation stays exact — only the trailing path segment is
+  fuzzy. Accepting an artifact kind inserts `@kind:` and immediately opens its payload rows; accepting a directory
+  inserts the `@`-prefixed directory and drills down; accepting a file inserts the `@`-prefixed path. Dotfiles are
+  hidden unless the typed path segment starts with `.`. Documents, explicit artifact files, chats, beads, and agents
+  come from bounded project-scoped catalogs warmed off-thread. Bead rows are loaded from an mtime-cached bead-store
+  snapshot, and agent rows come from a bounded scan of the project's agents sidecar. Agent rows display the readable
+  local name when possible but insert the durable global `@agent:<username>.<machine>.<name>` spelling. Commit and bug
+  rows appear only from snapshots the mounted Artifacts panes have already loaded, so typing never launches Git,
+  contacts a tracker, or performs unbounded filesystem scans. Payload acceptance replaces the complete `@kind:payload`
+  context, including when the cursor is in the middle of it. On an un-narrowed bare-`@` menu, `Enter` submits and
+  dismisses the menu until you type a query character or move the selection; `Ctrl+L` always accepts the highlighted
+  row. Payload rows are rendered path-first — the source badge, then the reference path with dim directories and a
+  bright basename, then a dim `title · detail · age` tail truncated to the remaining panel width — so what you see is
+  what gets inserted. Matched characters are highlighted in gold wherever they landed, in the path, in the title, in a
+  kind name, or in a local file row, so every row shows why it is there. The panel subtitle reports the same context:
+  `~ fuzzy` when any visible row matched below the literal tiers, `N of M` for matching rows out of that kind's known
+  payloads, and a `⚠ K not scanned` warning when a catalog cap truncated the candidate set, so a bounded search never
+  reads as an exhaustive one.
 - **Placeholder completion**: When the cursor is inside an incomplete `<foobar>` tag, completion suggests matching
   placeholders from the current prompt first, then saved common placeholders learned from tags you have written before.
   Within the current-prompt group, live tags keep document order and literal-zone tags follow in document order.
