@@ -4,6 +4,7 @@
   "statuses": [
     "open",
     "claimed",
+    "ready",
     "in_progress"
   ],
   "implied_status_closed": false,

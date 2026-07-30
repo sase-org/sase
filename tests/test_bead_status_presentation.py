@@ -16,6 +16,7 @@ def test_status_presentations_follow_lifecycle_display_order() -> None:
     assert bead_status_display_order() == (
         "open",
         "claimed",
+        "ready",
         "in_progress",
         "closed",
     )

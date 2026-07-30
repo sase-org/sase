@@ -12,15 +12,18 @@ from sase.bead.db import (
     init_db,
     list_issues,
 )
-from sase.bead.model import PhaseSize, Resolution, Status
+from sase.bead.model import Issue, IssueType, PhaseSize, Resolution, Status
 
 from .db_test_helpers import NOW, child, epic
 
 _SIZE_COLUMN_DEFINITION = """\
     size        TEXT
-                  CHECK(size IN ('xsmall', 'small', 'medium', 'large', 'xlarge')),
+                  CHECK(
+                    size IS NULL OR
+                    (issue_type IN ('phase', 'task') AND
+                     size IN ('xsmall', 'small', 'medium', 'large', 'xlarge'))
+                  ),
 """
-_PHASE_SIZE_TABLE_CHECK = "    CHECK(issue_type = 'phase' OR size IS NULL),\n"
 _RESOLUTION_COLUMN_DEFINITION = """\
     resolution  TEXT
                   CHECK(resolution IN ('done', 'canceled', 'superseded')),
@@ -201,9 +204,7 @@ class TestSizeConstraintMigration:
     def test_pre_size_db_adds_column_without_rebuilding_table(self, tmp_path) -> None:
         db_path = tmp_path / "old_without_size.db"
         old = sqlite3.connect(str(db_path))
-        schema_without_size = _SCHEMA.replace(_SIZE_COLUMN_DEFINITION, "").replace(
-            _PHASE_SIZE_TABLE_CHECK, ""
-        )
+        schema_without_size = _SCHEMA.replace(_SIZE_COLUMN_DEFINITION, "")
         assert schema_without_size != _SCHEMA
         old.executescript(schema_without_size)
         old.execute(
@@ -335,11 +336,27 @@ class TestSizeConstraintMigration:
 
 
 class TestStatusConstraintMigration:
-    def test_legacy_three_status_db_is_relaxed_and_idempotent(self, tmp_path) -> None:
+    def test_pre_task_ready_db_is_migrated_and_idempotent(self, tmp_path) -> None:
         db_path = tmp_path / "legacy_three_statuses.db"
-        legacy_schema = _SCHEMA.replace(
-            "('open', 'claimed', 'in_progress', 'closed')",
-            "('open', 'in_progress', 'closed')",
+        legacy_schema = (
+            _SCHEMA.replace(
+                "('open', 'claimed', 'ready', 'in_progress', 'closed')",
+                "('open', 'in_progress', 'closed')",
+            )
+            .replace("('plan', 'phase', 'task')", "('plan', 'phase')")
+            .replace("('phase', 'task')", "('phase')")
+            .replace(
+                " OR\n        (issue_type = 'task' AND parent_id IS NULL)",
+                "",
+            )
+            .replace(
+                "    CHECK(issue_type = 'plan' OR is_ready_to_work = 0),\n",
+                "",
+            )
+            .replace(
+                "    CHECK(status != 'ready' OR issue_type = 'task'),\n",
+                "",
+            )
         )
         assert legacy_schema != _SCHEMA
 
@@ -393,6 +410,17 @@ class TestStatusConstraintMigration:
             claimed.status = Status.CLAIMED
             create_issue(conn, claimed)
             assert get_issue(conn, claimed.id).status is Status.CLAIMED
+
+            task = Issue(
+                id="task-ready",
+                title="Ready task",
+                status=Status.READY,
+                issue_type=IssueType.TASK,
+                created_at=NOW,
+                updated_at=NOW,
+            )
+            create_issue(conn, task)
+            assert get_issue(conn, task.id).status is Status.READY
 
             schema_before_reopen = conn.execute(
                 "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"

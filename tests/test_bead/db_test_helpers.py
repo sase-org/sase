@@ -3,30 +3,33 @@
 import sqlite3
 
 from sase.bead.db import list_issues, update_issue
-from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.bead.model import Issue, IssueType, Status
 
 NOW = "2026-03-17T00:00:00Z"
 
 
 def ready_issues(conn: sqlite3.Connection) -> list[Issue]:
-    open_issues = list_issues(conn, statuses=[Status.OPEN])
-    issue_by_id = {issue.id: issue for issue in open_issues}
+    issues = list_issues(conn)
+    issue_by_id = {issue.id: issue for issue in issues}
 
     blocked_ids: set[str] = set()
-    for issue in open_issues:
+    for issue in issues:
         for dep in issue.dependencies:
             blocker = issue_by_id.get(dep.depends_on_id)
             if blocker is not None and blocker.status in {
                 Status.OPEN,
+                Status.CLAIMED,
+                Status.READY,
                 Status.IN_PROGRESS,
             }:
                 blocked_ids.add(issue.id)
 
     return [
         issue
-        for issue in open_issues
+        for issue in issues
         if issue.id not in blocked_ids
-        and (issue.issue_type == IssueType.PHASE or issue.tier == BeadTier.EPIC)
+        and issue.issue_type == IssueType.TASK
+        and issue.status == Status.READY
     ]
 
 

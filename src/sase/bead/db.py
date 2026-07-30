@@ -24,9 +24,9 @@ CREATE TABLE IF NOT EXISTS issues (
     id          TEXT PRIMARY KEY,
     title       TEXT NOT NULL,
     status      TEXT NOT NULL DEFAULT 'open'
-                  CHECK(status IN ('open', 'claimed', 'in_progress', 'closed')),
+                  CHECK(status IN ('open', 'claimed', 'ready', 'in_progress', 'closed')),
     issue_type  TEXT NOT NULL DEFAULT 'phase'
-                  CHECK(issue_type IN ('plan', 'phase')),
+                  CHECK(issue_type IN ('plan', 'phase', 'task')),
     tier        TEXT
                   CHECK(tier IN ('plan', 'epic')),
     parent_id   TEXT
@@ -46,17 +46,23 @@ CREATE TABLE IF NOT EXISTS issues (
     refs        TEXT NOT NULL DEFAULT '',
     model       TEXT NOT NULL DEFAULT '',
     size        TEXT
-                  CHECK(size IN ('xsmall', 'small', 'medium', 'large', 'xlarge')),
+                  CHECK(
+                    size IS NULL OR
+                    (issue_type IN ('phase', 'task') AND
+                     size IN ('xsmall', 'small', 'medium', 'large', 'xlarge'))
+                  ),
     is_ready_to_work INTEGER NOT NULL DEFAULT 0,
     changespec_name TEXT NOT NULL DEFAULT '',
     changespec_bug_id TEXT NOT NULL DEFAULT '',
     CHECK(
         (issue_type = 'phase' AND parent_id IS NOT NULL) OR
-        (issue_type = 'plan')
+        (issue_type = 'plan') OR
+        (issue_type = 'task' AND parent_id IS NULL)
     ),
     CHECK(issue_type = 'plan' OR tier IS NULL),
-    CHECK(issue_type = 'phase' OR size IS NULL),
     CHECK(is_ready_to_work IN (0, 1)),
+    CHECK(issue_type = 'plan' OR is_ready_to_work = 0),
+    CHECK(status != 'ready' OR issue_type = 'task'),
     CHECK(
         issue_type = 'plan' OR
         (changespec_name = '' AND changespec_bug_id = '')
@@ -80,41 +86,6 @@ CREATE INDEX IF NOT EXISTS idx_issues_tier ON issues(tier);
 CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id);
 CREATE INDEX IF NOT EXISTS idx_deps_depends_on ON dependencies(depends_on_id);
 """
-
-_ISSUES_SCHEMA = _SCHEMA.split(
-    "\n\nCREATE TABLE IF NOT EXISTS dependencies", maxsplit=1
-)[0]
-_STATUS_CHECK_RELAX_MIGRATION_SQL = (
-    "PRAGMA foreign_keys=OFF;\n"
-    "DROP TABLE IF EXISTS _issues_new;\n"
-    + _ISSUES_SCHEMA.replace(
-        "CREATE TABLE IF NOT EXISTS issues",
-        "CREATE TABLE _issues_new",
-        1,
-    )
-    + "\n"
-    + """\
-INSERT INTO _issues_new (
-    id, title, status, issue_type, tier, parent_id, owner, assignee,
-    created_at, created_by, updated_at, closed_at, close_reason, resolution,
-    description, notes, design, refs, model, size, is_ready_to_work,
-    changespec_name, changespec_bug_id
-)
-SELECT
-    id, title, status, issue_type, tier, parent_id, owner, assignee,
-    created_at, created_by, updated_at, closed_at, close_reason, resolution,
-    description, notes, design, refs, model, size, is_ready_to_work,
-    changespec_name, changespec_bug_id
-FROM issues;
-DROP TABLE issues;
-ALTER TABLE _issues_new RENAME TO issues;
-CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status);
-CREATE INDEX IF NOT EXISTS idx_issues_type ON issues(issue_type);
-CREATE INDEX IF NOT EXISTS idx_issues_tier ON issues(tier);
-CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id);
-PRAGMA foreign_keys=ON;
-"""
-)
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:
@@ -206,16 +177,18 @@ def _migrate_relax_size_check(conn: sqlite3.Connection) -> None:
     conn.executescript(migration_sql())
 
 
-def _migrate_relax_status_check(conn: sqlite3.Connection) -> None:
-    """Expand the legacy three-value status constraint to accept claimed."""
+def _migrate_task_ready(conn: sqlite3.Connection) -> None:
+    """Admit task beads and ready status using the Rust migration policy."""
     row = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
     ).fetchone()
     create_table_sql = None if row is None else row["sql"]
-    if create_table_sql is None or "'claimed'" in create_table_sql:
+    needs_migration = require_rust_binding("bead_needs_task_ready_migration")
+    if not needs_migration(create_table_sql):
         return
 
-    conn.executescript(_STATUS_CHECK_RELAX_MIGRATION_SQL)
+    migration_sql = require_rust_binding("bead_task_ready_migration_sql")
+    conn.executescript(migration_sql())
 
 
 def _migrate_add_tier(conn: sqlite3.Connection) -> None:
@@ -315,8 +288,8 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _migrate_add_refs(conn)
     _migrate_add_size(conn)
     _migrate_add_resolution(conn)
+    _migrate_task_ready(conn)
     _migrate_relax_size_check(conn)
-    _migrate_relax_status_check(conn)
     conn.executescript(_SCHEMA)
     return conn
 

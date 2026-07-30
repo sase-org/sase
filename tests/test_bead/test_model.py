@@ -93,7 +93,39 @@ class TestIssueValidation:
             issue_type=IssueType.PLAN,
             size=PhaseSize.SMALL,
         )
-        with pytest.raises(ValueError, match="cannot carry phase size"):
+        with pytest.raises(ValueError, match="Only phase and task issues"):
+            issue.validate()
+
+    def test_task_can_have_size_without_parent(self) -> None:
+        issue = Issue(
+            id="test-task",
+            title="A task",
+            issue_type=IssueType.TASK,
+            size=PhaseSize.MEDIUM,
+        )
+
+        issue.validate()
+
+    def test_task_with_parent_raises(self) -> None:
+        issue = Issue(
+            id="test-task",
+            title="A nested task",
+            issue_type=IssueType.TASK,
+            parent_id="test-0",
+        )
+
+        with pytest.raises(ValueError, match="Task issues cannot have a parent_id"):
+            issue.validate()
+
+    def test_task_with_tier_raises(self) -> None:
+        issue = Issue(
+            id="test-task",
+            title="A tiered task",
+            issue_type=IssueType.TASK,
+            tier=BeadTier.EPIC,
+        )
+
+        with pytest.raises(ValueError, match="Task issues cannot carry"):
             issue.validate()
 
     def test_model_assignment(self) -> None:
@@ -149,6 +181,42 @@ class TestIssueValidation:
         with pytest.raises(ValueError, match="Phase issues cannot carry"):
             issue.validate()
 
+    def test_task_with_changespec_metadata_raises(self) -> None:
+        issue = Issue(
+            id="test-task",
+            title="A task",
+            issue_type=IssueType.TASK,
+            changespec_name="feature_epic",
+        )
+
+        with pytest.raises(ValueError, match="Only plan issues can carry"):
+            issue.validate()
+
+    def test_task_with_is_ready_to_work_raises(self) -> None:
+        issue = Issue(
+            id="test-task",
+            title="A task",
+            issue_type=IssueType.TASK,
+            is_ready_to_work=True,
+        )
+
+        with pytest.raises(ValueError, match="Only plan issues"):
+            issue.validate()
+
+    def test_ready_status_requires_task_type(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="A plan",
+            issue_type=IssueType.PLAN,
+            status=Status.READY,
+        )
+
+        with pytest.raises(ValueError, match="Only task issues can have ready status"):
+            issue.validate()
+
+        issue.issue_type = IssueType.TASK
+        issue.validate()
+
     def test_plan_with_changespec_name_is_valid(self) -> None:
         issue = Issue(
             id="test-1",
@@ -176,7 +244,7 @@ class TestIssueValidation:
             parent_id="test-0",
             changespec_name="feature_epic",
         )
-        with pytest.raises(ValueError, match="Phase issues cannot carry"):
+        with pytest.raises(ValueError, match="Only plan issues can carry"):
             issue.validate()
 
     def test_bug_id_without_changespec_name_raises(self) -> None:
@@ -229,12 +297,14 @@ class TestEnums:
     def test_status_values(self) -> None:
         assert Status.OPEN.value == "open"
         assert Status.CLAIMED.value == "claimed"
+        assert Status.READY.value == "ready"
         assert Status.IN_PROGRESS.value == "in_progress"
         assert Status.CLOSED.value == "closed"
 
     def test_issue_type_values(self) -> None:
         assert IssueType.PLAN.value == "plan"
         assert IssueType.PHASE.value == "phase"
+        assert IssueType.TASK.value == "task"
 
     def test_resolution_values(self) -> None:
         assert [resolution.value for resolution in Resolution] == [

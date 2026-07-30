@@ -16,6 +16,7 @@ from sase.bead.model import (
     Dependency,
     Issue,
     IssueType,
+    PhaseSize,
     Resolution,
     Status,
 )
@@ -52,6 +53,7 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
         "design": issue.design,
         **({"refs": issue.refs} if issue.refs else {}),
         "model": issue.model,
+        **({"size": issue.size.value} if issue.size else {}),
         "is_ready_to_work": issue.is_ready_to_work,
         "changespec_name": issue.changespec_name,
         "changespec_bug_id": issue.changespec_bug_id,
@@ -101,6 +103,7 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
         design=_optional_str(data.get("design", "")),
         refs=_optional_str_list(data.get("refs")),
         model=_optional_str(data.get("model", "")),
+        size=PhaseSize(str(data["size"])) if data.get("size") else None,
         is_ready_to_work=bool(data.get("is_ready_to_work", False)),
         changespec_name=_optional_str(data.get("changespec_name", "")),
         changespec_bug_id=_optional_str(data.get("changespec_bug_id", "")),
@@ -152,7 +155,7 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
 
     _apply_missing_tiers(issues)
 
-    # Sort: plans first, then phases (so parent FK is satisfied)
+    # Sort plans first, then top-level tasks and phases (for parent FK ordering).
     issues.sort(key=lambda i: (0 if i.issue_type == IssueType.PLAN else 1, i.id))
 
     # Upsert the entire mirror in one transaction. The SQLite database is
@@ -181,6 +184,7 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                     design=issue.design,
                     refs="\n".join(issue.refs),
                     model=issue.model,
+                    size=issue.size.value if issue.size else None,
                     tier=issue.tier.value if issue.tier else None,
                     is_ready_to_work=int(issue.is_ready_to_work),
                     changespec_name=issue.changespec_name,

@@ -205,7 +205,7 @@ def test_create_child(project):
 
 def test_create_child_rejects_changespec_metadata(project):
     epic = project.create("Epic", IssueType.PLAN)
-    with pytest.raises(ValueError, match="Phase issues cannot carry"):
+    with pytest.raises(ValueError, match="Only plan issues can carry"):
         project.create(
             "Child",
             IssueType.PHASE,
@@ -249,16 +249,16 @@ def test_list_filter_type(project):
 
 
 def test_ready(project):
-    epic = project.create("Epic", IssueType.PLAN)
-    child1 = project.create("C1", IssueType.PHASE, parent_id=epic.id)
-    child2 = project.create("C2", IssueType.PHASE, parent_id=epic.id)
-    project.add_dependency(child2.id, child1.id)
+    first = project.create("First", IssueType.TASK)
+    second = project.create("Second", IssueType.TASK)
+    project.update(first.id, status="ready")
+    project.update(second.id, status="ready")
+    project.add_dependency(second.id, first.id)
 
     ready = project.ready()
     ready_ids = [i.id for i in ready]
-    assert epic.id in ready_ids
-    assert child1.id in ready_ids
-    assert child2.id not in ready_ids  # blocked by child1
+    assert first.id in ready_ids
+    assert second.id not in ready_ids
 
 
 def test_update(project):

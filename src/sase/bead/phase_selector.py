@@ -56,7 +56,7 @@ def resolve_epic_phase_ids(
     """Resolve phase number suffixes beneath one epic plan bead."""
     epic = project.show(epic_id)
     if epic.issue_type is not IssueType.PLAN or epic.tier is not BeadTier.EPIC:
-        if epic.issue_type is IssueType.PHASE:
+        if epic.issue_type is not IssueType.PLAN:
             actual = epic.issue_type.value
         else:
             actual = epic.tier.value if epic.tier is not None else "missing tier"

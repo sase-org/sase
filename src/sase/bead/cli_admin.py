@@ -322,16 +322,17 @@ Source of truth:
 
 Quick Start:
   sase bead init                                 Create sdd/beads/ in current directory
+  sase bead create -t "Follow-up" --type task    Create a standalone draft task
   sase bead create -t "Fix bug" --type phase(<plan-id>)
   sase bead create -t "New feature" --type plan(sdd/plans/202605/feature.md) --tier plan
   sase bead create -t "Epic" --type plan(sdd/plans/202605/epic.md) --tier epic
-  sase bead list                                 List open/claimed/in-progress issues
+  sase bead list                                 List open/claimed/ready/in-progress issues
   sase bead list --format=json                   Machine-readable listing
   sase bead list --limit=5                       Limit printed issues
   sase bead list --status=open                   List open issues
   sase bead list --status=closed                 List newest 20 closed issues (-n 0 for all)
   sase bead list --tier=epic                     List epic plan beads
-  sase bead ready                                Show issues ready to work
+  sase bead ready                                Show unblocked ready task beads
   sase bead show <id>                            View issue details
   sase bead show <id> --format=json              Machine-readable bead detail
   sase bead update <id> --status=in_progress     Claim an issue

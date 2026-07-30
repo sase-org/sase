@@ -305,7 +305,7 @@ def test_create_rejects_size_for_plan_bead(
         )
 
     assert excinfo.value.code == 1
-    assert "--size can only be set on phase beads" in capsys.readouterr().err
+    assert "--size can only be set on phase or task beads" in capsys.readouterr().err
 
 
 def test_update_rejects_size_for_plan_bead(

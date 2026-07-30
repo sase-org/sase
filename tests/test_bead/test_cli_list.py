@@ -125,7 +125,7 @@ def test_handle_bead_list_json_outputs_envelope(
     payload = json.loads(capsys.readouterr().out)
     assert payload["count"] == 1
     assert payload["total"] == 1
-    assert payload["statuses"] == ["open", "claimed", "in_progress"]
+    assert payload["statuses"] == ["open", "claimed", "ready", "in_progress"]
     assert payload["implied_status_closed"] is False
     assert payload["results"][0]["id"] == issue.id
     assert payload["results"][0]["resolution"] is None

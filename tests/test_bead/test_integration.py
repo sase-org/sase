@@ -79,19 +79,19 @@ class TestEpicLifecycle:
 class TestDependencyChains:
     def test_chain_a_b_c(self, project):
         """Create chain A->B->C, verify blocked/ready at each step."""
-        epic = project.create("Epic", IssueType.PLAN)
-        a = project.create("Task A", IssueType.PHASE, parent_id=epic.id)
-        b = project.create("Task B", IssueType.PHASE, parent_id=epic.id)
-        c = project.create("Task C", IssueType.PHASE, parent_id=epic.id)
+        a = project.create("Task A", IssueType.TASK)
+        b = project.create("Task B", IssueType.TASK)
+        c = project.create("Task C", IssueType.TASK)
+        for task in (a, b, c):
+            project.update(task.id, status="ready")
 
         # B depends on A, C depends on B
         project.add_dependency(b.id, a.id)
         project.add_dependency(c.id, b.id)
 
-        # Initially: only epic and A are ready, B and C are blocked
+        # Initially only A is an unblocked ready task.
         ready_ids = {i.id for i in project.ready()}
         assert a.id in ready_ids
-        assert epic.id in ready_ids
         assert b.id not in ready_ids
         assert c.id not in ready_ids
 
@@ -117,20 +117,21 @@ class TestDependencyChains:
 
     def test_diamond_dependency(self, project):
         """Diamond: D depends on B and C, both depend on A."""
-        epic = project.create("Epic", IssueType.PLAN)
-        a = project.create("A", IssueType.PHASE, parent_id=epic.id)
-        b = project.create("B", IssueType.PHASE, parent_id=epic.id)
-        c = project.create("C", IssueType.PHASE, parent_id=epic.id)
-        d = project.create("D", IssueType.PHASE, parent_id=epic.id)
+        a = project.create("A", IssueType.TASK)
+        b = project.create("B", IssueType.TASK)
+        c = project.create("C", IssueType.TASK)
+        d = project.create("D", IssueType.TASK)
+        for task in (a, b, c, d):
+            project.update(task.id, status="ready")
 
         project.add_dependency(b.id, a.id)
         project.add_dependency(c.id, a.id)
         project.add_dependency(d.id, b.id)
         project.add_dependency(d.id, c.id)
 
-        # Only A and epic are ready
+        # Only A is an unblocked ready task.
         ready_ids = {i.id for i in project.ready()}
-        assert ready_ids == {epic.id, a.id}
+        assert ready_ids == {a.id}
 
         # Close A -> B and C become ready, D still blocked
         project.close([a.id])

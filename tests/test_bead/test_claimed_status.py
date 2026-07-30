@@ -40,10 +40,12 @@ class _ReadView:
             "total": 1,
             "open": 0,
             "claimed": 1,
+            "ready": 0,
             "in_progress": 0,
             "closed": 0,
             "plan": 1,
             "phase": 0,
+            "task": 0,
         }
 
 
@@ -84,6 +86,7 @@ def test_default_list_includes_claimed_with_shared_glyph(
     assert claimed_view.list_statuses == [
         Status.OPEN,
         Status.CLAIMED,
+        Status.READY,
         Status.IN_PROGRESS,
     ]
     assert capsys.readouterr().out == "◎ sase-claimed · Reserved phase\n"
@@ -109,23 +112,25 @@ def test_stats_prints_claimed_between_open_and_in_progress(
 ) -> None:
     cli_query.handle_bead_stats(argparse.Namespace())
 
-    assert capsys.readouterr().out.splitlines()[2:5] == [
+    assert capsys.readouterr().out.splitlines()[2:6] == [
         "  Open:        0",
         "  Claimed:     1",
+        "  Ready:       0",
         "  In Progress: 0",
     ]
 
 
 @pytest.mark.parametrize("subcommand", ["list", "search", "update"])
-def test_status_parsers_accept_claimed(subcommand: str) -> None:
+@pytest.mark.parametrize("status", ["claimed", "ready"])
+def test_status_parsers_accept_new_statuses(subcommand: str, status: str) -> None:
     argv = ["bead", subcommand]
     if subcommand == "search":
         argv.append("claim")
     elif subcommand == "update":
         argv.append("sase-claimed")
-    argv.extend(["--status", "claimed"])
+    argv.extend(["--status", status])
 
     args = create_parser().parse_args(argv)
 
-    expected = ["claimed"] if subcommand != "update" else "claimed"
+    expected = [status] if subcommand != "update" else status
     assert args.status == expected

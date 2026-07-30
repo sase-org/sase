@@ -65,6 +65,6 @@ def test_snapshot_reads_fixture_bead_dag_and_flat_plan_archive(
         first.id,
         second.id,
     ]
-    assert ("alpha", first.id) in snapshot.ready_ids
+    assert snapshot.ready_ids == frozenset()
     assert ("alpha", second.id) in snapshot.blocked_ids
     assert [entry.match.plan.title for entry in snapshot.archive] == ["Fixture archive"]

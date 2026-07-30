@@ -81,8 +81,8 @@ def register_bead_list_parser(
         "list",
         help="List issues",
         description=(
-            "List open, claimed, and in-progress beads by default. If none "
-            "match and --status was not provided, list closed beads instead. "
+            "List open, claimed, ready, and in-progress beads by default. If "
+            "none match and --status was not provided, list closed beads instead. "
             "Closed listings default to the newest 20 beads unless --limit 0 "
             "is used. Bare 'sase bead' defaults to this command."
         ),
@@ -115,11 +115,12 @@ def register_bead_list_parser(
     parser.add_argument(
         "-s",
         "--status",
-        choices=["open", "claimed", "in_progress", "closed"],
+        choices=["open", "claimed", "ready", "in_progress", "closed"],
         action="append",
         help="Filter by status (repeatable)",
     )
     parser.add_argument(
+        "-r",
         "--tier",
         choices=["plan", "epic"],
         action="append",
@@ -128,7 +129,7 @@ def register_bead_list_parser(
     parser.add_argument(
         "-t",
         "--type",
-        choices=["plan", "phase"],
+        choices=["plan", "phase", "task"],
         action="append",
         help="Filter by type (repeatable)",
     )
@@ -138,7 +139,10 @@ def register_bead_ready_parser(
     subparsers: argparse._SubParsersAction,
 ) -> None:
     """Register ``sase bead ready``."""
-    subparsers.add_parser("ready", help="Show issues ready to work")
+    subparsers.add_parser(
+        "ready",
+        help="Show unblocked task beads awaiting triage",
+    )
 
 
 def register_bead_search_parser(
@@ -150,7 +154,7 @@ def register_bead_search_parser(
         help="Search issues by text",
         description=(
             "Find beads whose human-readable fields contain a literal query "
-            "string. Searches open, claimed, in-progress, and closed beads by default."
+            "string. Searches every bead status by default."
         ),
         epilog=(
             "Examples:\n"
@@ -189,11 +193,12 @@ def register_bead_search_parser(
     parser.add_argument(
         "-s",
         "--status",
-        choices=["open", "claimed", "in_progress", "closed"],
+        choices=["open", "claimed", "ready", "in_progress", "closed"],
         action="append",
         help="Filter by status (repeatable)",
     )
     parser.add_argument(
+        "-r",
         "--tier",
         choices=["plan", "epic"],
         action="append",
@@ -202,7 +207,7 @@ def register_bead_search_parser(
     parser.add_argument(
         "-t",
         "--type",
-        choices=["plan", "phase"],
+        choices=["plan", "phase", "task"],
         action="append",
         help="Filter by type (repeatable)",
     )

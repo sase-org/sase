@@ -9,6 +9,7 @@ from enum import Enum
 class Status(Enum):
     OPEN = "open"
     CLAIMED = "claimed"
+    READY = "ready"
     IN_PROGRESS = "in_progress"
     CLOSED = "closed"
 
@@ -16,6 +17,7 @@ class Status(Enum):
 class IssueType(Enum):
     PLAN = "plan"
     PHASE = "phase"
+    TASK = "task"
 
 
 class BeadTier(Enum):
@@ -77,21 +79,29 @@ class Issue:
 
         Raises ValueError if:
         - A phase issue has no parent_id
-        - A phase issue has is_ready_to_work=True (only plans carry the flag)
-        - A plan issue carries phase size metadata
+        - A task issue has a parent_id
+        - A non-plan issue carries plan-only metadata
+        - A plan issue carries phase/task size metadata
+        - A non-task issue has ready status
         """
         if self.issue_type == IssueType.PHASE and self.parent_id is None:
             raise ValueError("Phase issues must have a parent_id")
         if self.issue_type == IssueType.PHASE and self.tier is not None:
             raise ValueError("Phase issues cannot carry plan tier metadata")
-        if self.issue_type == IssueType.PHASE and self.is_ready_to_work:
+        if self.issue_type == IssueType.TASK and self.parent_id is not None:
+            raise ValueError("Task issues cannot have a parent_id")
+        if self.issue_type == IssueType.TASK and self.tier is not None:
+            raise ValueError("Task issues cannot carry plan tier metadata")
+        if self.issue_type != IssueType.PLAN and self.is_ready_to_work:
             raise ValueError("Only plan issues can be marked is_ready_to_work")
         if self.issue_type == IssueType.PLAN and self.size is not None:
-            raise ValueError("Plan issues cannot carry phase size metadata")
-        if self.issue_type == IssueType.PHASE and (
+            raise ValueError("Only phase and task issues can carry size metadata")
+        if self.issue_type != IssueType.PLAN and (
             self.changespec_name or self.changespec_bug_id
         ):
-            raise ValueError("Phase issues cannot carry ChangeSpec metadata")
+            raise ValueError("Only plan issues can carry ChangeSpec metadata")
+        if self.status == Status.READY and self.issue_type != IssueType.TASK:
+            raise ValueError("Only task issues can have ready status")
         if self.changespec_bug_id and not self.changespec_name:
             raise ValueError("changespec_bug_id requires changespec_name")
         if self.status != Status.CLOSED and self.resolution is not None:

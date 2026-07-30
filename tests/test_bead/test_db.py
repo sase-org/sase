@@ -135,8 +135,27 @@ class TestCreateAndGet:
             updated_at=NOW,
             changespec_name="feature_epic",
         )
-        with pytest.raises(ValueError, match="Phase issues cannot carry"):
+        with pytest.raises(ValueError, match="Only plan issues can carry"):
             create_issue(conn, child)
+
+    def test_ready_task_with_size_round_trips(self, conn: sqlite3.Connection) -> None:
+        task = Issue(
+            id="task-1",
+            title="Ready task",
+            status=Status.READY,
+            issue_type=IssueType.TASK,
+            size=PhaseSize.LARGE,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+
+        create_issue(conn, task)
+
+        loaded = get_issue(conn, task.id)
+        assert loaded is not None
+        assert loaded.status is Status.READY
+        assert loaded.issue_type is IssueType.TASK
+        assert loaded.size is PhaseSize.LARGE
 
 
 class TestListIssues:
@@ -202,30 +221,76 @@ class TestCloseIssue:
 
 class TestReadyAndBlocked:
     def test_ready_no_deps(self, conn: sqlite3.Connection) -> None:
-        create_issue(conn, _epic())
+        create_issue(
+            conn,
+            Issue(
+                id="task-1",
+                title="Task",
+                status=Status.READY,
+                issue_type=IssueType.TASK,
+                created_at=NOW,
+                updated_at=NOW,
+            ),
+        )
         ready = _ready_issues(conn)
         assert len(ready) == 1
 
     def test_blocked_by_open_dep(self, conn: sqlite3.Connection) -> None:
-        create_issue(conn, _epic("e-1", "Epic 1"))
-        create_issue(conn, _epic("e-2", "Epic 2"))
-        add_dependency(conn, "e-2", "e-1", NOW)
+        blocker = Issue(
+            id="task-1",
+            title="Blocker",
+            status=Status.READY,
+            issue_type=IssueType.TASK,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+        blocked = Issue(
+            id="task-2",
+            title="Blocked",
+            status=Status.READY,
+            issue_type=IssueType.TASK,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+        create_issue(conn, blocker)
+        create_issue(conn, blocked)
+        add_dependency(conn, blocked.id, blocker.id, NOW)
         ready = _ready_issues(conn)
         assert len(ready) == 1
-        assert ready[0].id == "e-1"
+        assert ready[0].id == blocker.id
 
     def test_unblocked_after_close(self, conn: sqlite3.Connection) -> None:
-        create_issue(conn, _epic("e-1", "Epic 1"))
-        create_issue(conn, _epic("e-2", "Epic 2"))
-        add_dependency(conn, "e-2", "e-1", NOW)
-        _close_issue(conn, "e-1", closed_at=NOW)
+        for issue_id, title in (("task-1", "Blocker"), ("task-2", "Blocked")):
+            create_issue(
+                conn,
+                Issue(
+                    id=issue_id,
+                    title=title,
+                    status=Status.READY,
+                    issue_type=IssueType.TASK,
+                    created_at=NOW,
+                    updated_at=NOW,
+                ),
+            )
+        add_dependency(conn, "task-2", "task-1", NOW)
+        _close_issue(conn, "task-1", closed_at=NOW)
         ready = _ready_issues(conn)
-        assert any(i.id == "e-2" for i in ready)
+        assert any(i.id == "task-2" for i in ready)
 
     def test_in_progress_not_ready(self, conn: sqlite3.Connection) -> None:
         """in_progress issues should NOT appear in ready list."""
-        create_issue(conn, _epic())
-        update_issue(conn, "e-1", status="in_progress")
+        create_issue(
+            conn,
+            Issue(
+                id="task-1",
+                title="Task",
+                status=Status.READY,
+                issue_type=IssueType.TASK,
+                created_at=NOW,
+                updated_at=NOW,
+            ),
+        )
+        update_issue(conn, "task-1", status="in_progress")
         ready = _ready_issues(conn)
         assert len(ready) == 0
 

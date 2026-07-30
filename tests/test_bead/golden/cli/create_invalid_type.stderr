@@ -1,2 +1,2 @@
 Error: invalid --type value: bogus
-Expected: plan(<plan_file>), plan(<plan_file>,<parent_id>), or phase(<parent_id>)
+Expected: plan(<plan_file>), plan(<plan_file>,<parent_id>), phase(<parent_id>), or task

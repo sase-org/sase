@@ -32,14 +32,15 @@ def _issue(
     title: str,
     *,
     updated_at: str,
+    ready: bool = False,
     dependencies: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     return {
         "id": issue_id,
         "title": title,
-        "status": "open",
-        "issue_type": "plan",
-        "tier": "epic",
+        "status": "ready" if ready else "open",
+        "issue_type": "task" if ready else "plan",
+        "tier": None if ready else "epic",
         "parent_id": None,
         "owner": "",
         "assignee": "",
@@ -77,7 +78,12 @@ def _write_sibling_stores(tmp_path: Path) -> tuple[Path, Path]:
     _write_store(
         primary,
         [
-            _issue("beads-1", "Primary Local", updated_at="2026-01-01T00:00:00Z"),
+            _issue(
+                "beads-1",
+                "Primary Local",
+                updated_at="2026-01-01T00:00:00Z",
+                ready=True,
+            ),
             _issue(
                 "beads-2",
                 "Primary Blocked",
@@ -89,14 +95,24 @@ def _write_sibling_stores(tmp_path: Path) -> tuple[Path, Path]:
     _write_store(
         sibling,
         [
-            _issue("beads-1", "Sibling Newer", updated_at="2026-01-02T00:00:00Z"),
+            _issue(
+                "beads-1",
+                "Sibling Newer",
+                updated_at="2026-01-02T00:00:00Z",
+                ready=True,
+            ),
             _issue(
                 "beads-2",
                 "Sibling Blocked",
                 updated_at="2026-01-02T00:01:00Z",
                 dependencies=[_dep("beads-2", "beads-1")],
             ),
-            _issue("beads-3", "Sibling Extra", updated_at="2026-01-02T00:02:00Z"),
+            _issue(
+                "beads-3",
+                "Sibling Extra",
+                updated_at="2026-01-02T00:02:00Z",
+                ready=True,
+            ),
         ],
     )
     return primary, sibling

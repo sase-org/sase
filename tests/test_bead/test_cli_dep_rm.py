@@ -71,7 +71,7 @@ def test_dep_rm_removes_edge_reports_readiness_and_records_history(
     assert (
         f"✗ Removed dependency: {source_id} no longer depends on {second_id}" in output
     )
-    assert f"○ {source_id} is now ready (no active blockers)." in output
+    assert f"○ {source_id} has no active blockers." in output
     with BeadProject(project_dir) as project:
         assert project.show(source_id).dependencies == []
         history = project.history(source_id)

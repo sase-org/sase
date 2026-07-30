@@ -260,7 +260,7 @@ def _render_tree_node(
         row = f"? {styled(node.issue_id, ANSI_BOLD_BLUE, use_color)} (not found)"
     else:
         row = render_issue(issue, label=full, use_color=use_color)
-        if full and issue.issue_type == IssueType.PHASE:
+        if full and issue.issue_type in {IssueType.PHASE, IssueType.TASK}:
             size = issue.size.value if issue.size is not None else "small"
             row += f" · Size: {size}"
 

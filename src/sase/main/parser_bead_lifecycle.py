@@ -95,7 +95,8 @@ def register_bead_create_parser(
             "Model to use when this bead is launched. Provider-qualified "
             "(e.g. codex/gpt-5.6-sol) or local alias (e.g. #pro). For epic "
             "plan beads this becomes the land-agent model; for phase beads it "
-            "is the per-phase work model."
+            "is the per-phase work model; for task beads it is the task-worker "
+            "model."
         ),
     )
     parser.add_argument(
@@ -108,7 +109,7 @@ def register_bead_create_parser(
         "-z",
         "--size",
         choices=["xsmall", "small", "medium", "large", "xlarge"],
-        help="Phase size controlling plan-first prompting and default model routing",
+        help="Phase/task size controlling plan-first prompting and model routing",
     )
     parser.add_argument(
         "-r",
@@ -123,7 +124,7 @@ def register_bead_create_parser(
         required=True,
         help=(
             "Bead type: plan(<plan_file>), plan(<plan_file>,<parent_id>), "
-            "or phase(<parent_id>)"
+            "phase(<parent_id>), or task"
         ),
     )
 
@@ -285,7 +286,7 @@ def register_bead_update_parser(
     parser.add_argument(
         "-s",
         "--status",
-        choices=["open", "claimed", "in_progress", "closed"],
+        choices=["open", "claimed", "ready", "in_progress", "closed"],
     )
     parser.add_argument("-r", "--tier", choices=["plan", "epic"])
     parser.add_argument("-t", "--title")

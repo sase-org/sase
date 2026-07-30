@@ -11,7 +11,9 @@ from sase.bead_status_presentation import bead_status_presentation
 ANSI_RESET = "\x1b[0m"
 ANSI_BOLD_BLUE = "\x1b[1;34m"
 ANSI_YELLOW = "\x1b[33m"
-ACTIVE_STATUSES = frozenset({Status.OPEN, Status.CLAIMED, Status.IN_PROGRESS})
+ACTIVE_STATUSES = frozenset(
+    {Status.OPEN, Status.CLAIMED, Status.READY, Status.IN_PROGRESS}
+)
 
 
 def render_issue(issue: Issue, *, label: bool, use_color: bool) -> str:

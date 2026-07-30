@@ -177,7 +177,7 @@ def render_issue_detail(
         )
     if issue.model:
         lines.append(f"Model: {issue.model}")
-    if issue.issue_type == IssueType.PHASE:
+    if issue.issue_type in {IssueType.PHASE, IssueType.TASK}:
         lines.append(f"Size: {_phase_size_value(issue)}")
 
     if page_url:
@@ -539,8 +539,8 @@ def _plan_to_wire_dict(plan: _PlanLink | None) -> dict[str, object] | None:
 
 
 def _lineage_kind(issue: Issue) -> str:
-    if issue.issue_type == IssueType.PHASE:
-        return "phase"
+    if issue.issue_type is not IssueType.PLAN:
+        return issue.issue_type.value
     return "epic" if issue.tier == BeadTier.EPIC else "plan"
 
 

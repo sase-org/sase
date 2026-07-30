@@ -39,7 +39,7 @@ def handle_bead_list(args: argparse.Namespace) -> None:
         statuses = (
             [Status(s) for s in args.status]
             if explicit_statuses
-            else [Status.OPEN, Status.CLAIMED, Status.IN_PROGRESS]
+            else [Status.OPEN, Status.CLAIMED, Status.READY, Status.IN_PROGRESS]
         )
         issue_types = [IssueType(t) for t in args.type] if args.type else None
         tiers = [BeadTier(t) for t in args.tier] if args.tier else None
@@ -181,13 +181,14 @@ def handle_bead_ready(args: argparse.Namespace) -> None:
     with get_read_view() as view:
         issues = view.ready()
         if not issues:
-            print("No issues ready (all blocked or none open).")
+            print("No ready task beads (epic work is preassigned at launch).")
             return
         for issue in issues:
             parent = f" ← {issue.parent_id}" if issue.parent_id else ""
-            print(f"○ {issue.id} · {issue.title}{parent}")
+            print(f"{status_icon(issue.status)} {issue.id} · {issue.title}{parent}")
         print(f"\n{'-' * 60}")
-        print(f"Ready: {len(issues)} issues with no active blockers")
+        suffix = "" if len(issues) == 1 else "s"
+        print(f"Ready: {len(issues)} task bead{suffix} with no active blockers")
 
 
 def handle_bead_blocked(args: argparse.Namespace) -> None:
@@ -209,10 +210,12 @@ def handle_bead_stats(args: argparse.Namespace) -> None:
         print(f"  Total:       {s.get('total', 0)}")
         print(f"  Open:        {s.get('open', 0)}")
         print(f"  Claimed:     {s.get('claimed', 0)}")
+        print(f"  Ready:       {s.get('ready', 0)}")
         print(f"  In Progress: {s.get('in_progress', 0)}")
         print(f"  Closed:      {s.get('closed', 0)}")
         print(f"  Plans:       {s.get('plan', 0)}")
         print(f"  Phases:      {s.get('phase', 0)}")
+        print(f"  Tasks:       {s.get('task', 0)}")
 
 
 def _render_list_compact(issues: list[Issue]) -> str:

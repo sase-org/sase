@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Literal, cast
 
-BeadStatusValue = Literal["open", "claimed", "in_progress", "closed"]
+BeadStatusValue = Literal["open", "claimed", "ready", "in_progress", "closed"]
 
 
 @dataclass(frozen=True)
@@ -44,6 +44,13 @@ BEAD_STATUS_PRESENTATIONS: dict[BeadStatusValue, _BeadStatusPresentation] = {
         cli_style="\x1b[35m",
         rich_color="#AF87FF",
         label="CLAIMED",
+    ),
+    "ready": _BeadStatusPresentation(
+        cli_glyph="◇",
+        tui_glyph="◇",
+        cli_style="\x1b[96m",
+        rich_color="#00D7AF",
+        label="READY",
     ),
     "in_progress": _BeadStatusPresentation(
         cli_glyph="◐",

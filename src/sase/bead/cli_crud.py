@@ -42,15 +42,20 @@ def parse_type_arg(value: str) -> tuple[IssueType, str | None, str | None]:
     """Parse the ``--type`` argument into (issue_type, plan_path, parent_id).
 
     Accepted forms:
+    - ``task``                        -> TASK, design=None, parent_id=None
     - ``plan(<path>)``                -> PLAN, design=path, parent_id=None
     - ``plan(<path>,<parent_id>)``    -> PLAN, design=path, parent_id=parent_id
     - ``phase(<parent_id>)``          -> PHASE, design=None, parent_id=parent_id
     """
+    if value == "task":
+        return IssueType.TASK, None, None
+
     m = re.match(r"^(plan|phase)\((.+)\)$", value)
     if not m:
         print(
             f"Error: invalid --type value: {value}\n"
-            "Expected: plan(<plan_file>), plan(<plan_file>,<parent_id>), or phase(<parent_id>)",
+            "Expected: plan(<plan_file>), plan(<plan_file>,<parent_id>), "
+            "phase(<parent_id>), or task",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -96,8 +101,8 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         print("Error: --tier can only be set on plan beads", file=sys.stderr)
         sys.exit(1)
     size = getattr(args, "size", None)
-    if issue_type != IssueType.PHASE and size is not None:
-        print("Error: --size can only be set on phase beads", file=sys.stderr)
+    if issue_type == IssueType.PLAN and size is not None:
+        print("Error: --size can only be set on phase or task beads", file=sys.stderr)
         sys.exit(1)
     design = ""
     if plan_path:

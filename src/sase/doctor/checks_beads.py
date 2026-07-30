@@ -463,7 +463,8 @@ def _messages_summary(
     stats: dict[str, int],
 ) -> str:
     issue_count = sum(
-        int(stats.get(key, 0)) for key in ("open", "claimed", "in_progress", "closed")
+        int(stats.get(key, 0))
+        for key in ("open", "claimed", "ready", "in_progress", "closed")
     )
     if status == "OK":
         return f"bead store healthy; {issue_count} issue(s)"
