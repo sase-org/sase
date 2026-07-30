@@ -188,7 +188,7 @@ def file_row_text(
     project = projects.display_snapshot.label_for(row.project) if row.project else "-"
     agent = row.agent_name
     presented = present_agent_name(agent) if agent else (row.workflow or "file")
-    size = _humanize_file_size(row.size_bytes)
+    size = humanize_file_size(row.size_bytes)
     color = FILE_VIEW_MODE_COLORS[view_mode]
 
     text = Text(no_wrap=True, overflow="ellipsis")
@@ -227,7 +227,7 @@ def _artifact_file_datetime(
     return timestamp
 
 
-def _humanize_file_size(size_bytes: int | None) -> str:
+def humanize_file_size(size_bytes: int | None) -> str:
     """Format an optional byte count using the CLI's binary-unit vocabulary."""
 
     if size_bytes is None:
@@ -249,4 +249,5 @@ __all__ = [
     "file_group_header",
     "file_group_label",
     "file_row_text",
+    "humanize_file_size",
 ]

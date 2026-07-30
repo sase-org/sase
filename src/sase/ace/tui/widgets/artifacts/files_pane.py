@@ -12,7 +12,9 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import OptionList, Static
 from textual.worker import Worker, WorkerState
 
+from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
+from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.pump_tasks import (
     cancel_pump_free_tasks,
     spawn_pump_free_task,
@@ -26,6 +28,12 @@ from .files_data import (
     FILES_FIRST_PAGE_LIMIT,
     FilesSnapshot,
     load_files_snapshot,
+)
+from .files_detail import (
+    FileDetailCacheKey,
+    FileDetailData,
+    build_file_detail,
+    load_file_detail,
 )
 from .files_list import build_file_options
 from .files_navigation import FilesNavigationMixin, FilesOptionList
@@ -65,6 +73,12 @@ class ArtifactsFilesPane(
         self._worker_full = False
         self._load_generation = 0
         self._extension_generation = 0
+        self._detail_debouncer: DetailPanelDebouncer | None = None
+        self._detail_worker: Worker[Any] | None = None
+        self._detail_worker_generation = -1
+        self._detail_generation = 0
+        self._detail_cache: dict[FileDetailCacheKey, FileDetailData] = {}
+        self._detail_keys_by_id: dict[str, FileDetailCacheKey] = {}
         self._init_files_navigation()
 
     def compose(self) -> ComposeResult:
@@ -89,13 +103,22 @@ class ArtifactsFilesPane(
         yield Static(self._hints_text(), id="files-hints")
 
     def on_mount(self) -> None:
+        self._detail_debouncer = DetailPanelDebouncer(self.app)
         self._refresh_options()
 
     def on_unmount(self) -> None:
         self._extension_generation += 1
+        if self._detail_debouncer is not None:
+            self._detail_debouncer.cancel()
         cancel_pump_free_tasks(self)
         if self._worker is not None and not self._worker.is_finished:
             self._worker.cancel()
+        if self._detail_worker is not None and not self._detail_worker.is_finished:
+            self._detail_worker.cancel()
+
+    def on_deactivate(self) -> None:
+        if self._detail_debouncer is not None:
+            self._detail_debouncer.cancel()
 
     def on_first_activate(self) -> None:
         self._request_load(force=False, full=False)
@@ -192,6 +215,9 @@ class ArtifactsFilesPane(
         self._worker_full = full
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker is self._detail_worker:
+            self._on_detail_worker_changed(event)
+            return
         if event.worker is not self._worker:
             return
         terminal = event.state in {
@@ -220,6 +246,14 @@ class ArtifactsFilesPane(
                     cancel_jump("files")
                 self._snapshot = result
                 self._load_error = result.load_error
+                self._detail_generation += 1
+                if (
+                    self._detail_worker is not None
+                    and not self._detail_worker.is_finished
+                ):
+                    self._detail_worker.cancel()
+                self._detail_cache.clear()
+                self._detail_keys_by_id.clear()
                 self._refresh_options(preferred_target=preferred)
                 if (
                     not full_request
@@ -249,6 +283,7 @@ class ArtifactsFilesPane(
         if self._syncing_options:
             return
         self._update_static("#files-hints", self._hints_text())
+        self._schedule_detail()
 
     @on(OptionList.OptionSelected, "#files-list")
     def _on_option_selected(self, event: OptionList.OptionSelected) -> None:
@@ -313,6 +348,7 @@ class ArtifactsFilesPane(
         self._update_status()
         self._update_static("#files-info", self._scope_text())
         self._update_static("#files-hints", self._hints_text())
+        self._schedule_detail()
 
     def _update_empty(self) -> None:
         if not self.is_mounted:
@@ -371,6 +407,74 @@ class ArtifactsFilesPane(
         return build_files_hints(
             self._registry,
             has_agent=bool(entry is not None and entry.agent_name),
+        )
+
+    def _schedule_detail(self) -> None:
+        self._render_detail(loading=True)
+        entry = self.selected_entry
+        if entry is None or self._detail_for(entry) is not None:
+            self._render_detail(loading=False)
+            return
+        if self._detail_debouncer is None:
+            self._request_detail()
+        else:
+            self._detail_debouncer.schedule(self._request_detail)
+
+    def _request_detail(self) -> None:
+        entry = self.selected_entry
+        if entry is None or self._detail_for(entry) is not None:
+            self._render_detail(loading=False)
+            return
+        view_mode = self._view_mode_for(entry)
+
+        def task() -> FileDetailData:
+            return load_file_detail(entry, view_mode=view_mode)
+
+        self._detail_worker = self.run_worker(
+            task,
+            thread=True,
+            group="artifacts-files-detail",
+            exclusive=True,
+            exit_on_error=False,
+        )
+        self._detail_worker_generation = self._detail_generation
+
+    def _on_detail_worker_changed(self, event: Worker.StateChanged) -> None:
+        if event.state == WorkerState.SUCCESS:
+            result = event.worker.result
+            if (
+                isinstance(result, FileDetailData)
+                and self._detail_worker_generation == self._detail_generation
+            ):
+                self._detail_cache[result.cache_key] = result
+                self._detail_keys_by_id[result.file_id] = result.cache_key
+                entry = self.selected_entry
+                if entry is not None and entry.id == result.file_id:
+                    self._render_detail(loading=False)
+        elif event.state == WorkerState.ERROR:
+            self._render_detail(loading=False)
+
+    def _detail_for(self, entry: ArtifactFile) -> FileDetailData | None:
+        key = self._detail_keys_by_id.get(entry.id)
+        return None if key is None else self._detail_cache.get(key)
+
+    def _view_mode_for(self, entry: ArtifactFile) -> ArtifactViewMode:
+        snapshot = self._snapshot
+        return "text" if snapshot is None else snapshot.view_mode_for(entry)
+
+    def _render_detail(self, *, loading: bool) -> None:
+        if not self.is_mounted:
+            return
+        entry = self.selected_entry
+        detail = None if entry is None else self._detail_for(entry)
+        self.query_one("#files-detail", Static).update(
+            build_file_detail(
+                entry,
+                detail,
+                view_mode=None if entry is None else self._view_mode_for(entry),
+                projects=self._project_ref_display,
+                loading=loading and detail is None,
+            )
         )
 
 
