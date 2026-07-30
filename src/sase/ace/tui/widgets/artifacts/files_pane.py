@@ -13,7 +13,11 @@ from textual.widgets import OptionList, Static
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
-from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
+from sase.ace.tui.keymaps import (
+    KeymapRegistry,
+    key_display_name,
+    load_keymap_registry,
+)
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.pump_tasks import (
     cancel_pump_free_tasks,
@@ -24,6 +28,7 @@ from sase.core.time import local_now
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
 from .entry_navigation import ArtifactEntryTarget
+from .file_filter_bar import FileFilterBar
 from .files_data import (
     FILES_FIRST_PAGE_LIMIT,
     FilesSnapshot,
@@ -35,6 +40,8 @@ from .files_detail import (
     build_file_detail,
     load_file_detail,
 )
+from .files_filter_session import FilesFilterSessionMixin
+from .files_filtering import filter_files_snapshot
 from .files_list import build_file_options
 from .files_navigation import FilesNavigationMixin, FilesOptionList
 from .files_rendering import (
@@ -46,6 +53,7 @@ from .lifecycle import ArtifactsPaneLifecycle
 
 
 class ArtifactsFilesPane(
+    FilesFilterSessionMixin,
     FilesNavigationMixin,
     ArtifactsPaneLifecycle,
     Vertical,
@@ -62,6 +70,7 @@ class ArtifactsFilesPane(
         self._project_ref_display = ProjectRefDisplaySnapshot()
         self._registry = load_keymap_registry({})
         self._snapshot: FilesSnapshot | None = None
+        self._filtered_count: int | None = None
         self._loading = False
         self._loading_full = False
         self._reload_pending = False
@@ -80,9 +89,10 @@ class ArtifactsFilesPane(
         self._detail_cache: dict[FileDetailCacheKey, FileDetailData] = {}
         self._detail_keys_by_id: dict[str, FileDetailCacheKey] = {}
         self._init_files_navigation()
+        self._init_files_filter_session()
 
     def compose(self) -> ComposeResult:
-        yield Static("", id="file-filter-bar")
+        yield FileFilterBar(id="file-filter-bar")
         yield Static(
             self._scope_text(),
             id="files-info",
@@ -254,6 +264,8 @@ class ArtifactsFilesPane(
                     self._detail_worker.cancel()
                 self._detail_cache.clear()
                 self._detail_keys_by_id.clear()
+                if self._filter_session_open:
+                    self._set_filter_completion_sources()
                 self._refresh_options(preferred_target=preferred)
                 if (
                     not full_request
@@ -323,8 +335,15 @@ class ArtifactsFilesPane(
             return
         if preferred_target is None:
             preferred_target = self.selected_entry_target()
-        options, rows = build_file_options(
+        values = self._display_filter_values()
+        filtered = filter_files_snapshot(
             self._snapshot,
+            values,
+            self._project_ref_display,
+        )
+        self._filtered_count = None if filtered is None else len(filtered.rows)
+        options, rows = build_file_options(
+            filtered,
             project_scope=self.project_scope,
             project_ref_display=self._project_ref_display,
             loading=self._loading,
@@ -364,6 +383,15 @@ class ArtifactsFilesPane(
             and not self._loading
             and self._load_error is None
         )
+        if show_empty:
+            values = self._display_filter_values()
+            empty.update(
+                "No artifact files found."
+                if values.is_empty
+                else "No artifact files match the active filters. "
+                f"Press {key_display_name(self._registry.app.files_filters)} "
+                "to edit or clear them."
+            )
         empty.display = show_empty
         option_list.display = not show_empty
 
@@ -386,6 +414,8 @@ class ArtifactsFilesPane(
             snapshot,
             project_scope=self.project_scope,
             project_display_name=self._project_display_name,
+            filters=self._display_filter_values(),
+            filtered_count=self._filtered_count,
         )
 
     def _status_text(self) -> RenderableType:
@@ -475,6 +505,18 @@ class ArtifactsFilesPane(
                 projects=self._project_ref_display,
                 loading=loading and detail is None,
             )
+        )
+
+    def _set_filter_completion_sources(self) -> None:
+        rows = () if self._snapshot is None else self._snapshot.rows
+        self.query_one(FileFilterBar).set_completion_sources(
+            projects=(
+                self._project_ref_display.label_for_ref(row.project) or row.project
+                for row in rows
+                if row.project
+            ),
+            agents=(row.agent_name for row in rows if row.agent_name),
+            workflows=(row.workflow for row in rows if row.workflow),
         )
 
 

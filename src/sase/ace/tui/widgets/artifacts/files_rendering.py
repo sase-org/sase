@@ -13,6 +13,7 @@ from sase.core.artifact_file_types import ArtifactFile
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
 from .files_data import FilesSnapshot
+from .files_filtering import FilesFilterValues, to_query_tokens
 from .types import ARTIFACTS_ACCENTS
 
 
@@ -41,9 +42,12 @@ def build_files_info(
     *,
     project_scope: str | None,
     project_display_name: str | None,
+    filters: FilesFilterValues | None = None,
+    filtered_count: int | None = None,
 ) -> Text:
-    """Build project scope and precomputed kind-summary chips."""
+    """Build project scope, kind-summary chips, and active-filter status."""
 
+    filters = filters or FilesFilterValues()
     accent = ARTIFACTS_ACCENTS["files"]
     scope = project_display_name or project_scope or "All projects"
     text = Text()
@@ -75,19 +79,39 @@ def build_files_info(
         ),
         ("text", snapshot.view_mode_counts.get("text", 0), "files"),
     )
+    active_modes = {
+        snapshot.view_mode_for(row)
+        for row in snapshot.rows
+        if row.kind in filters.kinds
+    }
     text.append("  │  ", style="dim")
     for index, (mode, count, label) in enumerate(chips):
         if index:
             text.append(" · ", style="dim")
-        text.append(
-            f"{FILE_VIEW_MODE_GLYPHS[mode]} {count:,} {label}",
-            style=f"bold {FILE_VIEW_MODE_COLORS[mode]}",
-        )
+        style = f"bold {FILE_VIEW_MODE_COLORS[mode]}"
+        if filters.kinds:
+            style = (
+                f"{style} reverse"
+                if mode in active_modes
+                else f"dim {FILE_VIEW_MODE_COLORS[mode]}"
+            )
+        text.append(f"{FILE_VIEW_MODE_GLYPHS[mode]} {count:,} {label}", style=style)
     text.append(" · ", style="dim")
     text.append(
         f"◆ {snapshot.explicit_count:,} explicit",
         style=f"bold {accent}",
     )
+    if not filters.is_empty:
+        visible = len(snapshot.rows) if filtered_count is None else filtered_count
+        text.append("  │  ", style="dim")
+        text.append(
+            f"filtered {visible:,}/{len(snapshot.rows):,}",
+            style=f"bold {accent}",
+        )
+        tokens = to_query_tokens(filters)
+        if tokens:
+            text.append("  ·  ", style="dim")
+            text.append(" ".join(tokens), style=accent)
     return text
 
 

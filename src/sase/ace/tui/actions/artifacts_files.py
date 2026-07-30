@@ -62,10 +62,14 @@ class ArtifactsFilesActionsMixin:
         return
 
     def action_files_filters(self) -> None:
-        return
+        pane = self._files_pane()
+        if pane is not None:
+            pane.show_filters()
 
     def action_files_cycle_kind(self) -> None:
-        return
+        pane = self._files_pane()
+        if pane is not None:
+            pane.cycle_kind()
 
     def action_files_copy_reference(self) -> None:
         return

@@ -198,6 +198,21 @@ ChatFilterBar .filter-bar-completion > .option-list--option-highlighted {
     text-style: bold;
 }
 
+FileFilterBar .filter-bar-sigil {
+    color: #FFAF5F;
+}
+
+FileFilterBar .filter-bar-input,
+FileFilterBar .filter-bar-completion {
+    border: solid #FFAF5F;
+}
+
+FileFilterBar .filter-bar-completion > .option-list--option-highlighted {
+    color: $background;
+    background: #FFAF5F;
+    text-style: bold;
+}
+
 #commits-info {
     width: 100%;
     height: 3;
