@@ -35,6 +35,8 @@ _PLAN_CHAIN_GOLDEN_TEST_FILES = frozenset(
     Path(path)
     for path in (
         "tests/test_plan_rejection_response.py",
+        "tests/test_tui_plan_approval_archive.py",
+        "tests/test_tui_plan_epic_approval.py",
         "tests/test_plan_approval_modal_title.py",
         "tests/test_approve_options_modal_state.py",
         "tests/test_plan_approve_cli.py",
