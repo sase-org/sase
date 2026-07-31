@@ -119,11 +119,10 @@ The accuracy bar is whether the diagram matches today's `src/sase/ace/tui/widget
 13. **The shared chrome is missing entirely.** `app.py:233-239,268-269` shows that every tab is wrapped by `Header`, the
     top-bar indicator stack, the `KeybindingFooter`, and the platform `Footer`. None of these is drawn, which is the
     most concrete miss against the "one control plane" framing.
-14. **No prompt sidecar exists for this image.** Peer infographics (`bead-epic-work-infographic`,
-    `commit-workflow-infographic`, `rust-backend-boundary-infographic`, `workflow-execution-infographic`,
-    `xprompt-resolution-infographic`, `sase_overview`) all have a `.prompt.md` sidecar; this one does not. The regen
-    phase (`sase-2s.17`) will need to _create_ `docs/images/sase_tui_tabs_infographic.prompt.md` from scratch, not
-    merely revise it.
+14. **No prompt sidecar exists for this image.** Peer infographics (`commit-workflow-infographic`,
+    `rust-backend-boundary-infographic`, `workflow-execution-infographic`, `xprompt-resolution-infographic`,
+    `sase_overview`) all have a `.prompt.md` sidecar; this one does not. The regen phase (`sase-2s.17`) will need to
+    _create_ `docs/images/sase_tui_tabs_infographic.prompt.md` from scratch, not merely revise it.
 
 ## Concrete suggested changes for the regenerated image
 

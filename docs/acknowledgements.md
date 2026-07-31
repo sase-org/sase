@@ -49,16 +49,17 @@ that multi-session and multi-agent workflows stay coherent.
 The `sase bead` command is a from-scratch reimplementation that carries this idea into sase's architecture while
 drastically simplifying the surface area:
 
-- **SQLite + JSONL instead of Dolt** -- sase stores issues in SQLite for fast local queries and exports to a sorted
-  JSONL file for git portability. Fresh clones rebuild the database automatically from JSONL, giving version-controlled
-  persistence without an external database engine.
-- **Plan tiers instead of arbitrary nesting** -- sase uses plan-like beads with explicit `plan` and `epic` tiers plus
-  executable phase children, rather than deeply nested dotted-ID trees. Linked epics use
-  `--type plan(<plan_file>) --tier epic`; Epic approval creates the bead DAG deterministically and `sase bead work`
-  launches one agent per phase plus a final land agent.
-- **Multi-workspace aggregation** -- Because sase already manages multiple parallel workspaces, `sase bead` can read
-  issues across all workspace clones through a merged in-memory view, giving every agent visibility into the full
-  project state without Dolt's sync machinery.
+- **Rust-backed events plus compatibility mirrors instead of Dolt** -- sase stores canonical append-only events under
+  `events/**`, generates sorted `issues.jsonl` for older tooling, and treats `beads.db` as a gitignored compatibility
+  cache. Fresh clones read the tracked events directly and can rebuild both mirrors without an external database engine.
+- **Plan tiers, executable phases, and standalone tasks** -- plan-like beads carry explicit `plan` or `epic` tiers,
+  executable phases use hierarchical child IDs, delegated child epics can nest beneath phase/land work, and flat task
+  beads capture independent follow-ups. Linked epics use `--type plan(<plan_file>) --tier epic`; epic approval creates
+  the bead DAG deterministically and `sase bead work` launches one agent per phase plus a final land agent. The same
+  command launches exactly one worker for a standalone task bead.
+- **Checkout-local stores with normal VCS synchronization** -- `sase bead` reads and mutates the active checkout's
+  canonical store rather than merging numbered sibling workspaces. In-tree bead state moves between checkouts through
+  the normal VCS path; local and sidecar policies resolve their own documented store roots.
 - **No external binary** -- beads ships as a ~37MB Go binary with its own daemon process; `sase bead` is installed as
   part of sase and uses the required `sase_core_rs` extension for local storage/query/mutation speed, with no separate
   daemon to run.

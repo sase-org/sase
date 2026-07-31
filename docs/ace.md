@@ -188,10 +188,10 @@ metadata can still mark a count as capped without inventing an active query limi
 
 Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, and `until:` plus free text matched across plan and
 bead metadata. The pane browses every configured document sidecar, and each archived row shows its document kind. Kinds
-include the row categories `proposal`, `epic`, `phase`, and `archive` plus the document-sidecar roles present in the
-current scope, such as `plans`, `research`, or `designs`. `kind:archive` matches every committed document, while
-`kind:designs` narrows archives to that sidecar. For example, `kind:epic,phase status:open project:sase filter` shows
-open SASE epic or phase rows containing `filter`.
+include the row categories `proposal`, `task`, `epic`, `phase`, and `archive` plus the document-sidecar roles present in
+the current scope, such as `plans`, `research`, or `designs`. `kind:archive` matches every committed document, while
+`kind:designs` narrows archives to that sidecar. For example, `kind:task status:ready project:sase filter` shows ready
+SASE task beads containing `filter`.
 
 A leading unquoted `-` excludes a match. Commits can exclude repositories, authors, and subject text; Plans can exclude
 kinds, statuses, tiers, projects, and text. Exclusion wins when positive and negative constraints overlap:
@@ -201,6 +201,29 @@ negated. `sidecar:` is singular and accepts only `true` or `false`; canonical qu
 Quote the whole token to search for a literal leading minus (`"-repo:plans"`); quote only the excluded value to keep
 negation active (`-"generated rollout"`). Matching remains case-insensitive, and repository/project aliases work for
 both inclusion and exclusion.
+
+### Standalone Tasks in the Plans Pane
+
+The Plans pane keeps standalone task beads in a dedicated **Tasks** section between proposals and epics. The section
+header reports its total and identifies `◇` as the task-ready status; the pane summary includes task counts, and
+`kind:task` narrows directly to these rows. Task rows use the shared orchid `◆ task` identity and show the same status,
+size, assignee, dependency, blocker, description, notes, reference, and timestamp data as CLI and generated bead pages.
+Tasks have no parent epic or linked plan.
+
+The default `s` status action is type-aware:
+
+```
+task: open → ready → in_progress → closed → open
+      claimed → ready
+other beads: open → in_progress → closed → open
+```
+
+Use `e` to edit a selected task's title and description. Status edits commit the owning sidecar store when necessary.
+The pane's `w` action still launches only a selected ready epic; it does not launch task workers. Launch a task from its
+`TaskTriage` notification or with `sase bead work <task-id>`.
+
+When that worker appears on the Agents tab, its bead badge points directly to the task, and its **SASE CONTEXT / BEAD**
+lane shows task title, description, and size without trying to resolve an epic plan.
 
 ### Commit Detail and Linked Plans
 
@@ -395,15 +418,15 @@ ACE uses the literal scope labels `xsmall`, `small`, `medium`, `large`, and `xla
 violet chips whose text remains the primary signal. Valid older plans and phase beads with an omitted size use the
 stable `small` fallback, while an invalid authored value never produces a confident chip or count.
 
-| Surface                                                                  | Size contract                                                                                                                                                                                                                                                                            |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Agents author and lander                                                 | Shows every normalized authored size in roadmap order.                                                                                                                                                                                                                                   |
-| Agents phase worker                                                      | Shows only that worker's normalized authored size, preserving phase isolation.                                                                                                                                                                                                           |
-| Artifacts / Plans epic and phase beads                                   | Shows current persisted bead sizes in rows and details; the epic detail summarizes direct children in `xsmall`, `small`, `medium`, `large`, `xlarge` order. These execution views intentionally do not reconcile bead values with authored values because work routing follows the bead. |
-| Artifacts proposals, linked plans, and archives                          | Retains the authored `phases` property exactly once instead of adding a competing roadmap.                                                                                                                                                                                               |
-| Telegram epic review                                                     | Adds a validated textual size breakdown while retaining the detailed Properties card and source/PDF attachment.                                                                                                                                                                          |
-| Epic clan summary, `sase bead show`, and epic work preview               | Continues using persisted bead sizes, which these execution surfaces already exposed.                                                                                                                                                                                                    |
-| Raw approval, validation/schema, source/PDF, and mobile attachment paths | Remains a lossless generic/source view; authored phase metadata is preserved without a second summary.                                                                                                                                                                                   |
+| Surface                                                                  | Size contract                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agents author and lander                                                 | Shows every normalized authored size in roadmap order.                                                                                                                                                                                                                                                                                                                     |
+| Agents phase worker                                                      | Shows only that worker's normalized authored size, preserving phase isolation.                                                                                                                                                                                                                                                                                             |
+| Artifacts / Plans epic, phase, and task beads                            | Shows current persisted bead sizes in rows and details; the epic detail summarizes direct children in `xsmall`, `small`, `medium`, `large`, `xlarge` order. Standalone tasks appear in their own section with their stored size when present. These execution views intentionally do not reconcile bead values with authored values because work routing follows the bead. |
+| Artifacts proposals, linked plans, and archives                          | Retains the authored `phases` property exactly once instead of adding a competing roadmap.                                                                                                                                                                                                                                                                                 |
+| Telegram epic review                                                     | Adds a validated textual size breakdown while retaining the detailed Properties card and source/PDF attachment.                                                                                                                                                                                                                                                            |
+| Epic clan summary, `sase bead show`, and epic work preview               | Continues using persisted bead sizes, which these execution surfaces already exposed.                                                                                                                                                                                                                                                                                      |
+| Raw approval, validation/schema, source/PDF, and mobile attachment paths | Remains a lossless generic/source view; authored phase metadata is preserved without a second summary.                                                                                                                                                                                                                                                                     |
 
 ## Keybindings: Artifacts / PRs
 
@@ -1284,9 +1307,10 @@ To keep rows compact, agent statuses and types are rendered as one- or two-chara
 
 Agents launched by `sase bead work` also show a gold `◆ <bead_id>` badge between the status glyph and the tribe/name. A
 phase agent named `<epic_id>.<N>` displays that phase bead ID; the final `<epic_id>.land` agent displays the parent epic
-bead ID. Legacy plain `<epic_id>` land agents keep the same badge. Dismissed agents keep the badge by stripping only the
-date-prefix used for dismissal. Modern phase rows use their explicit launch metadata immediately; legacy bead-shaped
-names retain the deferred bead-store confirmation fallback.
+bead ID; a standalone task worker named `<task_id>` displays its task bead ID. Legacy plain `<epic_id>` land agents keep
+the same badge. Legacy dismissed names keep the badge after their historical date prefix is stripped. Modern phase and
+task rows use their explicit launch metadata immediately; legacy bead-shaped names retain the deferred bead-store
+confirmation fallback.
 
 Each agent row also carries a per-provider emoji badge before the display name so the LLM provider behind a row is
 readable at a glance without scanning the right-hand model suffix:
@@ -2056,12 +2080,13 @@ sase processes on the machine — and is best-effort self-cleaning: expired or m
 temporary override is independent of `SASE_MODEL_TIER_OVERRIDE`; a concrete override takes the full provider/model path,
 while the tier override only applies when no concrete override is active.
 
-Delegated launches (plan coder follow-ups and `sase bead work` phase/land agents) resolve through
+Delegated launches (plan coder follow-ups and `sase bead work` phase, task, and land agents) resolve through
 [role aliases](llms.md#role-aliases-for-delegated-work) configured under `llm_provider.model_aliases.builtin`. The
-size-specific phase aliases route through `@cheaper`, `@cheap`, `@default@high`, `@smart`, and `@smartest`. Nested
-`@default` references follow a temporary `default` override. Selector-backed aliases (`@smartest`, `@cheap`, `@cheaper`,
-and `@cheapest`) pin concrete targets and therefore do not follow it; override the selector-owning or size-specific
-alias itself to move one of those lanes.
+size-specific phase/task aliases route through `@cheaper`, `@cheap`, `@default@high`, `@smart`, and `@smartest`; a task
+without size metadata uses `@task_worker`, which falls back to `@default`. Nested `@default` references follow a
+temporary `default` override. Selector-backed aliases (`@smartest`, `@cheap`, `@cheaper`, and `@cheapest`) pin concrete
+targets and therefore do not follow it; override the selector-owning or size-specific alias itself to move one of those
+lanes.
 
 ### Persistent edits
 
@@ -2556,9 +2581,9 @@ continue to target the metadata pane when a file or tools pane is also visible, 
 a pinned attempt view resets the cursor.
 
 - **Agent details**: Name, status, model, provider, ChangeSpec association, and chronologically sorted timestamps:
-  - `Bead` — shown for agents launched by `sase bead work`; modern phase rows use explicit epic/phase/plan launch
-    metadata and validated plan frontmatter, while exact epic and legacy phase/`.land` rows retain compatibility
-    inference
+  - `Bead` — shown for agents launched by `sase bead work`; modern phase and task rows use explicit bead launch
+    metadata, phase rows also use epic/plan metadata and validated plan frontmatter, and exact epic plus legacy
+    phase/`.land` rows retain compatibility inference
   - `WAIT` — when the agent was spawned (waiting for a slot)
   - `BEGIN` — when runner admission completed, before workspace preparation for slot-participating user agents
   - `PLAN` — each plan proposal round (multiple entries when re-planning occurs)
@@ -2629,11 +2654,12 @@ a pinned attempt view resets the cursor.
   `runners=0` is labeled as a drain barrier. A `QUEUED` detail uses a separate `Queue:` line led by its rank and elapsed
   time since `slot_requested_at`, followed by cap context. It deliberately suppresses the marker's stale dependency,
   bead, and time-wait fields.
-- **OUTPUT VARIABLES**: Small string values written by the selected agent family with `sase var set KEY=VALUE`. A single
-  contributing agent renders as a flat sorted key/value list; multiple family members render with compact role labels so
-  root, planner, coder, tester, and follow-up values stay attributable. Multi-line values are indented, and the section
-  is omitted when the family has not published variables. These values are stored in `agent_meta.json`, so they are
-  visible metadata rather than secret storage.
+- **OUTPUT VARIABLES**: Small JSON-shaped values written by the selected agent family with `sase var set`. Strings,
+  numbers, booleans, null, lists, and nested maps retain their types. A single contributing agent renders as a flat
+  sorted key/value block; multiple family members render with compact role labels so root, planner, coder, tester, and
+  follow-up values stay attributable. Lists, maps, and multi-line strings use an indented YAML-shaped block with
+  type-specific colors. The section is omitted when the family has not published variables. These values are stored in
+  `agent_meta.json`, so they are visible metadata rather than secret storage.
 - **AGENT REPLY**: The agent's live or completed reply content, streamed from `live_reply.md` during execution and read
   from the artifacts directory after completion. When per-turn reply timestamps are available (recorded in
   `live_reply_timestamps.jsonl`), the reply is displayed with timestamp dividers between each agent turn. For agents

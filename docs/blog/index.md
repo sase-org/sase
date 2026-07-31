@@ -17,6 +17,6 @@ entries included in the public site.
 ## From Reading To Practice
 
 - [Start with ACE](../ace.md), the Agentic ChangeSpec Explorer, to learn the terminal interface for daily agent work.
-- [Read the SDD flow](../sdd.md) to see how Spec-Driven Development turns plans, epics, and phase beads into executable
-  work.
+- [Read the SDD flow](../sdd.md) to see how Spec-Driven Development turns plans and epics into phase work, while
+  standalone task beads capture independent follow-ups.
 - [Open the repository](https://github.com/sase-org/sase) for source, issues, and implementation details.

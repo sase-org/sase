@@ -75,8 +75,8 @@ title: Structured Agentic Software Engineering
   <h3>I want durable work units</h3>
 
   <p>
-    Use ChangeSpecs for PR-sized review state and Beads for plan, epic, and phase dependencies that can drive
-    multi-agent execution.
+    Use ChangeSpecs for PR-sized review state and Beads for plan, epic, phase, and standalone task work that can drive
+    single- or multi-agent execution.
   </p>
 
 <a href="sdd/">Learn the SDD flow</a>

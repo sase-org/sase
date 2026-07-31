@@ -213,11 +213,17 @@ Lower-frequency status checks:
 | `pr_submitted_checks`   | Start PR submission status checks              |
 | `stale_running_cleanup` | Backstop dead-process claim cleanup            |
 
-`bead_task_triage` scans enabled projects for ready task beads, creates one `TaskTriage` gate per bead, and stores the
-bead-to-request mapping in the checks lumberjack's state directory. A still-pending gate is skipped on later ticks,
-preventing repeated notifications. If a task leaves `ready` through a launch, close, or manual retraction, the chop
-cancels its pending gate; if the task becomes ready again later, a persistent generation counter gives the replacement
-gate a new deterministic request ID.
+`bead_task_triage` scans enabled non-home projects for task beads whose stored status is `ready`, creates one
+`TaskTriage` gate per bead, and stores the bead-to-request mapping in the checks lumberjack's state directory. This scan
+does not call the dependency-aware `sase bead ready` query, so a stored-ready task with an active blocker still receives
+a gate. A still-pending gate is skipped on later ticks, preventing repeated notifications. If a task leaves `ready`
+through a launch, close, or manual retraction, the chop cancels its pending gate; if the task becomes ready again later,
+a persistent generation counter gives the replacement gate a new deterministic request ID.
+
+The gate presents the task title, description, and notes. **Launch** accepts optional feedback and submits a
+deduplicated global detached task for `sase bead work <task-id> --yes-to-all`; **Close** requires a reason and closes
+the bead as `canceled`. See [TaskTriage notifications](notifications.md#command-backed-interaction-gates) and the
+[standalone task workflow](beads.md#standalone-task-workflow) for the human-facing lifecycle.
 
 ### comments (1-minute interval)
 

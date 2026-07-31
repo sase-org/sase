@@ -129,16 +129,16 @@ A reader who has never seen Zorg cannot bootstrap from the picture alone.
 ### C2. The `develop` and `navigate` arrows are vague verbs
 
 The two big perimeter arrows are labeled with single English verbs that do not say _who_ develops or navigates. Compare
-with sister diagrams (`sase-component-communication.png`, `bead-epic-work-infographic.png`) which use phrases like
-"launch or schedule work" or "checkout, diff, submit". `develop` and `navigate` could mean code, or human reading, or
-agent action — the reader has to guess.
+with sister diagrams such as `sase-component-communication.png`, which use phrases like "launch or schedule work" or
+"checkout, diff, submit". `develop` and `navigate` could mean code, or human reading, or agent action — the reader has
+to guess.
 
 ### C3. `@foo` / `@foo/bar` look like random placeholders
 
-Other diagrams in this set (e.g. the bead infographic) anchor abstract concepts with concrete examples — `bd <id>`,
-`docs/beads.md`, `epic-work` — so a reader can map the picture to a real artifact. Here the central nodes are meta
-names. Using a real example pair (e.g. `@sase/memory/audited-read` with a child `@sase/memory/read-evidence`) would make
-the IDs self-explanatory and double as a hint about what kind of zettel SASE wants to store.
+Other diagrams in this set anchor abstract concepts with concrete examples, so a reader can map the picture to a real
+artifact. Here the central nodes are meta names. Using a real example pair (e.g. `@sase/memory/audited-read` with a
+child `@sase/memory/read-evidence`) would make the IDs self-explanatory and double as a hint about what kind of zettel
+SASE wants to store.
 
 ### C4. CAPTURE/USE column-row labels read as inputs/outputs but are actually feature lists
 

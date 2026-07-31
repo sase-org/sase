@@ -42,9 +42,9 @@ Two plan tiers share one canonical plans root:
 - **Epics** — executable multi-phase plans at the same path shape with `tier: epic`.
 
 Storage follows workspace-provider policy. Built-in bare-git projects use in-tree `sdd/`; newly initialized managed
-GitHub projects use split `--plans` and `--research` companions; unmigrated GitHub projects retain their `.sase/sdd/`
-clone; providerless projects use the primary workspace's local `.sase/sdd/` store. A positive companion-store record
-preserves the resolved GitHub layout for offline use.
+GitHub projects use role-specific sidecars such as `--plans`, `--research`, and, in schema 3, `--beads`; unmigrated
+GitHub projects retain their `.sase/sdd/` clone; providerless projects use the primary workspace's local `.sase/sdd/`
+store. A positive sidecar-store record preserves the resolved GitHub layout for offline use.
 
 `sase plan search -k epic` lists every epic; `sase plan links validate` checks the prompt/plan link graph;
 `sase repo init` materializes provider-owned storage and refreshes the generated READMEs and directory-map asset. The
@@ -52,31 +52,39 @@ reference is in [`sdd.md`](../../sdd.md).
 
 ## Beads Are the Work Unit
 
-A **bead** is a git-portable issue record backed by a canonical append-only event store. Status moves through `open` →
-`in_progress` → `closed`. Beads have dependency edges. Each one can carry a plan reference (the `design` field), a tier
-(`plan` or `epic`), and a model annotation (`-m/--model`). Storage lives under the resolved SDD store: `events/**` is
-the source of truth, `issues.jsonl` is a generated compatibility projection, and `beads.db` is a gitignored
-compatibility cache. Fresh clones read the tracked event store directly and can rebuild the mirrors on demand.
+A **bead** is a git-portable issue record backed by a canonical append-only event store. The general lifecycle is `open`
+→ `in_progress` → `closed`, with machine-managed `claimed` and a task-only `ready` status. Beads have dependency edges
+and can carry artifact references and a model annotation (`-m/--model`). Plan beads also carry a plan reference (the
+`design` field) and a tier (`plan` or `epic`). Storage lives under the resolved SDD store: `events/**` is the source of
+truth, `issues.jsonl` is a generated compatibility projection, and `beads.db` is a gitignored compatibility cache. Fresh
+clones read the tracked event store directly and can rebuild the mirrors on demand.
 
-Two issue types:
+Three issue types:
 
 - **Plan** beads — plan-like containers. ID format `{prefix}-{counter}`.
-- **Phase** beads — executable tasks inside an epic. ID format `{parent_id}.{N}` (so `myapp-7.1`, `myapp-7.2`, …).
+- **Phase** beads — executable children inside an epic. ID format `{parent_id}.{N}` (so `myapp-7.1`, `myapp-7.2`, …).
+- **Task** beads — flat, independent follow-ups with no parent, plan tier, or ChangeSpec metadata.
 
-Plan-tier beads can hand off to `sase bead work`; phase-tier beads carry the actual units of executable work.
+Epic-tier plan beads hand off to a phase-and-land run through `sase bead work`; a standalone task bead hands off to one
+deterministically named worker through the same command.
 
 ## Ready Versus Blocked
 
-Once dependencies are real, the queue tells you what to start next:
+Task readiness is an explicit human-triage state:
 
 ```bash
-sase bead ready              # open beads whose deps are all closed
-sase bead blocked            # everything else
-sase bead show <bead-id>     # one bead in detail
+sase bead create --type task --title "Follow up"
+sase bead update <task-id> --status ready
+sase bead ready              # ready task beads whose deps are all closed
+sase bead blocked            # beads with active dependencies
+sase bead show <task-id>     # one bead in detail
 ```
 
-That is the daily working surface. You stop reconstructing "what should I do now?" from chat scrollback and start
-reading it from a queue that was already correct.
+AXE scans stored-ready tasks every five minutes and creates a `TaskTriage` notification with **Launch** and **Close**
+branches. The command and the scheduled scan currently differ in one important way: `sase bead ready` filters out
+blocked tasks, while the AXE scan looks only at stored status and can create a triage gate for a blocked ready task.
+Direct `sase bead work <task-id>` likewise accepts open, ready, or recoverable in-progress tasks without rejecting
+active blockers.
 
 ## `sase bead work <epic-id>`: Multi-Agent Execution
 
@@ -100,6 +108,11 @@ author a tale or an epic as needed; the plan's authored `tier` selects the autom
 chop is what unblocks each phase only after its blocker has both a successful `done.json` and a closed bead. Failed,
 killed, or finished-but-unclosed phases keep dependents and the land agent parked — there is no fail-open.
 
+For a task bead, the same command renders one prompt, checkpoints the task as `in_progress` with assignee `<task-id>`,
+and then launches that deterministic worker. An explicit task model wins; otherwise a stored size selects the
+corresponding size-specific phase-worker alias, while a task without size uses `@task_worker`. Task size currently
+changes model routing only: even `large` and `xlarge` tasks do not receive the phase launcher's automatic `#plan`.
+
 ## The Promote-From-Chat Discipline
 
 Agents propose plans; humans (or distillation workflows) promote them into SDD. The reason: keeping raw transcripts out
@@ -119,12 +132,12 @@ deliberately checkout-local: `sase bead` reads and mutates the `sdd/beads/` even
 command runs. An agent running in `myproject_3` sees `myproject_3/sdd/beads/`, not a merged view of `myproject/`,
 `myproject_2/`, and `myproject_3/`. Providerless local storage resolves numbered checkouts back to the primary
 workspace's `.sase/sdd/beads/` store. With a legacy single companion, each numbered checkout uses its own `.sase/sdd/`
-clone. With schema-3 split storage, it uses the root of its auto-cloned `--beads` repository; schema-2 records retain
-`beads/` in the `--plans` clone.
+clone. With schema-3 split storage, it uses the root of its auto-cloned `--beads` sidecar; schema-2 records retain
+`beads/` in the `--plans` sidecar.
 
 That keeps the source of truth inspectable and unsurprising. For in-tree work, bead state moves between checkouts
 through the same VCS sync path as code and SDD files, and ID allocation uses the active checkout's local `config.json`
-and canonical event state. Providerless local stores are shared through the primary workspace; provider companions
+and canonical event state. Providerless local stores are shared through the primary workspace; provider sidecars
 synchronize through the clone in the active workspace.
 
 ## What To Read Next

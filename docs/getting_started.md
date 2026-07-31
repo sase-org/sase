@@ -212,18 +212,23 @@ The smallest useful loop:
 
 ```bash
 sase bead onboard         # walks through the issue-tracking quick start
-sase bead ready           # lists work whose blockers are closed
+sase bead ready           # lists ready task beads whose blockers are closed
 sase bead show <bead-id>  # inspects one bead in detail
 ```
 
+For a self-contained follow-up that does not need an epic, create a standalone task bead with
+`sase bead create --type task`, move it to `ready` when it is ready for triage, and launch it with
+`sase bead work <task-id>`. AXE also turns stored `ready` tasks into notification gates where a reviewer can launch or
+close them.
+
 Approving a structured epic plan files its epic and phase beads, wires their dependencies, and automatically invokes the
-same path as `sase bead work <epic-id> --yes`. Before it spawns anything, that path marks the epic ready, assigns every
-remaining phase bead to its deterministic worker, assigns the epic to the land worker, and commits the complete launch
-checkpoint. Unless the launch uses `--no-push`, the existing-epic path also runs managed store synchronization before
-dispatch; a remote-backed detached bead store must actually publish the checkpoint. It then launches one agent per
-remaining phase plus the final land agent. Dependency waits require both the blocking agent to finish successfully and
-its bead to close; the land agent waits for every phase bead. You can still run `sase bead work <epic-id>` manually to
-retry remaining work.
+same path as `sase bead work <epic-id> --yes`. Before it spawns anything, that path sets the epic's internal
+launch-readiness marker, assigns every remaining phase bead to its deterministic worker, assigns the epic to the land
+worker, and commits the complete launch checkpoint. Unless the launch uses `--no-push`, the existing-epic path also runs
+managed store synchronization before dispatch; a remote-backed detached bead store must actually publish the checkpoint.
+It then launches one agent per remaining phase plus the final land agent. Dependency waits require both the blocking
+agent to finish successfully and its bead to close; the land agent waits for every phase bead. You can still run
+`sase bead work <epic-id>` manually to retry remaining work.
 
 **What you just did.** Stepped from one-shot prompts into [Spec-Driven Development](sdd.md) with [Beads](beads.md) as
 dependency-aware work units.
@@ -243,7 +248,7 @@ The names you'll keep bumping into, in one place:
 - **Artifact references** — durable `@kind:payload` locators that put files, documents, chats, beads, agents, commits,
   and bugs into a launch prompt. Resolve them with `sase artifact show`, `path`, or `open`; complete, copy, or hand them
   off from [ACE](ace.md).
-- **[Beads](beads.md)** — dependency-aware, git-portable work units. Powers epic execution.
+- **[Beads](beads.md)** — dependency-aware, git-portable plan, phase, and standalone task work units.
 - **[XPrompts](xprompt.md)** — reusable prompt templates and YAML workflows with typed inputs and multi-agent fan-out.
   See also [workflow specs](workflow_spec.md).
 - **[SDD](sdd.md)** — Spec-Driven Development. Plans and epics as first-class artifacts on disk.

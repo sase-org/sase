@@ -4,7 +4,7 @@ pdf: false
 
 # Infographic Style Brief
 
-This brief records the shared contract for the five documentation infographics produced from
+This brief records the shared contract for five documentation infographics produced from
 `sdd/epics/202605/docs_gpt_image_infographics.md`. Use it when auditing, regenerating, or post-processing the images so
 their sidecar prompts, target docs, insertion points, visual language, and semantic guardrails stay aligned.
 
@@ -31,12 +31,13 @@ their sidecar prompts, target docs, insertion points, visual language, and seman
 | `docs/xprompt.md`          | `docs/images/xprompt-resolution-infographic.png`    | Embedded after the introductory use-case list and before the authoritative text pipeline.               | Readers need the reference-resolution model before entering CLI and syntax reference sections.                                |
 | `docs/workflow_spec.md`    | `docs/images/workflow-execution-infographic.png`    | After the opening paragraph and before `## Table of Contents`.                                          | The doc immediately becomes a format reference; the diagram should establish the execution model first.                       |
 | `docs/commit_workflows.md` | `docs/images/commit-workflow-infographic.png`       | Candidate insertion after the `## Overview` table and before `## How It Works`; currently not embedded. | The table defines the three outputs; the diagram should bridge from that summary into orchestration details once regenerated. |
-| `docs/beads.md`            | `docs/images/bead-epic-work-infographic.png`        | After the opening paragraph and before `## Table of Contents`.                                          | The data model, storage model, readiness, and epic execution flow need a single orientation map before command examples.      |
+| `docs/beads.md`            | `docs/images/bead-epic-work-infographic.png`        | Retired; retained as a historical asset but no longer embedded.                                         | The image predates task beads and the task-only `ready` status, so it no longer represents the current model.                 |
 | `docs/rust_backend.md`     | `docs/images/rust-backend-boundary-infographic.png` | At the start of `## Architecture`, before the existing ASCII diagram.                                   | The section already owns the Python facade and Rust extension boundary, and the image can summarize ownership before details. |
 
-Current sidecar prompt files and target doc embeds match the insertion points above except for the commit-workflow
-infographic, whose PNG is stale and intentionally not embedded in its target doc. The four 1672x941 images and the
-1600x900 Rust-backend image are all 16:9 PNGs.
+Active sidecar prompts and target doc embeds match the insertion points above except for the commit-workflow
+infographic, whose stale PNG and prompt remain but are intentionally not embedded. The retired bead PNG is retained
+without its obsolete prompt/critique sidecars and is also not embedded. The four 1672x941 images and the 1600x900
+Rust-backend image are all 16:9 PNGs.
 
 ## Per-Doc Guardrails
 
@@ -70,13 +71,17 @@ infographic, whose PNG is stale and intentionally not embedded in its target doc
 
 ### `docs/beads.md`
 
-- Separate the issue model from the execution flow: plan beads with tiers (`plan`, `epic`), phase children, statuses,
-  dependencies, ready/blocked states, and hierarchical IDs belong in one area; `sase bead work` belongs in another.
+- Do not re-embed the historical image without regenerating it for plan, phase, and standalone task beads.
+- Separate the issue model from the execution flow: plan beads with tiers (`plan`, `epic`), phase children, standalone
+  tasks, statuses, dependencies, ready/blocked states, and hierarchical IDs belong in one area; `sase bead work` belongs
+  in another.
 - Show `events/**` as the git-portable source of truth, `issues.jsonl` as a compatibility projection, and `beads.db` as
   the local compatibility cache, all owned by Rust-backed bead operations.
 - Show the current checkout's in-tree `sdd/beads/` event store as the source of truth for in-tree SDD.
 - For epic work, show Kahn waves, pre-claimed phase beads, one agent per phase, waits from dependency edges, and a final
   land agent waiting on every phase agent.
+- For standalone tasks, show the `open` → `ready` → `in_progress` → `closed` lifecycle, dependency-filtered
+  `sase bead ready` output, AXE triage gates, and direct `sase bead work` launch.
 - Do not reproduce the full command table inside the image.
 
 ### `docs/rust_backend.md`

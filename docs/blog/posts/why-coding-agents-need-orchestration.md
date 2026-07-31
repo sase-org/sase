@@ -313,13 +313,16 @@ The flow is intentionally concrete:
 ```bash
 sase plan search
 sase plan links validate
-sase bead ready
-sase bead show <bead-id>
+sase bead ready                 # unblocked task beads explicitly marked ready
+sase bead show <bead-or-task-id>
 sase bead work <epic-id>
+sase bead work <task-id>
 ```
 
-An epic can produce phase beads. Phase beads can depend on each other. `sase bead ready` shows only unblocked work, and
-`sase bead work <epic-id>` can launch agents for ready phases and then land the result when dependencies are satisfied.
+An epic can produce dependency-ordered phase beads, and `sase bead work <epic-id>` launches their workers plus a final
+land agent. A standalone task bead has no parent epic: move it from draft `open` to `ready` for human triage, then
+launch one worker with `sase bead work <task-id>`. `sase bead ready` lists only task beads explicitly marked `ready`
+whose dependencies are closed.
 
 This is where Steve Yegge's [Beads](https://github.com/gastownhall/beads) influence is most obvious. Beads makes
 agent-friendly work items git-portable and dependency-aware. SASE borrows that spirit, then integrates it with SDD
@@ -330,9 +333,9 @@ ARCHITECTURE DIAGRAM BRIEF 2 - place here after the SDD/Beads section.
 Title: "Durable work state graph"
 Shape: graph/flow diagram, not a stack.
 Nodes: user prompt -> resolved SDD prompt snapshot -> tale OR epic -> phase beads in the resolved SDD store -> agent
-runs -> commits -> ChangeSpec -> PR provider -> final archive.
+runs -> commits -> ChangeSpec -> PR provider -> final archive. Add a separate standalone task bead -> one worker branch.
 Side nodes: ACE reads ChangeSpecs/agents/beads; AXE watches waits/hooks/chops; Telegram emits/receives notifications.
-Draw dependencies between phase beads clearly, with ready beads highlighted.
+Draw dependencies between phase beads clearly; reserve the `ready` label for standalone task triage.
 Purpose: show that chat history is not the source of truth; durable files and state records are.
 -->
 
@@ -536,7 +539,7 @@ These are the commands I reach for most:
 | `sase xprompt graph "#!workflow"`                        | Visualize workflow structure.                                        |
 | `sase plan`                                              | Review, approve, and manage submitted plans.                         |
 | `sase plan search` / `sase plan links validate`          | Inspect and validate SDD artifacts.                                  |
-| `sase bead ready` / `sase bead work`                     | Find unblocked bead work or execute an epic.                         |
+| `sase bead ready` / `sase bead work`                     | Triage unblocked ready tasks, or execute a task or epic.             |
 | `sase axe lumberjack status`                             | Check scheduled background automation.                               |
 | `sase axe chop doctor`                                   | Verify configured chops, scripts, and Telegram chop setup.           |
 | `sase workspace open -p <linked_repo> -r "<reason>" <n>` | Open a configured linked repo's matching numbered workspace.         |

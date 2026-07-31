@@ -428,6 +428,10 @@ Plan-like beads carry a `tier` value:
 - `plan` for ordinary non-epic implementation plans.
 - `epic` for executable multi-phase plans.
 
+Standalone task beads live in the same store but do not point at an SDD plan and carry no tier or parent. Use
+`sase bead create --type task` for an independent follow-up; see the
+[standalone task workflow](beads.md#standalone-task-workflow) for ready-state triage and one-worker launch behavior.
+
 For larger efforts, epic files carry `bead_id` and `tier: epic` in their frontmatter. The command validates the epic,
 archives it into the resolved plans store, creates the epic and phase beads, wires the authored dependencies, commits
 the `bead_id` link, and launches the shared bead-work schedule. Each phase bead's ID is written as a structured

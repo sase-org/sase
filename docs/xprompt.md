@@ -1218,7 +1218,7 @@ changes, and use the ACE [Models panel](ace.md#models-panel) (`,m`) to inspect l
 The parenthesized `%model` form accepts keyword arguments that temporarily replace model aliases for one launch lineage:
 
 ```text
-%model(opus, coder=codex/gpt-5.6-sol, small_phase_worker=@cheap)
+%model(opus, coder=codex/gpt-5.6-sol, task_worker=@default, small_phase_worker=@cheap)
 %model(xsmall_phase_worker=@cheaper, medium_phase_worker=@default@high)
 %model(large_phase_worker=@smart, xlarge_phase_worker=@smartest)
 %model(coder=@medium_phase_worker)
@@ -1226,16 +1226,17 @@ The parenthesized `%model` form accepts keyword arguments that temporarily repla
 
 The optional positional value selects the current agent's model. Each `alias=value` entry changes how that bare alias
 resolves. Without a positional value, the current agent still starts from the normal default, but that resolution uses
-the map: `default=...` changes it directly, while a size-specific phase keyword affects only that phase size. The
-current size-specific phase aliases and implicit fallbacks are:
+the map: `default=...` changes it directly, while a size-specific phase-worker keyword affects only that phase or sized
+task route. The current task and size-specific worker aliases and implicit fallbacks are:
 
-| Size     | Alias                 | Implicit fallback |
-| -------- | --------------------- | ----------------- |
-| `xsmall` | `xsmall_phase_worker` | `@cheaper`        |
-| `small`  | `small_phase_worker`  | `@cheap`          |
-| `medium` | `medium_phase_worker` | `@default@high`   |
-| `large`  | `large_phase_worker`  | `@smart`          |
-| `xlarge` | `xlarge_phase_worker` | `@smartest`       |
+| Route           | Alias                 | Implicit fallback |
+| --------------- | --------------------- | ----------------- |
+| sizeless task   | `task_worker`         | `@default`        |
+| `xsmall` worker | `xsmall_phase_worker` | `@cheaper`        |
+| `small` worker  | `small_phase_worker`  | `@cheap`          |
+| `medium` worker | `medium_phase_worker` | `@default@high`   |
+| `large` worker  | `large_phase_worker`  | `@smart`          |
+| `xlarge` worker | `xlarge_phase_worker` | `@smartest`       |
 
 Keys must be known builtin or custom alias names without `@`; values may be concrete models, `provider/model` targets,
 quoted targets, xprompt references, or another alias with `@`. A trailing reasoning-effort suffix is supported on a

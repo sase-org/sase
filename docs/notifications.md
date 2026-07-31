@@ -6,10 +6,10 @@ Sase includes a notification system that surfaces important events from backgrou
 to the user through the ACE TUI. Notifications are stored as JSONL and persisted to
 `~/.sase/notifications/notifications.jsonl`.
 
-Plan, epic-plan, question, and agent-launch approvals use the notification row as a typed transport projection of a
-durable interaction gate. The reviewed content, option-query branches, validation schemas, and hash-verified commands
-live in `~/.sase/interaction_requests/<kind>/<request-id>/`; ACE, mobile, Telegram, and typed CLI actions all resolve
-that same bundle.
+Plan, epic-plan, question, agent-launch, and task-triage approvals use the notification row as a typed transport
+projection of a durable interaction gate. The reviewed content, option-query branches, validation schemas, and
+hash-verified commands live in `~/.sase/interaction_requests/<kind>/<request-id>/`; ACE, mobile, Telegram, and typed CLI
+actions all resolve that same bundle.
 
 ## Viewing Notifications
 
@@ -35,9 +35,9 @@ Press `i` on any tab in ACE to open the notifications modal. Notifications displ
 | `R`                 | Mark all notifications as read                                                 |
 | `Esc` / `q`         | Close modal                                                                    |
 
-Plan, launch, and question notifications require confirmation (`y` / `n`) before dismissal to prevent accidental loss of
-pending approvals. The same `y` / `n` confirmation is used for bulk dismissal when at least one marked plan, launch, or
-question notification is included in the batch.
+Plan, launch, question, and task-triage notifications require confirmation (`y` / `n`) before dismissal to prevent
+accidental loss of pending decisions. The same `y` / `n` confirmation is used for bulk dismissal when at least one
+marked protected notification is included in the batch.
 
 ### Tabs and Ordering
 
@@ -47,7 +47,7 @@ non-error notifications with multiple tags appear in each matching tag tab:
 
 | Tab       | Contents                                                                                                                         |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `HITL`    | Plan and epic approvals, user questions, workflow HITL prompts, and launch approvals.                                            |
+| `HITL`    | Plan and epic approvals, task triage, user questions, workflow HITL prompts, and launch approvals.                               |
 | `Errors`  | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                  |
 | `General` | Untagged non-HITL, non-error, unmuted notifications.                                                                             |
 | `Done`    | Non-HITL, non-error notifications carrying the `done` tag, pinned before other custom tags.                                      |
@@ -64,7 +64,8 @@ bulk-dismissed by accident.
 
 Press `m` on a notification to toggle a per-row mark. Marks are scoped to the open modal — closing the modal clears
 them. While at least one row is marked, `x` switches from "dismiss the highlighted row" to "dismiss every marked row";
-plan, launch, and question rows in the batch use the same `y` / `n` confirmation prompt as a single dismissal.
+plan, launch, question, and task-triage rows in the batch use the same `y` / `n` confirmation prompt as a single
+dismissal.
 
 ### Mute and Snooze
 
@@ -81,8 +82,8 @@ from `Muted` on its own once the timer runs out.
 
 The notification indicator in the TUI top bar takes its color from the highest-priority unread bucket present:
 
-- **Orange** — at least one unread unmuted priority or error notification (plan approval, launch approval, user
-  question, mentor review, axe error digest, agent error report, ...)
+- **Orange** — at least one unread unmuted priority or error notification (plan approval, task triage, launch approval,
+  user question, mentor review, axe error digest, agent error report, ...)
 - **Gold** — only regular unmuted notifications are unread
 - **Cyan** — only muted or snoozed notifications are unread
 - **Dim zero** — no unread notifications at all
@@ -97,8 +98,8 @@ Silent notifications never contribute to the indicator (see [Silent Notification
 New unmuted notifications remain visually prominent through the top-bar indicator and action-specific toasts. A
 genuinely new `PlanApproval` or `EpicApproval` rings once on arrival, alongside its priority inbox row, warning toast,
 and the producer's desktop notification. Already-handled plan reviews discovered during polling and the intermediate
-post-approval handoff remain silent. Questions, launch/custom/HITL gates, errors, agent completions, and ordinary
-notifications retain their arrival bell.
+post-approval handoff remain silent. Task triage, questions, launch/custom/HITL gates, errors, agent completions, and
+ordinary notifications retain their arrival bell.
 
 Snooze expiry is an explicit reminder chosen by the user and remains audible for every notification class, including a
 snoozed tale or epic review.
@@ -110,6 +111,7 @@ The following events generate notifications:
 | Sender                         | Event                                                          |
 | ------------------------------ | -------------------------------------------------------------- |
 | `plan` / `epic`                | A tale or epic plan is ready for user review and approval      |
+| `bead-task-triage`             | A task bead marked `ready` needs a launch/close choice         |
 | `launch`                       | A running agent requested a new agent launch for approval      |
 | `question`                     | An agent is asking the user a question (via `/sase_questions`) |
 | `hitl`                         | A workflow HITL step is waiting for user input                 |
@@ -267,22 +269,22 @@ this build does not recognize produces an "Unsupported notification action" warn
 
 Each notification contains:
 
-| Field          | Type         | Description                                                                                                                                                     |
-| -------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`           | string       | UUID4 unique identifier                                                                                                                                         |
-| `timestamp`    | string       | ISO-8601 creation timestamp                                                                                                                                     |
-| `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                                                                                 |
-| `icon`         | string\|null | Optional single emoji or display glyph                                                                                                                          |
-| `notes`        | list[string] | Human-readable message lines                                                                                                                                    |
-| `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                                                                            |
-| `tags`         | list[string] | Optional normalized labels for filtering and modal tabs                                                                                                         |
-| `action`       | string\|null | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `UserQuestion`, `LaunchApproval`, `ViewReport`, etc. `null` means the notification is purely informational |
-| `action_data`  | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json`                                                           |
-| `read`         | bool         | Whether the notification has been read                                                                                                                          |
-| `dismissed`    | bool         | Whether the notification has been dismissed                                                                                                                     |
-| `silent`       | bool         | Silent notifications are stored but hidden from the TUI                                                                                                         |
-| `muted`        | bool         | Muted notifications appear under `Muted` and are excluded from the indicator, arrival bell, and toasts                                                          |
-| `snooze_until` | string\|null | ISO-8601 timestamp at which a snoozed notification automatically un-mutes                                                                                       |
+| Field          | Type         | Description                                                                                                                                                                   |
+| -------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`           | string       | UUID4 unique identifier                                                                                                                                                       |
+| `timestamp`    | string       | ISO-8601 creation timestamp                                                                                                                                                   |
+| `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                                                                                               |
+| `icon`         | string\|null | Optional single emoji or display glyph                                                                                                                                        |
+| `notes`        | list[string] | Human-readable message lines                                                                                                                                                  |
+| `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                                                                                          |
+| `tags`         | list[string] | Optional normalized labels for filtering and modal tabs                                                                                                                       |
+| `action`       | string\|null | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `TaskTriage`, `UserQuestion`, `LaunchApproval`, `ViewReport`, etc. `null` means the notification is purely informational |
+| `action_data`  | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json`                                                                         |
+| `read`         | bool         | Whether the notification has been read                                                                                                                                        |
+| `dismissed`    | bool         | Whether the notification has been dismissed                                                                                                                                   |
+| `silent`       | bool         | Silent notifications are stored but hidden from the TUI                                                                                                                       |
+| `muted`        | bool         | Muted notifications appear under `Muted` and are excluded from the indicator, arrival bell, and toasts                                                                        |
+| `snooze_until` | string\|null | ISO-8601 timestamp at which a snoozed notification automatically un-mutes                                                                                                     |
 
 ## Silent Notifications
 
@@ -326,8 +328,8 @@ sase notify create -s my_sender --tag review --tag handoff < notification.json
 ```
 
 Raw creation validates and preserves the optional single-glyph JSON `icon` and the JSON `silent` field. It rejects
-registered privileged actions (`PlanApproval`, `EpicApproval`, `UserQuestion`, `LaunchApproval`, `CustomGate`, and
-`HITL`) because a raw row has no trusted command bundle.
+registered privileged actions (`PlanApproval`, `EpicApproval`, `TaskTriage`, `UserQuestion`, `LaunchApproval`,
+`CustomGate`, and `HITL`) because a raw row has no trusted command bundle.
 
 The first-class gate API reads a versioned gate specification from stdin:
 
@@ -514,13 +516,20 @@ group submit is labeled **Tale**, and the two singleton branches remain **Reject
 
 The typed projections remain deliberately distinct:
 
-| Gate kind   | Notification action | Recommended producer                              |
-| ----------- | ------------------- | ------------------------------------------------- |
-| `plan`      | `PlanApproval`      | `sase plan propose` with an authored `tier: tale` |
-| `epic_plan` | `EpicApproval`      | `sase plan propose` with an authored `tier: epic` |
-| `question`  | `UserQuestion`      | `sase questions`                                  |
-| `launch`    | `LaunchApproval`    | Agent-initiated `sase launch request`             |
-| `custom`    | `CustomGate`        | `sase gate create`                                |
+| Gate kind     | Notification action | Recommended producer                              |
+| ------------- | ------------------- | ------------------------------------------------- |
+| `plan`        | `PlanApproval`      | `sase plan propose` with an authored `tier: tale` |
+| `epic_plan`   | `EpicApproval`      | `sase plan propose` with an authored `tier: epic` |
+| `task_triage` | `TaskTriage`        | AXE's built-in `bead_task_triage` chop            |
+| `question`    | `UserQuestion`      | `sase questions`                                  |
+| `launch`      | `LaunchApproval`    | Agent-initiated `sase launch request`             |
+| `custom`      | `CustomGate`        | `sase gate create`                                |
+
+`TaskTriage` uses `launch OR close`, with Launch as the primary branch. Launch accepts optional feedback and submits or
+reuses one globally visible detached task whose command is `sase bead work <bead-id> --yes-to-all`; the gate response
+records that background task ID. Close requires feedback, closes the task bead with `resolution=canceled`, and uses the
+feedback as its close reason. The gate preview is generated from the bead's title, description, and notes. Automatic
+resolution is forbidden, and all client surfaces use the same host-side side effects.
 
 Workflow `HITL` remains a legacy producer, but a HITL notification that references a neutral bundle is resolved through
 the same hash-verified executor in ACE and Telegram. Only legacy HITL bundles use the direct response-file writer.

@@ -165,14 +165,19 @@ The smallest useful loop:
 
 ```bash
 sase bead onboard         # walks through the issue-tracking quick start
-sase bead ready           # lists work whose blockers are closed
+sase bead ready           # lists ready task beads whose blockers are closed
 sase bead show <bead-id>  # inspects one bead in detail
 ```
 
+For a self-contained follow-up that does not need an epic, create a standalone task bead with
+`sase bead create --type task`, move it to `ready` when it is ready for triage, and launch it with
+`sase bead work <task-id>`. AXE also turns stored `ready` tasks into notification gates where a reviewer can launch or
+close them.
+
 Once an epic plan exists and its phase beads are filed, `sase bead work <epic-id>` builds a dependency schedule from the
-open phases, pre-claims each phase bead, launches one agent per phase in the right order, and runs a final land agent
-after the phases finish. That's the on-ramp from one-shot prompts to multi-agent execution with actual ordering — no
-more babysitting `sase run` calls in a shell loop.
+open phases, checkpoints their `in_progress` assignments, launches one agent per phase in the right order, and runs a
+final land agent after every phase bead closes. That's the on-ramp from one-shot prompts to multi-agent execution with
+actual ordering — no more babysitting `sase run` calls in a shell loop.
 
 **What you just did.** Stepped from one-shot prompts into [Spec-Driven Development](../../sdd.md) with
 [Beads](../../beads.md) as dependency-aware work units.
