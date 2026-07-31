@@ -15,6 +15,7 @@ from sase.bead.model import Issue, IssueType
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.bead_pages.associations import BeadAssociationIndex
 from sase.bead_pages.audit import audit_commit_link_attribution
+from sase.bead_pages import publication as bead_page_publication
 from sase.bead_pages.publication import publish_committed_bead_pages
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.core.paths import sase_projects_dir
@@ -396,6 +397,42 @@ def test_rendering_failure_is_captured(
         )
     ]
     assert "Could not publish committed bead pages" in caplog.text
+
+
+def test_page_write_failure_rolls_back_partial_lineage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    existing = tmp_path / "pages" / "root.md"
+    created = tmp_path / "pages" / "phase.md"
+    failing = tmp_path / "pages" / "land.md"
+    existing.parent.mkdir(parents=True)
+    existing.write_bytes(b"original")
+
+    write_bytes = Path.write_bytes
+    failed = False
+
+    def flaky_write_bytes(path: Path, payload: bytes) -> int:
+        nonlocal failed
+        if path == failing and not failed:
+            failed = True
+            raise OSError("disk full")
+        return write_bytes(path, payload)
+
+    monkeypatch.setattr(Path, "write_bytes", flaky_write_bytes)
+
+    with pytest.raises(OSError, match="disk full"):
+        bead_page_publication._write_changed_pages(
+            (
+                (existing, b"updated"),
+                (created, b"created"),
+                (failing, b"failing"),
+            )
+        )
+
+    assert existing.read_bytes() == b"original"
+    assert not created.exists()
+    assert not failing.exists()
 
 
 def test_store_health_failure_preserves_changed_outcome(

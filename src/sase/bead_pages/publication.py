@@ -163,14 +163,36 @@ def _committed_bead_id(commit_message: str) -> str | None:
 def _write_changed_pages(
     payloads: tuple[tuple[Path, bytes], ...],
 ) -> list[Path]:
-    changed: list[Path] = []
+    pending: list[tuple[Path, bytes, bytes | None]] = []
     for path, payload in payloads:
-        if path.is_file() and path.read_bytes() == payload:
+        original = path.read_bytes() if path.is_file() else None
+        if original == payload:
             continue
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(payload)
-        changed.append(path)
-    return changed
+        pending.append((path, payload, original))
+
+    touched: list[tuple[Path, bytes | None]] = []
+    try:
+        for path, payload, original in pending:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            touched.append((path, original))
+            path.write_bytes(payload)
+    except BaseException as exc:
+        rollback_errors: list[str] = []
+        for path, original in reversed(touched):
+            try:
+                if original is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    path.write_bytes(original)
+            except OSError as rollback_error:
+                rollback_errors.append(f"{path}: {rollback_error}")
+        if rollback_errors:
+            detail = "; ".join(rollback_errors)
+            _logger.error("Could not roll back partial bead page writes: %s", detail)
+            exc.add_note(f"Could not roll back partial bead page writes: {detail}")
+        raise
+
+    return [path for path, _payload, _original in pending]
 
 
 def _error_outcome(
