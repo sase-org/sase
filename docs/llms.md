@@ -67,8 +67,8 @@ Key design principles:
 | `src/sase/llm_provider/_registry_metadata.py`     | Provider metadata normalization and cache fingerprints                                   |
 | `src/sase/llm_provider/_registry_plugins.py`      | Plugin discovery/construction via `sase_llm` entry points                                |
 | `src/sase/llm_provider/model_alias_defaults.yml`  | Single bundled source of truth for shipped implicit-alias targets/fallbacks/descriptions |
-| `src/sase/llm_provider/model_alias_policy.py`     | Validating loader for `model_alias_defaults.yml`                                         |
-| `src/sase/llm_provider/model_alias_config.py`     | Model-alias name constants, config parsing, presentation metadata                        |
+| `src/sase/llm_provider/model_alias_policy.py`     | Model-alias name constants and the validating loader for `model_alias_defaults.yml`      |
+| `src/sase/llm_provider/model_alias_config.py`     | Model-alias config parsing and presentation metadata                                     |
 | `src/sase/llm_provider/model_alias_resolution.py` | Alias/target/effort resolution logic                                                     |
 | `src/sase/llm_provider/alias_view.py`             | ACE Models-panel alias-view construction (`build_alias_views()`)                         |
 | `src/sase/llm_provider/config.py`                 | Config file reader (`sase.yml`)                                                          |
