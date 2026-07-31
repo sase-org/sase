@@ -91,6 +91,7 @@ def test_default_list_includes_claimed_with_shared_glyph(
     ]
     assert capsys.readouterr().out == "◎ sase-claimed · Reserved phase\n"
     assert status_icon(Status.CLAIMED) == "◎"
+    assert status_icon(Status.READY) == "◇"
 
 
 def test_show_explains_claim_owner(

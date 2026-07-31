@@ -270,6 +270,10 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-bg(bead_type_chip)' \
+        --epic-symbol 'sase-bg(bead_type_display_order)' \
+        --epic-symbol 'sase-bg(bead_type_presentation)' \
+        --epic-symbol 'sase-bg(normalize_bead_type)' \
         --epic-symbol 'sase-bg(resolve_work_task_xprompt)' \
         {{ args }}
 

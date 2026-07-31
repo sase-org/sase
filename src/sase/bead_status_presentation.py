@@ -50,7 +50,7 @@ BEAD_STATUS_PRESENTATIONS: dict[BeadStatusValue, _BeadStatusPresentation] = {
         tui_glyph="◇",
         cli_style="\x1b[96m",
         rich_color="#00D7AF",
-        label="READY",
+        label="Ready",
     ),
     "in_progress": _BeadStatusPresentation(
         cli_glyph="◐",
