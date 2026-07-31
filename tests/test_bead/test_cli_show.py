@@ -11,6 +11,7 @@ import shlex
 import pytest
 
 from sase.bead import cli as bead_cli
+from sase.bead.cli_detail import resolve_bead_creator_url
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
@@ -102,6 +103,34 @@ def _show_with_format(
     )
     bead_cli.handle_bead_show(args)
     return capsys.readouterr().out
+
+
+def _use_single_issue_view(
+    monkeypatch: pytest.MonkeyPatch,
+    issue: Issue,
+) -> None:
+    class _SingleIssueView:
+        def show(self, issue_id: str) -> Issue:
+            if issue_id == issue.id:
+                return issue
+            raise KeyError(issue_id)
+
+        def get_epic_children(self, _issue_id: str) -> list[Issue]:
+            return []
+
+        def list_issues(self) -> list[Issue]:
+            return [issue]
+
+    @contextmanager
+    def read_view() -> Iterator[_SingleIssueView]:
+        yield _SingleIssueView()
+
+    monkeypatch.setattr("sase.bead.cli_query.get_read_view", read_view)
+    monkeypatch.setattr(
+        "sase.bead.cli_query.design_paths_are_relative",
+        lambda: False,
+    )
+    monkeypatch.setattr("sase.bead.cli_query.resolve_bead_page_url", lambda _id: None)
 
 
 def test_show_skill_examples_parse_against_cli_contract() -> None:
@@ -302,6 +331,64 @@ def test_show_full_prints_page_url_when_resolved(
     assert f"\nPAGE\n  https://example.test/pages/{root.id}\n" in out
 
 
+def test_show_full_renders_localized_creator_with_resolved_agent_url(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issue = Issue(
+        id="beads-agent",
+        title="Agent-created task",
+        issue_type=IssueType.TASK,
+        owner="owner@example.com",
+        created_by="bbugyi200.athena.q8--plan",
+    )
+    creator_url = "https://example.test/agents/q8--plan"
+    _use_single_issue_view(monkeypatch, issue)
+    monkeypatch.setattr(
+        "sase.bead.cli_detail.present_agent_name",
+        lambda name: "q8--plan" if name == issue.created_by else name,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_query.resolve_bead_creator_url",
+        lambda name: creator_url if name == issue.created_by else None,
+    )
+
+    out = _show(issue, capsys)
+
+    assert f"\nCREATED BY\n  q8--plan\n  → {creator_url}\n" in out
+
+
+def test_show_full_falls_back_to_raw_creator_without_agent_url(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issue = Issue(
+        id="beads-human",
+        title="Human-created task",
+        issue_type=IssueType.TASK,
+        owner="owner@example.com",
+        created_by="owner@example.com",
+    )
+    _use_single_issue_view(monkeypatch, issue)
+
+    def fail_to_present(_name: str) -> str:
+        raise ValueError("not an agent name")
+
+    monkeypatch.setattr(
+        "sase.bead.cli_detail.present_agent_name",
+        fail_to_present,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_query.resolve_bead_creator_url",
+        lambda _name: None,
+    )
+
+    out = _show(issue, capsys)
+
+    assert "\nCREATED BY\n  owner@example.com\n" in out
+    assert "\n  → " not in out
+
+
 def test_show_json_includes_page_url_when_resolved(
     nested_store: dict[str, Issue],
     capsys: pytest.CaptureFixture[str],
@@ -316,6 +403,88 @@ def test_show_json_includes_page_url_when_resolved(
     payload = json.loads(_show_with_format(root, "json", capsys))
 
     assert payload["page_url"] == f"https://example.test/pages/{root.id}"
+
+
+def test_show_json_includes_creator_url_only_when_resolved(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issue = Issue(
+        id="beads-agent",
+        title="Agent-created task",
+        issue_type=IssueType.TASK,
+        owner="owner@example.com",
+        created_by="bbugyi200.athena.q8--plan",
+    )
+    creator_url = "https://example.test/agents/q8--plan"
+    _use_single_issue_view(monkeypatch, issue)
+    monkeypatch.setattr(
+        "sase.bead.cli_query.resolve_bead_creator_url",
+        lambda _name: creator_url,
+    )
+
+    resolved = json.loads(_show_with_format(issue, "json", capsys))
+
+    assert resolved["created_by_url"] == creator_url
+
+    monkeypatch.setattr(
+        "sase.bead.cli_query.resolve_bead_creator_url",
+        lambda _name: None,
+    )
+    unresolved = json.loads(_show_with_format(issue, "json", capsys))
+
+    assert "created_by_url" not in unresolved
+
+
+def test_resolve_bead_creator_url_uses_hosted_agent_link(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = object()
+    creator = "bbugyi200.athena.q8--plan"
+    expected = "https://example.test/agents/q8--plan"
+
+    class _Resolver:
+        def agent_url(self, agent_name: str) -> str | None:
+            assert agent_name == creator
+            return expected
+
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.workspace_context_for_plan_resolution",
+        lambda _cwd: (tmp_path, 17),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.resolve_sdd_store",
+        lambda workspace_dir, workspace_num: (
+            store
+            if (workspace_dir, workspace_num) == (tmp_path, 17)
+            else pytest.fail("unexpected workspace context")
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.hosted_links.hosted_link_resolver",
+        lambda resolved_store, *, primary_root: (
+            _Resolver()
+            if (resolved_store, primary_root) == (store, tmp_path)
+            else pytest.fail("unexpected hosted link context")
+        ),
+    )
+
+    assert resolve_bead_creator_url(creator) == expected
+
+
+def test_resolve_bead_creator_url_never_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail(_cwd: Path) -> tuple[Path, int]:
+        raise OSError("workspace unavailable")
+
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.workspace_context_for_plan_resolution",
+        fail,
+    )
+
+    assert resolve_bead_creator_url("bbugyi200.athena.q8--plan") is None
 
 
 def test_show_json_root_includes_children_and_self_plan(

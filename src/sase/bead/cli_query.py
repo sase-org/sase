@@ -16,6 +16,7 @@ from sase.bead.cli_detail import (
     plan_reference_roots,
     render_issue_detail,
     render_issue_detail_json,
+    resolve_bead_creator_url,
     resolve_bead_page_url,
     resolve_issue_detail,
 )
@@ -119,6 +120,11 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                 print(
                     render_issue_detail_json(
                         detail,
+                        created_by_url=(
+                            resolve_bead_creator_url(issue.created_by)
+                            if issue.created_by
+                            else None
+                        ),
                         page_url=resolve_bead_page_url(issue.id),
                     ),
                     end="",
@@ -132,6 +138,11 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                         relativize_design=design_paths_are_relative(),
                         plan_roots=plan_reference_roots(),
                         reference_context=reference_context,
+                        creator_url=(
+                            resolve_bead_creator_url(issue.created_by)
+                            if issue.created_by
+                            else None
+                        ),
                         page_url=resolve_bead_page_url(issue.id),
                     ),
                     end="",

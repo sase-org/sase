@@ -2,6 +2,9 @@ No open beads to show — defaulting to --status closed.
 ✓ beads-1 · Closed Epic   [CLOSED]
 Type: plan · Tier: epic · Owner: owner@example.com
 
+CREATED BY
+  owner@example.com
+
 RESOLUTION
   Resolution: (unrecorded)
   Close reason: done
@@ -18,6 +21,9 @@ PLAN
 Type: phase · Owner: owner@example.com
 Size: small
 
+CREATED BY
+  owner@example.com
+
 RESOLUTION
   Resolution: (unrecorded)
   Close reason: done
@@ -32,6 +38,9 @@ EPIC PLAN
 ------------------------------------------------------------
 ✓ beads-2 · Closed Plan   [CLOSED]
 Type: plan · Tier: plan · Owner: owner@example.com
+
+CREATED BY
+  owner@example.com
 
 RESOLUTION
   Resolution: (unrecorded)

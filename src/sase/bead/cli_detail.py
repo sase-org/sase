@@ -13,6 +13,7 @@ from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead.cli_common import status_icon
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
 from sase.bead.project import BeadProject
+from sase.core.agent_identity_facade import present_agent_name
 
 
 @dataclass(frozen=True)
@@ -155,6 +156,7 @@ def render_issue_detail(
     relativize_design: bool,
     plan_roots: tuple[Path, ...] = (),
     reference_context: ArtifactRefContext | None = None,
+    creator_url: str | None = None,
     page_url: str | None = None,
 ) -> str:
     """Render the established human-readable bead detail block."""
@@ -179,6 +181,15 @@ def render_issue_detail(
         lines.append(f"Model: {issue.model}")
     if issue.issue_type in {IssueType.PHASE, IssueType.TASK}:
         lines.append(f"Size: {_phase_size_value(issue)}")
+
+    if issue.created_by:
+        try:
+            creator_label = present_agent_name(issue.created_by)
+        except Exception:
+            creator_label = issue.created_by
+        lines.extend(["", "CREATED BY", f"  {creator_label}"])
+        if creator_url:
+            lines.append(f"  → {creator_url}")
 
     if page_url:
         lines.extend(["", "PAGE", f"  {page_url}"])
@@ -313,6 +324,7 @@ def render_issue_detail(
 def render_issue_detail_json(
     detail: IssueDetail,
     *,
+    created_by_url: str | None = None,
     page_url: str | None = None,
 ) -> str:
     """Render a stable single-bead JSON envelope."""
@@ -335,6 +347,8 @@ def render_issue_detail_json(
         "blocks": [ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.blocks],
         "plan": _plan_to_wire_dict(detail.plan),
     }
+    if created_by_url:
+        envelope["created_by_url"] = created_by_url
     if page_url:
         envelope["page_url"] = page_url
     return json.dumps(envelope, indent=2) + "\n"
@@ -425,6 +439,22 @@ def resolve_bead_page_url(bead_id: str) -> str | None:
         workspace_dir, workspace_num = workspace_context_for_plan_resolution(Path.cwd())
         store = resolve_sdd_store(workspace_dir, workspace_num)
         return hosted_link_resolver(store, primary_root=workspace_dir).bead_url(bead_id)
+    except Exception:
+        return None
+
+
+def resolve_bead_creator_url(created_by: str) -> str | None:
+    """Resolve a hosted agent page URL for ``sase bead show`` when available."""
+    from sase.sdd.hosted_links import hosted_link_resolver
+    from sase.sdd.plan_refs import workspace_context_for_plan_resolution
+    from sase.sdd.store import resolve_sdd_store
+
+    try:
+        workspace_dir, workspace_num = workspace_context_for_plan_resolution(Path.cwd())
+        store = resolve_sdd_store(workspace_dir, workspace_num)
+        return hosted_link_resolver(store, primary_root=workspace_dir).agent_url(
+            created_by
+        )
     except Exception:
         return None
 

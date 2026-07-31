@@ -3,6 +3,9 @@ Type: phase · Owner: owner@example.com
 Assignee: alice
 Size: small
 
+CREATED BY
+  owner@example.com
+
 PARENT
   ↑ beads-1.1 ← epic beads-1
 
