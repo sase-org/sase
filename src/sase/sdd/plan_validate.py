@@ -77,6 +77,7 @@ class _ValidatedPlan:
     parent_bead: str | None
     bead: str | None
     parent: str | None
+    proposed_by: str | None
 
 
 @dataclass(frozen=True)
@@ -200,6 +201,7 @@ def _validated_plan_from_dict(payload: dict[str, Any]) -> _ValidatedPlan:
         parent_bead=_optional_str(payload.get("parent_bead")),
         bead=_optional_str(payload.get("bead")),
         parent=_optional_str(payload.get("parent")),
+        proposed_by=_optional_str(payload.get("proposed_by")),
     )
 
 

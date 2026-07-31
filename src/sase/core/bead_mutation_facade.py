@@ -53,6 +53,7 @@ def create(
     changespec_bug_id: str | int | None = "",
     model: str = "",
     size: PhaseSize | str | None = None,
+    created_by: str | None = None,
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
     _guard_bead_store_write(beads_dir, "create")
@@ -74,6 +75,7 @@ def create(
             "changespec_bug_id": _optional_text(changespec_bug_id),
             "model": model,
             "size": None if size is None else phase_size_value(size),
+            "created_by": created_by,
             "now": now,
         },
     )

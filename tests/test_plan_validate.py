@@ -88,6 +88,7 @@ def test_facade_rehydrates_valid_tale_and_ordered_schema() -> None:
         "create_time",
         "status",
         "bead",
+        "proposed_by",
         "parent",
         "bead_id",
     ]
@@ -128,6 +129,23 @@ def test_facade_rehydrates_normalized_epic_phases() -> None:
     assert [phase.size for phase in result.plan.phases] == ["medium", "large"]
     assert result.plan.phases[1].depends_on == ("core",)
     assert result.plan.phases[1].description is None
+
+
+def test_facade_surfaces_proposed_by() -> None:
+    without = validate_plan(VALID_EPIC, "epic")
+    assert without.ok
+    assert without.plan is not None
+    assert without.plan.proposed_by is None
+
+    proposed = VALID_EPIC.replace(
+        "parent_bead: sase-parent.2\n",
+        "parent_bead: sase-parent.2\nproposed_by: bbugyi200.athena.q8--plan\n",
+    )
+    result = validate_plan(proposed, "epic")
+
+    assert result.ok
+    assert result.plan is not None
+    assert result.plan.proposed_by == "bbugyi200.athena.q8--plan"
 
 
 def test_facade_accepts_explicit_models_for_every_phase_size() -> None:

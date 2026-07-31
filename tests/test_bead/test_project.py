@@ -155,6 +155,31 @@ def test_create_plan_and_filter_by_tier(project):
     assert project.show(epic.id).tier == BeadTier.EPIC
 
 
+def test_create_records_explicit_created_by(project):
+    issue = project.create(
+        "Attributed task",
+        IssueType.TASK,
+        created_by="bbugyi200.athena.q8--plan",
+    )
+    assert issue.created_by == "bbugyi200.athena.q8--plan"
+    assert project.show(issue.id).created_by == "bbugyi200.athena.q8--plan"
+
+
+def test_create_without_created_by_falls_back_to_owner(project):
+    issue = project.create("Unattributed task", IssueType.TASK)
+    assert issue.created_by == issue.owner
+
+
+def test_create_phase_inherits_created_by_from_parent(project):
+    epic = project.create(
+        "Epic",
+        IssueType.PLAN,
+        created_by="bbugyi200.athena.q8--plan",
+    )
+    phase = project.create("Phase", IssueType.PHASE, parent_id=epic.id)
+    assert phase.created_by == "bbugyi200.athena.q8--plan"
+
+
 def test_create_and_update_model(project):
     epic = project.create("Epic", IssueType.PLAN, model="claude/opus")
     assert epic.model == "claude/opus"

@@ -153,6 +153,7 @@ class BeadProject:
         changespec_bug_id: str | int | None = "",
         model: str = "",
         size: PhaseSize | str | None = None,
+        created_by: str | None = None,
     ) -> Issue:
         """Create a new issue.
 
@@ -177,6 +178,7 @@ class BeadProject:
             changespec_bug_id=changespec_bug_id,
             model=model,
             size=size,
+            created_by=created_by,
             now=_now(),
         )
         self._record_mutation_outcome(outcome)
