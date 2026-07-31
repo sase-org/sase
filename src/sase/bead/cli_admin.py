@@ -40,6 +40,7 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
     plan_roots = _resolve_doctor_plan_roots()
     reference_context = _resolve_doctor_reference_context()
     fix_design_refs = bool(getattr(args, "fix_design_refs", False))
+    fix_issue_prefix = bool(getattr(args, "fix_issue_prefix", False))
     fix_projection = bool(getattr(args, "fix_projection", False))
     assume_yes = bool(getattr(args, "yes", False))
     with get_project() as proj:
@@ -69,6 +70,9 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
         _repair_projection(
             projection_preview, plan_roots, reference_context, assume_yes
         )
+
+    if fix_issue_prefix:
+        _repair_issue_prefix(assume_yes)
 
     if preview is None:
         return
@@ -159,6 +163,67 @@ def _repair_projection(
         f"✓ Reprojected {len(preview)} bead row"
         f"{'' if len(preview) == 1 else 's'} from canonical events"
     )
+
+
+def _repair_issue_prefix(assume_yes: bool) -> None:
+    from sase.bead.prefix_policy import stale_key_prefix_report
+
+    with get_project() as proj:
+        report = stale_key_prefix_report(proj.beads_dir)
+        beads_dir = proj.beads_dir
+
+    if report is None:
+        print("No issue prefix to repair.")
+        return
+
+    _render_issue_prefix_repair_preview(report)
+    if not (assume_yes or _confirm_issue_prefix_repair(report)):
+        print("Issue prefix repair cancelled; no changes applied.")
+        return
+
+    from sase.bead.config import load_config, save_config
+    from sase.bead.sync import bead_store_write_lock
+
+    with bead_store_write_lock(beads_dir) as already_locked:
+        if stale_key_prefix_report(beads_dir) != report:
+            print(
+                "ERROR: bead issue prefix changed after the preview; "
+                "no changes applied.",
+                file=sys.stderr,
+            )
+            return
+        stored, corrected = report
+        config = load_config(beads_dir)
+        config["issue_prefix"] = corrected
+        save_config(beads_dir, config)
+        auto_commit_bead_store(
+            f"chore(beads): repair issue prefix {stored} -> {corrected}",
+            push_after_commit=False,
+            already_locked=already_locked,
+        )
+    stored, corrected = report
+    print(f"✓ Repaired bead issue prefix: {stored} -> {corrected}")
+
+
+def _render_issue_prefix_repair_preview(report: tuple[str, str]) -> None:
+    stored, corrected = report
+    print("Issue prefix repair preview:")
+    print(f"  {stored} -> {corrected}")
+    print(
+        "Existing bead IDs keep the old prefix; only new top-level beads use "
+        f"'{corrected}'."
+    )
+
+
+def _confirm_issue_prefix_repair(report: tuple[str, str]) -> bool:
+    if not sys.stdin.isatty():
+        return False
+    stored, corrected = report
+    try:
+        answer = input(f"Reset issue prefix from '{stored}' to '{corrected}'? [y/N] ")
+    except EOFError:
+        return False
+    return answer.strip().lower() in {"y", "yes"}
 
 
 def _render_projection_repair_preview(
@@ -348,6 +413,7 @@ Quick Start:
   sase bead stats                                Project statistics
   sase bead doctor                               Health and reference checks
   sase bead doctor --fix-design-refs             Repair legacy plan links
+  sase bead doctor --fix-issue-prefix            Reset a leaked ProjectSpec-key issue prefix
   sase bead doctor --fix-projection              Repair issues.jsonl drift
   sase bead work <epic-or-task-id>               Launch epic or task agents""")
 

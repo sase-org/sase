@@ -545,7 +545,7 @@ class BeadProject:
         if sync_messages and messages == ["OK: no issues found"]:
             messages = []
         messages.extend(sync_messages)
-        return messages
+        return _append_stale_prefix_diagnostic(messages, self.beads_dir)
 
     def doctor_report(
         self,
@@ -571,7 +571,7 @@ class BeadProject:
         if sync_messages and messages == ["OK: no issues found"]:
             messages = []
         messages.extend(sync_messages)
-        report["messages"] = messages
+        report["messages"] = _append_stale_prefix_diagnostic(messages, self.beads_dir)
         return report
 
     def reproject_from_events(self) -> dict[str, object]:
@@ -658,6 +658,24 @@ class BeadProject:
 def _now() -> str:
     """Current UTC timestamp as ISO 8601 string."""
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _append_stale_prefix_diagnostic(messages: list[str], beads_dir: Path) -> list[str]:
+    """Warn when a store's issue prefix leaked a ProjectSpec key."""
+    from sase.bead.prefix_policy import stale_key_prefix_report
+
+    report = stale_key_prefix_report(beads_dir)
+    if report is None:
+        return messages
+    stored, corrected = report
+    if messages == ["OK: no issues found"]:
+        messages = []
+    messages.append(
+        f"WARNING: bead issue prefix '{stored}' is a ProjectSpec key; "
+        f"project name is '{corrected}' "
+        "(repair with: sase bead doctor --fix-issue-prefix)"
+    )
+    return messages
 
 
 def _optional_text(value: str | int | None) -> str:

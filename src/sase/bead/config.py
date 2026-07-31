@@ -6,7 +6,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from sase.bead.project_name import infer_project_name_from_cwd
+from sase.bead.prefix_policy import default_issue_prefix
 from sase.config import load_merged_config
 
 
@@ -54,29 +54,8 @@ def _git_user_email() -> str:
 
 
 def _detect_prefix(root_dir: Path) -> str:
-    """Detect issue prefix from git remote or directory name."""
-    project_name = infer_project_name_from_cwd()
-    if project_name:
-        return project_name
-
-    try:
-        result = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=root_dir,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            url = result.stdout.strip()
-            # Extract repo name from URL (handles both HTTPS and SSH)
-            name = url.rstrip("/").rsplit("/", 1)[-1]
-            if name.endswith(".git"):
-                name = name[:-4]
-            return name
-    except FileNotFoundError:
-        pass
-    return root_dir.resolve().name
+    """Detect issue prefix from the project name, git remote, or directory name."""
+    return default_issue_prefix(root_dir)
 
 
 def get_default_config(root_dir: Path) -> dict[str, object]:

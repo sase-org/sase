@@ -77,7 +77,9 @@ def test_beads_list_bridge_filters_explicit_project_status_type_and_tier(
 def test_beads_list_bridge_uses_only_first_canonical_project_store(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("sase.bead.config.infer_project_name_from_cwd", lambda: None)
+    monkeypatch.setattr(
+        "sase.bead.prefix_policy.infer_project_name_from_cwd", lambda: None
+    )
     alpha_dir, alpha_epic, _, _ = seed_bead_project(tmp_path / "alpha")
     sibling_dir, sibling_epic, _, _ = seed_bead_project(tmp_path / "alpha_101")
     monkeypatch.setattr(
@@ -99,7 +101,9 @@ def test_beads_list_bridge_uses_only_first_canonical_project_store(
 def test_beads_list_bridge_all_known_projects_ignores_orphan_bead_dirs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("sase.bead.config.infer_project_name_from_cwd", lambda: None)
+    monkeypatch.setattr(
+        "sase.bead.prefix_policy.infer_project_name_from_cwd", lambda: None
+    )
     alpha_dir, alpha_epic, _, _ = seed_bead_project(tmp_path / "alpha")
     sibling_dir, sibling_epic, _, _ = seed_bead_project(tmp_path / "alpha_101")
     seed_known_projects(tmp_path, {"alpha": alpha_dir})
@@ -332,7 +336,9 @@ def test_beads_bridge_returns_resolved_plan_path_when_available(
 def test_beads_show_bridge_does_not_search_extra_project_stores(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("sase.bead.config.infer_project_name_from_cwd", lambda: None)
+    monkeypatch.setattr(
+        "sase.bead.prefix_policy.infer_project_name_from_cwd", lambda: None
+    )
     alpha_dir, _, _, _ = seed_bead_project(tmp_path / "alpha")
     sibling_dir, sibling_epic, _, _ = seed_bead_project(tmp_path / "alpha_101")
     monkeypatch.setattr(

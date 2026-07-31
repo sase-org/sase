@@ -140,6 +140,15 @@ def register_bead_doctor_parser(
         ),
     )
     parser.add_argument(
+        "-I",
+        "--fix-issue-prefix",
+        action="store_true",
+        help=(
+            "Preview and, after confirmation, reset the store's issue prefix "
+            "to the project name"
+        ),
+    )
+    parser.add_argument(
         "-P",
         "--fix-projection",
         action="store_true",

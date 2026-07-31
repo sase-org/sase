@@ -13,6 +13,7 @@ from collections.abc import Iterator
 import pytest
 
 from sase.bead import cli_admin
+from sase.bead.config import load_config, save_config
 from sase.bead.design_ref_repair import (
     DesignRefRepairPreview,
     _DesignRefRepair,
@@ -21,6 +22,7 @@ from sase.bead.model import Issue, IssueType
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
 from sase.sdd import plan_refs
+from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
 
 def test_doctor_parser_accepts_fix_aliases_and_documents_help(
@@ -54,6 +56,131 @@ def test_doctor_parser_accepts_projection_repair_and_yes_aliases(
     help_text = capsys.readouterr().out
     assert "--fix-projection" in help_text
     assert "--yes" in help_text
+
+
+def test_doctor_parser_accepts_fix_issue_prefix_alias_and_documents_help(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = create_parser()
+    for flag in ("-I", "--fix-issue-prefix"):
+        args = parser.parse_args(["bead", "doctor", flag])
+        assert args.fix_issue_prefix is True
+
+    with pytest.raises(SystemExit) as excinfo:
+        parser.parse_args(["bead", "doctor", "-h"])
+    assert excinfo.value.code == 0
+    assert "--fix-issue-prefix" in capsys.readouterr().out
+
+
+def _doctor_args(**overrides: bool) -> argparse.Namespace:
+    defaults = {
+        "fix_design_refs": False,
+        "fix_issue_prefix": False,
+        "fix_projection": False,
+        "yes": False,
+    }
+    defaults.update(overrides)
+    return argparse.Namespace(**defaults)
+
+
+def test_doctor_warns_about_leaked_key_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject.init(tmp_path):
+        pass
+    beads_dir = tmp_path / "sdd" / "beads"
+    stale_config = load_config(beads_dir)
+    stale_config["issue_prefix"] = "gh_bobs-org__bob-cli"
+    save_config(beads_dir, stale_config)
+
+    monkeypatch.setattr(
+        "sase.bead.prefix_policy.infer_project_name_from_cwd",
+        lambda: "gh_bobs-org__bob-cli",
+    )
+    monkeypatch.setattr(
+        "sase.project_display_names.project_display_name_for",
+        lambda _key, *_args, **_kwargs: "bob-cli",
+    )
+    isolate_bead_store_resolution(monkeypatch, tmp_path)
+
+    cli_admin.handle_bead_doctor(_doctor_args())
+
+    output = capsys.readouterr().out
+    assert (
+        "WARNING: bead issue prefix 'gh_bobs-org__bob-cli' is a ProjectSpec key; "
+        "project name is 'bob-cli' "
+        "(repair with: sase bead doctor --fix-issue-prefix)"
+    ) in output
+
+
+def test_doctor_omits_prefix_warning_for_correctly_prefixed_store(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cli_admin.handle_bead_doctor(_doctor_args())
+
+    output = capsys.readouterr().out
+    assert "is a ProjectSpec key" not in output
+
+
+def test_fix_issue_prefix_rewrites_config_and_preserves_existing_ids(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject.init(tmp_path) as project:
+        issue = project.create("One", IssueType.PLAN)
+    beads_dir = tmp_path / "sdd" / "beads"
+    stale_config = load_config(beads_dir)
+    stale_config["issue_prefix"] = "gh_bobs-org__bob-cli"
+    save_config(beads_dir, stale_config)
+
+    monkeypatch.setattr(
+        "sase.bead.prefix_policy.infer_project_name_from_cwd",
+        lambda: "gh_bobs-org__bob-cli",
+    )
+    monkeypatch.setattr(
+        "sase.project_display_names.project_display_name_for",
+        lambda _key, *_args, **_kwargs: "bob-cli",
+    )
+    isolate_bead_store_resolution(monkeypatch, tmp_path)
+
+    before_config = json.loads((tmp_path / "sdd/beads/config.json").read_text())
+
+    commits: list[str] = []
+
+    def auto_commit(message: str, **_kwargs: object) -> bool:
+        commits.append(message)
+        return False
+
+    monkeypatch.setattr(cli_admin, "auto_commit_bead_store", auto_commit)
+
+    cli_admin.handle_bead_doctor(_doctor_args(fix_issue_prefix=True, yes=True))
+
+    output = capsys.readouterr().out
+    assert "gh_bobs-org__bob-cli -> bob-cli" in output
+    assert "Repaired bead issue prefix" in output
+
+    after_config = json.loads((tmp_path / "sdd/beads/config.json").read_text())
+    assert after_config["issue_prefix"] == "bob-cli"
+    assert after_config["next_counter"] == before_config["next_counter"]
+    assert commits == [
+        "chore(beads): repair issue prefix gh_bobs-org__bob-cli -> bob-cli"
+    ]
+
+    with BeadProject(tmp_path) as project:
+        assert project.show(issue.id).id == issue.id
+
+
+def test_fix_issue_prefix_with_nothing_to_repair(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cli_admin.handle_bead_doctor(_doctor_args(fix_issue_prefix=True, yes=True))
+
+    assert "No issue prefix to repair." in capsys.readouterr().out
 
 
 def test_plain_doctor_forwards_roots_without_planning_or_writing(

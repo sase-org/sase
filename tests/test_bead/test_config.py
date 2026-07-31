@@ -14,6 +14,8 @@ from sase.bead.config import (
     load_config,
     save_config,
 )
+from sase.bead.model import IssueType
+from sase.bead.project import BeadProject
 
 
 def test_get_default_config(tmp_path):
@@ -53,13 +55,81 @@ def test_save_config_creates_json(tmp_path):
 
 
 def test_detect_prefix_uses_project_name_from_cwd(tmp_path, monkeypatch):
+    """No PROJECT_NAME configured: the inferred key itself is the prefix."""
     root = tmp_path / ".sase" / "sdd"
     root.mkdir(parents=True)
 
     monkeypatch.setattr(
-        "sase.bead.config.infer_project_name_from_cwd", lambda: "yserve"
+        "sase.bead.prefix_policy.infer_project_name_from_cwd", lambda: "yserve"
+    )
+    monkeypatch.setattr(
+        "sase.project_display_names.project_display_name_for",
+        lambda key, *_args, **_kwargs: key,
     )
     assert _detect_prefix(root) == "yserve"
+
+
+def test_detect_prefix_uses_project_display_name_when_key_differs(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        "sase.bead.prefix_policy.infer_project_name_from_cwd",
+        lambda: "gh_bobs-org__bob-cli",
+    )
+    monkeypatch.setattr(
+        "sase.project_display_names.project_display_name_for",
+        lambda _key, *_args, **_kwargs: "bob-cli",
+    )
+    assert _detect_prefix(tmp_path) == "bob-cli"
+
+
+def test_detect_prefix_falls_back_to_key_for_unsafe_label(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "sase.bead.prefix_policy.infer_project_name_from_cwd",
+        lambda: "bob-cli-key",
+    )
+    monkeypatch.setattr(
+        "sase.project_display_names.project_display_name_for",
+        lambda _key, *_args, **_kwargs: "bob cli",
+    )
+    assert _detect_prefix(tmp_path) == "bob-cli-key"
+
+
+def test_detect_prefix_falls_through_to_directory_name_without_project(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        "sase.bead.prefix_policy.infer_project_name_from_cwd", lambda: None
+    )
+    root = tmp_path / "my-repo"
+    root.mkdir()
+    assert _detect_prefix(root) == "my-repo"
+
+
+def test_init_beads_end_to_end_uses_project_display_name_prefix(tmp_path, monkeypatch):
+    """Regression guard for the ``sase bead work`` ProjectSpec-key defect.
+
+    ``BeadProject.init`` is the exact call ``init_beads`` (the ``sase bead
+    work`` store-materialization path) makes; a store whose key differs from
+    its ``PROJECT_NAME`` must not persist the raw key as its issue prefix.
+    """
+    monkeypatch.setattr(
+        "sase.bead.prefix_policy.infer_project_name_from_cwd",
+        lambda: "gh_bobs-org__bob-cli",
+    )
+    monkeypatch.setattr(
+        "sase.project_display_names.project_display_name_for",
+        lambda key, *_args, **_kwargs: (
+            "bob-cli" if key == "gh_bobs-org__bob-cli" else key
+        ),
+    )
+
+    with BeadProject.init(tmp_path) as project:
+        issue = project.create("One", IssueType.PLAN)
+
+    assert issue.id.startswith("bob-cli-")
+    config = load_config(tmp_path / "sdd/beads")
+    assert config["issue_prefix"] == "bob-cli"
 
 
 def test_detect_prefix_with_trailing_vcs_component(tmp_path, monkeypatch):

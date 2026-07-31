@@ -63,6 +63,7 @@ sase bead pages refresh --write                        # Regenerate, commit, and
 sase bead pages url beads-001.1                        # Print the hosted page URL when available
 sase bead stats                                         # Project statistics
 sase bead doctor                                        # Health check
+sase bead doctor --fix-issue-prefix                     # Reset a leaked ProjectSpec-key issue prefix
 sase bead doctor --fix-projection                       # Repair issues.jsonl from canonical events
 sase bead work "$PLANS_ROOT/202605/epic.md" --dry-run   # Preview bead creation and launch waves
 sase bead work "$PLANS_ROOT/202605/epic.md" --yes       # Create, link, and launch an epic plan
@@ -608,11 +609,17 @@ status changes, fields outside `closed_at`, `close_reason`, and `updated_at`, or
 successful repair commits `chore(beads): reproject bead state from canonical events`; a second clean run writes nothing.
 Use `--yes` for non-interactive repair after reviewing the preview through an external approval gate.
 
-| Flag                    | Description                                                            |
-| ----------------------- | ---------------------------------------------------------------------- |
-| `-F, --fix-design-refs` | Repair recoverable legacy design references after confirmation         |
-| `-P, --fix-projection`  | Rewrite `issues.jsonl` from canonical event streams after confirmation |
-| `-y, --yes`             | Apply the requested doctor repair without an interactive confirmation  |
+`--fix-issue-prefix` previews and, after confirmation, resets a store's issue prefix when it was leaked as the project's
+ProjectSpec directory key (e.g. `gh_bobs-org__bob-cli`) instead of its `PROJECT_NAME` (e.g. `bob-cli`). A deliberately
+customized prefix is never flagged. The repair is forward-only: existing bead IDs keep the old prefix, and only new
+top-level beads use the corrected one.
+
+| Flag                     | Description                                                                        |
+| ------------------------ | ---------------------------------------------------------------------------------- |
+| `-F, --fix-design-refs`  | Repair recoverable legacy design references after confirmation                     |
+| `-I, --fix-issue-prefix` | Reset a leaked ProjectSpec-key issue prefix to the project name after confirmation |
+| `-P, --fix-projection`   | Rewrite `issues.jsonl` from canonical event streams after confirmation             |
+| `-y, --yes`              | Apply the requested doctor repair without an interactive confirmation              |
 
 ### `sase bead history [<id>]`
 
