@@ -121,6 +121,49 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert myalias.configured_value == "claude/opus"
 
 
+def test_fakey_coder_alias_hidden_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bundled fakey provider's implicit coder alias is hidden by default.
+
+    Uses the real registered-provider list (not :func:`patch_available_providers`)
+    so the bundled ``fakey`` provider participates, matching production.
+    """
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+
+    by_name = {v.name: v for v in build_alias_views()}
+
+    assert "fakey_coder" not in by_name
+    # Other provider-coder aliases remain visible and unaffected.
+    assert "claude_coder" in by_name
+    assert "codex_coder" in by_name
+
+
+def test_configured_fakey_coder_alias_still_surfaces(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A user-configured ``fakey_coder`` alias must still appear in the panel."""
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "custom": {
+                    "fakey_coder": {
+                        "model": "fakey/fakey-large",
+                        "description": "Explicit fakey coder.",
+                    }
+                }
+            },
+        },
+    )
+
+    by_name = {v.name: v for v in build_alias_views()}
+
+    assert by_name["fakey_coder"].configured is True
+    assert by_name["fakey_coder"].configured_value == "fakey/fakey-large"
+
+
 def test_explicit_empty_overrides_skips_authoritative_override_load(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

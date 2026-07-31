@@ -207,3 +207,75 @@ def test_provider_metadata_tolerantly_normalizes_update_fields() -> None:
         "self_update_argv": ["upgrade", "1"],
         "version_argv": ["--version"],
     }
+
+
+def test_provider_metadata_hidden_from_model_pickers_true() -> None:
+    """A provider that opts in to hiding is flagged in its metadata."""
+
+    class FakeProvider:
+        def llm_provider_name(self) -> str:
+            return "fake"
+
+        def llm_hidden_from_model_pickers(self) -> bool:
+            return True
+
+    metadata = registry._provider_metadata("fake", FakeProvider())
+
+    assert metadata["hidden_from_model_pickers"] is True
+
+
+def test_provider_metadata_hidden_from_model_pickers_false() -> None:
+    """A provider that explicitly returns False is not hidden."""
+
+    class FakeProvider:
+        def llm_provider_name(self) -> str:
+            return "fake"
+
+        def llm_hidden_from_model_pickers(self) -> bool:
+            return False
+
+    metadata = registry._provider_metadata("fake", FakeProvider())
+
+    assert metadata["hidden_from_model_pickers"] is False
+
+
+def test_provider_metadata_hidden_from_model_pickers_defaults_to_not_hidden() -> None:
+    """A provider that omits the hook is not hidden (third-party compatible)."""
+
+    class FakeProvider:
+        def llm_provider_name(self) -> str:
+            return "fake"
+
+    metadata = registry._provider_metadata("fake", FakeProvider())
+
+    assert metadata["hidden_from_model_pickers"] is False
+
+
+def test_model_picker_hidden_provider_names_reads_from_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The public accessor collects hidden providers from cached metadata."""
+    monkeypatch.setattr(
+        registry,
+        "_direct_llm_metadata_payload",
+        lambda: {
+            "providers": {
+                "fake_hidden": {"hidden_from_model_pickers": True},
+                "fake_visible": {"hidden_from_model_pickers": False},
+                "fake_partial": {},
+            }
+        },
+    )
+    _clear_registry_caches()
+
+    assert registry.model_picker_hidden_provider_names() == frozenset({"fake_hidden"})
+
+
+def test_model_picker_hidden_provider_names_tolerates_missing_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A payload missing the ``providers`` map returns an empty set."""
+    monkeypatch.setattr(registry, "_direct_llm_metadata_payload", lambda: {})
+    _clear_registry_caches()
+
+    assert registry.model_picker_hidden_provider_names() == frozenset()

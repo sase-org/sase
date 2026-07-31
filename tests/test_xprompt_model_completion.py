@@ -118,6 +118,57 @@ def test_model_completion_catalog_reflects_real_builtin_model_metadata(
     assert spark.description == "Codex (gpt53spark)"
 
 
+def test_model_completion_catalog_hides_fakey_from_real_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bundled fakey test provider is filtered from real %model completion."""
+    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
+
+    entries = model_completion.build_model_completion_catalog()
+
+    assert not any(entry.provider == "fakey" for entry in entries)
+    assert not any(entry.value.startswith("fakey-") for entry in entries)
+    assert not any(entry.value == "@fakey_coder" for entry in entries)
+
+
+def test_model_completion_catalog_filters_hidden_provider_by_metadata_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A synthetic hidden provider is filtered by the hook, not by literal name."""
+
+    def metadata() -> dict[str, object]:
+        payload = _metadata_payload()
+        providers = payload["providers"]
+        assert isinstance(providers, dict)
+        providers["hiddenprov"] = {
+            "provider_name": "HiddenProv",
+            "known_model_names": ["hiddenprov-large"],
+        }
+        model_to_provider = payload["model_to_provider"]
+        assert isinstance(model_to_provider, dict)
+        model_to_provider["hiddenprov-large"] = "hiddenprov"
+        return payload
+
+    monkeypatch.setattr(model_completion, "get_llm_metadata_payload", metadata)
+    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
+    monkeypatch.setattr(
+        model_completion,
+        "model_picker_hidden_provider_names",
+        lambda: frozenset({"hiddenprov"}),
+    )
+
+    entries = model_completion.build_model_completion_catalog()
+    values = {entry.value for entry in entries}
+
+    assert "hiddenprov-large" not in values
+    assert "@hiddenprov_coder" not in values
+    # Non-hidden providers remain unaffected.
+    assert "gpt-5.6-sol" in values
+    assert "@codex_coder" in values
+
+
 def test_model_completion_user_alias_shadows_implicit_role(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

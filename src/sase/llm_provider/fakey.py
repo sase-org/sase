@@ -147,6 +147,10 @@ class FakeyProvider(LLMProvider):
         }
 
     @hookimpl
+    def llm_hidden_from_model_pickers(self) -> bool:
+        return True
+
+    @hookimpl
     def llm_default_retry_config(self) -> ProviderRetryConfig:
         from .retry_config import _RETRY_CONTINUATION_NUDGE, ProviderRetryConfig
 

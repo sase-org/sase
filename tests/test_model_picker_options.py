@@ -2,7 +2,7 @@
 
 from rich.text import Text
 
-from sase.ace.tui.modals.model_picker_modal import CUSTOM_SENTINEL
+from sase.ace.tui.modals.model_picker_modal import CUSTOM_SENTINEL, DEFAULT_SENTINEL
 from sase.ace.tui.modals.model_picker_options import (
     build_model_options,
     rows_to_options,
@@ -131,6 +131,23 @@ def test_model_picker_claude_point_version_rows_are_absent() -> None:
     row_ids = {row.option_id for row in rows}
     assert "claude-opus-5" not in row_ids
     assert "claude-sonnet-5" not in row_ids
+
+
+def test_model_picker_hides_fakey_provider_group_and_models() -> None:
+    """The fakey test provider must never appear in the modal model picker."""
+    rows = build_model_rows()
+    options = [option for option in rows_to_options(rows) if option is not None]
+    row_ids = {row.option_id for row in rows}
+
+    assert "__header_fakey__" not in row_ids
+    assert not any(option.id == "__header_fakey__" for option in options)
+    assert "fakey-large" not in row_ids
+    assert "fakey-small" not in row_ids
+    # Every other provider group remains present, and the escape hatches stay.
+    assert "__header_claude__" in row_ids
+    assert "__header_codex__" in row_ids
+    assert DEFAULT_SENTINEL in row_ids
+    assert CUSTOM_SENTINEL in row_ids
 
 
 def test_model_picker_claude_h4_5_row_includes_alias() -> None:

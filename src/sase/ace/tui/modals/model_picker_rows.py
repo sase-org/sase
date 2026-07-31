@@ -216,11 +216,18 @@ def build_model_rows(
     alias_context: AliasSelectionContext | None = None,
 ) -> list[ModelPickerRow]:
     """Build typed model-picker rows grouped by provider."""
-    from sase.llm_provider.registry import model_short_alias_map, model_to_provider_map
+    from sase.llm_provider.registry import (
+        model_picker_hidden_provider_names,
+        model_short_alias_map,
+        model_to_provider_map,
+    )
 
     aliases = model_short_alias_map()
+    hidden_providers = model_picker_hidden_provider_names()
     provider_models: dict[str, list[str]] = {}
     for model, provider in model_to_provider_map().items():
+        if provider in hidden_providers:
+            continue
         provider_models.setdefault(provider, []).append(model)
 
     rows: list[ModelPickerRow] = []

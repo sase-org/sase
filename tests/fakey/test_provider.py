@@ -19,6 +19,7 @@ from sase.llm_provider.registry import (
     _build_llm_pm,
     _llm_metadata_payload,
     get_llm_metadata_payload,
+    model_picker_hidden_provider_names,
     model_short_alias_map,
     model_to_provider_map,
     provider_cli_status_color_map,
@@ -251,6 +252,25 @@ def test_registry_metadata_and_autodetect_floor() -> None:
         "install": "bundled with SASE — nothing to install",
         "auth": "no authentication required",
     }
+
+
+def test_fakey_hiding_from_pickers_is_display_only() -> None:
+    """Hiding fakey from model pickers must never affect routing/resolution."""
+    _build_llm_pm.cache_clear()
+    _llm_metadata_payload.cache_clear()
+
+    payload = get_llm_metadata_payload()
+    assert payload["providers"]["fakey"]["hidden_from_model_pickers"] is True
+    assert "fakey" in model_picker_hidden_provider_names()
+
+    # Bare-name inference and short aliases are untouched by hiding.
+    assert model_to_provider_map()["fakey-large"] == "fakey"
+    assert model_short_alias_map()["fakey-large"] == "fakeyl"
+    assert model_short_alias_map()["fakey-small"] == "fakeys"
+
+    # Both bare and explicit provider/model syntax still resolve.
+    assert resolve_model_provider("fakey-large") == ("fakey", "fakey-large")
+    assert resolve_model_provider("fakey/fakey-small") == ("fakey", "fakey-small")
 
 
 def test_fakey_opts_out_of_provider_skill_deployment() -> None:

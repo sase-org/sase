@@ -23,6 +23,7 @@ from sase.llm_provider.config import (
     resolve_model_alias_with_effort,
     role_model_directive_value,
 )
+from sase.llm_provider.model_alias_config import is_provider_coder_alias
 from sase.llm_provider.registry import resolve_model_provider
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
@@ -65,6 +66,21 @@ def test_role_alias_helpers() -> None:
     assert implicit_model_alias_fallback_reference("codex_coder") == "@coder"
     assert implicit_model_alias_fallback_effort("codex_coder") is None
     assert implicit_model_alias_fallback("default") is None
+
+
+def test_fakey_coder_alias_still_resolves_despite_picker_hiding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Hiding fakey from pickers must not affect ``@fakey_coder`` resolution.
+
+    Uses the real registered-provider list so the bundled ``fakey`` provider
+    participates, matching production.
+    """
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+
+    assert is_provider_coder_alias("fakey_coder") is True
+    assert resolve_model_alias("fakey_coder") == "claude/opus"
+    assert resolve_model_provider("fakey_coder") == ("claude", "opus")
 
 
 def test_default_alias_resolves_to_configured_target(

@@ -797,6 +797,11 @@ Known model names are automatically mapped to their provider:
 
 Each installed plugin contributes its own model names via the `llm_known_model_names()` hook.
 
+`fakey` is deliberately hidden from the ACE model picker and the `%model` completion menu (a provider opts in via the
+`llm_hidden_from_model_pickers()` hook) since it exists only for testing. Routing, resolution, autodetect, and short
+aliases are unaffected — `%model:fakey-large` and the explicit `fakey/fakey-large` syntax above still work, and typing
+either by hand (or via the picker's `Custom...` entry) still selects it.
+
 For unrecognized model names, the prompt falls back to the default provider and a warning is logged at invocation time.
 
 Source: `src/sase/llm_provider/registry.py`, `src/sase/llm_provider/_invoke.py`

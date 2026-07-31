@@ -35,7 +35,10 @@ from sase.llm_provider.config import (
     coder_model_alias_for_provider,
     get_model_aliases,
 )
-from sase.llm_provider.registry import get_llm_metadata_payload
+from sase.llm_provider.registry import (
+    get_llm_metadata_payload,
+    model_picker_hidden_provider_names,
+)
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
 
 #: Wire schema understood by existing Rust LSP versions. Alias metadata is
@@ -234,7 +237,12 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
     providers = _dict(payload.get("providers"))
     model_to_provider = _str_dict(payload.get("model_to_provider"))
     short_aliases = _str_dict(payload.get("model_short_aliases"))
-    provider_order = _provider_order(payload, providers)
+    hidden_providers = model_picker_hidden_provider_names()
+    provider_order = [
+        provider
+        for provider in _provider_order(payload, providers)
+        if provider not in hidden_providers
+    ]
     try:
         alias_views = {view.name: view for view in build_alias_views(overrides={})}
     except Exception:  # noqa: BLE001 - plain aliases are the safe fallback.
@@ -262,7 +270,7 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
     # the catalog follows the actual resolution map even if plugin metadata is
     # partial.
     for model, provider in sorted(model_to_provider.items()):
-        if model in seen:
+        if model in seen or provider in hidden_providers:
             continue
         provider_metadata = _dict(providers.get(provider))
         _append_model_entry(

@@ -108,8 +108,9 @@ Canonical docs: <https://antigravity.google/docs/cli-install>
 ## Fakey Testing Provider
 
 The deterministic `fakey` CLI is bundled with SASE for launch, failure, retry, and UI testing. It requires no separate
-installation or authentication and is deliberately placed last in provider autodetection. Select it explicitly with a
-model such as `%model:fakey-large` or `llm_provider.provider: fakey`; do not use it for production coding work.
+installation or authentication and is deliberately placed last in provider autodetection. It is also hidden from the ACE
+model picker and `%model` completion menu, so select it explicitly with a model such as `%model:fakey-large` or
+`llm_provider.provider: fakey`; do not use it for production coding work.
 
 For demos and hermetic end-to-end tests, `SASE_LLM_EXEC_PROVIDER=fakey` dispatches through fakey while preserving the
 requested provider/model in display metadata. Run artifacts record the dispatched provider as `exec_llm_provider`.

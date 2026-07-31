@@ -115,3 +115,16 @@ class LLMHookSpec:
 
     @hookspec(firstresult=True)
     def llm_default_retry_config(self) -> ProviderRetryConfig | None: ...
+
+    @hookspec(firstresult=True)
+    def llm_hidden_from_model_pickers(self) -> bool | None:
+        """Whether this provider should be hidden from model-selection UI.
+
+        Providers that exist only for testing (e.g. ``fakey``) return
+        ``True``. Hiding affects user-facing model selection surfaces only —
+        the ACE model picker and ``%model`` completion catalog — and never
+        changes routing, resolution, autodetect, or doctor output. Omitting
+        this hook means "not hidden", so third-party providers stay
+        compatible without implementing it.
+        """
+        ...

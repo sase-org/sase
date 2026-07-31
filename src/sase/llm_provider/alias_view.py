@@ -40,6 +40,7 @@ from .config import (
     XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     ModelAliasSelectorMember,
+    coder_model_alias_for_provider,
     get_model_aliases,
     implicit_model_alias_fallback,
     implicit_model_alias_fallback_effort,
@@ -440,8 +441,19 @@ def build_alias_views(
         get_active_alias_overrides(now) if overrides is None else overrides
     )
 
+    # Lazy import to avoid an import cycle: registry imports this package's
+    # config at import time.
+    from .registry import model_picker_hidden_provider_names
+
+    hidden_provider_coder_aliases = {
+        coder_model_alias_for_provider(provider)
+        for provider in model_picker_hidden_provider_names()
+    }
+
     views: list[AliasView] = []
     for name in names:
+        if name in hidden_provider_coder_aliases and name not in configured:
+            continue
         override = active_overrides.get(name)
         selector = model_alias_selector_details(name)
         selected_member = (

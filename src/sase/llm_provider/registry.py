@@ -166,6 +166,25 @@ def provider_cli_status_color_map() -> dict[str, str]:
     return _str_dict(_llm_metadata_payload().get("provider_cli_status_colors"))
 
 
+def model_picker_hidden_provider_names() -> frozenset[str]:
+    """Return provider names flagged as hidden from user-facing model pickers.
+
+    Driven by the ``llm_hidden_from_model_pickers`` plugin hook rather than a
+    hardcoded provider name, so any provider (built-in or third-party) that
+    exists only for testing can opt out of the ACE model picker and ``%model``
+    completion catalog while remaining fully registered and routable.
+    """
+    providers = _llm_metadata_payload().get("providers")
+    if not isinstance(providers, dict):
+        return frozenset()
+    return frozenset(
+        name
+        for name, metadata in providers.items()
+        if isinstance(metadata, dict)
+        and metadata.get("hidden_from_model_pickers") is True
+    )
+
+
 def _provider_names() -> list[str]:
     """Return all registered provider names (entry-point keys)."""
     names = _llm_metadata_payload().get("provider_names")
@@ -578,6 +597,9 @@ def _provider_metadata(name: str, plugin: object) -> dict[str, Any]:
         "install": install_metadata,
         "default_retry_config": _dataclass_to_dict(retry_config),
         "model_resolutions": model_resolutions,
+        "hidden_from_model_pickers": (
+            _call_optional(plugin, "llm_hidden_from_model_pickers") is True
+        ),
     }
 
 

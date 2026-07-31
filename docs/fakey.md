@@ -22,6 +22,11 @@ Exercise the launch path.
 The provider maps `large` to `fakey-large` and `small` to `fakey-small`. It is deliberately the last autodetection
 candidate because the executable is always installed with SASE; prefer explicit selection.
 
+Fakey models are not offered in the ACE model picker or the `%model` completion menu — it exists only for testing, so it
+is hidden from user-facing model selection surfaces. It remains fully registered and routable: the explicit spellings
+above (`%model:fakey-large`, `sase run -m fakey-large`) and `%model:fakey/fakey-large` all still work, and the picker's
+`Custom...` entry accepts them by hand.
+
 ## Scenario Selection and Precedence
 
 Scenario settings are layered from least to most specific:
