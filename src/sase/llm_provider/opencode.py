@@ -145,6 +145,7 @@ class OpenCodeProvider(LLMProvider):
                 "OPENROUTER_API_KEY",
                 "QWEN_API_KEY",
                 "REQUESTY_API_KEY",
+                "ZHIPU_API_KEY",
             ],
         }
 

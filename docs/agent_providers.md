@@ -63,7 +63,7 @@ install from https://opencode.ai/docs
 SASE doctor hint: run `opencode auth login`.
 
 OpenCode can also read provider API keys from the environment (for example `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
-`OPENROUTER_API_KEY`, and other `*_API_KEY` variables) — its canonical docs list the current set.
+`OPENROUTER_API_KEY`, `ZHIPU_API_KEY`, and other `*_API_KEY` variables) — its canonical docs list the current set.
 
 Canonical docs: <https://opencode.ai/docs>
 

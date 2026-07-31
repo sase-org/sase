@@ -373,3 +373,9 @@ def test_opencode_provider_fake_cli_failure_surfaces_json_error(
 
     assert exc_info.value.returncode == 9
     assert "[error] temporarily overloaded" in exc_info.value.stderr
+
+
+def test_opencode_provider_auth_evidence_includes_zhipu_api_key() -> None:
+    provider = OpenCodeProvider()
+    evidence = provider.llm_auth_evidence()
+    assert "ZHIPU_API_KEY" in evidence["api_key_env_vars"]
