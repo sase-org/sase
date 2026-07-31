@@ -435,6 +435,11 @@ def test_reviewer_identity_rejects_agent_environment(
         )
 
 
+def test_reviewer_identity_rejects_agent_flag_environment() -> None:
+    with pytest.raises(MemoryProposalReviewError, match="agents cannot"):
+        require_proposal_reviewer(env={"SASE_AGENT": "1"})
+
+
 def test_reviewer_identity_rejects_agent_meta_environment(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -279,13 +279,22 @@ def test_discover_agent_identity_falls_back_to_agent_meta(tmp_path: Path) -> Non
     artifacts_dir = tmp_path / "artifacts"
     _write(artifacts_dir / "agent_meta.json", json.dumps({"name": "from-meta"}))
 
-    identity = discover_agent_identity({"SASE_ARTIFACTS_DIR": str(artifacts_dir)})
+    identity = discover_agent_identity(
+        {
+            "SASE_AGENT": "1",
+            "SASE_ARTIFACTS_DIR": str(artifacts_dir),
+        }
+    )
 
     assert identity == AgentIdentity(
         name="from-meta",
         source="agent_meta",
         artifacts_dir=str(artifacts_dir),
     )
+
+
+def test_discover_agent_identity_ignores_agent_flag() -> None:
+    assert discover_agent_identity({"SASE_AGENT": "1"}) is None
 
 
 def test_require_agent_identity_raises_without_attribution() -> None:

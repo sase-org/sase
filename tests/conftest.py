@@ -321,6 +321,7 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
             or key.startswith("SASE_SIBLING_REPO_")
             or key
             in {
+                "SASE_AGENT",
                 "SASE_ARTIFACTS_DIR",
                 "SASE_BEAD_ID",
                 "SASE_CHOP_LUMBERJACK",

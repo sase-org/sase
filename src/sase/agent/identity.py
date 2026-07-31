@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from typing import Literal
 
-AgentIdentitySource = Literal["SASE_AGENT_NAME", "SASE_AGENT", "agent_meta"]
+AgentIdentitySource = Literal["SASE_AGENT_NAME", "agent_meta"]
 
 
 class AgentIdentityError(ValueError):
@@ -32,14 +32,13 @@ def discover_agent_identity(
     current_env = env if env is not None else os.environ
     artifacts_dir = _clean_value(current_env.get("SASE_ARTIFACTS_DIR"))
 
-    for key in ("SASE_AGENT_NAME", "SASE_AGENT"):
-        value = _clean_value(current_env.get(key))
-        if value is not None:
-            return AgentIdentity(
-                name=value,
-                source=key,  # type: ignore[arg-type]
-                artifacts_dir=artifacts_dir,
-            )
+    env_name = _clean_value(current_env.get("SASE_AGENT_NAME"))
+    if env_name is not None:
+        return AgentIdentity(
+            name=env_name,
+            source="SASE_AGENT_NAME",
+            artifacts_dir=artifacts_dir,
+        )
 
     meta_name = agent_name_from_meta(artifacts_dir)
     if meta_name is None:
@@ -61,7 +60,7 @@ def require_agent_identity(
     if identity is None:
         raise AgentIdentityError(
             f"{purpose} require agent attribution; set SASE_AGENT_NAME, "
-            "SASE_AGENT, or provide SASE_ARTIFACTS_DIR/agent_meta.json with a name"
+            "or provide SASE_ARTIFACTS_DIR/agent_meta.json with a name"
         )
     return identity
 

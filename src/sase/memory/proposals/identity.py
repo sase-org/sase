@@ -38,7 +38,7 @@ def require_proposal_author(
     except AgentIdentityError as exc:
         raise MemoryProposalAuthorError(
             "memory writes require agent attribution; set SASE_AGENT_NAME, "
-            "SASE_AGENT, provide SASE_ARTIFACTS_DIR/agent_meta.json with a name, "
+            "provide SASE_ARTIFACTS_DIR/agent_meta.json with a name, "
             "or pass --manual-author for tests and demos"
         ) from exc
     return proposal_author_from_agent(identity)
@@ -58,7 +58,10 @@ def require_proposal_reviewer(
 ) -> ProposalReviewer:
     """Return the current human reviewer or raise for agent environments."""
     environment = os.environ if env is None else env
-    if discover_agent_identity(environment) is not None:
+    if (
+        environment.get("SASE_AGENT")
+        or discover_agent_identity(environment) is not None
+    ):
         raise MemoryProposalReviewError(
             "memory proposal review must be performed by a human reviewer; "
             "agents cannot approve or reject proposals"
