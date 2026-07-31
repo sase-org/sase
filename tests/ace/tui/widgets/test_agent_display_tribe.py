@@ -162,12 +162,12 @@ def test_tribe_description_renders_below_the_header_fields(
     detail = build_tribe_detail_text(_snapshot())
     plain = detail.plain
     fold_index = plain.index("Fold: ")
-    label_index = plain.index("Description: ")
     divider_index = plain.index("─" * 50)
     description_start = plain.index("Epic phase workers.")
 
-    assert fold_index < label_index < divider_index
-    assert plain[label_index - 2 : label_index] == "\n\n"
+    assert fold_index < description_start < divider_index
+    assert plain[description_start - 2 : description_start] == "\n\n"
+    assert "Description: " not in plain
     assert any(
         span.start <= description_start < span.end
         and str(span.style) == "italic #C6C6C6"
@@ -195,20 +195,24 @@ def test_tribe_long_description_wraps_with_a_hanging_indent(
 
     assert all(cell_len(line) <= PROMPT_PANEL_LINE_CELL_LIMIT for line in lines)
 
-    label_line_index = next(
-        index for index, line in enumerate(lines) if line.startswith("Description: ")
+    fold_line_index = next(
+        index for index, line in enumerate(lines) if line.startswith("Fold: ")
     )
-    indent = " " * cell_len("Description: ")
-    continuation_lines = []
-    for line in lines[label_line_index + 1 :]:
-        if not line.startswith(indent):
+    description_start = next(
+        index
+        for index in range(fold_line_index + 1, len(lines))
+        if lines[index].startswith("x")
+    )
+    assert lines[description_start - 1] == ""
+    wrapped_description_lines = []
+    for line in lines[description_start:]:
+        if not line.startswith("x"):
             break
-        continuation_lines.append(line)
+        wrapped_description_lines.append(line)
 
-    assert continuation_lines
-    for line in continuation_lines:
-        assert line.startswith(indent)
-        assert not line.startswith(indent + " ")
+    assert len(wrapped_description_lines) > 1
+    for line in wrapped_description_lines:
+        assert not line.startswith(" ")
 
 
 def test_tribe_missing_description_hint_names_the_config_key(
@@ -228,7 +232,7 @@ def test_tribe_missing_description_hint_names_the_config_key(
 
     detail = build_tribe_detail_text(_snapshot())
     plain = detail.plain
-    hint = "Description: not set · add ace.tribes.epic.description"
+    hint = "not set · add ace.tribes.epic.description"
     hint_start = plain.index(hint)
     not_set_start = plain.index("not set", hint_start)
     key_start = plain.index("ace.tribes.epic.description", hint_start)
@@ -260,7 +264,7 @@ def test_tribe_description_row_renders_for_unconfigured_tribes(
 
     detail = build_tribe_detail_text(_snapshot())
 
-    assert "Description: not set · add ace.tribes.epic.description" in detail.plain
+    assert "not set · add ace.tribes.epic.description" in detail.plain
 
 
 def test_tribe_missing_description_hint_maps_none_panel_to_default(
@@ -283,13 +287,16 @@ def test_tribe_missing_description_hint_maps_none_panel_to_default(
     )
     detail = build_tribe_detail_text(snapshot)
 
-    assert "Description: not set · add ace.tribes.default.description" in detail.plain
+    assert "not set · add ace.tribes.default.description" in detail.plain
 
 
 def test_tribe_description_renders_in_cheap_mode() -> None:
     detail = build_tribe_detail_text(_snapshot(), cheap=True).plain
 
-    assert "Description: " in detail
+    assert "Description: " not in detail
+    assert (
+        "Epic phase-worker clans from sase bead work, one member per an approved plan."
+    ) in " ".join(detail.split())
 
 
 def test_tribe_description_with_markup_characters_renders_literally(
@@ -341,9 +348,8 @@ def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -
         "Composition: 1 family · 2 lanes · 1 nested\n"
         "Runtime: 1h\nFold: 1/4\n"
         "\n"
-        "Description: Epic phase-worker clans from sase bead work, one member per "
-        "phase\n"
-        "             of an approved plan.\n"
+        "Epic phase-worker clans from sase bead work, one member per an "
+        "approved plan.\n"
     )
     assert "▸ NEEDS ATTENTION · 1\n• failed · FAILED · Build failed" in pulse
     assert "▸ ❖ TRIBE MEMBERS · 2\n" in pulse

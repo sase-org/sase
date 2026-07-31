@@ -26,11 +26,6 @@ _TRIBE_HEADING_STYLE = f"bold {TRIBE_IDENTITY_COLOR} underline"
 _DESCRIPTION_STYLE = "italic #C6C6C6"
 _DESCRIPTION_MISSING_STYLE = "italic #8A8A8A"
 _DESCRIPTION_CONFIG_KEY_STYLE = "bold #D7AF87"
-_DESCRIPTION_LABEL = "Description: "
-_DESCRIPTION_INDENT = " " * cell_len(_DESCRIPTION_LABEL)
-_DESCRIPTION_WRAP_WIDTH = max(
-    1, PROMPT_PANEL_LINE_CELL_LIMIT - cell_len(_DESCRIPTION_LABEL)
-)
 
 
 def append_tribe_header(
@@ -92,18 +87,16 @@ def _append_count_chip(text: Text, counts: TribeStatusCounts) -> None:
 
 def _append_description(text: Text, snapshot: AgentTribeSummarySnapshot) -> None:
     text.append("\n")
-    text.append(_DESCRIPTION_LABEL, style=FIELD_LABEL_STYLE)
     if snapshot.description:
-        lines = wrap_text_by_cells(snapshot.description, _DESCRIPTION_WRAP_WIDTH)
-        text.append(f"{lines[0]}\n", style=_DESCRIPTION_STYLE)
-        for line in lines[1:]:
-            text.append(_DESCRIPTION_INDENT)
+        for line in wrap_text_by_cells(
+            snapshot.description, PROMPT_PANEL_LINE_CELL_LIMIT
+        ):
             text.append(f"{line}\n", style=_DESCRIPTION_STYLE)
         return
 
     config_key = f"ace.tribes.{tribe_config_key(snapshot.panel_key)}.description"
     hint_prefix = "not set · add "
-    if cell_len(hint_prefix) + cell_len(config_key) <= _DESCRIPTION_WRAP_WIDTH:
+    if cell_len(hint_prefix) + cell_len(config_key) <= PROMPT_PANEL_LINE_CELL_LIMIT:
         text.append("not set", style=_DESCRIPTION_MISSING_STYLE)
         text.append(" · ", style="dim")
         text.append("add ", style=_DESCRIPTION_MISSING_STYLE)
@@ -113,6 +106,5 @@ def _append_description(text: Text, snapshot: AgentTribeSummarySnapshot) -> None
     text.append("not set", style=_DESCRIPTION_MISSING_STYLE)
     text.append(" · ", style="dim")
     text.append("add\n", style=_DESCRIPTION_MISSING_STYLE)
-    for line in wrap_text_by_cells(config_key, _DESCRIPTION_WRAP_WIDTH):
-        text.append(_DESCRIPTION_INDENT)
+    for line in wrap_text_by_cells(config_key, PROMPT_PANEL_LINE_CELL_LIMIT):
         text.append(f"{line}\n", style=_DESCRIPTION_CONFIG_KEY_STYLE)

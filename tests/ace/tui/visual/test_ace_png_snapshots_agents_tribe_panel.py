@@ -205,8 +205,9 @@ async def test_tribe_panel_display_config_png_snapshot(
             "of an approved plan." in " ".join(prompt.content.plain.split())
         )
         assert prompt.content.plain.index("Fold: ") < prompt.content.plain.index(
-            "Description: "
+            "Epic phase-worker clans from sase bead work"
         )
+        assert "Description: " not in prompt.content.plain
         _assert_title_identity_color(
             prompt.content,
             text="▲ ",
