@@ -2,9 +2,9 @@
 
 Bead is a lightweight, git-native issue tracking system built into sase. It uses Rust-backed event storage,
 query/reduction, and mutation logic through the required `sase_core_rs` extension, with generated JSONL compatibility
-projections for older tooling (inspired by [Fossil](https://fossil-scm.org/)). Issues are organized into plan-like
-containers and executable child phases. Plan beads can represent ordinary plans or executable epics through their `tier`
-metadata.
+projections for older tooling (inspired by [Fossil](https://fossil-scm.org/)). Issues include plan-like containers,
+executable child phases, and standalone task beads for discovered follow-up work. Plan beads can represent ordinary
+plans or executable epics through their `tier` metadata.
 
 ![Bead issue model, storage sync, and epic wave execution](images/bead-epic-work-infographic.png)
 
@@ -16,6 +16,7 @@ metadata.
   - [Status Lifecycle](#status-lifecycle)
   - [Bead Claim Lifecycle](#bead-claim-lifecycle)
   - [Dependencies](#dependencies)
+  - [Discovered Follow-Up Capture and Triage](#discovered-follow-up-capture-and-triage)
   - [Artifact References](#artifact-references)
 - [Storage](#storage)
   - [Directory Structure](#directory-structure)
@@ -35,11 +36,13 @@ sase bead init                                          # Initialize beads in cu
 sase bead create -t "New feature" --type "plan(${PLANS_ROOT}/202605/feature.md)" --tier plan
 sase bead create -t "Epic" --type "plan(${PLANS_ROOT}/202605/epic.md)" --tier epic
 sase bead create -t "Sub-task" --type "phase(beads-001)" --size small # Create a sized phase
-sase bead list                                          # List open, claimed, and in-progress issues
+sase bead create -t "Fix flaky test" --type task        # Create an open standalone task draft
+sase bead update beads-002 --status=ready               # Propose a task for human triage
+sase bead list                                          # List open, claimed, ready, and in-progress issues
 sase bead list --status=open                            # List open issues
 sase bead list --status=closed                          # List closed issues
 sase bead search auth                                   # Search issues in every status
-sase bead ready                                         # Show issues ready to work on
+sase bead ready                                         # Show unblocked ready task beads
 sase bead show beads-001                                # View issue details
 sase bead ref add beads-001 research:202607/report.md   # Attach durable context
 sase bead ref list beads-001 --resolve                  # List references and resolution state
@@ -63,21 +66,24 @@ sase bead doctor --fix-projection                       # Repair issues.jsonl fr
 sase bead work "$PLANS_ROOT/202605/epic.md" --dry-run   # Preview bead creation and launch waves
 sase bead work "$PLANS_ROOT/202605/epic.md" --yes       # Create, link, and launch an epic plan
 sase bead work beads-001                                # Launch agents for an epic plan bead
+sase bead work beads-002                                # Launch one standalone task worker
 ```
 
 ## Data Model
 
 ### Issue Types
 
-| Type      | Description                                          | ID Format                                 |
-| --------- | ---------------------------------------------------- | ----------------------------------------- |
-| **Plan**  | Plan-like container with a tier; may be a child epic | `{prefix}-{counter}` or `{parent_id}.{N}` |
-| **Phase** | Sized executable task within an epic/plan bead       | `{parent_id}.{N}`                         |
+| Type      | Description                                                | ID Format                                 |
+| --------- | ---------------------------------------------------------- | ----------------------------------------- |
+| **Plan**  | Plan-like container with a tier; may be a child epic       | `{prefix}-{counter}` or `{parent_id}.{N}` |
+| **Phase** | Sized executable work item within an epic/plan bead        | `{parent_id}.{N}`                         |
+| **Task**  | Standalone, launchable discovered follow-up with no parent | `{prefix}-{counter}`                      |
 
 Plans are groupings that can optionally link to an SDD file via the `design` field. Phases always belong to a parent
-plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`). An epic proposed by a phase or land agent becomes a
-child plan bead beneath the bead responsible for that agent. For example, phase `beads-001.2` can own child epic
-`beads-001.2.1`; an epic proposed by the land agent can become the next direct child such as `beads-001.3`.
+plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`). Task beads are top-level, carry neither a parent nor
+a tier, and may carry a size for launch-model routing. An epic proposed by a phase or land agent becomes a child plan
+bead beneath the bead responsible for that agent. For example, phase `beads-001.2` can own child epic `beads-001.2.1`;
+an epic proposed by the land agent can become the next direct child such as `beads-001.3`.
 
 Plan beads carry a tier. The paths below are relative to the effective plans root. Use `sase repo path plans` or
 `SASE_SDD_PLANS_DIR` to locate it without depending on the storage layout.
@@ -95,19 +101,21 @@ sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.m
 
 ### Status Lifecycle
 
-| Status        | Icon | Description                                                  |
-| ------------- | ---- | ------------------------------------------------------------ |
-| `open`        | `○`  | Not started                                                  |
-| `claimed`     | `◎`  | Reserved by a live agent that has not started work           |
-| `in_progress` | `◐`  | Being worked on, or preassigned in an epic launch checkpoint |
-| `closed`      | `✓`  | Completed or abandoned                                       |
+| Status        | Icon | Description                                                       |
+| ------------- | ---- | ----------------------------------------------------------------- |
+| `open`        | `○`  | Draft or not started                                              |
+| `claimed`     | `◎`  | Reserved by a live agent that has not started work                |
+| `ready`       | `◇`  | Drafted task bead awaiting human triage; valid only on task beads |
+| `in_progress` | `◐`  | Being worked on, or preassigned in a launch checkpoint            |
+| `closed`      | `✓`  | Completed or abandoned                                            |
 
-Status can transition between values via `sase bead update --status=<status>`, with one completion guard: moving a bead
-to `closed` is rejected while any descendant remains open, claimed, or in progress. Close those descendants deliberately
-first; `update --status=closed` never cascades. `sase bead open <id>` reopens the bead and every closed ancestor above
-it, clearing their resolution, close reason, and close timestamp so a closed parent never sits above reopened work.
-`claimed` is machine-managed by the agent runner (see [Bead Claim Lifecycle](#bead-claim-lifecycle)); do not set it by
-hand.
+Status can transition between values via `sase bead update --status=<status>`. A task normally moves `open → ready` when
+its draft is proposed, `ready → open` when retracted, and `ready → in_progress` when launched. Only task beads may carry
+`ready`. Moving a bead to `closed` is rejected while any descendant remains open, claimed, ready, or in progress. Close
+those descendants deliberately first; `update --status=closed` never cascades. `sase bead open <id>` reopens the bead
+and every closed ancestor above it, clearing their resolution, close reason, and close timestamp so a closed parent
+never sits above reopened work. `claimed` is machine-managed by the agent runner (see
+[Bead Claim Lifecycle](#bead-claim-lifecycle)); do not set it by hand.
 
 Every new close records a typed `resolution`: `done`, `canceled`, or `superseded`. Normal closes default to `done`;
 `close_reason` remains optional free text for the human explanation. Closing an already-closed bead is a verified no-op:
@@ -170,13 +178,40 @@ schedule preassigned work without creating a duplicate name.
 Dependencies are one-way relationships: issue A **depends on** issue B. Every edge records the source issue, the target
 issue, when the edge was added, and who added it. An issue is:
 
-- **Ready** if it is `open` and all its dependencies are `closed`.
-- **Blocked** if it has at least one dependency with status `open`, `claimed`, or `in_progress`.
+- **Unblocked** if all its dependencies are `closed`.
+- **Blocked** if it has at least one dependency with status `open`, `claimed`, `ready`, or `in_progress`.
 
 `sase bead dep list` prints the forward `DEPENDS ON` view, the reverse `BLOCKS` view, or both, including the edge's
 provenance in `--format full`. `sase bead dep tree` walks the same graph when a one-level detail view is not enough.
 Removing a dependency appends a `dependency_removed` event rather than editing or erasing the original add event, so
 history keeps both the mistake and its correction.
+
+### Discovered Follow-Up Capture and Triage
+
+Unless a prompt forbids bead creation, agents should capture useful work discovered outside their current scope as a
+standalone task bead:
+
+```bash
+sase bead create -T task -t "Fix flaky integration test" \
+  -d "The retry test flakes under parallel pytest; discovered while landing sase-xy."
+sase bead update <task-id> -s ready
+```
+
+The task stays `open` while its title, description, size, model, references, and dependencies are drafted. Marking it
+`ready` proposes it to the project owner. The `bead_task_triage` chop scans enabled projects every five minutes and
+raises one human-only `TaskTriage` gate per ready task bead. It records pending gates in lane state so later ticks do
+not repeat the notification, cancels a pending gate if the bead leaves `ready`, and uses a new deterministic generation
+if the same task becomes ready again.
+
+The gate offers two decisions:
+
+- **Launch** (default) submits a detached background task that runs `sase bead work <task-id> --yes-to-all`. Optional
+  feedback is appended to the worker prompt.
+- **Close** requires feedback and closes the task with that reason and `resolution=canceled`.
+
+Epic phase workers follow a stricter capture rule: they do not create beads. Instead, a phase worker appends
+`PROPOSED FOLLOW-UP: <one-line summary — detail>` to its own bead with `sase bead note`. The epic land agent collects
+those notes, files the worthwhile proposals as `task` beads, marks them `ready`, and records why it declined any others.
 
 ### Artifact References
 
@@ -368,18 +403,18 @@ When a close changes the store, SASE commits it and then publishes it according 
 
 Create a new issue.
 
-| Flag                | Required | Description                                                                                                                                                                                                                          |
-| ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `-t, --title`       | yes      | Issue title                                                                                                                                                                                                                          |
-| `-T, --type`        | yes      | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`                                                                                                                                                          |
-| `-d, --description` | no       | Issue description                                                                                                                                                                                                                    |
-| `-a, --assignee`    | no       | Assignee name                                                                                                                                                                                                                        |
-| `--tier`            | no       | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                     |
-| `-c, --changespec`  | no       | Attach a ChangeSpec name to a plan bead                                                                                                                                                                                              |
-| `-b, --bug-id`      | no       | Bug ID for the attached ChangeSpec; requires `--changespec`                                                                                                                                                                          |
-| `-m, --model`       | no       | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase beads it is the per-phase work model. |
-| `-R, --ref`         | no       | Artifact reference to attach to the bead; repeatable and stored canonically                                                                                                                                                          |
-| `-z, --size`        | no       | Phase size: `xsmall`, `small`, `medium`, `large`, or `xlarge`. Valid only on phase beads; an omitted legacy/manual value behaves as `small`.                                                                                         |
+| Flag                | Required | Description                                                                                                                                                                                                                       |
+| ------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-t, --title`       | yes      | Issue title                                                                                                                                                                                                                       |
+| `-T, --type`        | yes      | Bead type: `task`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`                                                                                                                                               |
+| `-d, --description` | no       | Issue description                                                                                                                                                                                                                 |
+| `-a, --assignee`    | no       | Assignee name                                                                                                                                                                                                                     |
+| `--tier`            | no       | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                  |
+| `-c, --changespec`  | no       | Attach a ChangeSpec name to a plan bead                                                                                                                                                                                           |
+| `-b, --bug-id`      | no       | Bug ID for the attached ChangeSpec; requires `--changespec`                                                                                                                                                                       |
+| `-m, --model`       | no       | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase/task beads it is the worker model. |
+| `-R, --ref`         | no       | Artifact reference to attach to the bead; repeatable and stored canonically                                                                                                                                                       |
+| `-z, --size`        | no       | Work size: `xsmall`, `small`, `medium`, `large`, or `xlarge`. Valid on phase and task beads; an omitted legacy phase value behaves as `small`.                                                                                    |
 
 ChangeSpec metadata is valid only on plan beads. It is used by the epic-approval and `sase bead work` flows to keep plan
 beads linked to the ChangeSpec they are intended to produce.
@@ -401,8 +436,8 @@ sase bead dep tree [<id>]
 
 `dep list` prints dependency edges with their blocking state and recorded provenance. A scoped read, such as
 `sase bead dep list beads-001.2`, includes every bead status by default because closed dependencies are usually what you
-need to see when explaining readiness. A store-wide read defaults to `open`, `claimed`, and `in_progress`, matching
-`sase bead list`.
+need to see when explaining readiness. A store-wide read defaults to `open`, `claimed`, `ready`, and `in_progress`,
+matching `sase bead list`.
 
 `dep tree` walks the dependency graph as a deterministic tree. `--direction out` follows what the root waits on,
 `--direction in` follows what is waiting on the root, and `--direction both` renders both trees. Store-wide trees use
@@ -418,18 +453,18 @@ Tree output marks graph states explicitly:
 `dep rm` removes one or more existing dependency edges from `<issue>` in one all-or-nothing mutation. The command
 records `dependency_removed` events and then reports whether the source bead is ready or still blocked.
 
-| Subcommand | Flag              | Values                                     | Description                                      |
-| ---------- | ----------------- | ------------------------------------------ | ------------------------------------------------ |
-| `list`     | `-c, --color`     | `auto`, `always`, `never`                  | Color mode for text output                       |
-| `list`     | `-d, --direction` | `both`, `in`, `out`                        | Edges to show; defaults to `both`                |
-| `list`     | `-f, --format`    | `compact`, `full`, `json`                  | Output format; defaults to `compact`             |
-| `list`     | `-n, --limit`     | non-negative integer                       | Maximum root beads to print; `0` means unlimited |
-| `list`     | `-s, --status`    | `open`, `claimed`, `in_progress`, `closed` | Filter by endpoint/status root (repeatable)      |
-| `tree`     | `-c, --color`     | `auto`, `always`, `never`                  | Color mode for text output                       |
-| `tree`     | `-d, --direction` | `both`, `in`, `out`                        | Direction to walk; defaults to `out`             |
-| `tree`     | `-f, --format`    | `compact`, `full`, `json`                  | Output format; defaults to `compact`             |
-| `tree`     | `-L, --levels`    | non-negative integer                       | Maximum levels to descend; `0` means unlimited   |
-| `tree`     | `-s, --status`    | `open`, `claimed`, `in_progress`, `closed` | Filter by bead status (repeatable)               |
+| Subcommand | Flag              | Values                                              | Description                                      |
+| ---------- | ----------------- | --------------------------------------------------- | ------------------------------------------------ |
+| `list`     | `-c, --color`     | `auto`, `always`, `never`                           | Color mode for text output                       |
+| `list`     | `-d, --direction` | `both`, `in`, `out`                                 | Edges to show; defaults to `both`                |
+| `list`     | `-f, --format`    | `compact`, `full`, `json`                           | Output format; defaults to `compact`             |
+| `list`     | `-n, --limit`     | non-negative integer                                | Maximum root beads to print; `0` means unlimited |
+| `list`     | `-s, --status`    | `open`, `claimed`, `ready`, `in_progress`, `closed` | Filter by endpoint/status root (repeatable)      |
+| `tree`     | `-c, --color`     | `auto`, `always`, `never`                           | Color mode for text output                       |
+| `tree`     | `-d, --direction` | `both`, `in`, `out`                                 | Direction to walk; defaults to `out`             |
+| `tree`     | `-f, --format`    | `compact`, `full`, `json`                           | Output format; defaults to `compact`             |
+| `tree`     | `-L, --levels`    | non-negative integer                                | Maximum levels to descend; `0` means unlimited   |
+| `tree`     | `-s, --status`    | `open`, `claimed`, `ready`, `in_progress`, `closed` | Filter by bead status (repeatable)               |
 
 ### `sase bead ref`
 
@@ -520,20 +555,20 @@ record names that sidecar, and `beads/` in the `--plans` repository until then.
 
 ### `sase bead list`
 
-List issues with optional filtering. Without `--status`, the command lists `open`, `claimed`, and `in_progress` issues;
-pass `--status=closed` when you need closed history. When the default active query is empty and no explicit `--status`
-was given, the command falls back to listing closed beads. `--status`, `--type`, and `--tier` are repeatable.
+List issues with optional filtering. Without `--status`, the command lists `open`, `claimed`, `ready`, and `in_progress`
+issues; pass `--status=closed` when you need closed history. When the default active query is empty and no explicit
+`--status` was given, the command falls back to listing closed beads. `--status`, `--type`, and `--tier` are repeatable.
 
-| Flag           | Values                                     | Description                                                                           |
-| -------------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `-f, --format` | `compact`, `json`, `full`                  | Output format; defaults to `compact`                                                  |
-| `-n, --limit`  | integer                                    | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
-| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
-| `--tier`       | `plan`, `epic`                             | Filter by plan-bead tier                                                              |
-| `-t, --type`   | `plan`, `phase`                            | Filter by type (repeatable)                                                           |
+| Flag           | Values                                              | Description                                                                           |
+| -------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `-f, --format` | `compact`, `json`, `full`                           | Output format; defaults to `compact`                                                  |
+| `-n, --limit`  | integer                                             | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
+| `-s, --status` | `open`, `claimed`, `ready`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
+| `--tier`       | `plan`, `epic`                                      | Filter by plan-bead tier                                                              |
+| `-t, --type`   | `plan`, `phase`, `task`                             | Filter by type (repeatable)                                                           |
 
-Active (open/claimed/in-progress) listings are unlimited by default. Whenever the final status scope includes `closed`
-and `--limit` is omitted, only the newest 20 beads print; pass `--limit 0` for the full closed history.
+Active (open/claimed/ready/in-progress) listings are unlimited by default. Whenever the final status scope includes
+`closed` and `--limit` is omitted, only the newest 20 beads print; pass `--limit 0` for the full closed history.
 
 ### `sase bead note <id> <text>`
 
@@ -558,8 +593,9 @@ bead and ancestors; historical values remain available in `sase bead history --f
 
 ### `sase bead ready`
 
-Show issues that are ready to work on: `open` status with all dependencies `closed`. A `claimed` bead is already spoken
-for by a live agent, so it does not appear in `ready`.
+Show task beads whose explicit status is `ready` and whose dependencies are all `closed`. Epic work does not appear:
+phase beads are preassigned at epic launch rather than entering a derived ready queue. When no rows qualify, the command
+prints `No ready task beads (epic work is preassigned at launch).`
 
 ### `sase bead rm <id> [<id2> ...]`
 
@@ -571,9 +607,9 @@ unchanged. Overlapping or repeated selections remove and print each issue only o
 
 Find beads whose indexed text fields contain a case-insensitive literal substring. This is substring search, not regex
 or glob matching. Current indexed fields include ID, title, description, notes, design/plan path, artifact references,
-owner, assignee, model, phase size, ChangeSpec name/bug ID, status, type, and tier; timestamps are not searched. Unlike
-`sase bead list`, search includes `open`, `claimed`, `in_progress`, and `closed` beads by default, so it is the quickest
-way to recover older context.
+owner, assignee, model, phase/task size, ChangeSpec name/bug ID, status, type, and tier; timestamps are not searched.
+Unlike `sase bead list`, search includes `open`, `claimed`, `ready`, `in_progress`, and `closed` beads by default, so it
+is the quickest way to recover older context.
 
 Compact output prints each matching bead with a short snippet. For multi-line fields such as descriptions or notes, the
 snippet uses the line that matched the query when possible instead of always showing the first line. JSON output exposes
@@ -587,14 +623,14 @@ sase bead search auth --status open --type phase
 sase bead search auth --type plan --tier epic
 ```
 
-| Flag           | Values                                     | Description                                     |
-| -------------- | ------------------------------------------ | ----------------------------------------------- |
-| `-c, --color`  | `auto`, `always`, `never`                  | Color mode for compact output                   |
-| `-f, --format` | `compact`, `json`, `full`                  | Output format; defaults to `compact`            |
-| `-n, --limit`  | non-negative integer                       | Maximum results; omitted or `0` means unlimited |
-| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | Filter by status (repeatable)                   |
-| `--tier`       | `plan`, `epic`                             | Filter by plan-bead tier (repeatable)           |
-| `-t, --type`   | `plan`, `phase`                            | Filter by type (repeatable)                     |
+| Flag           | Values                                              | Description                                     |
+| -------------- | --------------------------------------------------- | ----------------------------------------------- |
+| `-c, --color`  | `auto`, `always`, `never`                           | Color mode for compact output                   |
+| `-f, --format` | `compact`, `json`, `full`                           | Output format; defaults to `compact`            |
+| `-n, --limit`  | non-negative integer                                | Maximum results; omitted or `0` means unlimited |
+| `-s, --status` | `open`, `claimed`, `ready`, `in_progress`, `closed` | Filter by status (repeatable)                   |
+| `--tier`       | `plan`, `epic`                                      | Filter by plan-bead tier (repeatable)           |
+| `-t, --type`   | `plan`, `phase`, `task`                             | Filter by type (repeatable)                     |
 
 ### `sase bead show <id>`
 
@@ -616,7 +652,7 @@ URL resolves; every relationship reference includes a `resolved` flag and fixed 
 
 ### `sase bead stats`
 
-Show project statistics: total, open, claimed, in-progress, and closed counts, plus plan and phase counts.
+Show project statistics: total, open, claimed, ready, in-progress, and closed counts, plus plan, phase, and task counts.
 
 ### `sase bead sync`
 
@@ -631,26 +667,39 @@ commit; the staged event/projection files are included in the next normal projec
 
 Update one or more fields on an issue.
 
-| Flag                | Description                                                                   |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `-s, --status`      | Change status                                                                 |
-| `-t, --title`       | Change title                                                                  |
-| `-d, --description` | Change description                                                            |
-| `-n, --notes`       | Replace notes                                                                 |
-| `-D, --design`      | Change plan path                                                              |
-| `-a, --assignee`    | Change assignee                                                               |
-| `--tier`            | Change plan tier                                                              |
-| `-m, --model`       | Change the launch model. Pass an empty string to clear.                       |
-| `-z, --size`        | Change a phase bead's `xsmall`, `small`, `medium`, `large`, or `xlarge` size. |
+| Flag                | Description                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| `-s, --status`      | Change status                                                                         |
+| `-t, --title`       | Change title                                                                          |
+| `-d, --description` | Change description                                                                    |
+| `-n, --notes`       | Replace notes                                                                         |
+| `-D, --design`      | Change plan path                                                                      |
+| `-a, --assignee`    | Change assignee                                                                       |
+| `--tier`            | Change plan tier                                                                      |
+| `-m, --model`       | Change the launch model. Pass an empty string to clear.                               |
+| `-z, --size`        | Change a phase or task bead's `xsmall`, `small`, `medium`, `large`, or `xlarge` size. |
 
 Use `sase bead update --notes` for an explicit field replacement. Use `sase bead note` when recording progress that
 should accumulate with earlier notes.
 
 ### `sase bead work <target>`
 
-Create or resume an epic from a validated Markdown plan, or launch an existing epic-tier plan bead. A target is treated
-as a plan file when it ends in `.md`, contains a path separator, or names an existing file; other targets are bead IDs.
-Both modes use the same launcher to run one agent per non-closed, non-delegated phase plus a final land agent.
+Create or resume an epic from a validated Markdown plan, launch an existing epic-tier plan bead, or launch one
+standalone task bead. A target is treated as a plan file when it ends in `.md`, contains a path separator, or names an
+existing file; other targets are bead IDs whose type selects the epic or task path.
+
+For a task bead, `sase bead work <task-id>` accepts `ready` (normal), `open` (manual launch), or recoverable
+`in_progress` state. It does not launch a duplicate when the assigned agent is still alive, and it rejects closed tasks.
+`--dry-run` prints the single worker prompt without changing the bead or agent registry. A real launch:
+
+1. Force-reuses the task ID as the deterministic agent name after showing or confirming any destructive cleanup.
+2. Selects the bead's stored model, the size-derived phase-worker alias, or `@task_worker` in that order.
+3. Renders one VCS-aware prompt ending in `#bd/work_task:<task-id>`.
+4. Sets `status=in_progress` and `assignee=<task-id>` in one checkpoint commit, publishes it, then launches the worker.
+5. Restores the prior task state if dispatch fails before any runner starts; a live runner keeps the checkpoint.
+
+The `TaskTriage` gate's default Launch branch submits this command as a detached task with `--yes-to-all`; optional gate
+feedback is appended to the worker prompt.
 
 Plan-file mode is the canonical epic-approval entry point. It:
 
@@ -742,21 +791,21 @@ which closes the phase and lets its bead-gated dependents proceed. Until then, p
 phase. The land agent now genuinely requires every phase bead to close; if a phase crashes before closure, retry or
 close that phase explicitly rather than expecting landing to sweep it up.
 
-| Flag                  | Description                                                                                   |
-| --------------------- | --------------------------------------------------------------------------------------------- |
-| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch                        |
-| `-c, --cl-name`       | ChangeSpec name for the approved epic completion notification                                 |
-| `-n, --dry-run`       | Validate and preview plan archiving, bead creation, model routing, and waves without mutation |
-| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                         |
-| `-P, --no-push`       | Skip checkpoint synchronization; a remote-backed detached store stops before spawning         |
-| `-p, --parent`        | Override a plan file's `parent_bead`; pass `top-level` to force an unparented epic            |
-| `-y, --yes`           | Skip only the launch confirmation prompt                                                      |
-| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                             |
+| Flag                  | Description                                                                                    |
+| --------------------- | ---------------------------------------------------------------------------------------------- |
+| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch                         |
+| `-c, --cl-name`       | ChangeSpec name for the approved epic completion notification                                  |
+| `-n, --dry-run`       | Validate and preview epic or task creation, model routing, prompts, and waves without mutation |
+| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                          |
+| `-P, --no-push`       | Skip checkpoint synchronization; a remote-backed detached store stops before spawning          |
+| `-p, --parent`        | Override a plan file's `parent_bead`; pass `top-level` to force an unparented epic             |
+| `-y, --yes`           | Skip only the launch confirmation prompt                                                       |
+| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                              |
 
-The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
-matching tag overrides the built-in. For epic-tier work, every phase and land segment carries bare `%auto`, so spawned
-agents can auto-approve submitted tale or epic plans and follow the path selected by the authored `tier`, without a
-human-in-the-loop checkpoint between dependency waves.
+The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined `work_phase_bead`,
+`work_task_bead`, or `land_epic` xprompt overrides the built-in. For epic-tier work, every phase and land segment
+carries bare `%auto`, so spawned agents can auto-approve submitted tale or epic plans and follow the path selected by
+the authored `tier`, without a human-in-the-loop checkpoint between dependency waves.
 
 When the epic plan bead is attached to ChangeSpec metadata (`--changespec` / `--bug-id`), `sase bead work` preserves the
 current project's VCS context in the generated prompt. The first phase segment targets the project reference and adds a

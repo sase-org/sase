@@ -35,6 +35,7 @@ def test_list_skill_examples_parse_against_cli_contract() -> None:
         "sase bead list",
         "sase bead list --format json",
         "sase bead list --format full --limit 3",
+        "sase bead list --status ready --type task",
         "sase bead list --status open --type phase",
         "sase bead list --tier epic",
         "sase bead list --status closed --limit 0",

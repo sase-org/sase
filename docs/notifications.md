@@ -113,12 +113,26 @@ The following events generate notifications:
 | `launch`                       | A running agent requested a new agent launch for approval      |
 | `question`                     | An agent is asking the user a question (via `/sase_questions`) |
 | `hitl`                         | A workflow HITL step is waiting for user input                 |
+| `bead-task-triage`             | A ready task bead needs a launch-or-close decision             |
 | `memory.proposed`              | A long-term memory proposal is ready for human review          |
 | `sync`                         | A sync operation completed for a ChangeSpec                    |
 | `axe`                          | Hourly error digest summarizing recent axe errors              |
 | `file-hooks`                   | A configured per-file hook completed or failed                 |
 | `mentors`                      | All mentors finished for a ChangeSpec entry (or none matched)  |
 | Workflow-specific sender label | Workflow completion (success or failure)                       |
+
+### Task Triage Notification
+
+The five-minute `bead_task_triage` chop creates one human-only `TaskTriage` gate for each ready task bead. The
+notification carries the `bead` and `task` tags, shows a Markdown preview of the task's description and notes, and
+offers two branches:
+
+- **Launch** is the default. It submits a detached background task that runs `sase bead work <task-id> --yes-to-all`;
+  optional feedback is appended to the worker prompt.
+- **Close** requires feedback and closes the bead with that reason and `resolution=canceled`.
+
+The gate cannot be resolved automatically. While it remains pending, the chop suppresses duplicates; if the bead leaves
+`ready` out of band, the chop cancels the stale gate.
 
 ### Agent Completion Attachments
 
