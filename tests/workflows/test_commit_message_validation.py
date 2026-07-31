@@ -8,7 +8,7 @@ import pytest
 
 from sase.core.commit_subject_facade import default_commit_subject_types
 from sase.workflows.commit.message_validation import (
-    CommitMessagePolicy,
+    _CommitMessagePolicy,
     check_commit_message,
     load_commit_message_policy,
 )
@@ -44,7 +44,7 @@ def test_load_commit_message_policy_defaults_when_config_loader_fails() -> None:
     ):
         policy = load_commit_message_policy()
 
-    assert policy == CommitMessagePolicy()
+    assert policy == _CommitMessagePolicy()
 
 
 def test_load_commit_message_policy_honors_explicit_false_and_custom_types() -> None:
@@ -67,7 +67,7 @@ def test_load_commit_message_policy_honors_explicit_false_and_custom_types() -> 
 
 
 def test_check_commit_message_returns_none_when_policy_disabled() -> None:
-    policy = CommitMessagePolicy(
+    policy = _CommitMessagePolicy(
         require_conventional_subject=False,
         allowed_types=("fix",),
     )
@@ -84,7 +84,7 @@ def test_check_commit_message_returns_none_when_policy_disabled() -> None:
     ],
 )
 def test_check_commit_message_returns_none_for_exempt_subjects(message: str) -> None:
-    assert check_commit_message(message, CommitMessagePolicy()) is None
+    assert check_commit_message(message, _CommitMessagePolicy()) is None
 
 
 @pytest.mark.parametrize(
@@ -118,7 +118,7 @@ def test_check_commit_message_renders_actionable_rejections(
     first_line: str,
     subject: str | None,
 ) -> None:
-    rejection = check_commit_message(message, CommitMessagePolicy())
+    rejection = check_commit_message(message, _CommitMessagePolicy())
 
     assert rejection is not None
     assert rejection.splitlines()[0] == first_line
@@ -138,7 +138,7 @@ def test_check_commit_message_renders_actionable_rejections(
 def test_check_commit_message_renders_effective_custom_allowed_types() -> None:
     rejection = check_commit_message(
         "feat: x",
-        CommitMessagePolicy(allowed_types=("fix", "docs")),
+        _CommitMessagePolicy(allowed_types=("fix", "docs")),
     )
 
     assert rejection is not None

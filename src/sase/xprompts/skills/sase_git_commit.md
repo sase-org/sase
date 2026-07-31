@@ -34,8 +34,12 @@ Commit changes via the `sase_git_commit` wrapper. The wrapper records skill invo
    - `revert` — Reverts a previous commit; reference the reverted commit in the message body.
    - `chore` — Maintenance that fits none of the tags above, such as tooling config, housekeeping, or asset updates.
 
-   A project may restrict its allowed tag set, for example via a PR-title check. When in doubt, prefer a tag the
-   project's history already uses.
+   Picking a tag is mandatory, not advisory: `sase commit` **rejects** a message whose subject line is not a
+   conventional header, before it closes any bead or runs any hook. If that happens, rewrite the subject in the same
+   `-M` message file (which is preserved on failure) and re-run the identical command — do not disable the check.
+
+   A project may restrict its allowed tag set, for example via a PR-title check or `commit.message.allowed_types`. When
+   in doubt, prefer a tag the project's history already uses.
 
    Commit tags can drive automated release tooling such as release-please or release-plz. These tools parse tags to
    compute semantic version bumps and changelog entries: `fix` -> patch, `feat` -> minor, and breaking changes -> major.

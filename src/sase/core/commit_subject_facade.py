@@ -12,7 +12,7 @@ COMMIT_SUBJECT_WIRE_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
-class CommitSubject:
+class _CommitSubject:
     subject: str
     valid: bool
     exempt: bool
@@ -36,7 +36,7 @@ def default_commit_subject_types() -> tuple[str, ...]:
 def parse_commit_subject(
     message: str,
     allowed_types: Sequence[str] | None = None,
-) -> CommitSubject:
+) -> _CommitSubject:
     """Parse *message* through the shared Rust subject grammar."""
     binding = require_rust_binding("parse_commit_subject")
     effective_types = (
@@ -53,7 +53,7 @@ def parse_commit_subject(
             "unsupported commit-subject wire schema version "
             f"{schema_version}; expected {COMMIT_SUBJECT_WIRE_SCHEMA_VERSION}"
         )
-    return CommitSubject(
+    return _CommitSubject(
         subject=str(raw.get("subject") or ""),
         valid=bool(raw.get("valid")),
         exempt=bool(raw.get("exempt")),
@@ -74,7 +74,6 @@ def _optional_str(value: Any) -> str | None:
 
 __all__ = [
     "COMMIT_SUBJECT_WIRE_SCHEMA_VERSION",
-    "CommitSubject",
     "default_commit_subject_types",
     "parse_commit_subject",
 ]

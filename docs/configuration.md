@@ -1121,7 +1121,38 @@ the finalizer creates a direct `chore: Mark SDD plan done` commit instead of inv
 Set `SASE_DISABLE_COMMIT_STOP_HOOK=1` for a one-off bypass. The environment variable name is historical; it now disables
 the provider-neutral finalizer.
 
-Source: `src/sase/llm_provider/commit_finalizer.py`, `src/sase/commit_instructions.py`
+#### commit.message
+
+Configures the Conventional Commit subject gate that `sase commit` applies to every `create_commit`, `create_proposal`,
+and `create_pull_request` message before any side effect runs.
+
+```yaml
+commit:
+  message:
+    require_conventional_subject: true
+    allowed_types: [build, chore, ci, deps, docs, feat, fix, perf, refactor, revert, style, test]
+```
+
+| Field                                         | Type | Default            | Description                                                                         |
+| --------------------------------------------- | ---- | ------------------ | ----------------------------------------------------------------------------------- |
+| `commit.message.require_conventional_subject` | bool | `true`             | Reject a `sase commit` message whose subject line is not a Conventional Commit.     |
+| `commit.message.allowed_types`                | list | the 12 types above | Commit types this project accepts. A configured list **replaces** the built-in set. |
+
+The subject must match `<type>[(<scope>)][!]: <description>`. The scope is optional, one or more spaces may follow the
+colon, and no length or capitalization rule is applied to the description. The type itself must be lowercase, because
+release tooling does not classify capitalized types reliably. Only the first line is inspected; nothing below the
+subject is validated.
+
+Subjects beginning with `Merge `, `Revert "`, `fixup!`, `squash!`, or `amend!` are exempt and always pass — these are
+mechanical git-generated or rebase-directive subjects. An empty message is always rejected.
+
+A rejection fails the workflow before beads are closed, plans are staged, or the before-commit hook runs, and the `-M`
+message file is preserved so the same command can be re-run after the subject is rewritten. There is no per-invocation
+bypass flag or environment variable; a project that does not use Conventional Commits sets
+`require_conventional_subject: false`.
+
+Source: `src/sase/llm_provider/commit_finalizer.py`, `src/sase/commit_instructions.py`,
+`src/sase/workflows/commit/message_validation.py`, `src/sase/core/commit_subject_facade.py`
 
 ### repos
 

@@ -7,7 +7,7 @@ from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
-from sase.workflows.commit.message_validation import CommitMessagePolicy
+from sase.workflows.commit.message_validation import _CommitMessagePolicy
 from sase.workflows.commit.workflow import CommitWorkflow
 from sase.workflows.commit.workflow_types import RunResult
 
@@ -23,7 +23,7 @@ def _run_until_dispatch(
     payload: dict[str, str],
     method: str,
     *,
-    policy: CommitMessagePolicy | None = None,
+    policy: _CommitMessagePolicy | None = None,
 ) -> tuple[RunResult, MagicMock]:
     provider = MagicMock()
     provider.is_sync_in_progress.return_value = False
@@ -131,7 +131,7 @@ def test_conventional_message_reaches_dispatch_unchanged(method: str) -> None:
 
 def test_disabled_policy_allows_non_conventional_message() -> None:
     payload = _payload("create_commit", "Allow this project-specific subject")
-    policy = CommitMessagePolicy(require_conventional_subject=False)
+    policy = _CommitMessagePolicy(require_conventional_subject=False)
 
     result, provider = _run_until_dispatch(payload, "create_commit", policy=policy)
 

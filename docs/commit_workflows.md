@@ -115,6 +115,8 @@ The COMMITS entry note is always derived from the first line of the commit messa
 `CommitWorkflow` (`src/sase/workflows/commit/workflow.py`) is the central dispatcher. It runs through these stages:
 
 ```
+Subject gate       (reject a non-Conventional-Commit subject before any side effect)
+    |
 Bead association   (append linked SASE_BEAD= footer when SASE_BEAD_ID is set)
     |
 Bead lifecycle     (close bead, sync beads)                               [skip for proposals]
@@ -150,6 +152,18 @@ Agent publication  (resolve target; enqueue exact hood, then try publish) [agent
     |
 COMMITS entry      (append entry to project file)                         [commit/propose only]
 ```
+
+The **subject gate** runs first, immediately after payload-shape validation and before bead lifecycle handling, plan
+staging, and the before hook. If the first line of the message is not a Conventional Commit
+(`<type>[(<scope>)][!]: <description>`), the workflow fails with an actionable error and nothing else has run — no bead
+is closed for a commit that never happened. Merge, revert, and fixup subjects are exempt; empty messages are rejected.
+The failure is recorded on the `commit_failed` run-log event with `reason="invalid_message"`, and `sase commit`
+preserves the `-M` message file so the same command can be re-run after the subject is rewritten. Configure the gate
+through `commit.message` (see [Configuration](configuration.md#commitmessage)).
+
+For PRs, the subject is validated exactly as the agent authored it. `vcs_provider.use_project_pr_prefix: true` prepends
+a `[project] ` prefix to the PR title _after_ validation, so the final title on the pull request can differ from the
+validated subject.
 
 ### 4. XPrompt reads the result
 

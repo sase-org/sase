@@ -18,14 +18,14 @@ _GENERIC_REJECTION = (
 
 
 @dataclass(frozen=True)
-class CommitMessagePolicy:
+class _CommitMessagePolicy:
     require_conventional_subject: bool = _DEFAULT_REQUIRE_CONVENTIONAL_SUBJECT
     allowed_types: tuple[str, ...] = field(default_factory=default_commit_subject_types)
 
 
-def load_commit_message_policy() -> CommitMessagePolicy:
+def load_commit_message_policy() -> _CommitMessagePolicy:
     """Load the commit-message policy from merged config, falling back safely."""
-    defaults = CommitMessagePolicy()
+    defaults = _CommitMessagePolicy()
     try:
         config = load_merged_config()
     except Exception:
@@ -44,7 +44,7 @@ def load_commit_message_policy() -> CommitMessagePolicy:
         "require_conventional_subject",
         defaults.require_conventional_subject,
     )
-    return CommitMessagePolicy(
+    return _CommitMessagePolicy(
         require_conventional_subject=(
             raw_require
             if isinstance(raw_require, bool)
@@ -59,7 +59,7 @@ def load_commit_message_policy() -> CommitMessagePolicy:
 
 def check_commit_message(
     message: str,
-    policy: CommitMessagePolicy,
+    policy: _CommitMessagePolicy,
 ) -> str | None:
     """Return a rendered rejection message, or ``None`` when acceptable."""
     if not policy.require_conventional_subject:
@@ -92,7 +92,7 @@ def _render_rejection(
     subject: str,
     violation: str | None,
     found_type: str | None,
-    policy: CommitMessagePolicy,
+    policy: _CommitMessagePolicy,
 ) -> str:
     first_line = _rejection_first_line(violation, found_type)
     lines = [first_line]
@@ -132,7 +132,6 @@ def _rejection_first_line(violation: str | None, found_type: str | None) -> str:
 
 
 __all__ = [
-    "CommitMessagePolicy",
     "check_commit_message",
     "load_commit_message_policy",
 ]
