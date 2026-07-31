@@ -14,6 +14,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
+from sase.ace.tui.tools import build_slow_tool_sources
 from sase.ace.tui.tools import cache as tools_cache_module
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
@@ -177,10 +178,22 @@ async def _focus_slow_tool_section(page: AcePage) -> AgentPromptPanel:
     panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
     for _ in range(20):
         if panel.active_section_identity == "slow-tool-calls":
+            await wait_for_state(
+                page,
+                lambda: _active_tools_footer_visible(page),
+                description="loaded tools footer",
+            )
             await wait_for_visual_idle(page)
-            if _active_tools_footer_visible(page):
+            if (
+                panel.active_section_identity == "slow-tool-calls"
+                and _active_tools_footer_visible(page)
+            ):
                 return panel
         await page.press("ctrl+j")
+        # The first navigation request may enable the panel's layout reserve
+        # and finish through a call-after-refresh retry. Let that retry and its
+        # anchor paint converge before deciding whether another key is needed.
+        await wait_for_visual_idle(page)
     raise AssertionError("Timed out focusing slow-tool calls section")
 
 
@@ -205,6 +218,10 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
     artifacts_dir = tmp_path / "visual-slow-tools"
     _populate_slow_tool_calls(artifacts_dir)
     agent = _slow_tool_agent(artifacts_dir)
+    # This snapshot covers fold rendering, not asynchronous artifact discovery.
+    # Prime the shared mtime cache so the metadata header and tools-availability
+    # indicator start from the same source state under full-suite contention.
+    assert build_slow_tool_sources(agent)
     patch_startup_loaders(monkeypatch, agents=[agent])
 
     async with AcePage(query='"slow-tools"', changespecs=changespecs()) as page:
