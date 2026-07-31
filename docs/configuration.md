@@ -631,13 +631,16 @@ panel. Every configured tribe entry is **required** to carry a `description`; th
 | `initially_expanded` | bool | `true`     | Initial state the first time the Agents-tab panel appears.                                                                       |
 | `description`        | str  | _required_ | One-line explanation of the tribe, 1-160 characters. Shown in the Agents-tab metadata panel when that tribe's panel is selected. |
 
-The bundled defaults use ⌂ in sky blue for `default`, ▲ in lavender-purple for `epic`, ∴ in teal-green for `research`,
-and † in amber-orange for `chop`. They also use ◆ for `pinned` and ◉ for `review`, whose identities retain ACE's gold
-fallback; `chop` starts collapsed. Because config entries merge deeply, setting `color: ""` explicitly clears an
-inherited color without replacing that tribe's other defaults — overriding only `icon` or `color` on a bundled tribe
-still inherits its bundled `description`. Once a user explicitly expands or collapses a panel, that durable choice takes
-precedence over `initially_expanded`, including after ACE restarts. Changing the config still affects panels the user
-has not folded explicitly.
+The bundled defaults use ⌂ in sky blue for `default`, ▲ in lavender-purple for `epic`, and † in amber-orange for `chop`.
+They also use ◆ for `pinned` and ◉ for `review`, whose identities retain ACE's gold fallback; `chop` starts collapsed.
+Because config entries merge deeply, setting `color: ""` explicitly clears an inherited color without replacing that
+tribe's other defaults — overriding only `icon` or `color` on a bundled tribe still inherits its bundled `description`.
+Once a user explicitly expands or collapses a panel, that durable choice takes precedence over `initially_expanded`,
+including after ACE restarts. Changing the config still affects panels the user has not folded explicitly.
+
+SASE bundles display config only for the tribes its own source assigns (`default`, `epic`, `chop`, `pinned`, `review`);
+a tribe your own xprompts assign with `%tribe:` has no bundled entry, renders with ACE's gold fallback and no icon until
+you configure it under `ace.tribes`, and — once configured — requires a `description` like any other entry.
 
 A missing or blank `description` on any configured tribe is an error-severity config diagnostic: the ACE Config Center
 refuses to write _any_ change while it is present, not just an edit to that tribe. Run `sase doctor -C config.tribes` to

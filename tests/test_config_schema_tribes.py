@@ -34,6 +34,24 @@ def test_config_schema_accepts_ace_tribe_display_settings() -> None:
     )
 
 
+def test_bundled_ace_tribes_are_only_sase_assigned_tribes() -> None:
+    """Bundled ace.tribes configures only tribes SASE's own source can assign.
+
+    Any other tribe (one your own xprompts assign with `%tribe:` / `tribe=`) is
+    yours to configure in `~/.config/sase/sase.yml`; it must not appear here.
+    """
+    from sase.config.core import _load_default_config
+
+    data = _load_default_config()
+    assert set(data["ace"]["tribes"]) == {
+        "default",
+        "epic",
+        "chop",
+        "pinned",
+        "review",
+    }
+
+
 @pytest.mark.parametrize(
     "tribes",
     [

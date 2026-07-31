@@ -11,6 +11,7 @@ from rich.text import Text
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.tribe_display import TRIBE_IDENTITY_FALLBACK_COLOR
 from sase.ace.tui.widgets import KeybindingFooter
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -162,7 +163,7 @@ async def test_tribe_panel_display_config_png_snapshot(
             "⌂ @default",
             "▲ @epic",
             "◆ @pinned",
-            "∴ @research",
+            "@research",
             "◉ @review",
             "▸ † @chop",
         ):
@@ -173,13 +174,22 @@ async def test_tribe_panel_display_config_png_snapshot(
             (None, "⌂ ", "@default", "#87D7FF"),
             ("epic", "▲ ", "@epic", "#AF87FF"),
             ("pinned", "◆ ", "@pinned", "#FFD75F"),
-            ("research", "∴ ", "@research", "#5FD7AF"),
             ("review", "◉ ", "@review", "#FFD75F"),
             ("chop", "† ", "@chop", "#FFAF5F"),
         ):
             title = titles_by_key[key]
             _assert_title_identity_color(title, text=icon, color=color)
             _assert_title_identity_color(title, text=label, color=color)
+
+        # `research` is a user-owned tribe configured in the operator's own
+        # ~/.config/sase/sase.yml, not in sase's bundled defaults, and tests
+        # run against bundled defaults only. It must render unstyled here —
+        # do not "fix" this by re-adding a bundled research entry.
+        research_title = titles_by_key["research"]
+        assert "∴" not in research_title.plain
+        _assert_title_identity_color(
+            research_title, text="@research", color=TRIBE_IDENTITY_FALLBACK_COLOR
+        )
 
         await page.press("J")
         assert page.app._panel_group.focused_key == "epic"

@@ -111,10 +111,6 @@ ace:
       icon: "▲"
       color: "#AF87FF"
       description: "Epic phase-worker clans from sase bead work, one member per phase of an approved plan."
-    research:
-      icon: "∴"
-      color: "#5FD7AF"
-      description: "Research agents that answer open questions with durable reports instead of code changes."
     chop:
       icon: "†"
       color: "#FFAF5F"
