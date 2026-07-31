@@ -7,8 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from sase.notification_gates.models import GateError
+from sase.notification_gates.models import GateError, GateSpec
 from sase.notification_gates.poller import poll_gate, wait_for_gate
+from sase.notification_gates.registry import (
+    GateAdapter,
+    adapter_for_kind,
+    registered_gate_kinds,
+)
 from sase.notification_gates.service import create_gate
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
@@ -160,15 +165,45 @@ def test_automatic_resolution_uses_executor_without_pending_row(
 
 
 def test_launch_adapter_rejects_automatic_resolution() -> None:
-    from sase.notification_gates.models import GateSpec
-    from sase.notification_gates.registry import adapter_for_kind
-
     with pytest.raises(GateError) as exc_info:
         adapter_for_kind("launch").resolve_auto_selection(
             GateSpec.from_mapping(gate_spec(kind="launch")), None
         )
 
     assert exc_info.value.code == "auto_not_supported"
+
+
+def test_gate_adapter_registry_declares_surface_capabilities() -> None:
+    adapters = {kind: adapter_for_kind(kind) for kind in registered_gate_kinds()}
+
+    assert {
+        "default_feedback",
+        "generic_form",
+        "branch_actionable",
+    } <= GateAdapter.__dataclass_fields__.keys()
+    assert {
+        kind
+        for kind, adapter in adapters.items()
+        if adapter.default_feedback == "optional"
+    } == {"custom"}
+    assert {kind for kind, adapter in adapters.items() if adapter.generic_form} == {
+        "custom",
+        "task_triage",
+    }
+    assert {
+        kind for kind, adapter in adapters.items() if not adapter.branch_actionable
+    } == {"question"}
+
+
+@pytest.mark.parametrize("kind", registered_gate_kinds())
+def test_gate_option_feedback_defaults_come_from_adapter(kind: str) -> None:
+    raw_spec = custom_gate_spec() if kind == "custom" else gate_spec(kind=kind)
+
+    spec = GateSpec.from_mapping(raw_spec)
+
+    assert {option.feedback for option in spec.options} == {
+        adapter_for_kind(kind).default_feedback
+    }
 
 
 def test_request_timeout_caps_caller_override_but_transport_staleness_is_not_polled(

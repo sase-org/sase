@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from sase.agent.status_buckets import agent_is_asking
+from sase.notification_gates.registry import (
+    PRIVILEGED_GATE_ACTIONS,
+    adapter_for_action,
+)
 
 from ._notification_utils import refresh_notification_agent_from_cache
 
@@ -160,14 +164,7 @@ class AgentNotificationModalMixin:
         def _on_dismiss(result: Notification | None) -> None:
             if result is not None:
                 # PlanApproval/UserQuestion must stay unread until response.
-                if result.action not in (
-                    "PlanApproval",
-                    "EpicApproval",
-                    "UserQuestion",
-                    "LaunchApproval",
-                    "TaskTriage",
-                    "CustomGate",
-                ):
+                if result.action not in PRIVILEGED_GATE_ACTIONS - {"HITL"}:
                     mark_read(result.id)
 
             self._refresh_notification_count()
@@ -178,15 +175,8 @@ class AgentNotificationModalMixin:
             detail = self._read_notification_detail_from_provider(result.id)
             if detail.notification is not None:
                 result = detail.notification
-            if result.action in (
-                "PlanApproval",
-                "EpicApproval",
-                "UserQuestion",
-                "HITL",
-                "LaunchApproval",
-                "TaskTriage",
-                "CustomGate",
-            ):
+            gate_adapter = adapter_for_action(result.action)
+            if result.action in PRIVILEGED_GATE_ACTIONS:
                 self._read_notification_pending_actions_from_provider()
 
             if result.action == "JumpToChangeSpec":
@@ -205,7 +195,7 @@ class AgentNotificationModalMixin:
                 handle_user_question(self, result)
             elif result.action == "LaunchApproval":
                 handle_launch_approval(self, result)
-            elif result.action in {"CustomGate", "TaskTriage"}:
+            elif gate_adapter is not None and gate_adapter.generic_form:
                 handle_custom_gate(self, result)
             elif result.action == "ViewErrorReport":
                 handle_view_error_report(self, result)

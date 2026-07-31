@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.notification_gates.models import GateError, GateOption, GateSpec
+from sase.notification_gates.models import (
+    GateError,
+    GateFeedbackMode,
+    GateOption,
+    GateSpec,
+)
 
 if TYPE_CHECKING:
     from sase.bead.epic_launch import EpicLaunchOrigin
@@ -26,6 +31,9 @@ class GateAdapter:
     legacy_directory_key: str
     auto_policy: str
     neutral_only: bool = False
+    default_feedback: GateFeedbackMode = "disabled"
+    generic_form: bool = False
+    branch_actionable: bool = True
 
     def resolve_auto_selection(
         self, spec: GateSpec, argument: str | None
@@ -258,6 +266,7 @@ _ADAPTERS = (
         response_filename="question_response.json",
         legacy_directory_key="response_dir",
         auto_policy="first",
+        branch_actionable=False,
     ),
     GateAdapter(
         kind="launch",
@@ -289,6 +298,7 @@ _ADAPTERS = (
         legacy_directory_key="bundle_path",
         auto_policy="forbidden",
         neutral_only=True,
+        generic_form=True,
     ),
     GateAdapter(
         kind="custom",
@@ -300,6 +310,8 @@ _ADAPTERS = (
         legacy_directory_key="bundle_path",
         auto_policy="forbidden",
         neutral_only=True,
+        default_feedback="optional",
+        generic_form=True,
     ),
 )
 

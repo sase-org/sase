@@ -271,11 +271,13 @@ def cancel_gate(
 
 
 def _options_from_envelope(envelope: Mapping[str, Any]) -> tuple[GateOption, ...]:
+    from sase.notification_gates.registry import adapter_for_kind
+
     raw_options = envelope.get("options")
     assert isinstance(raw_options, list)
-    default_feedback: GateFeedbackMode = (
-        "optional" if envelope.get("kind") == "custom" else "disabled"
-    )
+    kind = envelope.get("kind")
+    assert isinstance(kind, str)
+    default_feedback = adapter_for_kind(kind).default_feedback
     return tuple(
         GateOption.from_mapping(
             raw_option,

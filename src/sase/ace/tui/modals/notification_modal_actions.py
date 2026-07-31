@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from sase.core.time import get_timezone
+from sase.notification_gates.registry import PRIVILEGED_GATE_ACTIONS
 
 from .snooze_duration_modal import SnoozeDurationModal
 
@@ -27,14 +28,7 @@ class NotificationStateActionsMixin:
 
         notification = self._notifications[idx]
 
-        if notification.action in (
-            "PlanApproval",
-            "EpicApproval",
-            "UserQuestion",
-            "LaunchApproval",
-            "TaskTriage",
-            "CustomGate",
-        ):
+        if notification.action in PRIVILEGED_GATE_ACTIONS:
             self._pending_confirm_notification_id = notification.id
             self.notify("Dismiss pending action notification? (y/n)")
             return
@@ -52,15 +46,7 @@ class NotificationStateActionsMixin:
             return
 
         needs_confirm = any(
-            n.action
-            in (
-                "PlanApproval",
-                "EpicApproval",
-                "UserQuestion",
-                "LaunchApproval",
-                "TaskTriage",
-                "CustomGate",
-            )
+            n.action in PRIVILEGED_GATE_ACTIONS
             for n in self._notifications
             if n.id in self._marked_notification_ids
         )

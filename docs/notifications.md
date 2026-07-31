@@ -504,18 +504,21 @@ timeout is terminal. Every terminal response or cancellation marks the pending a
 notification row, regardless of gate kind or client surface. When ACE opens the notification modal, it also repairs live
 gate rows whose bundles became terminal without a corresponding dismissal.
 
-ACE, Telegram, and mobile render branches in query order from the same normalized envelope structure. Singleton branches
-are buttons. AND branches expose one toggle per option and a configurable submit control; the primary AND branch starts
-expanded. Top-level branches have fixed one-based digit selectors in canonical query order, while AND members remain
-unnumbered and use Space to toggle. Enter submits the declared primary branch, Ctrl+S submits the active branch, and `q`
-or Escape cancels the modal. Surfaces submit only `selected_option_ids` and feedback, and the shared executor runs the
-selected commands in query order.
+ACE, Telegram, and mobile derive gate-kind capabilities from the shared adapter registry and render branches in query
+order from the same normalized envelope structure. Registering a new branch-actionable kind therefore makes it
+actionable on every surface without adding per-surface action or kind allowlists. Singleton branches are buttons. AND
+branches expose one toggle per option and a configurable submit control; the primary AND branch starts expanded.
+Top-level branches have fixed one-based digit selectors in canonical query order, while AND members remain unnumbered
+and use Space to toggle. Enter submits the declared primary branch, Ctrl+S submits the active branch, and `q` or Escape
+cancels the modal. Surfaces submit only `selected_option_ids` and feedback, and the shared executor runs the selected
+commands in query order.
 
 Tale plan approval uses `(approve AND commit) OR reject OR feedback`. The approve and commit options start selected, the
 group submit is labeled **Tale**, and the two singleton branches remain **Reject** and **Send Feedback**. Epic plans use
 `approve OR reject OR feedback`.
 
-The typed projections remain deliberately distinct:
+The typed projections remain deliberately distinct. Their default feedback, generic-form rendering, and branch-action
+capabilities are declared by the same adapter entries that map kinds to notification actions:
 
 | Gate kind     | Notification action | Recommended producer                              |
 | ------------- | ------------------- | ------------------------------------------------- |

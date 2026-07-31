@@ -94,16 +94,22 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
     from sase.notification_gates.paths import resolve_notification_bundle
 
     bundle = resolve_notification_bundle(notification)
-    if bundle is None or bundle.legacy or bundle.kind not in {"custom", "task_triage"}:
+    if bundle is None or bundle.legacy:
         raise GateError(
             "missing_gate",
             notification.id,
             "notification does not reference a neutral generic gate",
         )
-    envelope, _adapter = load_and_verify_bundle(bundle.root)
+    envelope, adapter = load_and_verify_bundle(bundle.root)
+    if not adapter.generic_form:
+        raise GateError(
+            "missing_gate",
+            notification.id,
+            "notification does not reference a neutral generic gate",
+        )
     gate = GateBranchData.from_envelope(
         envelope,
-        default_feedback="optional" if bundle.kind == "custom" else "disabled",
+        default_feedback=adapter.default_feedback,
     )
     preview_path = _preview_path(notification)
     preview_text = _read_text_preview(preview_path)

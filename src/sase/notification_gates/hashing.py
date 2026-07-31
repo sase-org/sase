@@ -112,7 +112,7 @@ def load_and_verify_bundle(
         envelope.get("query"),
         envelope.get("options"),
         envelope.get("groups"),
-        default_feedback="optional" if adapter.kind == "custom" else "disabled",
+        default_feedback=adapter.default_feedback,
     )
     if envelope.get("query") != query:
         raise GateError(

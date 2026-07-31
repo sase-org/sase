@@ -245,11 +245,14 @@ class GateSpec:
                     "gate_timeout_seconds",
                     "gate_timeout_seconds must be a positive number",
                 )
+        from sase.notification_gates.registry import adapter_for_kind
+
+        adapter = adapter_for_kind(kind)
         query, options, groups, branches = normalize_gate_structure(
             data.get("query"),
             data.get("options"),
             data.get("groups", []),
-            default_feedback="optional" if kind == "custom" else "disabled",
+            default_feedback=adapter.default_feedback,
         )
         primary_branch = normalize_primary_branch(data.get("primary_branch"), branches)
         raw_operations = data.get("operations", [])
