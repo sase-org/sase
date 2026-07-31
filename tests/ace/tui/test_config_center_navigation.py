@@ -109,14 +109,14 @@ async def test_activation_callback_is_silent_for_switch_failure(
 ) -> None:
     _patch_stub_panes(monkeypatch)
     activated: list[CenterTab] = []
-    original_sync_header = ConfigCenterModal._sync_header
+    original_sync_chrome = ConfigCenterModal._sync_chrome
 
     def _fail_target_header(modal: ConfigCenterModal, tab: CenterTab | None) -> None:
         if tab == "tasks":
             raise RuntimeError("synthetic switch failure")
-        original_sync_header(modal, tab)
+        original_sync_chrome(modal, tab)
 
-    monkeypatch.setattr(ConfigCenterModal, "_sync_header", _fail_target_header)
+    monkeypatch.setattr(ConfigCenterModal, "_sync_chrome", _fail_target_header)
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(on_tab_activated=activated.append)
         pilot.app.push_screen(modal)

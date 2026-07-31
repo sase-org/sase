@@ -587,11 +587,16 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         app_keymaps = getattr(registry, "app", None)
         opener_binding = getattr(app_keymaps, "open_config_center", "number_sign")
         resume_tab = validated_center_tab(getattr(self, "_last_admin_center_tab", None))
+        history = getattr(self, "_admin_center_history", None)
+        alternate_tab = validated_center_tab(
+            history.alternate if history is not None else None
+        )
 
         self.push_screen(  # type: ignore[attr-defined]
             ConfigCenterModal(
                 initial_tab=initial_tab,
                 resume_tab=resume_tab,
+                alternate_tab=alternate_tab,
                 opener_binding=opener_binding,
                 auto_update=auto_update,
                 comprehensive_provider_names=comprehensive_provider_names,

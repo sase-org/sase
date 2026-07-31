@@ -140,13 +140,18 @@ unchanged and constructs no pane. Press `1`–`7` or click the numbered tab stri
 enters Config and `Shift+Tab` enters XPrompts; within a working section they wrap across the same seven tabs. Pane-local
 `[` / `]` keys switch sub-tabs or views where the active pane provides them.
 
+Inside a working section, the same opener key takes on a second meaning: it jumps to the section you were in immediately
+before the current one, and pressing it again toggles back—exactly two sections remembered, like a two-slot alternate
+rather than an unbounded history stack. A color-coded footer along the bottom of each working section names the jump
+target (or explains that none exists yet) and is itself clickable.
+
 Each pane is constructed only on first entry and is then reused until the Admin Center closes, preserving filters,
 selection, and scroll state while avoiding unrelated config, project, log, statistics, task, update, and xprompt work on
 open. Direct commands such as **Open logs panel**, **Open tasks panel**, **Open statistics**, and update actions still
 open their requested pane immediately and make that successfully mounted section the next resume target. Closing and
-reopening with one `#` still returns to home; only a second press while home is visible resumes. The target is
-memory-only and is cleared by starting a new ACE process. Filters, selections, loaded data, and pane instances are never
-carried between modal lifetimes.
+reopening with one `#` still returns to home; only a second press while home is visible resumes. Both the resume target
+and the alternate are persisted machine-locally and survive across ACE processes. Filters, selections, loaded data, and
+pane instances are never carried between modal lifetimes.
 
 ### Config tab
 
@@ -305,7 +310,7 @@ existing automatic ACE/axe restart behavior after the other legs finish. The con
 | `o`                 | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)                           |
 | `v`                 | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                              |
 | `/`                 | Focus the filter input (matches name / description / topics)                                                |
-| `#` (default)       | From home, resume the last section used in this ACE process; otherwise do not open a nested Admin Center    |
+| `#` (default)       | From home, resume the last section used; in a section, jump to the previous one, press again to toggle      |
 | `Tab` / `Shift+Tab` | From home enter Config / XPrompts; otherwise switch SASE Admin Center tabs (`1`–`7` jump directly)          |
 | `Esc`               | Clear active plugin/agent-CLI marks first; close when no marks are active                                   |
 | `q`                 | Close SASE Admin Center                                                                                     |

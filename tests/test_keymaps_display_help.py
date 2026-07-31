@@ -96,12 +96,12 @@ def test_axe_help_lists_description_toggle() -> None:
     assert ("d", "Expand / collapse description") in pairs
 
 
-def test_admin_center_help_summary_includes_both_statistics_range_directions() -> None:
+def test_admin_center_help_summary_fits_and_documents_the_opener_toggle() -> None:
     reg = load_keymap_registry({})
 
     for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
         labels = {label for _section, bindings in sections for _key, label in bindings}
-        assert "Admin Center: 1-7 jumps; Statistics [/] t/T/c/g/p/P/r/?" in labels
+        assert "Admin Center: 1-7 jump, # back" in labels
 
 
 def test_leader_prefix_override_updates_repeat_last_help_display() -> None:

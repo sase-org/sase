@@ -11,10 +11,11 @@ from textual.widgets import Input, Static
 from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
 from sase.ace.tui.modals import config_center_state
+from sase.ace.tui.modals.config_center_history import AdminCenterTabHistory
 from sase.ace.tui.modals.config_center_modal import CenterTab, ConfigCenterModal
 from sase.ace.tui.modals.config_center_state import (
-    load_admin_center_last_tab,
-    save_admin_center_last_tab,
+    load_admin_center_tab_history,
+    save_admin_center_tab_history,
 )
 from tests.ace.tui._config_center_tabs_helpers import (
     _HostApp,
@@ -144,7 +145,7 @@ async def test_direct_entry_establishes_resume_target_after_success(
             lambda _state: page.app._admin_center_tab_completed_generation == 1
         )
 
-        assert load_admin_center_last_tab() == "tasks"
+        assert load_admin_center_tab_history() == AdminCenterTabHistory(current="tasks")
         await page.press("escape")
         await page.expect_no_modal()
 
@@ -154,7 +155,7 @@ async def test_direct_entry_establishes_resume_target_after_success(
 async def test_persisted_tab_seeds_home_and_repeated_opener_resume(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    save_admin_center_last_tab("tasks")
+    save_admin_center_tab_history(AdminCenterTabHistory(current="tasks"))
     _created, calls = _patch_stub_panes(monkeypatch)
 
     async with AcePage(initial_tab="agents") as page:
@@ -208,14 +209,14 @@ async def test_blocked_write_keeps_navigation_responsive_and_persists_latest(
     _patch_stub_panes(monkeypatch)
     started = threading.Event()
     release = threading.Event()
-    writes: list[CenterTab] = []
+    writes: list[AdminCenterTabHistory] = []
 
     async with AcePage() as page:
 
-        def _save(tab: CenterTab) -> None:
+        def _save(history: AdminCenterTabHistory) -> None:
             started.set()
             assert release.wait(5.0)
-            writes.append(tab)
+            writes.append(history)
 
         page.app._save_admin_center_tab_now = _save  # type: ignore[method-assign]
         await page.press("number_sign")
@@ -246,22 +247,25 @@ async def test_blocked_write_keeps_navigation_responsive_and_persists_latest(
             )
         )
 
-    assert writes == ["logs", "updates"]
+    assert writes == [
+        AdminCenterTabHistory(current="logs"),
+        AdminCenterTabHistory(current="updates", alternate="tasks"),
+    ]
 
 
 async def test_write_failure_is_nonfatal_and_same_tab_can_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_stub_panes(monkeypatch)
-    attempts: list[CenterTab] = []
+    attempts: list[AdminCenterTabHistory] = []
 
     async with AcePage() as page:
 
-        def _save(tab: CenterTab) -> None:
-            attempts.append(tab)
+        def _save(history: AdminCenterTabHistory) -> None:
+            attempts.append(history)
             if len(attempts) == 1:
                 raise OSError("synthetic write failure")
-            save_admin_center_last_tab(tab)
+            save_admin_center_tab_history(history)
 
         page.app._save_admin_center_tab_now = _save  # type: ignore[method-assign]
         await page.press("number_sign")
@@ -288,8 +292,11 @@ async def test_write_failure_is_nonfatal_and_same_tab_can_retry(
             lambda _state: page.app._admin_center_tab_completed_generation == 2
         )
 
-        assert attempts == ["logs", "logs"]
-        assert load_admin_center_last_tab() == "logs"
+        assert attempts == [
+            AdminCenterTabHistory(current="logs"),
+            AdminCenterTabHistory(current="logs"),
+        ]
+        assert load_admin_center_tab_history() == AdminCenterTabHistory(current="logs")
 
 
 async def test_failed_resume_retains_prior_target_and_remains_retryable(

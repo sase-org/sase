@@ -1,4 +1,4 @@
-"""Persistence coverage for the Admin Center resume tab."""
+"""Persistence coverage for the Admin Center tab history pair."""
 
 from __future__ import annotations
 
@@ -9,9 +9,10 @@ from typing import Any
 import pytest
 
 from sase.ace.tui.modals import config_center_state
+from sase.ace.tui.modals.config_center_history import AdminCenterTabHistory
 from sase.ace.tui.modals.config_center_state import (
-    load_admin_center_last_tab,
-    save_admin_center_last_tab,
+    load_admin_center_tab_history,
+    save_admin_center_tab_history,
 )
 
 
@@ -25,27 +26,44 @@ def _use_sase_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     "tab",
     ["config", "logs", "projects", "statistics", "tasks", "updates", "xprompts"],
 )
-def test_valid_tabs_round_trip_with_exact_wire_value(
+def test_valid_single_tab_round_trips_with_exact_wire_value(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     tab: Any,
 ) -> None:
     home = _use_sase_home(monkeypatch, tmp_path)
 
-    save_admin_center_last_tab(tab)
+    save_admin_center_tab_history(AdminCenterTabHistory(current=tab))
 
     path = home / "ace_admin_center_last_tab.txt"
     assert config_center_state._admin_center_last_tab_path() == path
     assert path.read_bytes() == f"{tab}\n".encode()
-    assert load_admin_center_last_tab() == tab
+    assert load_admin_center_tab_history() == AdminCenterTabHistory(current=tab)
 
 
-def test_missing_and_unreadable_state_return_none(
+def test_valid_pair_round_trips_with_exact_two_line_wire_value(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    home = _use_sase_home(monkeypatch, tmp_path)
+
+    save_admin_center_tab_history(
+        AdminCenterTabHistory(current="tasks", alternate="logs")
+    )
+
+    path = home / "ace_admin_center_last_tab.txt"
+    assert path.read_bytes() == b"tasks\nlogs\n"
+    assert load_admin_center_tab_history() == AdminCenterTabHistory(
+        current="tasks", alternate="logs"
+    )
+
+
+def test_missing_and_unreadable_state_return_empty_history(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     _use_sase_home(monkeypatch, tmp_path)
-    assert load_admin_center_last_tab() is None
+    assert load_admin_center_tab_history() == AdminCenterTabHistory()
 
     class _UnreadablePath:
         def open(self, _mode: str) -> Any:
@@ -56,7 +74,7 @@ def test_missing_and_unreadable_state_return_none(
         "_admin_center_last_tab_path",
         lambda: _UnreadablePath(),
     )
-    assert load_admin_center_last_tab() is None
+    assert load_admin_center_tab_history() == AdminCenterTabHistory()
 
 
 @pytest.mark.parametrize(
@@ -65,12 +83,13 @@ def test_missing_and_unreadable_state_return_none(
         b"",
         b"missing\n",
         b"tasks",
-        b"tasks\nlogs\n",
+        b"tasks\nlogs\nconfig\n",
+        b"tasks\nmissing\n",
         b"\xff\n",
         b"x" * 65,
     ],
 )
-def test_malformed_or_oversized_state_returns_none(
+def test_malformed_or_oversized_state_returns_empty_history(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     content: bytes,
@@ -79,7 +98,18 @@ def test_malformed_or_oversized_state_returns_none(
     home.mkdir(parents=True)
     (home / "ace_admin_center_last_tab.txt").write_bytes(content)
 
-    assert load_admin_center_last_tab() is None
+    assert load_admin_center_tab_history() == AdminCenterTabHistory()
+
+
+def test_degenerate_duplicate_pair_keeps_current_and_drops_alternate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    home = _use_sase_home(monkeypatch, tmp_path)
+    home.mkdir(parents=True)
+    (home / "ace_admin_center_last_tab.txt").write_bytes(b"tasks\ntasks\n")
+
+    assert load_admin_center_tab_history() == AdminCenterTabHistory(current="tasks")
 
 
 def test_save_atomically_replaces_existing_state(
@@ -105,7 +135,7 @@ def test_save_atomically_replaces_existing_state(
 
     monkeypatch.setattr(config_center_state.os, "replace", _replace)
 
-    save_admin_center_last_tab("tasks")
+    save_admin_center_tab_history(AdminCenterTabHistory(current="tasks"))
 
     assert len(replacements) == 1
     assert replacements[0][1] == path
@@ -128,17 +158,34 @@ def test_failed_replace_preserves_destination_and_cleans_temporary(
     monkeypatch.setattr(config_center_state.os, "replace", _fail_replace)
 
     with pytest.raises(OSError, match="synthetic replace failure"):
-        save_admin_center_last_tab("tasks")
+        save_admin_center_tab_history(AdminCenterTabHistory(current="tasks"))
 
     assert path.read_text() == "logs\n"
     assert not list(home.glob(f".{path.name}.*.tmp"))
 
 
-def test_save_rejects_non_catalog_tab(
+def test_save_rejects_non_catalog_current_tab(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     _use_sase_home(monkeypatch, tmp_path)
 
     with pytest.raises(ValueError, match="invalid Admin Center tab"):
-        save_admin_center_last_tab("missing")  # type: ignore[arg-type]
+        save_admin_center_tab_history(
+            AdminCenterTabHistory(current="missing")  # type: ignore[arg-type]
+        )
+
+
+def test_save_drops_alternate_matching_current(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    home = _use_sase_home(monkeypatch, tmp_path)
+
+    save_admin_center_tab_history(
+        AdminCenterTabHistory(current="tasks", alternate="tasks")
+    )
+
+    path = home / "ace_admin_center_last_tab.txt"
+    assert path.read_bytes() == b"tasks\n"
+    assert load_admin_center_tab_history() == AdminCenterTabHistory(current="tasks")

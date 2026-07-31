@@ -45,6 +45,11 @@ from .config_center_catalog import (
     center_tab_accent as center_tab_accent,
     validated_center_tab as validated_center_tab,
 )
+from .config_center_footer import AdminCenterFooter
+from .config_center_history import (
+    AdminCenterTabHistory,
+    validated_admin_center_tab_history,
+)
 from .config_center_home import (
     _HOME_ID as _HOME_ID,
     _HOME_LEAD as _HOME_LEAD,
@@ -103,6 +108,7 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         *,
         initial_tab: CenterTab | None = None,
         resume_tab: CenterTab | None = None,
+        alternate_tab: CenterTab | None = None,
         opener_binding: str = "number_sign",
         auto_update: bool = False,
         comprehensive_provider_names: tuple[str, ...] | None = None,
@@ -114,6 +120,9 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         self._comprehensive_provider_names = comprehensive_provider_names
         self._initial_tab = validated_center_tab(initial_tab)
         self._resume_tab = validated_center_tab(resume_tab)
+        self._history: AdminCenterTabHistory = validated_admin_center_tab_history(
+            self._resume_tab, validated_center_tab(alternate_tab)
+        )
         self._on_tab_activated = on_tab_activated
         self._opener_binding = (
             opener_binding
@@ -123,6 +132,10 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         # Put the modal-local opener first so a custom binding that overlaps
         # another modal key (for example Tab or q) still means "resume" while
         # home is visible.  ``check_action`` disables it on working panes.
+        # The alternate-jump binding on the same key is appended *after*
+        # ``*self.BINDINGS`` instead: on a colliding custom opener, "resume"
+        # wins on home, but a working tab's own ``q``/``Tab`` meaning still
+        # wins over the alternate jump (see ``check_action``).
         self._bindings = BindingsMap(
             [
                 Binding(
@@ -133,6 +146,13 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
                     priority=True,
                 ),
                 *self.BINDINGS,
+                Binding(
+                    self._opener_binding,
+                    "alternate_center_tab",
+                    "Back to alternate section",
+                    show=False,
+                    priority=False,
+                ),
             ]
         )
         self._active_tab: CenterTab | None = None
@@ -166,6 +186,9 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
                     self._schedule_switch,
                     id=_HOME_ID,
                 )
+            footer = AdminCenterFooter(self._schedule_switch, id="config-center-footer")
+            footer.display = False
+            yield footer
 
     def on_mount(self) -> None:
         if self._initial_tab is not None:
@@ -196,9 +219,15 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
                 scroll_to_top()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        """Make the configured opener a home-only modal action."""
+        """Give the opener a home-only and a working-tab-only meaning."""
         if action == "resume_last_tab":
             return self._active_tab is None and not self._initial_navigation_pending
+        if action == "alternate_center_tab":
+            return (
+                self._active_tab is not None
+                and not self._initial_navigation_pending
+                and self._history.alternate is not None
+            )
         return super().check_action(action, parameters)
 
     def _active_pane(self) -> Widget | None:
@@ -261,12 +290,19 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         self._panes[tab] = pane
         return pane
 
-    def _sync_header(self, tab: CenterTab | None) -> None:
+    def _sync_chrome(self, tab: CenterTab | None) -> None:
+        """Keep the tab strip, description caption, and footer in lockstep."""
         strip = self.query_one("#config-center-tabs", PanelTabStrip)
         strip.set_active_tab(tab)
         description = self.query_one("#config-center-tab-description", Static)
         description.update(
             home_orientation_text() if tab is None else tab_description_text(tab)
+        )
+        footer = self.query_one("#config-center-footer", AdminCenterFooter)
+        footer.display = tab is not None
+        footer.update_state(
+            self._history.alternate if tab is not None else None,
+            self._opener_binding,
         )
 
     async def _switch_to(self, tab: CenterTab) -> bool:
@@ -288,17 +324,20 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
 
             previous_tab = self._active_tab
             previous_pane = self._active_pane()
+            previous_history = self._history
             self._set_pane_active(previous_pane, False)
             try:
                 switcher = self.query_one("#config-center-switcher", ContentSwitcher)
                 self._active_tab = tab
                 switcher.current = tab
-                self._sync_header(tab)
+                self._history = self._history.remember(tab)
+                self._sync_chrome(tab)
             except Exception as exc:
                 self._active_tab = previous_tab
+                self._history = previous_history
                 try:
                     switcher.current = previous_tab or _HOME_ID
-                    self._sync_header(previous_tab)
+                    self._sync_chrome(previous_tab)
                 except Exception:
                     pass
                 self._set_pane_active(previous_pane, True)
@@ -330,6 +369,16 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
             and self._resume_tab is not None
         ):
             self._schedule_switch(self._resume_tab)
+
+    def action_alternate_center_tab(self) -> None:
+        """Toggle to the other section of the current two-slot pair."""
+        alternate = self._history.alternate
+        if (
+            self._active_tab is not None
+            and not self._initial_navigation_pending
+            and alternate is not None
+        ):
+            self._schedule_switch(alternate)
 
     def action_prev_center_tab(self) -> None:
         """Enter XPrompts from home or select the previous working tab."""

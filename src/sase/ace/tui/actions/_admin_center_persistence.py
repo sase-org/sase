@@ -6,6 +6,8 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+from ..modals.config_center_history import AdminCenterTabHistory
+
 if TYPE_CHECKING:
     from ..modals.config_center_catalog import CenterTab
 
@@ -15,23 +17,27 @@ _FLUSH_TIMEOUT_SECONDS = 2.0
 
 
 class AdminCenterPersistenceMixin:
-    """Remember, coalesce, save, and flush the latest activated center tab."""
+    """Remember, coalesce, save, and flush the latest Admin Center history."""
 
     _last_admin_center_tab: CenterTab | None
-    _admin_center_tab_durable: CenterTab | None
-    _admin_center_tab_queued: CenterTab | None
+    _admin_center_history: AdminCenterTabHistory
+    _admin_center_tab_durable: AdminCenterTabHistory
+    _admin_center_tab_queued: AdminCenterTabHistory | None
     _admin_center_tab_save_generation: int
     _admin_center_tab_completed_generation: int
-    _admin_center_tab_save_pending: tuple[int, CenterTab] | None
+    _admin_center_tab_save_pending: tuple[int, AdminCenterTabHistory] | None
     _admin_center_tab_save_task: asyncio.Task[None] | None
 
     def _ensure_admin_center_persistence_state(self) -> None:
         """Initialize fields for direct-mixin tests that bypass app startup."""
+        if not hasattr(self, "_admin_center_history"):
+            self._admin_center_history = AdminCenterTabHistory(
+                current=getattr(self, "_last_admin_center_tab", None)
+            )
+        if not hasattr(self, "_last_admin_center_tab"):
+            self._last_admin_center_tab = self._admin_center_history.current
         defaults: tuple[tuple[str, object], ...] = (
-            (
-                "_admin_center_tab_durable",
-                getattr(self, "_last_admin_center_tab", None),
-            ),
+            ("_admin_center_tab_durable", self._admin_center_history),
             ("_admin_center_tab_queued", None),
             ("_admin_center_tab_save_generation", 0),
             ("_admin_center_tab_completed_generation", 0),
@@ -50,11 +56,13 @@ class AdminCenterPersistenceMixin:
         tab = validated_center_tab(value)
         if tab is None:
             return
-        self._last_admin_center_tab = tab
-        if tab == self._admin_center_tab_queued:
+        history = self._admin_center_history.remember(tab)
+        self._admin_center_history = history
+        self._last_admin_center_tab = history.current
+        if history == self._admin_center_tab_queued:
             return
         if (
-            tab == self._admin_center_tab_durable
+            history == self._admin_center_tab_durable
             and self._admin_center_tab_save_pending is None
             and (
                 self._admin_center_tab_save_task is None
@@ -65,18 +73,18 @@ class AdminCenterPersistenceMixin:
 
         generation = self._admin_center_tab_save_generation + 1
         self._admin_center_tab_save_generation = generation
-        self._admin_center_tab_save_pending = (generation, tab)
-        self._admin_center_tab_queued = tab
+        self._admin_center_tab_save_pending = (generation, history)
+        self._admin_center_tab_queued = history
         self._start_admin_center_tab_writer()
 
     def _on_admin_center_tab_activated(self, tab: CenterTab) -> None:
         """Receive the modal's successful-navigation callback."""
         self._remember_admin_center_tab(tab)
 
-    def _save_admin_center_tab_now(self, tab: CenterTab) -> None:
-        from ..modals.config_center_state import save_admin_center_last_tab
+    def _save_admin_center_tab_now(self, history: AdminCenterTabHistory) -> None:
+        from ..modals.config_center_state import save_admin_center_tab_history
 
-        save_admin_center_last_tab(tab)
+        save_admin_center_tab_history(history)
 
     def _start_admin_center_tab_writer(self) -> None:
         """Start the sole writer for an existing pending generation."""
@@ -107,20 +115,21 @@ class AdminCenterPersistenceMixin:
                 self._admin_center_tab_save_pending = None
                 if pending is None:
                     break
-                generation, tab = pending
+                generation, history = pending
                 try:
-                    await asyncio.to_thread(self._save_admin_center_tab_now, tab)
+                    await asyncio.to_thread(self._save_admin_center_tab_now, history)
                 except Exception:
                     log.exception("Admin Center resume-tab save failed")
                     if (
                         generation == self._admin_center_tab_save_generation
                         and self._admin_center_tab_save_pending is None
                     ):
-                        # Permit a later successful activation of the same tab
-                        # to retry after this latest-generation failure.
+                        # Permit a later successful activation of the same
+                        # history to retry after this latest-generation
+                        # failure.
                         self._admin_center_tab_queued = None
                 else:
-                    self._admin_center_tab_durable = tab
+                    self._admin_center_tab_durable = history
                 finally:
                     self._admin_center_tab_completed_generation = max(
                         self._admin_center_tab_completed_generation,

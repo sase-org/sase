@@ -1,4 +1,4 @@
-"""Bounded machine-local persistence for the Admin Center resume tab."""
+"""Bounded machine-local persistence for the Admin Center tab history."""
 
 from __future__ import annotations
 
@@ -8,7 +8,8 @@ from pathlib import Path
 
 from sase.core.paths import sase_home
 
-from .config_center_catalog import CenterTab, validated_center_tab
+from .config_center_catalog import validated_center_tab
+from .config_center_history import AdminCenterTabHistory
 
 _STATE_FILENAME = "ace_admin_center_last_tab.txt"
 _MAX_STATE_BYTES = 64
@@ -19,31 +20,52 @@ def _admin_center_last_tab_path() -> Path:
     return sase_home() / _STATE_FILENAME
 
 
-def load_admin_center_last_tab() -> CenterTab | None:
-    """Load one exact newline-terminated catalog tab, or return ``None``."""
+def load_admin_center_tab_history() -> AdminCenterTabHistory:
+    """Load the persisted ``(current, alternate)`` pair, or an empty history."""
     path = _admin_center_last_tab_path()
     try:
         with path.open("rb") as stream:
             data = stream.read(_MAX_STATE_BYTES + 1)
     except (OSError, ValueError):
-        return None
+        return AdminCenterTabHistory()
 
     if not data or len(data) > _MAX_STATE_BYTES:
-        return None
+        return AdminCenterTabHistory()
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
-        return None
-    if not text.endswith("\n") or text.count("\n") != 1:
-        return None
-    return validated_center_tab(text[:-1])
+        return AdminCenterTabHistory()
+    if not text.endswith("\n"):
+        return AdminCenterTabHistory()
+
+    lines = text[:-1].split("\n")
+    if len(lines) not in (1, 2):
+        return AdminCenterTabHistory()
+
+    current = validated_center_tab(lines[0])
+    if current is None:
+        return AdminCenterTabHistory()
+    if len(lines) == 1:
+        return AdminCenterTabHistory(current=current)
+
+    alternate = validated_center_tab(lines[1])
+    if alternate is None:
+        return AdminCenterTabHistory()
+    if alternate == current:
+        # Degenerate/corrupt on-disk pair: keep ``current``, drop the
+        # alternate rather than rejecting the whole file.
+        return AdminCenterTabHistory(current=current)
+    return AdminCenterTabHistory(current=current, alternate=alternate)
 
 
-def save_admin_center_last_tab(tab: CenterTab) -> None:
-    """Atomically persist one catalog tab with a trailing newline."""
-    validated = validated_center_tab(tab)
-    if validated is None:
-        raise ValueError(f"invalid Admin Center tab: {tab!r}")
+def save_admin_center_tab_history(history: AdminCenterTabHistory) -> None:
+    """Atomically persist ``history`` as one or two newline-terminated lines."""
+    current = validated_center_tab(history.current)
+    if current is None:
+        raise ValueError(f"invalid Admin Center tab: {history.current!r}")
+    alternate = history.alternate if history.alternate != current else None
+
+    payload = f"{current}\n" if alternate is None else f"{current}\n{alternate}\n"
 
     path = _admin_center_last_tab_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -55,7 +77,7 @@ def save_admin_center_last_tab(tab: CenterTab) -> None:
     temporary = Path(temporary_name)
     try:
         with os.fdopen(fd, "wb") as stream:
-            stream.write(f"{validated}\n".encode())
+            stream.write(payload.encode())
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
@@ -72,6 +94,6 @@ def save_admin_center_last_tab(tab: CenterTab) -> None:
 
 
 __all__ = [
-    "load_admin_center_last_tab",
-    "save_admin_center_last_tab",
+    "load_admin_center_tab_history",
+    "save_admin_center_tab_history",
 ]

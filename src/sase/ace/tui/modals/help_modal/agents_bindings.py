@@ -444,7 +444,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.toggle_hide_reverted), "Show/hide non-run agents"),
                 (
                     d(a.open_config_center),
-                    "Admin Center: 1-7 jumps; Statistics [/] t/T/c/g/p/P/r/?",
+                    "Admin Center: 1-7 jump, # back",
                 ),
                 (
                     d(a.show_notifications),
