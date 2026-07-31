@@ -101,6 +101,8 @@ def create_and_launch_epic_from_plan(
     parent_id = selected_epic_parent_id(plan.parent_bead, parent_override)
     require_epic_parent(proj, parent_id, plan_path=plan_path)
 
+    from sase.bead.attribution import resolve_bead_creator
+
     epic: Issue | None = None
     plan_link_update_attempted = False
     plan_link_committed = False
@@ -115,11 +117,17 @@ def create_and_launch_epic_from_plan(
             changespec_name=plan.changespec or "",
             changespec_bug_id=plan.bug_id or "",
             model=plan.model or "",
+            created_by=resolve_bead_creator(
+                issue_type=IssueType.PLAN,
+                plan_proposed_by=plan.proposed_by,
+            ),
         )
 
         phase_by_frontmatter_id: dict[str, Issue] = {}
         phases: list[Issue] = []
         for phase_spec in plan.phases:
+            # Core inherits the epic creator for phases, keeping the complete
+            # generated DAG attributed to one plan proposer.
             phase = proj.create(
                 title=phase_spec.title,
                 issue_type=IssueType.PHASE,

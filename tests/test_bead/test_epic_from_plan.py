@@ -151,6 +151,60 @@ def test_create_and_launch_maps_frontmatter_in_order(
     assert launched == [result.epic.id]
 
 
+@pytest.mark.parametrize(
+    ("proposer", "agent_name", "expected_source"),
+    [
+        pytest.param(
+            "bbugyi200.athena.q8--plan",
+            "other--code",
+            "proposer",
+            id="recorded-proposer",
+        ),
+        pytest.param(None, "q8--plan", "agent", id="acting-agent-fallback"),
+        pytest.param(None, None, "owner", id="store-owner-fallback"),
+    ],
+)
+def test_epic_and_phases_share_resolved_plan_creator(
+    proposer: str | None,
+    agent_name: str | None,
+    expected_source: str,
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.core.agent_identity_facade import globalize_owned_agent_name
+
+    plan_content = EPIC_PLAN
+    if proposer is not None:
+        plan_content = plan_content.replace(
+            "goal: Ship the rollout through an ordered DAG\n",
+            f"goal: Ship the rollout through an ordered DAG\nproposed_by: {proposer}\n",
+        )
+    if agent_name is not None:
+        monkeypatch.setenv("SASE_AGENT_NAME", agent_name)
+    plan_path = project_dir / "attributed-rollout.md"
+    plan_path.write_text(plan_content, encoding="utf-8")
+
+    with BeadProject(project_dir) as proj:
+        result = create_and_launch_epic_from_plan(
+            proj,
+            plan_path=plan_path,
+            plan_ref="plans:202607/attributed-rollout.md",
+            commit_plan_update=_write_plan_update,
+            launch_work=lambda _project, _epic_id: True,
+        )
+
+        if expected_source == "proposer":
+            assert proposer is not None
+            expected_creator = proposer
+        elif expected_source == "agent":
+            assert agent_name is not None
+            expected_creator = globalize_owned_agent_name(agent_name)
+        else:
+            expected_creator = result.epic.owner
+        assert result.epic.created_by == expected_creator
+        assert {phase.created_by for phase in result.phases} == {expected_creator}
+
+
 def test_bead_link_write_reprojects_prompt_section(
     project_dir: Path,
 ) -> None:

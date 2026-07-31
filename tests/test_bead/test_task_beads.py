@@ -51,6 +51,87 @@ def test_create_task_accepts_size_and_prints_type(
     )
 
 
+def test_create_task_records_acting_agent(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.core.agent_identity_facade import globalize_owned_agent_name
+
+    monkeypatch.setenv("SASE_AGENT_NAME", "q8--code")
+    args = create_parser().parse_args(
+        ["bead", "create", "--title", "Agent follow-up", "--type", "task"]
+    )
+
+    bead_cli.handle_bead_create(args)
+
+    with BeadProject(project_dir) as project:
+        task = project.list_issues(issue_types=[IssueType.TASK])[0]
+    assert task.created_by == globalize_owned_agent_name("q8--code")
+
+
+def test_create_task_without_agent_records_store_owner(project_dir: Path) -> None:
+    args = create_parser().parse_args(
+        ["bead", "create", "--title", "Human follow-up", "--type", "task"]
+    )
+
+    bead_cli.handle_bead_create(args)
+
+    with BeadProject(project_dir) as project:
+        task = project.list_issues(issue_types=[IssueType.TASK])[0]
+    assert task.created_by == task.owner
+
+
+def test_create_phase_inherits_parent_creator(project_dir: Path) -> None:
+    creator = "bbugyi200.athena.q8--plan"
+    with BeadProject(project_dir) as project:
+        parent = project.create(
+            "Attributed epic",
+            IssueType.PLAN,
+            created_by=creator,
+        )
+    args = create_parser().parse_args(
+        [
+            "bead",
+            "create",
+            "--title",
+            "Inherited phase",
+            "--type",
+            f"phase({parent.id})",
+        ]
+    )
+
+    bead_cli.handle_bead_create(args)
+
+    with BeadProject(project_dir) as project:
+        phase = project.list_issues(issue_types=[IssueType.PHASE])[0]
+    assert phase.created_by == creator
+
+
+def test_create_plan_prefers_frontmatter_proposer(project_dir: Path) -> None:
+    creator = "bbugyi200.athena.q8--plan"
+    plan_path = project_dir / "attributed.md"
+    plan_path.write_text(
+        f"---\ntier: tale\nproposed_by: {creator}\n---\n# Plan\n",
+        encoding="utf-8",
+    )
+    args = create_parser().parse_args(
+        [
+            "bead",
+            "create",
+            "--title",
+            "Attributed plan",
+            "--type",
+            f"plan({plan_path})",
+        ]
+    )
+
+    bead_cli.handle_bead_create(args)
+
+    with BeadProject(project_dir) as project:
+        plan = project.list_issues(issue_types=[IssueType.PLAN])[0]
+    assert plan.created_by == creator
+
+
 @pytest.mark.parametrize("subcommand", ["list", "search"])
 def test_query_parsers_accept_task_and_ready(subcommand: str) -> None:
     argv = ["bead", subcommand]

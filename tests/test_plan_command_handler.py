@@ -89,7 +89,7 @@ def _assert_archived_associations(
     archived = Path(marker["plan_file"])
     archived_content = archived.read_text(encoding="utf-8")
     frontmatter, _body, _had_frontmatter = parse_frontmatter(archived_content)
-    for field in ("bead", "parent_bead"):
+    for field in ("bead", "parent_bead", "proposed_by"):
         if field in expected_fields:
             assert frontmatter[field] == expected_fields[field]
         else:
@@ -137,6 +137,7 @@ def _assert_archived_associations(
     assert validation.plan.bead == expected_fields.get("bead")
     assert validation.plan.parent is None
     assert validation.plan.parent_bead == expected_fields.get("parent_bead")
+    assert validation.plan.proposed_by == expected_fields.get("proposed_by")
 
 
 def test_plan_command_dispatches_propose() -> None:
@@ -310,6 +311,103 @@ def test_plan_command_accepts_valid_epic(
 
     kill_mock.assert_called_once_with(str(artifacts_dir))
     assert (artifacts_dir / ".sase_plan_pending").is_file()
+
+
+@pytest.mark.parametrize(
+    ("content", "association_env", "expected_association"),
+    [
+        pytest.param(
+            VALID_TALE,
+            {"SASE_PHASE_BEAD_ID": "sase-bv.3"},
+            {"bead": "sase-bv.3"},
+            id="tale",
+        ),
+        pytest.param(
+            VALID_EPIC,
+            {"SASE_EPIC_BEAD_ID": "sase-bv"},
+            {"parent_bead": "sase-bv"},
+            id="epic",
+        ),
+    ],
+)
+def test_plan_command_stamps_proposer_before_formatting(
+    content: str,
+    association_env: dict[str, str],
+    expected_association: dict[str, str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both plan tiers archive their acting agent and existing associations."""
+    from sase.core.agent_identity_facade import globalize_owned_agent_name
+
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    plan_file = tmp_path / "proposed.md"
+    plan_file.write_text(content, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "q8--plan")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    for key, value in association_env.items():
+        monkeypatch.setenv(key, value)
+
+    formatted_inputs: list[str] = []
+
+    def format_plan(raw: str) -> str:
+        formatted_inputs.append(raw)
+        return raw.replace("body", "formatted body")
+
+    with (
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+            side_effect=SystemExit(0),
+        ),
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=format_plan,
+        ),
+    ):
+        assert _invoke_plan(plan_file) == 0
+
+    proposer = globalize_owned_agent_name("q8--plan")
+    expected_fields = {**expected_association, "proposed_by": proposer}
+    _assert_archived_associations(artifacts_dir, content, expected_fields)
+    assert len(formatted_inputs) == 1
+    stamped_frontmatter, _body, _had_frontmatter = parse_frontmatter(
+        formatted_inputs[0]
+    )
+    assert stamped_frontmatter["proposed_by"] == proposer
+    marker = json.loads(
+        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
+    )
+    assert "formatted body" in Path(marker["plan_file"]).read_text(encoding="utf-8")
+
+
+def test_plan_command_without_resolvable_agent_omits_proposer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The launcher run marker alone is not recorded as an agent creator."""
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    plan_file = tmp_path / "human.md"
+    plan_file.write_text(VALID_TALE, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    with (
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+            side_effect=SystemExit(0),
+        ),
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=lambda raw: raw,
+        ),
+    ):
+        assert _invoke_plan(plan_file) == 0
+
+    _assert_archived_associations(artifacts_dir, VALID_TALE, {})
 
 
 @pytest.mark.parametrize(

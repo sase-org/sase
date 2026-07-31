@@ -105,12 +105,25 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         print("Error: --size can only be set on phase or task beads", file=sys.stderr)
         sys.exit(1)
     design = ""
+    resolved_plan_file: Path | None = None
     if plan_path:
         plan_file = Path(plan_path)
         if not plan_file.exists():
             print(f"Error: plan file not found: {plan_path}", file=sys.stderr)
             sys.exit(1)
-        design = storage_plan_path(plan_file.resolve())
+        resolved_plan_file = plan_file.resolve()
+        design = storage_plan_path(resolved_plan_file)
+
+    from sase.bead.attribution import plan_proposed_by, resolve_bead_creator
+
+    creator = resolve_bead_creator(
+        issue_type=issue_type,
+        plan_proposed_by=(
+            plan_proposed_by(resolved_plan_file)
+            if resolved_plan_file is not None
+            else None
+        ),
+    )
 
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         proj = mutation.project
@@ -135,6 +148,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 changespec_bug_id=changespec_bug_id,
                 model=getattr(args, "model", None) or "",
                 size=size,
+                created_by=creator,
             )
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)

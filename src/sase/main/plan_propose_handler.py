@@ -133,6 +133,10 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     ).strip() or meta_associations.get("epic_plan_ref", "")
     active_bead = phase_bead or epic_bead
     stamps: dict[str, str] = {}
+    from sase.bead.attribution import acting_agent_name
+
+    if proposed_by := acting_agent_name():
+        stamps["proposed_by"] = proposed_by
     if target_tier == "tale" and active_bead:
         stamps["bead"] = active_bead
     elif target_tier == "epic" and active_bead:
