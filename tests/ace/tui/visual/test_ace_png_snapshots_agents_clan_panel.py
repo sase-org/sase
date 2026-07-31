@@ -142,6 +142,9 @@ async def test_epic_clan_panel_png_snapshots(
         assert_page_svg_contains(page, ".phase-runtime")
         assert_page_svg_contains(page, "Title:")
         assert_page_svg_contains(page, "Rich clan summaries")
+        assert_page_svg_contains(page, "Counts:")
+        assert_page_svg_contains(page, "phases")
+        assert_page_svg_contains(page, "waves")
         assert_page_svg_contains(page, "Page:")
         assert_page_svg_contains(page, "3 agents")
         ace_png_visual.assert_page_png(

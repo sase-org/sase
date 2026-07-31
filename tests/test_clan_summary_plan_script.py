@@ -67,6 +67,7 @@ def test_plan_summary_explicit_argument_renders_valid_plan_lane(
     assert f"▸ PLAN · {expected_tier}" in rendered.plain
     assert "Title: Ship [safely]" in rendered.plain
     assert f"Path: {plan_ref}" in rendered.plain
+    assert "Counts:" not in rendered.plain
     if expected_phase is None:
         assert "◆" not in rendered.plain
     else:

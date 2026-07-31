@@ -207,6 +207,7 @@ def _render_plan_summary(
         summary,
         width=_SUMMARY_WIDTH,
         bead_page_url=page_url,
+        include_counts=True,
     )
     intro = (
         _plan_header_line(epic_id),

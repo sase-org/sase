@@ -6,18 +6,24 @@ from pathlib import Path
 
 from rich.cells import cell_len
 from rich.console import Console
+from rich.text import Text
 
 from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
     ResponsivePlanSection,
 )
 from sase.sdd.plan_display import (
     BEAD_PAGE_ROW_LABEL,
+    COLOR_PLAN_EMPTY,
     COLOR_PLAN_PATH,
     COLOR_PLAN_PATH_BASENAME,
+    COLOR_PLAN_PRIMARY,
     PLAN_FIELD_LABEL_WIDTH,
     PLAN_PROVENANCE_ENTRY_LIMIT,
+    PlanDisplay,
+    PlanDisplayPhase,
     bead_page_url_text,
     load_plan_display,
+    plan_field_rows,
     plan_logical_text,
     render_plan_document,
     render_plan_lines,
@@ -368,3 +374,160 @@ def test_bead_page_url_text_handles_url_shapes() -> None:
         text.overflow is None and text.no_wrap is None
         for text in (trailing_text, bare_text, multibyte_text)
     )
+
+
+_INDEPENDENT_EPIC_PLAN = """---
+tier: epic
+title: Independent phases
+goal: Exercise the wave-count renderer with fully parallel phases.
+phases:
+  - id: alpha
+    title: Alpha
+    depends_on: []
+    size: small
+  - id: beta
+    title: Beta
+    depends_on: []
+    size: small
+  - id: gamma
+    title: Gamma
+    depends_on: []
+    size: small
+---
+# Plan
+"""
+
+
+def _counts_value(rows: tuple[tuple[str, Text], ...]) -> Text:
+    return next(value for label, value in rows if label == " Counts: ")
+
+
+def test_plan_field_rows_omit_counts_by_default(tmp_path: Path) -> None:
+    epic = tmp_path / "epic.md"
+    epic.write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    loaded = load_plan_display(epic, display_path="plans/epic.md")
+
+    rows = plan_field_rows(loaded)
+
+    assert [label for label, _value in rows] == ["  Title: ", "   Goal: ", "   Path: "]
+
+
+def test_plan_field_rows_place_counts_between_goal_and_path_when_opted_in(
+    tmp_path: Path,
+) -> None:
+    epic = tmp_path / "epic.md"
+    epic.write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    loaded = load_plan_display(epic, display_path="plans/epic.md")
+
+    rows = plan_field_rows(loaded, include_counts=True)
+
+    assert [label for label, _value in rows] == [
+        "  Title: ",
+        "   Goal: ",
+        " Counts: ",
+        "   Path: ",
+    ]
+    assert cell_len(" Counts: ") == PLAN_FIELD_LABEL_WIDTH
+    counts_value = _counts_value(rows)
+    assert counts_value.plain == "1 phase · 1 wave"
+    numeral_span = next(
+        span for span in counts_value.spans if span.start == 0 and span.end == 1
+    )
+    assert str(numeral_span.style) == COLOR_PLAN_PRIMARY
+
+
+def test_plan_field_rows_keep_path_last_regardless_of_include_counts(
+    tmp_path: Path,
+) -> None:
+    epic = tmp_path / "epic.md"
+    epic.write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    loaded = load_plan_display(epic, display_path="plans/epic.md")
+
+    for include_counts in (False, True):
+        rows = plan_field_rows(loaded, include_counts=include_counts)
+        assert rows[-1][0] == "   Path: "
+
+
+def test_plan_field_rows_pluralize_counts_for_multiple_phases_and_one_wave(
+    tmp_path: Path,
+) -> None:
+    epic = tmp_path / "epic.md"
+    epic.write_text(_INDEPENDENT_EPIC_PLAN, encoding="utf-8")
+    loaded = load_plan_display(epic, display_path="plans/epic.md")
+
+    rows = plan_field_rows(loaded, include_counts=True)
+
+    assert _counts_value(rows).plain == "3 phases · 1 wave"
+
+
+def test_plan_field_rows_omit_counts_for_a_tale_even_when_opted_in(
+    tmp_path: Path,
+) -> None:
+    tale = tmp_path / "tale.md"
+    tale.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    loaded = load_plan_display(tale, display_path="plans/tale.md")
+
+    rows = plan_field_rows(loaded, include_counts=True)
+
+    assert [label for label, _value in rows] == ["  Title: ", "   Goal: ", "   Path: "]
+
+
+def test_plan_field_rows_report_unavailable_counts_when_phase_data_is_unavailable(
+    tmp_path: Path,
+) -> None:
+    broken = tmp_path / "broken.md"
+    broken.write_text(
+        "---\ntier: epic\ntitle: Broken\n---\n# Plan\n",
+        encoding="utf-8",
+    )
+    loaded = load_plan_display(broken, display_path="plans/broken.md")
+    assert loaded.phase_availability == "unavailable"
+
+    rows = plan_field_rows(loaded, include_counts=True)
+    counts_value = _counts_value(rows)
+
+    assert counts_value.plain == "unavailable"
+    assert str(counts_value.style) == COLOR_PLAN_EMPTY
+
+
+def test_plan_field_rows_keep_phase_count_and_flag_waves_unavailable_for_a_cycle() -> (
+    None
+):
+    phases = (
+        PlanDisplayPhase(
+            id="a",
+            title="A",
+            depends_on=("b",),
+            description=None,
+            size="small",
+            model=None,
+        ),
+        PlanDisplayPhase(
+            id="b",
+            title="B",
+            depends_on=("a",),
+            description=None,
+            size="small",
+            model=None,
+        ),
+    )
+    summary = PlanDisplay(
+        title="Cyclic epic",
+        goal="Exercise the defensive renderer boundary.",
+        authored_tier="epic",
+        effective_tier="epic",
+        actual_path="/tmp/cyclic.md",
+        display_path="plans/cyclic.md",
+        committed=True,
+        exists=True,
+        readable=True,
+        frontmatter_readable=True,
+        phase_availability="available",
+        phases=phases,
+        validation_ok=True,
+    )
+
+    rows = plan_field_rows(summary, include_counts=True)
+    counts_value = _counts_value(rows)
+
+    assert counts_value.plain == "2 phases · waves unavailable"

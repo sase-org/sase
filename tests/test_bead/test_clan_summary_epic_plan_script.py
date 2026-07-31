@@ -108,6 +108,31 @@ def test_epic_summary_renders_valid_environment_plan_before_bead_store(
     assert captured.err == ""
 
 
+def test_epic_summary_renders_counts_line_immediately_above_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plan_ref = "plans/counts-epic.md"
+    _write_epic_plan(tmp_path / plan_ref, title="Counted epic")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_CLAN_NAME", "sase-counts")
+    monkeypatch.setenv("SASE_EPIC_PLAN_REF", plan_ref)
+    _patch_unexpected_bead_load(monkeypatch)
+
+    assert main() == 0
+
+    captured = capsys.readouterr()
+    rendered = Text.from_markup(captured.out)
+    lines = rendered.plain.splitlines()
+    path_index = next(
+        index for index, line in enumerate(lines) if line.startswith("   Path: ")
+    )
+
+    assert lines[path_index - 1] == " Counts: 1 phase · 1 wave"
+    assert captured.err == ""
+
+
 def test_plan_summary_renders_recorded_bead_page_after_bead_row() -> None:
     page_url = (
         "https://github.com/sase-org/sase--beads-with-a-long-repository-name/"
@@ -479,6 +504,7 @@ def test_plan_summary_omits_only_complete_tail_phase_blocks_within_budget() -> N
     rendered = Text.from_markup(markup)
 
     assert len(markup.encode("utf-8")) <= _SUMMARY_MAX_UTF8_BYTES
+    assert "Counts: 1000 phases · 1000 waves" in rendered.plain
     omission = re.search(
         r"… (\d+) phase blocks omitted to fit summary size",
         rendered.plain,

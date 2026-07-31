@@ -14,6 +14,7 @@ from sase.phase_size_presentation import (
     phase_size_chip,
 )
 from sase.sdd.plan_header_block import PlanHeaderSectionKind
+from sase.sdd.plan_waves import plan_phase_waves
 
 from ._plan_display_models import (
     PlanDisplay,
@@ -107,13 +108,23 @@ def plan_field_rows(
     summary: PlanDisplay,
     *,
     hint_number: int | None = None,
+    include_counts: bool = False,
 ) -> tuple[tuple[str, Text], ...]:
-    """Build the canonical Title/Goal/Path rows in display order."""
-    return (
+    """Build the canonical Title/Goal/[Counts/]Path rows in display order.
+
+    ``include_counts`` is opt-in: it exists for callers that replace the PLAN
+    lane header (and its "N phases" detail) with their own header, so the
+    phase count stays visible somewhere. Callers that keep the real lane
+    header leave it at the default so the count is not shown twice.
+    """
+    rows: list[tuple[str, Text]] = [
         ("  Title: ", _title_value(summary)),
         ("   Goal: ", _goal_value(summary)),
-        ("   Path: ", _path_value(summary, hint_number=hint_number)),
-    )
+    ]
+    if include_counts and summary.phase_availability != "not-applicable":
+        rows.append((" Counts: ", _counts_value(summary)))
+    rows.append(("   Path: ", _path_value(summary, hint_number=hint_number)))
+    return tuple(rows)
 
 
 def plan_provenance_rows(summary: PlanDisplay) -> tuple[tuple[str, Text], ...]:
@@ -225,6 +236,7 @@ def render_plan_document(
     width: int,
     hint_number: int | None = None,
     bead_page_url: str | None = None,
+    include_counts: bool = False,
 ) -> _RenderedPlanDocument:
     """Render complete Rich lines at ``width`` without filesystem access.
 
@@ -235,7 +247,11 @@ def render_plan_document(
     header = plan_lane_header(summary)
     header.rstrip()
     intro: list[Text] = [header]
-    field_rows = plan_field_rows(summary, hint_number=hint_number)
+    field_rows = plan_field_rows(
+        summary,
+        hint_number=hint_number,
+        include_counts=include_counts,
+    )
     for index, (label, value) in enumerate(field_rows):
         preferred_break_before: int | None = None
         preferred_segment_width: int | None = None
@@ -449,9 +465,32 @@ def _console(width: int) -> Console:
     )
 
 
+def _counts_value(summary: PlanDisplay) -> Text:
+    if summary.phase_availability == "unavailable":
+        return Text("unavailable", style=COLOR_PLAN_EMPTY)
+    text = _count_phrase_text(len(summary.phases), "phase")
+    text.append(" · ", style=COLOR_PLAN_SUMMARY)
+    waves = plan_phase_waves(summary.phases)
+    if waves is None:
+        text.append("waves unavailable", style=COLOR_PLAN_EMPTY)
+    else:
+        text.append_text(_count_phrase_text(len(waves), "wave"))
+    return text
+
+
+def _count_phrase_text(count: int, singular: str) -> Text:
+    text = Text()
+    text.append(str(count), style=COLOR_PLAN_PRIMARY)
+    text.append(f" {_pluralized_unit(count, singular)}", style=COLOR_PLAN_SUMMARY)
+    return text
+
+
 def _count_phrase(count: int, singular: str) -> str:
-    suffix = "" if count == 1 else "s"
-    return f"{count} {singular}{suffix}"
+    return f"{count} {_pluralized_unit(count, singular)}"
+
+
+def _pluralized_unit(count: int, singular: str) -> str:
+    return singular if count == 1 else f"{singular}s"
 
 
 __all__ = [

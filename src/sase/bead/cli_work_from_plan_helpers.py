@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from sase.bead.cli_work_from_plan_types import PlanFileWorkError
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.project import BeadProject
+from sase.sdd.plan_waves import plan_phase_waves
 
 if TYPE_CHECKING:
     from sase.bead.work import EpicWorkPlan
@@ -140,25 +141,12 @@ def ordered_agent_names(plan: EpicWorkPlan) -> tuple[str, ...]:
 
 
 def preview_waves(plan: Any) -> tuple[tuple[str, ...], ...]:
-    remaining = {phase.id: set(phase.depends_on) for phase in plan.phases}
-    order = [phase.id for phase in plan.phases]
-    completed: set[str] = set()
-    waves: list[tuple[str, ...]] = []
-    while remaining:
-        wave = tuple(
-            phase_id
-            for phase_id in order
-            if phase_id in remaining and remaining[phase_id] <= completed
-        )
-        if not wave:
-            # Strict validation rejects cycles. Keep this defensive boundary
-            # actionable if the Rust wire contract ever regresses.
-            raise PlanFileWorkError("validated epic plan contains a dependency cycle")
-        waves.append(wave)
-        completed.update(wave)
-        for phase_id in wave:
-            del remaining[phase_id]
-    return tuple(waves)
+    waves = plan_phase_waves(plan.phases)
+    if waves is None:
+        # Strict validation rejects cycles. Keep this defensive boundary
+        # actionable if the Rust wire contract ever regresses.
+        raise PlanFileWorkError("validated epic plan contains a dependency cycle")
+    return waves
 
 
 def error_with_resume(
