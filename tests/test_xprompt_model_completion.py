@@ -58,6 +58,7 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "@opencode_coder",
         "@epic_lander",
         "@big_epic_lander",
+        "@task_worker",
         "@xsmall_phase_worker",
         "@small_phase_worker",
         "@medium_phase_worker",
@@ -85,6 +86,7 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     assert by_value["@default"].aliases == ("default",)
     assert by_value["@codex_coder"].aliases == ("codex_coder",)
     assert by_value["@big_epic_lander"].aliases == ("big_epic_lander",)
+    assert by_value["@task_worker"].aliases == ("task_worker",)
     assert by_value["@medium_phase_worker"].aliases == ("medium_phase_worker",)
     assert by_value["@cheap"].aliases == ("cheap",)
     assert by_value["@smartest"].aliases == ("smartest",)

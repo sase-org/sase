@@ -226,7 +226,9 @@ def test_bead_work_help_describes_both_targets_and_options(
 
     assert excinfo.value.code == 0
     help_text = capsys.readouterr().out
-    assert "Epic bead ID, or path to a validated epic plan file" in help_text
+    assert "Epic or task bead ID" in help_text
+    assert "path to a validated epic plan" in help_text
+    assert "--launch-feedback" not in help_text
     assert "-j JSON, --json JSON" not in help_text
     assert "-a DIR" in help_text
     assert "--artifacts-dir DIR" in help_text

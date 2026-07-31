@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from sase.bead.model import IssueType
+from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
 
 
@@ -58,22 +58,44 @@ def seed_changespec_epic(project_dir: Path) -> tuple[str, list[str]]:
 
 
 def make_args(
-    epic_id: str,
+    target: str,
     *,
     dry_run: bool = False,
     yes: bool = False,
     yes_to_all: bool = False,
     no_push: bool = False,
     json_output: bool = False,
+    launch_feedback: str | None = None,
 ) -> Any:
     return argparse.Namespace(
-        target=epic_id,
+        target=target,
         dry_run=dry_run,
         json=json_output,
         yes=yes,
         yes_to_all=yes_to_all,
         no_push=no_push,
+        launch_feedback=launch_feedback,
     )
+
+
+def seed_task(
+    project_dir: Path,
+    *,
+    status: Status = Status.READY,
+    assignee: str = "",
+) -> str:
+    """Create one task bead with the requested launch state."""
+    with BeadProject(project_dir) as proj:
+        task = proj.create("Standalone task", IssueType.TASK)
+        if status is Status.CLOSED:
+            proj.close([task.id])
+        elif status is not Status.OPEN or assignee:
+            proj.update(
+                task.id,
+                status=status.value,
+                assignee=assignee,
+            )
+        return task.id
 
 
 def write_orphan_meta(home: Path, name: str, *, done: bool = False) -> Path:

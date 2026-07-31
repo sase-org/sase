@@ -107,6 +107,11 @@ def test_state_tag_implicit_big_epic_lander() -> None:
     assert text.plain == "implicit → @smartest"
 
 
+def test_state_tag_implicit_task_worker() -> None:
+    text = _state_tag(make_alias_view("task_worker", "role"), now=0.0)
+    assert text.plain == "implicit → @default"
+
+
 def test_state_tag_implicit_size_phase_worker() -> None:
     text = _state_tag(make_alias_view("medium_phase_worker", "role"), now=0.0)
     assert text.plain == "implicit → @default @ high"

@@ -28,6 +28,7 @@ def handle_bead_work(
     json_output = bool(getattr(args, "json", False))
     yes_to_all = bool(getattr(args, "yes_to_all", False)) or json_output
     parent = getattr(args, "parent", None)
+    launch_feedback = getattr(args, "launch_feedback", None)
     target = str(getattr(args, "target", getattr(args, "id", "")))
 
     from sase.bead.cli_work_from_plan import (
@@ -38,6 +39,28 @@ def handle_bead_work(
     from sase.bead.epic_launch import finish_epic_launch
 
     if is_plan_file_target(target):
+        if launch_feedback:
+            if json_output:
+                print(
+                    json.dumps(
+                        {
+                            "ok": False,
+                            "mode": "plan_file",
+                            "error": (
+                                "--launch-feedback only applies when the bead "
+                                "work target is a task bead"
+                            ),
+                        },
+                        sort_keys=True,
+                    )
+                )
+            else:
+                print(
+                    "Error: --launch-feedback only applies when the bead work "
+                    "target is a task bead",
+                    file=sys.stderr,
+                )
+            raise SystemExit(1)
         captured = io.StringIO()
         output_context = (
             contextlib.redirect_stdout(captured)
@@ -144,9 +167,70 @@ def handle_bead_work(
                     json_output=json_output,
                 )
         if issue.issue_type != IssueType.PLAN:
+            if issue.issue_type is IssueType.TASK:
+                from sase.bead.cli_work_from_plan_store import epic_plan_launch_lock
+
+                captured = io.StringIO()
+                output_context = (
+                    contextlib.redirect_stdout(captured)
+                    if json_output
+                    else contextlib.nullcontext()
+                )
+                try:
+                    with epic_plan_launch_lock(proj.root_dir), output_context:
+                        task_result = cli_work_handler.launch_task_bead_work(
+                            proj,
+                            target,
+                            dry_run=dry_run,
+                            yes=yes,
+                            no_push=no_push,
+                            yes_to_all=yes_to_all,
+                            feedback=launch_feedback,
+                            timer=timer,
+                        )
+                except cli_work_handler.TaskBeadWorkError as exc:
+                    if json_output:
+                        print(
+                            json.dumps(
+                                {
+                                    "ok": False,
+                                    "mode": "bead_id",
+                                    "task_id": target,
+                                    "error": str(exc),
+                                },
+                                sort_keys=True,
+                            )
+                        )
+                    else:
+                        print(f"Error: {exc}", file=sys.stderr)
+                    raise SystemExit(1) from exc
+                if json_output:
+                    print(
+                        json.dumps(
+                            {
+                                "ok": True,
+                                "mode": "bead_id",
+                                "dry_run": dry_run,
+                                "task_id": task_result.task_id,
+                                "agent_name": task_result.agent_name,
+                                "launch_state": task_result.launch_state,
+                                "launched": task_result.launched,
+                                "workspace_num": task_result.workspace_num,
+                            },
+                            sort_keys=True,
+                        )
+                    )
+                return
             _exit_bead_id_error(
-                "sase bead work only applies to plan beads "
+                "sase bead work only applies to epic plan or task beads "
                 f"(got {issue.issue_type.value} for {target})",
+                target=target,
+                json_output=json_output,
+            )
+        if launch_feedback:
+            _exit_bead_id_error(
+                "--launch-feedback only applies when the bead work target is "
+                "a task bead",
                 target=target,
                 json_output=json_output,
             )

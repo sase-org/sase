@@ -162,6 +162,7 @@ def test_worker_other_and_phase_worker_are_not_special_aliases(
         "coder",
         "epic_lander",
         "big_epic_lander",
+        "task_worker",
         "xsmall_phase_worker",
         "small_phase_worker",
         "medium_phase_worker",

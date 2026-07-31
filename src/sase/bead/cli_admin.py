@@ -349,7 +349,7 @@ Quick Start:
   sase bead doctor                               Health and reference checks
   sase bead doctor --fix-design-refs             Repair legacy plan links
   sase bead doctor --fix-projection              Repair issues.jsonl drift
-  sase bead work <epic-id>                       Launch epic phase agents""")
+  sase bead work <epic-or-task-id>               Launch epic or task agents""")
 
 
 def handle_bead_resolve_conflicts(args: argparse.Namespace) -> None:

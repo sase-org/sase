@@ -29,6 +29,7 @@ from sase.llm_provider.config import (
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMART_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
+    TASK_WORKER_MODEL_ALIAS_NAME,
     XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     coder_model_alias_for_provider,
@@ -56,6 +57,7 @@ _LEADING_IMPLICIT_ALIASES: tuple[str, ...] = (
 _TRAILING_IMPLICIT_ALIASES: tuple[str, ...] = (
     EPIC_LANDER_MODEL_ALIAS_NAME,
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
+    TASK_WORKER_MODEL_ALIAS_NAME,
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
@@ -108,8 +110,9 @@ def build_model_completion_catalog(
     aliases are kept as match/display hints only; they are not inserted as
     completion values. The implicit role aliases (``@default``, ``@coder``, each
     registered ``@<provider>_coder``, ``@epic_lander``,
-    ``@big_epic_lander``, the five size-specific phase aliases, ``@smartest``,
-    ``@smart``, ``@cheap``, ``@cheaper``, and ``@cheapest``) and
+    ``@big_epic_lander``, ``@task_worker``, the five size-specific phase
+    aliases, ``@smartest``, ``@smart``, ``@cheap``, ``@cheaper``, and
+    ``@cheapest``) and
     user-configured aliases are inserted with their ``@`` form because those
     values resolve through the
     normal ``%model`` path.

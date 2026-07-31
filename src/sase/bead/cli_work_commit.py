@@ -24,6 +24,10 @@ class EpicLaunchCheckpointError(RuntimeError):
         self.retry_requires_push = retry_requires_push
 
 
+class TaskLaunchCheckpointError(RuntimeError):
+    """A task worker's pre-spawn checkpoint or publication failure."""
+
+
 def checkpoint_epic_work_launch(
     beads_dir: Path,
     epic_id: str,
@@ -88,6 +92,59 @@ def checkpoint_epic_work_launch(
     return outcome.pushed
 
 
+def checkpoint_task_work_launch(
+    beads_dir: Path,
+    task_id: str,
+    *,
+    no_push: bool,
+    timer: LaunchTimingRecorder,
+) -> bool:
+    """Commit and, when required, publish one task assignment before spawn."""
+    from sase.bead.sync import (
+        bead_state_is_clean,
+        commit_task_work_launch,
+        push_bead_work_launch,
+    )
+
+    try:
+        with timer.stage("commit"):
+            commit_task_work_launch(beads_dir, task_id)
+            if not bead_state_is_clean(beads_dir):
+                raise RuntimeError("bead-state changes remain uncommitted")
+    except Exception as exc:
+        raise TaskLaunchCheckpointError(
+            f"task launch checkpoint failed before agent launch for {task_id}: {exc}"
+        ) from exc
+
+    requires_remote = _requires_remote_publication(beads_dir)
+    if no_push:
+        if requires_remote:
+            raise TaskLaunchCheckpointError(
+                "--no-push cannot launch a task worker from this detached bead "
+                "store; the launch checkpoint was committed locally and no "
+                "agent was spawned"
+            )
+        print(f"Committed task launch checkpoint for {task_id}.")
+        return False
+
+    with timer.stage("push", mode="sync"):
+        outcome = push_bead_work_launch(beads_dir)
+    if outcome.error is not None:
+        raise TaskLaunchCheckpointError(
+            f"task launch checkpoint publication failed before agent launch "
+            f"for {task_id}: {outcome.error}"
+        )
+    if requires_remote and not outcome.pushed:
+        raise TaskLaunchCheckpointError(
+            f"task launch checkpoint publication failed before agent launch "
+            f"for {task_id}: the detached bead store has no push remote"
+        )
+
+    suffix = " Pushed to remote." if outcome.pushed else ""
+    print(f"Committed task launch checkpoint for {task_id}.{suffix}")
+    return outcome.pushed
+
+
 def _requires_remote_publication(beads_dir: Path) -> bool:
     """Return whether detached workers need a remote bead-store revision."""
     from sase.bead.cli_location import resolve_beads_location
@@ -107,5 +164,7 @@ def _requires_remote_publication(beads_dir: Path) -> bool:
 
 __all__ = [
     "EpicLaunchCheckpointError",
+    "TaskLaunchCheckpointError",
     "checkpoint_epic_work_launch",
+    "checkpoint_task_work_launch",
 ]

@@ -48,7 +48,7 @@ def test_work_rejects_non_plan_bead(
     with pytest.raises(SystemExit) as excinfo:
         bead_cli.handle_bead_work(make_args(phase_ids[0], yes=True))
     assert excinfo.value.code == 1
-    assert "only applies to plan beads" in capsys.readouterr().err
+    assert "only applies to epic plan or task beads" in capsys.readouterr().err
 
 
 def test_work_missing_bead_json_error_is_one_envelope(
@@ -85,7 +85,9 @@ def test_work_non_plan_bead_json_error_is_one_envelope(
     assert payload["ok"] is False
     assert payload["mode"] == "bead_id"
     assert payload["epic_id"] == phase_ids[0]
-    assert payload["error"].startswith("sase bead work only applies to plan beads")
+    assert payload["error"].startswith(
+        "sase bead work only applies to epic plan or task beads"
+    )
 
 
 def test_work_rejects_plain_plan_tier(

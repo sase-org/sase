@@ -708,12 +708,13 @@ llm_provider:
   # Allowed: none, minimal, low, medium, high, xhigh, max.
   default_effort: ""
   # Model aliases for no-%model launches, delegated work, and reusable prompts.
-  # Builtin role overrides live under builtin. Normal epic landers and @smart
-  # fall back to @default; threshold-selected epic landers and extra-large
-  # phases use @smartest, which owns an ordered provider fallback. `cheap` and
-  # `cheaper` own independent load-balanced pools; `cheapest` owns an ordered
-  # provider fallback. Use `A | B` for round-robin or `A || B` for ordered
-  # fallback; do not mix the operators.
+  # Builtin role overrides live under builtin. Normal epic landers, task
+  # workers without size metadata, and @smart fall back to @default;
+  # threshold-selected epic landers and extra-large phases use @smartest,
+  # which owns an ordered provider fallback. `cheap` and `cheaper` own
+  # independent load-balanced pools; `cheapest` owns an ordered provider
+  # fallback. Use `A | B` for round-robin or `A || B` for ordered fallback; do
+  # not mix the operators.
   # Values may be a bare known model (opus), an explicit
   # provider/model (codex/gpt-5.6-sol), a nested provider-local path
   # (opencode/anthropic/claude-sonnet-4-5), or an @<alias> reference. An alias
@@ -730,6 +731,7 @@ llm_provider:
   #     codex_coder: claude/opus    # coder follow-ups from Codex-authored plans
   #     epic_lander: "@default"     # epic land agents
   #     big_epic_lander: "@smartest" # threshold-selected epic land agents
+  #     task_worker: "@default"     # standalone task-bead agents without size metadata
   #     xsmall_phase_worker: "@cheaper" # extra-small bead phase agents
   #     small_phase_worker: "@cheap"    # small bead phase agents
   #     medium_phase_worker: "@default@high" # follows @default at high effort

@@ -49,12 +49,42 @@ def print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> Non
         print(f"  Land waits on: {', '.join(plan.land_waits_on)}")
 
 
+def print_task_work_summary(
+    task_id: str,
+    title: str,
+    *,
+    model: str,
+) -> None:
+    """Print the deterministic one-worker task launch plan."""
+    print(f"Task {task_id} — {title}: 1 agent ({task_id}) using {model}.")
+
+
 def render_cleanup_preview(epic_id: str, preview: CleanupPreview) -> None:
     """Print an itemized destructive-cleanup preview to stderr."""
     if not preview.has_destructive_targets:
         return
     print(
         f"\nCleaning up existing agents before relaunching epic {epic_id}:",
+        file=sys.stderr,
+    )
+    action_order = {"KILL": 0, "REMOVE": 1, "RELEASE": 2}
+    for target in sorted(
+        preview.targets,
+        key=lambda item: (action_order[item.action], item.name),
+    ):
+        print(
+            f"  {target.action:<7} ({target.current_state}) "
+            f"{target.name}  {target.detail}",
+            file=sys.stderr,
+        )
+
+
+def render_task_cleanup_preview(task_id: str, preview: CleanupPreview) -> None:
+    """Print an itemized task-agent cleanup preview to stderr."""
+    if not preview.has_destructive_targets:
+        return
+    print(
+        f"\nCleaning up the existing agent before relaunching task {task_id}:",
         file=sys.stderr,
     )
     action_order = {"KILL": 0, "REMOVE": 1, "RELEASE": 2}

@@ -224,6 +224,7 @@ def test_model_aliases_allows_custom_phase_worker(
     "alias",
     [
         "big_epic_lander",
+        "task_worker",
         "xsmall_phase_worker",
         "xlarge_phase_worker",
         "smart",

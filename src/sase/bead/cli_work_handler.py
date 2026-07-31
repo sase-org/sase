@@ -37,6 +37,11 @@ from sase.bead.cli_work_plan_snapshot import (
     epic_plan_source_path,
     snapshot_epic_plan,
 )
+from sase.bead.cli_work_task import (
+    TaskBeadWorkError as TaskBeadWorkError,
+    TaskWorkResult as TaskWorkResult,
+    launch_task_bead_work as launch_task_bead_work,
+)
 from sase.bead.cli_work_entry import handle_bead_work as dispatch_bead_work
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 

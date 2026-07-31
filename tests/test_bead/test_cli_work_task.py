@@ -1,0 +1,354 @@
+"""Standalone task-bead ``sase bead work`` lifecycle tests."""
+
+from __future__ import annotations
+
+import json
+from contextlib import nullcontext
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from sase.bead import cli as bead_cli
+from sase.bead.cli_work_cleanup import CleanupPreview, CleanupTarget
+from sase.bead.cli_work_commit import (
+    TaskLaunchCheckpointError,
+    checkpoint_task_work_launch,
+)
+from sase.bead.model import Status
+from sase.bead.project import BeadProject
+from sase.bead.work import SASE_BEAD_ID_ENV, VCSLaunchContext
+
+from .cli_work_helpers import FakeLaunchResult, make_args, seed_task
+
+pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+
+
+@pytest.fixture(autouse=True)
+def task_vcs_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.resolve_task_vcs_launch_context",
+        lambda: VCSLaunchContext(vcs_workflow="git", project_name="sase"),
+    )
+
+
+def test_task_checkpoint_commits_and_pushes_before_return(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.sync import _PushOutcome
+
+    task_id = seed_task(project_dir)
+    events: list[str] = []
+
+    class Timer:
+        def stage(self, *_args: object, **_kwargs: object) -> Any:
+            return nullcontext()
+
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_task_work_launch",
+        lambda *_args, **_kwargs: events.append("commit") or True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.bead_state_is_clean",
+        lambda _path: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        lambda _path: (
+            events.append("push")
+            or _PushOutcome(pushed=True, skipped_no_remote=False, error=None)
+        ),
+    )
+
+    checkpoint_task_work_launch(
+        project_dir / "sdd/beads",
+        task_id,
+        no_push=False,
+        timer=Timer(),  # type: ignore[arg-type]
+    )
+
+    assert events == ["commit", "push"]
+
+
+@pytest.mark.parametrize("status", [Status.OPEN, Status.READY])
+def test_task_work_launches_one_checkpointed_agent(
+    status: Status,
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    task_id = seed_task(project_dir, status=status)
+    events: list[str] = []
+    captured: dict[str, Any] = {}
+
+    def checkpoint(*_args: object, **_kwargs: object) -> bool:
+        with BeadProject(project_dir) as project:
+            task = project.show(task_id)
+            assert (task.status, task.assignee) == (
+                Status.IN_PROGRESS,
+                task_id,
+            )
+        events.append("checkpoint")
+        return True
+
+    def launch(
+        query: str,
+        *,
+        segment_extra_env: tuple[dict[str, str], ...],
+        expected_names: set[str],
+        launch_context: VCSLaunchContext,
+    ) -> list[FakeLaunchResult]:
+        events.append("launch")
+        captured["query"] = query
+        captured["env"] = segment_extra_env
+        captured["names"] = expected_names
+        captured["context"] = launch_context
+        return [FakeLaunchResult()]
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.checkpoint_task_work_launch",
+        checkpoint,
+    )
+    monkeypatch.setattr("sase.bead.cli_work_task.launch_bead_work_agents", launch)
+
+    bead_cli.handle_bead_work(
+        make_args(
+            task_id,
+            yes=True,
+            launch_feedback="Preserve the public API.",
+        )
+    )
+
+    assert events == ["checkpoint", "launch"]
+    assert captured["query"] == (
+        f"#git:sase #commit\n"
+        f"%id({task_id}, bead={task_id})\n"
+        f"%m:@task_worker\n"
+        f"#bd/work_task:{task_id}\n"
+        "Preserve the public API."
+    )
+    assert captured["env"][0][SASE_BEAD_ID_ENV] == task_id
+    assert captured["names"] == {task_id}
+    with BeadProject(project_dir) as project:
+        task = project.show(task_id)
+        assert (task.status, task.assignee) == (Status.IN_PROGRESS, task_id)
+    assert f"✓ Launched agent {task_id} for task {task_id}" in capsys.readouterr().out
+
+
+def test_task_work_dry_run_is_read_only(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    task_id = seed_task(project_dir)
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.checkpoint_task_work_launch",
+        lambda *_args, **_kwargs: pytest.fail("dry-run must not checkpoint"),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.launch_bead_work_agents",
+        lambda *_args, **_kwargs: pytest.fail("dry-run must not launch"),
+    )
+
+    bead_cli.handle_bead_work(make_args(task_id, dry_run=True))
+
+    with BeadProject(project_dir) as project:
+        task = project.show(task_id)
+        assert (task.status, task.assignee) == (Status.READY, "")
+    output = capsys.readouterr().out
+    assert "--- Task prompt (dry run) ---" in output
+    assert f"#bd/work_task:{task_id}" in output
+
+
+def test_in_progress_task_with_live_assignee_is_idempotent_success(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    task_id = seed_task(
+        project_dir,
+        status=Status.IN_PROGRESS,
+        assignee="existing-worker",
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.get_live_agent_name_subset",
+        lambda names: {"existing-worker": "/tmp/agent"} if names else {},
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.launch_bead_work_agents",
+        lambda *_args, **_kwargs: pytest.fail("live task must not relaunch"),
+    )
+
+    bead_cli.handle_bead_work(make_args(task_id, yes_to_all=True))
+
+    assert "already assigned to live agent existing-worker" in (capsys.readouterr().out)
+    with BeadProject(project_dir) as project:
+        task = project.show(task_id)
+        assert (task.status, task.assignee) == (
+            Status.IN_PROGRESS,
+            "existing-worker",
+        )
+
+
+def test_stale_in_progress_task_cleans_up_before_mutation(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_id = seed_task(
+        project_dir,
+        status=Status.IN_PROGRESS,
+        assignee="dead-worker",
+    )
+    events: list[str] = []
+    monkeypatch.setattr(
+        "sase.agent.names.get_live_agent_name_subset",
+        lambda _names: {},
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.prepare_bead_work_force_reuse",
+        lambda query, **_kwargs: events.append("cleanup") or query.replace("!", ""),
+    )
+
+    def checkpoint(*_args: object, **_kwargs: object) -> bool:
+        events.append("checkpoint")
+        return True
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.checkpoint_task_work_launch",
+        checkpoint,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.launch_bead_work_agents",
+        lambda *_args, **_kwargs: events.append("launch") or [FakeLaunchResult()],
+    )
+
+    bead_cli.handle_bead_work(make_args(task_id, yes_to_all=True))
+
+    assert events == ["cleanup", "checkpoint", "launch"]
+    with BeadProject(project_dir) as project:
+        task = project.show(task_id)
+        assert (task.status, task.assignee) == (Status.IN_PROGRESS, task_id)
+
+
+def test_yes_does_not_skip_destructive_cleanup_confirmation(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_id = seed_task(project_dir)
+    destructive = CleanupPreview(
+        targets=(
+            CleanupTarget(
+                name=task_id,
+                action="KILL",
+                current_state="running",
+                detail="at /tmp/agent",
+            ),
+        )
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.preview_bead_work_force_reuse",
+        lambda *_args, **_kwargs: destructive,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.confirm_cleanup",
+        lambda: False,
+    )
+
+    bead_cli.handle_bead_work(make_args(task_id, yes=True))
+
+    with BeadProject(project_dir) as project:
+        task = project.show(task_id)
+        assert (task.status, task.assignee) == (Status.READY, "")
+
+
+@pytest.mark.parametrize("failure_stage", ["checkpoint", "launch"])
+def test_zero_spawn_failure_restores_prior_task_state(
+    failure_stage: str,
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_id = seed_task(
+        project_dir,
+        status=Status.IN_PROGRESS,
+        assignee="dead-worker",
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.get_live_agent_name_subset",
+        lambda _names: {},
+    )
+    if failure_stage == "checkpoint":
+        monkeypatch.setattr(
+            "sase.bead.cli_work_task.checkpoint_task_work_launch",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                TaskLaunchCheckpointError("commit failed")
+            ),
+        )
+    else:
+        monkeypatch.setattr(
+            "sase.bead.cli_work_task.checkpoint_task_work_launch",
+            lambda *_args, **_kwargs: True,
+        )
+        monkeypatch.setattr(
+            "sase.bead.cli_work_task.launch_bead_work_agents",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                RuntimeError("spawn failed")
+            ),
+        )
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(make_args(task_id, yes_to_all=True))
+
+    assert excinfo.value.code == 1
+    with BeadProject(project_dir) as project:
+        task = project.show(task_id)
+        assert (task.status, task.assignee) == (
+            Status.IN_PROGRESS,
+            "dead-worker",
+        )
+
+
+def test_task_work_json_reports_task_launch_state(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    task_id = seed_task(project_dir)
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.checkpoint_task_work_launch",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.launch_bead_work_agents",
+        lambda *_args, **_kwargs: [FakeLaunchResult()],
+    )
+
+    bead_cli.handle_bead_work(make_args(task_id, json_output=True))
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out) == {
+        "agent_name": task_id,
+        "dry_run": False,
+        "launch_state": "launched",
+        "launched": True,
+        "mode": "bead_id",
+        "ok": True,
+        "task_id": task_id,
+        "workspace_num": 7,
+    }
+
+
+@pytest.mark.parametrize("status", [Status.CLAIMED, Status.CLOSED])
+def test_invalid_task_status_is_rejected_without_mutation(
+    status: Status,
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    task_id = seed_task(project_dir, status=status)
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(make_args(task_id, yes=True))
+
+    assert excinfo.value.code == 1
+    assert f"cannot be launched from status={status.value}" in capsys.readouterr().err

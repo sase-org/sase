@@ -176,6 +176,22 @@ def commit_epic_graph_checkpoint(
     )
 
 
+def commit_task_work_launch(
+    beads_dir: Path,
+    task_id: str,
+    *,
+    already_locked: bool = False,
+) -> bool:
+    """Commit a task bead's in-progress assignment before its worker spawns."""
+    return _commit_bead_state(
+        beads_dir,
+        message=f"chore(beads): checkpoint task work launch {task_id}",
+        auto_commit_type="beads",
+        op_prefix="bead.task_work_launch",
+        already_locked=already_locked,
+    )
+
+
 def commit_failed_work_launch_recovery(
     beads_dir: Path,
     epic_id: str,

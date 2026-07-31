@@ -177,16 +177,19 @@ def register_bead_work_parser(
     """Register ``sase bead work``."""
     parser = subparsers.add_parser(
         "work",
-        help="Create or launch work for an epic plan",
+        help="Create or launch work for an epic plan or task bead",
         description=(
-            "Launch an existing epic plan bead, or validate an epic Markdown "
-            "plan, archive it into the SDD store, create its bead DAG, and "
-            "launch its phase and land agents. Plan-file launches are "
-            "idempotent and resume from an existing bead_id link."
+            "Launch an existing epic plan or standalone task bead. An epic "
+            "launch schedules its phase and land agents. A task launch starts "
+            "one deterministic worker. A Markdown epic plan can also be "
+            "validated, archived into the SDD store, compiled into a bead DAG, "
+            "and launched. Plan-file launches are idempotent and resume from "
+            "an existing bead_id link."
         ),
         epilog=(
             "Examples:\n"
             "  sase bead work sase-64\n"
+            "  sase bead work sase-task --yes\n"
             "  sase bead work ./epic_plan.md --dry-run\n"
             "  sase bead work ./epic_plan.md --parent sase-64.2 --yes\n"
             "  sase bead work ./epic_plan.md --parent top-level --yes\n"
@@ -198,7 +201,7 @@ def register_bead_work_parser(
     )
     parser.add_argument(
         "target",
-        help="Epic bead ID, or path to a validated epic plan file",
+        help="Epic or task bead ID, or path to a validated epic plan file",
     )
     parser.add_argument(
         "-a",
@@ -231,10 +234,15 @@ def register_bead_work_parser(
         ),
     )
     parser.add_argument(
+        "--launch-feedback",
+        metavar="TEXT",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
         "-P",
         "--no-push",
         action="store_true",
-        help="Commit plan and bead state locally but skip post-commit pushes",
+        help="Commit plan or bead state locally but skip post-commit pushes",
     )
     parser.add_argument(
         "-p",

@@ -39,6 +39,11 @@ def resolve_vcs_launch_context() -> VCSLaunchContext | None:
         return None
 
 
+def resolve_task_vcs_launch_context() -> VCSLaunchContext:
+    """Resolve the required VCS/project context for a task-bead launch."""
+    return _resolve_required_vcs_launch_context(purpose="task bead")
+
+
 def _resolve_required_vcs_launch_context(*, purpose: str) -> VCSLaunchContext:
     """Resolve current project/workflow context or raise a purpose-specific error."""
     from sase.bead.project_name import infer_project_name_from_cwd

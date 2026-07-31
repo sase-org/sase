@@ -10,7 +10,7 @@ from __future__ import annotations
 #
 #   - ``default``: the model used when a prompt has no explicit ``%model``.
 #   - ``coder`` / ``<provider>_coder``: coder follow-up roles.
-#   - ``epic_lander`` / ``big_epic_lander`` /
+#   - ``epic_lander`` / ``big_epic_lander`` / ``task_worker`` /
 #     ``<size>_phase_worker`` / ``smart`` / ``smartest`` /
 #     ``cheap`` / ``cheaper`` / ``cheapest``: bead/epic roles.
 #
@@ -35,6 +35,9 @@ EPIC_LANDER_MODEL_ALIAS_NAME = "epic_lander"
 
 #: The implicit large-epic lander role alias (threshold-selected follow-up).
 BIG_EPIC_LANDER_MODEL_ALIAS_NAME = "big_epic_lander"
+
+#: The implicit standalone task-bead worker role alias.
+TASK_WORKER_MODEL_ALIAS_NAME = "task_worker"
 
 #: The implicit extra-small-phase role alias.
 XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME = "xsmall_phase_worker"
@@ -94,6 +97,7 @@ ROLE_ALIAS_FALLBACKS: dict[str, str] = {
     CODER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     EPIC_LANDER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME: f"@{SMARTEST_MODEL_ALIAS_NAME}",
+    TASK_WORKER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{CHEAPER_MODEL_ALIAS_NAME}",
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{CHEAP_MODEL_ALIAS_NAME}",
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME: MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT,
@@ -126,6 +130,9 @@ ROLE_ALIAS_DESCRIPTIONS: dict[str, str] = {
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME: (
         "Epic land agents selected for plans at or above the configured "
         "phase-count threshold."
+    ),
+    TASK_WORKER_MODEL_ALIAS_NAME: (
+        "Standalone agents that implement task beads without size metadata."
     ),
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME: (
         "Extra-small bead phase agents that implement the simplest tasks directly."

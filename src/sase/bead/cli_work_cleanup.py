@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from sase.agent.launch_types import AgentLaunchResult
+    from sase.bead.model import Status
     from sase.bead.project import BeadProject, EpicPreclaimRollback
 
 
@@ -128,6 +129,72 @@ def rollback_work_launch(
             print(
                 f"Warning: failed to publish restored launch state for "
                 f"{epic_id}: {outcome.error}",
+                file=sys.stderr,
+            )
+
+
+def rollback_task_work_launch(
+    proj: BeadProject,
+    task_id: str,
+    *,
+    prior_status: Status,
+    prior_assignee: str,
+    no_push: bool = False,
+    launched_pids: list[int] | None = None,
+    launched_results: list[AgentLaunchResult] | None = None,
+) -> None:
+    """Persist recoverable state after a failed task-worker launch."""
+    spawned_any = bool(launched_results or launched_pids)
+    _rollback_launched_agents(
+        launched_results=launched_results,
+        launched_pids=launched_pids,
+    )
+
+    if spawned_any:
+        print(
+            "Terminated the partially launched task agent; preserving the "
+            "in-progress task assignment for recovery.",
+            file=sys.stderr,
+        )
+        return
+
+    print(
+        f"No agents were spawned; restoring task {task_id} to "
+        f"status={prior_status.value} and its prior assignee.",
+        file=sys.stderr,
+    )
+    from sase.bead.sync import (
+        bead_store_write_lock,
+        commit_failed_work_launch_recovery,
+        push_bead_work_launch,
+    )
+
+    committed = False
+    try:
+        with bead_store_write_lock(proj.beads_dir) as already_locked:
+            proj.update(
+                task_id,
+                status=prior_status.value,
+                assignee=prior_assignee,
+            )
+            committed = commit_failed_work_launch_recovery(
+                proj.beads_dir,
+                task_id,
+                already_locked=already_locked,
+            )
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"Warning: failed to commit restored launch state for {task_id}: {exc}",
+            file=sys.stderr,
+        )
+        return
+
+    if committed and not no_push:
+        outcome = push_bead_work_launch(proj.beads_dir)
+        if outcome.error is not None:
+            print(
+                f"Warning: failed to publish restored launch state for "
+                f"{task_id}: {outcome.error}",
                 file=sys.stderr,
             )
 

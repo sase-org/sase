@@ -114,6 +114,7 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
         "coders",
         "epic_lander",
         "big_epic_lander",
+        "task_worker",
         "phase_worker",
         "smartest",
         "smart",
@@ -126,7 +127,7 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
     ]
     assert all(row.name not in {"coder", "claude_coder", "codex_coder"} for row in rows)
 
-    user_rows = rows[10:]
+    user_rows = rows[11:]
     assert [row.name for row in user_rows] == ["coding", "research", "alpha"]
     coding, research, alpha = user_rows
     assert isinstance(coding, BucketView)
@@ -187,6 +188,7 @@ def test_models_panel_rows_coalesce_custom_coders_members(
         "coders",
         "epic_lander",
         "big_epic_lander",
+        "task_worker",
         "phase_worker",
         "smartest",
         "smart",
@@ -278,6 +280,7 @@ def test_models_panel_phase_worker_bucket_coalesces_builtin_and_custom_members(
         "coders",
         "epic_lander",
         "big_epic_lander",
+        "task_worker",
         "phase_worker",
         "smartest",
         "smart",
@@ -285,7 +288,7 @@ def test_models_panel_phase_worker_bucket_coalesces_builtin_and_custom_members(
         "cheaper",
         "cheapest",
     ]
-    phase_workers = rows[4]
+    phase_workers = rows[5]
     assert isinstance(phase_workers, BucketView)
     assert phase_workers.description == "Configured phase roles."
     assert [member.name for member in phase_workers.members] == [

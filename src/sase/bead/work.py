@@ -7,6 +7,7 @@ to (a) compute a phase-wave schedule from an epic's dependency DAG and
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +24,7 @@ from sase.llm_provider.config import EPIC_LANDER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import LARGE_PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import SMALL_PHASE_WORKER_MODEL_ALIAS_NAME
+from sase.llm_provider.config import TASK_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import format_model_directive_value
@@ -306,6 +308,48 @@ def phase_model_directive_value(
     return role_model_directive_value(alias_by_size[_phase_size(size)])
 
 
+def task_model_directive_value(
+    explicit_model: str | None,
+    *,
+    size: PhaseSize | str | None,
+) -> str:
+    """Return the authoritative ``%model`` value for a task-bead agent."""
+    if explicit_model:
+        return format_model_directive_value(explicit_model)
+    if size is not None and size != "":
+        return phase_model_directive_value(None, size=size)
+    return role_model_directive_value(TASK_WORKER_MODEL_ALIAS_NAME)
+
+
+def render_task_prompt(
+    bead_id: str,
+    *,
+    model: str = "",
+    size: PhaseSize | str | None = None,
+    work_task_xprompt: Workflow,
+    vcs_context: VCSLaunchContext,
+    feedback: str | None = None,
+) -> str:
+    """Render one deterministic, single-segment task-bead launch prompt."""
+    _validate_vcs_context(vcs_context)
+    feedback_text = feedback.strip() if feedback else ""
+    if feedback_text and _contains_top_level_segment_separator(feedback_text):
+        raise ValueError(
+            "task launch feedback cannot contain a top-level '---' "
+            "prompt segment separator"
+        )
+
+    lines = [
+        f"#{vcs_context.vcs_workflow}:{vcs_context.project_name} #commit",
+        f"%id(!{bead_id}, bead={bead_id})",
+        f"%m:{task_model_directive_value(model, size=size)}",
+        f"#{work_task_xprompt.name}:{bead_id}",
+    ]
+    if feedback_text:
+        lines.append(feedback_text)
+    return "\n".join(lines)
+
+
 def phase_requires_plan(size: PhaseSize | str | None) -> bool:
     """Return whether a phase needs a separate planning handoff."""
     return _phase_size(size) in {PhaseSize.LARGE, PhaseSize.XLARGE}
@@ -475,6 +519,24 @@ def epic_work_segment_env(
         )
     )
     return tuple(envs)
+
+
+def task_work_segment_env(bead_id: str) -> tuple[dict[str, str], ...]:
+    """Return the single launch environment for a task-bead worker."""
+    return (
+        {
+            SASE_BEAD_ID_ENV: bead_id,
+            INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
+        },
+    )
+
+
+def _contains_top_level_segment_separator(text: str) -> bool:
+    """Return whether *text* has an unfenced prompt segment separator."""
+    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+
+    protected = protect_fenced_blocks(text, [])
+    return bool(re.search(r"^---\s*$", protected, flags=re.MULTILINE))
 
 
 def _validate_vcs_context(ctx: VCSLaunchContext) -> None:

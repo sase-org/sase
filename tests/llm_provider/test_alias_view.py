@@ -58,6 +58,8 @@ def test_includes_default_role_provider_coder_and_user_aliases(
         by_name["big_epic_lander"].provider,
         by_name["big_epic_lander"].model,
     ) == ("claude", "claude-fable-5")
+    assert by_name["task_worker"].kind == "role"
+    assert by_name["task_worker"].implicit_fallback == "default"
     assert "phase_worker" not in by_name
     assert by_name["xsmall_phase_worker"].kind == "role"
     assert by_name["small_phase_worker"].kind == "role"
@@ -179,11 +181,12 @@ def test_default_is_first_and_groups_are_ordered(
 
     assert names[0] == "default"
     # role aliases follow default, in canonical order
-    role_slice = names[1:14]
+    role_slice = names[1:15]
     assert role_slice == [
         "coder",
         "epic_lander",
         "big_epic_lander",
+        "task_worker",
         "xsmall_phase_worker",
         "small_phase_worker",
         "medium_phase_worker",
