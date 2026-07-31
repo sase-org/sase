@@ -36,9 +36,9 @@ def test_badge_markup_codex_uses_lime_theme() -> None:
 
 
 def test_badge_markup_agy_uses_antigravity_indigo() -> None:
-    markup = _provider_badge_markup("agy", "Gemini 3.5 Flash (High)")
+    markup = _provider_badge_markup("agy", "gemini-3.6-flash-high")
     assert "AGY" in markup
-    assert "Gemini 3.5 Flash (High)" in markup
+    assert "gemini-3.6-flash-high" in markup
     assert "#6E5DE7" in markup
 
 
@@ -82,11 +82,11 @@ def test_modal_constructor_accepts_provider_model_and_authored_tier() -> None:
     modal = PlanApprovalModal(
         "/tmp/plan.md",
         llm_provider="agy",
-        model="Gemini 3.5 Flash (High)",
+        model="gemini-3.6-flash-high",
         default_choice="epic",
     )
     assert modal._llm_provider == "agy"
-    assert modal._model == "Gemini 3.5 Flash (High)"
+    assert modal._model == "gemini-3.6-flash-high"
     assert modal._default_choice == "epic"
     assert modal._gate.branches == (("approve",), ("reject",), ("feedback",))
     assert modal._gate.options[0].label == "Epic"

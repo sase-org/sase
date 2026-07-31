@@ -118,10 +118,10 @@ def test_model_directive_quoted_paren_provider_model_with_spaces_and_parens(
     directive: str,
 ) -> None:
     """Quoted paren args preserve exact provider/model values."""
-    prompt = f'{directive}("agy/Gemini 3.5 Flash (High)")\nReview this code'
+    prompt = f'{directive}("agy/custom model (Preview)")\nReview this code'
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Review this code"
-    assert directives.model == "agy/Gemini 3.5 Flash (High)"
+    assert directives.model == "agy/custom model (Preview)"
 
 
 def test_model_directive_paren_multi_arg_rejected() -> None:
@@ -335,7 +335,7 @@ def test_model_alias_prefix_strips_before_xprompt_expansion(
             "model_aliases": {
                 "custom": {
                     "agy_flash": {
-                        "model": "agy/Gemini 3.5 Flash (High)",
+                        "model": "agy/gemini-3.5-flash-high",
                         "description": "Antigravity flash preset.",
                     }
                 }

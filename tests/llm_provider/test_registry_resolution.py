@@ -59,11 +59,11 @@ def test_active_override_replaces_configured_default_alias(
         },
     )
 
-    set_temporary_override("agy/Gemini 3.5 Pro", 3600.0, source="test")
+    set_temporary_override("agy/custom-pro", 3600.0, source="test")
 
-    assert resolve_effective_default_provider_model() == ("agy", "Gemini 3.5 Pro")
-    assert resolve_default_alias_provider_model() == ("agy", "Gemini 3.5 Pro")
-    assert resolve_model_alias("default") == "agy/Gemini 3.5 Pro"
+    assert resolve_effective_default_provider_model() == ("agy", "custom-pro")
+    assert resolve_default_alias_provider_model() == ("agy", "custom-pro")
+    assert resolve_model_alias("default") == "agy/custom-pro"
 
 
 def test_active_override_replaces_unconfigured_provider_default(
@@ -125,26 +125,26 @@ def test_resolve_model_provider_resolves_bare_alias(
 def test_resolve_model_provider_resolves_agy_display_name_alias(
     mock_config: MagicMock,
 ) -> None:
-    """A model alias pointing at ``agy/<exact display name>`` routes to agy.
+    """A model alias pointing at ``agy/<exact model slug>`` routes to agy.
 
     This is the regression guard for the readable ``#agy_flash``/``#m_agy_flash``
-    presets: the alias token expands to an explicit ``agy/<display name>`` target
-    whose space-and-paren-laden model survives intact, so the launch routes to
-    the Antigravity provider rather than falling back to the configured default.
+    presets: the alias token expands to an explicit ``agy/<model slug>`` target
+    whose model slug survives intact, so the launch routes to the Antigravity
+    provider rather than falling back to the configured default.
     """
     mock_config.return_value = {
         "provider": "codex",
         "model_aliases": {
             "custom": {
                 "agy_flash": {
-                    "model": "agy/Gemini 3.5 Flash (High)",
+                    "model": "agy/gemini-3.5-flash-high",
                     "description": "Antigravity flash preset.",
                 }
             }
         },
     }
 
-    assert resolve_model_provider("agy_flash") == ("agy", "Gemini 3.5 Flash (High)")
+    assert resolve_model_provider("agy_flash") == ("agy", "gemini-3.5-flash-high")
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")

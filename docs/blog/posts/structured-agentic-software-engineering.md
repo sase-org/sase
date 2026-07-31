@@ -82,7 +82,7 @@ can route to model names that contain "Gemini", but those are model labels, not 
 This distinction matters because provider names show up in commands, config, model routing, skills, and ACE rows.
 
 Provider and model selection is still flexible per prompt. You can write `%model:codex/o3`, `%model:claude/opus`,
-`%m("agy/Gemini 3.5 Flash (High)")`, or `%model:opencode/anthropic/claude-sonnet-4-5`. Known model names auto-map to
+`%m:agy/gemini-3.6-flash-high`, or `%model:opencode/anthropic/claude-sonnet-4-5`. Known model names auto-map to
 providers, and when no provider is configured SASE auto-detects installed built-ins in priority order: `claude`,
 `codex`, `qwen`, `opencode`, then `agy`. For repeated workflows, model aliases such as `%model:@default` or
 `%model:@blogger` let your `sase.yml` choose the concrete provider/model at launch time.

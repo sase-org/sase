@@ -79,7 +79,7 @@ def test_model_xprompts_ok_when_alias_routes_to_provider(
             "model_aliases": {
                 "custom": {
                     "agy_flash": {
-                        "model": "agy/Gemini 3.5 Flash (High)",
+                        "model": "agy/gemini-3.5-flash-high",
                         "description": "Antigravity flash preset.",
                     }
                 }
@@ -110,7 +110,7 @@ def test_model_xprompts_flags_bare_alias_with_migration_hint(
             "model_aliases": {
                 "custom": {
                     "agy_flash": {
-                        "model": "agy/Gemini 3.5 Flash (High)",
+                        "model": "agy/gemini-3.5-flash-high",
                         "description": "Antigravity flash preset.",
                     }
                 }

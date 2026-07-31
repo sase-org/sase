@@ -9,8 +9,8 @@ It deliberately ALLOWS the narrow Antigravity-owned references that the
 migration plan keeps:
 
 - ``.gemini/antigravity-cli`` skill/config paths (Antigravity's own home dir),
-- exact ``agy models`` display names that contain "Gemini" (e.g.
-  ``Gemini 3.5 Flash (High)``),
+- exact ``agy models`` slugs that contain "gemini" (e.g.
+  ``gemini-3.6-flash-high``),
 - the OpenCode-routed ``google/gemini-3-flash-preview`` model alias,
 - the ``GEMINI.md`` provider context shim and ``GEMINI_PROJECT_DIR`` env var
   that the Antigravity CLI inherited from the ``.gemini`` namespace,

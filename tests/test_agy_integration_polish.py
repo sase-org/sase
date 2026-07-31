@@ -2,10 +2,8 @@
 
 Phase 3 wires ``agy`` into SASE's provider ecosystem (registry metadata,
 doctor, retry defaults, and TUI surfaces) the same way Claude, Codex, Qwen,
-and OpenCode are. These tests exercise the provider-neutral seams with an
-exact ``agy`` model whose display name contains spaces and parentheses
-(``"Gemini 3.5 Flash (High)"``), which is the case most likely to break
-parsing/splitting/styling code.
+and OpenCode are. These tests exercise the provider-neutral seams with exact
+``agy`` model slugs matching the current Antigravity CLI catalog.
 """
 
 from __future__ import annotations
@@ -37,8 +35,9 @@ from sase.main import init_skills_handler
 from sase.main.init_skills_handler import _get_target_path
 from sase.main.parser import create_parser
 
-_AGY_LARGE = "Gemini 3.5 Flash (High)"
-_AGY_SMALL = "Gemini 3.5 Flash (Low)"
+_AGY_LARGE = "gemini-3.6-flash-high"
+_AGY_SMALL = "gemini-3.6-flash-low"
+_AGY_FLASH35_HIGH = "gemini-3.5-flash-high"
 
 
 def test_provider_metadata_aggregation_includes_agy() -> None:
@@ -49,8 +48,8 @@ def test_provider_metadata_aggregation_includes_agy() -> None:
     assert models[_AGY_LARGE] == "agy"
     assert models[_AGY_SMALL] == "agy"
     assert provider_shorts["agy"] == "agy"
-    assert model_aliases[_AGY_LARGE] == "flash35h"
-    assert model_aliases[_AGY_SMALL] == "flash35l"
+    assert model_aliases[_AGY_LARGE] == "flash36h"
+    assert model_aliases[_AGY_SMALL] == "flash36l"
     # A distinct Antigravity indigo, deliberately not the old Gemini-CLI blue.
     color = provider_cli_status_color_map()["agy"]
     assert color == "#6E5DE7"
@@ -70,11 +69,11 @@ def test_agy_autodetect_occupies_late_fallback_slot() -> None:
     assert "gemini" not in by_provider
 
 
-def test_nested_agy_model_resolution_preserves_spaces_and_parens() -> None:
+def test_nested_agy_model_resolution_preserves_slug() -> None:
     assert resolve_model_provider(f"agy/{_AGY_LARGE}") == ("agy", _AGY_LARGE)
 
 
-def test_model_picker_includes_agy_model_with_spaces() -> None:
+def test_model_picker_includes_agy_model_slugs() -> None:
     option_ids = {option.id for option in build_model_options() if option is not None}
 
     assert _AGY_LARGE in option_ids
@@ -102,7 +101,7 @@ def test_plan_approval_badge_renders_agy_provider_color() -> None:
 
     assert "AGY" in badge
     assert "#6E5DE7" in badge
-    # The space/paren-laden model name survives intact in the badge markup.
+    # The exact model slug survives intact in the badge markup.
     assert _AGY_LARGE in badge
 
 
@@ -110,7 +109,7 @@ def test_agy_provider_has_emoji_badge() -> None:
     assert provider_emoji_badge("agy") == "🪐"
 
 
-def test_temporary_override_accepts_agy_model_with_spaces(
+def test_temporary_override_accepts_agy_model_slug(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -131,13 +130,7 @@ def test_agent_metadata_records_agy_provider_directive(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The provider half of an ``%model:agy/...`` directive is recorded.
-
-    The whitespace-delimited ``%model`` text directive cannot carry an agy
-    display name's spaces; the space-tolerant entry points are the model
-    picker and :func:`set_temporary_override` (covered above). This test
-    pins the provider-routing half end to end through metadata writing.
-    """
+    """The provider half of an ``%model:agy/...`` directive is recorded."""
     workspace_dir = tmp_path / "workspace"
     artifacts_dir = tmp_path / "artifacts" / "20260619120000"
     workspace_dir.mkdir()
@@ -150,7 +143,7 @@ def test_agent_metadata_records_agy_provider_directive(
         patch("sase.ace.agent_tribes.update_agent_tribe"),
     ):
         info = extract_directives_and_write_meta(
-            "%model:agy/flash35h\nDo work",
+            "%model:agy/gemini-3.6-flash-high\nDo work",
             str(workspace_dir),
             str(artifacts_dir),
         )
@@ -164,11 +157,11 @@ def test_agent_metadata_routes_model_xprompt_alias_to_agy(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``%model:@#agy_flash`` records agy + the exact display model, not the default.
+    """``%model:@#agy_flash`` records agy + the exact model slug, not the default.
 
     This pins the full readable surface end to end: the ``#agy_flash`` xprompt
     expands to the ``agy_flash`` token, the configured custom alias rewrites
-    that token to ``agy/Gemini 3.5 Flash (High)``, and the recorded metadata
+    that token to ``agy/gemini-3.5-flash-high``, and the recorded metadata
     routes to the Antigravity provider even though the configured default
     provider is Codex. It is the regression guard for the bug where the removed
     alias silently degraded these presets to the default provider.
@@ -184,7 +177,7 @@ def test_agent_metadata_routes_model_xprompt_alias_to_agy(
         "model_aliases": {
             "custom": {
                 "agy_flash": {
-                    "model": f"agy/{_AGY_LARGE}",
+                    "model": f"agy/{_AGY_FLASH35_HIGH}",
                     "description": "Antigravity flash preset.",
                 }
             }
@@ -220,9 +213,9 @@ def test_agent_metadata_routes_model_xprompt_alias_to_agy(
 
     meta = json.loads((artifacts_dir / "agent_meta.json").read_text())
     assert info.llm_provider == "agy"
-    assert info.model == _AGY_LARGE
+    assert info.model == _AGY_FLASH35_HIGH
     assert meta["llm_provider"] == "agy"
-    assert meta["model"] == _AGY_LARGE
+    assert meta["model"] == _AGY_FLASH35_HIGH
 
 
 def test_agy_default_retry_config_matches_transient_failures() -> None:

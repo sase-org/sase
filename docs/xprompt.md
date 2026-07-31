@@ -1105,7 +1105,7 @@ Directives use the same argument syntax as xprompt references:
 %model(claude-sonnet)        # Parenthesis syntax (single value only)
 %model:`claude-sonnet-4`     # Backtick syntax (for values with special chars)
 %model:codex/o3              # Provider/model syntax — switches both provider and model
-%m("agy/Gemini 3.5 Flash (High)") # Quoted provider/model value with spaces/parentheses
+%m:agy/gemini-3.6-flash-high # Provider/model value with a stable Antigravity slug
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
 %model(opus, coder=codex/gpt-5.6-sol) # This agent uses opus; its coder follow-up uses Codex
 %model(coder=@medium_phase_worker) # Leave this agent on the default; route @coder through another alias
@@ -1772,11 +1772,11 @@ they can be told apart at a glance. Given `%{%m:opus | %m:gpt-5.6-sol} %i:foo`, 
 don't declare one. If `%id` is omitted, a single auto-generated base is allocated and shared (e.g. `a.cld` / `a.cdx`)
 rather than each agent picking its own letter independently. Single-model prompts retain their plain `%id` value
 unchanged. When two models share a runtime (e.g. `%{%m:opus | %m:sonnet}` — both `claude`), the model name disambiguates
-the suffix: `foo.cld-opus` and `foo.cld-sonnet`. Long model names (e.g. `Gemini 3.5 Flash (High)`) are replaced with a
-short alias (`flash35h`) declared by the provider plugin, so a same-runtime agy fan-out reads as `foo.agy-flash35h` /
-`foo.agy-flash35l` rather than echoing the full model string. Model arguments used for naming are first resolved through
-xprompt shorthand expansion, while the launched prompt keeps the original `%model` value. For example,
-`%i:ag %{%m:#flash | %m:#pro}` can launch agents named `ag.agy-flash35h` and `ag.agy-pro31h`.
+the suffix: `foo.cld-opus` and `foo.cld-sonnet`. Long model slugs are replaced with a short alias declared by the
+provider plugin, so a same-runtime agy fan-out can read as `foo.agy-flash36h` / `foo.agy-flash35h` rather than echoing
+the full model string. Model arguments used for naming are first resolved through xprompt shorthand expansion, while the
+launched prompt keeps the original `%model` value. For example, `%i:ag %{%m:#flash | %m:#pro}` can launch agents named
+`ag.agy-flash35h` and `ag.agy-flash36h`.
 
 ### Multi-Value Directives
 

@@ -73,7 +73,7 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "@worker",
     ]
     assert "@other" not in values
-    assert "Gemini 3.5 Flash (High)" not in values
+    assert "Custom Model (Preview)" not in values
     assert "bad alias" not in values
     assert "fable" not in values
 
@@ -495,7 +495,7 @@ def _metadata_payload() -> dict[str, object]:
                 "known_model_names": [
                     "claude-fable-5",
                     "opus",
-                    "Gemini 3.5 Flash (High)",
+                    "Custom Model (Preview)",
                 ],
             },
             "opencode": {
@@ -510,7 +510,7 @@ def _metadata_payload() -> dict[str, object]:
             "o4-mini": "codex",
             "claude-fable-5": "claude",
             "opus": "claude",
-            "Gemini 3.5 Flash (High)": "claude",
+            "Custom Model (Preview)": "claude",
             "anthropic/claude-sonnet-4-5": "opencode",
         },
         "model_short_aliases": {

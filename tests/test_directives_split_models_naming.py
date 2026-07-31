@@ -302,11 +302,11 @@ def test_split_prompt_for_models_alias_shorthand_strips_at_before_expansion(
         "model_aliases": {
             "custom": {
                 "agy_flash": {
-                    "model": "agy/Gemini 3.5 Flash (High)",
+                    "model": "agy/gemini-3.5-flash-high",
                     "description": "Antigravity flash preset.",
                 },
                 "agy_pro": {
-                    "model": "agy/Gemini 3.1 Pro (High)",
+                    "model": "agy/gemini-3.6-flash-high",
                     "description": "Antigravity pro preset.",
                 },
             }
@@ -326,7 +326,7 @@ def test_split_prompt_for_models_alias_shorthand_strips_at_before_expansion(
 
     assert result is not None
     assert result == [
-        "%id:ag.agy_pro31h\n%m:@#agy_pro\nReview",
+        "%id:ag.agy_flash36h\n%m:@#agy_pro\nReview",
         "%id:ag.agy_flash35h\n%m:@#agy_flash\nReview",
     ]
 

@@ -27,7 +27,7 @@ def append_model_field(
 
     Args:
         header_text: Rich Text object to append to.
-        model: Model name string (e.g., "opus", "Gemini 3.5 Flash (High)").
+        model: Model name string (e.g., "opus", "gemini-3.6-flash-high").
         llm_provider: Provider name (e.g., "claude", "agy"), or None.
         reasoning_effort: Effective reasoning-effort level (e.g. "xhigh"), or
             None to omit the suffix.

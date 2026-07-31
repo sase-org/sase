@@ -44,8 +44,8 @@ if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
 
 _TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "Gemini 3.5 Flash (High)",
-    "small": "Gemini 3.5 Flash (Low)",
+    "large": "gemini-3.6-flash-high",
+    "small": "gemini-3.6-flash-low",
 }
 _AGY_PATH_ENV = "SASE_AGY_PATH"
 _AGY_PRINT_TIMEOUT_ENV = "SASE_AGY_PRINT_TIMEOUT"
@@ -272,31 +272,36 @@ class AgyProvider(LLMProvider):
 
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
-        # Exact `agy models` display names (Antigravity CLI 1.0.10). These
-        # contain spaces and parentheses and must be preserved verbatim.
+        # Exact stable slugs reported by `agy models`; keep CLI ordering.
         return [
-            "Gemini 3.5 Flash (High)",
-            "Gemini 3.5 Flash (Low)",
-            "Gemini 3.5 Flash (Medium)",
-            "Gemini 3.1 Pro (High)",
-            "Gemini 3.1 Pro (Low)",
-            "Claude Sonnet 4.6 (Thinking)",
-            "Claude Opus 4.6 (Thinking)",
-            "GPT-OSS 120B (Medium)",
+            "gemini-3.6-flash-high",
+            "gemini-3.6-flash-medium",
+            "gemini-3.6-flash-low",
+            "gemini-3.5-flash-high",
+            "gemini-3.5-flash-medium",
+            "gemini-3.5-flash-low",
+            "gemini-3.1-pro-high",
+            "gemini-3.1-pro-low",
+            "claude-sonnet-4-6",
+            "claude-opus-4-6-thinking",
+            "gpt-oss-120b-medium",
         ]
 
     @hookimpl
     def llm_model_short_aliases(self) -> dict[str, str]:
-        # Compact aliases for the space/paren-laden exact display names.
+        # Compact aliases for model picker labels and same-provider fan-out ids.
         return {
-            "Gemini 3.5 Flash (High)": "flash35h",
-            "Gemini 3.5 Flash (Low)": "flash35l",
-            "Gemini 3.5 Flash (Medium)": "flash35m",
-            "Gemini 3.1 Pro (High)": "pro31h",
-            "Gemini 3.1 Pro (Low)": "pro31l",
-            "Claude Sonnet 4.6 (Thinking)": "sonnet46t",
-            "Claude Opus 4.6 (Thinking)": "opus46t",
-            "GPT-OSS 120B (Medium)": "gptoss120m",
+            "gemini-3.6-flash-high": "flash36h",
+            "gemini-3.6-flash-medium": "flash36m",
+            "gemini-3.6-flash-low": "flash36l",
+            "gemini-3.5-flash-high": "flash35h",
+            "gemini-3.5-flash-medium": "flash35m",
+            "gemini-3.5-flash-low": "flash35l",
+            "gemini-3.1-pro-high": "pro31h",
+            "gemini-3.1-pro-low": "pro31l",
+            "claude-sonnet-4-6": "sonnet46",
+            "claude-opus-4-6-thinking": "opus46t",
+            "gpt-oss-120b-medium": "gptoss120m",
         }
 
     @hookimpl

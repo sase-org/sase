@@ -193,14 +193,14 @@ async def test_model_picker_filters_by_model_substring() -> None:
         await pilot.pause()
 
         filter_input = modal.query_one("#model-picker-filter", Input)
-        filter_input.value = "Flash (High)"
+        filter_input.value = "gemini-3.6"
         await pilot.pause()
 
         option_list = modal.query_one("#model-picker-list", OptionList)
         ids = {option.id for option in option_list.options}
         assert "__header_agy__" in ids
-        assert "Gemini 3.5 Flash (High)" in ids
-        assert "Gemini 3.5 Flash (Low)" not in ids
+        assert "gemini-3.6-flash-high" in ids
+        assert "gemini-3.5-flash-high" not in ids
 
 
 async def test_model_picker_filters_by_alias() -> None:
@@ -257,8 +257,7 @@ async def test_model_picker_selection_remains_valid_after_filter_change() -> Non
         assert highlighted is not None
         option = option_list.get_option_at_index(highlighted)
         assert option.id != "o3"
-        # A "gemini" filter matches the Antigravity (agy) "Gemini ..."
-        # display-name models.
+        # A "gemini" filter matches the Antigravity (agy) Gemini slugs.
         assert "gemini" in str(option.id).lower()
 
 

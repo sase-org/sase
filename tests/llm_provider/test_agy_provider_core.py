@@ -17,6 +17,20 @@ from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.registry import resolve_model_provider
 from sase.llm_provider.types import LLMInvocationError
 
+_AGY_MODELS = [
+    "gemini-3.6-flash-high",
+    "gemini-3.6-flash-medium",
+    "gemini-3.6-flash-low",
+    "gemini-3.5-flash-high",
+    "gemini-3.5-flash-medium",
+    "gemini-3.5-flash-low",
+    "gemini-3.1-pro-high",
+    "gemini-3.1-pro-low",
+    "claude-sonnet-4-6",
+    "claude-opus-4-6-thinking",
+    "gpt-oss-120b-medium",
+]
+
 
 def test_agy_provider_is_llm_provider() -> None:
     provider = AgyProvider()
@@ -25,9 +39,9 @@ def test_agy_provider_is_llm_provider() -> None:
 
 def test_agy_provider_resolve_model_name() -> None:
     provider = AgyProvider()
-    assert provider.resolve_model_name() == "Gemini 3.5 Flash (High)"
-    assert provider.resolve_model_name("large") == "Gemini 3.5 Flash (High)"
-    assert provider.resolve_model_name("small") == "Gemini 3.5 Flash (Low)"
+    assert provider.resolve_model_name() == "gemini-3.6-flash-high"
+    assert provider.resolve_model_name("large") == "gemini-3.6-flash-high"
+    assert provider.resolve_model_name("small") == "gemini-3.6-flash-low"
 
 
 def test_agy_provider_metadata_hooks() -> None:
@@ -41,11 +55,21 @@ def test_agy_provider_metadata_hooks() -> None:
     context = provider.llm_skill_template_context()
     assert context["provider_name"] == "Antigravity"
     assert context["provider_tool_name"] == "Antigravity CLI"
-    # Exact `agy models` display names with spaces/parens are preserved.
-    assert "Gemini 3.5 Flash (High)" in provider.llm_known_model_names()
-    assert "Claude Opus 4.6 (Thinking)" in provider.llm_known_model_names()
+    assert provider.llm_known_model_names() == _AGY_MODELS
     aliases = provider.llm_model_short_aliases()
-    assert aliases["Gemini 3.5 Flash (High)"] == "flash35h"
+    assert aliases == {
+        "gemini-3.6-flash-high": "flash36h",
+        "gemini-3.6-flash-medium": "flash36m",
+        "gemini-3.6-flash-low": "flash36l",
+        "gemini-3.5-flash-high": "flash35h",
+        "gemini-3.5-flash-medium": "flash35m",
+        "gemini-3.5-flash-low": "flash35l",
+        "gemini-3.1-pro-high": "pro31h",
+        "gemini-3.1-pro-low": "pro31l",
+        "claude-sonnet-4-6": "sonnet46",
+        "claude-opus-4-6-thinking": "opus46t",
+        "gpt-oss-120b-medium": "gptoss120m",
+    }
 
 
 @patch("sase.llm_provider.agy.stream_process_output")
@@ -74,7 +98,7 @@ def test_agy_provider_command_construction(
     assert "--print-timeout" in cmd
     assert cmd[cmd.index("--print-timeout") + 1] == "24h"
     assert "--model" in cmd
-    assert cmd[cmd.index("--model") + 1] == "Gemini 3.5 Flash (High)"
+    assert cmd[cmd.index("--model") + 1] == "gemini-3.6-flash-high"
     assert "--dangerously-skip-permissions" in cmd
     assert "--add-dir" in cmd
     assert cmd[cmd.index("--add-dir") + 1] == str(Path.cwd().resolve())
@@ -92,7 +116,7 @@ def test_agy_provider_command_construction(
 @patch("sase.llm_provider.agy.stream_process_output")
 @patch("sase.llm_provider.agy.subprocess.Popen")
 @patch("sase.llm_provider.agy.provider_timer")
-def test_agy_provider_model_override_preserves_spaces(
+def test_agy_provider_model_override_preserves_slug(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
     mock_stream: MagicMock,
@@ -105,12 +129,12 @@ def test_agy_provider_model_override_preserves_spaces(
         "test",
         model_tier="large",
         suppress_output=True,
-        model_override="Claude Opus 4.6 (Thinking)",
+        model_override="claude-opus-4-6-thinking",
     )
 
     cmd = mock_popen.call_args.args[0]
-    assert cmd[cmd.index("--model") + 1] == "Claude Opus 4.6 (Thinking)"
-    assert "Gemini 3.5 Flash (High)" not in cmd
+    assert cmd[cmd.index("--model") + 1] == "claude-opus-4-6-thinking"
+    assert "gemini-3.6-flash-high" not in cmd
 
 
 @patch.dict(os.environ, {"SASE_AGY_PATH": "/opt/antigravity/bin/agy"})
@@ -216,7 +240,7 @@ def test_agy_provider_extra_args_from_env_small(
 
     cmd = mock_popen.call_args.args[0]
     assert "--sandbox" in cmd
-    assert cmd[cmd.index("--model") + 1] == "Gemini 3.5 Flash (Low)"
+    assert cmd[cmd.index("--model") + 1] == "gemini-3.6-flash-low"
 
 
 @patch.dict(
@@ -373,14 +397,13 @@ def test_agy_provider_interrupt_resume_prompt_construction(
 
 
 def test_agy_model_resolution_preserves_nested_provider_model() -> None:
-    # Explicit provider/model syntax keeps the full model name (with spaces)
-    # after the first slash.
-    assert resolve_model_provider("agy/Gemini 3.5 Flash (High)") == (
+    # Explicit provider/model syntax keeps the model slug after the first slash.
+    assert resolve_model_provider("agy/gemini-3.6-flash-high") == (
         "agy",
-        "Gemini 3.5 Flash (High)",
+        "gemini-3.6-flash-high",
     )
     # Bare known model name resolves to the agy provider.
-    assert resolve_model_provider("Gemini 3.5 Flash (High)") == (
+    assert resolve_model_provider("gemini-3.6-flash-high") == (
         "agy",
-        "Gemini 3.5 Flash (High)",
+        "gemini-3.6-flash-high",
     )

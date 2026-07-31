@@ -147,9 +147,9 @@ def test_resolve_model_provider_explicit_syntax() -> None:
         "claude",
         "claude-sonnet-5",
     )
-    assert resolve_model_provider("agy/Gemini 3.5 Flash (High)") == (
+    assert resolve_model_provider("agy/gemini-3.6-flash-high") == (
         "agy",
-        "Gemini 3.5 Flash (High)",
+        "gemini-3.6-flash-high",
     )
 
 
@@ -175,9 +175,9 @@ def test_resolve_model_provider_implicit_mapping() -> None:
     assert resolve_model_provider("gpt-5.6-sol") == ("codex", "gpt-5.6-sol")
     assert resolve_model_provider("gpt-5.5") == ("codex", "gpt-5.5")
     assert resolve_model_provider("gpt-5.3-codex") == ("codex", "gpt-5.3-codex")
-    assert resolve_model_provider("Gemini 3.5 Flash (High)") == (
+    assert resolve_model_provider("gemini-3.6-flash-high") == (
         "agy",
-        "Gemini 3.5 Flash (High)",
+        "gemini-3.6-flash-high",
     )
     assert resolve_model_provider("qwen3.6-plus") == ("qwen", "qwen3.6-plus")
 
@@ -200,9 +200,10 @@ def test_resolve_model_provider_explicit_with_unknown_model() -> None:
 def test_model_short_alias_map_contains_agy_entries() -> None:
     """The aggregated alias map carries the agy plugin's entries."""
     aliases = model_short_alias_map()
-    assert aliases.get("Gemini 3.5 Flash (High)") == "flash35h"
-    assert aliases.get("Gemini 3.5 Flash (Low)") == "flash35l"
-    assert aliases.get("Gemini 3.1 Pro (High)") == "pro31h"
+    assert aliases.get("gemini-3.6-flash-high") == "flash36h"
+    assert aliases.get("gemini-3.6-flash-low") == "flash36l"
+    assert aliases.get("gemini-3.5-flash-high") == "flash35h"
+    assert aliases.get("gemini-3.1-pro-high") == "pro31h"
 
 
 def test_model_short_alias_map_contains_codex_entries() -> None:

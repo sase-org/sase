@@ -99,8 +99,8 @@ def test_split_prompt_for_models_with_provider_syntax() -> None:
 def test_split_prompt_for_models_quoted_provider_model_with_spaces_and_parens() -> None:
     """Fan-out preserves exact quoted provider/model values."""
     prompt = (
-        '%i:foo\n%{%m("agy/Gemini 3.1 Pro (High)") | '
-        '%m("agy/Gemini 3.5 Flash (High)")}\nReview this code'
+        "%i:foo\n%{%m:agy/gemini-3.6-flash-high | "
+        "%m:agy/gemini-3.5-flash-high}\nReview this code"
     )
     result = split_prompt_for_models(prompt)
     assert result is not None
@@ -108,8 +108,8 @@ def test_split_prompt_for_models_quoted_provider_model_with_spaces_and_parens() 
 
     models = [extract_prompt_directives(variant)[1].model for variant in result]
     assert models == [
-        "agy/Gemini 3.1 Pro (High)",
-        "agy/Gemini 3.5 Flash (High)",
+        "agy/gemini-3.6-flash-high",
+        "agy/gemini-3.5-flash-high",
     ]
     assert all("Review this code" in variant for variant in result)
 

@@ -253,7 +253,7 @@ Source: `src/sase/llm_provider/claude.py`, `src/sase/llm_provider/_claude_hooks.
 ## Antigravity (`agy`) Integration
 
 The `AgyProvider` invokes Google's Antigravity CLI (`agy`), the replacement for the retired consumer Gemini CLI. It is a
-plain-stdout provider: Antigravity CLI 1.0.10 does not document a machine-readable JSON/stream output mode, so SASE
+plain-stdout provider: the current Antigravity CLI does not document a machine-readable JSON/stream output mode, so SASE
 streams plain stdout instead of parsing a structured event stream.
 
 ### Command Construction
@@ -297,17 +297,15 @@ budget, `invoke()` raises `LLMInvocationError` so the run fails loudly instead o
 
 ### Model Mapping
 
-`agy` model display names are used verbatim — they contain spaces and parentheses (e.g. `Gemini 3.5 Flash (High)`). The
-tier defaults are:
+`agy` stable model slugs are used verbatim, matching `agy models` output. The tier defaults are:
 
-| Tier    | Model                     | Short alias |
-| ------- | ------------------------- | ----------- |
-| `large` | `Gemini 3.5 Flash (High)` | `flash35h`  |
-| `small` | `Gemini 3.5 Flash (Low)`  | `flash35l`  |
+| Tier    | Model                   | Short alias |
+| ------- | ----------------------- | ----------- |
+| `large` | `gemini-3.6-flash-high` | `flash36h`  |
+| `small` | `gemini-3.6-flash-low`  | `flash36l`  |
 
-All other `agy models` names remain reachable through the model picker, configured aliases, and quoted paren-form
-provider/model directives such as `%m("agy/Gemini 3.5 Flash (High)")`. Use the quoted form for names with spaces or
-parentheses; colon syntax cannot express those names verbatim.
+All other `agy models` slugs remain reachable through the model picker, configured aliases, and provider/model
+directives such as `%m:agy/gemini-3.5-flash-high`.
 
 ### Environment Variables
 
@@ -326,7 +324,7 @@ global skill path. The leading `.gemini` here is an Antigravity-owned path, not 
 
 ### Structured Artifacts Parity Gap
 
-Antigravity CLI 1.0.10 exposes no stable machine-readable stdout contract: there is no documented
+The Antigravity CLI exposes no stable machine-readable stdout contract: there is no documented
 `--output-format stream-json` or JSON event mode. Because SASE will not scrape Antigravity's human TUI rendering to
 synthesize artifacts, the `agy` provider preserves these invariants:
 
@@ -776,7 +774,7 @@ Use `provider/model` to specify both explicitly:
 ```
 %model:codex/o3
 %model:claude/opus
-%model("agy/Gemini 3.5 Flash (High)")
+%model:agy/gemini-3.6-flash-high
 %model:qwen/qwen3.6-plus
 %model:opencode/anthropic/claude-sonnet-4-5
 %model:fakey/fakey-large
@@ -786,14 +784,14 @@ Use `provider/model` to specify both explicitly:
 
 Known model names are automatically mapped to their provider:
 
-| Model Name                                                                                                                                                                                                               | Provider |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
-| `opus`, `sonnet`, `haiku`, `claude-haiku-4-5`, `claude-fable-5`                                                                                                                                                          | claude   |
-| `gpt-5.6-sol`, `gpt-5.5`, `gpt-5.4`, `gpt-5.3-codex`, `gpt-5.3-codex-spark`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                                                    | codex    |
-| `Gemini 3.5 Flash (High)`, `Gemini 3.5 Flash (Medium)`, `Gemini 3.5 Flash (Low)`, `Gemini 3.1 Pro (High)`, `Gemini 3.1 Pro (Low)`, `Claude Sonnet 4.6 (Thinking)`, `Claude Opus 4.6 (Thinking)`, `GPT-OSS 120B (Medium)` | agy      |
-| `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                                                                            | qwen     |
-| `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus`                                                                | opencode |
-| `fakey-large`, `fakey-small`                                                                                                                                                                                             | fakey    |
+| Model Name                                                                                                                                                                                                                                                                  | Provider |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `opus`, `sonnet`, `haiku`, `claude-haiku-4-5`, `claude-fable-5`                                                                                                                                                                                                             | claude   |
+| `gpt-5.6-sol`, `gpt-5.5`, `gpt-5.4`, `gpt-5.3-codex`, `gpt-5.3-codex-spark`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                                                                                                       | codex    |
+| `gemini-3.6-flash-high`, `gemini-3.6-flash-medium`, `gemini-3.6-flash-low`, `gemini-3.5-flash-high`, `gemini-3.5-flash-medium`, `gemini-3.5-flash-low`, `gemini-3.1-pro-high`, `gemini-3.1-pro-low`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gpt-oss-120b-medium` | agy      |
+| `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                                                                                                                               | qwen     |
+| `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus`                                                                                                                   | opencode |
+| `fakey-large`, `fakey-small`                                                                                                                                                                                                                                                | fakey    |
 
 Each installed plugin contributes its own model names via the `llm_known_model_names()` hook.
 
@@ -815,14 +813,14 @@ filter terms in the coder model picker. They are display-only: `%model` resoluti
 select `claude-fable-5` — it falls back to the default provider (with a warning) unless you define `fable` as a
 configured model alias yourself.
 
-| Provider | Shorthands                                                                                                                                                                                                                                                                                                                     |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| claude   | `claude-haiku-4-5` → `haiku45`, `claude-fable-5` → `fable`                                                                                                                                                                                                                                                                     |
-| codex    | `codex-mini-latest` → `mini`, `gpt-5.6-sol` → `gpt56sol`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex` → `gpt53`, `gpt-5.3-codex-spark` → `gpt53spark`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                                                  |
-| agy      | `Gemini 3.5 Flash (High)` → `flash35h`, `Gemini 3.5 Flash (Medium)` → `flash35m`, `Gemini 3.5 Flash (Low)` → `flash35l`, `Gemini 3.1 Pro (High)` → `pro31h`, `Gemini 3.1 Pro (Low)` → `pro31l`, `Claude Sonnet 4.6 (Thinking)` → `sonnet46t`, `Claude Opus 4.6 (Thinking)` → `opus46t`, `GPT-OSS 120B (Medium)` → `gptoss120m` |
-| qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                                                                                                                    |
-| opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp`                                                                                                    |
-| fakey    | `fakey-large` → `fakeyl`, `fakey-small` → `fakeys`                                                                                                                                                                                                                                                                             |
+| Provider | Shorthands                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| claude   | `claude-haiku-4-5` → `haiku45`, `claude-fable-5` → `fable`                                                                                                                                                                                                                                                                                                                                                              |
+| codex    | `codex-mini-latest` → `mini`, `gpt-5.6-sol` → `gpt56sol`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex` → `gpt53`, `gpt-5.3-codex-spark` → `gpt53spark`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                                                                                                                                           |
+| agy      | `gemini-3.6-flash-high` → `flash36h`, `gemini-3.6-flash-medium` → `flash36m`, `gemini-3.6-flash-low` → `flash36l`, `gemini-3.5-flash-high` → `flash35h`, `gemini-3.5-flash-medium` → `flash35m`, `gemini-3.5-flash-low` → `flash35l`, `gemini-3.1-pro-high` → `pro31h`, `gemini-3.1-pro-low` → `pro31l`, `claude-sonnet-4-6` → `sonnet46`, `claude-opus-4-6-thinking` → `opus46t`, `gpt-oss-120b-medium` → `gptoss120m` |
+| qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                                                                                                                                                                                                             |
+| opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp`                                                                                                                                                                                             |
+| fakey    | `fakey-large` → `fakeyl`, `fakey-small` → `fakeys`                                                                                                                                                                                                                                                                                                                                                                      |
 
 Source: `llm_model_short_aliases()` in each provider module under `src/sase/llm_provider/`
 

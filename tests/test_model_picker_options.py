@@ -39,7 +39,7 @@ def test_build_model_options_has_known_models() -> None:
     assert "gpt-5.6-sol" in ids
     assert "gpt-5.5" in ids
     assert "gpt-5.3-codex-spark" in ids
-    assert "Gemini 3.5 Flash (High)" in ids
+    assert "gemini-3.6-flash-high" in ids
 
 
 def test_build_model_options_has_separators() -> None:
