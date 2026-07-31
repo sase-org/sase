@@ -241,6 +241,57 @@ def test_agent_url_links_registered_family_lane(tmp_path: Path, monkeypatch) -> 
     )
 
 
+def test_agent_url_reuses_and_refreshes_agent_name_registry_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    sidecar = tmp_path / "agents"
+    target = _agents_target(primary, sidecar, _GITHUB_AGENTS_REMOTE)
+    monkeypatch.setattr(
+        "sase.agents_sync.targets.resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(
+            lambda _cls: AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena"))
+        ),
+    )
+    family_names = {"foo"}
+    registry_reads = 0
+
+    def reserved_family_names() -> set[str]:
+        nonlocal registry_reads
+        registry_reads += 1
+        return set(family_names)
+
+    monkeypatch.setattr(
+        "sase.agent.names.get_reserved_family_names",
+        reserved_family_names,
+    )
+    resolver = HostedLinkResolver(
+        _plans_store(tmp_path / "plans"),
+        project="sase",
+        primary_root=primary,
+        git_runner=_FakeGit(branches={sidecar: "main"}),
+    )
+
+    resolver.snapshot_agent_name_registry()
+
+    assert "/families/alice.athena.foo.md" in (resolver.agent_url("foo") or "")
+    assert "/agents/alice.athena.bar/README.md" in (resolver.agent_url("bar") or "")
+    assert registry_reads == 1
+
+    family_names.add("bar")
+    resolver.snapshot_agent_name_registry()
+
+    assert "/families/alice.athena.bar.md" in (resolver.agent_url("bar") or "")
+    assert registry_reads == 2
+
+
 def test_agent_url_finds_family_lane_page_in_local_sidecar(
     tmp_path: Path,
     monkeypatch,

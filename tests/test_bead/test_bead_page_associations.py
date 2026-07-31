@@ -61,6 +61,19 @@ class _FakeLinks:
         return f"https://commits.example/{Path(repository_root).name}/{sha}"
 
 
+class _BatchLinks(_FakeLinks):
+    def __init__(self) -> None:
+        self.registry_snapshots = 0
+        self.agent_url_calls = 0
+
+    def snapshot_agent_name_registry(self) -> None:
+        self.registry_snapshots += 1
+
+    def agent_url(self, agent_name: str) -> str | None:
+        self.agent_url_calls += 1
+        return super().agent_url(agent_name)
+
+
 class _RepoGit:
     def __init__(
         self,
@@ -226,6 +239,35 @@ def test_builds_associations_with_one_store_read_and_history_walk(
     assert [row.sha for row in index.for_bead(grandchild.id).commits] == [legacy_sha]
     with pytest.raises(TypeError):
         index.by_bead[root.id] = phase_associations  # type: ignore[index]
+
+
+def test_build_snapshots_agent_name_registry_once_for_all_agent_links(
+    tmp_path: Path,
+) -> None:
+    root = Issue("sase-batch", "Batch", issue_type=IssueType.PLAN)
+    phase = Issue(
+        "sase-batch.1",
+        "Phase",
+        issue_type=IssueType.PHASE,
+        parent_id=root.id,
+    )
+    links = _BatchLinks()
+
+    build_bead_association_index(
+        _store(tmp_path / "plans", tmp_path / "missing"),
+        primary_root=tmp_path,
+        git_runner=_FakeGit(""),
+        link_resolver=links,
+        artifact_records=(
+            _record(tmp_path, f"{root.id}.land"),
+            _record(tmp_path, f"{phase.id}--review"),
+        ),
+        bead_issues=(root, phase),
+        identity=_identity(),
+    )
+
+    assert links.registry_snapshots == 1
+    assert links.agent_url_calls == 3
 
 
 def test_legacy_member_tag_uses_recorded_destination_and_lane_commit_count(

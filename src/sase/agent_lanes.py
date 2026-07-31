@@ -15,6 +15,7 @@ read in :func:`lane_ref_for_lane_name`.
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from sase.core.agent_identity_facade import (
@@ -71,15 +72,18 @@ def lane_ref_for_agent(
 def lane_ref_for_lane_name(
     name: str,
     identity: AgentIdentitySnapshot | None = None,
+    *,
+    reserved_family_names: Collection[str] | None = None,
 ) -> AgentLaneRef:
     """Return the lane described by the bare lane label *name*.
 
     This is the read-time path, for callers that recovered a lane label from a
     commit footer and have no member to work from.  ``foo`` is lexically
     ambiguous -- a family container and a solo agent are the same string -- so
-    family-ness is resolved through the local reservation registry, degrading to
-    a solo lane when the registry is unavailable or does not know the name.  A
-    member spelling is still accepted and projected to its lane.
+    family-ness is resolved through the supplied reservation snapshot or the
+    local reservation registry, degrading to a solo lane when the registry is
+    unavailable or does not know the name.  A member spelling is still accepted
+    and projected to its lane.
     """
     snapshot = identity or AgentIdentitySnapshot.current()
     local_name = normalize_owned_agent_name(name, snapshot)
@@ -89,7 +93,11 @@ def lane_ref_for_lane_name(
     return AgentLaneRef(
         local_name=local_name,
         global_name=globalize_owned_agent_name(local_name, snapshot),
-        is_family=_is_reserved_family_name(local_name),
+        is_family=(
+            local_name in reserved_family_names
+            if reserved_family_names is not None
+            else _is_reserved_family_name(local_name)
+        ),
         member_local_name=None,
     )
 

@@ -103,6 +103,17 @@ class HostedLinkResolver:
         self._identity: AgentIdentitySnapshot | None = None
         self._identity_resolved = False
         self._agents_sidecar_path: Path | None = None
+        self._reserved_family_names: frozenset[str] | None = None
+
+    def snapshot_agent_name_registry(self) -> None:
+        """Refresh family-name state once for a batch of agent-link lookups."""
+
+        try:
+            from sase.agent.names import get_reserved_family_names
+
+            self._reserved_family_names = frozenset(get_reserved_family_names())
+        except Exception:
+            self._reserved_family_names = frozenset()
 
     def plan_url(self, plan_ref: str) -> str | None:
         """Return the plans sidecar blob URL for *plan_ref*."""
@@ -146,7 +157,11 @@ class HostedLinkResolver:
                 path = link_target.path
                 anchor = link_target.anchor
             else:
-                lane_ref = lane_ref_for_lane_name(local_name, snapshot)
+                lane_ref = lane_ref_for_lane_name(
+                    local_name,
+                    snapshot,
+                    reserved_family_names=self._reserved_family_names,
+                )
                 path = lane_page_path(lane_ref, owner)
                 family_path = f"families/{lane_ref.global_name}.md"
                 if (
