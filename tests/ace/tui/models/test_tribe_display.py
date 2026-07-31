@@ -48,12 +48,13 @@ def test_default_panel_mapping_and_unknown_fallback(
     )
 
     assert display.tribe_display_for(None) == display._TribeDisplay(
-        icon="🏠", color="#87D7FF"
+        icon="🏠", color="#87D7FF", configured=True
     )
     assert display.tribe_display_for("chop") == display._TribeDisplay(
-        icon="🪓", color="#af87ff", initially_expanded=False
+        icon="🪓", color="#af87ff", initially_expanded=False, configured=True
     )
     assert display.tribe_display_for("custom") == display.DEFAULT_TRIBE_DISPLAY
+    assert display.tribe_display_for("custom").configured is False
 
 
 def test_empty_and_hostile_icons_are_sanitized(
@@ -75,6 +76,42 @@ def test_empty_and_hostile_icons_are_sanitized(
     bounded = display.tribe_display_for("long").icon
     assert bounded == "abcd"
     assert cell_len(bounded) <= display.MAX_TRIBE_ICON_CELLS
+
+
+def test_description_sanitization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_config(
+        monkeypatch,
+        {
+            "plain": {"description": "  A plain description.  "},
+            "whitespace": {"description": "line one\nline two\t\tline three"},
+            "escape": {"description": "before\x1b[31mafter"},
+            "wrong_type": {"description": 7},
+            "missing": {"icon": "X"},
+            "long": {"description": "x" * 200},
+        },
+    )
+
+    assert display.tribe_display_for("plain").description == "A plain description."
+    assert (
+        display.tribe_display_for("whitespace").description
+        == "line one line two line three"
+    )
+    assert display.tribe_display_for("escape").description == "before[31mafter"
+    assert display.tribe_display_for("wrong_type").description == ""
+    assert display.tribe_display_for("missing").description == ""
+    assert display.tribe_display_for("missing").configured is True
+
+    long_description = display.tribe_display_for("long").description
+    assert len(long_description) == display.MAX_TRIBE_DESCRIPTION_CHARS
+    assert long_description.endswith("…")
+    assert long_description == "x" * (display.MAX_TRIBE_DESCRIPTION_CHARS - 1) + "…"
+
+
+def test_tribe_config_key_maps_none_to_default() -> None:
+    assert display.tribe_config_key(None) == "default"
+    assert display.tribe_config_key("epic") == "epic"
 
 
 def test_empty_and_hostile_colors_use_fallback(

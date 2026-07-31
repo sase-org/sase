@@ -190,6 +190,10 @@ async def test_tribe_panel_display_config_png_snapshot(
         await wait_for_visual_idle(page)
         prompt = page.app.query_one("#agent-prompt-panel")
         assert "Name: ▲ @epic" in prompt.content.plain
+        assert (
+            "Epic phase-worker clans from sase bead work, one member per phase "
+            "of an approved plan." in prompt.content.plain
+        )
         _assert_title_identity_color(
             prompt.content,
             text="▲ ",

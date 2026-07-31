@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+
+import sase.ace.tui.models.tribe_display as tribe_display
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
@@ -528,3 +531,41 @@ def test_reference_tribe_counts_six_lane_statuses_and_eight_nested() -> None:
     assert snapshot.nested_count == 8
     assert snapshot.counts.running == 2
     assert snapshot.counts.done == 4
+
+
+def test_snapshot_carries_description_and_missing_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tribe_display._tribe_displays_for_token.cache_clear()
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {
+            "ace": {
+                "tribes": {
+                    "epic": {"description": "Epic phase workers."},
+                    "blank": {"icon": "X"},
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(tribe_display, "current_config_token", lambda: ("test", 1))
+    try:
+        documented = build_agent_tribe_summary_snapshot(
+            "epic", [], panel_collapsed=True, now=_NOW
+        )
+        missing = build_agent_tribe_summary_snapshot(
+            "blank", [], panel_collapsed=True, now=_NOW
+        )
+        unconfigured = build_agent_tribe_summary_snapshot(
+            "unknown", [], panel_collapsed=True, now=_NOW
+        )
+    finally:
+        tribe_display._tribe_displays_for_token.cache_clear()
+
+    assert documented.description == "Epic phase workers."
+    assert documented.description_missing is False
+    assert missing.description == ""
+    assert missing.description_missing is True
+    assert unconfigured.description == ""
+    assert unconfigured.description_missing is False

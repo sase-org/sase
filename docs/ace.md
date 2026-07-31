@@ -1048,6 +1048,11 @@ count retains its semantic status color. Panel heights are sized to their conten
 the panels fit, the first panel grows to absorb leftover vertical space while later panels stay pinned to their natural
 height; when the panels overflow, space is weighted by each panel's rendered row count.
 
+A selected tribe panel's `TRIBE` header shows the tribe's configured [`description`](configuration.md#acetribes)
+directly beneath `Name:`. A configured tribe with no description instead shows an inline
+`no description - set ace.tribes.<name>.description` hint, so the fix is visible at the point of use; unconfigured
+ad-hoc tribes (for example epic-bead tribes with no `ace.tribes` entry) show neither line.
+
 Use `J` / `K` to move across expanded panels (forward / reverse) and enter the first or last selectable row in the
 destination; collapsed panels are skipped entirely, and the keymaps do nothing when no other panel is expanded.
 Collapsed grouping banners count as rows. When the focused panel's only selectable row is already selected — or it

@@ -470,13 +470,14 @@
         },
         "tribes": {
           "type": "object",
-          "description": "Per-tribe ACE TUI identity display settings, keyed by bare tribe name",
+          "description": "Per-tribe ACE TUI identity display settings, keyed by bare tribe name. Every configured tribe must carry a description.",
           "propertyNames": {
             "pattern": "^[A-Za-z0-9_.-]+$"
           },
           "additionalProperties": {
             "type": "object",
             "additionalProperties": false,
+            "required": ["description"],
             "properties": {
               "icon": {
                 "type": "string",
@@ -494,6 +495,12 @@
                 "type": "boolean",
                 "description": "Whether the Agents-tab tribe panel starts expanded until the user explicitly folds it",
                 "default": true
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160,
+                "description": "One-line explanation of what this tribe is for, shown in the ACE Agents-tab metadata panel when the tribe panel is selected. Required for every configured tribe."
               }
             }
           },

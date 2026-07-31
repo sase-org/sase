@@ -142,6 +142,99 @@ def test_tribe_header_colors_only_the_structured_name_identity(
     )
 
 
+def test_tribe_description_line_renders_under_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {"ace": {"tribes": {"epic": {"description": "Epic phase workers."}}}},
+    )
+    monkeypatch.setattr(
+        tribe_display,
+        "current_config_token",
+        lambda: ("tribe-description-line",),
+    )
+    tribe_display._tribe_displays_for_token.cache_clear()
+
+    detail = build_tribe_detail_text(_snapshot())
+    description_start = detail.plain.index("Epic phase workers.")
+
+    assert any(
+        span.start <= description_start < span.end
+        and str(span.style) == "italic #B0B0B0"
+        for span in detail.spans
+    )
+
+
+def test_tribe_missing_description_hint_names_the_config_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {"ace": {"tribes": {"epic": {"icon": "▲"}}}},
+    )
+    monkeypatch.setattr(
+        tribe_display,
+        "current_config_token",
+        lambda: ("tribe-description-missing",),
+    )
+    tribe_display._tribe_displays_for_token.cache_clear()
+
+    detail = build_tribe_detail_text(_snapshot())
+    hint = "no description - set ace.tribes.epic.description"
+    hint_start = detail.plain.index(hint)
+
+    assert any(
+        span.start <= hint_start < span.end and str(span.style) == "italic #D7AF87"
+        for span in detail.spans
+    )
+
+
+def test_tribe_missing_description_hint_maps_none_panel_to_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {"ace": {"tribes": {"default": {"icon": "⌂"}}}},
+    )
+    monkeypatch.setattr(
+        tribe_display,
+        "current_config_token",
+        lambda: ("tribe-description-missing-default",),
+    )
+    tribe_display._tribe_displays_for_token.cache_clear()
+
+    snapshot = build_agent_tribe_summary_snapshot(
+        None, [], panel_collapsed=True, now=_NOW
+    )
+    detail = build_tribe_detail_text(snapshot)
+
+    assert "no description - set ace.tribes.default.description" in detail.plain
+
+
+def test_tribe_description_with_markup_characters_renders_literally(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {"ace": {"tribes": {"epic": {"description": "Has [bold] brackets."}}}},
+    )
+    monkeypatch.setattr(
+        tribe_display,
+        "current_config_token",
+        lambda: ("tribe-description-markup",),
+    )
+    tribe_display._tribe_displays_for_token.cache_clear()
+
+    detail = build_tribe_detail_text(_snapshot())
+
+    assert "Has [bold] brackets." in detail.plain
+
+
 def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -> None:
     snapshot = _snapshot()
     published: list[MemberJumpMap] = []
@@ -166,7 +259,10 @@ def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -
     ).plain
 
     assert pulse.startswith(
-        "TRIBE\nName: ▲ @epic\nStatus: FAILED [R1 F1]\n"
+        "TRIBE\nName: ▲ @epic\n"
+        "  Epic phase-worker clans from sase bead work, one member per phase of an "
+        "approved plan.\n"
+        "Status: FAILED [R1 F1]\n"
         "Composition: 1 family · 2 lanes · 1 nested\n"
         "Runtime: 1h\nFold: 1/4\n"
     )
@@ -516,6 +612,10 @@ def test_cheap_tribe_paint_is_header_only() -> None:
     ).plain
 
     assert "Fold: 4/4" in detail
+    assert (
+        "Epic phase-worker clans from sase bead work, one member per phase of an "
+        "approved plan." in detail
+    )
     assert "NEEDS ATTENTION" not in detail
     assert "TRIBE MEMBERS" not in detail
 

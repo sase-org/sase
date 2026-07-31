@@ -10,6 +10,7 @@ from sase.doctor.checks_config_layers import check_config_layers
 from sase.doctor.checks_config_model_aliases import check_config_model_aliases
 from sase.doctor.checks_config_skills import check_config_skills_applied
 from sase.doctor.checks_config_sdd import check_config_sdd
+from sase.doctor.checks_config_tribes import check_config_tribes
 from sase.doctor.checks_config_xprompts import (
     check_config_model_xprompts,
     check_config_xprompt_definitions,
@@ -47,6 +48,12 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=check_config_model_aliases,
         ),
         CheckSpec(
+            id="config.tribes",
+            group="config",
+            title="Tribe descriptions",
+            runner=check_config_tribes,
+        ),
+        CheckSpec(
             id="config.model_xprompts",
             group="config",
             title="Model xprompt routing",
@@ -72,6 +79,7 @@ _check_config_layers = check_config_layers
 _check_config_init = check_config_init
 _check_config_sdd = check_config_sdd
 _check_config_model_aliases = check_config_model_aliases
+_check_config_tribes = check_config_tribes
 _check_config_model_xprompts = check_config_model_xprompts
 _check_config_xprompt_definitions = check_config_xprompt_definitions
 _check_config_skills_applied = check_config_skills_applied

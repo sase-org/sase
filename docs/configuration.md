@@ -472,10 +472,12 @@ ace:
     default:
       icon: "⌂"
       color: "#87D7FF"
+      description: "Agents with no assigned tribe."
     chop:
       icon: "†"
       color: "#FFAF5F"
       initially_expanded: false
+      description: "Scheduled AXE chop automation."
   updates:
     startup_toast: true # show SASE/plugin/agent-CLI updates on startup
     startup_toast_max_commits: 20 # total incoming subjects across repositories
@@ -615,20 +617,26 @@ publication, or the `,U` cached-integration leg. See [Agent Hood Synchronization
 #### `ace.tribes`
 
 `ace.tribes` is keyed by bare tribe name (without `@`). The special `default` key configures the reserved `@default`
-panel. Each entry accepts these optional fields:
+panel. Every configured tribe entry is **required** to carry a `description`; the other fields are optional:
 
-| Field                | Type | Default | Description                                                                                                                   |
-| -------------------- | ---- | ------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `icon`               | str  | `""`    | Short glyph on structured identity surfaces that already include an icon. Set `""` to remove an icon inherited from defaults. |
-| `color`              | str  | `""`    | `#RRGGBB` foreground for structured tribe icons and names throughout the TUI. Set `""` to restore ACE's gold fallback.        |
-| `initially_expanded` | bool | `true`  | Initial state the first time the Agents-tab panel appears.                                                                    |
+| Field                | Type | Default    | Description                                                                                                                      |
+| -------------------- | ---- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `icon`               | str  | `""`       | Short glyph on structured identity surfaces that already include an icon. Set `""` to remove an icon inherited from defaults.    |
+| `color`              | str  | `""`       | `#RRGGBB` foreground for structured tribe icons and names throughout the TUI. Set `""` to restore ACE's gold fallback.           |
+| `initially_expanded` | bool | `true`     | Initial state the first time the Agents-tab panel appears.                                                                       |
+| `description`        | str  | _required_ | One-line explanation of the tribe, 1-160 characters. Shown in the Agents-tab metadata panel when that tribe's panel is selected. |
 
 The bundled defaults use ⌂ in sky blue for `default`, ▲ in lavender-purple for `epic`, ∴ in teal-green for `research`,
 and † in amber-orange for `chop`. They also use ◆ for `pinned` and ◉ for `review`, whose identities retain ACE's gold
 fallback; `chop` starts collapsed. Because config entries merge deeply, setting `color: ""` explicitly clears an
-inherited color without replacing that tribe's other defaults. Once a user explicitly expands or collapses a panel, that
-durable choice takes precedence over `initially_expanded`, including after ACE restarts. Changing the config still
-affects panels the user has not folded explicitly.
+inherited color without replacing that tribe's other defaults — overriding only `icon` or `color` on a bundled tribe
+still inherits its bundled `description`. Once a user explicitly expands or collapses a panel, that durable choice takes
+precedence over `initially_expanded`, including after ACE restarts. Changing the config still affects panels the user
+has not folded explicitly.
+
+A missing or blank `description` on any configured tribe is an error-severity config diagnostic: the ACE Config Center
+refuses to write _any_ change while it is present, not just an edit to that tribe. Run `sase doctor -C config.tribes` to
+list every tribe missing a description and the exact `ace.tribes.<name>.description` key to set.
 
 Identity colors apply only where ACE already has a structured tribe value. They do not scan free-form `@...` text or
 recolor selection markers, fold controls, counts, statuses, headings, or explanatory copy. Icons likewise appear only on

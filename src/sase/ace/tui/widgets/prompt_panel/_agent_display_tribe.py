@@ -28,6 +28,7 @@ from ...models.fold_scale import TRIBE_FOLD_SCALE
 from ...models.fold_state import FoldLevel
 from ...models.tribe_display import (
     TRIBE_IDENTITY_FALLBACK_COLOR,
+    tribe_config_key,
     tribe_identity_style,
 )
 from ._agent_tribe_aggregation import (
@@ -62,6 +63,8 @@ _TRIBE_HEADING_STYLE = f"bold {TRIBE_IDENTITY_COLOR} underline"
 _SECTION_HEADING_STYLE = f"bold {TRIBE_IDENTITY_COLOR} underline"
 _BODY_STYLE = "#D7D7FF"
 _TRIAGE_LIMIT = 8
+_DESCRIPTION_STYLE = "italic #B0B0B0"
+_DESCRIPTION_MISSING_STYLE = "italic #D7AF87"
 _STATUS_STYLES: dict[str, str] = {
     "Stopped": "bold #FFAF5F",
     "Starting": "bold #87D7FF",
@@ -163,6 +166,15 @@ def _append_header(
         f"{snapshot.label}\n",
         style=tribe_identity_style(snapshot.panel_key, bold=True),
     )
+    if snapshot.description:
+        text.append("  ")
+        text.append(f"{snapshot.description}\n", style=_DESCRIPTION_STYLE)
+    elif snapshot.description_missing:
+        text.append("  ")
+        text.append(
+            f"no description - set ace.tribes.{tribe_config_key(snapshot.panel_key)}.description\n",
+            style=_DESCRIPTION_MISSING_STYLE,
+        )
 
     text.append("Status: ", style=_FIELD_LABEL_STYLE)
     from sase.agent.status_buckets import status_bucket_for_values

@@ -17,6 +17,7 @@ from sase.config.core import current_config_token
 from .agent_panels import PanelKey
 
 MAX_TRIBE_ICON_CELLS = 4
+MAX_TRIBE_DESCRIPTION_CHARS = 160
 _TRIBE_COLOR_PATTERN = re.compile(r"#[0-9A-Fa-f]{6}")
 TRIBE_IDENTITY_FALLBACK_COLOR = "#FFD75F"
 
@@ -28,6 +29,8 @@ class _TribeDisplay:
     icon: str = ""
     color: str = ""
     initially_expanded: bool = True
+    description: str = ""
+    configured: bool = False
 
 
 DEFAULT_TRIBE_DISPLAY = _TribeDisplay()
@@ -50,6 +53,19 @@ def _sanitize_color(raw: object) -> str:
         return ""
     color = raw.strip()
     return color if _TRIBE_COLOR_PATTERN.fullmatch(color) else ""
+
+
+def _sanitize_description(raw: object) -> str:
+    """Return a terminal-safe, length-bounded tribe description."""
+    if not isinstance(raw, str):
+        return ""
+    collapsed = re.sub(r"\s+", " ", raw)
+    text = "".join(
+        char for char in collapsed if unicodedata.category(char) != "Cc"
+    ).strip()
+    if len(text) > MAX_TRIBE_DESCRIPTION_CHARS:
+        text = text[: MAX_TRIBE_DESCRIPTION_CHARS - 1].rstrip() + "…"
+    return text
 
 
 @lru_cache(maxsize=1)
@@ -81,6 +97,8 @@ def _tribe_displays_for_token(
             initially_expanded=(
                 initially_expanded if isinstance(initially_expanded, bool) else True
             ),
+            description=_sanitize_description(raw.get("description", "")),
+            configured=True,
         )
     return displays
 
@@ -89,10 +107,14 @@ def _tribe_displays() -> dict[str, _TribeDisplay]:
     return _tribe_displays_for_token(current_config_token())
 
 
+def tribe_config_key(panel_key: PanelKey) -> str:
+    """Return the ``ace.tribes`` config key for *panel_key*."""
+    return "default" if panel_key is None else panel_key
+
+
 def tribe_display_for(panel_key: PanelKey) -> _TribeDisplay:
     """Return display settings for *panel_key*, mapping no-tribe to default."""
-    config_key = "default" if panel_key is None else panel_key
-    return _tribe_displays().get(config_key, DEFAULT_TRIBE_DISPLAY)
+    return _tribe_displays().get(tribe_config_key(panel_key), DEFAULT_TRIBE_DISPLAY)
 
 
 def tribe_identity_color(panel_key: PanelKey) -> str:
@@ -107,8 +129,7 @@ def tribe_identity_colors(
     displays = _tribe_displays()
     colors: dict[PanelKey, str] = {}
     for panel_key in panel_keys:
-        config_key = "default" if panel_key is None else panel_key
-        display = displays.get(config_key, DEFAULT_TRIBE_DISPLAY)
+        display = displays.get(tribe_config_key(panel_key), DEFAULT_TRIBE_DISPLAY)
         colors[panel_key] = display.color or TRIBE_IDENTITY_FALLBACK_COLOR
     return colors
 
@@ -184,11 +205,13 @@ def effective_collapsed_panel_keys(
 
 __all__ = [
     "DEFAULT_TRIBE_DISPLAY",
+    "MAX_TRIBE_DESCRIPTION_CHARS",
     "MAX_TRIBE_ICON_CELLS",
     "TRIBE_IDENTITY_FALLBACK_COLOR",
     "compose_tribe_identity_style",
     "effective_collapsed_panel_keys",
     "named_tribe_identity_colors",
+    "tribe_config_key",
     "tribe_display_for",
     "tribe_identity_color",
     "tribe_identity_colors",

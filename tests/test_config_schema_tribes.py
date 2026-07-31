@@ -16,13 +16,18 @@ def test_config_schema_accepts_ace_tribe_display_settings() -> None:
         {
             "ace": {
                 "tribes": {
-                    "default": {"icon": "🏠", "color": "#ABCDEF"},
+                    "default": {
+                        "icon": "🏠",
+                        "color": "#ABCDEF",
+                        "description": "Home tribe.",
+                    },
                     "my.tribe-1": {
                         "icon": "X",
                         "color": "#abcdef",
                         "initially_expanded": False,
+                        "description": "A user-defined tribe.",
                     },
-                    "empty": {"color": ""},
+                    "empty": {"color": "", "description": "Empty color tribe."},
                 }
             }
         }
@@ -32,19 +37,23 @@ def test_config_schema_accepts_ace_tribe_display_settings() -> None:
 @pytest.mark.parametrize(
     "tribes",
     [
-        {"@chop": {"icon": "X"}},
-        {"chop space": {"icon": "X"}},
-        {"chop": {"unknown": True}},
-        {"chop": {"icon": 7}},
-        {"chop": {"icon": "x" * 17}},
-        {"chop": {"color": "#FFF"}},
-        {"chop": {"color": "FFFFFF"}},
-        {"chop": {"color": "gold"}},
-        {"chop": {"color": "#FFFFFF on #000000"}},
-        {"chop": {"color": 7}},
-        {"chop": {"color": None}},
-        {"chop": {"initially_expanded": "false"}},
+        {"@chop": {"icon": "X", "description": "Valid."}},
+        {"chop space": {"icon": "X", "description": "Valid."}},
+        {"chop": {"unknown": True, "description": "Valid."}},
+        {"chop": {"icon": 7, "description": "Valid."}},
+        {"chop": {"icon": "x" * 17, "description": "Valid."}},
+        {"chop": {"color": "#FFF", "description": "Valid."}},
+        {"chop": {"color": "FFFFFF", "description": "Valid."}},
+        {"chop": {"color": "gold", "description": "Valid."}},
+        {"chop": {"color": "#FFFFFF on #000000", "description": "Valid."}},
+        {"chop": {"color": 7, "description": "Valid."}},
+        {"chop": {"color": None, "description": "Valid."}},
+        {"chop": {"initially_expanded": "false", "description": "Valid."}},
         {"chop": False},
+        {"chop": {"icon": "X"}},
+        {"chop": {"icon": "X", "description": ""}},
+        {"chop": {"icon": "X", "description": 7}},
+        {"chop": {"icon": "X", "description": "x" * 161}},
     ],
 )
 def test_config_schema_rejects_invalid_ace_tribe_display_settings(

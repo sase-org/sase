@@ -99,25 +99,33 @@ ace:
   # Empty icon strings disable an inherited default icon, while empty color
   # strings restore the gold ACE fallback. Colors apply only to structured
   # tribe identities, not semantic chrome. Explicit user panel folds always
-  # take precedence over the panel-only initially_expanded setting.
+  # take precedence over the panel-only initially_expanded setting. Every
+  # configured tribe requires a description, shown in the Agents-tab
+  # metadata panel when that tribe's panel is selected.
   tribes:
     default:
       icon: "⌂"
       color: "#87D7FF"
+      description: "Agents with no assigned tribe. Presentation-only: never written to the tribe store."
     epic:
       icon: "▲"
       color: "#AF87FF"
+      description: "Epic phase-worker clans from sase bead work, one member per phase of an approved plan."
     research:
       icon: "∴"
       color: "#5FD7AF"
+      description: "Research agents that answer open questions with durable reports instead of code changes."
     chop:
       icon: "†"
       color: "#FFAF5F"
       initially_expanded: false
+      description: "Scheduled AXE chop automation; starts collapsed so routine background work stays quiet."
     pinned:
       icon: "◆"
+      description: "Agents promoted by hand to keep them close; the value the tribe modal seeds by default."
     review:
       icon: "◉"
+      description: "Mentor, CRS, and hook review runners that AXE groups here, plus reviews you tag yourself."
   tool_calls:
     slow_threshold_seconds: 20
   artifact_file_viewer:
