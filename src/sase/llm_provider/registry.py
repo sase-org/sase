@@ -565,6 +565,10 @@ def _provider_metadata(name: str, plugin: object) -> dict[str, Any]:
     short_name = _call_optional(plugin, "llm_provider_short_name") or name
     known_models = _call_optional(plugin, "llm_known_model_names") or []
     model_aliases = _call_optional(plugin, "llm_model_short_aliases") or {}
+    skill_template_context = _str_dict(
+        _call_optional(plugin, "llm_skill_template_context") or {}
+    )
+    display_name = skill_template_context.get("provider_name") or provider_name or name
     retry_config = _call_optional(plugin, "llm_default_retry_config")
     auth_evidence = _auth_evidence_metadata(_call_optional(plugin, "llm_auth_evidence"))
     install_metadata = _install_metadata(_call_optional(plugin, "llm_install_metadata"))
@@ -580,12 +584,11 @@ def _provider_metadata(name: str, plugin: object) -> dict[str, Any]:
 
     return {
         "provider_name": provider_name or name,
+        "display_name": display_name,
         "short_name": short_name,
         "known_model_names": [str(model) for model in known_models],
         "model_short_aliases": _str_dict(model_aliases),
-        "skill_template_context": _str_dict(
-            _call_optional(plugin, "llm_skill_template_context") or {}
-        ),
+        "skill_template_context": skill_template_context,
         "skill_deploy_subpath": _call_optional(plugin, "llm_skill_deploy_subpath"),
         "additional_skill_deploy_subpaths": _str_list(
             _call_optional(plugin, "llm_additional_skill_deploy_subpaths")

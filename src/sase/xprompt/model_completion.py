@@ -447,9 +447,10 @@ def _provider_order(
 
 
 def _provider_display(provider: str, metadata: dict[str, object]) -> str:
-    provider_name = metadata.get("provider_name")
-    if isinstance(provider_name, str) and provider_name:
-        return provider_name
+    for key in ("display_name", "provider_name"):
+        provider_name = metadata.get(key)
+        if isinstance(provider_name, str) and provider_name:
+            return provider_name
     return provider
 
 

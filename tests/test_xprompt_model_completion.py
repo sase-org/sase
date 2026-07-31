@@ -485,11 +485,13 @@ def _metadata_payload() -> dict[str, object]:
         "schema_version": 1,
         "providers": {
             "codex": {
-                "provider_name": "Codex",
+                "provider_name": "codex",
+                "display_name": "Codex",
                 "known_model_names": ["gpt-5.6-sol", "gpt-5.5", "o4-mini"],
             },
             "claude": {
-                "provider_name": "Claude",
+                "provider_name": "claude",
+                "display_name": "Claude",
                 "known_model_names": [
                     "claude-fable-5",
                     "opus",
@@ -497,7 +499,8 @@ def _metadata_payload() -> dict[str, object]:
                 ],
             },
             "opencode": {
-                "provider_name": "OpenCode",
+                "provider_name": "opencode",
+                "display_name": "OpenCode",
                 "known_model_names": ["anthropic/claude-sonnet-4-5"],
             },
         },

@@ -152,6 +152,34 @@ def test_provider_metadata_includes_auth_evidence() -> None:
     }
 
 
+def test_provider_metadata_includes_human_facing_display_name() -> None:
+    """Routing identity stays canonical while display metadata keeps its casing."""
+
+    class FakeProvider:
+        def llm_provider_name(self) -> str:
+            return "fake"
+
+        def llm_skill_template_context(self) -> dict[str, str]:
+            return {"provider_name": "Fake Provider"}
+
+    metadata = registry._provider_metadata("fake", FakeProvider())
+
+    assert metadata["provider_name"] == "fake"
+    assert metadata["display_name"] == "Fake Provider"
+
+
+def test_provider_metadata_display_name_falls_back_to_routing_identity() -> None:
+    """Third-party providers need not implement skill template metadata."""
+
+    class FakeProvider:
+        def llm_provider_name(self) -> str:
+            return "fake"
+
+    metadata = registry._provider_metadata("fake", FakeProvider())
+
+    assert metadata["display_name"] == "fake"
+
+
 def test_provider_metadata_includes_install_metadata() -> None:
     """Provider install metadata should be normalized into payloads."""
 
