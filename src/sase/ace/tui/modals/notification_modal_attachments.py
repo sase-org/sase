@@ -33,6 +33,7 @@ class NotificationAttachmentMixin:
 
     def _display_file(self: Any, notification: Notification | None) -> None:
         """Render file content with syntax highlighting in the right pane."""
+        self._update_sent_at(notification)
         title = self.query_one("#notification-file-title", Label)
         content_widget = self.query_one("#notification-file-content", Static)
 

@@ -75,14 +75,6 @@ def _render_plain(renderable: object) -> str:
     return console.export_text()
 
 
-@pytest.fixture(autouse=True)
-def _stable_relative_time(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.notification_modal_question.format_relative_time",
-        lambda _timestamp: "4m ago",
-    )
-
-
 def test_awaiting_question_pane_contains_identity_prompt_and_options(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -108,7 +100,7 @@ def test_awaiting_question_pane_contains_identity_prompt_and_options(
     assert title == "Agent Question"
     assert "Question from codex--fix-hook" in plain
     assert "CODEX(gpt-5.6-sol)" in plain
-    assert "ChangeSpec memory-protection · asked 4m ago · session 3f2a1234…" in plain
+    assert "ChangeSpec memory-protection · session 3f2a1234…" in plain
     assert "Awaiting your answer" in plain
     assert "press Enter to answer" in plain
     assert "Protected memory regenerated" in plain

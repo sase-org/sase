@@ -4833,6 +4833,13 @@ NotificationModal #notification-file-title {
     height: 1;
 }
 
+NotificationModal #notification-sent-at {
+    height: 1;
+    color: $text-muted;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
 NotificationModal #notification-file-scroll {
     height: 1fr;
     scrollbar-gutter: stable;

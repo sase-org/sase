@@ -141,6 +141,14 @@ def _freeze_report_ages(monkeypatch: pytest.MonkeyPatch) -> None:
         "sase.ace.tui.modals.notification_modal_options.format_relative_time",
         lambda _timestamp: "2m ago",
     )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.notification_modal_sent_at.format_absolute_time",
+        lambda _timestamp, now=None: "today 08:00:00",
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.notification_modal_sent_at.format_relative_time",
+        lambda _timestamp: "2m ago",
+    )
 
 
 def _resolved_report() -> NotificationReport:
@@ -179,6 +187,8 @@ async def test_notification_report_pane_png_snapshot(
         assert_page_svg_contains(page, "Release readiness")
         assert_page_svg_contains(page, "live · updated 2m ago")
         assert_page_svg_contains(page, "checks not green")
+        assert_page_svg_contains(page, "sent")
+        assert_page_svg_contains(page, "today 08:00:00")
         ace_png_visual.assert_page_png(
             page,
             "notification_report_pane_120x40",

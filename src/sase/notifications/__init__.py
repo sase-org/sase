@@ -8,6 +8,7 @@ from sase.notifications.catalog import (
 )
 from sase.notifications.models import (
     Notification,
+    format_absolute_time,
     format_relative_time,
     format_relative_until,
     normalize_notification_tags,
@@ -69,6 +70,7 @@ __all__ = [
     "dismiss_agent_completion_notifications_matching_agents",
     "dismiss_notifications_matching_agents",
     "expire_due_snoozes",
+    "format_absolute_time",
     "format_relative_time",
     "format_relative_until",
     "is_error",

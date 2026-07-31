@@ -99,11 +99,15 @@ async def test_notification_question_summary_png_snapshot(
     )
     patch_startup_loaders(monkeypatch, agents=[agent])
     monkeypatch.setattr(
-        "sase.ace.tui.modals.notification_modal_question.format_relative_time",
+        "sase.ace.tui.modals.notification_modal_options.format_relative_time",
         lambda _timestamp: "4m ago",
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.notification_modal_options.format_relative_time",
+        "sase.ace.tui.modals.notification_modal_sent_at.format_absolute_time",
+        lambda _timestamp, now=None: "today 08:00:00",
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.notification_modal_sent_at.format_relative_time",
         lambda _timestamp: "4m ago",
     )
 
@@ -124,6 +128,8 @@ async def test_notification_question_summary_png_snapshot(
         assert_page_svg_contains(page, "memory-protection")
         assert_page_svg_contains(page, "Awaiting your answer")
         assert_page_svg_contains(page, "Protected memory regenerated")
+        assert_page_svg_contains(page, "sent")
+        assert_page_svg_contains(page, "today 08:00:00")
         ace_png_visual.assert_page_png(
             page,
             "notification_question_summary_120x40",

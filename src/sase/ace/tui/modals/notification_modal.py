@@ -32,6 +32,7 @@ from .notification_modal_constants import DEFAULT_HINT_TEXT, HEADER_ID_PREFIX
 from .notification_modal_options import NotificationOptionMixin
 from .notification_modal_question import NotificationQuestionMixin
 from .notification_modal_report import NotificationReportMixin
+from .notification_modal_sent_at import NotificationSentAtMixin
 from .notification_modal_tags import (
     NotificationTagStrip,
     NotificationTagTab,
@@ -45,6 +46,7 @@ class NotificationModal(
     NotificationAttachmentMixin,
     NotificationOptionMixin,
     NotificationStateActionsMixin,
+    NotificationSentAtMixin,
     OptionListNavigationMixin,
     ModalScreen[Notification | None],
 ):
@@ -126,6 +128,7 @@ class NotificationModal(
                         )
                 with Vertical(id="notification-right"):
                     yield Label("No files attached", id="notification-file-title")
+                    yield Label("", id="notification-sent-at", classes="hidden")
                     with VerticalScroll(id="notification-file-scroll"):
                         yield Static(id="notification-file-content")
             yield Label(

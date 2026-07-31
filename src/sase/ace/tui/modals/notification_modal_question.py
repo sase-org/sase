@@ -22,7 +22,6 @@ from sase.notifications import (
     QuestionEntry,
     QuestionSummary,
     build_question_summary,
-    format_relative_time,
     is_question_notification,
 )
 from sase.project_display_names import humanize_cl_name
@@ -133,7 +132,6 @@ def _identity_header(
         except Exception:
             cl_name = summary.asker_cl_name
         metadata.append(f"ChangeSpec {cl_name}")
-    metadata.append(f"asked {format_relative_time(notification.timestamp)}")
     if summary.session_id:
         metadata.append(f"session {_short_session_id(summary.session_id)}")
     header.append("\n")

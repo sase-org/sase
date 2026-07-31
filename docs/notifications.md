@@ -13,8 +13,10 @@ actions all resolve that same bundle.
 
 ## Viewing Notifications
 
-Press `i` on any tab in ACE to open the notifications modal. Notifications display relative timestamps (e.g., "2m ago",
-"1h ago") and can be marked as read or dismissed.
+Press `i` on any tab in ACE to open the notifications modal. Rows in the list show relative timestamps (e.g., "2m ago",
+"1h ago") and can be marked as read or dismissed. The detail pane shows the selected notification's absolute send time
+alongside its relative age (`sent today 13:18:42 · 4m ago`), tiered as `today HH:MM:SS` / `yesterday HH:MM` /
+`Mon D HH:MM` / `Mon D 'YY HH:MM` in the configured timezone.
 
 ### Modal Keybindings
 

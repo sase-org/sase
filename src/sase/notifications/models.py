@@ -79,6 +79,49 @@ def format_relative_time(iso_timestamp: str) -> str:
     return f"{days}d ago"
 
 
+def format_absolute_time(iso_timestamp: str, now: datetime | None = None) -> str:
+    """Format an ISO-8601 timestamp as an absolute wall-clock string.
+
+    Rendered in the configured timezone, in four tiers:
+
+    - same calendar day: ``"today 13:18:42"``
+    - previous calendar day: ``"yesterday 21:04"``
+    - same year: ``"Jul 12 09:31"``
+    - other year: ``"Jul 12 '25 09:31"``
+
+    Unparsable input is returned unchanged, matching
+    :func:`format_relative_time`.
+    """
+    from sase.core.time import get_timezone
+
+    try:
+        ts = datetime.fromisoformat(iso_timestamp)
+    except ValueError:
+        return iso_timestamp
+
+    tz = get_timezone()
+
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=tz)
+    local = ts.astimezone(tz)
+
+    if now is None:
+        reference = datetime.now(tz)
+    elif now.tzinfo is None:
+        reference = now.replace(tzinfo=tz)
+    else:
+        reference = now.astimezone(tz)
+
+    days = (reference.date() - local.date()).days
+    if days == 0:
+        return local.strftime("today %H:%M:%S")
+    if days == 1:
+        return local.strftime("yesterday %H:%M")
+    if local.year == reference.year:
+        return local.strftime("%b %-d %H:%M")
+    return local.strftime("%b %-d '%y %H:%M")
+
+
 def format_relative_until(iso_timestamp: str) -> str:
     """Format an ISO-8601 future timestamp as a remaining-time string.
 
