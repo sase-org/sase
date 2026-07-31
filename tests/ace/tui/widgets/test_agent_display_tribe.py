@@ -295,7 +295,8 @@ def test_tribe_description_renders_in_cheap_mode() -> None:
 
     assert "Description: " not in detail
     assert (
-        "Epic phase-worker clans from sase bead work, one member per an approved plan."
+        "Epic phase-worker clans from sase bead work, one member per phase of an "
+        "approved plan."
     ) in " ".join(detail.split())
 
 
@@ -348,8 +349,9 @@ def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -
         "Composition: 1 family · 2 lanes · 1 nested\n"
         "Runtime: 1h\nFold: 1/4\n"
         "\n"
-        "Epic phase-worker clans from sase bead work, one member per an "
-        "approved plan.\n"
+        "Epic phase-worker clans from sase bead work, one member per phase of an "
+        "approved\n"
+        "plan.\n"
     )
     assert "▸ NEEDS ATTENTION · 1\n• failed · FAILED · Build failed" in pulse
     assert "▸ ❖ TRIBE MEMBERS · 2\n" in pulse
