@@ -103,8 +103,8 @@ reference notes that agents read only when relevant.
   lifecycle agents must never hand-edit, task-bead triage, phase-bead description prefixes, and non-cascading close,
   resolution, and note semantics.
 - Parent: `AGENTS.md`
-- Lines: 94
-- Approx. tokens: 1269
+- Lines: 98
+- Approx. tokens: 1333
 
 ### `sase/memory/symvision.md`
 
@@ -137,8 +137,8 @@ reference notes that agents read only when relevant.
 - Total notes: 11
 - Short notes: 5
 - Long notes: 6
-- Total lines: 629
-- Total approx. tokens: 9514
+- Total lines: 633
+- Total approx. tokens: 9578
 
 ## Commands
 
