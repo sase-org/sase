@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.agent.identity import agent_name_from_meta, discover_agent_identity
+from sase.agent.identity import discover_agent_identity
 from sase.bead.model import IssueType
 from sase.core.agent_identity_facade import (
     globalize_owned_agent_name,
@@ -18,10 +18,10 @@ from sase.core.agent_identity_facade import (
 )
 from sase.sdd.frontmatter import parse_frontmatter
 
-# ``SASE_AGENT`` is a boolean launcher flag (``SASE_AGENT=1``), not a name, even
-# though ``discover_agent_identity`` still reports it as a name source. Trusting
-# it would attribute beads to an agent literally named ``1``.
-_UNTRUSTED_IDENTITY_SOURCES = frozenset({"SASE_AGENT"})
+# ``discover_agent_identity`` already ignores the bare ``SASE_AGENT`` launcher
+# flag (``SASE_AGENT=1``) and falls through to ``agent_meta.json`` on its own
+# (bead ``sase-bp``, commit ``14d66229a``), so this resolver does not need to
+# re-filter identity sources.
 
 
 def acting_agent_name() -> str | None:
@@ -35,17 +35,8 @@ def acting_agent_name() -> str | None:
         identity = discover_agent_identity()
         if identity is None:
             return None
-        name = identity.name
-        if identity.source in _UNTRUSTED_IDENTITY_SOURCES:
-            # ``discover_agent_identity`` stops at ``SASE_AGENT`` and never
-            # reaches the metadata it would have consulted next, so consult it
-            # here rather than losing an otherwise resolvable identity.
-            meta_name = agent_name_from_meta(identity.artifacts_dir)
-            if meta_name is None:
-                return None
-            name = meta_name
-        validate_new_agent_name(name)
-        return globalize_owned_agent_name(name)
+        validate_new_agent_name(identity.name)
+        return globalize_owned_agent_name(identity.name)
     except Exception:
         return None
 
