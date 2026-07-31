@@ -167,6 +167,7 @@ async def test_plans_filter_bar_live_filters_tree_commits_and_survives_refresh(
         assert "exact" in status.content.plain
         list_status = pane.query_one("#plans-status", Static).content.plain
         assert "0/1 proposals" in list_status
+        assert "0/2 tasks" in list_status
         assert "0/1 epics" in list_status
         assert "1/2 phases" in list_status
         assert "0/1 archived" in list_status
@@ -235,7 +236,7 @@ async def test_plans_filter_escape_restores_expansion_and_selection(
         await page.press("2")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
-        await page.press("j", "l", "j")
+        await page.press("j", "j", "j", "l", "j")
         assert pane.selected_row() is not None
         assert pane.selected_row().row_id == "phase:alpha-1.1"  # type: ignore[union-attr]
         expanded = set(pane._expanded_epics)
@@ -341,9 +342,10 @@ async def test_plans_negative_filters_preserve_tree_counts_and_submit(
                 and not any(value.startswith("archive:") for value in option_ids())
             )
         )
-        assert "3 matches" in bar.query_one("#plan-filter-status", Static).content.plain
+        assert "5 matches" in bar.query_one("#plan-filter-status", Static).content.plain
         list_status = pane.query_one("#plans-status", Static).content.plain
         assert "1/1 proposals" in list_status
+        assert "2/2 tasks" in list_status
         assert "1/1 epics" in list_status
         assert "1/2 phases" in list_status
         assert "0/1 archived" in list_status

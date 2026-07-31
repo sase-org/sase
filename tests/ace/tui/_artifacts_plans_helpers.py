@@ -145,6 +145,26 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
         created_at="2026-07-02T09:00:00Z",
         updated_at="2026-07-05T11:00:00Z",
     )
+    open_task = Issue(
+        id="alpha-task",
+        title="Polish task bead surfaces",
+        status=Status.OPEN,
+        issue_type=IssueType.TASK,
+        description="Make task beads first-class in the Plans pane.",
+        size=PhaseSize.MEDIUM,
+        created_at="2026-07-03T09:00:00Z",
+        updated_at="2026-07-05T12:00:00Z",
+    )
+    ready_task = Issue(
+        id="alpha-ready",
+        title="Verify ready task language",
+        status=Status.READY,
+        issue_type=IssueType.TASK,
+        description="Keep ready-state presentation shared.",
+        size=PhaseSize.SMALL,
+        created_at="2026-07-04T09:00:00Z",
+        updated_at="2026-07-05T13:00:00Z",
+    )
     archive = PlanSearchMatch(
         plan=Plan(
             source="repo",
@@ -178,6 +198,10 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
         plans_roots={"alpha": {"plans": str(tmp_path)}},
         workspace_dirs={"alpha": str(tmp_path / "workspace")},
         proposals=(proposal,),
+        tasks=(
+            ProjectIssue("alpha", ready_task),
+            ProjectIssue("alpha", open_task),
+        ),
         epics=(ProjectIssue("alpha", epic),),
         phases_by_epic={
             ("alpha", epic.id): (
@@ -203,6 +227,7 @@ def _all_projects_snapshot(tmp_path: Path) -> PlansSnapshot:
         for entry in snapshot.phases_by_epic[("alpha", epic.id)]
     )
     archive = ProjectArchive("beta", snapshot.archive[0].match)
+    tasks = tuple(ProjectIssue("beta", entry.issue) for entry in snapshot.tasks)
     return replace(
         snapshot,
         project=None,
@@ -221,6 +246,7 @@ def _all_projects_snapshot(tmp_path: Path) -> PlansSnapshot:
             "beta": str(tmp_path / "beta-workspace"),
         },
         proposals=(proposal,),
+        tasks=tasks,
         epics=(ProjectIssue("beta", epic),),
         phases_by_epic={("beta", epic.id): phases},
         ready_ids=frozenset(

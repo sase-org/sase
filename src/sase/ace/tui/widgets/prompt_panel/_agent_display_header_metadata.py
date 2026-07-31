@@ -105,9 +105,9 @@ def _append_identity_fields(
             else _AGENT_NAME_ANNOTATION_STYLE
         )
         text.append(f"{presented_name}\n", style=name_style)
-        # Phase identity belongs exclusively to the deferred BEAD context lane.
+        # Structured bead identity belongs exclusively to the deferred BEAD lane.
         is_known_phase = bool(agent.phase_bead_id or agent.agent_family_role == "phase")
-        if summary is not None and summary.phase_bead is not None:
+        if summary is not None and summary.bead_summary is not None:
             bead_display = None
         elif is_known_phase:
             bead_display = None

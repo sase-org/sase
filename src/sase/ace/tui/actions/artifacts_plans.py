@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.bead.model import Issue, Status
+from sase.bead.model import Issue, IssueType, Status
 from sase.bead.project import BeadProject
 
 from ..widgets.artifacts.plans_pane import ArtifactsPlansPane, PlanRow
@@ -112,12 +112,7 @@ class ArtifactsPlansActionsMixin:
         if pane is None or row is None or row.issue is None:
             return
         issue = row.issue
-        next_status = {
-            Status.OPEN: Status.IN_PROGRESS,
-            Status.CLAIMED: Status.IN_PROGRESS,
-            Status.IN_PROGRESS: Status.CLOSED,
-            Status.CLOSED: Status.OPEN,
-        }[issue.status]
+        next_status = _next_plans_bead_status(issue)
         self._submit_plans_bead_update(
             pane,
             row.project,
@@ -155,7 +150,12 @@ class ArtifactsPlansActionsMixin:
             )
 
         self.push_screen(  # type: ignore[attr-defined]
-            BeadEditModal(issue.id, issue.title, issue.description),
+            BeadEditModal(
+                issue.id,
+                issue.title,
+                issue.description,
+                issue_type=issue.issue_type,
+            ),
             on_dismiss,
         )
 
@@ -256,7 +256,10 @@ class ArtifactsPlansActionsMixin:
         pane = self._plans_pane()
         row = None if pane is None else pane.selected_row()
         if row is None or row.issue is None:
-            self.notify("Select an epic or phase bead first", severity="warning")  # type: ignore[attr-defined]
+            self.notify(  # type: ignore[attr-defined]
+                "Select an epic, phase, or task bead first",
+                severity="warning",
+            )
             return pane, None
         return pane, row
 
@@ -440,10 +443,32 @@ def _epic_for_row(
     )
 
 
+def _next_plans_bead_status(issue: Issue) -> Status:
+    """Return the type-aware status cycle used by the Plans pane."""
+    if issue.issue_type is IssueType.TASK:
+        return {
+            Status.OPEN: Status.READY,
+            Status.CLAIMED: Status.READY,
+            Status.READY: Status.IN_PROGRESS,
+            Status.IN_PROGRESS: Status.CLOSED,
+            Status.CLOSED: Status.OPEN,
+        }[issue.status]
+    return {
+        Status.OPEN: Status.IN_PROGRESS,
+        Status.CLAIMED: Status.IN_PROGRESS,
+        Status.IN_PROGRESS: Status.CLOSED,
+        Status.CLOSED: Status.OPEN,
+        # Existing non-task data cannot validly persist READY, but keeping the
+        # action total prevents a stale row from raising on a keypress.
+        Status.READY: Status.IN_PROGRESS,
+    }[issue.status]
+
+
 __all__ = [
     "ArtifactsPlansActionsMixin",
     "PLANS_ARTIFACT_ACTIONS",
     "_launch_scoped_epic",
     "_resolve_issue_url",
+    "_next_plans_bead_status",
     "_update_scoped_bead",
 ]

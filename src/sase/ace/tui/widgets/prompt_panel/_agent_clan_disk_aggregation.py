@@ -61,21 +61,19 @@ def aggregate_clan_context_lanes(
         if summary is None:
             continue
         member_label = member.member_label
-        if summary.phase_bead is not None:
-            phase = summary.phase_bead
-            label = phase.id
-            preview = first_meaningful_line(
-                phase.phase_title or phase.description or ""
-            )
+        if summary.bead_summary is not None:
+            bead = summary.bead_summary
+            label = bead.id
+            preview = first_meaningful_line(bead.title or bead.description or "")
             if preview:
                 label += f" · {preview}"
             _add_context(
                 accumulators,
                 "BEAD",
-                phase.id,
+                bead.id,
                 label,
                 member_label,
-                phase,
+                bead,
             )
         if summary.associated_plan is not None:
             plan = summary.associated_plan

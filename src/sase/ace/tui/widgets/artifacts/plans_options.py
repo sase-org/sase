@@ -171,7 +171,7 @@ class PlansOptionsMixin(_MixinBase):
                         for item in archive_entries
                     )
                     matched_counts = dict.fromkeys(
-                        ("proposal", "epic", "phase", "archive"), 0
+                        ("proposal", "task", "epic", "phase", "archive"), 0
                     )
                     for record in non_archive_records:
                         matched_counts[record.kind] += 1
@@ -184,7 +184,7 @@ class PlansOptionsMixin(_MixinBase):
                     record.option_id for record in matching_records
                 )
                 matched_counts = dict.fromkeys(
-                    ("proposal", "epic", "phase", "archive"), 0
+                    ("proposal", "task", "epic", "phase", "archive"), 0
                 )
                 for record in matching_records:
                     matched_counts[record.kind] += 1

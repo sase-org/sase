@@ -9,6 +9,7 @@ from rich.text import Text
 from sase.artifact_refs import parse_artifact_ref
 from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
 from sase.bead_status_presentation import bead_status_presentation
+from sase.bead_type_presentation import bead_type_chip
 from sase.phase_size_presentation import (
     PHASE_SIZE_STYLES,
     PHASE_SIZE_VALUES,
@@ -69,9 +70,9 @@ def bead_properties_header(
     properties: list[DetailProperty] = [
         ("Status", _status_chip(issue.status)),
         ("Readiness", _readiness_chip(issue, snapshot, project=project)),
-        ("Type", issue.issue_type.value),
+        ("Type", bead_type_chip(issue.issue_type)),
     ]
-    if issue.issue_type is IssueType.PHASE:
+    if issue.issue_type in (IssueType.PHASE, IssueType.TASK):
         properties.append(("Size", phase_size_chip(issue.size or PhaseSize.SMALL)))
     if issue.tier is not None:
         properties.append(("Tier", issue.tier.value))
@@ -299,7 +300,7 @@ def bead_preview_markdown(
         f"**Readiness:** {_readiness_label(issue, snapshot, project=project)}  ",
         f"**Type:** {issue.issue_type.value}  ",
     ]
-    if issue.issue_type is IssueType.PHASE:
+    if issue.issue_type in (IssueType.PHASE, IssueType.TASK):
         size = normalize_phase_size(issue.size or PhaseSize.SMALL)
         lines.append(f"**Size:** {size or 'unavailable'}  ")
     elif (
@@ -463,6 +464,9 @@ def _dependency_state(
     for epic in snapshot.epics:
         if epic.project == project and epic.issue.id == issue_id:
             return epic.issue.status.value
+    for task in snapshot.tasks:
+        if task.project == project and task.issue.id == issue_id:
+            return task.issue.status.value
     return "unknown"
 
 
@@ -492,7 +496,12 @@ def _readiness_chip(
     project: str,
 ) -> Text:
     label = _readiness_label(issue, snapshot, project=project)
-    if issue.status in (Status.CLOSED, Status.CLAIMED, Status.IN_PROGRESS):
+    if issue.status in (
+        Status.CLOSED,
+        Status.CLAIMED,
+        Status.READY,
+        Status.IN_PROGRESS,
+    ):
         presentation = bead_status_presentation(issue.status)
         return _chip(
             label,
@@ -518,6 +527,8 @@ def _readiness_label(
         return "closed"
     if issue.status == Status.CLAIMED:
         return "claimed"
+    if issue.status == Status.READY:
+        return "ready"
     if issue.status == Status.IN_PROGRESS:
         return "in progress"
     if snapshot is None:

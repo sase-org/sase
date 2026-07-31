@@ -40,7 +40,7 @@ BEAD_TYPE_PRESENTATIONS: dict[BeadTypeValue, _BeadTypePresentation] = {
         label="Phase",
     ),
     "task": _BeadTypePresentation(
-        glyph="✦",
+        glyph="◆",
         accent_color="#D787FF",
         chip_style="bold black on #D787FF",
         label="Task",

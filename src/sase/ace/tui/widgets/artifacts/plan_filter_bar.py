@@ -38,7 +38,7 @@ class PlanFilterBar(FilterBar):
     CANDIDATE_ID_PREFIX = "plan-filter-candidate"
     _BEAD_STATUS_COMPLETIONS = bead_status_display_order()
     KEY_COMPLETIONS = (
-        ("kind", "proposal, epic, phase, archive"),
+        ("kind", "proposal, task, epic, phase, archive"),
         ("status", "open, claimed, in_progress, closed, ready, blocked"),
         ("tier", "tale, epic, plan"),
         ("project", "project key or display name"),
@@ -46,11 +46,10 @@ class PlanFilterBar(FilterBar):
         ("until", "Nh/Nd/Nw, today, YYYY-MM-DD"),
     )
     STATIC_VALUE_COMPLETIONS = {
-        "kind": ("proposal", "epic", "phase", "archive"),
+        "kind": ("proposal", "task", "epic", "phase", "archive"),
         "status": (
             "proposed",
             *_BEAD_STATUS_COMPLETIONS,
-            "ready",
             "blocked",
             "launched",
         ),

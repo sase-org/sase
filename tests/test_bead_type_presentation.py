@@ -49,7 +49,7 @@ def test_bead_type_normalization_accepts_only_exact_known_values(
     [
         (IssueType.PLAN, "▸", "#FFD700", "bold black on #FFD700", "Plan"),
         (IssueType.PHASE, "↳", "#87D7FF", "bold black on #87D7FF", "Phase"),
-        (IssueType.TASK, "✦", "#D787FF", "bold black on #D787FF", "Task"),
+        (IssueType.TASK, "◆", "#D787FF", "bold black on #D787FF", "Task"),
     ],
 )
 def test_bead_type_presentations_are_shared_across_rich_surfaces(

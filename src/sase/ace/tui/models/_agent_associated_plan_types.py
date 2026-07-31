@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from sase.bead_type_presentation import BeadTypeValue
 from sase.phase_size_presentation import PhaseSizeValue
 from sase.sdd.plan_display import (
     AuthoredPlanTier as AuthoredPlanTier,
@@ -16,7 +17,7 @@ from sase.sdd.plan_display import (
     PlanPhaseAvailability as AssociatedPlanPhaseAvailability,
 )
 
-AgentPlanRole = Literal["ordinary", "author", "phase", "land"]
+AgentPlanRole = Literal["ordinary", "author", "phase", "task", "land"]
 _InitialAgentPlanRole = Literal[
     "ordinary",
     "author",
@@ -29,8 +30,8 @@ PlanFileSignature = tuple[int, int]
 
 
 @dataclass(frozen=True, slots=True)
-class PhaseBeadSummary:
-    """Immutable selected-phase metadata consumed by the BEAD lane."""
+class BeadSummary:
+    """Immutable type-aware bead metadata consumed by the BEAD lane."""
 
     id: str
     phase_title: str | None
@@ -41,6 +42,16 @@ class PhaseBeadSummary:
     plan_readable: bool
     epic_title: str | None
     size: PhaseSizeValue | None
+    bead_type: BeadTypeValue = "phase"
+
+    @property
+    def title(self) -> str | None:
+        """Return the type-neutral title for the selected bead."""
+        return self.phase_title
+
+
+# Compatibility name retained for existing integrations and phase-focused tests.
+PhaseBeadSummary = BeadSummary
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +65,7 @@ class AgentPlanEnrichment:
     """
 
     role: AgentPlanRole
-    phase_bead: PhaseBeadSummary | None
+    phase_bead: BeadSummary | None
     associated_plan: AssociatedPlanSummary | None
     resolved_plan_paths: tuple[str, ...]
 
@@ -62,6 +73,11 @@ class AgentPlanEnrichment:
     def resolved_plan_path(self) -> str | None:
         """Compatibility alias for callers that only handled one plan path."""
         return self.resolved_plan_paths[0] if self.resolved_plan_paths else None
+
+    @property
+    def bead_summary(self) -> BeadSummary | None:
+        """Return the generalized bead summary."""
+        return self.phase_bead
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,7 +91,8 @@ class PlanFileCacheEntry:
 class ResolvedPlanAssociation:
     path: Path | None
     known_epic: bool = False
-    role: Literal["phase", "land"] | None = None
+    role: Literal["phase", "task", "land"] | None = None
     plan_reference: str | None = None
     epic_bead_id: str | None = None
     phase_bead_id: str | None = None
+    bead_summary: BeadSummary | None = None

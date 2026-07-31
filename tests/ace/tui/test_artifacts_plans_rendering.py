@@ -15,7 +15,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import plans_detail, plans_pane
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.ace.tui.widgets.artifacts.plans_data import ProjectIssue
-from sase.bead.model import PhaseSize, Status
+from sase.bead.model import IssueType, PhaseSize, Status
 from sase.bead_status_presentation import bead_status_presentation
 from sase.phase_size_presentation import PHASE_SIZE_STYLES
 from tests.ace.tui._artifacts_plans_helpers import (
@@ -57,6 +57,7 @@ def test_plan_list_rows_are_compact_single_line_labels(
 
     labels = (
         plans_pane._proposal_text(proposal),
+        plans_pane._task_text(snapshot.tasks[0].issue),
         plans_pane._epic_text(
             epic,
             phases,
@@ -82,14 +83,15 @@ def test_plan_list_rows_are_compact_single_line_labels(
         assert "\n" not in label.plain
 
     assert labels[0].plain.endswith("epic  2m")
-    assert "phases" not in labels[1].plain
-    assert "alpha-cl" not in labels[1].plain
-    assert "#42" not in labels[1].plain
-    assert labels[1].plain.startswith("▸ ○ alpha-1 0/2 ► ")
-    assert labels[1].plain.endswith("  2mo")
-    assert "codex/gpt-5" not in labels[2].plain
-    assert labels[2].plain.startswith("↳ ○ alpha-1.1 ►  small  ")
-    assert labels[3].plain.endswith("epic  done  07-04")
+    assert labels[1].plain.startswith("◆ ◇ alpha-ready ")
+    assert "phases" not in labels[2].plain
+    assert "alpha-cl" not in labels[2].plain
+    assert "#42" not in labels[2].plain
+    assert labels[2].plain.startswith("▸ ○ alpha-1 0/2 ► ")
+    assert labels[2].plain.endswith("  2mo")
+    assert "codex/gpt-5" not in labels[3].plain
+    assert labels[3].plain.startswith("↳ ○ alpha-1.1 ►  small  ")
+    assert labels[4].plain.endswith("epic  done  07-04")
 
 
 def test_plan_list_rows_use_fixed_width_state_glyphs(tmp_path: Path) -> None:
@@ -231,6 +233,27 @@ def test_epics_section_header_explains_state_glyphs(tmp_path: Path) -> None:
     assert header.prompt.plain == ("── Epics (1) · ⊜ blocked ► ready ▶ launched ──")
 
 
+def test_tasks_section_precedes_epics_and_uses_shared_ready_legend(
+    tmp_path: Path,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    options, rows = plans_pane.build_plan_options(
+        snapshot,
+        project_scope="alpha",
+        loading=False,
+        expanded_epics=set(),
+    )
+    option_ids = [option.id for option in options]
+    tasks_index = option_ids.index("header:tasks")
+    epics_index = option_ids.index("header:epics")
+    task_header = options[tasks_index]
+
+    assert tasks_index < epics_index
+    assert task_header.prompt.plain == "── Tasks (2) · ◇ ready ──"
+    assert tuple(rows)[:2] == ("proposal:proposal-1", "task:alpha-ready")
+    assert rows["task:alpha-ready"].kind == "task"
+
+
 def test_project_badges_render_only_for_all_projects_scope(tmp_path: Path) -> None:
     single = _snapshot(tmp_path)
     all_projects = _all_projects_snapshot(tmp_path)
@@ -244,6 +267,10 @@ def test_project_badges_render_only_for_all_projects_scope(tmp_path: Path) -> No
     all_labels = (
         plans_pane._proposal_text(
             proposal,
+            project_badge=plans_pane._project_badge(all_projects, "beta"),
+        ),
+        plans_pane._task_text(
+            all_projects.tasks[0].issue,
             project_badge=plans_pane._project_badge(all_projects, "beta"),
         ),
         plans_pane._epic_text(
@@ -263,6 +290,10 @@ def test_project_badges_render_only_for_all_projects_scope(tmp_path: Path) -> No
     single_labels = (
         plans_pane._proposal_text(
             single.proposals[0],
+            project_badge=plans_pane._project_badge(single, "alpha"),
+        ),
+        plans_pane._task_text(
+            single.tasks[0].issue,
             project_badge=plans_pane._project_badge(single, "alpha"),
         ),
         plans_pane._epic_text(
@@ -285,6 +316,32 @@ def test_project_badges_render_only_for_all_projects_scope(tmp_path: Path) -> No
 
     assert all(label.plain.endswith("[Beta]") for label in all_labels)
     assert all("[Alpha]" not in label.plain for label in single_labels)
+
+
+def test_task_detail_uses_shared_type_and_size_chips(tmp_path: Path) -> None:
+    snapshot = _snapshot(tmp_path)
+    task = snapshot.tasks[0].issue
+
+    detail = _render_detail(
+        plans_detail.bead_properties_header(
+            task,
+            snapshot,
+            project="alpha",
+            project_name="Alpha",
+        )
+    )
+    preview = plans_detail.bead_preview_markdown(
+        task,
+        snapshot,
+        project="alpha",
+    )
+
+    assert task.issue_type is IssueType.TASK
+    assert "◆ task" in detail
+    assert "Size" in detail
+    assert "small" in detail
+    assert "**Type:** task" in preview
+    assert "**Size:** small" in preview
 
 
 def test_all_projects_status_names_projects_with_load_errors(tmp_path: Path) -> None:

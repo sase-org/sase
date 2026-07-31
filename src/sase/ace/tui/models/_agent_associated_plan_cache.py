@@ -156,7 +156,7 @@ class PlanAssociationCache:
     ) -> None:
         ttl = (
             _NEGATIVE_TTL_SECONDS
-            if association.path is None
+            if association.path is None and association.bead_summary is None
             else _ASSOCIATION_TTL_SECONDS
         )
         with self._lock:

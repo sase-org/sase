@@ -398,7 +398,7 @@ async def test_bead_details_append_current_plan_after_description_and_notes(
         assert pane.selected_row().kind == "proposal"  # type: ignore[union-attr]
         assert "## Plan" not in detail.source
 
-        await page.press("j")
+        await page.press("j", "j", "j")
         pane._update_detail()
         epic_source = detail.source
         assert epic_source.index("## Description") < epic_source.index("## Notes")

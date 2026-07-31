@@ -108,6 +108,7 @@ def load_plans_snapshot(
 
     from sase.bead.model import BeadTier, IssueType
 
+    tasks: list[ProjectIssue] = []
     epics: list[ProjectIssue] = []
     phases_by_epic: dict[tuple[str, str], tuple[ProjectIssue, ...]] = {}
     ready_ids: set[tuple[str, str]] = set()
@@ -133,6 +134,12 @@ def load_plans_snapshot(
             except Exception as exc:
                 _add_project_error(errors, project_name, f"Unable to read beads: {exc}")
             else:
+                project_tasks = tuple(
+                    issue for issue in issues if issue.issue_type == IssueType.TASK
+                )
+                tasks.extend(
+                    ProjectIssue(project_name, issue) for issue in project_tasks
+                )
                 project_epics = tuple(
                     issue
                     for issue in issues
@@ -205,13 +212,15 @@ def load_plans_snapshot(
         )
         archive.extend(ordered_project_archive[:_ARCHIVE_PER_PROJECT_LIMIT])
 
-    epics.sort(
-        key=lambda item: (
+    def issue_order(item: ProjectIssue) -> tuple[object, ...]:
+        return (
             _timestamp_recency_key(item.issue.created_at),
             _hierarchical_id_key(item.issue.id),
             item.project,
         )
-    )
+
+    tasks.sort(key=issue_order)
+    epics.sort(key=issue_order)
     archive.sort(key=_archive_recency_key, reverse=True)
     merged_archive_truncated = len(archive) > _ARCHIVE_MERGED_LIMIT
     archive_truncated = archive_truncated or merged_archive_truncated
@@ -237,6 +246,7 @@ def load_plans_snapshot(
         },
         workspace_dirs={item.project: item.workspace_dir for item in resolved},
         proposals=proposals,
+        tasks=tuple(tasks),
         epics=tuple(epics),
         phases_by_epic=phases_by_epic,
         ready_ids=frozenset(ready_ids),

@@ -180,6 +180,38 @@ def test_bead_catalog_caches_sorts_and_caps_rows(tmp_path) -> None:
     list_rows.assert_called_once_with(root.resolve())
 
 
+def test_bead_catalog_classifies_tasks_for_completion_detail(tmp_path) -> None:
+    root = tmp_path / "task-beads"
+    root.mkdir()
+    (root / "issues.jsonl").write_text("{}\n", encoding="utf-8")
+    _BEAD_CACHE.pop(root.resolve(), None)
+    task = Issue(
+        id="sase-task.4",
+        title="Complete task identity",
+        status=Status.READY,
+        issue_type=IssueType.TASK,
+        updated_at="2026-07-30T12:00:00Z",
+    )
+    context = ArtifactRefContext(
+        document_roots=(),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifacts.jsonl",
+        repositories=(),
+        projects=(),
+        bead_stores=(ArtifactRefBeadStore("sase", "sase", root),),
+    )
+
+    with patch(
+        "sase.core.bead_read_facade.list_issues",
+        return_value=[task],
+    ):
+        rows = load_bead_candidate_catalog(context).rows
+
+    assert len(rows) == 1
+    assert rows[0].payload == task.id
+    assert rows[0].detail == "ready · task"
+
+
 def test_agent_catalog_inserts_global_name_and_labels_current_owner(
     monkeypatch,
     tmp_path,

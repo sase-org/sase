@@ -13,7 +13,7 @@ from sase.ace.tui.models.agent_associated_plan import (
     resolve_agent_plan_enrichment,
 )
 from sase.agent.bead_display import BeadIssueLookupSession
-from sase.bead.model import BeadTier, Issue, IssueType
+from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize
 from tests.ace.tui.models._agent_associated_plan_helpers import write_epic, write_plan
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
@@ -557,3 +557,46 @@ def test_explicit_phase_role_without_bead_identity_stays_phase_local(
     assert enrichment.phase_bead is None
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_path == str(plan.resolve())
+
+
+@pytest.mark.parametrize("task_id", ("sase-task", "sase-task.4"))
+def test_task_worker_resolves_to_plan_free_task_bead_lane(
+    task_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = Issue(
+        id=task_id,
+        title="Implement task surfaces",
+        issue_type=IssueType.TASK,
+        description="Render task metadata without reading a plan file.",
+        size=PhaseSize.MEDIUM,
+    )
+    monkeypatch.setattr(
+        plan_model,
+        "_lookup_issue",
+        lambda _agent, bead_id, **_kwargs: task if bead_id == task.id else None,
+    )
+    monkeypatch.setattr(
+        plan_model,
+        "_load_plan_metadata",
+        lambda *_args, **_kwargs: pytest.fail("task agents must not read plans"),
+    )
+
+    enrichment = resolve_agent_plan_enrichment(
+        make_agent(
+            agent_name=task_id,
+            step_type="bash",
+            sdd_plan_path="plans/task-must-not-resolve.md",
+        )
+    )
+
+    assert enrichment.role == "task"
+    assert enrichment.associated_plan is None
+    assert enrichment.resolved_plan_paths == ()
+    assert enrichment.bead_summary is not None
+    assert enrichment.bead_summary.id == task_id
+    assert enrichment.bead_summary.bead_type == "task"
+    assert enrichment.bead_summary.title == task.title
+    assert enrichment.bead_summary.description == task.description
+    assert enrichment.bead_summary.size == "medium"
+    assert enrichment.bead_summary.display_plan_path is None

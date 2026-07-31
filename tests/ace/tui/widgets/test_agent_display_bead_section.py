@@ -8,7 +8,7 @@ import pytest
 from rich.cells import cell_len
 from rich.console import Console
 
-from sase.ace.tui.models.agent_associated_plan import PhaseBeadSummary
+from sase.ace.tui.models.agent_associated_plan import BeadSummary, PhaseBeadSummary
 from sase.ace.tui.widgets.prompt_panel._agent_bead_section import (
     BEAD_FIELD_LABEL_WIDTH,
     BEAD_PLAN_STATE_STYLE,
@@ -107,11 +107,11 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
     plain = header.plain
 
     assert "Bead:" not in plain
-    assert "▸ BEAD · phase sase-42.3\n" in plain
+    assert "▸ BEAD · ↳ phase sase-42.3\n" in plain
     assert "ID:" not in plain
     assert plain.count("sase-42.3") == 1
     assert (
-        plain.index("▸ BEAD · phase sase-42.3")
+        plain.index("▸ BEAD · ↳ phase sase-42.3")
         < plain.index("Phase Title:")
         < plain.index("Description:")
     )
@@ -275,6 +275,34 @@ def test_phase_title_unavailable_is_quiet_and_visible() -> None:
 
     assert "Phase Title: unavailable\n" in header.plain
     assert_span_covers(header, "unavailable", COLOR_EMPTY)
+
+
+def test_task_bead_lane_uses_type_identity_without_epic_fields() -> None:
+    summary = BeadSummary(
+        id="sase-task.4",
+        phase_title="Task lane",
+        description="Show only task-owned metadata.",
+        actual_plan_path=None,
+        display_plan_path=None,
+        plan_exists=False,
+        plan_readable=False,
+        epic_title=None,
+        size="medium",
+        bead_type="task",
+    )
+    header, _ = build_header_text(
+        make_agent(agent_name=summary.id),
+        summary=DetailHeaderSummary(phase_bead=summary),
+    )
+
+    assert "▸ BEAD · ◆ task sase-task.4\n" in header.plain
+    assert "Task Title: Task lane\n" in header.plain
+    assert "Description: Show only task-owned metadata.\n" in header.plain
+    assert "Size:  medium " in header.plain
+    assert "Phase Title:" not in header.plain
+    assert "Epic Plan:" not in header.plain
+    assert "Epic Title:" not in header.plain
+    assert_span_covers(header, "◆", "bold #D787FF")
 
 
 def test_unknown_plan_path_renders_unavailable_without_hint() -> None:

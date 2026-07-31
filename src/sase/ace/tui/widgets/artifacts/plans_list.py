@@ -27,11 +27,12 @@ from .plans_rendering import (
     project_badge,
     proposal_text,
     single_line_text,
+    task_text,
 )
 from .types import ARTIFACTS_ACCENTS
 
 
-PlanRowKind = Literal["proposal", "epic", "phase", "archive"]
+PlanRowKind = Literal["proposal", "task", "epic", "phase", "archive"]
 
 
 @dataclass(frozen=True)
@@ -144,6 +145,63 @@ def build_plan_options(
                     "  No matching proposals"
                     if filter_active
                     else "  No pending proposals",
+                    style="dim",
+                ),
+                disabled=True,
+            )
+        )
+
+    task_entries = tuple(
+        (
+            project_task,
+            row_option_id(
+                snapshot,
+                "task",
+                project_task.project,
+                project_task.issue.id,
+            ),
+        )
+        for project_task in snapshot.tasks
+    )
+    visible_tasks = tuple(
+        entry
+        for entry in task_entries
+        if matched_option_ids is None or entry[1] in matched_option_ids
+    )
+    options.append(
+        _section_option(
+            "Tasks",
+            len(snapshot.tasks),
+            matched_count=len(visible_tasks) if filter_active else None,
+        )
+    )
+    for project_task, option_id in visible_tasks:
+        task = project_task.issue
+        row = PlanRow("task", option_id, project_task.project, issue=task)
+        rows[option_id] = row
+        options.append(
+            Option(
+                prepend_jump_hint(
+                    prepend_mark_glyph(
+                        task_text(
+                            task,
+                            project_badge=project_badge(
+                                snapshot,
+                                project_task.project,
+                            ),
+                        ),
+                        plan_row_target(row) in active_marks,
+                    ),
+                    (jump_hints or {}).get(plan_row_target(row)),
+                ),
+                id=option_id,
+            )
+        )
+    if not visible_tasks:
+        options.append(
+            Option(
+                single_line_text(
+                    "  No matching task beads" if filter_active else "  No task beads",
                     style="dim",
                 ),
                 disabled=True,
@@ -354,6 +412,15 @@ def _section_option(
         text.append(" ready ", style="dim")
         text.append(LAUNCHED_STATE_GLYPH, style="bold #00D7AF")
         text.append(" launched ", style="dim")
+        text.append("──", style="dim #5F5F87")
+    elif label == "Tasks":
+        from sase.bead.model import Status
+        from sase.bead_status_presentation import bead_status_presentation
+
+        ready = bead_status_presentation(Status.READY)
+        text.append("· ", style="dim")
+        text.append(ready.tui_glyph, style=ready.rich_style)
+        text.append(" ready ", style="dim")
         text.append("──", style="dim #5F5F87")
     else:
         text.append("─" * 8, style="dim #5F5F87")

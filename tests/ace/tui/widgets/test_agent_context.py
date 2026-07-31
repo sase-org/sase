@@ -207,7 +207,7 @@ def test_bead_only_context_creates_context_and_has_no_plan_range() -> None:
 
     assert plan_range is None
     assert "SASE CONTEXT\n" in text.plain
-    assert "▸ BEAD · phase sase-42.3\n" in text.plain
+    assert "▸ BEAD · ↳ phase sase-42.3\n" in text.plain
     assert "ID:" not in text.plain
     assert text.plain.count("sase-42.3") == 1
     assert "  Phase Title: Selected phase metadata\n" in text.plain

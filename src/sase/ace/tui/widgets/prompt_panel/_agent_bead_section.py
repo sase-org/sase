@@ -1,4 +1,4 @@
-"""Responsive phase BEAD lane for the Agents metadata header."""
+"""Responsive type-aware BEAD lane for the Agents metadata header."""
 
 from __future__ import annotations
 
@@ -9,9 +9,10 @@ from rich.console import Console, ConsoleOptions, RenderResult
 from rich.table import Table
 from rich.text import Text
 
+from sase.bead_type_presentation import bead_type_presentation
 from sase.phase_size_presentation import phase_size_chip
 
-from ...models.agent_associated_plan import PhaseBeadSummary
+from ...models.agent_associated_plan import BeadSummary
 from ._artifact_files import append_artifact_file_path
 from ._agent_context_common import (
     COLOR_BEAD_PRIMARY,
@@ -37,9 +38,9 @@ BEAD_PLAN_STATE_STYLE = "dim italic #FF8787"
 
 @dataclass(slots=True)
 class ResponsiveBeadSection:
-    """One selected-phase lane that reflows complete values at render time."""
+    """One selected-bead lane that reflows complete values at render time."""
 
-    summary: PhaseBeadSummary
+    summary: BeadSummary
     hint_number: int | None = None
 
     @property
@@ -70,7 +71,10 @@ class ResponsiveBeadSection:
 
     def _lane_header(self) -> Text:
         text = Text(end="")
-        details = Text("phase", style=COLOR_SUMMARY)
+        presentation = bead_type_presentation(self.summary.bead_type)
+        details = Text()
+        details.append(f"{presentation.glyph} ", style=presentation.rich_style)
+        details.append(self.summary.bead_type, style=COLOR_SUMMARY)
         details.append(" ", style=COLOR_SUMMARY)
         details.append(self.summary.id, style=COLOR_BEAD_PRIMARY)
         append_context_lane_header(
@@ -82,8 +86,16 @@ class ResponsiveBeadSection:
         return text
 
     def _rows(self) -> tuple[tuple[str, Text], ...]:
+        if self.summary.bead_type == "task":
+            rows = [
+                (self._label("Task Title"), self._bead_title_value()),
+                (self._label("Description"), self._description_value()),
+            ]
+            if self.summary.size is not None:
+                rows.append((self._label("Size"), self._size_value()))
+            return tuple(rows)
         return (
-            (self._label("Phase Title"), self._phase_title_value()),
+            (self._label("Phase Title"), self._bead_title_value()),
             (self._label("Description"), self._description_value()),
             (self._label("Size"), self._size_value()),
             (self._label("Epic Plan"), self._plan_value()),
@@ -100,9 +112,9 @@ class ResponsiveBeadSection:
             return Text(self.summary.description, style=COLOR_REASON)
         return Text("unavailable", style=COLOR_EMPTY)
 
-    def _phase_title_value(self) -> Text:
-        if self.summary.phase_title:
-            return Text(self.summary.phase_title, style=COLOR_BEAD_PRIMARY)
+    def _bead_title_value(self) -> Text:
+        if self.summary.title:
+            return Text(self.summary.title, style=COLOR_BEAD_PRIMARY)
         return Text("unavailable", style=COLOR_EMPTY)
 
     def _plan_value(self) -> Text:

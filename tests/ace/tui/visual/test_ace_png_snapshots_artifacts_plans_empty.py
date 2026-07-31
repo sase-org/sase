@@ -31,6 +31,7 @@ async def test_artifacts_plans_empty_png_snapshot(
     snapshot = replace(
         _snapshot(tmp_path),
         proposals=(),
+        tasks=(),
         epics=(),
         phases_by_epic={},
         ready_ids=frozenset(),

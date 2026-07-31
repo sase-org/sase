@@ -10,6 +10,9 @@ from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, TextArea
 
+from sase.bead.model import IssueType
+from sase.bead_type_presentation import bead_type_presentation
+
 
 @dataclass(frozen=True)
 class BeadEditResult:
@@ -27,15 +30,27 @@ class BeadEditModal(ModalScreen[BeadEditResult | None]):
         ("ctrl+s", "save", "Save"),
     ]
 
-    def __init__(self, bead_id: str, title: str, description: str) -> None:
+    def __init__(
+        self,
+        bead_id: str,
+        title: str,
+        description: str,
+        *,
+        issue_type: IssueType = IssueType.PHASE,
+    ) -> None:
         super().__init__()
         self._bead_id = bead_id
         self._title = title
         self._description = description
+        self._issue_type = issue_type
 
     def compose(self) -> ComposeResult:
         with Container(id="bead-edit-container"):
-            yield Label(f"Edit bead {self._bead_id}", id="bead-edit-title")
+            presentation = bead_type_presentation(self._issue_type)
+            yield Label(
+                f"Edit {presentation.glyph} {presentation.label} {self._bead_id}",
+                id="bead-edit-title",
+            )
             yield Label("Title", classes="bead-edit-label")
             yield Input(value=self._title, id="bead-edit-title-input")
             yield Label("Description", classes="bead-edit-label")

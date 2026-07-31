@@ -119,13 +119,15 @@ def _assert_highlight_visible(option_list: OptionList) -> None:
 async def _assert_distance_navigation(
     page: AcePage,
     pane: CommitsPane | ArtifactsBugsPane | ArtifactsPlansPane,
+    *,
+    expected_count: int = 50,
 ) -> None:
     targets = pane.entry_targets()
-    assert len(targets) == 50
+    assert len(targets) == expected_count
     assert pane.selected_entry_target() == targets[0]
     if isinstance(pane, CommitsPane):
         assert pane.query_one("#commits-position", Static).content.plain == (
-            "[1/50]  ·  "
+            f"[1/{expected_count}]  ·  "
         )
     option_list = _entry_list(pane)
     recorder = _DetailScheduleRecorder()
@@ -139,7 +141,7 @@ async def _assert_distance_navigation(
             _assert_highlight_visible(option_list)
             if isinstance(pane, CommitsPane):
                 assert pane.query_one("#commits-position", Static).content.plain == (
-                    f"[{target_index + 1}/50]  ·  "
+                    f"[{target_index + 1}/{expected_count}]  ·  "
                 )
         downward_scroll_y = option_list.scroll_y
         assert downward_scroll_y > 0
@@ -336,10 +338,10 @@ async def test_plans_fast_navigation_skips_headings_and_includes_expanded_phases
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         pane._expanded_epics.add(("alpha", "alpha-1"))
         pane._refresh_options()
-        await _assert_distance_navigation(page, pane)
+        await _assert_distance_navigation(page, pane, expected_count=52)
         option_list = pane.query_one("#plans-list", OptionList)
         assert page.app.focused is option_list
-        assert option_list.option_count == 53
+        assert option_list.option_count == 56
 
         await page.press("g", "apostrophe")
         selectable_prompts = [
@@ -357,7 +359,7 @@ async def test_plans_fast_navigation_skips_headings_and_includes_expanded_phases
         assert all(not prompt.startswith("[") for prompt in disabled_prompts)
         await page.press("1")
         assert pane.selected_row() is not None
-        assert pane.selected_row().kind == "epic"  # type: ignore[union-attr]
+        assert pane.selected_row().kind == "task"  # type: ignore[union-attr]
         assert page.state["modal"] is None
 
         first_target = pane.entry_targets()[0]
@@ -368,7 +370,7 @@ async def test_plans_fast_navigation_skips_headings_and_includes_expanded_phases
             if not option_list.get_option_at_index(index).disabled
         ).startswith("[A] ")
         assert pane.selected_row() is not None
-        assert pane.selected_row().kind == "epic"  # type: ignore[union-attr]
+        assert pane.selected_row().kind == "task"  # type: ignore[union-attr]
         pane.clear_entry_jump_hints()
 
 

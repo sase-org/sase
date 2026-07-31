@@ -7,8 +7,9 @@ from datetime import datetime
 
 from rich.text import Text
 
-from sase.bead.model import Issue, PhaseSize, Status
+from sase.bead.model import Issue, IssueType, PhaseSize, Status
 from sase.bead_status_presentation import bead_status_presentation
+from sase.bead_type_presentation import bead_type_presentation
 from sase.phase_size_presentation import phase_size_chip
 from sase.plan_search.model import PlanSearchMatch
 
@@ -80,6 +81,16 @@ def build_plans_status(
                 "proposals",
             ),
             style="#FFD700",
+        )
+        text.append("  ·  ", style="dim")
+        text.append(
+            _matched_count_label(
+                matched_counts,
+                "task",
+                len(snapshot.tasks),
+                "tasks",
+            ),
+            style=bead_type_presentation(IssueType.TASK).accent_color,
         )
         text.append("  ·  ", style="dim")
         text.append(
@@ -236,6 +247,25 @@ def epic_text(
     text.append(" ")
     text.append(epic.title, style="bold white")
     age = _compact_relative_age(epic.created_at)
+    if age:
+        text.append(f"  {age}", style="dim")
+    _append_project_badge(text, project_badge)
+    return text
+
+
+def task_text(
+    task: Issue,
+    *,
+    project_badge: str | None = None,
+) -> Text:
+    """Render one top-level task bead row."""
+    presentation = bead_type_presentation(task.issue_type)
+    text = single_line_text()
+    text.append(f"{presentation.glyph} ", style=presentation.rich_style)
+    text.append(_status_glyph(task.status), style=_status_style(task.status))
+    text.append(f" {task.id} ", style="bold #FFD700")
+    text.append(task.title, style="white")
+    age = _compact_relative_age(task.created_at)
     if age:
         text.append(f"  {age}", style="dim")
     _append_project_badge(text, project_badge)

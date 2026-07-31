@@ -7,13 +7,14 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-from textual.widgets import Input, OptionList
+from textual.widgets import Input, Label, OptionList
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.artifacts_plans import _next_plans_bead_status
 from sase.ace.tui.widgets.artifacts.plans_data import PlansSnapshot
 from sase.ace.tui.widgets.artifacts.plans_list import build_plan_options
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
-from sase.bead.model import Issue, Status
+from sase.bead.model import Issue, IssueType, Status
 from tests.ace.tui._artifacts_plans_helpers import (
     _all_choices,
     _all_projects_snapshot,
@@ -40,9 +41,34 @@ def test_plans_preview_payloads_default_to_rendered(tmp_path: Path) -> None:
 
     archive_id = f"archive:{snapshot.archive[0].match.plan.path}"
     assert default_view("proposal:proposal-1") == "rendered"
+    assert default_view("task:alpha-ready") == "rendered"
     assert default_view("epic:alpha-1") == "rendered"
     assert default_view("phase:alpha-1.1") == "rendered"
     assert default_view(archive_id) == "rendered"
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        (Status.OPEN, Status.READY),
+        (Status.CLAIMED, Status.READY),
+        (Status.READY, Status.IN_PROGRESS),
+        (Status.IN_PROGRESS, Status.CLOSED),
+        (Status.CLOSED, Status.OPEN),
+    ],
+)
+def test_task_status_cycle_includes_ready(
+    status: Status,
+    expected: Status,
+) -> None:
+    task = Issue(
+        id="alpha-task",
+        title="Task",
+        issue_type=IssueType.TASK,
+        status=status,
+    )
+
+    assert _next_plans_bead_status(task) is expected
 
 
 async def test_plans_pane_renders_groups_and_expands_phase_tree(
@@ -71,6 +97,14 @@ async def test_plans_pane_renders_groups_and_expands_phase_tree(
         assert page.app.check_action("plans_cycle_status", ()) is True
 
         await page.press("j")
+        assert pane.selected_row() is not None
+        assert pane.selected_row().kind == "task"  # type: ignore[union-attr]
+        assert pane.selected_row().row_id == "task:alpha-ready"  # type: ignore[union-attr]
+        await page.press("enter")
+        await page.expect_modal("PreviewPanelModal")
+        await page.press("escape")
+
+        await page.press("j", "j")
         assert pane.selected_row() is not None
         assert pane.selected_row().kind == "epic"  # type: ignore[union-attr]
         await page.press("l")
@@ -154,7 +188,34 @@ async def test_status_change_runs_as_tracked_task(
         assert tasks[0].task_type == "bead status"
         assert tasks[0].status == "success"
 
-    assert updates == [("alpha", "alpha-1", {"status": "in_progress"})]
+    assert updates == [("alpha", "alpha-ready", {"status": "in_progress"})]
+
+
+async def test_task_edit_modal_uses_shared_type_title(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.plans_pane.load_plans_snapshot",
+        lambda _project, **_kwargs: snapshot,
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("2")
+        pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
+        await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await page.press("j")
+        page.app.action_plans_edit_bead()
+        await page.expect_modal("BeadEditModal")
+        await page.pause()
+
+        title = page.app.screen.query_one("#bead-edit-title", Label)
+        assert title.content == "Edit ◆ Task alpha-ready"
 
 
 async def test_status_cycle_from_claimed_takes_bead_over(
@@ -190,7 +251,7 @@ async def test_status_cycle_from_claimed_takes_bead_over(
         await page.press("2")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
-        await page.press("j", "s")
+        await page.press("j", "j", "j", "s")
         await page.wait_for(lambda _state: page.app._task_queue.running_count == 0)
 
     assert updates == [("alpha", "alpha-1", {"status": "in_progress"})]
@@ -231,6 +292,7 @@ async def test_default_scope_loads_all_projects_and_namespaces_rows(
             for index in range(pane.query_one("#plans-list", OptionList).option_count)
         }
         assert "proposal:beta:proposal-1" in option_ids
+        assert "task:beta:alpha-ready" in option_ids
         assert "epic:beta:alpha-1" in option_ids
 
 
@@ -302,7 +364,7 @@ async def test_all_project_bead_actions_route_to_selected_row_project(
         await page.press("2")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
-        await page.press("j")
+        await page.press("j", "j", "j")
         row = pane.selected_row()
         assert row is not None and row.issue is not None
         assert row.project == "beta"

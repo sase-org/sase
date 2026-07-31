@@ -249,8 +249,8 @@ def build_header_text(
     if not cheap and summary is not None:
         from ._agent_context import append_agent_context_section
 
-        if summary.phase_bead is not None:
-            bead_section = ResponsiveBeadSection(summary.phase_bead)
+        if summary.bead_summary is not None:
+            bead_section = ResponsiveBeadSection(summary.bead_summary)
         if summary.associated_plan is not None:
             plan_section = ResponsivePlanSection(summary.associated_plan)
         append_agent_context_section(

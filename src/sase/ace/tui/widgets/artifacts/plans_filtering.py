@@ -13,7 +13,7 @@ from sase.plan_search.filter_query import PlanFilterValues
 
 from .plans_data import PlanProposal, PlansSnapshot, ProjectArchive
 
-_PlanFilterRecordKind = Literal["proposal", "epic", "phase", "archive"]
+_PlanFilterRecordKind = Literal["proposal", "task", "epic", "phase", "archive"]
 
 
 @dataclass(frozen=True)
@@ -54,6 +54,16 @@ def build_plan_filter_index(snapshot: PlansSnapshot) -> PlanFilterIndex:
 
     for proposal in snapshot.proposals:
         records.append(_proposal_record(snapshot, proposal))
+
+    for project_task in snapshot.tasks:
+        records.append(
+            _issue_record(
+                snapshot,
+                project_task.project,
+                project_task.issue,
+                kind="task",
+            )
+        )
 
     for project_epic in snapshot.epics:
         project = project_epic.project
@@ -190,7 +200,7 @@ def _issue_record(
     project: str,
     issue: Issue,
     *,
-    kind: Literal["epic", "phase"],
+    kind: Literal["task", "epic", "phase"],
 ) -> _PlanFilterRecord:
     status_labels = {issue.status.value.casefold()}
     issue_key = (project, issue.id)

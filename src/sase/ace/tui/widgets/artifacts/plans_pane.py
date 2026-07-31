@@ -27,6 +27,7 @@ from .plans_rendering import (
     phase_text,
     project_badge,
     proposal_text,
+    task_text,
 )
 
 if TYPE_CHECKING:
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
 
 # Preserve the rendering seams exposed by the original plans_pane module.
 _proposal_text = proposal_text
+_task_text = task_text
 _epic_text = epic_text
 _phase_text = phase_text
 _archive_text = archive_text

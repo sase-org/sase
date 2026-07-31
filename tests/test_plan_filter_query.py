@@ -104,6 +104,14 @@ def _snapshot() -> PlansSnapshot:
         created_at="2026-07-03T09:00:00Z",
         is_ready_to_work=True,
     )
+    task = Issue(
+        id="sase-task",
+        title="Ready task surface",
+        status=Status.READY,
+        issue_type=IssueType.TASK,
+        description="Expose tasks to the in-memory index.",
+        created_at="2026-07-03T10:00:00Z",
+    )
     archive_match = PlanSearchMatch(
         plan=Plan(
             source="repo",
@@ -134,6 +142,7 @@ def _snapshot() -> PlansSnapshot:
         plans_roots={"sase": "/plans"},
         workspace_dirs={"sase": "/workspace"},
         proposals=(proposal,),
+        tasks=(ProjectIssue("sase", task),),
         epics=(ProjectIssue("sase", epic), ProjectIssue("sase", launched)),
         phases_by_epic={
             ("sase", epic.id): (ProjectIssue("sase", phase),),
@@ -341,12 +350,12 @@ _VALUE_TEXT = st.text(
 
 @given(
     kinds=st.lists(
-        st.sampled_from(("proposal", "epic", "phase", "archive")),
+        st.sampled_from(("proposal", "task", "epic", "phase", "archive")),
         max_size=4,
     ).map(tuple),
     statuses=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     excluded_kinds=st.lists(
-        st.sampled_from(("proposal", "epic", "phase", "archive")),
+        st.sampled_from(("proposal", "task", "epic", "phase", "archive")),
         max_size=4,
     ).map(tuple),
     excluded_statuses=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
@@ -522,9 +531,10 @@ def test_build_index_covers_every_row_with_stable_option_ids() -> None:
     index = build_plan_filter_index(snapshot)
 
     assert index.source_key == snapshot.source_key
-    assert len(index) == 5
+    assert len(index) == 6
     assert tuple(record.kind for record in index) == (
         "proposal",
+        "task",
         "epic",
         "phase",
         "epic",
@@ -532,6 +542,7 @@ def test_build_index_covers_every_row_with_stable_option_ids() -> None:
     )
     assert set(index.by_option_id) == {
         "proposal:sase:proposal-1",
+        "task:sase:sase-task",
         "epic:sase:sase-6t",
         "phase:sase:sase-6t.1",
         "epic:sase:sase-7x",
@@ -560,10 +571,13 @@ def test_build_index_uses_the_same_derived_state_priority_as_rows() -> None:
     ready = index.by_option_id["epic:sase:sase-6t"]
     blocked = index.by_option_id["phase:sase:sase-6t.1"]
     launched = index.by_option_id["epic:sase:sase-7x"]
+    task = index.by_option_id["task:sase:sase-task"]
     assert ready.status_labels == frozenset(("in_progress", "ready"))
     assert "launched" not in ready.status_labels
     assert blocked.status_labels == frozenset(("open", "blocked"))
     assert launched.status_labels == frozenset(("open", "launched"))
+    assert task.status_labels == frozenset(("ready",))
+    assert task.kind_labels == frozenset(("task",))
     assert launched.tier_labels == frozenset(("plan",))
 
 

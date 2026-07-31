@@ -14,7 +14,11 @@ from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.repo_inventory import RepoKind
 from sase.plan_documents import PlanWorkspace
 
-from ...models.agent_associated_plan import AssociatedPlanSummary, PhaseBeadSummary
+from ...models.agent_associated_plan import (
+    AssociatedPlanSummary,
+    BeadSummary,
+    PhaseBeadSummary,
+)
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._artifact_files import ArtifactFilePath
 
@@ -72,3 +76,8 @@ class DetailHeaderSummary:
     skill_uses: tuple[SkillUseDisplayEvent, ...] = ()
     opened_workspaces: tuple[OpenedWorkspaceDisplayEvent, ...] = ()
     slow_tool_sources: tuple[SlowToolSource, ...] | None = None
+
+    @property
+    def bead_summary(self) -> BeadSummary | None:
+        """Return the generalized bead summary behind the compatibility field."""
+        return self.phase_bead

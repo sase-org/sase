@@ -205,7 +205,7 @@ def build_detail_header_summary(
         xprompts_used=xprompts_used,
         bead_display=bead_display,
         wait_bead_statuses=resolve_wait_bead_statuses(agent),
-        phase_bead=plan_enrichment.phase_bead,
+        phase_bead=plan_enrichment.bead_summary,
         associated_plan=associated_plan,
         delta_entries=agent_delta_entries(agent),
         linked_delta_groups=linked_delta_groups,

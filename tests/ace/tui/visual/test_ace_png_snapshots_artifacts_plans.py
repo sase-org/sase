@@ -163,7 +163,7 @@ async def test_artifacts_plans_populated_png_snapshot(
         await page.expect_state("artifacts_subtab", "plans")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
-        await page.press("j", "l", "j")
+        await page.press("j", "j", "j", "l", "j")
         await page.wait_for(
             lambda _state: (
                 (row := pane.selected_row()) is not None
@@ -258,6 +258,11 @@ async def test_plans_filter_completion_png_snapshot(
         await page.wait_for(
             lambda _state: completion.display and completion.option_count == 9
         )
+        completion_labels = [
+            completion.get_option_at_index(index).prompt.plain
+            for index in range(completion.option_count)
+        ]
+        assert sum(label.startswith("ready") for label in completion_labels) == 1
         await wait_for_svg_contains(page, "in_progress")
         await wait_for_svg_contains(page, "claimed")
         await wait_for_visual_idle(page)

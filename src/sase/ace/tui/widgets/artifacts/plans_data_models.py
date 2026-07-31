@@ -73,6 +73,7 @@ class PlansSnapshot:
     plans_roots: dict[str, dict[str, str]]
     workspace_dirs: dict[str, str | None]
     proposals: tuple[PlanProposal, ...]
+    tasks: tuple[ProjectIssue, ...]
     epics: tuple[ProjectIssue, ...]
     phases_by_epic: dict[tuple[str, str], tuple[ProjectIssue, ...]]
     ready_ids: frozenset[tuple[str, str]]

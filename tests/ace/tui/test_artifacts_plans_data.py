@@ -100,6 +100,7 @@ def test_all_projects_snapshot_attributes_each_entry_and_merges_archive(
     roots = {name: tmp_path / name for name in ("alpha", "beta")}
     epics: dict[str, Issue] = {}
     phases: dict[str, Issue] = {}
+    tasks: dict[str, Issue] = {}
     for name, root in roots.items():
         with BeadProject.init(root, beads_dirname="beads") as project:
             epics[name] = project.create(
@@ -111,6 +112,10 @@ def test_all_projects_snapshot_attributes_each_entry_and_merges_archive(
                 f"{name.title()} phase",
                 IssueType.PHASE,
                 parent_id=epics[name].id,
+            )
+            tasks[name] = project.create(
+                f"{name.title()} task",
+                IssueType.TASK,
             )
 
     monkeypatch.setattr(
@@ -157,6 +162,9 @@ def test_all_projects_snapshot_attributes_each_entry_and_merges_archive(
     assert snapshot.projects == ("alpha", "beta")
     assert {(entry.project, entry.issue.id) for entry in snapshot.epics} == {
         (name, epic.id) for name, epic in epics.items()
+    }
+    assert {(entry.project, entry.issue.id) for entry in snapshot.tasks} == {
+        (name, task.id) for name, task in tasks.items()
     }
     assert {
         (project, entry.issue.id)
@@ -532,7 +540,7 @@ def test_deep_archive_browse_is_bounded_deduped_and_recent(
     ]
 
 
-def test_snapshot_sorts_proposals_and_epics_newest_first(
+def test_snapshot_sorts_proposals_tasks_and_epics_newest_first(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -568,6 +576,14 @@ def test_snapshot_sorts_proposals_and_epics_newest_first(
             created_at=created_at,
         )
 
+    def task(issue_id: str, created_at: str) -> Issue:
+        return Issue(
+            id=issue_id,
+            title=issue_id,
+            issue_type=IssueType.TASK,
+            created_at=created_at,
+        )
+
     monkeypatch.setattr(
         plans_data,
         "_resolve_projects",
@@ -600,6 +616,10 @@ def test_snapshot_sorts_proposals_and_epics_newest_first(
                 epic("alpha-2", ""),
                 epic("alpha-8", "2026-07-16T12:00:00Z"),
                 epic("alpha-1", "2026-07-15T12:00:00Z"),
+                task("alpha-task.9", "2026-07-16T12:00:00Z"),
+                task("alpha-task.2", "2026-07-16T12:00:00Z"),
+                task("alpha-task.1", "2026-07-15T12:00:00Z"),
+                task("alpha-task.3", ""),
             ],
             frozenset(),
             frozenset(),
@@ -620,4 +640,10 @@ def test_snapshot_sorts_proposals_and_epics_newest_first(
         "alpha-9",
         "alpha-1",
         "alpha-2",
+    ]
+    assert [item.issue.id for item in snapshot.tasks] == [
+        "alpha-task.2",
+        "alpha-task.9",
+        "alpha-task.1",
+        "alpha-task.3",
     ]

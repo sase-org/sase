@@ -15,8 +15,10 @@ from sase.agent.bead_display import (
     BeadIssueLookupSession,
     derive_agent_bead_id_from_name,
     lookup_bead_issue,
+    normalize_bead_text,
 )
 from sase.bead.model import BeadTier, Issue, IssueType
+from sase.phase_size_presentation import normalize_phase_size
 from sase.sdd.plan_validate import validate_plan
 
 from ._agent_associated_plan_cache import (
@@ -48,6 +50,7 @@ from ._agent_associated_plan_types import (
     AssociatedPlanSummary as AssociatedPlanSummary,
     AssociatedPlanTier as AssociatedPlanTier,
     AuthoredPlanTier as AuthoredPlanTier,
+    BeadSummary as BeadSummary,
     AgentPlanEnrichment as _AgentPlanEnrichment,
     _InitialAgentPlanRole,
     PhaseBeadSummary as PhaseBeadSummary,
@@ -100,6 +103,24 @@ def resolve_agent_plan_enrichment(
             load_plan_metadata=_load_plan_metadata,
             resolve_plan_reference=_resolve_cached_reference,
         )
+    if initial_role == "land" and not _is_explicit_land_role(agent):
+        bead_id = derive_agent_bead_id_from_name(
+            agent.presented_agent_name or agent.agent_name
+        )
+        if bead_id is not None:
+            association = _cached_bead_plan_association(
+                agent,
+                bead_id,
+                source="bead-role",
+                lookup_session=lookup_session,
+            )
+        if association is not None and association.role == "task":
+            return _AgentPlanEnrichment(
+                "task",
+                association.bead_summary,
+                None,
+                (),
+            )
     if initial_role == "ambiguous":
         bead_id = derive_agent_bead_id_from_name(
             agent.presented_agent_name or agent.agent_name
@@ -110,6 +131,13 @@ def resolve_agent_plan_enrichment(
                 bead_id,
                 source="bead-role",
                 lookup_session=lookup_session,
+            )
+        if association is not None and association.role == "task":
+            return _AgentPlanEnrichment(
+                "task",
+                association.bead_summary,
+                None,
+                (),
             )
         if association is None or association.role != "land":
             if association is None or association.path is None:
@@ -148,7 +176,9 @@ def resolve_agent_plan_enrichment(
             )
         plan_path = association.path
         known_epic = association.known_epic
-        if initial_role in {"ordinary", "ambiguous"} and association.role is not None:
+        if association.role == "task" or (
+            initial_role in {"ordinary", "ambiguous"} and association.role is not None
+        ):
             role = association.role
 
     if plan_path is None:
@@ -157,6 +187,9 @@ def resolve_agent_plan_enrichment(
         # state overwrite a richer confirmed description (or surface a cold
         # candidate). Explicit modern phases returned above remain phase-local
         # and authoritative even without a usable plan reference.
+        phase_bead = association.bead_summary if association is not None else None
+        if role == "task":
+            return _AgentPlanEnrichment(role, phase_bead, None, ())
         phase_bead = None
         if role == "phase" and association is not None:
             phase_id = association.phase_bead_id
@@ -233,6 +266,14 @@ def _initial_agent_plan_role(agent: Agent) -> _InitialAgentPlanRole:
     return "ordinary"
 
 
+def _is_explicit_land_role(agent: Agent) -> bool:
+    """Return whether land identity is explicit rather than name-inferred."""
+    if agent.epic_bead_id:
+        return True
+    presented_name = agent.presented_agent_name or agent.agent_name
+    return bool(presented_name and presented_name.endswith(".land"))
+
+
 def _load_plan_metadata(path: Path) -> _PlanFileMetadata:
     return _PLAN_FILE_CACHE.get(
         path,
@@ -307,12 +348,14 @@ def _resolve_bead_plan_association(
         return _ResolvedPlanAssociation(None)
     is_phase = issue.issue_type is IssueType.PHASE
     is_epic = issue.issue_type is IssueType.PLAN and issue.tier is BeadTier.EPIC
-    role: Literal["phase", "land"] | None = (
-        "phase" if is_phase else ("land" if is_epic else None)
+    is_task = issue.issue_type is IssueType.TASK
+    role: Literal["phase", "task", "land"] | None = (
+        "phase" if is_phase else ("task" if is_task else ("land" if is_epic else None))
     )
     epic_bead_id = issue.parent_id if is_phase else (issue.id if is_epic else None)
     phase_bead_id = issue.id if is_phase else None
     known_epic = is_phase or is_epic
+    bead_summary = _task_bead_summary(issue) if is_task else None
     design = issue.design.strip()
     if not design and issue.parent_id:
         parent = _lookup_issue(agent, issue.parent_id, lookup_session=lookup_session)
@@ -328,6 +371,7 @@ def _resolve_bead_plan_association(
             role=role,
             epic_bead_id=epic_bead_id,
             phase_bead_id=phase_bead_id,
+            bead_summary=bead_summary,
         )
     return _ResolvedPlanAssociation(
         _resolve_plan_reference(design, agent),
@@ -336,6 +380,23 @@ def _resolve_bead_plan_association(
         plan_reference=design,
         epic_bead_id=epic_bead_id,
         phase_bead_id=phase_bead_id,
+        bead_summary=bead_summary,
+    )
+
+
+def _task_bead_summary(issue: Issue) -> BeadSummary:
+    """Project one task issue into render-ready, plan-free BEAD metadata."""
+    return BeadSummary(
+        id=issue.id,
+        phase_title=normalize_bead_text(issue.title) or None,
+        description=normalize_bead_text(issue.description) or None,
+        actual_plan_path=None,
+        display_plan_path=None,
+        plan_exists=False,
+        plan_readable=False,
+        epic_title=None,
+        size=normalize_phase_size(issue.size),
+        bead_type="task",
     )
 
 

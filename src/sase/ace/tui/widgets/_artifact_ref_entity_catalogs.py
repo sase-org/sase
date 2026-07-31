@@ -108,6 +108,8 @@ def _bead_candidate(issue: Issue) -> ArtifactRefBeadCandidate:
         kind = "epic"
     elif issue.issue_type is IssueType.PHASE:
         kind = "phase"
+    elif issue.issue_type is IssueType.TASK:
+        kind = "task"
     detail = issue.status.value if not kind else f"{issue.status.value} · {kind}"
     return ArtifactRefBeadCandidate(
         payload=issue.id,

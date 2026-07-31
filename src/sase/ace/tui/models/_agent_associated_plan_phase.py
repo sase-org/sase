@@ -273,6 +273,7 @@ def phase_bead_summary(
         plan_readable=summary.plan_readable,
         epic_title=metadata.title,
         size=phase.size,
+        bead_type="phase",
     )
 
 
@@ -301,6 +302,7 @@ def unavailable_phase_bead(
         plan_readable=metadata.readable if metadata is not None else False,
         epic_title=None,
         size=None,
+        bead_type="phase",
     )
 
 
