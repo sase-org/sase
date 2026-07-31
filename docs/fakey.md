@@ -25,7 +25,9 @@ candidate because the executable is always installed with SASE; prefer explicit 
 Fakey models are not offered in the ACE model picker or the `%model` completion menu — it exists only for testing, so it
 is hidden from user-facing model selection surfaces. It remains fully registered and routable: the explicit spellings
 above (`%model:fakey-large`, `sase run -m fakey-large`) and `%model:fakey/fakey-large` all still work, and the picker's
-`Custom...` entry accepts them by hand.
+`Custom...` entry accepts them by hand. The implicit `@fakey_coder` role alias is likewise hidden from the ACE Models
+panel (`,m`) unless you explicitly configure `model_aliases.custom.fakey_coder` — once configured, it appears and is
+editable like any other alias.
 
 ## Scenario Selection and Precedence
 

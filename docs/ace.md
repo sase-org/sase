@@ -1048,11 +1048,11 @@ count retains its semantic status color. Panel heights are sized to their conten
 the panels fit, the first panel grows to absorb leftover vertical space while later panels stay pinned to their natural
 height; when the panels overflow, space is weighted by each panel's rendered row count.
 
-A selected tribe panel's `TRIBE` header always ends with a labeled `Description: ` row, set off from the field stack
-(`Name`, `Status`, `Composition`, `Runtime`, `Fold`) by a blank line and wrapped with a hanging indent at a fixed
-80-cell measure. It shows the tribe's configured [`description`](configuration.md#acetribes) when set. Otherwise it
-shows `not set · add ace.tribes.<name>.description`, so the fix is visible at the point of use — including for
-unconfigured ad-hoc tribes (for example epic-bead tribes with no `ace.tribes` entry).
+A selected tribe panel's `TRIBE` header always ends with an unlabeled description row, set off from the field stack
+(`Name`, `Status`, `Composition`, `Runtime`, `Fold`) by a blank line and wrapped at a fixed 80-cell measure (no hanging
+indent — there is no label to indent past). It shows the tribe's configured [`description`](configuration.md#acetribes)
+when set. Otherwise it shows `not set · add ace.tribes.<name>.description`, so the fix is visible at the point of use —
+including for unconfigured ad-hoc tribes (for example epic-bead tribes with no `ace.tribes` entry).
 
 Use `J` / `K` to move across expanded panels (forward / reverse) and enter the first or last selectable row in the
 destination; collapsed panels are skipped entirely, and the keymaps do nothing when no other panel is expanded.
@@ -1774,32 +1774,36 @@ status shorthands, property filters, and searchable fields.
 
 These work on all tabs:
 
-| Key                 | Action                                                                                          |
-| ------------------- | ----------------------------------------------------------------------------------------------- |
-| `Tab` / `Shift+Tab` | Switch between Agents, Artifacts, and Axe tabs                                                  |
-| `#`                 | Open SASE Admin Center home; repeat on home to resume the last section used in this ACE process |
-| `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands)               |
-| `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                      |
-| `i`                 | Show notifications inbox                                                                        |
-| `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix                        |
-| `Ctrl+L`            | Dismiss all currently-visible toast notifications                                               |
-| `@`                 | Open the stashed-prompt restore picker                                                          |
-| `Q`                 | Open the quit / restart menu                                                                    |
-| `y`                 | Refresh current tab                                                                             |
-| `q`                 | Quit                                                                                            |
-| `?`                 | Show help modal                                                                                 |
+| Key                 | Action                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Tab` / `Shift+Tab` | Switch between Agents, Artifacts, and Axe tabs                                                                                                           |
+| `#`                 | Open SASE Admin Center home (repeat on home to resume the last section); inside a working section, jump to the alternate section (repeat to toggle back) |
+| `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands)                                                                        |
+| `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                                                                               |
+| `i`                 | Show notifications inbox                                                                                                                                 |
+| `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                                                                 |
+| `Ctrl+L`            | Dismiss all currently-visible toast notifications                                                                                                        |
+| `@`                 | Open the stashed-prompt restore picker                                                                                                                   |
+| `Q`                 | Open the quit / restart menu                                                                                                                             |
+| `y`                 | Refresh current tab                                                                                                                                      |
+| `q`                 | Quit                                                                                                                                                     |
+| `?`                 | Show help modal                                                                                                                                          |
 
 The generic **Open SASE Admin Center** action and the first `#` always open a lightweight landing page without mounting
-a working pane. Press `#` again while home is visible to resume the last section that was successfully active in this
-ACE process. With no prior visit, the repeated key stays on home and loads nothing. The numbered strip remains
-clickable, `Tab` enters Config, and `Shift+Tab` enters XPrompts. Each working pane and its data are loaded only on first
-entry, then cached while the modal remains open. Command-palette actions such as **Open logs panel**, **Open tasks
-panel**, and **Open statistics**, plus update shortcuts and indicators, enter their requested pane directly and make a
-successful entry the next resume target. Closing from home does not clear an older target.
+a working pane. Press `#` again while home is visible to resume the last section that was successfully active. With no
+prior visit, the repeated key stays on home and loads nothing. Inside a working section, the same key takes on a second
+meaning: it jumps to the section you were in immediately before the current one, and pressing it again toggles back —
+exactly two sections remembered, like a two-slot alternate. A color-coded, clickable footer along the bottom of the
+working section names the jump target (or explains that none exists yet). The numbered strip remains clickable, `Tab`
+enters Config, and `Shift+Tab` enters XPrompts. Each working pane and its data are loaded only on first entry, then
+cached while the modal remains open. Command-palette actions such as **Open logs panel**, **Open tasks panel**, and
+**Open statistics**, plus update shortcuts and indicators, enter their requested pane directly and make a successful
+entry the next resume target. Closing from home does not clear an older target.
 
-Only the section identity is remembered, and only in memory: a new ACE process has no resume target, while filters,
-selection, scroll position, loaded data, and pane instances end with the modal. If `ace.keymaps.app.open_config_center`
-is rebound, repeat that configured key instead; the landing page displays the effective binding and destination.
+Both the resume target and the alternate are persisted machine-locally and survive across ACE process restarts; filters,
+selection, scroll position, loaded data, and pane instances still end with the modal. If
+`ace.keymaps.app.open_config_center` is rebound, repeat that configured key instead; the footer and landing page display
+the effective binding and destination.
 
 ### Quit / Restart Menu
 

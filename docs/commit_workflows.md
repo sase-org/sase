@@ -178,13 +178,13 @@ payload.
 Typical commit or proposal:
 
 ```bash
-sase commit -M commit_message.md -f src/auth.py -f src/login.py -t commit
+sase commit -M .sase/commit_message.md -f src/auth.py -f src/login.py -t commit
 ```
 
 Typical PR:
 
 ```bash
-sase commit -M pr_description.md -n feature_branch -B 12345 -s ready -t pr
+sase commit -M .sase/pr_description.md -n feature_branch -B 12345 -s ready -t pr
 ```
 
 The internal payload has this shape:

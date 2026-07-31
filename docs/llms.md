@@ -51,29 +51,36 @@ Key design principles:
 
 ### Source Layout
 
-| File                                          | Purpose                                                |
-| --------------------------------------------- | ------------------------------------------------------ |
-| `src/sase/llm_provider/__init__.py`           | Public API exports                                     |
-| `src/sase/llm_provider/base.py`               | `LLMProvider` abstract base class                      |
-| `src/sase/llm_provider/_hookspec.py`          | Pluggy hook specifications (`LLMHookSpec`)             |
-| `src/sase/llm_provider/_plugin_manager.py`    | Plugin manager wrapping pluggy (`LLMPluginManager`)    |
-| `src/sase/llm_provider/claude.py`             | Claude Code provider implementation                    |
-| `src/sase/llm_provider/codex.py`              | Codex CLI provider implementation                      |
-| `src/sase/llm_provider/fakey.py`              | Bundled deterministic testing provider                 |
-| `src/sase/llm_provider/agy.py`                | Antigravity CLI (`agy`) provider implementation        |
-| `src/sase/llm_provider/qwen.py`               | Qwen Code provider implementation                      |
-| `src/sase/llm_provider/opencode.py`           | OpenCode provider implementation                       |
-| `src/sase/llm_provider/registry.py`           | Provider registration and lookup                       |
-| `src/sase/llm_provider/config.py`             | Config file reader (`sase.yml`)                        |
-| `src/sase/llm_provider/temporary_override.py` | Primary/worker temporary override state and resolution |
-| `src/sase/llm_provider/commit_finalizer.py`   | Provider-neutral dirty-workspace finalizer             |
-| `src/sase/llm_provider/types.py`              | `ModelTier`, `InvokeResult`, `LoggingContext` types    |
-| `src/sase/llm_provider/_invoke.py`            | `invoke_agent()` orchestrator                          |
-| `src/sase/llm_provider/_subprocess.py`        | Provider stream-parser compatibility exports           |
-| `src/sase/llm_provider/_plan_utils.py`        | Shared plan utilities                                  |
-| `src/sase/llm_provider/preprocessing.py`      | Shared prompt preprocessing pipeline                   |
-| `src/sase/llm_provider/postprocessing.py`     | Logging, chat history, audio                           |
-| `src/sase/llm_provider/retry_config.py`       | `ProviderRetryConfig` (per-provider retry defaults)    |
+| File                                              | Purpose                                                                                  |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `src/sase/llm_provider/__init__.py`               | Public API exports                                                                       |
+| `src/sase/llm_provider/base.py`                   | `LLMProvider` abstract base class                                                        |
+| `src/sase/llm_provider/_hookspec.py`              | Pluggy hook specifications (`LLMHookSpec`)                                               |
+| `src/sase/llm_provider/_plugin_manager.py`        | Plugin manager wrapping pluggy (`LLMPluginManager`)                                      |
+| `src/sase/llm_provider/claude.py`                 | Claude Code provider implementation                                                      |
+| `src/sase/llm_provider/codex.py`                  | Codex CLI provider implementation                                                        |
+| `src/sase/llm_provider/fakey.py`                  | Bundled deterministic testing provider                                                   |
+| `src/sase/llm_provider/agy.py`                    | Antigravity CLI (`agy`) provider implementation                                          |
+| `src/sase/llm_provider/qwen.py`                   | Qwen Code provider implementation                                                        |
+| `src/sase/llm_provider/opencode.py`               | OpenCode provider implementation                                                         |
+| `src/sase/llm_provider/registry.py`               | Provider registration and lookup                                                         |
+| `src/sase/llm_provider/_registry_metadata.py`     | Provider metadata normalization and cache fingerprints                                   |
+| `src/sase/llm_provider/_registry_plugins.py`      | Plugin discovery/construction via `sase_llm` entry points                                |
+| `src/sase/llm_provider/model_alias_defaults.yml`  | Single bundled source of truth for shipped implicit-alias targets/fallbacks/descriptions |
+| `src/sase/llm_provider/model_alias_policy.py`     | Validating loader for `model_alias_defaults.yml`                                         |
+| `src/sase/llm_provider/model_alias_config.py`     | Model-alias name constants, config parsing, presentation metadata                        |
+| `src/sase/llm_provider/model_alias_resolution.py` | Alias/target/effort resolution logic                                                     |
+| `src/sase/llm_provider/alias_view.py`             | ACE Models-panel alias-view construction (`build_alias_views()`)                         |
+| `src/sase/llm_provider/config.py`                 | Config file reader (`sase.yml`)                                                          |
+| `src/sase/llm_provider/temporary_override.py`     | Primary/worker temporary override state and resolution                                   |
+| `src/sase/llm_provider/commit_finalizer.py`       | Provider-neutral dirty-workspace finalizer                                               |
+| `src/sase/llm_provider/types.py`                  | `ModelTier`, `InvokeResult`, `LoggingContext` types                                      |
+| `src/sase/llm_provider/_invoke.py`                | `invoke_agent()` orchestrator                                                            |
+| `src/sase/llm_provider/_subprocess.py`            | Provider stream-parser compatibility exports                                             |
+| `src/sase/llm_provider/_plan_utils.py`            | Shared plan utilities                                                                    |
+| `src/sase/llm_provider/preprocessing.py`          | Shared prompt preprocessing pipeline                                                     |
+| `src/sase/llm_provider/postprocessing.py`         | Logging, chat history, audio                                                             |
+| `src/sase/llm_provider/retry_config.py`           | `ProviderRetryConfig` (per-provider retry defaults)                                      |
 
 ## Provider Architecture
 
@@ -549,7 +556,7 @@ The LLM provider reads its configuration from `~/.config/sase/sase.yml` under th
 
 ```yaml
 llm_provider:
-  provider: claude # or "qwen", "opencode", "agy", "fakey" (default: auto-detect)
+  provider: claude # or "codex", "qwen", "opencode", "agy", "fakey" (default: auto-detect)
   default_effort: xhigh # default reasoning effort when a prompt sets none (default: unset)
   model_tier_map:
     large: opus
@@ -736,6 +743,9 @@ llm_provider:
       xlarge_phase_worker: "@smartest"
       smartest: claude/claude-fable-5 || codex/gpt-5.6-sol
 ```
+
+Source: `src/sase/llm_provider/model_alias_defaults.yml` (shipped defaults — the single edit point),
+`src/sase/llm_provider/model_alias_policy.py`
 
 #### Launch-scoped alias overrides
 

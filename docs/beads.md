@@ -430,6 +430,10 @@ dependencies, associated agents, and commits. Current commits use a structured `
 subject-line parenthetical; historical commits with trailing `(<bead-id>)` subjects are still recognized when the ID
 exists in the store.
 
+Each page's identity block also renders the bead's creator as `**Created by:** <name>`, between `**Owner:**` and
+`**Assignee:**`. It links to the creator's hosted agents-sidecar page when one resolves and otherwise renders as inline
+code with no link; a bead with no recorded creator omits the fact entirely.
+
 ```bash
 sase bead pages refresh                 # dry run; writes nothing
 sase bead pages refresh --write         # write changed pages and commit one beads-sidecar batch
@@ -524,6 +528,12 @@ Create a new issue.
 ChangeSpec metadata is valid only on plan beads. It is used by the epic-approval and `sase bead work` flows to keep plan
 beads linked to the ChangeSpec they are intended to produce.
 
+New beads are attributed to the acting SASE agent (from `SASE_AGENT_NAME` or `agent_meta.json`), falling back to the
+store owner when no agent identity resolves. A `phase` bead always inherits its creator from its parent epic instead of
+being attributed independently. A `plan` bead prefers the `proposed_by` value `sase plan propose` stamps onto the plan
+file at proposal time, and falls back to the acting agent when the plan carries none. See
+[`sase bead show`](#sase-bead-show-id) for how the resolved creator is displayed.
+
 ### `sase bead dep`
 
 Inspect and manage dependency edges. With no child subcommand, `sase bead dep` delegates to `sase bead dep list` and
@@ -609,6 +619,8 @@ Run health checks on the beads database. Checks for:
 - Uncommitted bead-state changes
 - Orphan children (phase or nested-plan beads whose parent is missing)
 - Legacy or unresolved `design` plan references
+- Issue prefix leaked as the project's ProjectSpec directory key instead of its `PROJECT_NAME` (reported only; repair
+  with `sase bead doctor --fix-issue-prefix`)
 - Artifact references with unknown namespaces, missing targets, or ambiguous targets
 - `claimed` beads whose assignee resolves to no agent artifact (reported only; run `sase bead open <id>` to clear them)
 - `open` beads owned by a live agent that has not started work yet (reported only; it means the `bead_claim_checks` chop
@@ -664,6 +676,11 @@ without `--lost-notes` is a usage error.
 Initialize the bead store for the current project. In effective in-tree SDD mode this is `sdd/beads/`; local and legacy
 separate-repo modes use `.sase/sdd/beads/`. Split sidecar mode uses the root of the `--beads` repository once the store
 record names that sidecar, and `beads/` in the `--plans` repository until then.
+
+A newly initialized store's default `issue_prefix` is the project's `PROJECT_NAME` display name (falling back to the
+internal ProjectSpec key, then the git remote's repo name, then the directory name) rather than the raw ProjectSpec key.
+Use `sase bead doctor --fix-issue-prefix` to forward-repair a store created before this change that already leaked the
+key (see [`sase bead doctor`](#sase-bead-doctor)).
 
 ### `sase bead list`
 
@@ -774,13 +791,16 @@ sase bead search auth --type plan --tier epic
 Display complete details for an issue including status, type, tier, parent lineage, dependencies, blockers, description,
 notes, ChangeSpec metadata, model, linked plan path, artifact references, creator, and the hosted page URL when one
 resolves locally. The `CREATED BY` block localizes an agent's durable global name and links to its hosted agents-sidecar
-page when that URL resolves. A human-created bead shows the creator's email without a link. Closed beads include their
-resolution, close reason, and close timestamp; legacy closures without a resolution show `(unrecorded)`. Phase and task
-detail views always print a size: they use the stored value when present and `small` when it is absent. For a task, that
-`small` value is only a display fallback; a sizeless task launch routes through `@task_worker`, not
-`@small_phase_worker`. Any bead's children are grouped as phases (with status and size) and child epics (with tier and
-status), including child epics owned by a phase bead. Nested beads show their complete lineage back to the root plan. A
-`claimed` bead also prints `Claimed by: <assignee> (agent has not started working yet)`.
+page when that URL resolves. A human-created bead shows the creator's email without a link.
+`sase bead list --format full` and `sase bead search --format full` share the same `CREATED BY` block but never resolve
+or print the hosted-agent link — only `sase bead show` does. Compact `sase bead list`/`sase bead search` rows never show
+the creator at all. Closed beads include their resolution, close reason, and close timestamp; legacy closures without a
+resolution show `(unrecorded)`. Phase and task detail views always print a size: they use the stored value when present
+and `small` when it is absent. For a task, that `small` value is only a display fallback; a sizeless task launch routes
+through `@task_worker`, not `@small_phase_worker`. Any bead's children are grouped as phases (with status and size) and
+child epics (with tier and status), including child epics owned by a phase bead. Nested beads show their complete
+lineage back to the root plan. A `claimed` bead also prints
+`Claimed by: <assignee> (agent has not started working yet)`.
 
 `full` is the default detail block. `compact` prints the same single row as `sase bead list`. `json` emits a single-bead
 envelope with `issue`, `ancestors`, `children`, `depends_on`, `blocks`, and `plan`, plus `page_url` when a hosted page
