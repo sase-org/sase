@@ -153,7 +153,6 @@ class AgentTribeSummarySnapshot:
     workflow_variables: tuple[ClanVariableEntry, ...]
     entry_target: TribeEntryTarget | None = None
     description: str = ""
-    description_missing: bool = False
 
 
 def _tribe_panel_identity(panel_key: PanelKey) -> TribePanelIdentity:
@@ -169,11 +168,10 @@ def _panel_label(panel_key: PanelKey) -> str:
     return f"{icon} {label}" if icon else label
 
 
-def _panel_description(panel_key: PanelKey) -> tuple[str, bool]:
+def _panel_description(panel_key: PanelKey) -> str:
     from .tribe_display import tribe_display_for
 
-    display = tribe_display_for(panel_key)
-    return display.description, display.configured and not display.description
+    return tribe_display_for(panel_key).description
 
 
 def _row_name(agent: Agent) -> str:
@@ -500,7 +498,7 @@ def build_agent_tribe_summary_snapshot(
         for root in roots
     )
     lane_counts, lane_count = _lane_status_counts(roots, unread_ids)
-    description, description_missing = _panel_description(panel_key)
+    description = _panel_description(panel_key)
     return AgentTribeSummarySnapshot(
         panel_key=panel_key,
         container_identity=_tribe_panel_identity(panel_key),
@@ -523,7 +521,6 @@ def build_agent_tribe_summary_snapshot(
         ),
         entry_target=entry_target,
         description=description,
-        description_missing=description_missing,
     )
 
 

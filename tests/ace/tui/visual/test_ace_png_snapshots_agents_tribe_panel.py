@@ -202,7 +202,10 @@ async def test_tribe_panel_display_config_png_snapshot(
         assert "Name: ▲ @epic" in prompt.content.plain
         assert (
             "Epic phase-worker clans from sase bead work, one member per phase "
-            "of an approved plan." in prompt.content.plain
+            "of an approved plan." in " ".join(prompt.content.plain.split())
+        )
+        assert prompt.content.plain.index("Fold: ") < prompt.content.plain.index(
+            "Description: "
         )
         _assert_title_identity_color(
             prompt.content,

@@ -6,6 +6,7 @@ from collections import defaultdict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
+from rich.cells import cell_len
 from rich.syntax import Syntax
 from rich.text import Text
 
@@ -44,7 +45,12 @@ from ._fold_language import (
     append_scanning_tail,
     fold_count_style,
 )
-from ._helpers import append_major_section_divider, append_section_heading
+from ._helpers import (
+    PROMPT_PANEL_LINE_CELL_LIMIT,
+    append_major_section_divider,
+    append_section_heading,
+    wrap_text_by_cells,
+)
 from ._member_roster import (
     MEMBER_ENTRY_CURSOR_GLYPH,
     MEMBER_ENTRY_CURSOR_STYLE,
@@ -63,8 +69,14 @@ _TRIBE_HEADING_STYLE = f"bold {TRIBE_IDENTITY_COLOR} underline"
 _SECTION_HEADING_STYLE = f"bold {TRIBE_IDENTITY_COLOR} underline"
 _BODY_STYLE = "#D7D7FF"
 _TRIAGE_LIMIT = 8
-_DESCRIPTION_STYLE = "italic #B0B0B0"
-_DESCRIPTION_MISSING_STYLE = "italic #D7AF87"
+_DESCRIPTION_STYLE = "italic #C6C6C6"
+_DESCRIPTION_MISSING_STYLE = "italic #8A8A8A"
+_DESCRIPTION_CONFIG_KEY_STYLE = "bold #D7AF87"
+_DESCRIPTION_LABEL = "Description: "
+_DESCRIPTION_INDENT = " " * cell_len(_DESCRIPTION_LABEL)
+_DESCRIPTION_WRAP_WIDTH = max(
+    1, PROMPT_PANEL_LINE_CELL_LIMIT - cell_len(_DESCRIPTION_LABEL)
+)
 _STATUS_STYLES: dict[str, str] = {
     "Stopped": "bold #FFAF5F",
     "Starting": "bold #87D7FF",
@@ -166,16 +178,6 @@ def _append_header(
         f"{snapshot.label}\n",
         style=tribe_identity_style(snapshot.panel_key, bold=True),
     )
-    if snapshot.description:
-        text.append("  ")
-        text.append(f"{snapshot.description}\n", style=_DESCRIPTION_STYLE)
-    elif snapshot.description_missing:
-        text.append("  ")
-        text.append(
-            f"no description - set ace.tribes.{tribe_config_key(snapshot.panel_key)}.description\n",
-            style=_DESCRIPTION_MISSING_STYLE,
-        )
-
     text.append("Status: ", style=_FIELD_LABEL_STYLE)
     from sase.agent.status_buckets import status_bucket_for_values
 
@@ -204,6 +206,35 @@ def _append_header(
     text.append("Runtime: ", style=_FIELD_LABEL_STYLE)
     text.append(f"{snapshot.runtime_span}\n", style="bold #BCBCBC")
     append_fold_header_line(text, level=fold_level, scale=TRIBE_FOLD_SCALE)
+    _append_description(text, snapshot)
+
+
+def _append_description(text: Text, snapshot: AgentTribeSummarySnapshot) -> None:
+    text.append("\n")
+    text.append(_DESCRIPTION_LABEL, style=_FIELD_LABEL_STYLE)
+    if snapshot.description:
+        lines = wrap_text_by_cells(snapshot.description, _DESCRIPTION_WRAP_WIDTH)
+        text.append(f"{lines[0]}\n", style=_DESCRIPTION_STYLE)
+        for line in lines[1:]:
+            text.append(_DESCRIPTION_INDENT)
+            text.append(f"{line}\n", style=_DESCRIPTION_STYLE)
+        return
+
+    config_key = f"ace.tribes.{tribe_config_key(snapshot.panel_key)}.description"
+    hint_prefix = "not set · add "
+    if cell_len(hint_prefix) + cell_len(config_key) <= _DESCRIPTION_WRAP_WIDTH:
+        text.append("not set", style=_DESCRIPTION_MISSING_STYLE)
+        text.append(" · ", style="dim")
+        text.append("add ", style=_DESCRIPTION_MISSING_STYLE)
+        text.append(f"{config_key}\n", style=_DESCRIPTION_CONFIG_KEY_STYLE)
+        return
+
+    text.append("not set", style=_DESCRIPTION_MISSING_STYLE)
+    text.append(" · ", style="dim")
+    text.append("add\n", style=_DESCRIPTION_MISSING_STYLE)
+    for line in wrap_text_by_cells(config_key, _DESCRIPTION_WRAP_WIDTH):
+        text.append(_DESCRIPTION_INDENT)
+        text.append(f"{line}\n", style=_DESCRIPTION_CONFIG_KEY_STYLE)
 
 
 def _append_attention(

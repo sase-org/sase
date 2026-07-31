@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from rich.cells import cell_len
 from rich.style import Style
 from rich.style import StyleType
 from rich.text import Text
@@ -13,6 +14,10 @@ from sase.llm_provider.model_label import append_model_field as append_model_fie
 
 from ...models.agent import Agent
 from ._section_navigation import SECTION_MARKER_META_KEY
+
+# Shared prose measure for prompt-panel lanes: the strict total rendered-cell
+# budget for a wrapped line, including any leading indentation or prefix.
+PROMPT_PANEL_LINE_CELL_LIMIT = 80
 
 
 def get_rich_status_indicator(status: str) -> tuple[str, str]:
@@ -147,6 +152,50 @@ def _default_section_id(heading: str) -> str:
     """Return a stable identity for headings without a dynamic override."""
     semantic_label = heading.split(" · ", 1)[0].strip().rstrip(":")
     return re.sub(r"[^a-z0-9]+", "-", semantic_label.lower()).strip("-")
+
+
+def _split_token_by_cells(token: str, width: int) -> tuple[str, str]:
+    """Split ``token`` into a head fitting ``width`` cells and the remainder.
+
+    The head always contains at least one character so wrapping makes progress
+    even if a single glyph is wider than ``width``.
+    """
+    head = ""
+    head_cells = 0
+    for index, char in enumerate(token):
+        char_cells = cell_len(char)
+        if head and head_cells + char_cells > width:
+            return head, token[index:]
+        head += char
+        head_cells += char_cells
+    return token, ""
+
+
+def wrap_text_by_cells(text: str, width: int) -> list[str]:
+    """Wrap normalized prose so each line fits within ``width`` cells.
+
+    Breaks on whitespace when possible and never on hyphens. A token wider than
+    ``width`` is hard-split by cells so the strict column budget always holds.
+    """
+    lines: list[str] = []
+    current = ""
+    for word in text.split():
+        while cell_len(word) > width:
+            if current:
+                lines.append(current)
+                current = ""
+            head, word = _split_token_by_cells(word, width)
+            lines.append(head)
+        if not current:
+            current = word
+        elif cell_len(current) + 1 + cell_len(word) <= width:
+            current = f"{current} {word}"
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
 
 
 def extract_meta_fields(output: dict[str, Any]) -> list[tuple[str, str]]:

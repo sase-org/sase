@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import datetime
 
 import pytest
+from rich.cells import cell_len
 
 from sase.ace.tui.models._agent_clan_sections import ClanTextEntry
 from sase.ace.tui.models._agent_tree import project_clan_tree
@@ -26,6 +27,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_tribe_aggregation import (
     TribeTextEntry,
     _TribeDiskSnapshot,
 )
+from sase.ace.tui.widgets.prompt_panel._helpers import PROMPT_PANEL_LINE_CELL_LIMIT
 from sase.ace.tui.widgets.prompt_panel._member_roster import (
     MEMBER_ENTRY_CURSOR_GLYPH,
     MEMBER_ENTRY_CURSOR_STYLE,
@@ -142,7 +144,7 @@ def test_tribe_header_colors_only_the_structured_name_identity(
     )
 
 
-def test_tribe_description_line_renders_under_name(
+def test_tribe_description_renders_below_the_header_fields(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -158,13 +160,55 @@ def test_tribe_description_line_renders_under_name(
     tribe_display._tribe_displays_for_token.cache_clear()
 
     detail = build_tribe_detail_text(_snapshot())
-    description_start = detail.plain.index("Epic phase workers.")
+    plain = detail.plain
+    fold_index = plain.index("Fold: ")
+    label_index = plain.index("Description: ")
+    divider_index = plain.index("─" * 50)
+    description_start = plain.index("Epic phase workers.")
 
+    assert fold_index < label_index < divider_index
+    assert plain[label_index - 2 : label_index] == "\n\n"
     assert any(
         span.start <= description_start < span.end
-        and str(span.style) == "italic #B0B0B0"
+        and str(span.style) == "italic #C6C6C6"
         for span in detail.spans
     )
+
+
+def test_tribe_long_description_wraps_with_a_hanging_indent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {"ace": {"tribes": {"epic": {"description": "x" * 160}}}},
+    )
+    monkeypatch.setattr(
+        tribe_display,
+        "current_config_token",
+        lambda: ("tribe-description-wrap",),
+    )
+    tribe_display._tribe_displays_for_token.cache_clear()
+
+    detail = build_tribe_detail_text(_snapshot())
+    lines = detail.plain.splitlines()
+
+    assert all(cell_len(line) <= PROMPT_PANEL_LINE_CELL_LIMIT for line in lines)
+
+    label_line_index = next(
+        index for index, line in enumerate(lines) if line.startswith("Description: ")
+    )
+    indent = " " * cell_len("Description: ")
+    continuation_lines = []
+    for line in lines[label_line_index + 1 :]:
+        if not line.startswith(indent):
+            break
+        continuation_lines.append(line)
+
+    assert continuation_lines
+    for line in continuation_lines:
+        assert line.startswith(indent)
+        assert not line.startswith(indent + " ")
 
 
 def test_tribe_missing_description_hint_names_the_config_key(
@@ -183,13 +227,40 @@ def test_tribe_missing_description_hint_names_the_config_key(
     tribe_display._tribe_displays_for_token.cache_clear()
 
     detail = build_tribe_detail_text(_snapshot())
-    hint = "no description - set ace.tribes.epic.description"
-    hint_start = detail.plain.index(hint)
+    plain = detail.plain
+    hint = "Description: not set · add ace.tribes.epic.description"
+    hint_start = plain.index(hint)
+    not_set_start = plain.index("not set", hint_start)
+    key_start = plain.index("ace.tribes.epic.description", hint_start)
 
     assert any(
-        span.start <= hint_start < span.end and str(span.style) == "italic #D7AF87"
+        span.start <= not_set_start < span.end and str(span.style) == "italic #8A8A8A"
         for span in detail.spans
     )
+    assert any(
+        span.start <= key_start < span.end and str(span.style) == "bold #D7AF87"
+        for span in detail.spans
+    )
+
+
+def test_tribe_description_row_renders_for_unconfigured_tribes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {"ace": {"tribes": {}}},
+    )
+    monkeypatch.setattr(
+        tribe_display,
+        "current_config_token",
+        lambda: ("tribe-description-unconfigured",),
+    )
+    tribe_display._tribe_displays_for_token.cache_clear()
+
+    detail = build_tribe_detail_text(_snapshot())
+
+    assert "Description: not set · add ace.tribes.epic.description" in detail.plain
 
 
 def test_tribe_missing_description_hint_maps_none_panel_to_default(
@@ -212,7 +283,13 @@ def test_tribe_missing_description_hint_maps_none_panel_to_default(
     )
     detail = build_tribe_detail_text(snapshot)
 
-    assert "no description - set ace.tribes.default.description" in detail.plain
+    assert "Description: not set · add ace.tribes.default.description" in detail.plain
+
+
+def test_tribe_description_renders_in_cheap_mode() -> None:
+    detail = build_tribe_detail_text(_snapshot(), cheap=True).plain
+
+    assert "Description: " in detail
 
 
 def test_tribe_description_with_markup_characters_renders_literally(
@@ -260,11 +337,13 @@ def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -
 
     assert pulse.startswith(
         "TRIBE\nName: ▲ @epic\n"
-        "  Epic phase-worker clans from sase bead work, one member per phase of an "
-        "approved plan.\n"
         "Status: FAILED [R1 F1]\n"
         "Composition: 1 family · 2 lanes · 1 nested\n"
         "Runtime: 1h\nFold: 1/4\n"
+        "\n"
+        "Description: Epic phase-worker clans from sase bead work, one member per "
+        "phase\n"
+        "             of an approved plan.\n"
     )
     assert "▸ NEEDS ATTENTION · 1\n• failed · FAILED · Build failed" in pulse
     assert "▸ ❖ TRIBE MEMBERS · 2\n" in pulse
@@ -614,7 +693,7 @@ def test_cheap_tribe_paint_is_header_only() -> None:
     assert "Fold: 4/4" in detail
     assert (
         "Epic phase-worker clans from sase bead work, one member per phase of an "
-        "approved plan." in detail
+        "approved plan." in " ".join(detail.split())
     )
     assert "NEEDS ATTENTION" not in detail
     assert "TRIBE MEMBERS" not in detail

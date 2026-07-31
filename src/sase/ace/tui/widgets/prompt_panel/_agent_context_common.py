@@ -9,11 +9,13 @@ from rich.text import Text
 
 from sase.core.time import get_timezone
 
+from ._helpers import PROMPT_PANEL_LINE_CELL_LIMIT, wrap_text_by_cells
+
 # Strict total rendered-cell budget for any reason line, including the leading
 # indentation, glyph prefix, and (for attributed rows) the role column. The
 # available payload width is derived per row from the actual prefix width so
 # wider attributed prefixes still honor the same 80-column contract.
-REASON_LINE_CELL_LIMIT = 80
+REASON_LINE_CELL_LIMIT = PROMPT_PANEL_LINE_CELL_LIMIT
 
 COLOR_MEMORY_SUBHEADER = "bold #5FD7FF"
 COLOR_BEAD_SUBHEADER = "bold #FFAF00"
@@ -160,50 +162,6 @@ def append_lane_row(
     return CONTEXT_REASON_INDENT + extra_indent + hint_indent
 
 
-def _split_token_by_cells(token: str, width: int) -> tuple[str, str]:
-    """Split ``token`` into a head fitting ``width`` cells and the remainder.
-
-    The head always contains at least one character so wrapping makes progress
-    even if a single glyph is wider than ``width``.
-    """
-    head = ""
-    head_cells = 0
-    for index, char in enumerate(token):
-        char_cells = cell_len(char)
-        if head and head_cells + char_cells > width:
-            return head, token[index:]
-        head += char
-        head_cells += char_cells
-    return token, ""
-
-
-def _wrap_reason_by_cells(reason: str, width: int) -> list[str]:
-    """Wrap normalized reason text so each line fits within ``width`` cells.
-
-    Breaks on whitespace when possible and never on hyphens. A token wider than
-    ``width`` is hard-split by cells so the strict column budget always holds.
-    """
-    lines: list[str] = []
-    current = ""
-    for word in reason.split():
-        while cell_len(word) > width:
-            if current:
-                lines.append(current)
-                current = ""
-            head, word = _split_token_by_cells(word, width)
-            lines.append(head)
-        if not current:
-            current = word
-        elif cell_len(current) + 1 + cell_len(word) <= width:
-            current = f"{current} {word}"
-        else:
-            lines.append(current)
-            current = word
-    if current:
-        lines.append(current)
-    return lines
-
-
 def append_context_reason(
     text: Text,
     reason: str,
@@ -219,7 +177,7 @@ def append_context_reason(
         return
 
     available = max(1, REASON_LINE_CELL_LIMIT - prefix_cells)
-    lines = _wrap_reason_by_cells(reason, available)
+    lines = wrap_text_by_cells(reason, available)
     text.append(prefix, style=COLOR_REASON)
     text.append(lines[0] + "\n", style=COLOR_REASON)
     for line in lines[1:]:

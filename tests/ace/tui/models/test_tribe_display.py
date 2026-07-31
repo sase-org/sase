@@ -48,13 +48,12 @@ def test_default_panel_mapping_and_unknown_fallback(
     )
 
     assert display.tribe_display_for(None) == display._TribeDisplay(
-        icon="🏠", color="#87D7FF", configured=True
+        icon="🏠", color="#87D7FF"
     )
     assert display.tribe_display_for("chop") == display._TribeDisplay(
-        icon="🪓", color="#af87ff", initially_expanded=False, configured=True
+        icon="🪓", color="#af87ff", initially_expanded=False
     )
     assert display.tribe_display_for("custom") == display.DEFAULT_TRIBE_DISPLAY
-    assert display.tribe_display_for("custom").configured is False
 
 
 def test_empty_and_hostile_icons_are_sanitized(
@@ -101,7 +100,6 @@ def test_description_sanitization(
     assert display.tribe_display_for("escape").description == "before[31mafter"
     assert display.tribe_display_for("wrong_type").description == ""
     assert display.tribe_display_for("missing").description == ""
-    assert display.tribe_display_for("missing").configured is True
 
     long_description = display.tribe_display_for("long").description
     assert len(long_description) == display.MAX_TRIBE_DESCRIPTION_CHARS

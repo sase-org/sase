@@ -30,7 +30,6 @@ class _TribeDisplay:
     color: str = ""
     initially_expanded: bool = True
     description: str = ""
-    configured: bool = False
 
 
 DEFAULT_TRIBE_DISPLAY = _TribeDisplay()
@@ -98,7 +97,6 @@ def _tribe_displays_for_token(
                 initially_expanded if isinstance(initially_expanded, bool) else True
             ),
             description=_sanitize_description(raw.get("description", "")),
-            configured=True,
         )
     return displays
 

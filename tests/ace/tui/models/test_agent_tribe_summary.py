@@ -533,7 +533,7 @@ def test_reference_tribe_counts_six_lane_statuses_and_eight_nested() -> None:
     assert snapshot.counts.done == 4
 
 
-def test_snapshot_carries_description_and_missing_flag(
+def test_snapshot_carries_description(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tribe_display._tribe_displays_for_token.cache_clear()
@@ -564,8 +564,5 @@ def test_snapshot_carries_description_and_missing_flag(
         tribe_display._tribe_displays_for_token.cache_clear()
 
     assert documented.description == "Epic phase workers."
-    assert documented.description_missing is False
     assert missing.description == ""
-    assert missing.description_missing is True
     assert unconfigured.description == ""
-    assert unconfigured.description_missing is False

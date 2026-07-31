@@ -1048,10 +1048,11 @@ count retains its semantic status color. Panel heights are sized to their conten
 the panels fit, the first panel grows to absorb leftover vertical space while later panels stay pinned to their natural
 height; when the panels overflow, space is weighted by each panel's rendered row count.
 
-A selected tribe panel's `TRIBE` header shows the tribe's configured [`description`](configuration.md#acetribes)
-directly beneath `Name:`. A configured tribe with no description instead shows an inline
-`no description - set ace.tribes.<name>.description` hint, so the fix is visible at the point of use; unconfigured
-ad-hoc tribes (for example epic-bead tribes with no `ace.tribes` entry) show neither line.
+A selected tribe panel's `TRIBE` header always ends with a labeled `Description: ` row, set off from the field stack
+(`Name`, `Status`, `Composition`, `Runtime`, `Fold`) by a blank line and wrapped with a hanging indent at a fixed
+80-cell measure. It shows the tribe's configured [`description`](configuration.md#acetribes) when set. Otherwise it
+shows `not set · add ace.tribes.<name>.description`, so the fix is visible at the point of use — including for
+unconfigured ad-hoc tribes (for example epic-bead tribes with no `ace.tribes` entry).
 
 Use `J` / `K` to move across expanded panels (forward / reverse) and enter the first or last selectable row in the
 destination; collapsed panels are skipped entirely, and the keymaps do nothing when no other panel is expanded.

@@ -624,12 +624,12 @@ publication, or the `,U` cached-integration leg. See [Agent Hood Synchronization
 `ace.tribes` is keyed by bare tribe name (without `@`). The special `default` key configures the reserved `@default`
 panel. Every configured tribe entry is **required** to carry a `description`; the other fields are optional:
 
-| Field                | Type | Default    | Description                                                                                                                      |
-| -------------------- | ---- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `icon`               | str  | `""`       | Short glyph on structured identity surfaces that already include an icon. Set `""` to remove an icon inherited from defaults.    |
-| `color`              | str  | `""`       | `#RRGGBB` foreground for structured tribe icons and names throughout the TUI. Set `""` to restore ACE's gold fallback.           |
-| `initially_expanded` | bool | `true`     | Initial state the first time the Agents-tab panel appears.                                                                       |
-| `description`        | str  | _required_ | One-line explanation of the tribe, 1-160 characters. Shown in the Agents-tab metadata panel when that tribe's panel is selected. |
+| Field                | Type | Default    | Description                                                                                                                                                            |
+| -------------------- | ---- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `icon`               | str  | `""`       | Short glyph on structured identity surfaces that already include an icon. Set `""` to remove an icon inherited from defaults.                                          |
+| `color`              | str  | `""`       | `#RRGGBB` foreground for structured tribe icons and names throughout the TUI. Set `""` to restore ACE's gold fallback.                                                 |
+| `initially_expanded` | bool | `true`     | Initial state the first time the Agents-tab panel appears.                                                                                                             |
+| `description`        | str  | _required_ | One-line explanation of the tribe, 1-160 characters. Shown in the labeled `Description:` row beneath the header fields when that tribe's Agents-tab panel is selected. |
 
 The bundled defaults use ⌂ in sky blue for `default`, ▲ in lavender-purple for `epic`, and † in amber-orange for `chop`.
 They also use ◆ for `pinned` and ◉ for `review`, whose identities retain ACE's gold fallback; `chop` starts collapsed.
