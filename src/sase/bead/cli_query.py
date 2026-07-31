@@ -7,8 +7,11 @@ import json
 import sys
 from pathlib import Path
 
+from rich.cells import cell_len
+
 from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead.cli_common import get_read_view, status_icon
+from sase.bead.cli_dep_render import ANSI_BOLD_BLUE, resolve_color, styled
 from sase.bead.cli_detail import (
     artifact_reference_context,
     design_paths_are_relative,
@@ -28,6 +31,12 @@ from sase.bead.model import (
     Status,
 )
 from sase.bead.project import BeadProject
+from sase.bead_status_presentation import bead_status_presentation
+from sase.bead_type_presentation import (
+    BEAD_TYPE_VALUES,
+    bead_type_cli_cell,
+    bead_type_presentation,
+)
 
 # Closed bead listings can grow without bound, so default to the newest few
 # rows when the user did not request an explicit ``--limit``.
@@ -35,6 +44,7 @@ DEFAULT_CLOSED_LIST_LIMIT = 20
 
 
 def handle_bead_list(args: argparse.Namespace) -> None:
+    use_color = resolve_color(getattr(args, "color", "auto"))
     with get_read_view() as view:
         explicit_statuses = args.status is not None
         statuses = (
@@ -69,7 +79,7 @@ def handle_bead_list(args: argparse.Namespace) -> None:
                     return
                 if implicit_closed:
                     print("No open beads to show — defaulting to --status closed.")
-                print(_render_list_compact(issues), end="")
+                print(_render_list_compact(issues, use_color=use_color), end="")
             case "json":
                 print(
                     _render_list_json(
@@ -114,7 +124,8 @@ def handle_bead_show(args: argparse.Namespace) -> None:
 
         match args.format:
             case "compact":
-                print(_render_list_compact([issue]), end="")
+                use_color = resolve_color(getattr(args, "color", "auto"))
+                print(_render_list_compact([issue], use_color=use_color), end="")
             case "json":
                 detail = resolve_issue_detail(view, issue)
                 print(
@@ -229,11 +240,23 @@ def handle_bead_stats(args: argparse.Namespace) -> None:
         print(f"  Tasks:       {s.get('task', 0)}")
 
 
-def _render_list_compact(issues: list[Issue]) -> str:
+def _render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
+    # Measured (not assumed) so the column stays aligned even though the three
+    # type glyphs do not share a Unicode width class (see plan Decision 4).
+    type_width = max(
+        cell_len(f"{bead_type_presentation(value).glyph} {value}")
+        for value in BEAD_TYPE_VALUES
+    )
     lines = []
     for issue in issues:
+        type_cell = bead_type_cli_cell(
+            issue.issue_type, use_color=use_color, width=type_width
+        )
+        status = bead_status_presentation(issue.status)
+        status_glyph = styled(status.glyph, status.cli_style, use_color)
+        issue_id = styled(issue.id, ANSI_BOLD_BLUE, use_color)
         parent = f" ← {issue.parent_id}" if issue.parent_id else ""
-        lines.append(f"{status_icon(issue.status)} {issue.id} · {issue.title}{parent}")
+        lines.append(f"{type_cell} {status_glyph} {issue_id} · {issue.title}{parent}")
     return "\n".join(lines) + "\n"
 
 

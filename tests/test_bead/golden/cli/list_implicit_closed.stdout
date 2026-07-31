@@ -1,4 +1,4 @@
 No open beads to show — defaulting to --status closed.
-✓ beads-1 · Closed Epic
-✓ beads-1.1 · Closed Phase ← beads-1
-✓ beads-2 · Closed Plan
+▸ plan  ✓ beads-1 · Closed Epic
+↳ phase ✓ beads-1.1 · Closed Phase ← beads-1
+▸ plan  ✓ beads-2 · Closed Plan

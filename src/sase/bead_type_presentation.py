@@ -6,9 +6,36 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Literal, cast
 
+from rich.cells import cell_len
 from rich.text import Text
 
 BeadTypeValue = Literal["plan", "phase", "task"]
+
+_ANSI_RESET = "\x1b[0m"
+_XTERM_CUBE_LEVELS = (0, 95, 135, 175, 215, 255)
+
+
+def _xterm256_foreground_style(accent_color: str) -> str:
+    """Derive the ANSI SGR foreground escape for an xterm-256 cube color.
+
+    Deriving this from ``accent_color`` (rather than pinning a second literal)
+    is what keeps the CLI's ANSI output and the Rich accent from drifting
+    apart as colors are added or changed.
+    """
+    hex_value = accent_color.lstrip("#")
+    channels = (
+        int(hex_value[0:2], 16),
+        int(hex_value[2:4], 16),
+        int(hex_value[4:6], 16),
+    )
+    r, g, b = (
+        min(
+            range(len(_XTERM_CUBE_LEVELS)), key=lambda i: abs(_XTERM_CUBE_LEVELS[i] - c)
+        )
+        for c in channels
+    )
+    index = 16 + 36 * r + 6 * g + b
+    return f"\x1b[38;5;{index}m"
 
 
 @dataclass(frozen=True)
@@ -24,6 +51,11 @@ class _BeadTypePresentation:
     def rich_style(self) -> str:
         """Return the standard bold Rich style used for standalone type glyphs."""
         return f"bold {self.accent_color}"
+
+    @property
+    def cli_style(self) -> str:
+        """Return the ANSI SGR foreground code matching ``accent_color``."""
+        return _xterm256_foreground_style(self.accent_color)
 
 
 BEAD_TYPE_PRESENTATIONS: dict[BeadTypeValue, _BeadTypePresentation] = {
@@ -48,7 +80,7 @@ BEAD_TYPE_PRESENTATIONS: dict[BeadTypeValue, _BeadTypePresentation] = {
 }
 BEAD_TYPE_VALUES: tuple[BeadTypeValue, ...] = tuple(BEAD_TYPE_PRESENTATIONS)
 BEAD_TYPE_CHIP_WIDTH = max(
-    len(f" {BEAD_TYPE_PRESENTATIONS[value].glyph} {value} ")
+    cell_len(f" {BEAD_TYPE_PRESENTATIONS[value].glyph} {value} ")
     for value in BEAD_TYPE_VALUES
 )
 
@@ -92,11 +124,38 @@ def bead_type_chip(
     )
 
 
+def bead_type_cli_cell(
+    value: object,
+    *,
+    use_color: bool,
+    width: int | None = None,
+) -> str:
+    """Return the padded ``{glyph} {word}`` cell for compact CLI rows.
+
+    Unlike :func:`bead_type_chip`, this raises on an unknown type instead of
+    falling back to an ``unavailable`` label: CLI rows are always built from a
+    validated ``IssueType``, so a normalization failure here means a bug, not
+    missing data, and should fail loudly rather than print a misleading row.
+    """
+    normalized = _normalize_bead_type(value)
+    if normalized is None:
+        raise ValueError(f"unknown bead type: {value!r}")
+
+    presentation = BEAD_TYPE_PRESENTATIONS[normalized]
+    cell = f"{presentation.glyph} {normalized}"
+    if width is not None:
+        cell += " " * max(width - cell_len(cell), 0)
+    if use_color:
+        cell = f"{presentation.cli_style}{cell}{_ANSI_RESET}"
+    return cell
+
+
 __all__ = [
     "BEAD_TYPE_CHIP_WIDTH",
     "BEAD_TYPE_PRESENTATIONS",
     "BEAD_TYPE_VALUES",
     "BeadTypeValue",
     "bead_type_chip",
+    "bead_type_cli_cell",
     "bead_type_presentation",
 ]

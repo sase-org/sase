@@ -658,8 +658,30 @@ List issues with optional filtering. Without `--status`, the command lists `open
 issues; pass `--status=closed` when you need closed history. When the default active query is empty and no explicit
 `--status` was given, the command falls back to listing closed beads. `--status`, `--type`, and `--tier` are repeatable.
 
+Compact rows lead with an aligned, colored type indicator ahead of the existing status glyph:
+
+```
+{type_glyph} {type_word}  {status_glyph} {id} · {title}{ ← parent_id}
+```
+
+```
+▸ plan  ◐ sase-bv · Attribute beads to the agent that created them
+◆ task  ◐ sase-bt · Fix xdist flake in artifact modal copy shortcut
+↳ phase ◐ sase-bv.3 · Record the creator on every bead creation path ← sase-bv
+```
+
+The type word is exactly the value accepted by `--type`, so what you read is what you can filter on. Tier (`plan` vs.
+`epic`) stays out of this column; it remains visible through `--tier`, `--format full`, and `--format json`.
+
+| Type    | Icon | Description                                          |
+| ------- | ---- | ---------------------------------------------------- |
+| `plan`  | `▸`  | Plan-like container with a tier; may be a child epic |
+| `phase` | `↳`  | Sized executable child within an epic/plan bead      |
+| `task`  | `◆`  | Independent, optionally sized work item              |
+
 | Flag           | Values                                              | Description                                                                           |
 | -------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `-c, --color`  | `auto`, `always`, `never`                           | Color mode for compact output                                                         |
 | `-f, --format` | `compact`, `json`, `full`                           | Output format; defaults to `compact`                                                  |
 | `-n, --limit`  | integer                                             | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
 | `-s, --status` | `open`, `claimed`, `ready`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
@@ -753,6 +775,7 @@ URL resolves and `created_by_url` when the creator's hosted agent page resolves;
 
 | Flag           | Values                    | Description                       |
 | -------------- | ------------------------- | --------------------------------- |
+| `-c, --color`  | `auto`, `always`, `never` | Color mode for compact output     |
 | `-f, --format` | `compact`, `json`, `full` | Output format; defaults to `full` |
 
 ### `sase bead stats`

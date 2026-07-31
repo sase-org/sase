@@ -252,6 +252,15 @@ def test_fast_path_refuses_mutation_from_plain_checkout_sidecar_record(
 
 
 def test_fast_path_defers_list_to_argparse(monkeypatch) -> None:
+    """``list`` must stay on the argparse path.
+
+    Python's ``_render_list_compact`` (see ``cli_query.py``) is the only
+    implementation carrying the type-column compact row grammar; the Rust
+    core's ``handle_list`` still emits the old grammar. Routing ``list``
+    through the fast path would silently regress the feature this test
+    guards against.
+    """
+
     def fail_context(argv: list[str]):
         raise AssertionError(f"context should not resolve for list: {argv}")
 

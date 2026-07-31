@@ -7,10 +7,12 @@ import shlex
 from pathlib import Path
 
 import pytest
+from rich.cells import cell_len
 
 from sase.bead import cli as bead_cli
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
+from sase.bead_type_presentation import BEAD_TYPE_VALUES, bead_type_presentation
 from sase.main.parser import create_parser
 
 
@@ -69,11 +71,18 @@ def test_list_parser_sets_filters_and_limit() -> None:
 
     assert args.command == "bead"
     assert args.bead_subcommand == "list"
+    assert args.color == "auto"
     assert args.format == "compact"
     assert args.limit == 2
     assert args.status == ["open", "closed"]
     assert args.tier == ["epic"]
     assert args.type == ["phase"]
+
+
+def test_list_parser_accepts_color_choices() -> None:
+    args = create_parser().parse_args(["bead", "list", "--color", "never"])
+
+    assert args.color == "never"
 
 
 @pytest.mark.parametrize("flag", ["--format", "-f"])
@@ -221,3 +230,110 @@ def test_handle_bead_list_explicit_compact_matches_default(
     explicit_out = capsys.readouterr().out
 
     assert explicit_out == default_out
+
+
+def _seed_one_of_each_type(project_dir: Path) -> dict[str, str]:
+    with BeadProject(project_dir) as proj:
+        plan = proj.create("Plan Bead", IssueType.PLAN)
+        task = proj.create("Task Bead", IssueType.TASK)
+        phase = proj.create("Phase Bead", IssueType.PHASE, parent_id=plan.id)
+    return {"plan": plan.id, "phase": phase.id, "task": task.id}
+
+
+def test_list_compact_renders_type_glyph_and_word_per_type(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    ids = _seed_one_of_each_type(project_dir)
+
+    bead_cli.handle_bead_list(create_parser().parse_args(["bead", "list"]))
+    lines = capsys.readouterr().out.splitlines()
+
+    assert any(line.startswith("▸ plan") and ids["plan"] in line for line in lines)
+    assert any(line.startswith("↳ phase") and ids["phase"] in line for line in lines)
+    assert any(line.startswith("◆ task") and ids["task"] in line for line in lines)
+
+
+_STATUS_GLYPHS = "○◎◇◐✓"
+
+
+def test_list_compact_type_cells_share_equal_cell_width(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed_one_of_each_type(project_dir)
+
+    bead_cli.handle_bead_list(create_parser().parse_args(["bead", "list"]))
+    lines = capsys.readouterr().out.splitlines()
+
+    # Everything up to the status glyph is the type cell; asserting its
+    # rendered cell width matches across rows locks in Decision 4's alignment
+    # guarantee even though the three type glyphs are not all the same
+    # Unicode width class.
+    widths = {
+        cell_len(line[: next(i for i, ch in enumerate(line) if ch in _STATUS_GLYPHS)])
+        for line in lines
+    }
+    assert len(widths) == 1
+
+
+def test_list_compact_color_modes_override_non_tty(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed_one_of_each_type(project_dir)
+
+    bead_cli.handle_bead_list(
+        create_parser().parse_args(["bead", "list", "--color", "never"])
+    )
+    assert "\x1b[" not in capsys.readouterr().out
+
+    bead_cli.handle_bead_list(
+        create_parser().parse_args(["bead", "list", "--color", "always"])
+    )
+    colored = capsys.readouterr().out
+    assert "\x1b[" in colored
+    for value in BEAD_TYPE_VALUES:
+        presentation = bead_type_presentation(value)
+        assert presentation.cli_style in colored
+
+
+def test_list_compact_no_color_env_suppresses_escapes(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_one_of_each_type(project_dir)
+    monkeypatch.setenv("NO_COLOR", "1")
+
+    # NO_COLOR only governs the "auto" mode; leaving --color unset exercises it.
+    bead_cli.handle_bead_list(create_parser().parse_args(["bead", "list"]))
+
+    assert "\x1b[" not in capsys.readouterr().out
+
+
+def test_list_compact_default_auto_is_colorless_under_pytest_capture(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed_one_of_each_type(project_dir)
+
+    bead_cli.handle_bead_list(create_parser().parse_args(["bead", "list"]))
+
+    assert "\x1b[" not in capsys.readouterr().out
+
+
+def test_list_compact_preserves_parent_suffix_and_separator(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    ids = _seed_one_of_each_type(project_dir)
+
+    bead_cli.handle_bead_list(create_parser().parse_args(["bead", "list"]))
+    lines = capsys.readouterr().out.splitlines()
+
+    phase_line = next(line for line in lines if ids["phase"] in line)
+    assert f"· Phase Bead ← {ids['plan']}" in phase_line
+
+    plan_line = next(line for line in lines if ids["plan"] in line and "·" in line)
+    assert plan_line.endswith("· Plan Bead")

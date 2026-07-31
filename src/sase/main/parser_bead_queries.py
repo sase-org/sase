@@ -97,6 +97,13 @@ def register_bead_list_parser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
+        "-c",
+        "--color",
+        choices=["auto", "always", "never"],
+        default="auto",
+        help="Color output: auto, always, or never (default: auto)",
+    )
+    parser.add_argument(
         "-f",
         "--format",
         choices=["compact", "json", "full"],
@@ -235,6 +242,13 @@ def register_bead_show_parser(
             "  sase bead show sase-64 --format json"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-c",
+        "--color",
+        choices=["auto", "always", "never"],
+        default="auto",
+        help="Color output: auto, always, or never (default: auto)",
     )
     parser.add_argument(
         "-f",

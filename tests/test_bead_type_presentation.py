@@ -11,8 +11,10 @@ from sase.bead_type_presentation import (
     BEAD_TYPE_PRESENTATIONS,
     BEAD_TYPE_VALUES,
     BeadTypeValue,
+    _BeadTypePresentation,
     _normalize_bead_type,
     bead_type_chip,
+    bead_type_cli_cell,
     bead_type_presentation,
 )
 
@@ -90,3 +92,61 @@ def test_fixed_width_and_unavailable_bead_type_presentations_are_honest() -> Non
 def test_unknown_bead_type_is_not_presented() -> None:
     with pytest.raises(ValueError, match="unknown bead type"):
         bead_type_presentation("follow-up")
+
+
+@pytest.mark.parametrize(
+    ("value", "expected_cli_style"),
+    [
+        (IssueType.PLAN, "\x1b[38;5;220m"),
+        (IssueType.PHASE, "\x1b[38;5;117m"),
+        (IssueType.TASK, "\x1b[38;5;177m"),
+    ],
+)
+def test_bead_type_cli_style_matches_pinned_xterm256_accent(
+    value: IssueType,
+    expected_cli_style: str,
+) -> None:
+    assert bead_type_presentation(value).cli_style == expected_cli_style
+
+
+def test_bead_type_cli_style_is_derived_from_accent_color() -> None:
+    """``cli_style`` must track ``accent_color`` so the two cannot drift apart."""
+    presentation = _BeadTypePresentation(
+        glyph="x",
+        accent_color="#000000",
+        chip_style="",
+        label="",
+    )
+    assert presentation.cli_style == "\x1b[38;5;16m"
+
+    other = _BeadTypePresentation(
+        glyph="x",
+        accent_color="#FFFFFF",
+        chip_style="",
+        label="",
+    )
+    assert other.cli_style == "\x1b[38;5;231m"
+
+
+@pytest.mark.parametrize("value", BEAD_TYPE_VALUES)
+def test_bead_type_cli_cell_renders_glyph_and_literal_word(
+    value: BeadTypeValue,
+) -> None:
+    presentation = BEAD_TYPE_PRESENTATIONS[value]
+
+    cell = bead_type_cli_cell(value, use_color=False)
+    assert cell == f"{presentation.glyph} {value}"
+
+    colored = bead_type_cli_cell(value, use_color=True)
+    assert colored == f"{presentation.cli_style}{presentation.glyph} {value}\x1b[0m"
+
+
+def test_bead_type_cli_cell_pads_to_requested_width() -> None:
+    cell = bead_type_cli_cell("plan", use_color=False, width=10)
+
+    assert cell == "▸ plan    "
+
+
+def test_bead_type_cli_cell_rejects_unknown_type() -> None:
+    with pytest.raises(ValueError, match="unknown bead type"):
+        bead_type_cli_cell("follow-up", use_color=False)
