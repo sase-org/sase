@@ -482,7 +482,7 @@ def test_task_bead_page_renders_the_task_identity_and_ready_status() -> None:
         BeadAssociationIndex(MappingProxyType({})),
     )
 
-    assert "**Status:** ◇ ready · **Type:** ✦ task" in rendered
+    assert "**Status:** ◇ ready · **Type:** ◆ task" in rendered
     assert "**Size:** small" in rendered
     assert "[Bead Pages](../README.md) / sase-task" in rendered
 
@@ -516,7 +516,7 @@ def test_roster_renders_every_bead_type_with_its_shared_glyph() -> None:
     assert (
         "| [sase-ai](sase-ai/README.md) | Published bead pages | ▸ plan |" in rendered
     )
-    assert "| [sase-task](sase-task/README.md) | Fix the flaky linter | ✦ task |" in (
+    assert "| [sase-task](sase-task/README.md) | Fix the flaky linter | ◆ task |" in (
         rendered
     )
     assert "sase-ai.1" not in rendered

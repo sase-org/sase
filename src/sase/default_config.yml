@@ -642,6 +642,15 @@ axe:
         maintenance deliberately live elsewhere.
       interval: 300
       chops:
+        - name: bead_task_triage
+          script: sase_chop_bead_task_triage
+          timeout: "2m"
+          description: |-
+            Raise one human triage gate for each ready task bead
+
+            Scans enabled projects every five minutes, creates one pending TaskTriage gate per ready task, and records
+            deterministic gate generations in lane state to prevent duplicate notifications. Gates are canceled when
+            their beads leave ready state, while answered or missing gates can be regenerated safely if work remains.
         - name: pr_submitted_checks
           script: sase_chop_pr_submitted_checks
           description: |-

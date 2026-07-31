@@ -273,7 +273,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-bg(bead_type_display_order)' \
         --epic-symbol 'sase-bg(normalize_bead_type)' \
         --epic-symbol 'sase-bg(build_task_launch_argv)' \
-        --epic-symbol 'sase-bg(create_task_triage_gate)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

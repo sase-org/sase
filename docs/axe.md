@@ -207,10 +207,17 @@ erasing it and re-attacking the same contended lock 30 seconds later.
 
 Lower-frequency status checks:
 
-| Chop                    | Description                         |
-| ----------------------- | ----------------------------------- |
-| `pr_submitted_checks`   | Start PR submission status checks   |
-| `stale_running_cleanup` | Backstop dead-process claim cleanup |
+| Chop                    | Description                                    |
+| ----------------------- | ---------------------------------------------- |
+| `bead_task_triage`      | Raise one triage gate for each ready task bead |
+| `pr_submitted_checks`   | Start PR submission status checks              |
+| `stale_running_cleanup` | Backstop dead-process claim cleanup            |
+
+`bead_task_triage` scans enabled projects for ready task beads, creates one `TaskTriage` gate per bead, and stores the
+bead-to-request mapping in the checks lumberjack's state directory. A still-pending gate is skipped on later ticks,
+preventing repeated notifications. If a task leaves `ready` through a launch, close, or manual retraction, the chop
+cancels its pending gate; if the task becomes ready again later, a persistent generation counter gives the replacement
+gate a new deterministic request ID.
 
 ### comments (1-minute interval)
 
