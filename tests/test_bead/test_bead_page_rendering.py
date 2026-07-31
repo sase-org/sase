@@ -28,6 +28,11 @@ from sase.bead_pages.rendering_graph import MAX_RENDERED_LINEAGE_NODES
 from sase.bead_pages.roster import render_bead_pages_roster_bytes
 
 _GOLDEN_DIR = Path(__file__).parent / "golden" / "bead_pages"
+_CREATOR = "alice.athena.sase-ai.plan"
+_CREATOR_URL = (
+    "https://github.com/sase-org/sase--agents/blob/main/agents/"
+    "alice.athena.sase-ai.plan/README.md"
+)
 
 
 class _View:
@@ -48,6 +53,10 @@ class _Links:
     def plan_url(self, plan_ref: str) -> str | None:
         assert plan_ref == "plans:202607/bead_pages.md"
         return "https://github.com/sase-org/sase--plans/blob/main/202607/bead_pages.md"
+
+    def agent_url(self, agent_name: str) -> str | None:
+        assert agent_name == _CREATOR
+        return _CREATOR_URL
 
 
 class _ReferenceLinks:
@@ -76,6 +85,7 @@ def _fixtures() -> tuple[_View, Issue, Issue, BeadAssociationIndex]:
         owner="owner@example.com",
         assignee="alice.athena.sase-ai.land",
         created_at="2026-07-28T14:20:20Z",
+        created_by=_CREATOR,
         closed_at="2026-07-28T18:02:11Z",
         resolution=Resolution.DONE,
         description="Publish a stable page for every bead.",
@@ -91,6 +101,7 @@ def _fixtures() -> tuple[_View, Issue, Issue, BeadAssociationIndex]:
         owner="owner@example.com",
         assignee="alice.athena.sase-ai.1",
         created_at="2026-07-28T14:30:00Z",
+        created_by=_CREATOR,
         closed_at="2026-07-28T15:00:00Z",
         resolution=Resolution.DONE,
         description="Define deterministic paths.",
@@ -186,6 +197,41 @@ def test_pages_omit_the_reference_section_when_a_bead_stores_none() -> None:
     view, root, _phase, index = _fixtures()
 
     assert "## References" not in _render(view, root, index)
+
+
+def test_created_by_renders_as_a_link_when_the_resolver_has_one() -> None:
+    view, root, _phase, index = _fixtures()
+
+    rendered = _render(view, root, index)
+
+    assert f"**Created by:** [{_CREATOR}]({_CREATOR_URL})" in rendered
+
+
+def test_created_by_renders_as_code_when_the_resolver_has_no_link() -> None:
+    view, root, _phase, index = _fixtures()
+
+    rendered = render_bead_page(
+        cast(BeadProject, view),
+        root,
+        index,
+        link_resolver=_ReferenceLinks(),
+    )
+
+    assert f"**Created by:** `{_CREATOR}`" in rendered
+    assert f"[{_CREATOR}]" not in rendered
+
+
+def test_empty_created_by_leaves_the_ownership_line_unchanged() -> None:
+    view, root, _phase, index = _fixtures()
+    root.created_by = ""
+
+    rendered = _render(view, root, index)
+
+    assert (
+        "**Owner:** `owner@example.com` · **Assignee:** `alice.athena.sase-ai.land`"
+        in rendered
+    )
+    assert "**Created by:**" not in rendered
 
 
 def test_references_link_only_where_the_resolver_produces_a_url() -> None:

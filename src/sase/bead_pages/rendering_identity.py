@@ -54,7 +54,7 @@ def render_identity(
         "",
         _primary_facts(issue),
     ]
-    ownership = _ownership_facts(issue)
+    ownership = _ownership_facts(issue, plan_links)
     if ownership:
         lines.append(ownership)
     lifecycle = _lifecycle_facts(issue)
@@ -124,15 +124,30 @@ def _primary_facts(issue: Issue) -> str:
     return " · ".join(values)
 
 
-def _ownership_facts(issue: Issue) -> str:
+def _ownership_facts(issue: Issue, resolver: PlanLinkResolver | None) -> str:
     values: list[str] = []
     if issue.owner:
         values.append(f"**Owner:** `{md_code(issue.owner)}`")
+    if issue.created_by:
+        values.append(
+            f"**Created by:** {_created_by_value(issue.created_by, resolver)}"
+        )
     if issue.assignee:
         values.append(f"**Assignee:** `{md_code(issue.assignee)}`")
     if issue.size is not None:
         values.append(f"**Size:** {issue.size.value}")
     return " · ".join(values)
+
+
+def _created_by_value(
+    created_by: str,
+    resolver: PlanLinkResolver | None,
+) -> str:
+    label = md_escape(created_by)
+    target = None
+    if isinstance(resolver, _AgentLinkResolver):
+        target = resolver.agent_url(created_by)
+    return f"[{label}]({target})" if target else f"`{md_code(created_by)}`"
 
 
 def _lifecycle_facts(issue: Issue) -> str:

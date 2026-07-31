@@ -3,7 +3,7 @@
 [Bead Pages](../README.md) / [sase-ai](README.md) / sase-ai.1
 
 **Status:** ✓ closed · **Resolution:** done · **Type:** ↳ phase
-**Owner:** `owner@example.com` · **Assignee:** `alice.athena.sase-ai.1` · **Size:** small
+**Owner:** `owner@example.com` · **Created by:** [alice.athena.sase-ai.plan](https://github.com/sase-org/sase--agents/blob/main/agents/alice.athena.sase-ai.plan/README.md) · **Assignee:** `alice.athena.sase-ai.1` · **Size:** small
 **Created:** 2026-07-28 14:30:00 UTC · **Closed:** 2026-07-28 15:00:00 UTC
 **Plan:** [202607/bead\_pages.md](https://github.com/sase-org/sase--plans/blob/main/202607/bead_pages.md)
 
