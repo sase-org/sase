@@ -58,6 +58,7 @@ def archive_plan_file(
     preserve_existing: bool = True,
     primary_root: Path | None = None,
     prompt_path: Path | None = None,
+    expect_prompt_snapshot: bool = False,
 ) -> _PlanArchiveResult:
     """Prepare *source* and copy it into the canonical plan archive.
 
@@ -67,6 +68,16 @@ def archive_plan_file(
     With ``preserve_existing`` (the resumable command default), an existing
     destination is also retained so its ``bead_id`` link is never overwritten
     by a retry from the original planner artifact.
+
+    ``expect_prompt_snapshot`` is for callers that own a guaranteed prompt
+    snapshot (e.g. an epic approval, where the agent always writes the prompt
+    snapshot independently of this archive call). When set, the reciprocal
+    ``PROMPT`` link is projected from the canonical path unconditionally,
+    instead of probing the filesystem for it — the probe otherwise races the
+    snapshot's own write/push and can lose, permanently archiving the plan
+    without its link. A genuinely missing snapshot then surfaces as one
+    honest ``link-missing-target`` error rather than a silently half-linked
+    pair.
 
     This helper only writes the file. Its caller owns commit and push policy.
     """
@@ -102,7 +113,9 @@ def archive_plan_file(
         sdd_dir=store.sdd_dir,
         plan_path=destination,
         plans_root=plans_root,
-        prompt_path=_resolved_prompt_path(destination, prompt_path),
+        prompt_path=_resolved_prompt_path(
+            destination, prompt_path, expect_prompt_snapshot=expect_prompt_snapshot
+        ),
         store=store,
         primary_root=primary_root or resolve_checkout_anchor().primary_root,
     )
@@ -121,6 +134,8 @@ def archive_plan_file(
 def _resolved_prompt_path(
     destination: Path,
     prompt_path: Path | None,
+    *,
+    expect_prompt_snapshot: bool = False,
 ) -> Path | None:
     if prompt_path is not None:
         return prompt_path
@@ -128,6 +143,8 @@ def _resolved_prompt_path(
     from sase.sdd.plan_header_writes import archived_prompt_path_for_plan
 
     archived_prompt = archived_prompt_path_for_plan(destination)
+    if expect_prompt_snapshot:
+        return archived_prompt
     return archived_prompt if archived_prompt.is_file() else None
 
 

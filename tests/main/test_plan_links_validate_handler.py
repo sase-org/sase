@@ -98,6 +98,42 @@ def test_validate_strict_fails_unpaired_warnings(tmp_path: Path) -> None:
     assert excinfo.value.code == 1
 
 
+def test_validate_fails_missing_link_prints_repair_hint(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "sdd"
+    prompt = root / "plans" / "202605" / "prompts" / "orphaned.md"
+    plan = root / "plans" / "202605" / "orphaned.md"
+    prompt.parent.mkdir(parents=True)
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    prompt.write_text("# Prompt\n", encoding="utf-8")
+    plan.write_text("---\ntier: tale\n---\n# Plan\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_plan_links_command(make_args(path=str(root)))
+
+    assert excinfo.value.code == 1
+    err = capsys.readouterr().err
+    assert "missing-link" in err
+    assert "sase plan links repair --write" in err
+
+
+def test_validate_passing_run_prints_no_repair_hint(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "sdd"
+    write_pair(root)
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_plan_links_command(make_args(path=str(root)))
+
+    assert excinfo.value.code == 0
+    out, err = capsys.readouterr()
+    assert "SDD validation passed" in out
+    assert "sase plan links repair --write" not in out
+    assert "sase plan links repair --write" not in err
+
+
 def test_validate_fails_broken_bidirectional_link(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

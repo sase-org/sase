@@ -88,6 +88,9 @@ def _handle_validate(args: argparse.Namespace) -> NoReturn:
     sys.exit(0 if validation.ok else 1)
 
 
+_REPAIRABLE_ISSUE_CODES = frozenset({"missing-link", "reverse-link", "link-format"})
+
+
 def _print_validation(validation: Any, *, show_warnings: bool) -> None:
     warning_count = len(validation.warnings)
     hint = (
@@ -112,6 +115,14 @@ def _print_validation(validation: Any, *, show_warnings: bool) -> None:
         print(
             f"{issue.severity}: {issue.path}: {issue.message} ({issue.code})",
             file=stream,
+        )
+    if not validation.ok and any(
+        issue.code in _REPAIRABLE_ISSUE_CODES for issue in validation.issues
+    ):
+        print(
+            "hint: `sase plan links repair --write` can restore inferable "
+            "bidirectional links.",
+            file=sys.stderr,
         )
 
 

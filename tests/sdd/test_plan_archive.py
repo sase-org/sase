@@ -79,6 +79,78 @@ def test_archive_leaves_unpaired_plan_unlinked_without_prompt_snapshot(
     assert not any(issue.code == "link-missing-target" for issue in validation.issues)
 
 
+def test_archive_default_still_skips_prompt_section_without_snapshot(
+    tmp_path: Path,
+) -> None:
+    store = _sidecar_store(tmp_path)
+    source = _write_source(tmp_path, "# Plan\n")
+
+    result = archive_plan_file(
+        source,
+        store,
+        tier="tale",
+        yyyymm=_MONTH,
+        primary_root=tmp_path,
+        expect_prompt_snapshot=False,
+    )
+
+    content = result.path.read_text(encoding="utf-8")
+    assert parse_sdd_artifact_link(content).reference is None
+
+
+def test_archive_installs_prompt_section_when_snapshot_is_expected_but_absent(
+    tmp_path: Path,
+) -> None:
+    store = _sidecar_store(tmp_path)
+    source = _write_source(tmp_path, "# Plan\n")
+
+    result = archive_plan_file(
+        source,
+        store,
+        tier="epic",
+        yyyymm=_MONTH,
+        primary_root=tmp_path,
+        expect_prompt_snapshot=True,
+    )
+
+    link = parse_sdd_artifact_link(result.path.read_text(encoding="utf-8"))
+    assert link.reference == f"{_MONTH}/prompts/child.md"
+    assert link.target == "prompts/child.md"
+
+
+def test_archive_with_expected_snapshot_produces_valid_bidirectional_pair(
+    tmp_path: Path,
+) -> None:
+    store = _sidecar_store(tmp_path)
+    source = _write_source(tmp_path, "# Plan\n")
+
+    result = archive_plan_file(
+        source,
+        store,
+        tier="epic",
+        yyyymm=_MONTH,
+        primary_root=tmp_path,
+        expect_prompt_snapshot=True,
+    )
+
+    prompt = store.sdd_dir / _MONTH / "prompts" / "child.md"
+    prompt.parent.mkdir(parents=True, exist_ok=True)
+    prompt.write_text(
+        update_source_aware_artifact_link(
+            "# Prompt\n",
+            store.sdd_dir,
+            prompt,
+            result.path,
+            SddArtifactLinkType.PLAN,
+            label_prefix="../",
+            remove_legacy=True,
+        ),
+        encoding="utf-8",
+    )
+
+    assert validate_sdd_tree(str(store.sdd_dir)).errors == []
+
+
 def test_archive_preserves_existing_prompt_section_when_snapshot_is_absent(
     tmp_path: Path,
 ) -> None:

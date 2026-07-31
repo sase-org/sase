@@ -239,6 +239,42 @@ def test_archive_plan_for_approval_uses_canonical_durable_stem(
     assert expected.is_file()
 
 
+@pytest.mark.parametrize(
+    ("tier", "expected"),
+    [("epic", True), ("tale", False)],
+)
+def test_archive_plan_for_approval_passes_expect_prompt_snapshot_for_tier(
+    tmp_path: Path,
+    tier: str,
+    expected: bool,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    plan = tmp_path / "plan.md"
+    plan.write_text("---\ntier: tale\n---\n# Plan\n", encoding="utf-8")
+    context = PlanApprovalActionContext(
+        id="plan-approval",
+        host_files=(str(plan),),
+        host_action_data={"project_dir": str(workspace)},
+    )
+
+    with (
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
+        patched_sdd_policy("in_tree"),
+        patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
+        patch(
+            "sase.sdd.plan_archive.archive_plan_file",
+            side_effect=Exception("stop before write"),
+        ) as archive_plan_file,
+    ):
+        _archive_plan_for_approval(context, tier)
+
+    assert archive_plan_file.call_args.kwargs["expect_prompt_snapshot"] is expected
+
+
 def _epic_context(tmp_path: Path) -> tuple[PlanApprovalActionContext, Path, Path]:
     response_dir = tmp_path / "artifacts" / "plan_approval"
     response_dir.mkdir(parents=True)

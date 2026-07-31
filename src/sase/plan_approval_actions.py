@@ -464,6 +464,7 @@ def _archive_plan_for_approval(
             sdd_store,
             tier=tier,
             preserve_existing=False,
+            expect_prompt_snapshot=(tier == "epic"),
         )
         if not sdd_store.is_in_tree:
             commit_sdd_store_files(
@@ -474,4 +475,9 @@ def _archive_plan_for_approval(
             )
         return str(archived.path)
     except Exception:
+        _logger.warning(
+            "Failed to archive approved plan %s",
+            notification.host_files[0],
+            exc_info=True,
+        )
         return None

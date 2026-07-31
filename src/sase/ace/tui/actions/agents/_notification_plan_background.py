@@ -56,6 +56,7 @@ def archive_plan_for_approval(
             sdd_store,
             tier=tier,
             preserve_existing=False,
+            expect_prompt_snapshot=(tier == "epic"),
         )
         if not sdd_store.is_in_tree:
             artifacts_dir = resolve_plan_agent_artifacts_dir(notification.action_data)
@@ -68,7 +69,7 @@ def archive_plan_for_approval(
             )
         return str(archived.path)
     except Exception:
-        log.debug("Failed to archive approved plan", exc_info=True)
+        log.warning("Failed to archive approved plan", exc_info=True)
         return None
 
 

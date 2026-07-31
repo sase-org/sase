@@ -545,6 +545,82 @@ def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
     )
 
 
+def test_archive_plan_for_approval_passes_expect_prompt_snapshot_for_epic(
+    tmp_path: Path,
+) -> None:
+    """Epic approvals opt in to the guaranteed prompt snapshot mode."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    plan_file = tmp_path / "plan.md"
+    plan_file.write_text("# Plan\n", encoding="utf-8")
+    notification = Notification(
+        id="test-notif",
+        timestamp="2026-05-01T12:00:00-04:00",
+        sender="test",
+        action="PlanApproval",
+        action_data={"project_dir": str(workspace)},
+        files=[str(plan_file)],
+    )
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        _archive_plan_for_approval,
+    )
+
+    with (
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
+        patched_sdd_policy("in_tree"),
+        patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
+        patch(
+            "sase.sdd.plan_archive.archive_plan_file",
+            side_effect=Exception("stop before write"),
+        ) as archive_plan_file,
+    ):
+        _archive_plan_for_approval(notification, "epic")
+
+    assert archive_plan_file.call_args.kwargs["expect_prompt_snapshot"] is True
+
+
+def test_archive_plan_for_approval_passes_expect_prompt_snapshot_for_tale(
+    tmp_path: Path,
+) -> None:
+    """Tale approvals keep the default probe-based prompt link resolution."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    plan_file = tmp_path / "plan.md"
+    plan_file.write_text("# Plan\n", encoding="utf-8")
+    notification = Notification(
+        id="test-notif",
+        timestamp="2026-05-01T12:00:00-04:00",
+        sender="test",
+        action="PlanApproval",
+        action_data={"project_dir": str(workspace)},
+        files=[str(plan_file)],
+    )
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        _archive_plan_for_approval,
+    )
+
+    with (
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
+        patched_sdd_policy("in_tree"),
+        patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
+        patch(
+            "sase.sdd.plan_archive.archive_plan_file",
+            side_effect=Exception("stop before write"),
+        ) as archive_plan_file,
+    ):
+        _archive_plan_for_approval(notification, "approve")
+
+    assert archive_plan_file.call_args.kwargs["expect_prompt_snapshot"] is False
+
+
 def test_archive_plan_for_approval_uses_local_sdd_dir(tmp_path: Path) -> None:
     """Local SDD approval archiving uses .sase/sdd/plans/YYYYMM."""
     workspace = tmp_path / "workspace"
