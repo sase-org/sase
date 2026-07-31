@@ -79,8 +79,6 @@ class ClaudeCodeProvider(LLMProvider):
             "opus",
             "sonnet",
             "haiku",
-            "claude-opus-5",
-            "claude-sonnet-5",
             "claude-haiku-4-5",
             "claude-fable-5",
         ]
@@ -88,8 +86,6 @@ class ClaudeCodeProvider(LLMProvider):
     @hookimpl
     def llm_model_short_aliases(self) -> dict[str, str]:
         return {
-            "claude-opus-5": "opus5",
-            "claude-sonnet-5": "sonnet5",
             "claude-haiku-4-5": "haiku45",
             "claude-fable-5": "fable",
         }

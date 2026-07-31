@@ -94,6 +94,30 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     assert by_value["@fast"].aliases == ("fast",)
 
 
+def test_model_completion_catalog_reflects_real_builtin_model_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Real metadata includes Spark and excludes removed Claude point versions."""
+    # Keep catalog assertions on registry-driven model rows deterministic by
+    # bypassing user-defined alias rows.
+    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
+
+    entries = model_completion.build_model_completion_catalog()
+    model_entries = {
+        entry.value: entry for entry in entries if not entry.value.startswith("@")
+    }
+
+    assert "claude-opus-5" not in model_entries
+    assert "claude-sonnet-5" not in model_entries
+    assert "gpt-5.3-codex-spark" in model_entries
+
+    spark = model_entries["gpt-5.3-codex-spark"]
+    assert spark.provider == "codex"
+    assert spark.aliases == ("gpt53spark",)
+    assert spark.description == "Codex (gpt53spark)"
+
+
 def test_model_completion_user_alias_shadows_implicit_role(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

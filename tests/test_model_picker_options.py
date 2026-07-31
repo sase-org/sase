@@ -33,13 +33,12 @@ def test_build_model_options_has_known_models() -> None:
     ids = {o.id for o in options if o is not None}
     assert "opus" in ids
     assert "sonnet" in ids
-    assert "claude-opus-5" in ids
-    assert "claude-sonnet-5" in ids
     assert "claude-haiku-4-5" in ids
     assert "claude-fable-5" in ids
     assert "o3" in ids
     assert "gpt-5.6-sol" in ids
     assert "gpt-5.5" in ids
+    assert "gpt-5.3-codex-spark" in ids
     assert "Gemini 3.5 Flash (High)" in ids
 
 
@@ -110,14 +109,34 @@ def test_model_picker_claude_fable_row_includes_alias() -> None:
     assert any(span.style == "dim #D7AF87" for span in option.prompt.spans)
 
 
-def test_model_picker_claude_5_rows_include_aliases() -> None:
-    """Explicit Claude 5 models should be pickable with their short aliases."""
+def test_model_picker_codex_spark_row_includes_alias() -> None:
+    """Codex Spark should be in the codex group with its short alias."""
     rows = build_model_rows()
-    expected = {
-        "claude-opus-5": "opus5",
-        "claude-sonnet-5": "sonnet5",
-        "claude-haiku-4-5": "haiku45",
-    }
+    row = next(row for row in rows if row.option_id == "gpt-5.3-codex-spark")
+    option = rows_to_options([row])[0]
+
+    assert row.provider == "codex"
+    assert row.model_id == "gpt-5.3-codex-spark"
+    assert row.alias == "gpt53spark"
+    assert row.label == "    gpt-5.3-codex-spark  (gpt53spark)"
+    assert option is not None
+    assert isinstance(option.prompt, Text)
+    assert "gpt-5.3-codex-spark" in option.prompt.plain
+    assert "gpt53spark" in option.prompt.plain
+
+
+def test_model_picker_claude_point_version_rows_are_absent() -> None:
+    """Point-version Opus/Sonnet rows should not be in picker options."""
+    rows = build_model_rows()
+    row_ids = {row.option_id for row in rows}
+    assert "claude-opus-5" not in row_ids
+    assert "claude-sonnet-5" not in row_ids
+
+
+def test_model_picker_claude_h4_5_row_includes_alias() -> None:
+    """Remaining explicit Claude point-model should be pickable with its short alias."""
+    rows = build_model_rows()
+    expected = {"claude-haiku-4-5": "haiku45"}
 
     for model_id, alias in expected.items():
         row = next(row for row in rows if row.option_id == model_id)

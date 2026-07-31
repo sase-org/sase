@@ -139,6 +139,14 @@ def test_resolve_model_provider_explicit_syntax() -> None:
     """Explicit provider/model syntax resolves correctly."""
     assert resolve_model_provider("codex/o3") == ("codex", "o3")
     assert resolve_model_provider("claude/opus") == ("claude", "opus")
+    assert resolve_model_provider("claude/claude-opus-5") == (
+        "claude",
+        "claude-opus-5",
+    )
+    assert resolve_model_provider("claude/claude-sonnet-5") == (
+        "claude",
+        "claude-sonnet-5",
+    )
     assert resolve_model_provider("agy/Gemini 3.5 Flash (High)") == (
         "agy",
         "Gemini 3.5 Flash (High)",
@@ -150,14 +158,8 @@ def test_resolve_model_provider_implicit_mapping() -> None:
     assert resolve_model_provider("o3") == ("codex", "o3")
     assert resolve_model_provider("opus") == ("claude", "opus")
     assert resolve_model_provider("sonnet") == ("claude", "sonnet")
-    assert resolve_model_provider("claude-opus-5") == (
-        "claude",
-        "claude-opus-5",
-    )
-    assert resolve_model_provider("claude-sonnet-5") == (
-        "claude",
-        "claude-sonnet-5",
-    )
+    assert resolve_model_provider("claude-opus-5") == (None, "claude-opus-5")
+    assert resolve_model_provider("claude-sonnet-5") == (None, "claude-sonnet-5")
     assert resolve_model_provider("claude-haiku-4-5") == (
         "claude",
         "claude-haiku-4-5",
@@ -165,6 +167,10 @@ def test_resolve_model_provider_implicit_mapping() -> None:
     assert resolve_model_provider("claude-fable-5") == (
         "claude",
         "claude-fable-5",
+    )
+    assert resolve_model_provider("gpt-5.3-codex-spark") == (
+        "codex",
+        "gpt-5.3-codex-spark",
     )
     assert resolve_model_provider("gpt-5.6-sol") == ("codex", "gpt-5.6-sol")
     assert resolve_model_provider("gpt-5.5") == ("codex", "gpt-5.5")
@@ -210,10 +216,16 @@ def test_model_short_alias_map_contains_codex_entries() -> None:
 def test_model_short_alias_map_contains_claude_entries() -> None:
     """The aggregated alias map carries the claude plugin's entries."""
     aliases = model_short_alias_map()
-    assert aliases.get("claude-opus-5") == "opus5"
-    assert aliases.get("claude-sonnet-5") == "sonnet5"
+    assert "claude-opus-5" not in aliases
+    assert "claude-sonnet-5" not in aliases
     assert aliases.get("claude-haiku-4-5") == "haiku45"
     assert aliases.get("claude-fable-5") == "fable"
+
+
+def test_model_short_alias_map_contains_spark_entry() -> None:
+    """Codex Spark has a dedicated builtin short alias."""
+    aliases = model_short_alias_map()
+    assert aliases.get("gpt-5.3-codex-spark") == "gpt53spark"
 
 
 def test_model_short_alias_map_omits_short_models() -> None:
