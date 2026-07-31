@@ -42,6 +42,15 @@ async def test_notification_sent_at_png_snapshot(
     attachment = tmp_path / "lint_summary.txt"
     attachment.write_text("0 errors, 2 warnings\n", encoding="utf-8")
     notification = _notification(str(attachment))
+    # The detail pane renders the attachment path, and ``tmp_path`` embeds a
+    # per-repo scratch root plus a per-run counter. Pin the displayed path so
+    # the golden stays byte-identical across workspaces and runs; the real
+    # ``tmp_path`` file is still what gets opened and previewed.
+    monkeypatch.setattr(
+        NotificationModal,
+        "_shorten_path",
+        staticmethod(lambda _path: "~/.sase/notifications/lint_summary.txt"),
+    )
     patch_startup_loaders(monkeypatch, agents=[])
     monkeypatch.setattr(
         "sase.ace.tui.modals.notification_modal_sent_at.format_absolute_time",
