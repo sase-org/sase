@@ -89,7 +89,7 @@ def test_default_list_includes_claimed_with_shared_glyph(
         Status.READY,
         Status.IN_PROGRESS,
     ]
-    assert capsys.readouterr().out == "▸ plan  ◎ sase-claimed · Reserved phase\n"
+    assert capsys.readouterr().out == "▸ ◎ sase-claimed · Reserved phase\n"
     assert status_icon(Status.CLAIMED) == "◎"
     assert status_icon(Status.READY) == "◇"
 

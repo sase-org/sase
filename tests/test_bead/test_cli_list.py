@@ -240,7 +240,7 @@ def _seed_one_of_each_type(project_dir: Path) -> dict[str, str]:
     return {"plan": plan.id, "phase": phase.id, "task": task.id}
 
 
-def test_list_compact_renders_type_glyph_and_word_per_type(
+def test_list_compact_renders_type_glyph_only_per_type(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -249,9 +249,16 @@ def test_list_compact_renders_type_glyph_and_word_per_type(
     bead_cli.handle_bead_list(create_parser().parse_args(["bead", "list"]))
     lines = capsys.readouterr().out.splitlines()
 
-    assert any(line.startswith("▸ plan") and ids["plan"] in line for line in lines)
-    assert any(line.startswith("↳ phase") and ids["phase"] in line for line in lines)
-    assert any(line.startswith("◆ task") and ids["task"] in line for line in lines)
+    expected = {
+        "plan": "▸",
+        "phase": "↳",
+        "task": "◆",
+    }
+    for bead_type, glyph in expected.items():
+        line = next(line for line in lines if ids[bead_type] in line)
+        assert line.startswith(f"{glyph} ")
+        prefix = line[: next(i for i, ch in enumerate(line) if ch in _STATUS_GLYPHS)]
+        assert bead_type not in prefix
 
 
 _STATUS_GLYPHS = "○◎◇◐✓"
@@ -266,10 +273,9 @@ def test_list_compact_type_cells_share_equal_cell_width(
     bead_cli.handle_bead_list(create_parser().parse_args(["bead", "list"]))
     lines = capsys.readouterr().out.splitlines()
 
-    # Everything up to the status glyph is the type cell; asserting its
+    # Everything up to the status glyph is the type column plus separator; its
     # rendered cell width matches across rows locks in Decision 4's alignment
-    # guarantee even though the three type glyphs are not all the same
-    # Unicode width class.
+    # guarantee even if the glyph vocabulary changes width later.
     widths = {
         cell_len(line[: next(i for i, ch in enumerate(line) if ch in _STATUS_GLYPHS)])
         for line in lines

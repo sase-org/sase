@@ -310,8 +310,8 @@ def test_show_compact_renders_the_type_column(
     phase = nested_store["phase"]
     root = nested_store["root"]
 
-    assert _show_with_format(phase, "compact", capsys).startswith("↳ phase")
-    assert _show_with_format(root, "compact", capsys).startswith("▸ plan")
+    assert _show_with_format(phase, "compact", capsys).startswith("↳ ")
+    assert _show_with_format(root, "compact", capsys).startswith("▸ ")
 
 
 def test_show_parser_accepts_color_choices() -> None:

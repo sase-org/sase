@@ -130,7 +130,7 @@ def bead_type_cli_cell(
     use_color: bool,
     width: int | None = None,
 ) -> str:
-    """Return the padded ``{glyph} {word}`` cell for compact CLI rows.
+    """Return the padded glyph-only type cell for compact CLI rows.
 
     Unlike :func:`bead_type_chip`, this raises on an unknown type instead of
     falling back to an ``unavailable`` label: CLI rows are always built from a
@@ -142,12 +142,14 @@ def bead_type_cli_cell(
         raise ValueError(f"unknown bead type: {value!r}")
 
     presentation = BEAD_TYPE_PRESENTATIONS[normalized]
-    cell = f"{presentation.glyph} {normalized}"
+    cell = presentation.glyph
     if width is not None:
-        cell += " " * max(width - cell_len(cell), 0)
+        padding = " " * max(width - cell_len(cell), 0)
+    else:
+        padding = ""
     if use_color:
-        cell = f"{presentation.cli_style}{cell}{_ANSI_RESET}"
-    return cell
+        return f"{presentation.cli_style}{cell}{_ANSI_RESET}{padding}"
+    return cell + padding
 
 
 __all__ = [

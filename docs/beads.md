@@ -661,17 +661,18 @@ issues; pass `--status=closed` when you need closed history. When the default ac
 Compact rows lead with an aligned, colored type indicator ahead of the existing status glyph:
 
 ```
-{type_glyph} {type_word}  {status_glyph} {id} · {title}{ ← parent_id}
+{type_glyph}<pad> {status_glyph} {id} · {title}{ ← parent_id}
 ```
 
 ```
-▸ plan  ◐ sase-bv · Attribute beads to the agent that created them
-◆ task  ◐ sase-bt · Fix xdist flake in artifact modal copy shortcut
-↳ phase ◐ sase-bv.3 · Record the creator on every bead creation path ← sase-bv
+▸ ◐ sase-bv · Attribute beads to the agent that created them
+◆ ◐ sase-bt · Fix xdist flake in artifact modal copy shortcut
+↳ ◐ sase-bv.3 · Record the creator on every bead creation path ← sase-bv
 ```
 
-The type word is exactly the value accepted by `--type`, so what you read is what you can filter on. Tier (`plan` vs.
-`epic`) stays out of this column; it remains visible through `--tier`, `--format full`, and `--format json`.
+The fixed first column is the bead type; the second glyph is status. Type color is controlled by the same `-c, --color`
+option as the status and ID styles, and the icons remain distinct without color. Tier (`plan` vs. `epic`) stays out of
+this column; it remains visible through `--tier`, `--format full`, and `--format json`.
 
 | Type    | Icon | Description                                          |
 | ------- | ---- | ---------------------------------------------------- |

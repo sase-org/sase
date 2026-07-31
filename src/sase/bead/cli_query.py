@@ -242,10 +242,9 @@ def handle_bead_stats(args: argparse.Namespace) -> None:
 
 def _render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
     # Measured (not assumed) so the column stays aligned even though the three
-    # type glyphs do not share a Unicode width class (see plan Decision 4).
+    # type glyphs may not always share a Unicode width class.
     type_width = max(
-        cell_len(f"{bead_type_presentation(value).glyph} {value}")
-        for value in BEAD_TYPE_VALUES
+        cell_len(bead_type_presentation(value).glyph) for value in BEAD_TYPE_VALUES
     )
     lines = []
     for issue in issues:

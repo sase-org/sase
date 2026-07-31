@@ -129,22 +129,30 @@ def test_bead_type_cli_style_is_derived_from_accent_color() -> None:
 
 
 @pytest.mark.parametrize("value", BEAD_TYPE_VALUES)
-def test_bead_type_cli_cell_renders_glyph_and_literal_word(
+def test_bead_type_cli_cell_renders_glyph_only(
     value: BeadTypeValue,
 ) -> None:
     presentation = BEAD_TYPE_PRESENTATIONS[value]
 
     cell = bead_type_cli_cell(value, use_color=False)
-    assert cell == f"{presentation.glyph} {value}"
+    assert cell == presentation.glyph
 
     colored = bead_type_cli_cell(value, use_color=True)
-    assert colored == f"{presentation.cli_style}{presentation.glyph} {value}\x1b[0m"
+    assert colored == f"{presentation.cli_style}{presentation.glyph}\x1b[0m"
 
 
 def test_bead_type_cli_cell_pads_to_requested_width() -> None:
-    cell = bead_type_cli_cell("plan", use_color=False, width=10)
+    cell = bead_type_cli_cell("plan", use_color=False, width=4)
 
-    assert cell == "▸ plan    "
+    assert cell == "▸   "
+
+
+def test_bead_type_cli_cell_keeps_padding_outside_color_reset() -> None:
+    presentation = BEAD_TYPE_PRESENTATIONS["plan"]
+
+    cell = bead_type_cli_cell("plan", use_color=True, width=4)
+
+    assert cell == f"{presentation.cli_style}▸\x1b[0m   "
 
 
 def test_bead_type_cli_cell_rejects_unknown_type() -> None:
