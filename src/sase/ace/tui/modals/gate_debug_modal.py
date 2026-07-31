@@ -41,6 +41,7 @@ _KIND_COLORS = {
     "epic_plan": "#d787ff",
     "question": "#87d7ff",
     "launch": "#5fffff",
+    "task_triage": "#d787ff",
     "custom": "#ffaf5f",
     "hitl": "#ffd75f",
     "notification": "#a8a8a8",
@@ -336,6 +337,7 @@ def _context_kind(context: GateDebugContext) -> str:
         "EpicApproval": "epic_plan",
         "UserQuestion": "question",
         "LaunchApproval": "launch",
+        "TaskTriage": "task_triage",
         "CustomGate": "custom",
         "HITL": "hitl",
     }.get(action, "notification")

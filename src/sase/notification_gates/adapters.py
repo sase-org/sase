@@ -67,6 +67,24 @@ class GateAdapter:
         epic_launch_origin: EpicLaunchOrigin | None = None,
     ) -> None:
         """Apply adapter-declared host effects after terminal persistence."""
+        if self.kind == "task_triage":
+            from sase.bead.task_gate import (
+                close_task_triage,
+                launch_task_triage,
+                translate_task_triage_response,
+            )
+
+            decision = translate_task_triage_response(bundle_path, response)
+            if decision.action == "close":
+                close_task_triage(decision)
+                return
+            task_launch = launch_task_triage(decision, origin=epic_launch_origin)
+            if isinstance(response, dict):
+                from sase.notification_gates.durability import atomic_write_json
+
+                response["task_launch_task_id"] = task_launch.task_id
+                atomic_write_json(bundle_path / "response.json", response)
+            return
         if self.kind not in {"plan", "epic_plan"}:
             return
         from sase.notification_gates.durability import read_json_object
@@ -260,6 +278,17 @@ _ADAPTERS = (
         response_filename="hitl_response.json",
         legacy_directory_key="artifacts_dir",
         auto_policy="forbidden",
+    ),
+    GateAdapter(
+        kind="task_triage",
+        action="TaskTriage",
+        pending_action_kind="task_triage",
+        sender="bead-task-triage",
+        request_filename="request.json",
+        response_filename="response.json",
+        legacy_directory_key="bundle_path",
+        auto_policy="forbidden",
+        neutral_only=True,
     ),
     GateAdapter(
         kind="custom",

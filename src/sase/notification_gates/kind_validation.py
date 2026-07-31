@@ -299,3 +299,152 @@ def validate_question_spec(spec: GateSpec) -> None:
             QUESTION_COMMAND_PATH,
             "question command does not match the registered adapter",
         )
+
+
+def validate_task_triage_spec(spec: GateSpec) -> None:
+    """Keep TaskTriage gates on their human-only trusted task contract."""
+    from sase.bead.task_gate import (
+        TASK_TRIAGE_COMMAND_PATHS,
+        TASK_TRIAGE_CONTINUATION_MODE,
+        TASK_TRIAGE_OPTION_IDS,
+        TASK_TRIAGE_PREVIEW_PATH,
+        TASK_TRIAGE_QUERY,
+        TaskTriageAction,
+        task_triage_gate_command_script,
+        task_triage_result_schema,
+    )
+    from sase.core.paths import is_valid_sase_project_name
+
+    if spec.continuation_mode != TASK_TRIAGE_CONTINUATION_MODE:
+        raise GateError(
+            "invalid_task_triage_continuation",
+            "continuation_mode",
+            f"task triage gates require {TASK_TRIAGE_CONTINUATION_MODE}",
+        )
+    if spec.query != TASK_TRIAGE_QUERY or spec.branches != (
+        ("launch",),
+        ("close",),
+    ):
+        raise GateError(
+            "invalid_task_triage_query",
+            "query",
+            f"task triage gates require query: {TASK_TRIAGE_QUERY}",
+        )
+    if spec.groups or spec.operations:
+        raise GateError(
+            "invalid_task_triage_structure",
+            "groups",
+            "task triage gates do not define groups or operations",
+        )
+
+    payload = spec.payload
+    if set(payload) != {"bead_id", "project", "title"}:
+        raise GateError(
+            "invalid_task_triage_payload",
+            "payload",
+            "task triage payload must contain only bead_id, project, and title",
+        )
+    for field in ("bead_id", "title"):
+        value = payload.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise GateError(
+                "invalid_task_triage_payload",
+                f"payload.{field}",
+                f"task triage payload requires {field}",
+            )
+    project = payload.get("project")
+    if not isinstance(project, str) or not is_valid_sase_project_name(project):
+        raise GateError(
+            "invalid_task_triage_payload",
+            "payload.project",
+            "task triage payload requires a canonical SASE project key",
+        )
+
+    if tuple(option.id for option in spec.options) != TASK_TRIAGE_OPTION_IDS:
+        raise GateError(
+            "invalid_task_triage_options",
+            "options",
+            "task triage gates require launch and close options",
+        )
+    expected_feedback = {"launch": "optional", "close": "required"}
+    empty_input_schema = {
+        "type": "object",
+        "additionalProperties": False,
+    }
+    for option in spec.options:
+        typed_option_id = cast(TaskTriageAction, option.id)
+        expected_command = TASK_TRIAGE_COMMAND_PATHS[typed_option_id]
+        if (
+            option.command.argv != (expected_command,)
+            or option.input_schema != empty_input_schema
+            or option.result_schema != task_triage_result_schema(typed_option_id)
+            or option.feedback != expected_feedback[option.id]
+        ):
+            raise GateError(
+                "invalid_task_triage_options",
+                f"options.{option.id}",
+                "task triage option does not match the registered adapter",
+            )
+
+    resources = {resource.path: resource for resource in spec.resources}
+    expected_paths = {
+        *TASK_TRIAGE_COMMAND_PATHS.values(),
+        TASK_TRIAGE_PREVIEW_PATH,
+    }
+    if set(resources) != expected_paths:
+        raise GateError(
+            "invalid_task_triage_resources",
+            "resources",
+            "task triage gates require only their preview and command resources",
+        )
+    preview = resources[TASK_TRIAGE_PREVIEW_PATH]
+    if preview.role != "preview" or preview.executable:
+        raise GateError(
+            "invalid_task_triage_preview",
+            TASK_TRIAGE_PREVIEW_PATH,
+            "task triage preview resource is invalid",
+        )
+    for option_id, path in TASK_TRIAGE_COMMAND_PATHS.items():
+        command = resources[path]
+        if command.role != "command" or not command.executable:
+            raise GateError(
+                "invalid_task_triage_command",
+                path,
+                "task triage command resource is invalid",
+            )
+        try:
+            content = (
+                command.content
+                if command.content is not None
+                else command.source.read_text(encoding="utf-8")
+                if command.source is not None
+                else None
+            )
+        except OSError as exc:
+            raise GateError(
+                "invalid_task_triage_command",
+                path,
+                f"cannot read task triage command: {exc}",
+            ) from exc
+        if content != task_triage_gate_command_script(option_id):
+            raise GateError(
+                "invalid_task_triage_command",
+                path,
+                "task triage command does not match the registered adapter",
+            )
+
+    expected_note = f"Task ready for triage: {payload['bead_id']} — {payload['title']}"
+    presentation = spec.presentation
+    if (
+        presentation.get("sender") != "bead-task-triage"
+        or presentation.get("icon") != "✦"
+        or presentation.get("notes") != [expected_note]
+        or presentation.get("tags") != ["bead", "task"]
+        or presentation.get("files") != [TASK_TRIAGE_PREVIEW_PATH]
+        or presentation.get("preview") != TASK_TRIAGE_PREVIEW_PATH
+    ):
+        raise GateError(
+            "invalid_task_triage_presentation",
+            "presentation",
+            "task triage presentation does not match the registered adapter",
+        )

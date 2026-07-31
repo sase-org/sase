@@ -29,7 +29,7 @@ _MAX_PREVIEW_BYTES = 128 * 1024
 
 
 def handle_custom_gate(app: object, notification: Notification) -> bool:
-    """Load a verified custom gate off-pump and open its generic modal."""
+    """Load a verified generic gate off-pump and open its branch modal."""
     from ...util.pump_tasks import spawn_pump_free_task
 
     async def load_and_open() -> None:
@@ -37,7 +37,7 @@ def handle_custom_gate(app: object, notification: Notification) -> bool:
             data = await asyncio.to_thread(_load_custom_gate_modal_data, notification)
         except Exception as exc:
             app.notify(  # type: ignore[attr-defined]
-                f"Could not open custom gate: {exc}; press d on the notification to debug",
+                f"Could not open gate: {exc}; press d on the notification to debug",
                 severity="error",
             )
             return
@@ -94,14 +94,17 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
     from sase.notification_gates.paths import resolve_notification_bundle
 
     bundle = resolve_notification_bundle(notification)
-    if bundle is None or bundle.legacy or bundle.kind != "custom":
+    if bundle is None or bundle.legacy or bundle.kind not in {"custom", "task_triage"}:
         raise GateError(
             "missing_gate",
             notification.id,
-            "notification does not reference a neutral custom gate",
+            "notification does not reference a neutral generic gate",
         )
     envelope, _adapter = load_and_verify_bundle(bundle.root)
-    gate = GateBranchData.from_envelope(envelope, default_feedback="optional")
+    gate = GateBranchData.from_envelope(
+        envelope,
+        default_feedback="optional" if bundle.kind == "custom" else "disabled",
+    )
     preview_path = _preview_path(notification)
     preview_text = _read_text_preview(preview_path)
     attachments = tuple(dict.fromkeys(Path(path).name for path in notification.files))

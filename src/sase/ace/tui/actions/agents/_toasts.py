@@ -175,6 +175,7 @@ _ACTION_LABELS: dict[str | None, tuple[str, str]] = {
     "UserQuestion": ("question", "questions"),
     "HITL": ("HITL", "HITLs"),
     "LaunchApproval": ("launch approval", "launch approvals"),
+    "TaskTriage": ("task triage", "task triages"),
     "ViewErrorReport": ("axe error", "axe errors"),
     "ViewReport": ("report", "reports"),
     "JumpToChangeSpec": ("sync", "syncs"),

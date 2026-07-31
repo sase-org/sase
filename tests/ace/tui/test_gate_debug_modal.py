@@ -16,7 +16,7 @@ from sase.ace.tui.modals.custom_gate_modal import (
     CustomGateModal,
     CustomGateModalData,
 )
-from sase.ace.tui.modals.gate_debug_modal import GateDebugModal
+from sase.ace.tui.modals.gate_debug_modal import GateDebugModal, _context_kind
 from sase.ace.tui.modals.gate_branch_controls import (
     GateBranchControls,
     GateBranchData,
@@ -232,6 +232,17 @@ def test_d_without_context_shows_quiet_warning() -> None:
         "Gate debug context is unavailable for this view",
         severity="warning",
     )
+
+
+def test_task_triage_debug_context_projects_registered_kind(tmp_path: Path) -> None:
+    notification = _notification(tmp_path)
+    notification.action = "TaskTriage"
+    notification.action_data["request_kind"] = "task_triage"
+
+    context = debug_context_from_notification(notification)
+
+    assert context is not None
+    assert _context_kind(context) == "task_triage"
 
 
 async def test_dismissed_modal_never_applies_late_snapshot(

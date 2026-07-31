@@ -24,6 +24,7 @@ _HITL_ACTIONS = frozenset(
         "UserQuestion",
         "HITL",
         "LaunchApproval",
+        "TaskTriage",
         "CustomGate",
     }
 )

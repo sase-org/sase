@@ -10,6 +10,7 @@ from sase.notification_gates.kind_validation import (
     validate_launch_spec,
     validate_plan_spec,
     validate_question_spec,
+    validate_task_triage_spec,
 )
 from sase.notification_gates.models import (
     GATE_REQUEST_SCHEMA_VERSION,
@@ -164,6 +165,8 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         validate_launch_spec(spec)
     if adapter.kind == "question":
         validate_question_spec(spec)
+    if adapter.kind == "task_triage":
+        validate_task_triage_spec(spec)
     if adapter.kind in {"plan", "epic_plan"}:
         validate_plan_spec(spec, adapter)
     expected_primary = {
@@ -172,6 +175,7 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         "question": ("submit",),
         "launch": ("approve",),
         "hitl": ("accept",),
+        "task_triage": ("launch",),
     }.get(adapter.kind)
     if expected_primary is not None and spec.primary_branch != expected_primary:
         raise GateError(

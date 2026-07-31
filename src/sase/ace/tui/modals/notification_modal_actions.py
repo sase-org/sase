@@ -32,6 +32,7 @@ class NotificationStateActionsMixin:
             "EpicApproval",
             "UserQuestion",
             "LaunchApproval",
+            "TaskTriage",
             "CustomGate",
         ):
             self._pending_confirm_notification_id = notification.id
@@ -57,6 +58,7 @@ class NotificationStateActionsMixin:
                 "EpicApproval",
                 "UserQuestion",
                 "LaunchApproval",
+                "TaskTriage",
                 "CustomGate",
             )
             for n in self._notifications

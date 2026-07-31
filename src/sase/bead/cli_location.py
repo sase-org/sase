@@ -46,7 +46,11 @@ class _WorkspaceContext:
     project_name: str | None = None
 
 
-def find_beads_location(*, materialize: bool = False) -> tuple[Path, str]:
+def find_beads_location(
+    cwd: Path | None = None,
+    *,
+    materialize: bool = False,
+) -> tuple[Path, str]:
     """Determine the beads root directory and subdirectory name.
 
     Uses the primary workspace and effective SDD mode to choose:
@@ -59,10 +63,10 @@ def find_beads_location(*, materialize: bool = False) -> tuple[Path, str]:
     Returns (root_dir, beads_dirname) where root_dir / beads_dirname is the
     beads directory.
     """
-    location = resolve_beads_location(materialize=materialize)
+    location = resolve_beads_location(cwd=cwd, materialize=materialize)
     if location is None:
-        cwd = Path.cwd()
-        return cwd, BEADS_DIRNAME
+        fallback = Path.cwd() if cwd is None else cwd
+        return fallback, BEADS_DIRNAME
     return location.root, location.beads_dirname
 
 

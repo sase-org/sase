@@ -10,6 +10,7 @@ import pytest
 
 from sase.ace.tui.actions.agents._notification_custom_gate import (
     _load_custom_gate_modal_data,
+    handle_custom_gate,
 )
 from sase.ace.tui.actions.agents._notification_gate_execution import (
     GateSubmission,
@@ -26,7 +27,12 @@ from sase.ace.tui.actions.agents._notification_modal_flow import (
 from sase.ace.tui.actions.agents._notification_provider_direct import (
     direct_unread_notification_page,
 )
+from sase.ace.tui.modals.notification_modal_constants import (
+    ACTION_BADGES,
+    notification_icon,
+)
 from sase.notification_gates.service import create_gate
+from sase.bead.task_gate import create_task_triage_gate
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
 from sase.xprompt import HITLResult
@@ -237,6 +243,80 @@ def test_custom_gate_loader_projects_icons_preview_and_defaults(
     assert data.gate.branches == (("approve", "audit"),)
 
 
+def test_task_triage_loader_uses_generic_branch_modal_data(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    create_task_triage_gate(
+        request_id="task-triage-ace-loader",
+        bead_id="sase-task.1",
+        project="sase",
+        title="Review follow-up",
+        description="Preserve the compatibility path.",
+        notes="Raised by the land agent.",
+    )
+    notification = load_notifications()[0]
+
+    data = _load_custom_gate_modal_data(notification)
+
+    assert data.icon == "✦"
+    assert data.sender == "bead-task-triage"
+    assert data.preview_name == "task.md"
+    assert data.preview_text is not None
+    assert "Preserve the compatibility path." in data.preview_text
+    assert data.gate.branches == (("launch",), ("close",))
+    assert data.gate.primary_branch == ("launch",)
+    assert [option.feedback for option in data.gate.options] == [
+        "optional",
+        "required",
+    ]
+    assert ACTION_BADGES["TaskTriage"] == "[task]"
+    assert notification_icon("TaskTriage", None) == "✦"
+
+
+def test_task_triage_opening_reuses_pump_free_generic_gate_path(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    create_task_triage_gate(
+        request_id="task-triage-ace-off-pump",
+        bead_id="sase-task.1",
+        project="sase",
+        title="Review follow-up",
+    )
+    notification = load_notifications()[0]
+    app = SimpleNamespace(notify=lambda *_args, **_kwargs: None)
+    captured: dict[str, Any] = {}
+
+    def spawn(
+        owner: object,
+        coroutine: Any,
+        *,
+        name: str,
+        registry_attr: str,
+    ) -> object:
+        captured.update(
+            owner=owner,
+            name=name,
+            registry_attr=registry_attr,
+        )
+        coroutine.close()
+        return object()
+
+    monkeypatch.setattr(
+        "sase.ace.tui.util.pump_tasks.spawn_pump_free_task",
+        spawn,
+    )
+
+    assert handle_custom_gate(app, notification) is True
+    assert captured == {
+        "owner": app,
+        "name": f"custom-gate-open:{notification.id}",
+        "registry_attr": "_custom_gate_open_tasks",
+    }
+
+
 def test_tracked_executor_reports_terminal_and_extra_commands_live(
     gate_home: Path,
 ) -> None:
@@ -307,6 +387,38 @@ def test_notification_flow_dispatches_custom_gate(
     app._show_notification_modal()
 
     assert dispatched == [notification]
+    assert app.pending_reads == 1
+    assert app.refresh_count == 1
+
+
+def test_notification_flow_dispatches_task_triage_without_marking_read(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    create_task_triage_gate(
+        request_id="task-triage-ace-dispatch",
+        bead_id="sase-task.1",
+        project="sase",
+        title="Review follow-up",
+    )
+    notification = load_notifications()[0]
+    app = _NotificationFlowApp(notification)
+    dispatched: list[Any] = []
+    marked_read: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_actions.handle_custom_gate",
+        lambda _app, selected: dispatched.append(selected),
+    )
+    monkeypatch.setattr(
+        "sase.notifications.mark_read",
+        lambda notification_id: marked_read.append(notification_id),
+    )
+
+    app._show_notification_modal()
+
+    assert dispatched == [notification]
+    assert marked_read == []
     assert app.pending_reads == 1
     assert app.refresh_count == 1
 

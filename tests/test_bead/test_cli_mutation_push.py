@@ -141,6 +141,39 @@ def test_bead_store_mutation_no_push_still_commits(
     push.assert_not_called()
 
 
+def test_bead_store_mutation_routes_explicit_cwd_to_commit_and_push(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commit_calls: list[tuple[str, dict[str, object]]] = []
+    push = MagicMock()
+
+    def auto_commit(message: str, **kwargs: object) -> bool:
+        commit_calls.append((message, kwargs))
+        return True
+
+    monkeypatch.setattr(
+        "sase.bead.cli_common._push_committed_bead_store",
+        push,
+    )
+
+    with bead_store_mutation(auto_commit, cwd=project_dir) as mutation:
+        issue = mutation.project.create("Cross-project close", IssueType.TASK)
+        mutation.commit(f"chore(beads): create {issue.id}")
+
+    assert commit_calls == [
+        (
+            f"chore(beads): create {issue.id}",
+            {
+                "push_after_commit": False,
+                "already_locked": False,
+                "cwd": project_dir,
+            },
+        )
+    ]
+    push.assert_called_once_with(cwd=project_dir)
+
+
 def test_handle_bead_close_no_push_commits_without_push(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

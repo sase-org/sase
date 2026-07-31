@@ -24,6 +24,7 @@ _MOBILE_GATE_ACTION_KINDS = {
     "EpicApproval": "epic_approval",
     "HITL": "hitl",
     "LaunchApproval": "launch_approval",
+    "TaskTriage": "task_triage",
     "CustomGate": "custom_gate",
 }
 

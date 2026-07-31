@@ -14,6 +14,7 @@ _PRIORITY_ACTIONS = frozenset(
         "EpicApproval",
         "UserQuestion",
         "LaunchApproval",
+        "TaskTriage",
         "JumpToMentorReview",
     }
 )

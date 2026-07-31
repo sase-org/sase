@@ -165,6 +165,7 @@ class AgentNotificationModalMixin:
                     "EpicApproval",
                     "UserQuestion",
                     "LaunchApproval",
+                    "TaskTriage",
                     "CustomGate",
                 ):
                     mark_read(result.id)
@@ -183,6 +184,7 @@ class AgentNotificationModalMixin:
                 "UserQuestion",
                 "HITL",
                 "LaunchApproval",
+                "TaskTriage",
                 "CustomGate",
             ):
                 self._read_notification_pending_actions_from_provider()
@@ -203,7 +205,7 @@ class AgentNotificationModalMixin:
                 handle_user_question(self, result)
             elif result.action == "LaunchApproval":
                 handle_launch_approval(self, result)
-            elif result.action == "CustomGate":
+            elif result.action in {"CustomGate", "TaskTriage"}:
                 handle_custom_gate(self, result)
             elif result.action == "ViewErrorReport":
                 handle_view_error_report(self, result)

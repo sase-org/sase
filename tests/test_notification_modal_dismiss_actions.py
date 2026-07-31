@@ -52,6 +52,20 @@ def test_dismiss_notification_requires_confirmation_for_launch_approval() -> Non
     modal.notify.assert_called_once_with("Dismiss pending action notification? (y/n)")
 
 
+def test_dismiss_notification_requires_confirmation_for_task_triage() -> None:
+    """TaskTriage rows stay protected while their task decision is pending."""
+    modal = NotificationModal([_make_notification("n1", action="TaskTriage")])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_dismiss_notification()
+
+    mock_mark.assert_not_called()
+    assert modal._pending_confirm_notification_id == "n1"
+    modal.notify.assert_called_once_with("Dismiss pending action notification? (y/n)")
+
+
 def test_confirm_dismiss_notification_dismisses_pending_item() -> None:
     """y should dismiss the pending plan/question notification."""
     modal = NotificationModal([_make_notification("n1", action="UserQuestion")])

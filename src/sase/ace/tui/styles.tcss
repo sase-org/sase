@@ -1700,6 +1700,10 @@ GateDebugModal.kind-launch > #gate-debug-container {
     border: double #5fffff;
 }
 
+GateDebugModal.kind-task_triage > #gate-debug-container {
+    border: double #d787ff;
+}
+
 GateDebugModal.kind-custom > #gate-debug-container {
     border: double #ffaf5f;
 }

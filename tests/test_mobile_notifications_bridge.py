@@ -20,6 +20,7 @@ from sase.integrations.mobile_notifications import (
     resolve_mobile_notification_detail,
 )
 from sase.notification_gates.service import create_gate
+from sase.bead.task_gate import create_task_triage_gate
 from sase.notifications.models import Notification
 from sase.notifications.store import load_notifications
 from sase.user_question_actions import create_user_question_gate
@@ -368,6 +369,63 @@ def test_execute_mobile_gate_action_uses_selected_options_unchanged() -> None:
     ]
     assert gate.response_path.is_file()
     assert load_notifications(include_dismissed=True)[0].dismissed is True
+
+
+def test_execute_mobile_task_triage_reports_registered_action_kind(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    gate = create_task_triage_gate(
+        request_id="mobile-task-triage",
+        bead_id="sase-task.1",
+        project="sase",
+        title="Review mobile follow-up",
+    )
+    notification = load_notifications()[0]
+    task = SimpleNamespace(task_id="mobile-task-123")
+
+    with (
+        patch(
+            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
+            return_value=_snapshot([notification]),
+        ),
+        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
+        patch(
+            "sase.bead.task_gate._resolve_task_triage_project_cwd",
+            return_value=Path("/canonical/sase"),
+        ),
+        patch(
+            "sase.bead.task_launch.submit_task_launch_task",
+            return_value=task,
+        ) as submit,
+    ):
+        resolve.return_value = SimpleNamespace(
+            notification_id=notification.id,
+            prefix="mobile-t",
+            prefix_len=8,
+            resolution="unique_prefix",
+        )
+        result = execute_mobile_gate_action(
+            "mobile-t",
+            ["launch"],
+            feedback="Keep the shim.",
+        )
+
+    assert result.action_kind == "task_triage"
+    assert result.response_json["selected_option_ids"] == ["launch"]
+    assert result.response_json["task_launch_task_id"] == "mobile-task-123"
+    submit.assert_called_once_with(
+        "sase-task.1",
+        cwd=Path("/canonical/sase"),
+        feedback="Keep the shim.",
+        origin="api",
+    )
+    assert (
+        json.loads(gate.response_path.read_text(encoding="utf-8"))[
+            "task_launch_task_id"
+        ]
+        == "mobile-task-123"
+    )
 
 
 def test_mobile_notification_bridge_forwards_gate_selection_unchanged() -> None:

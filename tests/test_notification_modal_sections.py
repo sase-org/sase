@@ -59,19 +59,20 @@ def test_hitl_actions_share_hitl_tab() -> None:
     plan = _make_notification("plan", action="PlanApproval")
     question = _make_notification("question", action="UserQuestion")
     workflow_hitl = _make_notification("workflow", action="HITL")
+    task_triage = _make_notification("task", action="TaskTriage")
     regular = _make_notification("regular", action="JumpToAgent")
 
-    modal = NotificationModal([plan, question, workflow_hitl, regular])
+    modal = NotificationModal([plan, question, workflow_hitl, task_triage, regular])
 
     assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
-        ("hitl", "HITL", 3),
+        ("hitl", "HITL", 4),
         (None, "General", 1),
     ]
     assert modal._active_notification_tag == "hitl"
-    assert _option_ids(modal) == ["0", "1", "2"]
+    assert _option_ids(modal) == ["0", "1", "2", "3"]
 
     modal._active_notification_tag = None
-    assert _option_ids(modal) == ["3"]
+    assert _option_ids(modal) == ["4"]
 
 
 def test_error_notifications_share_errors_tab() -> None:
