@@ -282,8 +282,27 @@ def register_bead_update_parser(
     subparsers: argparse._SubParsersAction,
 ) -> None:
     """Register ``sase bead update``."""
-    parser = subparsers.add_parser("update", help="Update an issue")
-    parser.add_argument("id", help="Full or shorthand issue ID")
+    parser = subparsers.add_parser(
+        "update",
+        help="Update one or more issues",
+        description=(
+            "Update one or more issues. Every listed bead receives the same "
+            "field changes in a single atomic commit."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead update sase-at.1 -s in_progress\n"
+            "  sase bead update at.1 at.2 at.3 -s ready\n"
+            "  sase bead update sase-at.1 sase-at.2 -a alice -z medium"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "ids",
+        nargs="+",
+        metavar="ID",
+        help="One or more full or shorthand issue IDs to update",
+    )
     parser.add_argument("-a", "--assignee")
     parser.add_argument("-D", "--design")
     parser.add_argument("-d", "--description")

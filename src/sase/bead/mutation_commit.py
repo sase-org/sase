@@ -10,7 +10,7 @@ def mutation_commit_message(operation: str, issue_ids: list[str]) -> str | None:
     if operation == "create" and issue_ids:
         return f"chore(beads): create {issue_ids[0]}"
     if operation == "update" and issue_ids:
-        return f"chore(beads): update {issue_ids[0]}"
+        return f"chore(beads): update {' '.join(issue_ids)}"
     if operation == "note" and issue_ids:
         return f"chore(beads): note {issue_ids[0]}"
     if operation == "open" and issue_ids:

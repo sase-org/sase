@@ -93,6 +93,33 @@ def test_create_update_close_and_remove_canonicalize_shorthand(
             project.show(first_id)
 
 
+def test_update_accepts_multiple_shorthand_ids_in_one_batch(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _epic_id, first_id, second_id = _seed_epic(project_dir)
+
+    bead_cli.handle_bead_update(
+        create_parser().parse_args(
+            [
+                "bead",
+                "update",
+                _suffix(first_id),
+                _suffix(second_id),
+                "--status",
+                "in_progress",
+            ]
+        )
+    )
+
+    output = capsys.readouterr().out
+    assert f"✓ Updated issue: {first_id}" in output
+    assert f"✓ Updated issue: {second_id}" in output
+    with BeadProject(project_dir) as project:
+        assert project.show(first_id).status is Status.IN_PROGRESS
+        assert project.show(second_id).status is Status.IN_PROGRESS
+
+
 def test_dependency_and_reference_commands_accept_shorthand(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],

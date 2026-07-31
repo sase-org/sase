@@ -93,6 +93,17 @@ def update(
     return _issue_payload(payload), payload
 
 
+def update_many(
+    beads_dir: Path | str,
+    issue_ids: list[str],
+    **fields: str | int | bool | None,
+) -> tuple[list[Issue], dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "update_many")
+    binding = require_rust_binding("bead_update_many")
+    payload = _call_issue_operation(binding, str(beads_dir), issue_ids, fields)
+    return issues_from_list(payload.get("issues", [])), payload
+
+
 def append_note(
     beads_dir: Path | str,
     issue_id: str,
@@ -377,4 +388,5 @@ __all__ = [
     "remove_many",
     "unmark_ready_to_work",
     "update",
+    "update_many",
 ]

@@ -282,6 +282,40 @@ def test_bead_project_remove_many_delegates_and_refreshes_once(
         assert refreshes == [True]
 
 
+def test_bead_project_update_many_delegates_and_refreshes_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with BeadProject.init(tmp_path) as project:
+        updated = [
+            Issue(id="delegated-1", title="First", issue_type=IssueType.TASK),
+            Issue(id="delegated-2", title="Second", issue_type=IssueType.TASK),
+        ]
+        calls: list[dict[str, Any]] = []
+        refreshes: list[bool] = []
+
+        def fake_update_many(
+            beads_dir: Path | str, issue_ids: list[str], **fields: Any
+        ) -> tuple[list[Issue], dict[str, Any]]:
+            calls.append({"beads_dir": beads_dir, "issue_ids": issue_ids, **fields})
+            return updated, {"operation": "update", "changed": True}
+
+        monkeypatch.setattr(bead_mutation_facade, "update_many", fake_update_many)
+        monkeypatch.setattr(
+            project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
+        )
+
+        result = project.update_many(
+            ["delegated-1", "delegated-2"], status="in_progress"
+        )
+
+        assert result == updated
+        assert len(calls) == 1
+        assert calls[0]["beads_dir"] == project.beads_dir
+        assert calls[0]["issue_ids"] == ["delegated-1", "delegated-2"]
+        assert calls[0]["status"] == "in_progress"
+        assert refreshes == [True]
+
+
 def test_bead_project_show_returns_issue_with_model(
     tmp_path: Path, monkeypatch
 ) -> None:

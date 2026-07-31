@@ -108,6 +108,41 @@ class BeadProjectMutationMixin:
         self._refresh_db_from_jsonl()
         return issue
 
+    def update_many(
+        self, issue_ids: list[str], **fields: str | int | None
+    ) -> list[Issue]:
+        """Apply the same field changes to multiple issues in one mutation.
+
+        Every ID is resolved and validated against its pre-batch issue before
+        the atomic Rust-backed mutation runs, so an unknown ID or an invalid
+        field value leaves every named issue untouched.
+        """
+        if "is_ready_to_work" in fields:
+            raise ValueError(
+                "is_ready_to_work cannot be set via update(); "
+                "use mark_ready_to_work() instead."
+            )
+        from sase.core import bead_mutation_facade as rust_beads
+
+        resolved_ids = [self.resolve_id(issue_id) for issue_id in issue_ids]
+        normalized_fields = _normalize_changespec_fields(fields)
+        for issue_id in resolved_ids:
+            try:
+                old_issue: Issue | None = self.show(issue_id)
+            except KeyError:
+                old_issue = None
+            if old_issue is not None:
+                _validate_issue_update(old_issue, normalized_fields)
+        issues, outcome = rust_beads.update_many(
+            self.beads_dir,
+            resolved_ids,
+            **normalized_fields,
+            now=self._current_time(),
+        )
+        self._record_mutation_outcome(outcome)
+        self._refresh_db_from_jsonl()
+        return issues
+
     def append_note(
         self,
         issue_id: str,

@@ -74,6 +74,9 @@ def test_mutation_commit_messages_match_slow_path_contract() -> None:
     assert _mutation_commit_message("update", ["beads-1"]) == (
         "chore(beads): update beads-1"
     )
+    assert _mutation_commit_message("update", ["beads-1", "beads-2"]) == (
+        "chore(beads): update beads-1 beads-2"
+    )
     assert _mutation_commit_message("open", ["beads-1"]) == (
         "chore(beads): reopen beads-1"
     )

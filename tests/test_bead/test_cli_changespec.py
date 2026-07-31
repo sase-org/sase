@@ -270,7 +270,7 @@ def test_create_and_update_phase_size_persist(
 
     bead_cli.handle_bead_update(
         argparse.Namespace(
-            id=phase.id,
+            ids=[phase.id],
             status=None,
             title=None,
             description=None,
@@ -318,7 +318,7 @@ def test_update_rejects_size_for_plan_bead(
     with pytest.raises(SystemExit) as excinfo:
         bead_cli.handle_bead_update(
             argparse.Namespace(
-                id=epic.id,
+                ids=[epic.id],
                 status=None,
                 title=None,
                 description=None,
@@ -368,7 +368,7 @@ def test_update_clears_model_with_empty_string(
 
     bead_cli.handle_bead_update(
         argparse.Namespace(
-            id=epic.id,
+            ids=[epic.id],
             status=None,
             title=None,
             description=None,
@@ -394,7 +394,7 @@ def test_update_changes_model_value(
 
     bead_cli.handle_bead_update(
         argparse.Namespace(
-            id=epic.id,
+            ids=[epic.id],
             status=None,
             title=None,
             description=None,

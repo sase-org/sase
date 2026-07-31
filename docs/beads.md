@@ -805,9 +805,13 @@ commit; the staged event/projection files are included in the next normal projec
 | -------------- | --------------------------------------------- |
 | `-s, --status` | Check whether bead state has unstaged changes |
 
-### `sase bead update <id>`
+### `sase bead update <id> [<id2> ...]`
 
-Update one or more fields on an issue.
+Update one or more fields on one or more issues. Every listed bead receives the same field changes in a single
+all-or-nothing store mutation: every ID is resolved and every resulting issue is validated before anything is written,
+so an unknown ID or an invalid field value leaves every named bead untouched. Duplicate IDs, including a shorthand
+alongside its resolved full form, collapse to a single update. A single-ID invocation is unaffected — same syntax,
+output line, and commit message as before.
 
 | Flag                | Description                                                                           |
 | ------------------- | ------------------------------------------------------------------------------------- |
@@ -823,6 +827,12 @@ Update one or more fields on an issue.
 
 Use `sase bead update --notes` for an explicit field replacement. Use `sase bead note` when recording progress that
 should accumulate with earlier notes.
+
+Beads whose requested fields already hold the requested values are quiet no-ops: they are reported as `Unchanged`,
+excluded from the commit, and an all-no-op batch writes nothing. `--status closed` keeps the descendant guard that
+prefers `sase bead close`, evaluated against the whole batch: a descendant that is itself being closed by the same
+invocation counts as closed, so argument order does not matter, but a descendant left out of the batch still rejects the
+whole update.
 
 ### `sase bead work <target>`
 

@@ -224,6 +224,43 @@ def test_handle_bead_close_legacy_namespace_still_pushes(
     push.assert_called_once_with()
 
 
+def test_handle_bead_update_multi_id_commits_once_and_pushes_once(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with BeadProject(project_dir) as project:
+        first = project.create("First", IssueType.TASK)
+        second = project.create("Second", IssueType.TASK)
+    auto_commit = MagicMock(return_value=True)
+    push = MagicMock()
+    monkeypatch.setattr("sase.bead.cli_crud.auto_commit_bead_store", auto_commit)
+    monkeypatch.setattr(
+        "sase.bead.cli_common._push_committed_bead_store",
+        push,
+    )
+
+    bead_cli.handle_bead_update(
+        argparse.Namespace(
+            ids=[first.id, second.id],
+            status="in_progress",
+            title=None,
+            description=None,
+            notes=None,
+            design=None,
+            assignee=None,
+            tier=None,
+            model=None,
+        )
+    )
+
+    auto_commit.assert_called_once_with(
+        f"chore(beads): update {first.id} {second.id}",
+        push_after_commit=False,
+        already_locked=False,
+    )
+    push.assert_called_once_with()
+
+
 def test_close_parser_accepts_no_push_short_and_long_options() -> None:
     parser = create_parser()
 

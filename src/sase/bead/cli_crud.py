@@ -160,6 +160,22 @@ def handle_bead_create(args: argparse.Namespace) -> None:
     print(f"Created {issue.issue_type.value}: {issue.id} — {issue.title}")
 
 
+def _print_update_results(
+    issues: list[Issue],
+    *,
+    changed_ids: list[str],
+    reopened_ancestors: list[Issue],
+) -> None:
+    changed = set(changed_ids)
+    for issue in issues:
+        if issue.id in changed:
+            print(f"✓ Updated issue: {issue.id} — {issue.title}")
+        else:
+            print(f"· Unchanged: {issue.id} — {issue.title}")
+    for ancestor in reopened_ancestors:
+        print(f"○ Reopened ancestor: {ancestor.id} — {ancestor.title}")
+
+
 def handle_bead_update(args: argparse.Namespace) -> None:
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         proj = mutation.project
@@ -186,15 +202,28 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             print("No fields to update.", file=sys.stderr)
             sys.exit(1)
         try:
-            issue = proj.update(args.id, **fields)
-        except KeyError:
-            print(f"Error: issue not found: {args.id}", file=sys.stderr)
+            issues = proj.update_many(args.ids, **fields)
+        except KeyError as exc:
+            message = str(exc.args[0]) if exc.args else ""
+            missing_id = message.rsplit("Issue not found:", 1)[-1].strip()
+            print(f"Error: issue not found: {missing_id}", file=sys.stderr)
             sys.exit(1)
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        mutation.commit(require_mutation_commit_message("update", [issue.id]))
-    print(f"✓ Updated issue: {issue.id} — {issue.title}")
+        outcome = mutation.project.last_mutation_outcome
+        changed_ids = _mutation_outcome_ids(outcome, "issue_ids")
+        reopened_ancestor_ids = _mutation_outcome_ids(outcome, "reopened_ancestor_ids")
+        reopened_ancestors = [
+            proj.show(ancestor_id) for ancestor_id in reopened_ancestor_ids
+        ]
+        if changed_ids:
+            mutation.commit(require_mutation_commit_message("update", changed_ids))
+    _print_update_results(
+        issues,
+        changed_ids=changed_ids,
+        reopened_ancestors=reopened_ancestors,
+    )
 
 
 def handle_bead_note(args: argparse.Namespace) -> None:

@@ -156,11 +156,14 @@ sase bead update <id> --model ""  # clear the stored model
 sase bead update <id> --size medium
 # Combine multiple updates
 sase bead update <id> --status in_progress --assignee alice
+# Update several beads with the same fields in one commit
+sase bead update <id1> <id2> <id3> --status ready
 ```
 
 Use `close` for completion and `open` for reopening. `--notes` **replaces** the whole field; use `sase bead note` when
 you are recording progress that should accumulate. Moving a bead to `closed` through `update` obeys the same descendant
-guard `close` does.
+guard `close` does. `update` accepts one or more IDs; every listed bead gets the same field changes in a single atomic
+commit, and beads that already hold the requested values are reported as unchanged rather than committed.
 
 ### close / open
 

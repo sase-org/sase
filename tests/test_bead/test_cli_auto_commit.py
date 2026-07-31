@@ -217,7 +217,7 @@ def test_handle_bead_update_auto_commit_message(project_dir: Path) -> None:
     with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_update(
             argparse.Namespace(
-                id=issue.id,
+                ids=[issue.id],
                 status=None,
                 title="Updated title",
                 description=None,
@@ -236,10 +236,38 @@ def test_handle_bead_update_auto_commit_message(project_dir: Path) -> None:
     )
 
 
+def test_handle_bead_update_multi_id_auto_commit_message_joins_changed_ids(
+    project_dir: Path,
+) -> None:
+    first = _create_issue(project_dir, "First")
+    second = _create_issue(project_dir, "Second")
+
+    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+        bead_cli.handle_bead_update(
+            argparse.Namespace(
+                ids=[first.id, second.id],
+                status="in_progress",
+                title=None,
+                description=None,
+                notes=None,
+                design=None,
+                assignee=None,
+                tier=None,
+                model=None,
+            )
+        )
+
+    auto_commit.assert_called_once_with(
+        f"chore(beads): update {first.id} {second.id}",
+        push_after_commit=False,
+        already_locked=False,
+    )
+
+
 def test_redundant_update_and_close_skip_auto_commit(project_dir: Path) -> None:
     issue = _create_issue(project_dir, "Unchanged")
     update_args = argparse.Namespace(
-        id=issue.id,
+        ids=[issue.id],
         status=None,
         title=issue.title,
         description=None,
@@ -296,6 +324,21 @@ def test_fast_path_close_commit_omits_cascade_ids() -> None:
         bead_fast_path._apply_mutation_side_effects(Path("/tmp/beads"), summary)
 
     auto_commit.assert_called_once_with("chore(beads): close beads-1.1")
+
+
+def test_fast_path_update_commit_joins_every_changed_id() -> None:
+    from sase.main import bead_fast_path
+
+    summary = {
+        "operation": "update",
+        "changed": True,
+        "issue_ids": ["beads-1", "beads-2"],
+        "status_transitions": [],
+    }
+    with patch("sase.bead.cli_common.auto_commit_bead_store") as auto_commit:
+        bead_fast_path._apply_mutation_side_effects(Path("/tmp/beads"), summary)
+
+    auto_commit.assert_called_once_with("chore(beads): update beads-1 beads-2")
 
 
 def test_handle_bead_open_auto_commit_message(project_dir: Path) -> None:
