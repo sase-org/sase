@@ -11,20 +11,22 @@ from sase.core.agent_artifact_index_lifecycle import (
 
 
 def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
-    """Normalize SIGTERM-induced failed state before plan/question handoff."""
+    """Normalize SIGTERM-induced failed state before plan/question handoff.
 
-    def _is_sigterm_error(error: object) -> bool:
-        if not isinstance(error, str):
-            return False
-        lowered = error.lower()
-        return (
-            "exit code -15" in lowered
-            or "exit code 143" in lowered
-            or "sigterm" in lowered
-        )
-
+    Precondition: called only from ``_handle_killed_iteration`` after it has
+    already confirmed the runner's own handoff SIGTERM caused the failure —
+    ``was_killed()`` is true, ``has_user_kill_intent()`` is false, and a
+    ``.sase_plan_pending`` / ``.sase_questions_pending`` marker predates the
+    kill. Given that precondition, any failed agent step in this artifacts
+    directory is by construction the handoff's doing, so this rewrites
+    structurally instead of matching provider error text: provider CLIs
+    surface the same SIGTERM inconsistently (``claude`` and ``codex`` exit
+    ``-15``, while ``agy`` traps it and exits ``1`` with
+    ``Error: timeout waiting for response``), so no text heuristic can cover
+    every provider uniformly. Embedded ``bash`` / ``python`` post-steps are
+    left untouched since they can fail for reasons unrelated to the SIGTERM.
+    """
     state_path = Path(artifacts_dir) / "workflow_state.json"
-    saw_sigterm_failure = False
     index_dirty = False
 
     try:
@@ -36,20 +38,13 @@ def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
     if isinstance(state_data, dict):
         changed = False
         for step_data in state_data.get("steps", []):
-            if (
-                isinstance(step_data, dict)
-                and step_data.get("status") == "failed"
-                and _is_sigterm_error(step_data.get("error"))
-            ):
-                saw_sigterm_failure = True
+            if isinstance(step_data, dict) and step_data.get("status") == "failed":
                 step_data["status"] = "completed"
                 step_data["error"] = None
                 step_data["traceback"] = None
                 changed = True
 
-        if state_data.get("status") == "failed" and (
-            saw_sigterm_failure or _is_sigterm_error(state_data.get("error"))
-        ):
+        if state_data.get("status") == "failed":
             state_data["status"] = "completed"
             state_data["error"] = None
             state_data["traceback"] = None
@@ -59,11 +54,6 @@ def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
             with open(state_path, "w", encoding="utf-8") as f:
                 json.dump(state_data, f, indent=2)
             index_dirty = True
-
-    if not saw_sigterm_failure:
-        if index_dirty:
-            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
-        return
 
     for marker_path in Path(artifacts_dir).glob("prompt_step_*.json"):
         try:
@@ -76,7 +66,7 @@ def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
             continue
         if marker_data.get("status") != "failed":
             continue
-        if not _is_sigterm_error(marker_data.get("error")):
+        if marker_data.get("step_type", "agent") != "agent":
             continue
 
         marker_data["status"] = "completed"
