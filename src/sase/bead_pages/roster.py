@@ -8,6 +8,7 @@ from sase.agents_sync.rendering_markdown import md_cell, page_bytes
 from sase.bead.model import Issue, IssueType
 from sase.bead_pages.associations import BeadAssociationIndex
 from sase.bead_pages.paths import bead_lineage_root
+from sase.bead_type_presentation import bead_type_presentation
 
 
 def _render_bead_pages_roster(
@@ -36,11 +37,12 @@ def _render_bead_pages_roster(
     for issue in roots:
         associations = association_index.for_bead(issue.id)
         tier = issue.tier.value if issue.tier is not None else "—"
+        type_glyph = bead_type_presentation(issue.issue_type).glyph
         lines.append(
             "| "
             f"[{md_cell(issue.id)}]({issue.id}/README.md) | "
             f"{md_cell(issue.title)} | "
-            f"{issue.issue_type.value} | "
+            f"{type_glyph} {issue.issue_type.value} | "
             f"{tier} | "
             f"{issue.status.value} | "
             f"{phase_counts[issue.id]} | "

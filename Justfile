@@ -272,7 +272,6 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-bg(bead_type_chip)' \
         --epic-symbol 'sase-bg(bead_type_display_order)' \
-        --epic-symbol 'sase-bg(bead_type_presentation)' \
         --epic-symbol 'sase-bg(normalize_bead_type)' \
         --epic-symbol 'sase-bg(build_task_launch_argv)' \
         --epic-symbol 'sase-bg(resolve_task_launch_cwd)' \

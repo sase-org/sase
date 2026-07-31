@@ -66,7 +66,7 @@ def _reference_for_plan_row(
 ) -> str | None:
     if row is None:
         return None
-    if row_kind in {"epic", "phase"}:
+    if row_kind in {"epic", "phase", "task"}:
         issue = getattr(row, "issue", None)
         issue_id = getattr(issue, "id", None)
         if not isinstance(issue_id, str) or not issue_id:

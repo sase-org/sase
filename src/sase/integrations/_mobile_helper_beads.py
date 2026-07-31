@@ -436,7 +436,7 @@ def _bead_status_filter(
         return [_enum_value(Status, status, "status")]
     if include_closed:
         return None
-    return [Status.OPEN, Status.CLAIMED, Status.IN_PROGRESS]
+    return [Status.OPEN, Status.CLAIMED, Status.READY, Status.IN_PROGRESS]
 
 
 def _optional_enum_filter(

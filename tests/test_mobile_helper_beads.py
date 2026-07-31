@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from sase.bead.model import IssueType, Status
+from sase.bead.project import BeadProject
 from tests._mobile_helper_bridge_helpers import (
     run_bridge,
     seed_bead_project,
@@ -363,6 +365,48 @@ def test_beads_show_bridge_returns_not_found_exit_code(
     assert code == 4
     assert data == {}
     assert "missing" in stderr
+
+
+def test_beads_list_bridge_lists_ready_task_beads_by_default_and_by_filter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alpha_root = tmp_path / "alpha"
+    alpha_dir, _, _, _ = seed_bead_project(alpha_root)
+    with BeadProject.init(alpha_root) as project:
+        task = project.create("Alpha Task", IssueType.TASK, description="Follow-up")
+        project.update(task.id, status=Status.READY.value)
+    seed_known_projects(tmp_path, {"alpha": alpha_dir})
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    code, data, stderr = run_bridge(
+        {"schema_version": 1, "project": "alpha"}, "beads-list"
+    )
+
+    assert code == 0
+    assert stderr == ""
+    # A ready task bead is active work awaiting triage, so the default
+    # (non-closed) listing must surface it alongside open/in-progress beads.
+    summary = next(
+        row
+        for row in data["beads"]  # type: ignore[index]
+        if row["id"] == task.id
+    )
+    assert summary["bead_type"] == "task"
+    assert summary["status"] == "ready"
+    assert summary["tier"] is None
+
+    filtered_code, filtered, _ = run_bridge(
+        {
+            "schema_version": 1,
+            "project": "alpha",
+            "status": "ready",
+            "bead_type": "task",
+        },
+        "beads-list",
+    )
+
+    assert filtered_code == 0
+    assert [row["id"] for row in filtered["beads"]] == [task.id]  # type: ignore[index]
 
 
 def test_beads_list_bridge_reports_partial_project_read_failure(

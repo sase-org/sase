@@ -11,6 +11,7 @@ from sase.bead.cli_common import status_icon
 from sase.bead.cli_detail import IssueDetail
 from sase.bead.model import Issue, Status
 from sase.bead_pages.paths import bead_lineage_root
+from sase.bead_type_presentation import bead_type_presentation
 
 MAX_RENDERED_PROSE_CHARS = 10_000
 
@@ -112,7 +113,8 @@ def _breadcrumb(issue: Issue) -> str:
 def _primary_facts(issue: Issue) -> str:
     values = [
         f"**Status:** {status_icon(issue.status)} {issue.status.value}",
-        f"**Type:** {issue.issue_type.value}",
+        f"**Type:** {bead_type_presentation(issue.issue_type).glyph}"
+        f" {issue.issue_type.value}",
     ]
     if issue.tier is not None:
         values.append(f"**Tier:** {issue.tier.value}")
