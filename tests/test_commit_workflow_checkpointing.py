@@ -184,7 +184,7 @@ def test_conflict_detected_via_get_conflicted_files_when_sync_probe_fails(
     provider.diff.return_value = (True, None)
     mock_get.return_value = provider
 
-    wf = CommitWorkflow({"message": "fix"}, "create_commit")
+    wf = CommitWorkflow({"message": "fix: checkpoint"}, "create_commit")
 
     assert wf.run() == RunResult.CONFLICT
     assert (artifacts_dir / "commit_state.json").exists()
@@ -244,7 +244,7 @@ def test_dispatch_step_recorded_after_success(
         )
         return real_save(cp, path)
 
-    wf = CommitWorkflow({"message": "fix"}, "create_commit")
+    wf = CommitWorkflow({"message": "fix: checkpoint"}, "create_commit")
 
     with (
         patch(
@@ -288,7 +288,7 @@ def test_pre_dispatch_checkpoint_written_before_dispatch(
 
     provider.create_commit.side_effect = _dispatch
 
-    wf = CommitWorkflow({"message": "fix"}, "create_commit")
+    wf = CommitWorkflow({"message": "fix: checkpoint"}, "create_commit")
 
     with patch("sase.workflows.commit.workflow.checkpoint_save", side_effect=spy_save):
         assert wf.run() == RunResult.CONFLICT

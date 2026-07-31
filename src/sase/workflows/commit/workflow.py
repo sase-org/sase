@@ -31,6 +31,10 @@ from sase.workflows.commit.commit_hooks import (
     run_after_commit_hook,
     run_before_commit_hook,
 )
+from sase.workflows.commit.message_validation import (
+    check_commit_message,
+    load_commit_message_policy,
+)
 from sase.workflows.commit.pr_operations import (
     append_pr_tags,
     apply_project_pr_prefix,
@@ -108,6 +112,15 @@ class CommitWorkflow(BaseWorkflow):
                 "error",
             )
             _log_commit_failed(self._method, "other")
+            return RunResult.FAILED
+
+        policy = load_commit_message_policy()
+        rejection = check_commit_message(
+            str(self._payload.get("message") or ""), policy
+        )
+        if rejection is not None:
+            print_status(rejection, "error")
+            _log_commit_failed(self._method, "invalid_message")
             return RunResult.FAILED
 
         cwd = os.getcwd()

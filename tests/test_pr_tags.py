@@ -61,7 +61,7 @@ class TestAppendPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Add feature"}
+        payload = {"name": "feat-x", "message": "feat: add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         tags = {"AUTOSUBMIT_BEHAVIOR": "SYNC_SUBMIT", "MARKDOWN": "true"}
@@ -84,7 +84,7 @@ class TestAppendPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Add feature"}
+        payload = {"name": "feat-x", "message": "feat: add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         tags = {"R": "startblock"}
@@ -114,7 +114,7 @@ class TestAppendPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Fix bug"}
+        payload = {"name": "feat-x", "message": "fix: bug"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with (
@@ -137,7 +137,7 @@ class TestAppendPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Fix bug", "bug_id": "99999"}
+        payload = {"name": "feat-x", "message": "fix: bug", "bug_id": "99999"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with patch("sase.vcs_provider.config.get_pr_tags", return_value={}):
@@ -157,7 +157,7 @@ class TestAppendPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Fix bug", "bug_id": "111"}
+        payload = {"name": "feat-x", "message": "fix: bug", "bug_id": "111"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with (
@@ -181,7 +181,7 @@ class TestAppendPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Add feature"}
+        payload = {"name": "feat-x", "message": "feat: add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with (
@@ -204,7 +204,7 @@ class TestAppendPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Add feature"}
+        payload = {"name": "feat-x", "message": "feat: add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         env = {k: v for k, v in os.environ.items() if k != "SASE_BUG_ID"}
@@ -228,7 +228,7 @@ class TestAppendPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Fix bug"}
+        payload = {"name": "feat-x", "message": "fix: bug"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         tags = {"AUTOSUBMIT_BEHAVIOR": "SYNC_SUBMIT", "MARKDOWN": "true"}
@@ -257,7 +257,7 @@ class TestAppendPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Fix bug"}
+        payload = {"name": "feat-x", "message": "fix: bug"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         tags = {"BUG": "static-111", "MARKDOWN": "true"}
@@ -283,14 +283,14 @@ class TestAppendPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Add feature"}
+        payload = {"name": "feat-x", "message": "feat: add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with patch("sase.vcs_provider.config.get_pr_tags", return_value={}):
             wf.run()
 
         sent_payload = provider.create_pull_request.call_args[0][0]
-        assert sent_payload["message"] == "Add feature"
+        assert sent_payload["message"] == "feat: add feature"
 
     @patch(_FETCH_PARENT_TARGET, return_value={})
     def test_existing_tag_block_is_updated_without_duplicate(
@@ -507,7 +507,7 @@ class TestInheritParentPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Child PR"}
+        payload = {"name": "feat-x", "message": "feat: child PR"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with patch("sase.vcs_provider.config.get_pr_tags", return_value={}):
@@ -535,7 +535,7 @@ class TestInheritParentPrTags:
         mock_get.return_value = provider
         payload = {
             "name": "feat-x",
-            "message": "Child PR",
+            "message": "feat: child PR",
             "bead_id": "sase-ai.2",
         }
 
@@ -565,7 +565,7 @@ class TestInheritParentPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Child PR"}
+        payload = {"name": "feat-x", "message": "feat: child PR"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         config_tags = {"TEAM": "platform"}
@@ -590,7 +590,7 @@ class TestInheritParentPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Child PR"}
+        payload = {"name": "feat-x", "message": "feat: child PR"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with (
@@ -617,11 +617,11 @@ class TestInheritParentPrTags:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Add feature"}
+        payload = {"name": "feat-x", "message": "feat: add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with patch("sase.vcs_provider.config.get_pr_tags", return_value={}):
             wf.run()
 
         sent = provider.create_pull_request.call_args[0][0]
-        assert sent["message"] == "Add feature"
+        assert sent["message"] == "feat: add feature"

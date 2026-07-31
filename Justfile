@@ -272,8 +272,6 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-bj.3(CommitMessagePolicy)' \
         --epic-symbol 'sase-bj.3(CommitSubject)' \
-        --epic-symbol 'sase-bj.3(check_commit_message)' \
-        --epic-symbol 'sase-bj.3(load_commit_message_policy)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

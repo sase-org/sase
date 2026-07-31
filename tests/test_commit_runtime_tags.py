@@ -538,13 +538,13 @@ def test_create_commit_provider_receives_runtime_tags(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     provider = _make_provider()
-    payload = {"message": "Fix bug"}
+    payload = {"message": "fix: bug"}
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
 
     assert _run_workflow(payload, "create_commit", provider) == RunResult.OK
 
     provider.create_commit.assert_called_once_with(payload, ANY)
-    assert payload["message"] == ("Fix bug\n\nSASE_AGENT=alice.machine_a.agent-a")
+    assert payload["message"] == ("fix: bug\n\nSASE_AGENT=alice.machine_a.agent-a")
 
 
 def test_create_pull_request_tags_override_inherited_runtime_tags(
@@ -552,7 +552,7 @@ def test_create_pull_request_tags_override_inherited_runtime_tags(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     provider = _make_provider()
-    payload = {"name": "feat-x", "message": "Child PR"}
+    payload = {"name": "feat-x", "message": "feat: child PR"}
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-current")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
     (tmp_path / "agent_meta.json").write_text(
@@ -597,10 +597,10 @@ def test_create_proposal_does_not_add_runtime_tags(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     provider = _make_provider()
-    payload = {"message": "Propose change"}
+    payload = {"message": "chore: propose change"}
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
 
     assert _run_workflow(payload, "create_proposal", provider) == RunResult.OK
 
     provider.create_proposal.assert_called_once_with(payload, ANY)
-    assert payload["message"] == "Propose change"
+    assert payload["message"] == "chore: propose change"

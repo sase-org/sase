@@ -299,7 +299,11 @@ def test_detect_parent_returns_none_when_self_parent() -> None:
 def test_explicit_parent_overrides_auto_detect() -> None:
     """Explicit parent in payload takes precedence over auto-detection."""
     wf = CommitWorkflow(
-        payload={"name": "child_cl", "parent": "explicit_parent"},
+        payload={
+            "name": "child_cl",
+            "parent": "explicit_parent",
+            "message": "feat: child change",
+        },
         method="create_pull_request",
     )
     wf._base_cl_name = "child_cl"
@@ -335,7 +339,11 @@ def test_explicit_parent_overrides_auto_detect() -> None:
 def test_explicit_parent_skips_auto_detect() -> None:
     """When parent is in payload, detect_parent_changespec is not called."""
     wf = CommitWorkflow(
-        payload={"name": "child_cl", "parent": "given_parent"},
+        payload={
+            "name": "child_cl",
+            "parent": "given_parent",
+            "message": "feat: child change",
+        },
         method="create_pull_request",
     )
     wf._base_cl_name = "child_cl"
@@ -374,7 +382,11 @@ def test_unresolvable_explicit_parent_is_dropped() -> None:
     warns + clears it when it does not.
     """
     wf = CommitWorkflow(
-        payload={"name": "child_cl", "parent": "p4head"},
+        payload={
+            "name": "child_cl",
+            "parent": "p4head",
+            "message": "feat: child change",
+        },
         method="create_pull_request",
     )
     wf._base_cl_name = "child_cl"
@@ -408,7 +420,11 @@ def test_unresolvable_explicit_parent_is_dropped() -> None:
 def test_resolvable_explicit_parent_is_kept() -> None:
     """A real existing parent name is kept when the resolver confirms it."""
     wf = CommitWorkflow(
-        payload={"name": "child_cl", "parent": "real_parent"},
+        payload={
+            "name": "child_cl",
+            "parent": "real_parent",
+            "message": "feat: child change",
+        },
         method="create_pull_request",
     )
     wf._base_cl_name = "child_cl"

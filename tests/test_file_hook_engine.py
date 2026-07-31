@@ -271,10 +271,10 @@ def test_checkpointed_file_hook_step_never_refires(
 ) -> None:
     emit = MagicMock()
     monkeypatch.setattr("sase.file_hooks.emit_commit_file_hook_events", emit)
-    workflow = CommitWorkflow({"message": "done"}, "create_commit")
+    workflow = CommitWorkflow({"message": "chore: done"}, "create_commit")
     checkpoint = CommitCheckpoint(
         method="create_commit",
-        payload={"message": "done"},
+        payload={"message": "chore: done"},
         cwd=str(tmp_path),
         completed_steps=["dispatch", "file_hooks"],
     )

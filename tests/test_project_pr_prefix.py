@@ -8,7 +8,7 @@ from sase.vcs_provider.config import (
     get_use_project_pr_prefix,
     strip_project_pr_prefix,
 )
-from sase.workflows.commit.workflow import CommitWorkflow
+from sase.workflows.commit.workflow import CommitWorkflow, RunResult
 from tests._commit_workflow_fixtures import (
     no_commit_hooks,  # noqa: F401 (imported for fixture discovery, re-used as fixture arg)
 )
@@ -80,7 +80,7 @@ class TestApplyProjectPrPrefix:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Add feature"}
+        payload = {"name": "feat-x", "message": "feat: add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with patch(
@@ -100,7 +100,7 @@ class TestApplyProjectPrPrefix:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Add feature"}
+        payload = {"name": "feat-x", "message": "feat: add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with patch(
@@ -120,7 +120,7 @@ class TestApplyProjectPrPrefix:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Add feature"}
+        payload = {"name": "feat-x", "message": "feat: add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with patch(
@@ -141,7 +141,7 @@ class TestApplyProjectPrPrefix:
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
-        payload = {"name": "feat-x", "message": "Add feature"}
+        payload = {"name": "feat-x", "message": "feat: add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with patch(
@@ -154,27 +154,24 @@ class TestApplyProjectPrPrefix:
 
     @patch(_PROJECT_NAME_TARGET, return_value="myproj")
     @patch(_PROVIDER_TARGET)
-    def test_strips_existing_prefix_from_message(
+    def test_authored_prefix_is_rejected_before_stripping(
         self, mock_get: MagicMock, _mock_proj: MagicMock
     ) -> None:
-        """When the agent already included a [project] prefix in the message,
-        it must be stripped so the PR title doesn't get a duplicate prefix."""
+        """Validation sees the authored subject before PR-prefix processing."""
         provider = MagicMock()
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
 
         payload = {
             "name": "feat-x",
-            "message": "[myproj] Implement feature",
+            "message": "[myproj] feat: implement feature",
         }
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with patch(
             "sase.vcs_provider.config.get_use_project_pr_prefix", return_value=True
         ):
-            wf.run()
+            assert wf.run() == RunResult.FAILED
 
-        sent = provider.create_pull_request.call_args[0][0]
-        assert sent["_pr_title_prefix"] == "[myproj] "
-        assert sent["message"].startswith("Implement feature")
-        assert "[myproj]" not in sent["message"]
+        provider.create_pull_request.assert_not_called()
+        assert payload["message"] == "[myproj] feat: implement feature"

@@ -76,7 +76,7 @@ class TestCommitWorkflowDispatch:
         self, mock_get: MagicMock, mock_provider: MagicMock
     ) -> None:
         mock_get.return_value = mock_provider
-        payload = {"message": "propose: new feature"}
+        payload = {"message": "feat: propose new feature"}
         wf = CommitWorkflow(payload, "create_proposal")
 
         assert wf.run() == RunResult.OK
@@ -91,7 +91,11 @@ class TestCommitWorkflowDispatch:
         mock_provider: MagicMock,
     ) -> None:
         mock_get.return_value = mock_provider
-        payload = {"name": "feat-branch", "message": "add feature", "files": []}
+        payload = {
+            "name": "feat-branch",
+            "message": "feat: add feature",
+            "files": [],
+        }
         wf = CommitWorkflow(payload, "create_pull_request")
 
         assert wf.run() == RunResult.OK
@@ -108,14 +112,14 @@ class TestCommitWorkflowDispatch:
         mock_get.return_value = mock_provider
         payload = {
             "name": "feat-branch",
-            "message": "add feature",
+            "message": "feat: add feature",
             "bead_id": "sase-1.2",
         }
         wf = CommitWorkflow(payload, "create_pull_request")
 
         assert wf.run() == RunResult.OK
         mock_provider.create_pull_request.assert_called_once_with(payload, ANY)
-        assert payload["message"] == "add feature\n\nSASE_BEAD=sase-1.2"
+        assert payload["message"] == "feat: add feature\n\nSASE_BEAD=sase-1.2"
 
     def test_invalid_method_returns_false(self) -> None:
         wf = CommitWorkflow({"message": "test"}, "invalid_method")
@@ -129,7 +133,7 @@ class TestCommitWorkflowDispatch:
         mock_provider.is_sync_in_progress.return_value = False
         mock_provider.get_conflicted_files.return_value = []
         mock_get.return_value = mock_provider
-        wf = CommitWorkflow({"message": "test"}, "create_commit")
+        wf = CommitWorkflow({"message": "test: provider failure"}, "create_commit")
 
         assert wf.run() == RunResult.FAILED
 
@@ -145,19 +149,13 @@ class TestCommitWorkflowValidation:
         wf = CommitWorkflow({"files": ["a.py"]}, "create_commit")
         assert wf.run() == RunResult.FAILED
 
-    def test_missing_message_ok_for_pull_request(self) -> None:
-        """create_pull_request doesn't require 'message' at validation time."""
+    def test_missing_message_rejected_for_pull_request(self) -> None:
+        """The subject policy rejects a pull request without a message."""
         wf = CommitWorkflow({"name": "feat-x"}, "create_pull_request")
-        # Will fail at provider dispatch, but passes validation
         with patch(_PROJECT_NAME_TARGET, return_value=None):
             with patch(_PROVIDER_TARGET) as mock_get:
-                mock_prov = MagicMock()
-                mock_prov.create_pull_request.return_value = (
-                    True,
-                    "https://github.com/org/repo/pull/1",
-                )
-                mock_get.return_value = mock_prov
-                assert wf.run() == RunResult.OK
+                assert wf.run() == RunResult.FAILED
+                mock_get.assert_not_called()
 
 
 class TestCommitWorkflowProperties:
@@ -180,7 +178,7 @@ class TestProposalSkipsBeadsAndPlan:
         self, mock_get: MagicMock, mock_provider: MagicMock
     ) -> None:
         mock_get.return_value = mock_provider
-        payload = {"message": "propose: change", "bead_id": "b123"}
+        payload = {"message": "chore: propose change", "bead_id": "b123"}
         wf = CommitWorkflow(payload, "create_proposal")
 
         with (
@@ -194,7 +192,7 @@ class TestProposalSkipsBeadsAndPlan:
             mock_beads.assert_not_called()
             mock_plan.assert_not_called()
             mock_provider.create_proposal.assert_called_once_with(payload, ANY)
-            assert payload["message"] == "propose: change\n\nSASE_BEAD=b123"
+            assert payload["message"] == "chore: propose change\n\nSASE_BEAD=b123"
 
     @patch(_PROVIDER_TARGET)
     def test_proposal_records_bead_id_in_result_marker(
@@ -202,7 +200,7 @@ class TestProposalSkipsBeadsAndPlan:
     ) -> None:
         mock_get.return_value = mock_provider
         mock_provider.create_proposal.return_value = (True, "proposal.diff")
-        payload = {"message": "propose: change", "bead_id": "b123"}
+        payload = {"message": "chore: propose change", "bead_id": "b123"}
         wf = CommitWorkflow(payload, "create_proposal")
 
         with (
@@ -215,7 +213,7 @@ class TestProposalSkipsBeadsAndPlan:
 
         result = json.loads((tmp_path / "commit_result.json").read_text())
         assert result["bead_id"] == "b123"
-        assert result["message"] == "propose: change\n\nSASE_BEAD=b123"
+        assert result["message"] == "chore: propose change\n\nSASE_BEAD=b123"
 
     @patch(_PROVIDER_TARGET)
     def test_commit_still_calls_beads_and_plan(
@@ -251,7 +249,7 @@ class TestCreatePullRequestValidation:
         provider = MagicMock()
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
-        payload = {"name": "feat-branch", "message": "add feature"}
+        payload = {"name": "feat-branch", "message": "feat: add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
         assert wf.run() == RunResult.OK
 
@@ -269,6 +267,6 @@ class TestCreatePullRequestValidation:
             "https://github.com/org/repo/pull/1",
         )
         mock_get.return_value = provider
-        payload = {"name": "feat-branch", "message": "add feature"}
+        payload = {"name": "feat-branch", "message": "feat: add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
         assert wf.run() == RunResult.OK

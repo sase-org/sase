@@ -59,7 +59,7 @@ class TestCommitWorkflowChangeSpec:
             "https://github.com/org/repo/pull/1",
         )
         mock_get.return_value = mock_provider
-        payload = {"name": "feat-x", "message": "add feature", "files": []}
+        payload = {"name": "feat-x", "message": "feat: add feature", "files": []}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         assert wf.run() == RunResult.OK
@@ -73,7 +73,7 @@ class TestCommitWorkflowChangeSpec:
             workflow_name="sase_commit",
             pr_url="https://github.com/org/repo/pull/1",
             cl_name="feat-x",
-            commit_description="add feature",
+            commit_description="feat: add feature",
             parent=None,
             bug=None,
             reserved_name="feat-x_1",
@@ -99,7 +99,7 @@ class TestCommitWorkflowChangeSpec:
         mock_get.return_value = mock_provider
         payload = {
             "name": "feat-x",
-            "message": "test",
+            "message": "test: checkout target",
             "files": [],
             "checkout_target": "origin/main",
         }
@@ -120,7 +120,7 @@ class TestCommitWorkflowChangeSpec:
         """No crash when project name can't be detected."""
         mock_get.return_value = mock_provider
         wf = CommitWorkflow(
-            {"name": "feat-x", "message": "test", "files": []},
+            {"name": "feat-x", "message": "test: skip changespec", "files": []},
             "create_pull_request",
         )
 
@@ -133,7 +133,9 @@ class TestCommitWorkflowChangeSpec:
     ) -> None:
         """ChangeSpec is only created for create_pull_request, not create_commit."""
         mock_get.return_value = mock_provider
-        wf = CommitWorkflow({"message": "test", "files": []}, "create_commit")
+        wf = CommitWorkflow(
+            {"message": "test: no changespec", "files": []}, "create_commit"
+        )
 
         with patch(_CHANGESPEC_TARGET) as mock_cs:
             wf.run()
@@ -165,7 +167,7 @@ class TestCommitWorkflowBugId:
             "https://github.com/org/repo/pull/1",
         )
         mock_get.return_value = mock_provider
-        payload = {"name": "feat-x", "message": "add feature", "files": []}
+        payload = {"name": "feat-x", "message": "feat: add feature", "files": []}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         assert wf.run() == RunResult.OK
@@ -196,7 +198,7 @@ class TestCommitWorkflowBugId:
         mock_get.return_value = mock_provider
         payload = {
             "name": "feat-x",
-            "message": "add feature",
+            "message": "feat: add feature",
             "files": [],
             "bug_id": "99999",
         }
@@ -230,7 +232,7 @@ class TestCommitWorkflowBugId:
         mock_get.return_value = mock_provider
         payload = {
             "name": "feat-x",
-            "message": "add feature",
+            "message": "feat: add feature",
             "files": [],
             "bug_id": "111",
         }
@@ -262,7 +264,7 @@ class TestCommitWorkflowBugId:
             "https://github.com/org/repo/pull/1",
         )
         mock_get.return_value = mock_provider
-        payload = {"name": "feat-x", "message": "add feature", "files": []}
+        payload = {"name": "feat-x", "message": "feat: add feature", "files": []}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         assert wf.run() == RunResult.OK
@@ -291,7 +293,7 @@ class TestCommitWorkflowBugId:
             "https://github.com/org/repo/pull/1",
         )
         mock_get.return_value = mock_provider
-        payload = {"name": "feat-x", "message": "add feature", "files": []}
+        payload = {"name": "feat-x", "message": "feat: add feature", "files": []}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         assert wf.run() == RunResult.OK
@@ -318,7 +320,7 @@ class TestCommitWorkflowChangeSpecErrorHandling:
             "https://github.com/org/repo/pull/1",
         )
         mock_get.return_value = mock_provider
-        payload = {"name": "feat-x", "message": "add feature", "files": []}
+        payload = {"name": "feat-x", "message": "feat: add feature", "files": []}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         assert wf.run() == RunResult.OK
@@ -347,7 +349,7 @@ class TestCommitWorkflowChangeSpecErrorHandling:
             "https://github.com/org/repo/pull/1",
         )
         mock_get.return_value = mock_provider
-        payload = {"name": "feat-branch", "message": "test"}
+        payload = {"name": "feat-branch", "message": "test: valid payload"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
         assert wf.run() == RunResult.OK
