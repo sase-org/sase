@@ -33,7 +33,20 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     if argv[0] in {"list", "show"} or _search_uses_full_format(argv):
         return None
 
+    return execute_bead_cli(argv)
+
+
+def execute_bead_cli(argv: list[str], *, materialize: bool = False) -> int | None:
+    """Run one bead command through the Rust bead CLI core.
+
+    Returns an exit code when the Rust core handled the command, or ``None``
+    when the caller must fall back to its own implementation. Slow-path callers
+    that have no fallback of their own pass ``materialize=True`` so a bead store
+    that has not been materialized yet is prepared instead of deferred.
+    """
     context = _resolve_fast_path_context(argv)
+    if context is None and materialize:
+        context = _resolve_materialized_context()
     if context is None:
         return None
 
@@ -124,6 +137,21 @@ def _resolve_fast_path_context(argv: list[str]) -> _FastPathContext | None:
         write_beads_dir=write_beads_dir,
         relativize_design_paths=beads_dirname == _BEADS_DIRNAME,
         read_only=read_only,
+    )
+
+
+def _resolve_materialized_context() -> _FastPathContext | None:
+    """Resolve a write context, materializing the bead store if needed."""
+    from sase.bead.cli_common import resolve_beads_location
+
+    location = resolve_beads_location(Path.cwd().resolve(), materialize=True)
+    if location is None:
+        return None
+    return _FastPathContext(
+        read_beads_dirs=[location.beads_dir],
+        write_beads_dir=location.beads_dir,
+        relativize_design_paths=location.beads_dirname == _BEADS_DIRNAME,
+        read_only=location.read_only,
     )
 
 

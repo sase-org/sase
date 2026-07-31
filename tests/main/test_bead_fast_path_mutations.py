@@ -238,3 +238,26 @@ def test_warm_sidecar_fast_mutation_commits_without_network_git(
         text=True,
     ).stdout.strip()
     assert subject == f"chore(beads): update {issue.id}"
+
+
+def test_execute_bead_cli_materializes_when_the_fast_path_context_defers(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    from sase.bead.model import IssueType
+    from sase.bead.project import BeadProject
+
+    with BeadProject.init(tmp_path) as project:
+        issue = project.create("Deferred", IssueType.TASK)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
+    monkeypatch.setattr(
+        bead_fast_path,
+        "_resolve_fast_path_context",
+        lambda _argv: None,
+    )
+
+    argv = ["ref", "add", issue.id, "bead:sase-c8"]
+    assert try_handle_bead_fast_path(argv) is None
+    assert bead_fast_path.execute_bead_cli(argv, materialize=True) == 0
+
+    assert f"✓ Added reference to {issue.id}: bead:sase-c8" in capsys.readouterr().out

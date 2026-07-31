@@ -118,9 +118,9 @@ def _bead_exists(bead_id: str) -> bool:
 def _attach_reference_to_bead(bead_id: str, reference: str) -> int:
     """Attach *reference* through the same write path ``sase bead ref`` uses."""
 
-    from sase.main.bead_fast_path import try_handle_bead_fast_path
+    from sase.main.bead_fast_path import execute_bead_cli
 
-    exit_code = try_handle_bead_fast_path(["ref", "add", bead_id, reference])
+    exit_code = execute_bead_cli(["ref", "add", bead_id, reference], materialize=True)
     return 1 if exit_code is None else exit_code
 
 

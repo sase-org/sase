@@ -62,6 +62,75 @@ def test_ref_parser_defaults_to_list_and_documents_options() -> None:
     assert explicit.resolve is True
 
 
+def test_ref_add_list_and_rm_round_trip_through_the_slow_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject.init(tmp_path) as project:
+        issue = project.create("Attachable", IssueType.TASK)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
+    parser = create_parser()
+
+    bead_cli.handle_bead_ref(
+        parser.parse_args(["bead", "ref", "add", issue.id, "bead:sase-c8"])
+    )
+    assert f"✓ Added reference to {issue.id}: bead:sase-c8" in capsys.readouterr().out
+
+    bead_cli.handle_bead_ref(parser.parse_args(["bead", "ref", "list", issue.id]))
+    assert capsys.readouterr().out.strip() == "bead:sase-c8"
+
+    bead_cli.handle_bead_ref(
+        parser.parse_args(["bead", "ref", "rm", issue.id, "bead:sase-c8"])
+    )
+    assert (
+        f"✗ Removed reference from {issue.id}: bead:sase-c8" in capsys.readouterr().out
+    )
+
+    bead_cli.handle_bead_ref(parser.parse_args(["bead", "ref", "list", issue.id]))
+    assert capsys.readouterr().out.strip() == "No artifact references found."
+
+
+def test_ref_add_reports_a_missing_issue_without_crashing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject.init(tmp_path):
+        pass
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
+    args = create_parser().parse_args(
+        ["bead", "ref", "add", "sase-nope", "bead:sase-c8"]
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_ref(args)
+
+    assert excinfo.value.code == 1
+    assert "Issue not found: sase-nope" in capsys.readouterr().err
+
+
+def test_ref_add_exits_when_the_rust_core_declines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sase.main.bead_fast_path.execute_bead_cli",
+        lambda *_args, **_kwargs: None,
+    )
+    args = create_parser().parse_args(["bead", "ref", "add", "sase-1", "bead:sase-c8"])
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_ref(args)
+
+    assert excinfo.value.code == 1
+    assert "requires the sase Rust core" in capsys.readouterr().err
+
+
 def test_show_renders_resolved_and_missing_references(
     referenced_issue: tuple[Issue, object, Path],
     capsys: pytest.CaptureFixture[str],
