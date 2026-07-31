@@ -22,7 +22,16 @@ def handle_bead_dep(args: argparse.Namespace) -> None:
     """Dispatch one ``sase bead dep`` action."""
     if args.dep_action == "add":
         with bead_store_mutation(auto_commit_bead_store) as mutation:
-            dep = mutation.project.add_dependency(args.issue, args.depends_on)
+            try:
+                dep = mutation.project.add_dependency(args.issue, args.depends_on)
+            except KeyError as exc:
+                message = str(exc.args[0]) if exc.args else ""
+                missing_id = message.rsplit("Issue not found:", 1)[-1].strip()
+                print(f"Error: issue not found: {missing_id}", file=sys.stderr)
+                sys.exit(1)
+            except ValueError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+                sys.exit(1)
             mutation.commit(
                 require_mutation_commit_message(
                     "dep_add", [dep.issue_id, dep.depends_on_id]
@@ -35,8 +44,10 @@ def handle_bead_dep(args: argparse.Namespace) -> None:
                 removed = mutation.project.remove_dependencies(
                     args.issue, args.depends_on
                 )
-            except KeyError:
-                print(f"Error: issue not found: {args.issue}", file=sys.stderr)
+            except KeyError as exc:
+                message = str(exc.args[0]) if exc.args else ""
+                missing_id = message.rsplit("Issue not found:", 1)[-1].strip()
+                print(f"Error: issue not found: {missing_id}", file=sys.stderr)
                 sys.exit(1)
             except ValueError as exc:
                 message = str(exc).removeprefix("validation: ")
@@ -45,7 +56,10 @@ def handle_bead_dep(args: argparse.Namespace) -> None:
             mutation.commit(
                 require_mutation_commit_message(
                     "dep_rm",
-                    [args.issue, *(dep.depends_on_id for dep in removed)],
+                    [
+                        *(dep.issue_id for dep in removed[:1]),
+                        *(dep.depends_on_id for dep in removed),
+                    ],
                 )
             )
             issues = mutation.project.list_issues()
@@ -87,9 +101,20 @@ def handle_bead_dep_list(args: argparse.Namespace) -> None:
     with get_read_view() as view:
         graph = DepGraph.build(view.list_issues())
         scope = args.id
-        if scope is not None and graph.resolve(scope) is None:
-            print(f"Error: issue not found: {scope}", file=sys.stderr)
-            sys.exit(1)
+        if scope is not None:
+            resolve_id = getattr(view, "resolve_id", None)
+            if resolve_id is not None:
+                try:
+                    scope = resolve_id(scope)
+                except KeyError:
+                    print(f"Error: issue not found: {scope}", file=sys.stderr)
+                    sys.exit(1)
+                except ValueError as exc:
+                    print(f"Error: {exc}", file=sys.stderr)
+                    sys.exit(1)
+            if graph.resolve(scope) is None:
+                print(f"Error: issue not found: {scope}", file=sys.stderr)
+                sys.exit(1)
 
         statuses = (
             frozenset(Status(value) for value in args.status) if args.status else None
@@ -110,9 +135,20 @@ def handle_bead_dep_tree(args: argparse.Namespace) -> None:
     with get_read_view() as view:
         graph = DepGraph.build(view.list_issues())
         scope = args.id
-        if scope is not None and graph.resolve(scope) is None:
-            print(f"Error: issue not found: {scope}", file=sys.stderr)
-            sys.exit(1)
+        if scope is not None:
+            resolve_id = getattr(view, "resolve_id", None)
+            if resolve_id is not None:
+                try:
+                    scope = resolve_id(scope)
+                except KeyError:
+                    print(f"Error: issue not found: {scope}", file=sys.stderr)
+                    sys.exit(1)
+                except ValueError as exc:
+                    print(f"Error: {exc}", file=sys.stderr)
+                    sys.exit(1)
+            if graph.resolve(scope) is None:
+                print(f"Error: issue not found: {scope}", file=sys.stderr)
+                sys.exit(1)
 
         statuses = (
             frozenset(Status(value) for value in args.status)

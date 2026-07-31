@@ -38,6 +38,9 @@ def handle_bead_history(args: argparse.Namespace) -> None:
         except KeyError:
             print(f"Error: issue not found: {issue_id}", file=sys.stderr)
             sys.exit(1)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
 
     entries = _filtered_entries(
         history.get("entries", []),
@@ -68,6 +71,9 @@ def _handle_lost_notes(args: argparse.Namespace) -> None:
             findings = view.lost_notes(issue_id)
         except KeyError:
             print(f"Error: issue not found: {issue_id}", file=sys.stderr)
+            sys.exit(1)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
 
     if args.restore:

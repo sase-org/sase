@@ -32,6 +32,7 @@ class BeadProjectMutationMixin:
     if TYPE_CHECKING:
 
         def show(self, issue_id: str) -> Issue: ...
+        def resolve_id(self, issue_id: str) -> str: ...
 
     def create(
         self,
@@ -59,6 +60,8 @@ class BeadProjectMutationMixin:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
+        if parent_id is not None:
+            parent_id = self.resolve_id(parent_id)
         issue, outcome = rust_beads.create(
             self.beads_dir,
             title=title,
@@ -90,6 +93,7 @@ class BeadProjectMutationMixin:
             )
         from sase.core import bead_mutation_facade as rust_beads
 
+        issue_id = self.resolve_id(issue_id)
         try:
             old_issue: Issue | None = self.show(issue_id)
         except KeyError:
@@ -114,6 +118,7 @@ class BeadProjectMutationMixin:
         """Append one attributed entry to an issue's notes."""
         from sase.core import bead_mutation_facade as rust_beads
 
+        issue_id = self.resolve_id(issue_id)
         issue, outcome = rust_beads.append_note(
             self.beads_dir,
             issue_id,
@@ -136,6 +141,7 @@ class BeadProjectMutationMixin:
         """Claim for launch and return whether core persisted a transition."""
         from sase.core import bead_mutation_facade as rust_beads
 
+        bead_id = self.resolve_id(bead_id)
         issue, outcome = rust_beads.claim_for_agent_launch(
             self.beads_dir,
             bead_id,
@@ -150,6 +156,7 @@ class BeadProjectMutationMixin:
         """Reserve an open bead while its owning agent waits to launch."""
         from sase.core import bead_mutation_facade as rust_beads
 
+        bead_id = self.resolve_id(bead_id)
         issue, outcome = rust_beads.claim_for_agent_wait(
             self.beads_dir,
             bead_id,
@@ -164,6 +171,7 @@ class BeadProjectMutationMixin:
         """Release a waiting claim when it is still held by *agent_name*."""
         from sase.core import bead_mutation_facade as rust_beads
 
+        bead_id = self.resolve_id(bead_id)
         issue, outcome = rust_beads.release_agent_claim(
             self.beads_dir,
             bead_id,
@@ -183,6 +191,11 @@ class BeadProjectMutationMixin:
         """Preassign one rendered epic work plan and return rollback state."""
         from sase.core import bead_mutation_facade as rust_beads
 
+        epic_id = self.resolve_id(epic_id)
+        assignments = [
+            (self.resolve_id(bead_id), agent_name)
+            for bead_id, agent_name in assignments
+        ]
         _issues, outcome = rust_beads.preclaim_epic_work(
             self.beads_dir,
             epic_id,
@@ -218,6 +231,7 @@ class BeadProjectMutationMixin:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
+        issue_ids = [self.resolve_id(issue_id) for issue_id in issue_ids]
         closed, outcome = rust_beads.close(
             self.beads_dir,
             issue_ids,
@@ -237,6 +251,7 @@ class BeadProjectMutationMixin:
         from sase.core import bead_mutation_facade as rust_beads
         from sase.core.bead_wire import issues_from_list
 
+        issue_id = self.resolve_id(issue_id)
         issue, outcome = rust_beads.open_issue(
             self.beads_dir,
             issue_id,
@@ -269,6 +284,7 @@ class BeadProjectMutationMixin:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
+        issue_ids = [self.resolve_id(issue_id) for issue_id in issue_ids]
         removed, outcome = rust_beads.remove_many(self.beads_dir, issue_ids)
         self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
@@ -282,6 +298,7 @@ class BeadProjectMutationMixin:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
+        epic_id = self.resolve_id(epic_id)
         updated, outcome = rust_beads.mark_ready_to_work(
             self.beads_dir, epic_id, now=self._current_time()
         )
@@ -301,6 +318,7 @@ class BeadProjectMutationMixin:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
+        epic_id = self.resolve_id(epic_id)
         updated, outcome = rust_beads.unmark_ready_to_work(
             self.beads_dir, epic_id, now=self._current_time()
         )
@@ -312,6 +330,8 @@ class BeadProjectMutationMixin:
         """Add a dependency: issue_id depends on depends_on_id."""
         from sase.core import bead_mutation_facade as rust_beads
 
+        issue_id = self.resolve_id(issue_id)
+        depends_on_id = self.resolve_id(depends_on_id)
         dep, outcome = rust_beads.add_dependency(
             self.beads_dir, issue_id, depends_on_id, now=self._current_time()
         )
@@ -325,6 +345,10 @@ class BeadProjectMutationMixin:
         """Remove dependency edges from issue_id to depends_on_ids."""
         from sase.core import bead_mutation_facade as rust_beads
 
+        issue_id = self.resolve_id(issue_id)
+        depends_on_ids = [
+            self.resolve_id(depends_on_id) for depends_on_id in depends_on_ids
+        ]
         dependencies, outcome = rust_beads.remove_dependencies(
             self.beads_dir, issue_id, depends_on_ids, now=self._current_time()
         )

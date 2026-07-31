@@ -39,6 +39,9 @@ def handle_bead_ref(args: argparse.Namespace) -> None:
             except KeyError:
                 print(f"Error: issue not found: {scope}", file=sys.stderr)
                 raise SystemExit(1) from None
+            except ValueError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+                raise SystemExit(1) from exc
         else:
             issues = [issue for issue in view.list_issues() if issue.refs]
 

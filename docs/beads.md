@@ -10,6 +10,7 @@ an epic DAG.
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Bead ID Arguments](#bead-id-arguments)
 - [Data Model](#data-model)
   - [Issue Types](#issue-types)
   - [Status Lifecycle](#status-lifecycle)
@@ -71,6 +72,16 @@ sase bead work beads-001                                # Launch agents for an e
 sase bead work beads-002 --dry-run                      # Preview one standalone task worker
 sase bead work beads-002 --yes                          # Launch one standalone task worker
 ```
+
+## Bead ID Arguments
+
+Every `sase bead` command argument that names an existing bead accepts either the full ID or its shorthand suffix after
+the final dash. For example, `sase bead show 001` resolves to `beads-001`, and dotted descendants work the same way:
+`sase bead close 001.2` resolves to `beads-001.2`. Output, events, dependencies, reference ownership, commit summaries,
+agent names, generated page paths, and JSON payloads always use the canonical full ID.
+
+Full IDs are still accepted unchanged, including IDs whose project prefix contains dashes. If a shorthand suffix matches
+more than one bead, SASE rejects the command and lists the candidate full IDs instead of choosing one arbitrarily.
 
 ## Data Model
 
@@ -460,9 +471,10 @@ that disagrees with the recorded close, the command exits non-zero before writin
 `sase bead note` as the appropriate remedy.
 
 For an epic plan bead, `--phases` (`-p`) closes phase beads by their numeric bead-ID suffix: for example,
-`sase bead close sase-at -p 1-3,5` closes `sase-at.1`, `sase-at.2`, `sase-at.3`, and `sase-at.5`. The option accepts
-comma-separated numbers and inclusive ranges, may be repeated, and requires exactly one epic ID. It never closes the
-epic itself. A plan-tier, untiered, or phase target is rejected without writing to the store.
+`sase bead close sase-at -p 1-3,5` closes `sase-at.1`, `sase-at.2`, `sase-at.3`, and `sase-at.5`. The epic target itself
+may be full or shorthand. The option accepts comma-separated numbers and inclusive ranges, may be repeated, and requires
+exactly one epic ID. It never closes the epic itself. A plan-tier, untiered, or phase target is rejected without writing
+to the store.
 
 `--force` is the explicit exception for canceling or superseding an unfinished tree. It requires a non-empty reason and
 an explicit `canceled` or `superseded` resolution; `--force --resolution done` is rejected. A forced close recursively
@@ -499,7 +511,7 @@ Create a new issue.
 | Flag                | Required | Description                                                                                                                                                                                                                       |
 | ------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `-t, --title`       | yes      | Issue title                                                                                                                                                                                                                       |
-| `-T, --type`        | yes      | Bead type: `task`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`                                                                                                                                               |
+| `-T, --type`        | yes      | Bead type: `task`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand                                                                                                          |
 | `-d, --description` | no       | Issue description                                                                                                                                                                                                                 |
 | `-a, --assignee`    | no       | Assignee name                                                                                                                                                                                                                     |
 | `--tier`            | no       | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                  |
@@ -523,6 +535,7 @@ sase bead dep add <issue> <depends_on>
 sase bead dep list [<id>]
 sase bead dep rm <issue> <depends_on> [<depends_on2> ...]
 sase bead dep tree [<id>]
+sase bead dep add 001.2 001.1
 ```
 
 `dep add` makes `<issue>` depend on `<depends_on>`. The issue becomes blocked if the dependency is not yet closed.

@@ -28,7 +28,11 @@ def register_bead_close_parser(
     parser.add_argument(
         "ids",
         nargs="+",
-        help="Issue IDs to close (exactly one epic ID when --phases is used)",
+        metavar="ID",
+        help=(
+            "Full or shorthand issue IDs to close "
+            "(exactly one epic ID when --phases is used)"
+        ),
     )
     parser.add_argument(
         "-f",
@@ -124,7 +128,7 @@ def register_bead_create_parser(
         required=True,
         help=(
             "Bead type: plan(<plan_file>), plan(<plan_file>,<parent_id>), "
-            "phase(<parent_id>), or task"
+            "phase(<parent_id>), or task; parent IDs may be full or shorthand"
         ),
     )
 
@@ -134,7 +138,7 @@ def register_bead_note_parser(
 ) -> None:
     """Register ``sase bead note``."""
     parser = subparsers.add_parser("note", help="Append an attributed note entry")
-    parser.add_argument("id", help="Issue ID")
+    parser.add_argument("id", help="Full or shorthand issue ID")
     parser.add_argument(
         "text",
         nargs="+",
@@ -160,7 +164,7 @@ def register_bead_open_parser(
 ) -> None:
     """Register ``sase bead open``."""
     parser = subparsers.add_parser("open", help="Reopen an issue")
-    parser.add_argument("id", help="Issue ID to reopen")
+    parser.add_argument("id", help="Full or shorthand issue ID to reopen")
 
 
 def register_bead_rm_parser(
@@ -168,7 +172,12 @@ def register_bead_rm_parser(
 ) -> None:
     """Register ``sase bead rm``."""
     parser = subparsers.add_parser("rm", help="Remove issues and all their children")
-    parser.add_argument("ids", nargs="+", help="One or more issue IDs to remove")
+    parser.add_argument(
+        "ids",
+        nargs="+",
+        metavar="ids",
+        help="One or more full or shorthand issue IDs to remove",
+    )
 
 
 def register_bead_work_parser(
@@ -201,7 +210,9 @@ def register_bead_work_parser(
     )
     parser.add_argument(
         "target",
-        help="Epic or task bead ID, or path to a validated epic plan file",
+        help=(
+            "Full or shorthand epic/task bead ID, or path to a validated epic plan file"
+        ),
     )
     parser.add_argument(
         "-a",
@@ -247,10 +258,10 @@ def register_bead_work_parser(
     parser.add_argument(
         "-p",
         "--parent",
-        metavar="BEAD_ID|top-level",
+        metavar="ID|top-level",
         help=(
-            "Override a plan file's parent_bead; use 'top-level' to create "
-            "an unparented epic"
+            "Override a plan file's parent_bead with a full or shorthand ID; "
+            "use 'top-level' to create an unparented epic"
         ),
     )
     parser.add_argument(
@@ -272,7 +283,7 @@ def register_bead_update_parser(
 ) -> None:
     """Register ``sase bead update``."""
     parser = subparsers.add_parser("update", help="Update an issue")
-    parser.add_argument("id", help="Issue ID")
+    parser.add_argument("id", help="Full or shorthand issue ID")
     parser.add_argument("-a", "--assignee")
     parser.add_argument("-D", "--design")
     parser.add_argument("-d", "--description")

@@ -36,6 +36,7 @@ def test_show_skill_examples_parse_against_cli_contract() -> None:
 
     assert examples == [
         "sase bead show <id>",
+        "sase bead show a1",
         "sase bead show <id> --format compact",
         "sase bead show <id> --format json",
     ]
@@ -46,7 +47,7 @@ def test_show_skill_examples_parse_against_cli_contract() -> None:
         args = parser.parse_args(argv[1:])
         assert args.command == "bead"
         assert args.bead_subcommand == "show"
-        assert args.id == "sase-64"
+        assert args.id in {"sase-64", "a1"}
 
 
 @pytest.mark.parametrize("flag", ["--format", "-f"])

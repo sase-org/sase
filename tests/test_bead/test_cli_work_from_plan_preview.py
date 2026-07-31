@@ -226,8 +226,8 @@ def test_bead_work_help_describes_both_targets_and_options(
 
     assert excinfo.value.code == 0
     help_text = capsys.readouterr().out
-    assert "Epic or task bead ID" in help_text
-    assert "path to a validated epic plan" in help_text
+    assert "Full or shorthand epic/task bead ID" in help_text
+    assert "validated epic plan file" in help_text
     assert "--launch-feedback" not in help_text
     assert "-j JSON, --json JSON" not in help_text
     assert "-a DIR" in help_text
@@ -237,5 +237,5 @@ def test_bead_work_help_describes_both_targets_and_options(
     assert "-j, --json" in help_text
     assert "--dry-run" in help_text
     assert "--no-push" in help_text
-    assert "--parent BEAD_ID|top-level" in help_text
+    assert "--parent ID|top-level" in help_text
     assert "--parent top-level" in help_text

@@ -21,8 +21,12 @@ def register_bead_dep_parser(
     )
     dep_subparsers = parser.add_subparsers(dest="dep_action")
     add_parser = dep_subparsers.add_parser("add", help="Add a dependency")
-    add_parser.add_argument("issue", help="Issue that depends on another")
-    add_parser.add_argument("depends_on", help="Issue being depended on")
+    add_parser.add_argument(
+        "issue", help="Full or shorthand issue that depends on another"
+    )
+    add_parser.add_argument(
+        "depends_on", help="Full or shorthand issue being depended on"
+    )
     list_parser = dep_subparsers.add_parser(
         "list",
         help="List dependency edges",
@@ -32,7 +36,7 @@ def register_bead_dep_parser(
             "defaults to open, claimed, and in-progress beads."
         ),
     )
-    list_parser.add_argument("id", nargs="?", help="Issue ID")
+    list_parser.add_argument("id", nargs="?", help="Full or shorthand issue ID")
     list_parser.add_argument(
         "-c",
         "--color",
@@ -69,12 +73,14 @@ def register_bead_dep_parser(
         help="Filter by status (repeatable)",
     )
     rm_parser = dep_subparsers.add_parser("rm", help="Remove dependencies")
-    rm_parser.add_argument("issue", help="Issue that depends on others")
+    rm_parser.add_argument(
+        "issue", help="Full or shorthand issue that depends on others"
+    )
     rm_parser.add_argument(
         "depends_on",
         metavar="depends_on",
         nargs="+",
-        help="Issues no longer depended on",
+        help="Full or shorthand issues no longer depended on",
     )
     tree_parser = dep_subparsers.add_parser(
         "tree",
@@ -85,7 +91,7 @@ def register_bead_dep_parser(
             "defaults to open, claimed, and in-progress beads."
         ),
     )
-    tree_parser.add_argument("id", nargs="?", help="Issue ID")
+    tree_parser.add_argument("id", nargs="?", help="Full or shorthand issue ID")
     tree_parser.add_argument(
         "-c",
         "--color",
@@ -221,7 +227,7 @@ def register_bead_pages_parser(
         "-b",
         "--bead",
         metavar="ID",
-        help="Refresh only the lineage containing bead ID",
+        help="Refresh only the lineage containing a full or shorthand bead ID",
     )
     refresh_parser.add_argument(
         "-j",
@@ -243,7 +249,7 @@ def register_bead_pages_parser(
             "beads-sidecar remote and branch. This command never uses the network."
         ),
     )
-    url_parser.add_argument("bead_id", help="Bead ID")
+    url_parser.add_argument("bead_id", help="Full or shorthand bead ID")
 
 
 def register_bead_ref_parser(
@@ -260,10 +266,10 @@ def register_bead_ref_parser(
     )
     ref_subparsers = parser.add_subparsers(dest="ref_action")
     add_parser = ref_subparsers.add_parser("add", help="Attach artifact references")
-    add_parser.add_argument("id", help="Issue ID")
+    add_parser.add_argument("id", help="Full or shorthand issue ID")
     add_parser.add_argument("refs", nargs="+", help="Artifact references to attach")
     list_parser = ref_subparsers.add_parser("list", help="List artifact references")
-    list_parser.add_argument("id", nargs="?", help="Issue ID")
+    list_parser.add_argument("id", nargs="?", help="Full or shorthand issue ID")
     list_parser.add_argument(
         "-j",
         "--json",
@@ -277,7 +283,7 @@ def register_bead_ref_parser(
         help="Resolve references against the current workspace",
     )
     rm_parser = ref_subparsers.add_parser("rm", help="Detach artifact references")
-    rm_parser.add_argument("id", help="Issue ID")
+    rm_parser.add_argument("id", help="Full or shorthand issue ID")
     rm_parser.add_argument("refs", nargs="+", help="Artifact references to detach")
 
 

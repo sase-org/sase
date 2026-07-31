@@ -31,7 +31,7 @@ def register_bead_history_parser(
     parser.add_argument(
         "id",
         nargs="?",
-        help="Issue ID",
+        help="Full or shorthand issue ID",
     )
     parser.add_argument(
         "-F",
@@ -257,7 +257,7 @@ def register_bead_show_parser(
         default="full",
         help="Output format: compact, json, or full (default: full)",
     )
-    parser.add_argument("id", help="Issue ID")
+    parser.add_argument("id", help="Full or shorthand issue ID")
 
 
 def register_bead_stats_parser(

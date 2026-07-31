@@ -122,7 +122,11 @@ def work_from_plan_file(
                 location.root,
                 beads_dirname=location.beads_dirname,
             ) as project:
-                require_epic_parent(project, parent_id, plan_path=source_path)
+                parent_issue = require_epic_parent(
+                    project, parent_id, plan_path=source_path
+                )
+                if parent_issue is not None:
+                    parent_id = parent_issue.id
                 preview_epic_id = preview_parented_epic_id(project, parent_id)
         except Exception as exc:
             raise _error_with_resume(
@@ -275,7 +279,19 @@ def _work_from_plan_file_locked(
 
     existing_epic_id = _linked_bead_id_if_present(archived_path)
     if existing_epic_id is not None:
+        from sase.bead.epic_from_plan import require_epic_parent
+
         linked_issue = _require_linked_epic(location, existing_epic_id, archived_path)
+        if parent_id is not None:
+            with BeadProject(
+                location.root,
+                beads_dirname=location.beads_dirname,
+            ) as project:
+                parent_issue = require_epic_parent(
+                    project, parent_id, plan_path=archived_path
+                )
+                if parent_issue is not None:
+                    parent_id = parent_issue.id
         _require_parent_override_matches_linked(
             linked_issue,
             parent_id,

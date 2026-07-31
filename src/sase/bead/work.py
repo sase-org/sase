@@ -120,6 +120,9 @@ def _build_epic_work_plan(
     if isinstance(source, sqlite3.Connection):
         return _build_epic_work_plan_from_issues(db.list_issues(source), epic_id)
 
+    from sase.core.bead_read_facade import resolve_id
+
+    epic_id = resolve_id(source, epic_id)
     binding = require_rust_binding("bead_build_epic_work_plan")
     try:
         payload: dict[str, Any] = binding(str(source), epic_id)

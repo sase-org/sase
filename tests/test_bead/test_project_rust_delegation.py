@@ -179,6 +179,7 @@ def test_bead_project_preclaim_epic_work_returns_typed_rollback(
         monkeypatch.setattr(
             project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
         )
+        monkeypatch.setattr(project, "resolve_id", lambda issue_id: issue_id)
 
         rollback = project.preclaim_epic_work(
             "epic",

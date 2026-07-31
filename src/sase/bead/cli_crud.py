@@ -129,9 +129,12 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         proj = mutation.project
         if parent_id:
             try:
-                proj.show(parent_id)
+                parent_id = proj.show(parent_id).id
             except KeyError:
                 print(f"Error: parent bead not found: {parent_id}", file=sys.stderr)
+                sys.exit(1)
+            except ValueError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
                 sys.exit(1)
 
         try:
@@ -223,6 +226,9 @@ def handle_bead_open(args: argparse.Namespace) -> None:
             issue, reopened_ancestors = mutation.project.open(args.id)
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
+            sys.exit(1)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
         mutation.commit(require_mutation_commit_message("open", [issue.id]))
     print(f"○ Opened: {issue.id} — {issue.title}")
@@ -350,7 +356,12 @@ def handle_bead_rm(args: argparse.Namespace) -> None:
             missing_id = message.rsplit("Issue not found:", 1)[-1].strip()
             print(f"Error: issue not found: {missing_id}", file=sys.stderr)
             sys.exit(1)
-        mutation.commit(require_mutation_commit_message("rm", args.ids))
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        mutation.commit(
+            require_mutation_commit_message("rm", [issue.id for issue in removed])
+        )
     for issue in removed:
         print(f"✗ Removed: {issue.id} — {issue.title}")
 

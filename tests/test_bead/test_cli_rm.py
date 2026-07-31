@@ -28,4 +28,4 @@ def test_rm_help_documents_plural_required_positional(capsys) -> None:
 
     help_text = capsys.readouterr().out
     assert "usage: sase bead rm [-h] ids [ids ...]" in help_text
-    assert "One or more issue IDs to remove" in help_text
+    assert "One or more full or shorthand issue IDs to remove" in help_text

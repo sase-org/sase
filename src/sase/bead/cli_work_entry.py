@@ -160,9 +160,16 @@ def handle_bead_work(
         with timer.stage("initial_show"):
             try:
                 issue = proj.show(target)
+                target = issue.id
             except KeyError:
                 _exit_bead_id_error(
                     f"issue not found: {target}",
+                    target=target,
+                    json_output=json_output,
+                )
+            except ValueError as exc:
+                _exit_bead_id_error(
+                    str(exc),
                     target=target,
                     json_output=json_output,
                 )

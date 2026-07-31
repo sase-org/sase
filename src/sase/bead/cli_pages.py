@@ -31,10 +31,11 @@ def _handle_refresh(args: argparse.Namespace) -> NoReturn:
     )
 
     store, primary_root, project = _page_context(materialize=args.write)
+    bead_id = _resolve_page_bead_id(store, args.bead)
     report = refresh_bead_pages(
         store,
         primary_root=primary_root,
-        bead_id=args.bead,
+        bead_id=bead_id,
         write=args.write,
         project=project,
     )
@@ -49,13 +50,18 @@ def _handle_url(args: argparse.Namespace) -> NoReturn:
     from sase.bead_pages.paths import bead_page_path
     from sase.sdd.hosted_links import hosted_link_resolver
 
+    store, primary_root, project = _page_context(materialize=False)
+    raw_bead_id = args.bead_id
+    if raw_bead_id is None:
+        print("Error: bead pages url requires a bead ID", file=sys.stderr)
+        sys.exit(2)
+    bead_id = _resolve_page_bead_id(store, raw_bead_id)
+    assert bead_id is not None
     try:
-        bead_page_path(args.bead_id)
+        bead_page_path(bead_id)
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
-
-    store, primary_root, project = _page_context(materialize=False)
     if not store.is_sidecar_storage or store.beads_dir is None:
         print(
             "No hosted bead page URL is available: "
@@ -67,10 +73,10 @@ def _handle_url(args: argparse.Namespace) -> NoReturn:
         store,
         project=project,
         primary_root=primary_root,
-    ).bead_url(args.bead_id)
+    ).bead_url(bead_id)
     if url is None:
         print(
-            f"No hosted bead page URL is available for {args.bead_id}: "
+            f"No hosted bead page URL is available for {bead_id}: "
             "the beads sidecar has no resolvable hosted remote and branch.",
             file=sys.stderr,
         )
@@ -123,6 +129,22 @@ def _page_context(*, materialize: bool) -> tuple[Any, Path, str | None]:
         except Exception:
             pass
     return store, primary_root, project
+
+
+def _resolve_page_bead_id(store: Any, bead_id: str | None) -> str | None:
+    if bead_id is None or not store.is_sidecar_storage or store.beads_dir is None:
+        return bead_id
+    try:
+        from sase.bead.store_locator import open_bead_project_for_beads_dir
+
+        with open_bead_project_for_beads_dir(store.kind_root("beads")) as project:
+            return project.resolve_id(bead_id)
+    except KeyError:
+        print(f"Error: issue not found: {bead_id}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 __all__ = ["handle_bead_pages"]

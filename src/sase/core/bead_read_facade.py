@@ -28,6 +28,15 @@ def show(beads_dir: Path | str, issue_id: str) -> Issue:
     return issue_from_dict(payload)
 
 
+def resolve_id(beads_dir: Path | str, issue_id: str) -> str:
+    binding = require_rust_binding("bead_resolve_id")
+    try:
+        return str(binding(str(beads_dir), issue_id))
+    except ValueError as exc:
+        _raise_key_error_for_missing_issue(issue_id, exc)
+        raise
+
+
 def history(beads_dir: Path | str, issue_id: str) -> dict[str, Any]:
     binding = require_rust_binding("bead_history")
     try:
@@ -159,6 +168,7 @@ __all__ = [
     "history",
     "list_issues",
     "ready",
+    "resolve_id",
     "search",
     "show",
     "stats",

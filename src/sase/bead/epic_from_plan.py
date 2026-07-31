@@ -99,7 +99,9 @@ def create_and_launch_epic_from_plan(
         # ever drift.
         raise EpicFromPlanError("validated epic plan is missing its title")
     parent_id = selected_epic_parent_id(plan.parent_bead, parent_override)
-    require_epic_parent(proj, parent_id, plan_path=plan_path)
+    parent_issue = require_epic_parent(proj, parent_id, plan_path=plan_path)
+    if parent_issue is not None:
+        parent_id = parent_issue.id
 
     from sase.bead.attribution import resolve_bead_creator
 

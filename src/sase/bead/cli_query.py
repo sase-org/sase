@@ -121,6 +121,9 @@ def handle_bead_show(args: argparse.Namespace) -> None:
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
 
         match args.format:
             case "compact":
