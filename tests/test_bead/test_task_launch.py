@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.bead.task_launch import (
-    build_task_launch_argv,
+    _build_task_launch_argv,
     resolve_task_launch_cwd,
     submit_task_launch_task,
     task_launch_origin_from_gate_source,
@@ -17,7 +17,7 @@ from sase.bead.task_launch import (
 
 
 def test_build_task_launch_argv_carries_optional_feedback() -> None:
-    assert build_task_launch_argv(
+    assert _build_task_launch_argv(
         "sase-42",
         feedback="  Keep the compatibility shim.  ",
     ) == [
@@ -29,7 +29,7 @@ def test_build_task_launch_argv_carries_optional_feedback() -> None:
         "--launch-feedback",
         "Keep the compatibility shim.",
     ]
-    assert build_task_launch_argv("sase-42", yes_to_all=False) == [
+    assert _build_task_launch_argv("sase-42", yes_to_all=False) == [
         "sase",
         "bead",
         "work",

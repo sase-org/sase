@@ -11,19 +11,16 @@ from sase.bead_type_presentation import (
     BEAD_TYPE_PRESENTATIONS,
     BEAD_TYPE_VALUES,
     BeadTypeValue,
+    _normalize_bead_type,
     bead_type_chip,
-    bead_type_display_order,
     bead_type_presentation,
-    normalize_bead_type,
 )
 
 
 def test_bead_type_presentations_follow_model_display_order() -> None:
-    assert bead_type_display_order() == ("plan", "phase", "task")
-    assert tuple(BEAD_TYPE_PRESENTATIONS) == bead_type_display_order()
-    assert (
-        tuple(issue_type.value for issue_type in IssueType) == bead_type_display_order()
-    )
+    assert BEAD_TYPE_VALUES == ("plan", "phase", "task")
+    assert tuple(BEAD_TYPE_PRESENTATIONS) == BEAD_TYPE_VALUES
+    assert tuple(issue_type.value for issue_type in IssueType) == BEAD_TYPE_VALUES
 
 
 @pytest.mark.parametrize(
@@ -41,7 +38,7 @@ def test_bead_type_normalization_accepts_only_exact_known_values(
     value: object,
     normalized: str | None,
 ) -> None:
-    assert normalize_bead_type(value) == normalized
+    assert _normalize_bead_type(value) == normalized
 
 
 @pytest.mark.parametrize(

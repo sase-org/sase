@@ -28,7 +28,7 @@ def task_launch_origin_from_gate_source(
     return epic_launch_origin_from_gate_source(source)
 
 
-def build_task_launch_argv(
+def _build_task_launch_argv(
     task_id: str,
     *,
     feedback: str | None = None,
@@ -74,7 +74,7 @@ def submit_task_launch_task(
         if existing := _active_task_launch(task_id):
             return existing
         return submit_detached_task(
-            build_task_launch_argv(task_id, feedback=feedback),
+            _build_task_launch_argv(task_id, feedback=feedback),
             label=f"Task launch · {task_id}",
             cwd=resolved_cwd,
             origin=origin,
@@ -106,7 +106,6 @@ def _active_task_launch(task_id: str) -> BackgroundTask | None:
 
 __all__ = [
     "TaskLaunchOrigin",
-    "build_task_launch_argv",
     "resolve_task_launch_cwd",
     "submit_task_launch_task",
     "task_launch_origin_from_gate_source",

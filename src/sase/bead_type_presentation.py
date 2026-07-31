@@ -53,7 +53,7 @@ BEAD_TYPE_CHIP_WIDTH = max(
 )
 
 
-def normalize_bead_type(value: object) -> BeadTypeValue | None:
+def _normalize_bead_type(value: object) -> BeadTypeValue | None:
     """Return an exact normalized bead type without guessing invalid values."""
     candidate = value.value if isinstance(value, Enum) else value
     if candidate not in BEAD_TYPE_PRESENTATIONS:
@@ -63,7 +63,7 @@ def normalize_bead_type(value: object) -> BeadTypeValue | None:
 
 def bead_type_presentation(value: object) -> _BeadTypePresentation:
     """Return presentation metadata for a valid bead type."""
-    normalized = normalize_bead_type(value)
+    normalized = _normalize_bead_type(value)
     if normalized is None:
         raise ValueError(f"unknown bead type: {value!r}")
     return BEAD_TYPE_PRESENTATIONS[normalized]
@@ -76,7 +76,7 @@ def bead_type_chip(
     unavailable_style: str = "dim italic",
 ) -> Text:
     """Return a literal bead-type chip or an honest unavailable value."""
-    normalized = normalize_bead_type(value)
+    normalized = _normalize_bead_type(value)
     if normalized is None:
         return Text("unavailable", style=unavailable_style)
 
@@ -92,18 +92,11 @@ def bead_type_chip(
     )
 
 
-def bead_type_display_order() -> tuple[BeadTypeValue, ...]:
-    """Return bead type values in their cross-surface display order."""
-    return BEAD_TYPE_VALUES
-
-
 __all__ = [
     "BEAD_TYPE_CHIP_WIDTH",
     "BEAD_TYPE_PRESENTATIONS",
     "BEAD_TYPE_VALUES",
     "BeadTypeValue",
     "bead_type_chip",
-    "bead_type_display_order",
     "bead_type_presentation",
-    "normalize_bead_type",
 ]
