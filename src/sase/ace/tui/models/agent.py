@@ -74,10 +74,19 @@ class Agent(AgentState):
 
     @property
     def is_plan_family_root_entry(self) -> bool:
-        """Whether this family root has plan-family projection semantics."""
+        """Whether this family root has plan-family projection semantics.
+
+        True from root metadata recorded at promotion time (``plan_chain_root``
+        or a ``--plan``-flavored ``role_suffix``), or from a plan chain the
+        family entered later (``derived_plan_family_root``, set during status
+        normalization when a promoted root's members reveal a plan chain that
+        started after the root was promoted).
+        """
         if not self.is_family_root_entry:
             return False
         if self.plan_chain_root:
+            return True
+        if self.derived_plan_family_root:
             return True
         suffix = canonical_plan_chain_suffix(self.role_suffix)
         return self.agent_family_role == "root" and bool(

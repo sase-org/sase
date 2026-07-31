@@ -21,6 +21,7 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
             "followup_agents",
             "runtime_children",
             "wait_display_source",
+            "derived_plan_family_root",
             "retry_chain_siblings",
             "attempt_history",
             "diff_has_real_edits",

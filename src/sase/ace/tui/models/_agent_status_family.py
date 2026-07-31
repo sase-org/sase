@@ -12,6 +12,9 @@ from sase.agent.status_buckets import (
     pending_plan_status_for_tier,
 )
 from sase.plan_chain import (
+    PLAN_CHAIN_CODER_SUFFIX,
+    PLAN_CHAIN_COMMIT_SUFFIX,
+    PLAN_CHAIN_EPIC_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_base,
     agent_family_phase_name,
@@ -28,6 +31,19 @@ APPROVED_PLAN_ACTIONS = frozenset({"approve", "tale", "epic", "commit"})
 APPROVED_PLANNER_ACTIONS = frozenset({"approve", "tale"})
 PLANNER_FAMILY_ROLES = frozenset({"plan", "feedback"})
 EPIC_CREATED_STATUS = "EPIC CREATED"
+
+# Family-member roles/suffixes that mark a family as having entered a plan
+# chain. ``PLAN_CHAIN_QUESTION_SUFFIX`` / role "q" are deliberately excluded:
+# a question continuation on its own does not make a family a plan family.
+PLAN_CHAIN_MEMBER_ROLES = frozenset({"plan", "code", "epic", "commit", "feedback"})
+_PLAN_CHAIN_MEMBER_SUFFIXES = frozenset(
+    {
+        PLAN_CHAIN_PLAN_SUFFIX,
+        PLAN_CHAIN_CODER_SUFFIX,
+        PLAN_CHAIN_EPIC_SUFFIX,
+        PLAN_CHAIN_COMMIT_SUFFIX,
+    }
+)
 
 
 def pending_plan_status_for_agent(agent: Agent) -> str:
@@ -53,8 +69,58 @@ def merge_feedback_plan_paths(parent: Agent, child: Agent) -> None:
             parent.feedback_plan_paths[timestamp] = path
 
 
+def _is_plan_chain_family_member(agent: Agent) -> bool:
+    """Return True when a family member row belongs to a plan chain.
+
+    The suffix clause is what catches a rename-on-attach continuation whose
+    stored ``agent_family_role`` predates a later plan submission (e.g. a
+    root-question continuation rewritten to ``--plan`` when it submitted a
+    tale/plan): its role is still "q" but its canonical suffix already reads
+    "--plan".
+    """
+    if agent.agent_family_parallel or not agent.is_family_member_child:
+        return False
+    if agent_family_role(agent) in PLAN_CHAIN_MEMBER_ROLES:
+        return True
+    canonical = canonical_plan_chain_suffix(agent.role_suffix)
+    if canonical is not None and (
+        canonical in _PLAN_CHAIN_MEMBER_SUFFIXES
+        or canonical.startswith(PLAN_CHAIN_PLAN_SUFFIX)
+    ):
+        return True
+    return bool(agent.plan_times)
+
+
 def is_root_plan_workflow(agent: Agent) -> bool:
-    """Check if an agent is the top-level plan workflow entry."""
+    """Check if an agent is the top-level plan workflow entry.
+
+    True from durable root metadata recorded at promotion time
+    (``plan_chain_root``, or a native ``--plan`` role suffix), or from a plan
+    chain the family entered later (``derived_plan_family_root``, set by
+    :func:`mark_derived_plan_family_roots` when a promoted root's members
+    reveal a plan chain that started after the root was promoted).
+    """
+    if agent.is_child_row or agent.agent_family_parallel:
+        return False
+    if agent.plan_chain_root:
+        return True
+    if agent.derived_plan_family_root:
+        return True
+    return agent.agent_type == AgentType.WORKFLOW and (
+        canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
+    )
+
+
+def _is_natively_recognized_plan_root(agent: Agent) -> bool:
+    """Whether ``is_root_plan_workflow`` would hold without the derived marker.
+
+    Used to scope :func:`pull_plan_metadata_from_family_members` to roots that
+    are plan-family roots *only* because of ``derived_plan_family_root``.
+    Native plan-chain roots keep their pre-existing metadata untouched, even
+    on the rare durable shape where a native root has no ``plan_action`` of
+    its own (e.g. it asked a question before a continuation ever planned):
+    that combination predates this fix and must not change behavior here.
+    """
     if agent.is_child_row or agent.agent_family_parallel:
         return False
     if agent.plan_chain_root:
@@ -62,6 +128,25 @@ def is_root_plan_workflow(agent: Agent) -> bool:
     return agent.agent_type == AgentType.WORKFLOW and (
         canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
     )
+
+
+def mark_derived_plan_family_roots(
+    children_by_parent: dict[str, list[Agent]],
+    parent_by_suffix: dict[str, Agent],
+) -> None:
+    """Mark promoted family roots whose members reveal a later plan chain.
+
+    Sticky: only ever sets the marker, never clears it, so a family that has
+    entered a plan chain never leaves it across repeated normalization passes
+    over the same in-memory rows (including after an artifact-delta merge
+    that may carry a partial agent list).
+    """
+    for parent_timestamp, children in children_by_parent.items():
+        parent = parent_by_suffix.get(parent_timestamp)
+        if parent is None or not parent.is_family_root_entry:
+            continue
+        if any(_is_plan_chain_family_member(child) for child in children):
+            parent.derived_plan_family_root = True
 
 
 def is_awaiting_plan_review(agent: Agent) -> bool:
@@ -575,6 +660,42 @@ def copy_missing_plan_metadata(target: Agent, source: Agent) -> None:
         target.epic_bead_id = source.epic_bead_id
     if target.phase_bead_id is None:
         target.phase_bead_id = source.phase_bead_id
+
+
+def pull_plan_metadata_from_family_members(
+    children_by_parent: dict[str, list[Agent]],
+    parent_by_suffix: dict[str, Agent],
+) -> None:
+    """Backfill a plan-family root's tale/plan flavor from its planner member.
+
+    Scoped to roots that are plan-family roots *only* because of
+    ``derived_plan_family_root`` (see :func:`_is_natively_recognized_plan_root`):
+    a promoted root has no ``plan_action`` of its own, so the newest
+    plan-chain member's metadata is pulled up so the root's tale/plan flavor
+    resolves correctly. Native plan-chain roots are left untouched — their
+    artifact directory is the planner's own, so pulling member metadata onto
+    them is unnecessary and, for at least one durable pre-fix shape (a native
+    root that asked a question before any continuation ever planned), would
+    change already-established behavior. Deliberately does not propagate
+    ``plan_times``: giving the root borrowed ``plan_times`` would flip its own
+    logical child's status from ``ANSWERED`` to a plan-approved status in
+    :func:`planner_child_status`.
+    """
+    for parent_timestamp, children in children_by_parent.items():
+        parent = parent_by_suffix.get(parent_timestamp)
+        if (
+            parent is None
+            or not is_root_plan_workflow(parent)
+            or _is_natively_recognized_plan_root(parent)
+        ):
+            continue
+        members = sorted(
+            (child for child in children if _is_plan_chain_family_member(child)),
+            key=child_launch_time,
+            reverse=True,
+        )
+        for member in members:
+            copy_missing_plan_metadata(parent, member)
 
 
 def copy_missing_display_metadata(parent: Agent, child: Agent) -> None:

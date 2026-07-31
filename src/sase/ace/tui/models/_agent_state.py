@@ -342,6 +342,11 @@ class AgentState:
         repr=False,
     )
 
+    # Set when a family root's members reveal a plan chain that started after
+    # the root was promoted. Derived during status normalization; not
+    # serialized. Sticky: normalization only ever sets this, never clears it.
+    derived_plan_family_root: bool = field(default=False, compare=False, repr=False)
+
     # Retry-chain lineage (spawn-on-retry).
     # retry_of_timestamp: backward pointer to the immediate parent in the
     #   retry chain. None when this is not a retry.

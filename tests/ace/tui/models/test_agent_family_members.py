@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_family_members import (
     _concrete_agent_rows,
+    concrete_agent_statuses,
     concrete_family_member_rows,
     family_member_status_buckets,
 )
@@ -107,6 +108,42 @@ def test_rename_on_attach_root_remains_the_first_real_member() -> None:
     root.followup_agents = [coder]
 
     assert concrete_family_member_rows(root) == (root, coder)
+
+
+def test_promoted_plan_family_root_no_longer_double_counted_as_member() -> None:
+    """A derived plan-family root's main step, not the root, is member #0.
+
+    Mirrors the 'pv' bug family: a root promoted to '--0' (plan_chain_root
+    stays False) whose plan chain only started later in a member. Once
+    ``derived_plan_family_root`` is set, the root must stop standing in as
+    member #0 or the lane header's "N agents · M awaiting" count double-counts
+    it alongside the mirrored status.
+    """
+    root = _agent("pv", role="root")
+    root.role_suffix = "--0"
+    root.derived_plan_family_root = True
+    main_step = _agent(
+        "pv--0",
+        role="q",
+        parent_timestamp=root.raw_suffix,
+        workflow_child=True,
+        status="ANSWERED",
+        stop_offset=1,
+    )
+    plan_member = _agent(
+        "pv--1",
+        role="plan",
+        parent_timestamp=root.raw_suffix,
+        status="TALE",
+        start_offset=2,
+    )
+    root.runtime_children = [main_step, plan_member]
+    root.followup_agents = [plan_member]
+
+    statuses = concrete_agent_statuses(root)
+
+    assert [entry.agent for entry in statuses] == [main_step, plan_member]
+    assert [entry.bucket for entry in statuses] == ["Done", "Stopped"]
 
 
 def test_plan_root_without_concrete_planner_uses_root_fallback() -> None:

@@ -34,8 +34,10 @@ from ._agent_status_family import (
     is_main_workflow_agent_step,
     is_root_plan_workflow,
     latest_non_workflow_child_launch_by_parent,
+    mark_derived_plan_family_roots,
     merge_feedback_plan_paths,
     pending_plan_status_for_agent,
+    pull_plan_metadata_from_family_members,
     root_child_suffix,
     superseded_by_feedback_round,
     sync_planner_child_from_parent,
@@ -99,6 +101,14 @@ def apply_status_overrides(
 
     ensure_synthetic_planner_children(agents, all_agents, parent_by_suffix)
     children_by_parent = children_by_parent_timestamp(all_agents)
+    # Deriving the plan-family marker after synthetic planner children are
+    # added (not before) is deliberate: ensure_synthetic_planner_children is
+    # itself gated on is_root_plan_workflow, and running the derivation first
+    # would let it synthesize a phantom "--0" planner row for a derived plan
+    # family whose concrete main workflow step is not loaded. Derived families
+    # keep the promoted-root-as-first-member projection instead.
+    mark_derived_plan_family_roots(children_by_parent, parent_by_suffix)
+    pull_plan_metadata_from_family_members(children_by_parent, parent_by_suffix)
     for parent_timestamp, children in children_by_parent.items():
         parent = parent_by_suffix.get(parent_timestamp)
         if parent is None:
