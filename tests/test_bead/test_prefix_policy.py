@@ -23,7 +23,7 @@ from sase.bead.config import save_config
     ],
 )
 def test_is_safe_bead_prefix(prefix: str, expected: bool) -> None:
-    assert prefix_policy.is_safe_bead_prefix(prefix) is expected
+    assert prefix_policy._is_safe_bead_prefix(prefix) is expected
 
 
 def test_stale_key_prefix_report_flags_leaked_key(tmp_path, monkeypatch) -> None:

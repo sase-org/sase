@@ -15,7 +15,7 @@ from pathlib import Path
 from sase.bead.project_name import infer_project_name_from_cwd
 
 
-def is_safe_bead_prefix(prefix: str) -> bool:
+def _is_safe_bead_prefix(prefix: str) -> bool:
     """Return whether *prefix* is safe to use as a bead issue prefix.
 
     Bead IDs must keep matching ``^[^\\s.]+-[0-9a-z]+(?:\\.\\d+)*$`` so agent
@@ -43,9 +43,9 @@ def default_issue_prefix(root_dir: Path) -> str:
         from sase.project_display_names import project_display_name_for
 
         label = project_display_name_for(key)
-        if is_safe_bead_prefix(label):
+        if _is_safe_bead_prefix(label):
             return label
-        if is_safe_bead_prefix(key):
+        if _is_safe_bead_prefix(key):
             return key
 
     try:
@@ -88,7 +88,7 @@ def stale_key_prefix_report(beads_dir: Path) -> tuple[str, str] | None:
     from sase.project_display_names import project_display_name_for
 
     label = project_display_name_for(key)
-    if label == key or not is_safe_bead_prefix(label):
+    if label == key or not _is_safe_bead_prefix(label):
         return None
 
     return stored, label
