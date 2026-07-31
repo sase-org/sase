@@ -299,6 +299,47 @@ diff --git a/src/foo.py b/src/foo.py
     assert "  ~ src/foo.py  +1\n" in header.plain
 
 
+def test_completed_agent_filters_dot_sase_commit_message_from_commit_diffs(
+    tmp_path: Path,
+) -> None:
+    diff_path = tmp_path / "001.diff"
+    diff_path.write_text(
+        """diff --git a/.sase/commit_message.md b/.sase/commit_message.md
+new file mode 100644
+--- /dev/null
++++ b/.sase/commit_message.md
+@@ -0,0 +1 @@
++temporary message
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1 +1,2 @@
+ old
++new
+""",
+        encoding="utf-8",
+    )
+    agent = _make_agent(
+        workspace_dir=str(tmp_path / "sase_7"),
+        step_output={
+            "meta_commits": [
+                {
+                    "message": "feat: update foo",
+                    "sha": "111111111111aaaa",
+                    "cwd": str(tmp_path / "sase_7"),
+                    "diff_path": str(diff_path),
+                },
+            ],
+        },
+    )
+
+    header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
+
+    assert "Deltas:\n" in header.plain
+    assert ".sase/commit_message.md" not in header.plain
+    assert "  ~ src/foo.py  +1\n" in header.plain
+
+
 def test_completed_agent_omits_deltas_when_only_commit_message_diff(
     tmp_path: Path,
 ) -> None:

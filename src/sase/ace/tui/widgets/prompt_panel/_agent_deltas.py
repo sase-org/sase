@@ -155,8 +155,13 @@ def _normalized_agent_delta_path(path: str) -> str:
     return normalized
 
 
+_COMMIT_MESSAGE_BOOKKEEPING_PATHS = frozenset(
+    {"commit_message.md", ".sase/commit_message.md"}
+)
+
+
 def _is_commit_message_bookkeeping_path(path: str) -> bool:
-    return _normalized_agent_delta_path(path) == "commit_message.md"
+    return _normalized_agent_delta_path(path) in _COMMIT_MESSAGE_BOOKKEEPING_PATHS
 
 
 def visible_agent_delta_entries(entries: Iterable[DeltaEntry]) -> list[DeltaEntry]:

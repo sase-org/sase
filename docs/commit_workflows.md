@@ -63,12 +63,15 @@ and then delegates to `sase commit`. A typical Git skill invocation omits `--typ
 `SASE_COMMIT_METHOD`:
 
 ```bash
-sase_git_commit -M commit_message.md -f src/example.py
+sase_git_commit -M .sase/commit_message.md -f src/example.py
 ```
 
-The low-level equivalent is `sase commit -M commit_message.md -f src/example.py -t <method>`. The method defaults to
-`$SASE_COMMIT_METHOD` if the `-t` flag is omitted. If both the environment and `-t/--type` are set, they must resolve to
-the same method unless `SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1` is set.
+The skill writes the message file under `.sase/` because that directory is git-ignored in every SASE-managed checkout,
+so the temporary file can never trip the commit finalizer's dirty check.
+
+The low-level equivalent is `sase commit -M .sase/commit_message.md -f src/example.py -t <method>`. The method defaults
+to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted. If both the environment and `-t/--type` are set, they must resolve
+to the same method unless `SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1` is set.
 
 If `SASE_BEAD_ID` is set, the finalizer first asks the agent to decide whether the uncommitted changes were made in the
 current session. For changes the agent did make, it instructs the agent to close and verify the bead before invoking the
