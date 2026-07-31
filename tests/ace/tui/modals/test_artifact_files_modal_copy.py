@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -15,6 +16,13 @@ from tests.ace.tui.modals.artifact_files_modal_test_helpers import (
     _TestApp,
     _artifact,
 )
+
+
+async def _drain_clipboard_tasks(app: object) -> None:
+    """Wait for tracked copy delivery instead of relying on pump timing."""
+    while tasks := tuple(getattr(app, "_pump_free_clipboard_tasks", ())):
+        await asyncio.gather(*tasks)
+        await asyncio.sleep(0)
 
 
 async def test_artifact_file_modal_y_copies_highlighted_markdown_contents_and_stays_open(
@@ -49,6 +57,7 @@ async def test_artifact_file_modal_y_copies_highlighted_markdown_contents_and_st
 
         await pilot.press("y")
         await pilot.pause()
+        await _drain_clipboard_tasks(pilot.app)
 
         assert pilot.app.screen is modal
         assert result == "sentinel"
