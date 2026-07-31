@@ -897,7 +897,6 @@ config overlays can add more skill sources, so `sase skill list` may show entrie
 | -------------------- | --------------------------------------------------------------------------------------------- |
 | `sase_agents_status` | Report on currently running SASE agents                                                       |
 | `sase_artifact_file` | Create, list, show, resolve, and open SASE artifacts through `sase artifact`                  |
-| `sase_beads`         | Reference `sase bead` create, update, list, search, ready, show, and dependency commands      |
 | `sase_changespecs`   | Inspect and reason about ChangeSpecs, commits, hooks, comments, and mentors                   |
 | `sase_chats`         | Inspect prior SASE agent prompts and responses                                                |
 | `sase_gate`          | Create a durable custom confirmation gate for a proposed command or decision                  |

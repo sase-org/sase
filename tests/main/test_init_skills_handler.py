@@ -138,7 +138,7 @@ def test_handler_backwards_manifest_refuses_and_leaves_newer_deployment_intact(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Block an older sase_beads/SKILL.md replacing two newer deployments."""
+    """Block an older generated skill replacing two newer deployments."""
     target_path, newer_content, manifest_path = _write_newer_skill_deployment(
         tmp_path, monkeypatch
     )

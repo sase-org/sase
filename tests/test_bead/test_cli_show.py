@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import shlex
 
 import pytest
 
@@ -15,39 +14,6 @@ from tests.test_bead.cli_show_test_helpers import (
     show_with_format,
     use_single_issue_view,
 )
-
-
-def test_show_skill_examples_parse_against_cli_contract() -> None:
-    source_path = (
-        Path(__file__).resolve().parents[2]
-        / "src"
-        / "sase"
-        / "xprompts"
-        / "skills"
-        / "sase_beads.md"
-    )
-    source = source_path.read_text(encoding="utf-8")
-    show_section = source.split("### show", 1)[1].split("### dep add", 1)[0]
-    examples = [
-        line.strip()
-        for line in show_section.splitlines()
-        if line.strip().startswith("sase bead show ")
-    ]
-
-    assert examples == [
-        "sase bead show <id>",
-        "sase bead show a1",
-        "sase bead show <id> --format compact",
-        "sase bead show <id> --format json",
-    ]
-
-    parser = create_parser()
-    for example in examples:
-        argv = shlex.split(example.replace("<id>", "sase-64"))
-        args = parser.parse_args(argv[1:])
-        assert args.command == "bead"
-        assert args.bead_subcommand == "show"
-        assert args.id in {"sase-64", "a1"}
 
 
 @pytest.mark.parametrize("flag", ["--format", "-f"])

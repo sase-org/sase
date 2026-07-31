@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import shlex
 from pathlib import Path
 
 import pytest
@@ -14,41 +13,6 @@ from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 from sase.bead_type_presentation import BEAD_TYPE_VALUES, bead_type_presentation
 from sase.main.parser import create_parser
-
-
-def test_list_skill_examples_parse_against_cli_contract() -> None:
-    source_path = (
-        Path(__file__).resolve().parents[2]
-        / "src"
-        / "sase"
-        / "xprompts"
-        / "skills"
-        / "sase_beads.md"
-    )
-    source = source_path.read_text(encoding="utf-8")
-    list_section = source.split("### list", 1)[1].split("### search", 1)[0]
-    examples = [
-        line.strip()
-        for line in list_section.splitlines()
-        if line.strip().startswith("sase bead list")
-    ]
-
-    assert examples == [
-        "sase bead list",
-        "sase bead list --format json",
-        "sase bead list --format full --limit 3",
-        "sase bead list --status ready --type task",
-        "sase bead list --status open --type phase",
-        "sase bead list --tier epic",
-        "sase bead list --status closed --limit 0",
-    ]
-
-    parser = create_parser()
-    for example in examples:
-        argv = shlex.split(example)
-        args = parser.parse_args(argv[1:])
-        assert args.command == "bead"
-        assert args.bead_subcommand == "list"
 
 
 def test_list_parser_sets_filters_and_limit() -> None:

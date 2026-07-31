@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-import shlex
-from pathlib import Path
 
 import pytest
 
@@ -12,38 +10,6 @@ from sase.bead import cli as bead_cli
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
-
-
-def test_search_skill_examples_parse_against_cli_contract() -> None:
-    source_path = (
-        Path(__file__).resolve().parents[2]
-        / "src"
-        / "sase"
-        / "xprompts"
-        / "skills"
-        / "sase_beads.md"
-    )
-    source = source_path.read_text(encoding="utf-8")
-    search_section = source.split("### search", 1)[1].split("### ready", 1)[0]
-    examples = [
-        line.strip()
-        for line in search_section.splitlines()
-        if line.strip().startswith("sase bead search ")
-    ]
-
-    assert examples == [
-        "sase bead search auth",
-        "sase bead search auth --format full --limit 3",
-        "sase bead search auth --status open --type phase",
-    ]
-
-    parser = create_parser()
-    for example in examples:
-        argv = shlex.split(example)
-        args = parser.parse_args(argv[1:])
-        assert args.command == "bead"
-        assert args.bead_subcommand == "search"
-        assert args.query == "auth"
 
 
 def test_search_parser_sets_query_filters_and_output_options() -> None:
