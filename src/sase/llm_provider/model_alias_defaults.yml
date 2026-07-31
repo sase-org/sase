@@ -1,0 +1,70 @@
+# Shipped defaults for SASE's implicit model aliases. This file is the single
+# edit point for changing what @smartest, @cheap, @medium_phase_worker, ...
+# resolve to out of the box. User config (llm_provider.model_aliases.builtin)
+# still overrides anything here.
+#
+# Each entry carries at most one of `fallback` (an @<alias> reference,
+# optionally with a trailing @<effort>) or `target` (a concrete model,
+# provider/model, `A | B` pool, or `A || B` ordered fallback). `default`
+# carries neither: it resolves through the configured/autodetected provider's
+# tier default. Every entry requires a `description`.
+schema_version: 1
+aliases:
+  default:
+    description: >-
+      Model used when a prompt has no %model directive; every other alias
+      ultimately falls back to it.
+  coder:
+    fallback: "@default"
+    description: >-
+      Coder follow-up agents launched from plans (fallback for every
+      <provider>_coder alias).
+  epic_lander:
+    fallback: "@default"
+    description: "Epic land agents that finalize and submit an epic."
+  big_epic_lander:
+    fallback: "@smartest"
+    description: >-
+      Epic land agents selected for plans at or above the configured
+      phase-count threshold.
+  task_worker:
+    fallback: "@default"
+    description: "Standalone agents that implement task beads without size metadata."
+  xsmall_phase_worker:
+    fallback: "@cheaper"
+    description: >-
+      Extra-small bead phase agents that implement the simplest tasks
+      directly.
+  small_phase_worker:
+    fallback: "@cheap"
+    description: "Small bead phase agents that implement directly."
+  medium_phase_worker:
+    fallback: "@default@high"
+    description: "Medium bead phase agents that implement directly."
+  large_phase_worker:
+    fallback: "@smart"
+    description: "Large bead phase agents that plan before implementation."
+  xlarge_phase_worker:
+    fallback: "@smartest"
+    description: >-
+      Extra-large bead phase agents that author an epic plan before
+      implementation.
+  smart:
+    fallback: "@default"
+    description: "High-capability model used automatically by large phase agents."
+  smartest:
+    target: "claude/claude-fable-5 || codex/gpt-5.6-sol"
+    description: >-
+      Highest-capability model used automatically by extra-large phase agents
+      and large epic landers.
+  cheap:
+    target: "claude/opus@medium | codex/gpt-5.5"
+    description: "Load-balanced pool used automatically by small phase agents."
+  cheaper:
+    target: "claude/sonnet | codex/gpt-5.3-codex-spark"
+    description: >-
+      Lower-cost load-balanced pool used automatically by extra-small phase
+      agents.
+  cheapest:
+    target: "claude/haiku || codex/gpt-5.3-codex-spark"
+    description: "Lowest-cost provider fallback available for explicit use."

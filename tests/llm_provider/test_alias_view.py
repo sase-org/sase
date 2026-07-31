@@ -9,6 +9,8 @@ from __future__ import annotations
 import pytest
 
 from sase.llm_provider import build_alias_views
+from sase.llm_provider.load_balancing import parse_model_alias_selector
+from sase.llm_provider.model_alias_policy import implicit_alias_targets
 from tests.llm_provider._provider_config_helpers import (
     mock_provider_config,
     patch_available_providers,
@@ -64,43 +66,45 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["smartest"].configured is False
     assert by_name["smartest"].configured_source is None
     assert by_name["smartest"].implicit_fallback is None
-    assert by_name["smartest"].implicit_value == (
-        "claude/claude-fable-5 || codex/gpt-5.6-sol"
+    targets = implicit_alias_targets()
+
+    smartest_selector = parse_model_alias_selector(targets["smartest"])
+    assert smartest_selector is not None
+    assert by_name["smartest"].implicit_value == targets["smartest"]
+    # Pins the shape (ordered fallback), not the literal target strings, which
+    # live solely in model_alias_defaults.yml.
+    assert by_name["smartest"].selector_mode == smartest_selector.mode == "fallback"
+    assert [member.value for member in by_name["smartest"].selector_members] == list(
+        smartest_selector.members
     )
-    assert by_name["smartest"].selector_mode == "fallback"
-    assert [member.value for member in by_name["smartest"].selector_members] == [
-        "claude/claude-fable-5",
-        "codex/gpt-5.6-sol",
-    ]
     assert [member.selected for member in by_name["smartest"].selector_members] == [
         True,
         False,
     ]
     assert by_name["cheap"].kind == "role"
     assert by_name["cheaper"].kind == "role"
-    assert by_name["cheap"].implicit_value == ("claude/opus@medium | codex/gpt-5.5")
-    assert by_name["cheap"].selector_mode == "round_robin"
-    assert [member.value for member in by_name["cheap"].selector_members] == [
-        "claude/opus@medium",
-        "codex/gpt-5.5",
-    ]
-    assert by_name["cheaper"].implicit_value == (
-        "claude/sonnet | codex/gpt-5.3-codex-spark"
+    cheap_selector = parse_model_alias_selector(targets["cheap"])
+    assert cheap_selector is not None
+    assert by_name["cheap"].implicit_value == targets["cheap"]
+    assert by_name["cheap"].selector_mode == cheap_selector.mode == "round_robin"
+    assert [member.value for member in by_name["cheap"].selector_members] == list(
+        cheap_selector.members
     )
-    assert by_name["cheaper"].selector_mode == "round_robin"
-    assert [member.value for member in by_name["cheaper"].selector_members] == [
-        "claude/sonnet",
-        "codex/gpt-5.3-codex-spark",
-    ]
+    cheaper_selector = parse_model_alias_selector(targets["cheaper"])
+    assert cheaper_selector is not None
+    assert by_name["cheaper"].implicit_value == targets["cheaper"]
+    assert by_name["cheaper"].selector_mode == cheaper_selector.mode == "round_robin"
+    assert [member.value for member in by_name["cheaper"].selector_members] == list(
+        cheaper_selector.members
+    )
     assert by_name["cheapest"].kind == "role"
-    assert by_name["cheapest"].implicit_value == (
-        "claude/haiku || codex/gpt-5.3-codex-spark"
+    cheapest_selector = parse_model_alias_selector(targets["cheapest"])
+    assert cheapest_selector is not None
+    assert by_name["cheapest"].implicit_value == targets["cheapest"]
+    assert by_name["cheapest"].selector_mode == cheapest_selector.mode == "fallback"
+    assert [member.value for member in by_name["cheapest"].selector_members] == list(
+        cheapest_selector.members
     )
-    assert by_name["cheapest"].selector_mode == "fallback"
-    assert [member.value for member in by_name["cheapest"].selector_members] == [
-        "claude/haiku",
-        "codex/gpt-5.3-codex-spark",
-    ]
     assert by_name["claude_coder"].kind == "provider_coder"
     assert by_name["codex_coder"].kind == "provider_coder"
 

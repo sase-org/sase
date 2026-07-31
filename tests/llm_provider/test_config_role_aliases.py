@@ -7,12 +7,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.llm_provider.config import (
-    CHEAP_MODEL_ALIAS_DEFAULT,
-    CHEAPER_MODEL_ALIAS_DEFAULT,
-    CHEAPEST_MODEL_ALIAS_DEFAULT,
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT,
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_EFFORT,
-    SMARTEST_MODEL_ALIAS_DEFAULT,
     coder_model_alias_for_provider,
     default_model_alias_name,
     implicit_model_alias_fallback,
@@ -23,13 +17,21 @@ from sase.llm_provider.config import (
     resolve_model_alias_with_effort,
     role_model_directive_value,
 )
+from sase.llm_provider.load_balancing import parse_model_alias_selector
 from sase.llm_provider.model_alias_config import is_provider_coder_alias
+from sase.llm_provider.model_alias_policy import (
+    implicit_alias_targets,
+    role_alias_fallbacks,
+)
 from sase.llm_provider.registry import resolve_model_provider
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 
 def test_role_alias_helpers() -> None:
     """The role-alias name/directive helpers return the documented strings."""
+    fallbacks = role_alias_fallbacks()
+    targets = implicit_alias_targets()
+
     assert default_model_alias_name() == "default"
     assert coder_model_alias_for_provider("codex") == "codex_coder"
     assert coder_model_alias_for_provider(" claude ") == "claude_coder"
@@ -41,27 +43,35 @@ def test_role_alias_helpers() -> None:
     assert implicit_model_alias_fallback("xsmall_phase_worker") == "cheaper"
     assert implicit_model_alias_fallback("small_phase_worker") == "cheap"
     assert implicit_model_alias_fallback("medium_phase_worker") == "default"
-    assert implicit_model_alias_fallback_reference("medium_phase_worker") == (
-        "@default@high"
+    assert (
+        implicit_model_alias_fallback_reference("medium_phase_worker")
+        == (fallbacks["medium_phase_worker"])
     )
     assert implicit_model_alias_fallback_effort("medium_phase_worker") == "high"
     assert implicit_model_alias_value("medium_phase_worker") is None
-    assert MEDIUM_PHASE_WORKER_MODEL_ALIAS_EFFORT == "high"
-    assert MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT == "@default@high"
+    # Pins the shape (not the literal string) so a bad YAML edit still fails:
+    # medium_phase_worker must keep carrying a high-effort overlay.
+    assert fallbacks["medium_phase_worker"] == "@default@high"
     assert implicit_model_alias_fallback("large_phase_worker") == "smart"
     assert implicit_model_alias_fallback("xlarge_phase_worker") == "smartest"
     assert implicit_model_alias_fallback("smart") == "default"
     assert implicit_model_alias_fallback("smartest") is None
-    assert implicit_model_alias_value("smartest") == SMARTEST_MODEL_ALIAS_DEFAULT
-    assert SMARTEST_MODEL_ALIAS_DEFAULT == (
-        "claude/claude-fable-5 || codex/gpt-5.6-sol"
-    )
-    assert implicit_model_alias_value("cheap") == CHEAP_MODEL_ALIAS_DEFAULT
-    assert CHEAP_MODEL_ALIAS_DEFAULT == "claude/opus@medium | codex/gpt-5.5"
-    assert implicit_model_alias_value("cheaper") == CHEAPER_MODEL_ALIAS_DEFAULT
-    assert CHEAPER_MODEL_ALIAS_DEFAULT == ("claude/sonnet | codex/gpt-5.3-codex-spark")
-    assert implicit_model_alias_value("cheapest") == CHEAPEST_MODEL_ALIAS_DEFAULT
-    assert CHEAPEST_MODEL_ALIAS_DEFAULT == ("claude/haiku || codex/gpt-5.3-codex-spark")
+    assert implicit_model_alias_value("smartest") == targets["smartest"]
+    smartest_selector = parse_model_alias_selector(targets["smartest"])
+    assert smartest_selector is not None
+    assert smartest_selector.mode == "fallback"
+    assert implicit_model_alias_value("cheap") == targets["cheap"]
+    cheap_selector = parse_model_alias_selector(targets["cheap"])
+    assert cheap_selector is not None
+    assert cheap_selector.mode == "round_robin"
+    assert implicit_model_alias_value("cheaper") == targets["cheaper"]
+    cheaper_selector = parse_model_alias_selector(targets["cheaper"])
+    assert cheaper_selector is not None
+    assert cheaper_selector.mode == "round_robin"
+    assert implicit_model_alias_value("cheapest") == targets["cheapest"]
+    cheapest_selector = parse_model_alias_selector(targets["cheapest"])
+    assert cheapest_selector is not None
+    assert cheapest_selector.mode == "fallback"
     assert implicit_model_alias_fallback("codex_coder") == "coder"
     assert implicit_model_alias_fallback_reference("codex_coder") == "@coder"
     assert implicit_model_alias_fallback_effort("codex_coder") is None

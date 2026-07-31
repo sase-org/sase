@@ -1,6 +1,21 @@
-"""Names, defaults, and descriptions for built-in model aliases."""
+"""Names, defaults, and descriptions for built-in model aliases.
+
+Shipped defaults (targets, role fallbacks, and descriptions) live in the
+bundled ``model_alias_defaults.yml`` sibling file, not in this module. Editing
+that YAML is the single change needed to alter what an implicit alias
+resolves to out of the box; this module only owns the alias *name* constants
+and the loader that turns the YAML into cached accessor mappings.
+"""
 
 from __future__ import annotations
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+import functools
+from importlib.resources import files
+from types import MappingProxyType
+
+import yaml  # type: ignore[import-untyped]
 
 # Builtin-role overrides are configured under
 # ``llm_provider.model_aliases.builtin``; user-created aliases live under
@@ -19,7 +34,8 @@ from __future__ import annotations
 # such as ``@default@high``; an outer effort still wins. ``smartest`` and
 # ``cheapest`` instead own ordered provider fallbacks, while ``cheap`` and
 # ``cheaper`` own load-balanced pools. ``default`` itself falls back to the
-# configured or autodetected provider's tier default.
+# configured or autodetected provider's tier default. See
+# ``model_alias_defaults.yml`` for the current value of every default.
 
 #: The implicit "default" alias name (used for no-``%model`` launches).
 DEFAULT_MODEL_ALIAS_NAME = "default"
@@ -48,14 +64,6 @@ SMALL_PHASE_WORKER_MODEL_ALIAS_NAME = "small_phase_worker"
 #: The implicit medium-phase role alias.
 MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME = "medium_phase_worker"
 
-#: Reasoning-effort overlay for the implicit medium-phase role alias.
-MEDIUM_PHASE_WORKER_MODEL_ALIAS_EFFORT = "high"
-
-#: Default alias reference for the implicit medium-phase role alias.
-MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT = (
-    f"@{DEFAULT_MODEL_ALIAS_NAME}@{MEDIUM_PHASE_WORKER_MODEL_ALIAS_EFFORT}"
-)
-
 #: The implicit large-phase role alias.
 LARGE_PHASE_WORKER_MODEL_ALIAS_NAME = "large_phase_worker"
 
@@ -68,101 +76,154 @@ SMART_MODEL_ALIAS_NAME = "smart"
 #: The implicit "smartest" highest-capability alias.
 SMARTEST_MODEL_ALIAS_NAME = "smartest"
 
-#: Provider-aware ordered fallback for the implicit smartest alias.
-SMARTEST_MODEL_ALIAS_DEFAULT = "claude/claude-fable-5 || codex/gpt-5.6-sol"
-
 #: The implicit load-balanced small-phase alias.
 CHEAP_MODEL_ALIAS_NAME = "cheap"
-
-#: Default target pool for the implicit :data:`CHEAP_MODEL_ALIAS_NAME`.
-CHEAP_MODEL_ALIAS_DEFAULT = "claude/opus@medium | codex/gpt-5.5"
 
 #: The implicit load-balanced extra-small-phase alias.
 CHEAPER_MODEL_ALIAS_NAME = "cheaper"
 
-#: Default target pool for the implicit :data:`CHEAPER_MODEL_ALIAS_NAME`.
-CHEAPER_MODEL_ALIAS_DEFAULT = "claude/sonnet | codex/gpt-5.3-codex-spark"
-
 #: The implicit lowest-cost alias.
 CHEAPEST_MODEL_ALIAS_NAME = "cheapest"
 
-#: Provider-aware ordered fallback for :data:`CHEAPEST_MODEL_ALIAS_NAME`.
-CHEAPEST_MODEL_ALIAS_DEFAULT = "claude/haiku || codex/gpt-5.3-codex-spark"
+#: Every implicit role-alias name declared by this module, in YAML-entry order.
+_ROLE_ALIAS_NAME_CONSTANTS: tuple[str, ...] = (
+    DEFAULT_MODEL_ALIAS_NAME,
+    CODER_MODEL_ALIAS_NAME,
+    EPIC_LANDER_MODEL_ALIAS_NAME,
+    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
+    TASK_WORKER_MODEL_ALIAS_NAME,
+    XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
+    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+    XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+    SMART_MODEL_ALIAS_NAME,
+    SMARTEST_MODEL_ALIAS_NAME,
+    CHEAP_MODEL_ALIAS_NAME,
+    CHEAPER_MODEL_ALIAS_NAME,
+    CHEAPEST_MODEL_ALIAS_NAME,
+)
 
-#: Fixed implicit role aliases (besides ``default``) mapped to the ``@<alias>``
-#: reference each falls back to when not explicitly configured. A reference may
-#: carry a trailing ``@<effort>`` overlay; it does not form a separate target,
-#: and an outer effort still wins.
-ROLE_ALIAS_FALLBACKS: dict[str, str] = {
-    CODER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
-    EPIC_LANDER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
-    BIG_EPIC_LANDER_MODEL_ALIAS_NAME: f"@{SMARTEST_MODEL_ALIAS_NAME}",
-    TASK_WORKER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
-    XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{CHEAPER_MODEL_ALIAS_NAME}",
-    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{CHEAP_MODEL_ALIAS_NAME}",
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME: MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT,
-    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{SMART_MODEL_ALIAS_NAME}",
-    XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{SMARTEST_MODEL_ALIAS_NAME}",
-    SMART_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
-}
+_DEFAULTS_RESOURCE_NAME = "model_alias_defaults.yml"
 
-#: Concrete/selector defaults for implicit aliases that do not alias a role.
-IMPLICIT_ALIAS_TARGETS: dict[str, str] = {
-    SMARTEST_MODEL_ALIAS_NAME: SMARTEST_MODEL_ALIAS_DEFAULT,
-    CHEAP_MODEL_ALIAS_NAME: CHEAP_MODEL_ALIAS_DEFAULT,
-    CHEAPER_MODEL_ALIAS_NAME: CHEAPER_MODEL_ALIAS_DEFAULT,
-    CHEAPEST_MODEL_ALIAS_NAME: CHEAPEST_MODEL_ALIAS_DEFAULT,
-}
 
-#: User-facing descriptions for implicit aliases.
-ROLE_ALIAS_DESCRIPTIONS: dict[str, str] = {
-    DEFAULT_MODEL_ALIAS_NAME: (
-        "Model used when a prompt has no %model directive; every other alias "
-        "ultimately falls back to it."
-    ),
-    CODER_MODEL_ALIAS_NAME: (
-        "Coder follow-up agents launched from plans (fallback for every "
-        "<provider>_coder alias)."
-    ),
-    EPIC_LANDER_MODEL_ALIAS_NAME: (
-        "Epic land agents that finalize and submit an epic."
-    ),
-    BIG_EPIC_LANDER_MODEL_ALIAS_NAME: (
-        "Epic land agents selected for plans at or above the configured "
-        "phase-count threshold."
-    ),
-    TASK_WORKER_MODEL_ALIAS_NAME: (
-        "Standalone agents that implement task beads without size metadata."
-    ),
-    XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME: (
-        "Extra-small bead phase agents that implement the simplest tasks directly."
-    ),
-    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: (
-        "Small bead phase agents that implement directly."
-    ),
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME: (
-        "Medium bead phase agents that implement directly."
-    ),
-    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME: (
-        "Large bead phase agents that plan before implementation."
-    ),
-    XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME: (
-        "Extra-large bead phase agents that author an epic plan before implementation."
-    ),
-    SMART_MODEL_ALIAS_NAME: (
-        "High-capability model used automatically by large phase agents."
-    ),
-    SMARTEST_MODEL_ALIAS_NAME: (
-        "Highest-capability model used automatically by extra-large phase agents "
-        "and large epic landers."
-    ),
-    CHEAP_MODEL_ALIAS_NAME: (
-        "Load-balanced pool used automatically by small phase agents."
-    ),
-    CHEAPER_MODEL_ALIAS_NAME: (
-        "Lower-cost load-balanced pool used automatically by extra-small phase agents."
-    ),
-    CHEAPEST_MODEL_ALIAS_NAME: (
-        "Lowest-cost provider fallback available for explicit use."
-    ),
-}
+@dataclass(frozen=True, slots=True)
+class _ModelAliasDefaults:
+    """Cached, immutable views over the bundled defaults YAML."""
+
+    role_alias_fallbacks: Mapping[str, str]
+    implicit_alias_targets: Mapping[str, str]
+    role_alias_descriptions: Mapping[str, str]
+
+
+def _defaults_error(resource: object, problem: str) -> RuntimeError:
+    return RuntimeError(
+        f"bundled model alias defaults ({resource}) {problem}; this is a SASE "
+        "installation defect"
+    )
+
+
+@functools.cache
+def _load_model_alias_defaults() -> _ModelAliasDefaults:
+    """Load and validate the bundled model-alias defaults YAML.
+
+    A missing or malformed file ships with the package, so it is an
+    installation defect rather than user error: raise loudly instead of
+    silently degrading to an empty mapping, which would reroute every implicit
+    role alias.
+    """
+    resource = files("sase.llm_provider").joinpath(_DEFAULTS_RESOURCE_NAME)
+
+    try:
+        text = resource.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise _defaults_error(resource, f"could not be read: {exc}") from exc
+
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise _defaults_error(resource, f"is not valid YAML: {exc}") from exc
+
+    if not isinstance(data, dict):
+        raise _defaults_error(resource, "must contain a YAML mapping at the top level")
+
+    aliases = data.get("aliases")
+    if not isinstance(aliases, dict):
+        raise _defaults_error(resource, "must have a top-level 'aliases' mapping")
+
+    known_names = set(_ROLE_ALIAS_NAME_CONSTANTS)
+    yaml_names = set(aliases)
+    if yaml_names != known_names:
+        missing = sorted(known_names - yaml_names)
+        unknown = sorted(yaml_names - known_names)
+        details = []
+        if missing:
+            details.append(f"missing entries for {missing}")
+        if unknown:
+            details.append(f"unknown entries for {unknown}")
+        raise _defaults_error(resource, "; ".join(details))
+
+    fallbacks: dict[str, str] = {}
+    targets: dict[str, str] = {}
+    descriptions: dict[str, str] = {}
+    for name, entry in aliases.items():
+        if not isinstance(entry, dict):
+            raise _defaults_error(resource, f"entry {name!r} must be a mapping")
+
+        fallback = entry.get("fallback")
+        target = entry.get("target")
+        if fallback is not None and target is not None:
+            raise _defaults_error(
+                resource, f"entry {name!r} sets both 'fallback' and 'target'"
+            )
+        if name == DEFAULT_MODEL_ALIAS_NAME and (
+            fallback is not None or target is not None
+        ):
+            raise _defaults_error(
+                resource,
+                f"entry {name!r} must not set 'fallback' or 'target'",
+            )
+        if fallback is not None:
+            if not isinstance(fallback, str) or not fallback.strip():
+                raise _defaults_error(
+                    resource, f"entry {name!r} has a non-string or empty 'fallback'"
+                )
+            fallbacks[name] = fallback.strip()
+        if target is not None:
+            if not isinstance(target, str) or not target.strip():
+                raise _defaults_error(
+                    resource, f"entry {name!r} has a non-string or empty 'target'"
+                )
+            targets[name] = target.strip()
+
+        description = entry.get("description")
+        if not isinstance(description, str) or not description.strip():
+            raise _defaults_error(
+                resource, f"entry {name!r} is missing a non-empty 'description'"
+            )
+        descriptions[name] = description.strip()
+
+    return _ModelAliasDefaults(
+        role_alias_fallbacks=MappingProxyType(fallbacks),
+        implicit_alias_targets=MappingProxyType(targets),
+        role_alias_descriptions=MappingProxyType(descriptions),
+    )
+
+
+def role_alias_fallbacks() -> Mapping[str, str]:
+    """Return the ``@<alias>`` reference each role falls back to, if any.
+
+    A reference may carry a trailing ``@<effort>`` overlay; it does not form a
+    separate target, and an outer effort still wins.
+    """
+    return _load_model_alias_defaults().role_alias_fallbacks
+
+
+def implicit_alias_targets() -> Mapping[str, str]:
+    """Return concrete/selector default targets for implicit aliases."""
+    return _load_model_alias_defaults().implicit_alias_targets
+
+
+def role_alias_descriptions() -> Mapping[str, str]:
+    """Return user-facing descriptions for every implicit alias."""
+    return _load_model_alias_defaults().role_alias_descriptions

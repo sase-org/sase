@@ -19,8 +19,8 @@ from .load_balancing import (
 from .model_alias_policy import (
     CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
-    IMPLICIT_ALIAS_TARGETS,
-    ROLE_ALIAS_FALLBACKS,
+    implicit_alias_targets,
+    role_alias_fallbacks,
 )
 
 _ALIAS_RESOLUTION_DEPTH_LIMIT = 16
@@ -136,6 +136,10 @@ def _resolve_model_alias_result(
     aliases = config._get_model_aliases()
     launch_overrides = active_launch_alias_overrides(model_alias_overrides)
     original = model
+    # Bound once and shared by recursive member resolutions rather than
+    # re-calling the (cheap but cached-lookup-backed) accessors per step.
+    role_fallbacks = role_alias_fallbacks()
+    role_targets = implicit_alias_targets()
     # Loaded lazily and shared by recursive member resolutions.
     overrides: dict[str, Any] | None = None
 
@@ -165,8 +169,8 @@ def _resolve_model_alias_result(
             known_alias = (
                 bare in aliases
                 or bare == DEFAULT_MODEL_ALIAS_NAME
-                or bare in ROLE_ALIAS_FALLBACKS
-                or bare in IMPLICIT_ALIAS_TARGETS
+                or bare in role_fallbacks
+                or bare in role_targets
                 or is_provider_coder
             )
             launch_target = launch_overrides.get(bare) if known_alias else None
@@ -199,8 +203,8 @@ def _resolve_model_alias_result(
             target: str | None = None
             if bare in aliases:
                 target = aliases[bare].strip()
-            elif bare in IMPLICIT_ALIAS_TARGETS:
-                target = IMPLICIT_ALIAS_TARGETS[bare]
+            elif bare in role_targets:
+                target = role_targets[bare]
 
             if target is not None:
                 if bare in seen or not target:
@@ -328,7 +332,7 @@ def _model_alias_selector(name: str) -> ModelAliasSelector | None:
     alias = name.strip()
     value = config._get_model_aliases().get(alias)
     if value is None:
-        value = IMPLICIT_ALIAS_TARGETS.get(alias)
+        value = implicit_alias_targets().get(alias)
     if value is None:
         return None
     try:
@@ -400,6 +404,7 @@ def validate_model_alias_selector_value(name: str, value: str) -> tuple[str, ...
         return ()
 
     aliases = config._get_model_aliases()
+    role_targets = implicit_alias_targets()
     errors: list[str] = []
     owner = name.strip() or "<alias>"
     member_label = (
@@ -429,7 +434,7 @@ def validate_model_alias_selector_value(name: str, value: str) -> tuple[str, ...
             seen.add(referenced)
             target = aliases.get(referenced)
             if target is None:
-                target = IMPLICIT_ALIAS_TARGETS.get(referenced)
+                target = role_targets.get(referenced)
             if target is None:
                 target = config.implicit_model_alias_fallback_reference(referenced)
             if target is None:

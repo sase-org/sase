@@ -736,11 +736,15 @@ llm_provider:
   # completions and the Models panel. Bucket membership is display-only: ACE
   # always supplies `coders` and `phase_worker`, and custom aliases assigned to
   # either bucket coalesce with its builtin aliases.
+  # Current shipped defaults for every builtin alias below (and their
+  # descriptions) are the single responsibility of
+  # src/sase/llm_provider/model_alias_defaults.yml; the target values shown
+  # here are grammar examples only, not the shipped defaults.
   # model_aliases:
   #   builtin:
   #     default: opus               # model used when a prompt has no %model directive
   #     coder: "@default"           # plan coder follow-ups (fallback for <provider>_coder)
-  #     claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
+  #     claude_coder: codex/gpt-4.1 # coder follow-ups from Claude-authored plans
   #     codex_coder: claude/opus    # coder follow-ups from Codex-authored plans
   #     epic_lander: "@default"     # epic land agents
   #     big_epic_lander: "@smartest" # threshold-selected epic land agents
@@ -751,10 +755,10 @@ llm_provider:
   #     large_phase_worker: "@smart"    # large bead phase agents
   #     xlarge_phase_worker: "@smartest" # extra-large bead phase agents
   #     smart: "@default"          # high-capability alias
-  #     smartest: "claude/claude-fable-5 || codex/gpt-5.6-sol" # implicit default
-  #     cheap: "claude/opus@medium | codex/gpt-5.5" # small-phase pool
-  #     cheaper: "claude/sonnet | codex/gpt-5.3-codex-spark" # xsmall-phase pool
-  #     cheapest: "claude/haiku || codex/gpt-5.3-codex-spark" # lowest-cost fallback
+  #     smartest: "claude/opus || codex/gpt-4.1"     # ordered fallback example
+  #     cheap: "claude/haiku | codex/gpt-4.1-mini"   # load-balanced pool example
+  #     cheaper: "claude/haiku | codex/gpt-4.1-mini" # load-balanced pool example
+  #     cheapest: "claude/haiku || codex/gpt-4.1-mini" # ordered fallback example
   #   custom:
   #     blogger:
   #       model: claude/opus

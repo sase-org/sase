@@ -11,10 +11,10 @@ from sase.xprompt.effort import split_model_effort
 from .model_alias_policy import (
     CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
-    IMPLICIT_ALIAS_TARGETS,
     PROVIDER_CODER_ALIAS_SUFFIX,
-    ROLE_ALIAS_DESCRIPTIONS,
-    ROLE_ALIAS_FALLBACKS,
+    implicit_alias_targets,
+    role_alias_descriptions,
+    role_alias_fallbacks,
 )
 
 ModelAliasConfigSource = Literal["builtin", "custom"]
@@ -208,8 +208,8 @@ def role_model_alias_names() -> set[str]:
     """Return the fixed implicit role aliases (``default`` plus role aliases)."""
     return {
         DEFAULT_MODEL_ALIAS_NAME,
-        *ROLE_ALIAS_FALLBACKS,
-        *IMPLICIT_ALIAS_TARGETS,
+        *role_alias_fallbacks(),
+        *implicit_alias_targets(),
     }
 
 
@@ -237,7 +237,7 @@ def model_alias_kind(name: str) -> str:
     """Classify *name* for display as a default, role, provider coder, or user."""
     if name == DEFAULT_MODEL_ALIAS_NAME:
         return "default"
-    if name in ROLE_ALIAS_FALLBACKS or name in IMPLICIT_ALIAS_TARGETS:
+    if name in role_alias_fallbacks() or name in implicit_alias_targets():
         return "role"
     if is_provider_coder_alias(name):
         return "provider_coder"
@@ -249,8 +249,9 @@ def model_alias_description(name: str) -> str | None:
     alias = name.strip()
     if not alias:
         return None
-    if alias in ROLE_ALIAS_DESCRIPTIONS:
-        return ROLE_ALIAS_DESCRIPTIONS[alias]
+    descriptions = role_alias_descriptions()
+    if alias in descriptions:
+        return descriptions[alias]
     if is_provider_coder_alias(alias):
         provider = alias[: -len(PROVIDER_CODER_ALIAS_SUFFIX)]
         return f"Coder follow-up agents for plans authored by {provider}."
@@ -276,7 +277,7 @@ def implicit_model_alias_fallback(name: str) -> str | None:
 def implicit_model_alias_fallback_reference(name: str) -> str | None:
     """Return the raw immediate implicit fallback reference for *name*."""
     alias = name.strip()
-    fallback = ROLE_ALIAS_FALLBACKS.get(alias)
+    fallback = role_alias_fallbacks().get(alias)
     if fallback is None and is_provider_coder_alias(alias):
         fallback = f"@{CODER_MODEL_ALIAS_NAME}"
     return fallback
@@ -293,7 +294,7 @@ def implicit_model_alias_fallback_effort(name: str) -> str | None:
 
 def implicit_model_alias_value(name: str) -> str | None:
     """Return a concrete/selector implicit target value for *name*, if any."""
-    return IMPLICIT_ALIAS_TARGETS.get(name.strip())
+    return implicit_alias_targets().get(name.strip())
 
 
 def format_model_directive_value(value: str) -> str:
