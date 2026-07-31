@@ -8,6 +8,8 @@ from sase.notifications.store import (
     append_notification,
     expire_due_snoozes,
     load_notifications,
+    mark_many_muted,
+    mark_many_snoozed,
     mark_muted,
     mark_snoozed,
 )
@@ -84,6 +86,69 @@ class TestMarkMuted:
         assert loaded[0].snooze_until is None
 
 
+class TestMarkManyMuted:
+    """Tests for mark_many_muted()."""
+
+    def test_round_trip_with_missing_and_duplicate_ids(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        n1 = make_notification()
+        n2 = make_notification()
+        n3 = make_notification()
+        for n in (n1, n2, n3):
+            append_notification(n)
+
+        assert mark_many_muted([n1.id, "missing", n2.id, n1.id]) == 2
+        loaded = load_notifications()
+        by_id = {n.id: n for n in loaded}
+        assert by_id[n1.id].muted is True
+        assert by_id[n2.id].muted is True
+        assert by_id[n3.id].muted is False
+
+    def test_empty_input_skips_rust_call(self, temp_notifications_dir: Path) -> None:
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update"
+        ) as mock_update:
+            assert mark_many_muted([]) == 0
+        mock_update.assert_not_called()
+
+    def test_unmute_clears_mixed_snooze_deadlines(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        n1 = make_notification()
+        n2 = make_notification()
+        for n in (n1, n2):
+            append_notification(n)
+        deadline = datetime.now(get_timezone()) + timedelta(hours=1)
+        mark_many_snoozed([n1.id, n2.id], deadline)
+
+        assert mark_many_muted([n1.id, n2.id], False) == 2
+        loaded = load_notifications()
+        assert all(n.muted is False for n in loaded)
+        assert all(n.snooze_until is None for n in loaded)
+
+    def test_routes_through_one_rust_update(self, temp_notifications_dir: Path) -> None:
+        n1 = make_notification()
+        n2 = make_notification()
+        append_notification(n1)
+        append_notification(n2)
+
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update",
+            wraps=__import__(
+                "sase.notifications.store",
+                fromlist=["_rust_apply_notification_state_update"],
+            )._rust_apply_notification_state_update,
+        ) as mock_update:
+            assert mark_many_muted([n1.id, n2.id], True) == 2
+
+        assert mock_update.call_count == 1
+        update = mock_update.call_args.args[1]
+        assert update.kind == "mark_many_muted"
+        assert update.ids == (n1.id, n2.id)
+        assert update.muted is True
+
+
 class TestMarkSnoozed:
     """Tests for ``mark_snoozed()``."""
 
@@ -125,6 +190,58 @@ class TestMarkSnoozed:
         assert len(loaded) == 1
         assert loaded[0].snooze_until is None
         assert loaded[0].muted is True
+
+
+class TestMarkManySnoozed:
+    """Tests for ``mark_many_snoozed()``."""
+
+    def test_round_trip_shared_deadline_with_missing_and_duplicate_ids(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        n1 = make_notification()
+        n2 = make_notification()
+        n3 = make_notification()
+        for n in (n1, n2, n3):
+            append_notification(n)
+        deadline = datetime.now(get_timezone()) + timedelta(minutes=15)
+
+        assert mark_many_snoozed([n1.id, "missing", n2.id, n1.id], deadline) == 2
+        loaded = load_notifications()
+        by_id = {n.id: n for n in loaded}
+        assert by_id[n1.id].muted is True
+        assert by_id[n2.id].muted is True
+        assert by_id[n1.id].snooze_until == deadline.isoformat()
+        assert by_id[n2.id].snooze_until == deadline.isoformat()
+        assert by_id[n3.id].snooze_until is None
+
+    def test_empty_input_skips_rust_call(self, temp_notifications_dir: Path) -> None:
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update"
+        ) as mock_update:
+            assert mark_many_snoozed([], datetime.now(get_timezone())) == 0
+        mock_update.assert_not_called()
+
+    def test_routes_through_one_rust_update(self, temp_notifications_dir: Path) -> None:
+        n1 = make_notification()
+        n2 = make_notification()
+        append_notification(n1)
+        append_notification(n2)
+        deadline = datetime.now(get_timezone()) + timedelta(minutes=30)
+
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update",
+            wraps=__import__(
+                "sase.notifications.store",
+                fromlist=["_rust_apply_notification_state_update"],
+            )._rust_apply_notification_state_update,
+        ) as mock_update:
+            assert mark_many_snoozed([n1.id, n2.id], deadline) == 2
+
+        assert mock_update.call_count == 1
+        update = mock_update.call_args.args[1]
+        assert update.kind == "mark_many_snoozed"
+        assert update.ids == (n1.id, n2.id)
+        assert update.until == deadline.isoformat()
 
 
 class TestExpireDueSnoozes:

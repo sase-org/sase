@@ -216,6 +216,17 @@ def mark_many_dismissed(notification_ids: Iterable[str]) -> int:
     return int(outcome.matched_count)
 
 
+def mark_many_muted(notification_ids: Iterable[str], muted: bool = True) -> int:
+    """Set muted state for notifications. Returns the number of found rows."""
+    ids = tuple(notification_ids)
+    if not ids:
+        return 0
+    outcome = _apply_state_update(
+        _state_update(kind="mark_many_muted", ids=ids, muted=muted)
+    )
+    return int(outcome.matched_count)
+
+
 def mark_muted(notification_id: str, muted: bool = True) -> bool:
     """Set the muted state of a notification. Returns True if found.
 
@@ -226,6 +237,17 @@ def mark_muted(notification_id: str, muted: bool = True) -> bool:
         _state_update(kind="mark_muted", id=notification_id, muted=muted)
     )
     return outcome.matched_count > 0
+
+
+def mark_many_snoozed(notification_ids: Iterable[str], until: datetime) -> int:
+    """Snooze notifications until ``until``. Returns the number of found rows."""
+    ids = tuple(notification_ids)
+    if not ids:
+        return 0
+    outcome = _apply_state_update(
+        _state_update(kind="mark_many_snoozed", ids=ids, until=until.isoformat())
+    )
+    return int(outcome.matched_count)
 
 
 def mark_snoozed(notification_id: str, until: datetime) -> bool:

@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+from sase.ace.tui.modals.notification_modal_actions import _NotificationMutationResult
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.notification_modal_tags import MUTED_TAB_KEY
 
@@ -51,7 +52,6 @@ def test_toggle_mute_moves_row_to_muted_tab_and_highlights_replacement() -> None
     replacement = _make_notification("n2", action="JumpToAgent")
     modal = NotificationModal([selected, replacement])
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
-    modal._marked_notification_ids = {"n2"}
     modal._pending_confirm_notification_id = "n2"
     modal._pending_confirm_notification_ids = ["n2"]
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
@@ -62,10 +62,100 @@ def test_toggle_mute_moves_row_to_muted_tab_and_highlights_replacement() -> None
 
     assert selected.muted is True
     assert modal._active_notification_tag is None
-    assert modal._marked_notification_ids == {"n2"}
+    assert modal._marked_notification_ids == set()
     assert modal._pending_confirm_notification_id == "n2"
     assert modal._pending_confirm_notification_ids == ["n2"]
     modal._rebuild_list.assert_called_once_with(highlight_index=1)
+
+
+def test_toggle_mute_with_marks_bulk_mutes_marked_rows_once() -> None:
+    """M targets live marks, applies one bulk write, and clears only acted marks."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    n2 = _make_notification("n2", action="JumpToAgent")
+    n3 = _make_notification("n3", action="JumpToAgent")
+    modal = NotificationModal([n1, n2, n3])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._marked_notification_ids = {"n1", "n2", "newer-mark"}
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_many_muted") as mock_mark:
+        mock_mark.return_value = 2
+        modal.action_toggle_mute()
+
+    mock_mark.assert_called_once_with(["n1", "n2"], True)
+    assert n1.muted is True
+    assert n2.muted is True
+    assert n3.muted is False
+    assert modal._marked_notification_ids == {"newer-mark"}
+    modal._rebuild_list.assert_called_once_with(highlight_index=2)
+    modal.notify.assert_called_once_with("Muted 2 notifications")
+
+
+def test_toggle_mute_with_marks_unmutes_and_cancels_snoozes() -> None:
+    """Marked muted rows bulk-unmute and clear snooze deadlines."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    n2 = _make_notification("n2", action="JumpToAgent")
+    for n in (n1, n2):
+        n.muted = True
+        n.snooze_until = "2026-04-22T09:00:00-04:00"
+    modal = NotificationModal([n1, n2])
+    modal._active_notification_tag = MUTED_TAB_KEY
+    modal._marked_notification_ids = {"n1", "n2"}
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_many_muted") as mock_mark:
+        mock_mark.return_value = 2
+        modal.action_toggle_mute()
+
+    mock_mark.assert_called_once_with(["n1", "n2"], False)
+    assert all(n.muted is False for n in (n1, n2))
+    assert all(n.snooze_until is None for n in (n1, n2))
+    assert modal._marked_notification_ids == set()
+    assert modal._active_notification_tag is None
+    modal.notify.assert_called_once_with("Unmuted 2 notifications (snoozes cancelled)")
+
+
+def test_toggle_mute_with_mixed_marks_converges_to_muted() -> None:
+    """If any marked target is unmuted, bulk M mutes every target."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    n2 = _make_notification("n2", action="JumpToAgent")
+    n2.muted = True
+    modal = NotificationModal([n1, n2])
+    modal._marked_notification_ids = {"n1", "n2"}
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_many_muted") as mock_mark:
+        mock_mark.return_value = 2
+        modal.action_toggle_mute()
+
+    mock_mark.assert_called_once_with(["n1", "n2"], True)
+    assert n1.muted is True
+    assert n2.muted is True
+
+
+def test_toggle_mute_prunes_stale_marks_and_falls_back_to_highlight() -> None:
+    """Stale-only marks do not cause an empty bulk write."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([n1])
+    modal._marked_notification_ids = {"stale"}
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with (
+        patch("sase.ace.tui.modals.notification_modal.mark_many_muted") as mock_many,
+        patch("sase.ace.tui.modals.notification_modal.mark_muted") as mock_one,
+    ):
+        modal.action_toggle_mute()
+
+    mock_many.assert_not_called()
+    mock_one.assert_called_once_with("n1", True)
+    assert modal._marked_notification_ids == set()
 
 
 def test_unmute_from_muted_tab_highlights_remaining_muted_row() -> None:
@@ -239,6 +329,146 @@ def test_snooze_callback_none_is_cancellation() -> None:
     assert notification.snooze_until is None
     assert notification.muted is False
     modal.notify.assert_called_once_with("Snooze cancelled")
+
+
+def test_snooze_with_marks_uses_one_picker_and_bulk_call() -> None:
+    """Marked rows share one computed deadline and one bulk persistence call."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    n2 = _make_notification("n2", action="JumpToAgent")
+    n3 = _make_notification("n3", action="JumpToAgent")
+    modal = NotificationModal([n1, n2, n3])
+    modal._marked_notification_ids = {"n1", "n2"}
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+    captured_callback: list = []
+
+    def fake_push_screen(_screen, *, callback) -> None:
+        captured_callback.append(callback)
+
+    with (
+        patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app,
+        patch("sase.ace.tui.modals.notification_modal.mark_many_snoozed") as mock_mark,
+    ):
+        mock_app.push_screen = fake_push_screen
+        mock_app._submit_tracked_task = None
+        mock_app.screen = modal
+        mock_mark.return_value = 2
+        modal.action_snooze()
+        captured_callback[0](timedelta(minutes=15))
+
+    mock_mark.assert_called_once()
+    ids, deadline = mock_mark.call_args.args
+    assert ids == ["n1", "n2"]
+    assert isinstance(deadline, datetime)
+    assert n1.snooze_until == deadline.isoformat()
+    assert n2.snooze_until == deadline.isoformat()
+    assert n3.snooze_until is None
+    assert modal._marked_notification_ids == set()
+    modal.notify.assert_called_once_with("Snoozed 2 notifications for 15m")
+
+
+def test_snooze_with_marks_cancellation_keeps_marks_and_state() -> None:
+    """Bulk snooze cancellation does not persist or consume marks."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    n2 = _make_notification("n2", action="JumpToAgent")
+    modal = NotificationModal([n1, n2])
+    modal._marked_notification_ids = {"n1", "n2"}
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+    captured_callback: list = []
+
+    def fake_push_screen(_screen, *, callback) -> None:
+        captured_callback.append(callback)
+
+    with (
+        patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app,
+        patch("sase.ace.tui.modals.notification_modal.mark_many_snoozed") as mock_mark,
+    ):
+        mock_app.push_screen = fake_push_screen
+        mock_app._submit_tracked_task = None
+        modal.action_snooze()
+        captured_callback[0](None)
+
+    mock_mark.assert_not_called()
+    assert modal._marked_notification_ids == {"n1", "n2"}
+    assert all(n.snooze_until is None for n in (n1, n2))
+    modal.notify.assert_called_once_with("Snooze cancelled")
+
+
+def test_bulk_state_task_failure_leaves_modal_state_untouched() -> None:
+    """A failed marked write does not mutate rows or consume marks."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    n2 = _make_notification("n2", action="JumpToAgent")
+    modal = NotificationModal([n1, n2])
+    modal._marked_notification_ids = {"n1", "n2"}
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_many_muted") as mock_mark:
+        mock_mark.side_effect = RuntimeError("disk busy")
+        modal.action_toggle_mute()
+
+    assert all(n.muted is False for n in (n1, n2))
+    assert modal._marked_notification_ids == {"n1", "n2"}
+    modal._rebuild_list.assert_not_called()
+    modal.notify.assert_called_once_with(
+        "Notification update failed: disk busy", severity="error"
+    )
+
+
+def test_bulk_state_task_rejects_overlapping_mutation() -> None:
+    """A rejected tracked task does not run persistence or mutate modal rows."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    n2 = _make_notification("n2", action="JumpToAgent")
+    modal = NotificationModal([n1, n2])
+    modal._marked_notification_ids = {"n1", "n2"}
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with (
+        patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app,
+        patch("sase.ace.tui.modals.notification_modal.mark_many_muted") as mock_mark,
+    ):
+        mock_app._submit_tracked_task.return_value = None
+        modal.action_toggle_mute()
+
+    mock_mark.assert_not_called()
+    assert all(n.muted is False for n in (n1, n2))
+    assert modal._marked_notification_ids == {"n1", "n2"}
+    mock_app._submit_tracked_task.assert_called_once()
+    kwargs = mock_app._submit_tracked_task.call_args.kwargs
+    assert kwargs["dedup_key"] == "notification-state"
+    assert kwargs["exclusive_scopes"] == ("notification-state",)
+
+
+def test_bulk_completion_after_modal_close_does_no_widget_work() -> None:
+    """Persistence may succeed after close; the callback leaves widgets untouched."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    n2 = _make_notification("n2", action="JumpToAgent")
+    modal = NotificationModal([n1, n2])
+    modal._marked_notification_ids = {"n1", "n2"}
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
+        mock_app.screen = object()
+        mock_app.screen_stack = []
+        modal._complete_bulk_toggle_mute(
+            _NotificationMutationResult(
+                action="mute",
+                ids=("n1", "n2"),
+                success=True,
+                message="ok",
+                matched_count=2,
+                muted=True,
+            )
+        )
+
+    assert all(n.muted is False for n in (n1, n2))
+    assert modal._marked_notification_ids == {"n1", "n2"}
+    modal._rebuild_list.assert_not_called()
+    modal.notify.assert_not_called()
 
 
 def test_unmute_on_snoozed_clears_snooze_and_toasts() -> None:

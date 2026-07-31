@@ -164,6 +164,26 @@ def test_update_wire_serializes_mark_many_dismissed_shape() -> None:
     }
 
 
+def test_update_wire_serializes_bulk_mute_and_snooze_shapes() -> None:
+    mute = NotificationStateUpdateWire(
+        kind="mark_many_muted", ids=("n1", "n2"), muted=False
+    )
+    snooze = NotificationStateUpdateWire(
+        kind="mark_many_snoozed", ids=("n1", "n2"), until="soon"
+    )
+
+    assert notification_store_wire_to_json_dict(mute) == {
+        "kind": "mark_many_muted",
+        "ids": ["n1", "n2"],
+        "muted": False,
+    }
+    assert notification_store_wire_to_json_dict(snooze) == {
+        "kind": "mark_many_snoozed",
+        "ids": ["n1", "n2"],
+        "until": "soon",
+    }
+
+
 def test_wire_helpers_rehydrate_and_serialize_agent_keys() -> None:
     n = _notification_from_dict(
         {
@@ -246,6 +266,40 @@ def test_real_extension_round_trips_store_operations(tmp_path: Path) -> None:
     rewrite = facade.rewrite_notifications(path, [_notification("n2")])
     assert rewrite.rewritten is True
     assert [n.id for n in rewrite.notifications] == ["n2", "n1"]
+
+
+def test_real_extension_round_trips_bulk_mute_and_snooze(tmp_path: Path) -> None:
+    _skip_without_notification_bindings()
+    path = tmp_path / "notifications.jsonl"
+    facade.rewrite_notifications(
+        path, [_notification("n1"), _notification("n2"), _notification("n3")]
+    )
+
+    muted = facade.apply_notification_state_update(
+        path,
+        NotificationStateUpdateWire(
+            kind="mark_many_muted",
+            ids=("n1", "missing", "n2", "n1"),
+            muted=True,
+        ),
+    )
+    assert muted.matched_count == 2
+    assert muted.changed_count == 2
+    assert {n.id for n in muted.notifications if n.muted} == {"n1", "n2"}
+
+    deadline = datetime.now(get_timezone()) + timedelta(minutes=15)
+    snoozed = facade.apply_notification_state_update(
+        path,
+        NotificationStateUpdateWire(
+            kind="mark_many_snoozed",
+            ids=("n2", "n3"),
+            until=deadline.isoformat(),
+        ),
+    )
+    assert snoozed.matched_count == 2
+    by_id = {n.id: n for n in snoozed.notifications}
+    assert by_id["n2"].snooze_until == deadline.isoformat()
+    assert by_id["n3"].snooze_until == deadline.isoformat()
 
 
 def test_append_counts_uses_metadata_binding(

@@ -18,22 +18,22 @@ Press `i` on any tab in ACE to open the notifications modal. Notifications displ
 
 ### Modal Keybindings
 
-| Key                 | Action                                                                         |
-| ------------------- | ------------------------------------------------------------------------------ |
-| `j` / `k`           | Navigate between notifications                                                 |
-| `Enter`             | Select notification (jump to PR, approve plan, etc)                            |
-| `d`                 | Open Gate Debug for the highlighted row                                        |
-| `x`                 | Dismiss notification (or bulk-dismiss every marked row when marks are present) |
-| `m`                 | Toggle the per-row mark on the highlighted notification                        |
-| `M`                 | Toggle mute on the highlighted notification                                    |
-| `s`                 | Snooze the highlighted notification (opens duration picker)                    |
-| `e`                 | Open attached file in `$EDITOR`                                                |
-| `V`                 | Open the current image attachment in the image viewer                          |
-| `Ctrl+N` / `Ctrl+P` | Cycle through attached files                                                   |
-| `Ctrl+D` / `Ctrl+U` | Scroll file content down / up                                                  |
-| `[` / `]`           | Switch notification tabs                                                       |
-| `R`                 | Mark all notifications as read                                                 |
-| `Esc` / `q`         | Close modal                                                                    |
+| Key                 | Action                                                                      |
+| ------------------- | --------------------------------------------------------------------------- |
+| `j` / `k`           | Navigate between notifications                                              |
+| `Enter`             | Select notification (jump to PR, approve plan, etc)                         |
+| `d`                 | Open Gate Debug for the highlighted row                                     |
+| `x`                 | Dismiss notification, or dismiss marked rows when marks are present         |
+| `m`                 | Toggle the per-row mark on the highlighted notification                     |
+| `M`                 | Toggle mute on the highlighted notification, or marked rows                 |
+| `s`                 | Snooze the highlighted notification, or marked rows (opens duration picker) |
+| `e`                 | Open attached file in `$EDITOR`                                             |
+| `V`                 | Open the current image attachment in the image viewer                       |
+| `Ctrl+N` / `Ctrl+P` | Cycle through attached files                                                |
+| `Ctrl+D` / `Ctrl+U` | Scroll file content down / up                                               |
+| `[` / `]`           | Switch notification tabs                                                    |
+| `R`                 | Mark all notifications as read                                              |
+| `Esc` / `q`         | Close modal                                                                 |
 
 Plan, launch, question, and task-triage notifications require confirmation (`y` / `n`) before dismissal to prevent
 accidental loss of pending decisions. The same `y` / `n` confirmation is used for bulk dismissal when at least one
@@ -60,23 +60,29 @@ sort runs on every modal rebuild, so live actions like mark-read, dismiss, mute,
 immediately. Switching tabs with `[` / `]` or a mouse click clears modal-local marks so a hidden row is never
 bulk-dismissed by accident.
 
-### Marks and Bulk Dismiss
+### Marks and Bulk Actions
 
 Press `m` on a notification to toggle a per-row mark. Marks are scoped to the open modal — closing the modal clears
-them. While at least one row is marked, `x` switches from "dismiss the highlighted row" to "dismiss every marked row";
-plan, launch, question, and task-triage rows in the batch use the same `y` / `n` confirmation prompt as a single
-dismissal.
+them. While at least one row is marked, `x`, `M`, and `s` target every live marked row instead of the highlighted row.
+Plan, launch, question, and task-triage rows in a marked dismiss batch use the same `y` / `n` confirmation prompt as a
+single dismissal.
+
+Successful marked mute, unmute, snooze, and dismiss actions consume the acted-on marks. Stale marks are pruned; if no
+live marks remain, `M` and `s` fall back to the highlighted row rather than writing an empty batch. Marked mute uses one
+shared state for the whole target set: if any marked target is unmuted, `M` mutes all targets; otherwise it unmutes all
+targets and cancels any pending snoozes.
 
 ### Mute and Snooze
 
-Press `M` on a notification to toggle its muted state. Muted notifications are dimmed in the list, prefixed with `~`,
-and moved to the `Muted` tab. They are still delivered to the JSONL store and remain visible in the modal — only the
-top-bar indicator, toast pipeline, and arrival bell ignore them.
+Press `M` on a notification to toggle its muted state, or on marked rows to toggle the whole marked set. Muted
+notifications are dimmed in the list, prefixed with `~`, and moved to the `Muted` tab. They are still delivered to the
+JSONL store and remain visible in the modal — only the top-bar indicator, toast pipeline, and arrival bell ignore them.
 
-Press `s` to snooze a notification for `15m`, `1h`, `4h`, or until tomorrow morning. Snoozed notifications are
-implicitly muted (so they fall into the `Muted` tab) and display a `⏰ <remaining>` badge counting down to the snooze
-expiry. Toggling mute off cancels any pending snooze. The snooze expiry is persisted, so the notification re-emerges
-from `Muted` on its own once the timer runs out.
+Press `s` to snooze a notification, or marked rows, for `15m`, `1h`, `4h`, or until tomorrow morning. A marked snooze
+computes one deadline and applies it to every target. Snoozed notifications are implicitly muted (so they fall into the
+`Muted` tab) and display a `⏰ <remaining>` badge counting down to the snooze expiry. Toggling mute off cancels any
+pending snooze. The snooze expiry is persisted, so the notification re-emerges from `Muted` on its own once the timer
+runs out.
 
 ### Top-Bar Indicator
 
