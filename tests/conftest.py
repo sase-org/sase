@@ -16,6 +16,7 @@ from sase.ace.changespec import (
 )
 from sase.directory_map_assets import DIRECTORY_MAP_ASSET_OVERRIDE_ENV
 from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
+from sase.llm_provider.launch_alias_overrides import SASE_MODEL_ALIAS_OVERRIDES_ENV
 from tests._suite_gate import configure_suite_gate, unconfigure_suite_gate
 from tests._tmp_leak_guard import (
     finish_tmp_leak_guard,
@@ -301,11 +302,12 @@ def allow_axe_lifecycle_in_tests(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Clear ambient SASE agent and chop-linkage env vars before each test.
+    """Clear ambient SASE agent, launch, and chop-linkage env vars per test.
 
     Prevents launcher state from leaking into tests and causing side effects
     like bogus COMMITS entries in real ChangeSpec files, chop registry records,
-    or extra linked-repo dirty checks from the live agent workspace.  Both the canonical
+    extra linked-repo dirty checks from the live agent workspace, or model alias
+    overrides affecting resolution assertions.  Both the canonical
     ``SASE_LINKED_REPO*`` vars and the deprecated ``SASE_SIBLING_REPO*`` aliases
     are scrubbed so finalizer tests don't inherit the developer's real linked
     repositories (e.g. a dirty chezmoi checkout) from the surrounding agent.
@@ -326,6 +328,7 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
                 "SASE_CHOP_PROMPT_HASH",
                 "SASE_CHOP_RUN_ID",
                 "SASE_LINKED_REPOS_JSON",
+                SASE_MODEL_ALIAS_OVERRIDES_ENV,
                 "SASE_SIBLING_REPOS_JSON",
             }
         )
@@ -337,7 +340,7 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
     yield
 
-    for key in WORKSPACE_PIN_ENV_VARS:
+    for key in (*WORKSPACE_PIN_ENV_VARS, SASE_MODEL_ALIAS_OVERRIDES_ENV):
         os.environ.pop(key, None)
 
 
@@ -412,10 +415,12 @@ def _clear_config_caches() -> None:
     from sase.config import file_hooks as file_hooks_config
     from sase.config import mentor as mentor_config
     from sase.llm_provider import config as llm_provider_config
+    from sase.llm_provider import launch_alias_overrides
     from sase.llm_provider.registry import provider_cli_available
 
     config_core.clear_config_cache()
     llm_provider_config._get_model_aliases_for_token.cache_clear()
+    launch_alias_overrides._parse_env_value.cache_clear()
     provider_cli_available.cache_clear()
 
     mentor_config._mentor_profiles_cache_token = None
