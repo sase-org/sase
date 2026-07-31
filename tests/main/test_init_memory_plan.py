@@ -79,7 +79,7 @@ linked_repos:
 
     assert plan.blockers == ()
     assert home_root / "sase" / "memory" / "sase.md" in action_paths
-    assert home_root / "sase" / "memory" / "sase_beads.md" in action_paths
+    assert home_root / "sase" / "memory" / "sase_beads.md" not in action_paths
     assert home_root / "AGENTS.md" in action_paths
     assert project_root / "sase" / "memory" / "sase.md" not in action_paths
     assert project_root / "sase" / "memory" / "sase_beads.md" not in action_paths

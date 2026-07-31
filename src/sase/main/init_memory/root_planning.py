@@ -17,6 +17,7 @@ from sase.amd.inventory import discover_project_agent_docs
 from sase.memory.paths import (
     CANONICAL_MEMORY_RELATIVE_ROOT,
     memory_layout,
+    memory_write_root,
 )
 
 from .inventory import unreferenced_memory_files
@@ -43,6 +44,7 @@ class _MemoryRootContext:
     shim_plan: ProviderShimPlan
     additional_shim_plans: tuple[ProviderShimPlan, ...]
     memory_delete_paths: tuple[Path, ...] = ()
+    retired_note_paths: tuple[Path, ...] = ()
     source_memory_root: Path | None = None
     blockers: tuple[str, ...] = ()
 
@@ -167,6 +169,32 @@ def _memory_migration_plan(root: Path) -> _MemoryMigrationPlan:
     )
 
 
+def _retired_note_paths(root: Path, *, include_bead_memory: bool) -> tuple[Path, ...]:
+    """Return a generated bead memory note this root no longer manages.
+
+    A root that stopped managing ``sase/memory/sase_beads.md`` (currently: every
+    root except a SASE-managed project) still deletes a previously generated copy
+    so it converges in a single ``sase memory init`` pass. Only a file that is
+    byte-identical to the current packaged render is considered SASE-owned; a
+    human-edited copy is left alone and keeps behaving as an ordinary long note.
+    """
+    if include_bead_memory:
+        return ()
+    path = memory_write_root(root) / "sase_beads.md"
+    if not path.exists():
+        return ()
+    try:
+        current = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ()
+    generated_content, render_error = render_generated_beads_memory_content()
+    if render_error is not None or generated_content is None:
+        return ()
+    if current != generated_content:
+        return ()
+    return (path,)
+
+
 def _merge_expected_files(
     *groups: Iterable[MemoryExpectedFile],
 ) -> tuple[MemoryExpectedFile, ...]:
@@ -185,12 +213,12 @@ def _amd_sync_plan(
     generated_short_notes: dict[str, str],
     generated_long_notes: dict[str, str],
     source_memory_root: Path,
+    excluded_note_paths: frozenset[str] = frozenset(),
 ) -> AmdMemorySyncPlan | None:
     if not enable_amd:
         return plan_minimal_agents_sync(
             root,
             generated_short_notes=generated_short_notes,
-            generated_long_notes=generated_long_notes,
         )
     return plan_amd_memory_sync(
         root,
@@ -198,6 +226,7 @@ def _amd_sync_plan(
         generated_short_notes=generated_short_notes,
         generated_long_notes=generated_long_notes,
         source_memory_root=source_memory_root,
+        excluded_note_paths=excluded_note_paths,
     )
 
 
@@ -392,6 +421,7 @@ def memory_root_context(
     derive_project_title: bool = False,
     chezmoi_home_roots: Iterable[Path] = (),
     include_project_agent_docs: bool = False,
+    include_bead_memory: bool = False,
 ) -> _MemoryRootContext:
     if not manage_memory:
         return _MemoryRootContext(
@@ -416,6 +446,15 @@ def memory_root_context(
             blockers=migration.blockers,
         )
 
+    retired_note_paths = _retired_note_paths(
+        root, include_bead_memory=include_bead_memory
+    )
+    excluded_note_paths = (
+        frozenset({(CANONICAL_MEMORY_RELATIVE_ROOT / "sase_beads.md").as_posix()})
+        if retired_note_paths
+        else frozenset()
+    )
+
     generated_sase_body, sase_render_error = render_generated_sase_memory_body(
         root, linked_entries, project_name=project_name
     )
@@ -430,28 +469,35 @@ def memory_root_context(
                 sase_render_error or "failed to render sase/memory/sase.md template",
             ),
         )
-    generated_beads_content, beads_render_error = (
-        render_generated_beads_memory_content()
-    )
-    if beads_render_error is not None or generated_beads_content is None:
-        return _MemoryRootContext(
-            amd_sync=None,
-            expected_files=(),
-            shim_plan=ProviderShimPlan(writes=(), deletes=()),
-            additional_shim_plans=(),
-            source_memory_root=migration.source_memory_root,
-            blockers=(
-                beads_render_error
-                or "failed to render sase/memory/sase_beads.md template",
-            ),
+    generated_beads_content: str | None = None
+    if include_bead_memory:
+        generated_beads_content, beads_render_error = (
+            render_generated_beads_memory_content()
         )
+        if beads_render_error is not None or generated_beads_content is None:
+            return _MemoryRootContext(
+                amd_sync=None,
+                expected_files=(),
+                shim_plan=ProviderShimPlan(writes=(), deletes=()),
+                additional_shim_plans=(),
+                source_memory_root=migration.source_memory_root,
+                blockers=(
+                    beads_render_error
+                    or "failed to render sase/memory/sase_beads.md template",
+                ),
+            )
     amd_sync = _amd_sync_plan(
         root,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,
         generated_short_notes=generated_short_notes(generated_sase_body),
-        generated_long_notes=generated_long_notes(generated_beads_content),
+        generated_long_notes=(
+            generated_long_notes(generated_beads_content)
+            if include_bead_memory and generated_beads_content is not None
+            else {}
+        ),
         source_memory_root=migration.source_memory_root,
+        excluded_note_paths=excluded_note_paths,
     )
     expected_files, expected_error = render_expected_memory_files(
         root,
@@ -461,6 +507,8 @@ def memory_root_context(
         generated_sase_body=generated_sase_body,
         generated_beads_content=generated_beads_content,
         source_memory_root=migration.source_memory_root,
+        include_bead_memory=include_bead_memory,
+        excluded_note_paths=excluded_note_paths,
     )
     if expected_error is not None:
         return _MemoryRootContext(
@@ -491,6 +539,7 @@ def memory_root_context(
         shim_plan=shim_plan,
         additional_shim_plans=additional_shim_plans,
         memory_delete_paths=migration.delete_paths,
+        retired_note_paths=retired_note_paths,
         source_memory_root=migration.source_memory_root,
     )
 
@@ -505,6 +554,7 @@ def plan_memory_root(
     derive_project_title: bool = False,
     chezmoi_home_roots: Iterable[Path] = (),
     include_project_agent_docs: bool = False,
+    include_bead_memory: bool = False,
 ) -> MemoryRootPlan:
     context = memory_root_context(
         root,
@@ -515,6 +565,7 @@ def plan_memory_root(
         derive_project_title=derive_project_title,
         chezmoi_home_roots=chezmoi_home_roots,
         include_project_agent_docs=include_project_agent_docs,
+        include_bead_memory=include_bead_memory,
     )
     overlay = _validation_overlay_for_expected_files(root, context.expected_files)
     return MemoryRootPlan(
@@ -531,12 +582,21 @@ def plan_memory_root(
                 )
                 for path in context.memory_delete_paths
             )
+            + tuple(
+                MemoryFileChange(
+                    path=path,
+                    operation="delete",
+                    detail="remove retired generated memory note",
+                )
+                for path in context.retired_note_paths
+            )
         ),
         unreferenced=(
             unreferenced_memory_files(
                 root,
                 overlay=overlay,
                 source_memory_root=context.source_memory_root,
+                ignored_paths=context.retired_note_paths,
             )
             if manage_memory
             else ()

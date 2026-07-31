@@ -194,12 +194,14 @@ def _discover_memory_readme_notes(
     *,
     overlay: dict[Path, str],
     source_memory_root: Path | None = None,
+    excluded_note_paths: frozenset[str] = frozenset(),
 ) -> tuple[_MemoryReadmeNote, ...]:
     text_by_relative_path = {
         note.relative_path: _read_memory_note_text(
             root, note.source_relative_path.as_posix()
         )
         for note in discover_memory_notes(root, source_memory_root=source_memory_root)
+        if note.relative_path not in excluded_note_paths
     }
     text_by_relative_path.update(_memory_note_overlay_by_relative_path(root, overlay))
 
@@ -257,11 +259,13 @@ def _render_memory_readme(
     *,
     overlay: dict[Path, str] | None = None,
     source_memory_root: Path | None = None,
+    excluded_note_paths: frozenset[str] = frozenset(),
 ) -> tuple[str | None, str | None]:
     note_rows = _discover_memory_readme_notes(
         root,
         overlay=overlay or {},
         source_memory_root=source_memory_root,
+        excluded_note_paths=excluded_note_paths,
     )
     override, resolve_error = resolve_markdown_template_override(
         root,
@@ -298,6 +302,8 @@ def render_expected_memory_files(
     generated_sase_body: str | None = None,
     generated_beads_content: str | None = None,
     source_memory_root: Path | None = None,
+    include_bead_memory: bool = False,
+    excluded_note_paths: frozenset[str] = frozenset(),
 ) -> tuple[tuple[MemoryExpectedFile, ...], str | None]:
     if generated_sase_body is None:
         generated_sase_body, render_error = render_generated_sase_memory_body(
@@ -305,7 +311,7 @@ def render_expected_memory_files(
         )
         if render_error is not None or generated_sase_body is None:
             return (), render_error or "failed to render sase/memory/sase.md template"
-    if generated_beads_content is None:
+    if include_bead_memory and generated_beads_content is None:
         generated_beads_content, render_error = render_generated_beads_memory_content()
         if render_error is not None or generated_beads_content is None:
             return (
@@ -313,12 +319,14 @@ def render_expected_memory_files(
                 render_error or "failed to render sase/memory/sase_beads.md template",
             )
     generated_sase_path = root / _generated_sase_memory_relative_path()
-    generated_beads_path = root / _generated_beads_memory_relative_path()
     generated_sase_content = _generated_sase_memory_content(generated_sase_body)
     note_overlay = {
         generated_sase_path: generated_sase_content,
-        generated_beads_path: generated_beads_content,
     }
+    if include_bead_memory and generated_beads_content is not None:
+        note_overlay[root / _generated_beads_memory_relative_path()] = (
+            generated_beads_content
+        )
     if amd_sync is not None:
         note_overlay.update(
             {update.path: update.content for update in amd_sync.description_updates}
@@ -327,6 +335,7 @@ def render_expected_memory_files(
         root,
         overlay=note_overlay,
         source_memory_root=source_memory_root,
+        excluded_note_paths=excluded_note_paths,
     )
     if readme_error is not None or rendered_readme is None:
         return (), readme_error or "failed to render sase/memory/README.md template"
@@ -336,22 +345,29 @@ def render_expected_memory_files(
             content=generated_sase_content,
             detail="generated SASE memory",
         ),
-        MemoryExpectedFile(
-            path=generated_beads_path,
-            content=generated_beads_content,
-            detail="generated SASE bead memory",
-        ),
-        MemoryExpectedFile(
-            path=memory_write_root(root) / "README.md",
-            content=rendered_readme,
-            detail="memory README",
-        ),
-        MemoryExpectedFile(
-            path=root / MEMORY_DIRECTORY_MAP_RELATIVE_PATH,
-            content=read_memory_directory_map_bytes(),
-            detail="memory directory map asset",
-        ),
     ]
+    if include_bead_memory and generated_beads_content is not None:
+        expected.append(
+            MemoryExpectedFile(
+                path=root / _generated_beads_memory_relative_path(),
+                content=generated_beads_content,
+                detail="generated SASE bead memory",
+            )
+        )
+    expected.extend(
+        [
+            MemoryExpectedFile(
+                path=memory_write_root(root) / "README.md",
+                content=rendered_readme,
+                detail="memory README",
+            ),
+            MemoryExpectedFile(
+                path=root / MEMORY_DIRECTORY_MAP_RELATIVE_PATH,
+                content=read_memory_directory_map_bytes(),
+                detail="memory directory map asset",
+            ),
+        ]
+    )
     if amd_sync is not None and amd_sync.agents_content is not None:
         expected.extend(
             MemoryExpectedFile(

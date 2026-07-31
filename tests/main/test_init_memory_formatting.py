@@ -50,7 +50,6 @@ linked_repos:
         project_root / "sase" / "memory" / "sase_beads.md",
         project_root / "sase" / "memory" / "README.md",
         home_root / "sase" / "memory" / "sase.md",
-        home_root / "sase" / "memory" / "sase_beads.md",
         home_root / "sase" / "memory" / "README.md",
     ]
     before = {path: path.read_text(encoding="utf-8") for path in generated}

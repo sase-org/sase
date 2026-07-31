@@ -264,3 +264,18 @@ def test_init_reachability_follows_overlay_parent_metadata(
     )
 
     assert unreferenced == ()
+
+
+def test_ignored_paths_drop_unreferenced_note_from_result(tmp_path: Path) -> None:
+    _write(tmp_path / "AGENTS.md", "@sase/memory/base.md\n")
+    _write(tmp_path / "sase" / "memory" / "base.md", "# Base\n")
+    _write(tmp_path / "sase" / "memory" / "orphan.md", "# Orphan\n")
+    _write(tmp_path / "sase" / "memory" / "other_orphan.md", "# Other orphan\n")
+
+    orphan = tmp_path / "sase" / "memory" / "orphan.md"
+    other_orphan = tmp_path / "sase" / "memory" / "other_orphan.md"
+
+    assert unreferenced_memory_files_for_init(tmp_path) == (orphan, other_orphan)
+    assert unreferenced_memory_files_for_init(tmp_path, ignored_paths=(orphan,)) == (
+        other_orphan,
+    )

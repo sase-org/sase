@@ -10,7 +10,7 @@ from sase.mdtemplates import render_markdown_template
 MANAGED_TEMPLATE_FILENAME = "AGENTS.template.md"
 MINIMAL_TEMPLATE_FILENAME = "AGENTS.minimal.template.md"
 _MANAGED_TEMPLATE_VARS = frozenset({"title", "tier1_sections", "tier2_entries"})
-_MINIMAL_TEMPLATE_VARS = frozenset({"title", "tier1_sections", "tier2_entries"})
+_MINIMAL_TEMPLATE_VARS = frozenset({"title", "tier1_sections"})
 
 
 def render_agents_template(

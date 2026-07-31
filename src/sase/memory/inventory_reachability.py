@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import replace
 from pathlib import Path
 import re
@@ -204,6 +204,7 @@ def unreferenced_memory_files_for_init(
     *,
     overlay: Mapping[Path, str] | None = None,
     source_memory_root: Path | None = None,
+    ignored_paths: Iterable[Path] = (),
 ) -> tuple[Path, ...]:
     overlay_files = normalize_overlay(overlay)
     memory_files = set(
@@ -213,6 +214,8 @@ def unreferenced_memory_files_for_init(
             source_memory_root=source_memory_root,
         )
     )
+    ignored_resolved = {path.resolve(strict=False) for path in ignored_paths}
+    memory_files -= ignored_resolved
     reachable = set(
         _reachable_memory_files_for_init(
             root,

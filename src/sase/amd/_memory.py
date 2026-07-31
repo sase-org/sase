@@ -105,14 +105,32 @@ def _long_memory_description(
     return note_path.stem.replace("_", " ").replace("-", " ").strip().capitalize()
 
 
+def _discover_memory_notes_excluding(
+    root: Path,
+    *,
+    source_memory_root: Path | None = None,
+    excluded_note_paths: frozenset[str] = frozenset(),
+) -> tuple[MemoryNote, ...]:
+    return tuple(
+        note
+        for note in discover_memory_notes(root, source_memory_root=source_memory_root)
+        if note.relative_path not in excluded_note_paths
+    )
+
+
 def _long_memory_descriptions(
     root: Path,
     generated_long_notes: Mapping[str, str],
     *,
     source_memory_root: Path | None = None,
+    excluded_note_paths: frozenset[str] = frozenset(),
 ) -> dict[str, str]:
     existing_agents_descriptions = _existing_agents_long_descriptions(root)
-    notes = discover_memory_notes(root, source_memory_root=source_memory_root)
+    notes = _discover_memory_notes_excluding(
+        root,
+        source_memory_root=source_memory_root,
+        excluded_note_paths=excluded_note_paths,
+    )
     descriptions = {
         note.relative_path: _long_memory_description(
             root / note.path,
@@ -134,9 +152,14 @@ def _long_memory_description_updates(
     generated_long_notes: Mapping[str, str],
     *,
     source_memory_root: Path | None = None,
+    excluded_note_paths: frozenset[str] = frozenset(),
 ) -> tuple[AmdLongMemoryDescriptionUpdate, ...]:
     updates: list[AmdLongMemoryDescriptionUpdate] = []
-    for note in discover_memory_notes(root, source_memory_root=source_memory_root):
+    for note in _discover_memory_notes_excluding(
+        root,
+        source_memory_root=source_memory_root,
+        excluded_note_paths=excluded_note_paths,
+    ):
         if note.type != "long":
             continue
         source_path = root / note.source_relative_path
@@ -209,14 +232,16 @@ def _render_managed_agents(
     generated_long_notes: Mapping[str, str] | None = None,
     short_memory_bodies: Mapping[str, str] | None = None,
     source_memory_root: Path | None = None,
+    excluded_note_paths: frozenset[str] = frozenset(),
 ) -> tuple[str | None, str | None]:
     """Render the project-managed AMD ``AGENTS.md`` content for *root*."""
     existing_descriptions = _existing_agents_long_descriptions(root)
     notes_by_relative_path = {
         note.relative_path: note
-        for note in discover_memory_notes(
+        for note in _discover_memory_notes_excluding(
             root,
             source_memory_root=source_memory_root,
+            excluded_note_paths=excluded_note_paths,
         )
     }
     for relative_path, description in (generated_long_notes or {}).items():
@@ -306,30 +331,15 @@ def plan_minimal_agents_sync(
     root: Path,
     *,
     generated_short_notes: Mapping[str, str],
-    generated_long_notes: Mapping[str, str],
 ) -> AmdMemorySyncPlan:
     """Plan the create-if-missing fallback agent document from its template."""
     relative_path = (CANONICAL_MEMORY_RELATIVE_ROOT / "sase.md").as_posix()
     body = generated_short_notes.get(relative_path, "")
     tier1_sections = inline_memory_section(relative_path, body, number=1).rstrip("\n")
-    tier2_entries = render_memory_note_references(
-        MemoryNote(
-            path=Path(path),
-            type="long",
-            parent=AGENTS_PARENT,
-            description=description,
-            body="",
-            frontmatter={},
-            type_source="frontmatter",
-            parent_source="frontmatter",
-        )
-        for path, description in generated_long_notes.items()
-    )
     rendered, render_error = render_agents_template(
         root,
         title="Agent Instructions",
         tier1_sections=tier1_sections,
-        tier2_entries=tier2_entries,
         minimal=True,
     )
     if render_error is not None or rendered is None:
@@ -354,6 +364,7 @@ def plan_amd_memory_sync(
     generated_short_notes: Mapping[str, str] | None = None,
     generated_long_notes: Mapping[str, str] | None = None,
     source_memory_root: Path | None = None,
+    excluded_note_paths: frozenset[str] = frozenset(),
 ) -> AmdMemorySyncPlan:
     """Plan AMD-managed memory block synchronization for ``sase memory init``.
 
@@ -378,7 +389,6 @@ def plan_amd_memory_sync(
         return plan_minimal_agents_sync(
             root,
             generated_short_notes=generated_short_notes or {},
-            generated_long_notes=generated_long_notes or {},
         )
 
     short_memory_bodies = _short_memory_bodies(
@@ -399,12 +409,14 @@ def plan_amd_memory_sync(
         root,
         generated_long_notes or {},
         source_memory_root=source_memory_root,
+        excluded_note_paths=excluded_note_paths,
     )
     updates = _long_memory_description_updates(
         root,
         descriptions,
         generated_long_notes or {},
         source_memory_root=source_memory_root,
+        excluded_note_paths=excluded_note_paths,
     )
     agents_content, template_error = _render_managed_agents(
         root,
@@ -413,6 +425,7 @@ def plan_amd_memory_sync(
         generated_long_notes=generated_long_notes,
         short_memory_bodies=short_memory_bodies,
         source_memory_root=source_memory_root,
+        excluded_note_paths=excluded_note_paths,
     )
     if template_error is not None or agents_content is None:
         return AmdMemorySyncPlan(

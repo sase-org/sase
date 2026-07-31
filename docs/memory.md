@@ -15,11 +15,11 @@ SASE memory is durable context that survives individual agent chats. Project not
 
 Use [initialization](init.md#memory-initialization) to create or refresh the files. Use
 [`sase memory agent-docs list`](init.md#agent-documents) to inspect `AGENTS.md` and provider instruction file status.
-Initialization generates both the short `sase/memory/sase.md` workspace note and the long `sase/memory/sase_beads.md`
-bead reference; managed agent instructions list the latter in Tier 2. Day to day, the usual order is: inspect loaded
-context with `sase memory list`, have agents use `sase memory read` for audited long-term reads, have agents use
-`sase memory write` only to create proposals, then have a human approve or reject those proposals with
-`sase memory review`.
+Initialization always generates the short `sase/memory/sase.md` workspace note, and additionally generates the long
+`sase/memory/sase_beads.md` bead reference for SASE-managed project repositories; managed agent instructions list the
+latter in Tier 2 there. Day to day, the usual order is: inspect loaded context with `sase memory list`, have agents use
+`sase memory read` for audited long-term reads, have agents use `sase memory write` only to create proposals, then have
+a human approve or reject those proposals with `sase memory review`.
 
 ## Inspect Context
 

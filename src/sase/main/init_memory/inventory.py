@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 import sys
 
@@ -19,11 +19,13 @@ def unreferenced_memory_files(
     *,
     overlay: Mapping[Path, str] | None = None,
     source_memory_root: Path | None = None,
+    ignored_paths: Iterable[Path] = (),
 ) -> tuple[Path, ...]:
     return unreferenced_memory_files_for_init(
         root,
         overlay=overlay,
         source_memory_root=source_memory_root,
+        ignored_paths=ignored_paths,
     )
 
 

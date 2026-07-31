@@ -73,6 +73,17 @@ def _delete_provider_shim_plan_paths(
     return tuple(path for plan in plans for path in _delete_provider_shim_paths(plan))
 
 
+def _delete_retired_note_paths(paths: Iterable[Path]) -> tuple[Path, ...]:
+    deleted: list[Path] = []
+    for path in paths:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            continue
+        deleted.append(path)
+    return tuple(deleted)
+
+
 def _delete_migrated_memory_paths(
     paths: Iterable[Path], *, root: Path
 ) -> tuple[Path, ...]:
@@ -141,6 +152,7 @@ def initialize_memory_root(
     derive_project_title: bool = False,
     chezmoi_home_roots: Iterable[Path] = (),
     include_project_agent_docs: bool = False,
+    include_bead_memory: bool = False,
 ) -> MemoryRootResult:
     context = memory_root_context(
         root,
@@ -151,6 +163,7 @@ def initialize_memory_root(
         derive_project_title=derive_project_title,
         chezmoi_home_roots=chezmoi_home_roots,
         include_project_agent_docs=include_project_agent_docs,
+        include_bead_memory=include_bead_memory,
     )
     written = _apply_expected_memory_files(context.expected_files)
     written = (*written, *_apply_provider_shim_plan(context.shim_plan))
@@ -159,6 +172,7 @@ def initialize_memory_root(
         context.memory_delete_paths,
         root=root,
     )
+    deleted = (*deleted, *_delete_retired_note_paths(context.retired_note_paths))
     deleted = (*deleted, *_delete_provider_shim_paths(context.shim_plan))
     deleted = (
         *deleted,
@@ -178,6 +192,7 @@ def initialize_memory_root(
                 source_memory_root=(
                     root / "sase" / "memory" if manage_memory else None
                 ),
+                ignored_paths=context.retired_note_paths,
             )
             if manage_memory
             else ()
