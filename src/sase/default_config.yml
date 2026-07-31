@@ -811,6 +811,14 @@ commit:
   finalizer:
     enabled: true
     max_passes: 2
+  message:
+    # Reject `sase commit` messages whose subject line is not a Conventional
+    # Commit (`type(scope)!: description`). Merge, revert, and fixup subjects
+    # are always exempt.
+    require_conventional_subject: true
+    # Commit types this project accepts. A configured list replaces the
+    # built-in set rather than extending it.
+    allowed_types: [build, chore, ci, deps, docs, feat, fix, perf, refactor, revert, style, test]
 
 vcs_provider:
   provider: "auto"

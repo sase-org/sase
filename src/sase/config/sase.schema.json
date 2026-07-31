@@ -1706,6 +1706,40 @@
               "minimum": 1
             }
           }
+        },
+        "message": {
+          "type": "object",
+          "description": "Commit-message subject validation policy.",
+          "additionalProperties": false,
+          "properties": {
+            "require_conventional_subject": {
+              "type": "boolean",
+              "description": "Reject SASE commit messages whose subject line is not a Conventional Commit.",
+              "default": true
+            },
+            "allowed_types": {
+              "type": "array",
+              "description": "Commit types accepted by the Conventional Commit subject validator. A configured list replaces the built-in set.",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "build",
+                "chore",
+                "ci",
+                "deps",
+                "docs",
+                "feat",
+                "fix",
+                "perf",
+                "refactor",
+                "revert",
+                "style",
+                "test"
+              ],
+              "minItems": 1
+            }
+          }
         }
       }
     },

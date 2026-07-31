@@ -11,6 +11,7 @@ from sase.main.init_memory.commit_message import (
 
 def test_is_conventional_header_accepts_allowed_tags() -> None:
     assert _is_conventional_header("docs(memory): document workflow")
+    assert _is_conventional_header("deps(memory): bump lockfile")
     assert _is_conventional_header("feat!: breaking memory change")
     assert _is_conventional_header("fix(scope)!: patch memory")
 

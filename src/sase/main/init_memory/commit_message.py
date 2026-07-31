@@ -2,33 +2,15 @@
 
 from __future__ import annotations
 
-import re
-
+from sase.core.commit_subject_facade import parse_commit_subject
 from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
 
 from .constants import MEMORY_FOLD_DEFAULT_PREFIX
 
-_ALLOWED_TAGS = (
-    "feat",
-    "fix",
-    "perf",
-    "refactor",
-    "docs",
-    "test",
-    "build",
-    "ci",
-    "style",
-    "revert",
-    "chore",
-)
-_CONVENTIONAL_HEADER_RE = re.compile(
-    rf"^(?:{'|'.join(_ALLOWED_TAGS)})(?:\([^)()\n]+\))?!?: "
-)
-
 
 def _is_conventional_header(subject: str) -> bool:
     """Return whether ``subject`` already starts with an allowed header."""
-    return _CONVENTIONAL_HEADER_RE.match(subject) is not None
+    return parse_commit_subject(subject).valid
 
 
 def _compose_fold_subject(
