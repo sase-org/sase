@@ -33,6 +33,7 @@ MEMORY_DIRECTORY_MAP_RELATIVE_PATH = (
     CANONICAL_MEMORY_RELATIVE_ROOT / "assets" / MEMORY_DIRECTORY_MAP_FILENAME
 )
 MEMORY_SASE_TEMPLATE_FILENAME = "memory-sase.template.md"
+MEMORY_SASE_BEADS_TEMPLATE_FILENAME = "memory-sase-beads.template.md"
 MEMORY_README_TEMPLATE_FILENAME = "memory-README.template.md"
 _MEMORY_TEMPLATE_PACKAGE = "sase.main.init_memory"
 _MEMORY_SASE_TEMPLATE_VARS = frozenset({"project_name", "linked_repo_entries"})
@@ -101,6 +102,10 @@ def _generated_sase_memory_relative_path() -> Path:
     return CANONICAL_MEMORY_RELATIVE_ROOT / "sase.md"
 
 
+def _generated_beads_memory_relative_path() -> Path:
+    return CANONICAL_MEMORY_RELATIVE_ROOT / "sase_beads.md"
+
+
 def render_generated_sase_memory_body(
     root: Path,
     entries: Iterable[LinkedRepoMemoryEntry],
@@ -116,6 +121,41 @@ def _generated_sase_memory_content(generated_sase_body: str) -> str:
         generated_sase_body,
         note_type="short",
         parent=AGENTS_PARENT,
+    )
+
+
+def render_generated_beads_memory_content() -> tuple[str | None, str | None]:
+    """Render the canonical generated ``sase/memory/sase_beads.md`` note."""
+    rendered, render_error = render_markdown_template(
+        package=_MEMORY_TEMPLATE_PACKAGE,
+        filename=f"templates/{MEMORY_SASE_BEADS_TEMPLATE_FILENAME}",
+        required_variables=frozenset(),
+        context={},
+    )
+    if render_error is not None or rendered is None:
+        return (
+            None,
+            render_error or "failed to render sase/memory/sase_beads.md template",
+        )
+    formatted = format_generated_memory_markdown(rendered)
+    note = parse_memory_note_text(
+        formatted,
+        _generated_beads_memory_relative_path(),
+    )
+    if note.description is None:
+        return (
+            None,
+            f"packaged {MEMORY_SASE_BEADS_TEMPLATE_FILENAME}: "
+            "generated long memory note must have a description",
+        )
+    return (
+        apply_memory_frontmatter(
+            formatted,
+            note_type="long",
+            parent=AGENTS_PARENT,
+            description=note.description,
+        ),
+        None,
     )
 
 
@@ -256,6 +296,7 @@ def render_expected_memory_files(
     project_name: str | None = None,
     amd_sync: AmdMemorySyncPlan | None = None,
     generated_sase_body: str | None = None,
+    generated_beads_content: str | None = None,
     source_memory_root: Path | None = None,
 ) -> tuple[tuple[MemoryExpectedFile, ...], str | None]:
     if generated_sase_body is None:
@@ -264,9 +305,20 @@ def render_expected_memory_files(
         )
         if render_error is not None or generated_sase_body is None:
             return (), render_error or "failed to render sase/memory/sase.md template"
+    if generated_beads_content is None:
+        generated_beads_content, render_error = render_generated_beads_memory_content()
+        if render_error is not None or generated_beads_content is None:
+            return (
+                (),
+                render_error or "failed to render sase/memory/sase_beads.md template",
+            )
     generated_sase_path = root / _generated_sase_memory_relative_path()
+    generated_beads_path = root / _generated_beads_memory_relative_path()
     generated_sase_content = _generated_sase_memory_content(generated_sase_body)
-    note_overlay = {generated_sase_path: generated_sase_content}
+    note_overlay = {
+        generated_sase_path: generated_sase_content,
+        generated_beads_path: generated_beads_content,
+    }
     if amd_sync is not None:
         note_overlay.update(
             {update.path: update.content for update in amd_sync.description_updates}
@@ -283,6 +335,11 @@ def render_expected_memory_files(
             path=generated_sase_path,
             content=generated_sase_content,
             detail="generated SASE memory",
+        ),
+        MemoryExpectedFile(
+            path=generated_beads_path,
+            content=generated_beads_content,
+            detail="generated SASE bead memory",
         ),
         MemoryExpectedFile(
             path=memory_write_root(root) / "README.md",
@@ -330,3 +387,14 @@ def render_expected_memory_files(
 def generated_short_notes(generated_sase_body: str) -> dict[str, str]:
     """Return the freshly generated short-note bodies keyed by relative path."""
     return {_generated_sase_memory_relative_path().as_posix(): generated_sase_body}
+
+
+def generated_long_notes(generated_beads_content: str) -> dict[str, str]:
+    """Return generated long-note descriptions keyed by relative path."""
+    relative_path = _generated_beads_memory_relative_path().as_posix()
+    note = parse_memory_note_text(generated_beads_content, relative_path)
+    if note.description is None:
+        raise ValueError(
+            f"generated long memory note lacks a description: {relative_path}"
+        )
+    return {relative_path: note.description}

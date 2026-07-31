@@ -218,6 +218,11 @@ Read anytime new CLI subcommands or options are added.
 Read when working with sase agent skills (aka xprompt skills), which are generated from source templates in the
 `src/sase/xprompts/skills/` and deployed to managed locations (my chezmoi repo, for example).
 
+**`sase/memory/sase_beads.md`**  
+Read before creating, updating, closing, or querying sase beads — bead types and tiers, the status lifecycle agents must
+never hand-edit, task-bead triage, phase-bead description prefixes, and non-cascading close, resolution, and note
+semantics.
+
 **`sase/memory/symvision.md`**  
 Read before fixing Symvision lint failures, including unused symbols, private misuse, pragmas, and epic whitelists.
 

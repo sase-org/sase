@@ -10,6 +10,11 @@ import pytest
 import sase.config.core as config_core
 from sase.amd._agents_doc import parse_amd_agents_document
 from sase.main import init_memory_handler
+from sase.main.init_memory.root_rendering import (
+    generated_long_notes,
+    render_generated_beads_memory_content,
+)
+from sase.memory.notes import parse_memory_note_text
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -72,6 +77,21 @@ def _patch_roots(
     )
     monkeypatch.setattr(config_core, "CONFIG_DIR", config_dir)
     return project_root, home_root, config_dir
+
+
+def test_default_beads_template_renders_canonical_long_note() -> None:
+    content, error = render_generated_beads_memory_content()
+
+    assert error is None
+    assert content is not None
+    relative_path = "sase/memory/sase_beads.md"
+    note = parse_memory_note_text(content, relative_path)
+    assert note.type == "long"
+    assert note.parent == "AGENTS.md"
+    assert note.description
+    assert generated_long_notes(content) == {
+        relative_path: note.description,
+    }
 
 
 def test_root_memory_templates_beat_user_templates(

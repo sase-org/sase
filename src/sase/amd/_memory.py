@@ -19,6 +19,7 @@ from .constants import AGENTS_FILENAME
 from .inline_memory import inline_memory_section, validate_short_memory_structure
 from sase.memory.notes import (
     AGENTS_PARENT,
+    MemoryNote,
     apply_memory_frontmatter,
     discover_memory_notes,
     render_memory_note_references,
@@ -105,11 +106,14 @@ def _long_memory_description(
 
 
 def _long_memory_descriptions(
-    root: Path, *, source_memory_root: Path | None = None
+    root: Path,
+    generated_long_notes: Mapping[str, str],
+    *,
+    source_memory_root: Path | None = None,
 ) -> dict[str, str]:
     existing_agents_descriptions = _existing_agents_long_descriptions(root)
     notes = discover_memory_notes(root, source_memory_root=source_memory_root)
-    return {
+    descriptions = {
         note.relative_path: _long_memory_description(
             root / note.path,
             body=note.body,
@@ -120,11 +124,14 @@ def _long_memory_descriptions(
         for note in notes
         if note.type == "long"
     }
+    descriptions.update(generated_long_notes)
+    return descriptions
 
 
 def _long_memory_description_updates(
     root: Path,
     descriptions: dict[str, str],
+    generated_long_notes: Mapping[str, str],
     *,
     source_memory_root: Path | None = None,
 ) -> tuple[AmdLongMemoryDescriptionUpdate, ...]:
@@ -135,6 +142,8 @@ def _long_memory_description_updates(
         source_path = root / note.source_relative_path
         path = root / note.path
         rel = note.relative_path
+        if rel in generated_long_notes:
+            continue
         description = descriptions[rel]
         text, error = read_text(source_path)
         if error is not None or text is None:
@@ -197,17 +206,37 @@ def _render_managed_agents(
     title: str,
     *,
     long_memory_descriptions: dict[str, str] | None = None,
+    generated_long_notes: Mapping[str, str] | None = None,
     short_memory_bodies: Mapping[str, str] | None = None,
     source_memory_root: Path | None = None,
 ) -> tuple[str | None, str | None]:
     """Render the project-managed AMD ``AGENTS.md`` content for *root*."""
     existing_descriptions = _existing_agents_long_descriptions(root)
-    notes = discover_memory_notes(root, source_memory_root=source_memory_root)
+    notes_by_relative_path = {
+        note.relative_path: note
+        for note in discover_memory_notes(
+            root,
+            source_memory_root=source_memory_root,
+        )
+    }
+    for relative_path, description in (generated_long_notes or {}).items():
+        if relative_path in notes_by_relative_path:
+            continue
+        notes_by_relative_path[relative_path] = MemoryNote(
+            path=Path(relative_path),
+            type="long",
+            parent=AGENTS_PARENT,
+            description=description,
+            body="",
+            frontmatter={},
+            type_source="frontmatter",
+            parent_source="frontmatter",
+        )
     top_level_long_notes = tuple(
         sorted(
             (
                 note
-                for note in notes
+                for note in notes_by_relative_path.values()
                 if note.type == "long" and note.parent == AGENTS_PARENT
             ),
             key=lambda note: note.relative_path,
@@ -277,15 +306,30 @@ def plan_minimal_agents_sync(
     root: Path,
     *,
     generated_short_notes: Mapping[str, str],
+    generated_long_notes: Mapping[str, str],
 ) -> AmdMemorySyncPlan:
     """Plan the create-if-missing fallback agent document from its template."""
     relative_path = (CANONICAL_MEMORY_RELATIVE_ROOT / "sase.md").as_posix()
     body = generated_short_notes.get(relative_path, "")
     tier1_sections = inline_memory_section(relative_path, body, number=1).rstrip("\n")
+    tier2_entries = render_memory_note_references(
+        MemoryNote(
+            path=Path(path),
+            type="long",
+            parent=AGENTS_PARENT,
+            description=description,
+            body="",
+            frontmatter={},
+            type_source="frontmatter",
+            parent_source="frontmatter",
+        )
+        for path, description in generated_long_notes.items()
+    )
     rendered, render_error = render_agents_template(
         root,
         title="Agent Instructions",
         tier1_sections=tier1_sections,
+        tier2_entries=tier2_entries,
         minimal=True,
     )
     if render_error is not None or rendered is None:
@@ -308,6 +352,7 @@ def plan_amd_memory_sync(
     *,
     derive_project_title: bool = False,
     generated_short_notes: Mapping[str, str] | None = None,
+    generated_long_notes: Mapping[str, str] | None = None,
     source_memory_root: Path | None = None,
 ) -> AmdMemorySyncPlan:
     """Plan AMD-managed memory block synchronization for ``sase memory init``.
@@ -315,6 +360,8 @@ def plan_amd_memory_sync(
     *generated_short_notes* maps a root-relative short-note path to its freshly
     generated body so the rendered ``AGENTS.md`` inlines current content (e.g.
     ``sase/memory/sase.md``) in a single pass instead of a stale on-disk copy.
+    *generated_long_notes* maps generated long-note paths to their descriptions
+    so a fresh root lists them in Tier 2 in that same pass.
     """
     root = root or Path.cwd()
     title, title_error = resolve_amd_h1_title(
@@ -331,6 +378,7 @@ def plan_amd_memory_sync(
         return plan_minimal_agents_sync(
             root,
             generated_short_notes=generated_short_notes or {},
+            generated_long_notes=generated_long_notes or {},
         )
 
     short_memory_bodies = _short_memory_bodies(
@@ -348,17 +396,21 @@ def plan_amd_memory_sync(
         )
 
     descriptions = _long_memory_descriptions(
-        root, source_memory_root=source_memory_root
+        root,
+        generated_long_notes or {},
+        source_memory_root=source_memory_root,
     )
     updates = _long_memory_description_updates(
         root,
         descriptions,
+        generated_long_notes or {},
         source_memory_root=source_memory_root,
     )
     agents_content, template_error = _render_managed_agents(
         root,
         title,
         long_memory_descriptions=descriptions,
+        generated_long_notes=generated_long_notes,
         short_memory_bodies=short_memory_bodies,
         source_memory_root=source_memory_root,
     )

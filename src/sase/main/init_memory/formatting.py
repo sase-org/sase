@@ -12,6 +12,19 @@ _INLINE_CODE_SPAN_RE = re.compile(r"`[^`\n]+`")
 _CODE_SPAN_SPACE_SENTINEL = "\x00"
 
 
+def _split_frontmatter(content: str) -> tuple[str | None, str]:
+    lines = content.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return None, content
+    for index, line in enumerate(lines[1:], start=1):
+        if line.strip() != "---":
+            continue
+        frontmatter = "\n".join(lines[: index + 1])
+        body = "\n".join(lines[index + 1 :]).lstrip("\n")
+        return frontmatter, body
+    return None, content
+
+
 def _is_fence_line(line: str) -> bool:
     stripped = line.lstrip()
     return any(stripped.startswith(marker) for marker in _FENCE_MARKERS)
@@ -75,7 +88,8 @@ def _standalone_strong_label_needs_hard_break(
 
 def format_generated_memory_markdown(content: str) -> str:
     """Format generated memory Markdown without invoking external tools."""
-    source_lines = content.splitlines()
+    frontmatter, body = _split_frontmatter(content)
+    source_lines = body.splitlines()
     formatted: list[str] = []
     index = 0
 
@@ -144,4 +158,9 @@ def format_generated_memory_markdown(content: str) -> str:
 
     while formatted and formatted[-1] == "":
         formatted.pop()
-    return "\n".join(formatted) + "\n"
+    formatted_body = "\n".join(formatted)
+    if frontmatter is not None:
+        if formatted_body:
+            return f"{frontmatter}\n\n{formatted_body}\n"
+        return f"{frontmatter}\n"
+    return f"{formatted_body}\n"

@@ -47,8 +47,10 @@ linked_repos:
 
     generated = [
         project_root / "sase" / "memory" / "sase.md",
+        project_root / "sase" / "memory" / "sase_beads.md",
         project_root / "sase" / "memory" / "README.md",
         home_root / "sase" / "memory" / "sase.md",
+        home_root / "sase" / "memory" / "sase_beads.md",
         home_root / "sase" / "memory" / "README.md",
     ]
     before = {path: path.read_text(encoding="utf-8") for path in generated}
@@ -94,6 +96,7 @@ def test_init_memory_generated_markdown_passes_prettier_check(
 
     generated = [
         project_root / "sase" / "memory" / "sase.md",
+        project_root / "sase" / "memory" / "sase_beads.md",
         project_root / "sase" / "memory" / "README.md",
     ]
     assert all(path.read_bytes().endswith(b"\n") for path in generated)
@@ -139,3 +142,18 @@ def test_format_keeps_inline_code_spans_atomic_at_wrap_points() -> None:
     formatted = format_generated_memory_markdown(paragraph)
     assert "`%n(parent,\n" not in formatted
     assert "names. The first\n`%n(parent, suffix)` attachment" in formatted
+
+
+def test_format_preserves_frontmatter() -> None:
+    content = """---
+type: long
+parent: AGENTS.md
+description: Detailed reference.
+---
+
+# Reference
+
+Detailed body.
+"""
+
+    assert format_generated_memory_markdown(content) == content

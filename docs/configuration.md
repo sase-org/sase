@@ -389,7 +389,7 @@ memory_readme_template: templates/memory-README.template.md
 | Field                         | Required Jinja variables                                                                  | Generated target or use               |
 | ----------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------- |
 | `amd_agents_template`         | `title`, `tier1_sections`, `tier2_entries`                                                | Managed root `AGENTS.md`              |
-| `amd_agents_minimal_template` | `title`, `tier1_sections`                                                                 | Create-if-missing minimal `AGENTS.md` |
+| `amd_agents_minimal_template` | `title`, `tier1_sections`, `tier2_entries`                                                | Create-if-missing minimal `AGENTS.md` |
 | `memory_sase_template`        | `project_name`, `linked_repo_entries`                                                     | Generated `sase/memory/sase.md`       |
 | `memory_readme_template`      | `memory_notes`, `total_notes`, `short_notes`, `long_notes`, `total_lines`, `total_tokens` | Generated `sase/memory/README.md`     |
 

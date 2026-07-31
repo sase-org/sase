@@ -169,7 +169,8 @@ independent of `sase project enable`.
   `*.md.tmpl` sources are still recognized and migrated to full copies.
 
 Managed projects can override the packaged Jinja templates for `AGENTS.md`, minimal agent instructions,
-`sase/memory/sase.md`, and `sase/memory/README.md` with root-relative paths in `sase/sase.yml`. Home roots use
+`sase/memory/sase.md`, and `sase/memory/README.md` with root-relative paths in `sase/sase.yml`. The generated
+`sase/memory/sase_beads.md` bead reference is a fixed packaged asset and has no override key. Home roots use
 convention-based template files in the SASE user-config directory (or its chezmoi source counterpart). Template
 variables and validation rules are listed in the
 [generated templates configuration](configuration.md#generated-templates).
@@ -194,12 +195,14 @@ files already there.
 When `use_chezmoi: true`, the home files are written to the chezmoi source tree. The command can then commit those home
 changes and run `chezmoi apply --force`; `--no-commit` does not disable that home deployment path.
 
-The generated `sase/memory/sase.md` summarizes workspace naming and linked repositories. Project memory reads
-linked-repo descriptions from the project-local `sase/sase.yml`; home memory reads them from the global config
-`~/.config/sase/sase.yml`, or from the chezmoi-managed config path when `use_chezmoi: true`. Generated memory requires
-agents to use `/sase_repo` before reading or modifying any repository outside their own workspace checkout. This rule
-applies to configured linked repos and sidecars, other SASE projects, and unlinked GitHub repos even when no linked
-repositories are configured; the skill carries the command grammar and workspace-selection details.
+The generated `sase/memory/sase.md` summarizes workspace naming and linked repositories. The generated long-term
+`sase/memory/sase_beads.md` note provides shared bead workflow guidance and is listed in Tier 2 of managed agent
+instructions. Project memory reads linked-repo descriptions from the project-local `sase/sase.yml`; home memory reads
+them from the global config `~/.config/sase/sase.yml`, or from the chezmoi-managed config path when `use_chezmoi: true`.
+Generated memory requires agents to use `/sase_repo` before reading or modifying any repository outside their own
+workspace checkout. This rule applies to configured linked repos and sidecars, other SASE projects, and unlinked GitHub
+repos even when no linked repositories are configured; the skill carries the command grammar and workspace-selection
+details.
 
 Every configured `linked_repos` entry (or its deprecated `sibling_repos` alias) must have a non-empty `description`.
 Initialization fails instead of generating ambiguous memory when a description is missing.

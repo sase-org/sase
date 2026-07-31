@@ -28,7 +28,9 @@ from .models import (
     MemoryRootPlan,
 )
 from .root_rendering import (
+    generated_long_notes,
     generated_short_notes,
+    render_generated_beads_memory_content,
     render_generated_sase_memory_body,
     render_expected_memory_files,
 )
@@ -181,17 +183,20 @@ def _amd_sync_plan(
     enable_amd: bool,
     derive_project_title: bool,
     generated_short_notes: dict[str, str],
+    generated_long_notes: dict[str, str],
     source_memory_root: Path,
 ) -> AmdMemorySyncPlan | None:
     if not enable_amd:
         return plan_minimal_agents_sync(
             root,
             generated_short_notes=generated_short_notes,
+            generated_long_notes=generated_long_notes,
         )
     return plan_amd_memory_sync(
         root,
         derive_project_title=derive_project_title,
         generated_short_notes=generated_short_notes,
+        generated_long_notes=generated_long_notes,
         source_memory_root=source_memory_root,
     )
 
@@ -425,11 +430,27 @@ def memory_root_context(
                 sase_render_error or "failed to render sase/memory/sase.md template",
             ),
         )
+    generated_beads_content, beads_render_error = (
+        render_generated_beads_memory_content()
+    )
+    if beads_render_error is not None or generated_beads_content is None:
+        return _MemoryRootContext(
+            amd_sync=None,
+            expected_files=(),
+            shim_plan=ProviderShimPlan(writes=(), deletes=()),
+            additional_shim_plans=(),
+            source_memory_root=migration.source_memory_root,
+            blockers=(
+                beads_render_error
+                or "failed to render sase/memory/sase_beads.md template",
+            ),
+        )
     amd_sync = _amd_sync_plan(
         root,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,
         generated_short_notes=generated_short_notes(generated_sase_body),
+        generated_long_notes=generated_long_notes(generated_beads_content),
         source_memory_root=migration.source_memory_root,
     )
     expected_files, expected_error = render_expected_memory_files(
@@ -438,6 +459,7 @@ def memory_root_context(
         project_name=project_name,
         amd_sync=amd_sync,
         generated_sase_body=generated_sase_body,
+        generated_beads_content=generated_beads_content,
         source_memory_root=migration.source_memory_root,
     )
     if expected_error is not None:

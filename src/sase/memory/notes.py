@@ -256,7 +256,7 @@ def _prettier_stable_frontmatter(dumped: str) -> str:
         ):
             lines.append("description:")
             wrapper = textwrap.TextWrapper(
-                width=_FRONTMATTER_WRAP_WIDTH - 2,
+                width=_FRONTMATTER_WRAP_WIDTH,
                 initial_indent="  ",
                 subsequent_indent="  ",
                 break_long_words=False,

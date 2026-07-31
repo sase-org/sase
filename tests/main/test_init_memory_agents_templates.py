@@ -88,6 +88,7 @@ def test_project_template_override_renders_and_round_trips(
     assert parsed.short_memory_paths == ("sase/memory/sase.md",)
     assert tuple(entry.path for entry in parsed.long_memory_entries) == (
         "sase/memory/detail.md",
+        "sase/memory/sase_beads.md",
     )
     assert plan_memory().actions == ()
 
@@ -197,7 +198,8 @@ def test_user_minimal_template_customizes_create_if_missing_fallback(
     monkeypatch.setattr(config_core, "CONFIG_DIR", config_dir)
     write(
         config_dir / "AGENTS.minimal.template.md",
-        "# {{ title }}\n\nMinimal custom frame.\n\n{{ tier1_sections }}\n",
+        "# {{ title }}\n\nMinimal custom frame.\n\n{{ tier1_sections }}\n\n"
+        "## Tier 2 (long-term) Memory\n\n{{ tier2_entries }}\n",
     )
 
     assert run_handler() == 0
@@ -205,6 +207,7 @@ def test_user_minimal_template_customizes_create_if_missing_fallback(
     agents = (home_root / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Agent Instructions\n\nMinimal custom frame.\n")
     assert "### 1. SASE = Structured Agentic Software Engineering (sase)" in agents
+    assert "**`sase/memory/sase_beads.md`**" in agents
 
 
 def test_invalid_minimal_template_blocks_without_writing(
@@ -228,8 +231,8 @@ def test_invalid_minimal_template_blocks_without_writing(
     plan = plan_memory()
 
     assert any(
-        "AGENTS.minimal.template.md: template must contain {{ tier1_sections }}"
-        in blocker
+        "AGENTS.minimal.template.md: template must contain "
+        "{{ tier1_sections }}, {{ tier2_entries }}" in blocker
         for blocker in plan.blockers
     )
     assert run_handler() == 1

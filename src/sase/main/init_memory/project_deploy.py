@@ -297,7 +297,10 @@ def deploy_to_project_repo(
             *project_result.deleted_paths,
             *owned_paths,
             *(
-                (memory_write_root(project_result.root) / "sase.md",)
+                (
+                    memory_write_root(project_result.root) / "sase.md",
+                    memory_write_root(project_result.root) / "sase_beads.md",
+                )
                 if manage_memory
                 else ()
             ),
