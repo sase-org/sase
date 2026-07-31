@@ -59,6 +59,7 @@ def work_from_plan_file(
     yes_to_all: bool = False,
     parent: str | None = None,
     render: bool = True,
+    expect_prompt_snapshot: bool = False,
 ) -> _PlanFileWorkResult:
     """Validate, archive, materialize, link, and launch one epic plan."""
     from sase.sdd.plan_archive import plan_archive_destination
@@ -199,6 +200,7 @@ def work_from_plan_file(
             yes_to_all=yes_to_all,
             no_push=no_push,
             render=render,
+            expect_prompt_snapshot=expect_prompt_snapshot,
         )
 
 
@@ -218,6 +220,7 @@ def _work_from_plan_file_locked(
     yes_to_all: bool,
     no_push: bool,
     render: bool,
+    expect_prompt_snapshot: bool = False,
 ) -> _PlanFileWorkResult:
     """Run one mutation transaction while its store launch lock is held."""
     from sase.sdd.plan_archive import archive_plan_file
@@ -238,6 +241,7 @@ def _work_from_plan_file_locked(
             tier="epic",
             destination_name=destination_name,
             preserve_existing=True,
+            expect_prompt_snapshot=expect_prompt_snapshot,
         )
     except Exception as exc:
         raise _error_with_resume(
@@ -380,6 +384,7 @@ def _work_from_plan_file_locked(
                 parent_override=parent,
                 store=store,
                 primary_root=workspace_dir,
+                expect_prompt_snapshot=expect_prompt_snapshot,
             )
     except Exception as exc:
         retry_requires_push = False

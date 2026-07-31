@@ -29,6 +29,7 @@ def handle_bead_work(
     yes_to_all = bool(getattr(args, "yes_to_all", False)) or json_output
     parent = getattr(args, "parent", None)
     launch_feedback = getattr(args, "launch_feedback", None)
+    expect_prompt_snapshot = bool(getattr(args, "expect_prompt_snapshot", False))
     target = str(getattr(args, "target", getattr(args, "id", "")))
 
     from sase.bead.cli_work_from_plan import (
@@ -77,6 +78,7 @@ def handle_bead_work(
                     no_push=no_push,
                     parent=parent,
                     render=not json_output,
+                    expect_prompt_snapshot=expect_prompt_snapshot,
                 )
         except PlanFileWorkError as exc:
             finish_epic_launch(

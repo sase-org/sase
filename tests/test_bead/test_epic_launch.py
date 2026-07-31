@@ -35,7 +35,23 @@ def test_build_epic_launch_argv_carries_approval_linking_options() -> None:
         "/tmp/artifacts",
         "--cl-name",
         "demo",
+        "--expect-prompt-snapshot",
     ]
+
+
+def test_build_epic_launch_argv_defaults_to_expecting_prompt_snapshot() -> None:
+    argv = build_epic_launch_argv("/tmp/epic plan.md")
+
+    assert "--expect-prompt-snapshot" in argv
+
+
+def test_build_epic_launch_argv_omits_expect_prompt_snapshot_when_disabled() -> None:
+    argv = build_epic_launch_argv(
+        "/tmp/epic plan.md",
+        expect_prompt_snapshot=False,
+    )
+
+    assert "--expect-prompt-snapshot" not in argv
 
 
 @pytest.mark.parametrize(
@@ -202,6 +218,7 @@ def test_submit_epic_launch_task_submits_literal_detached_command(
         str(tmp_path / "artifacts"),
         "--cl-name",
         "demo",
+        "--expect-prompt-snapshot",
     ]
     kwargs = submit_task.call_args.kwargs
     assert kwargs["label"] == "Epic launch · auth rewrite"

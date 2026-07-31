@@ -79,6 +79,112 @@ def test_plan_file_mode_uses_sidecar_store(
         )
 
 
+def _sidecar_context(
+    project_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_common import _BeadsLocation
+
+    sidecar = tmp_path / "plans-sidecar"
+    with BeadProject.init(sidecar, beads_dirname="beads"):
+        pass
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=sidecar,
+        repo_root=sidecar,
+    )
+    location = _BeadsLocation(
+        root=sidecar,
+        beads_dirname="beads",
+        storage=store.storage,
+        store=store,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._resolve_context",
+        lambda *, dry_run: (location, store, project_dir),
+    )
+
+
+@pytest.mark.parametrize("expect_prompt_snapshot", [True, False])
+def test_plan_file_mode_forwards_expect_prompt_snapshot_to_archive(
+    project_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    expect_prompt_snapshot: bool,
+) -> None:
+    _sidecar_context(project_dir, tmp_path, monkeypatch)
+    source = project_dir / "rollout.md"
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    def fake_archive_plan_file(*_args: object, **archive_kwargs: object) -> object:
+        captured.update(archive_kwargs)
+        raise RuntimeError("stop after capturing archive_plan_file kwargs")
+
+    monkeypatch.setattr(
+        "sase.sdd.plan_archive.archive_plan_file",
+        fake_archive_plan_file,
+    )
+
+    with pytest.raises(PlanFileWorkError):
+        work_from_plan_file(
+            str(source),
+            dry_run=False,
+            yes=True,
+            no_push=False,
+            render=False,
+            expect_prompt_snapshot=expect_prompt_snapshot,
+        )
+
+    assert captured["expect_prompt_snapshot"] is expect_prompt_snapshot
+
+
+@pytest.mark.parametrize("expect_prompt_snapshot", [True, False])
+def test_plan_file_mode_archives_prompt_link_per_expect_prompt_snapshot(
+    project_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    expect_prompt_snapshot: bool,
+) -> None:
+    from sase.sdd.artifact_links import parse_sdd_artifact_link
+
+    _sidecar_context(project_dir, tmp_path, monkeypatch)
+    source = project_dir / "rollout.md"
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._commit_plan_file",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        lambda _project, _epic_id, **_kwargs: True,
+    )
+
+    result = work_from_plan_file(
+        str(source),
+        dry_run=False,
+        yes=True,
+        no_push=False,
+        render=False,
+        expect_prompt_snapshot=expect_prompt_snapshot,
+    )
+
+    link = parse_sdd_artifact_link(
+        result.archived_plan_path.read_text(encoding="utf-8")
+    )
+    month = result.archived_plan_path.parent.name
+    if expect_prompt_snapshot:
+        assert link.reference == f"{month}/prompts/rollout.md"
+    else:
+        assert link.reference is None
+
+
 def test_plan_update_lock_failure_leaves_original_bytes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

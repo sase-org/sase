@@ -236,6 +236,36 @@ def test_bead_link_write_reprojects_prompt_section(
     assert sections[0].target == "prompts/rollout.md"
 
 
+def test_bead_link_write_projects_prompt_section_when_snapshot_is_expected_but_absent(
+    project_dir: Path,
+) -> None:
+    plans_root = project_dir / "repo--plans"
+    plan_path = plans_root / "202607" / "rollout.md"
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text(EPIC_PLAN, encoding="utf-8")
+    store = SddStore("sidecar_repos", plans_root, plans_root)
+
+    with BeadProject(project_dir) as proj:
+        create_and_launch_epic_from_plan(
+            proj,
+            plan_path=plan_path,
+            plan_ref="plans:202607/rollout.md",
+            commit_plan_update=_write_plan_update,
+            launch_work=lambda _project, _epic_id: True,
+            store=store,
+            primary_root=project_dir,
+            expect_prompt_snapshot=True,
+        )
+
+    sections = parse_plan_header_block(plan_path.read_text(encoding="utf-8")).sections
+    assert [section.kind for section in sections] == [
+        PlanHeaderSectionKind.PROMPT,
+        PlanHeaderSectionKind.BEAD,
+    ]
+    assert sections[0].label == "202607/prompts/rollout.md"
+    assert sections[0].target == "prompts/rollout.md"
+
+
 def test_creation_failure_removes_epic_and_restores_plan(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

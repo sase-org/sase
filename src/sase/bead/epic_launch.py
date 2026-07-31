@@ -41,6 +41,7 @@ def build_epic_launch_argv(
     artifacts_dir: str | Path | None = None,
     cl_name: str | None = None,
     yes_to_all: bool = True,
+    expect_prompt_snapshot: bool = True,
 ) -> list[str]:
     """Build the canonical approved-epic launch command."""
     confirmation_flag = "--yes-to-all" if yes_to_all else "--yes"
@@ -49,6 +50,8 @@ def build_epic_launch_argv(
         argv.extend(["--artifacts-dir", str(artifacts_dir)])
     if cl_name:
         argv.extend(["--cl-name", cl_name])
+    if expect_prompt_snapshot:
+        argv.append("--expect-prompt-snapshot")
     return argv
 
 

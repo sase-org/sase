@@ -236,6 +236,11 @@ def register_bead_work_parser(
         ),
     )
     parser.add_argument(
+        "--expect-prompt-snapshot",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
         "-j",
         "--json",
         action="store_true",

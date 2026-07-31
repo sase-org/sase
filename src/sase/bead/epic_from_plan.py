@@ -57,6 +57,7 @@ def create_and_launch_epic_from_plan(
     parent_override: str | None = None,
     store: SddStore | None = None,
     primary_root: Path | None = None,
+    expect_prompt_snapshot: bool = False,
 ) -> _EpicFromPlanResult:
     """Create an epic DAG, link the plan, and launch ``sase bead work``.
 
@@ -174,7 +175,11 @@ def create_and_launch_epic_from_plan(
             sdd_dir=store.sdd_dir if store is not None else plans_root,
             plan_path=plan_path,
             plans_root=plans_root,
-            prompt_path=archived_prompt if archived_prompt.is_file() else None,
+            prompt_path=(
+                archived_prompt
+                if expect_prompt_snapshot or archived_prompt.is_file()
+                else None
+            ),
             store=store,
             primary_root=primary_root,
         )

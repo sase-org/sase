@@ -229,6 +229,7 @@ def test_bead_work_help_describes_both_targets_and_options(
     assert "Full or shorthand epic/task bead ID" in help_text
     assert "validated epic plan file" in help_text
     assert "--launch-feedback" not in help_text
+    assert "--expect-prompt-snapshot" not in help_text
     assert "-j JSON, --json JSON" not in help_text
     assert "-a DIR" in help_text
     assert "--artifacts-dir DIR" in help_text
@@ -239,3 +240,13 @@ def test_bead_work_help_describes_both_targets_and_options(
     assert "--no-push" in help_text
     assert "--parent ID|top-level" in help_text
     assert "--parent top-level" in help_text
+
+
+def test_bead_work_parses_expect_prompt_snapshot_flag() -> None:
+    args = create_parser().parse_args(["bead", "work", "sase-64"])
+    assert args.expect_prompt_snapshot is False
+
+    args = create_parser().parse_args(
+        ["bead", "work", "sase-64", "--expect-prompt-snapshot"]
+    )
+    assert args.expect_prompt_snapshot is True
