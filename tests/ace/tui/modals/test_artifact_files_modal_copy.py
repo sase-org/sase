@@ -569,6 +569,7 @@ async def test_artifact_file_modal_copy_palette_formats_marked_sets_and_skips(
         for key in ("@", "l", "c", "P", "J"):
             await pilot.press("%", key)
             await pilot.pause()
+            await _drain_clipboard_tasks(pilot.app)
 
     assert copied[0] == f"@file:{first.id}\n@file:{second.id}"
     assert copied[1] == (f"- [First](file:{first.id})\n- [Second](file:{second.id})")
