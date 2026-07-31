@@ -102,7 +102,7 @@ class GitVcsProbe:
     def __init__(self, *, timeout_seconds: float = 5.0) -> None:
         self._timeout_seconds = timeout_seconds
         self._toplevel_by_directory: dict[str, str | None] = {}
-        self._identity_by_context: dict[tuple[str, str, int], str | None] = {}
+        self._identity_index_by_context: dict[tuple[str, int], dict[str, str]] = {}
         self._durable_refs_by_repo: dict[str, tuple[str, ...] | None] = {}
 
     def repo_toplevel(self, path: str) -> str | None:
@@ -127,28 +127,24 @@ class GitVcsProbe:
         workspace_num: int,
     ) -> str | None:
         normalized_toplevel = str(Path(toplevel).resolve(strict=False))
-        cache_key = (normalized_toplevel, project, workspace_num)
-        if cache_key in self._identity_by_context:
-            return self._identity_by_context[cache_key]
-
-        inventory = collect_repo_inventory(project=project)
-        identity = None
-        for record in inventory.records:
-            candidate_paths: list[str] = []
-            clone = record.clone_for_workspace(workspace_num)
-            if clone is not None:
-                candidate_paths.append(clone.path)
-            candidate_paths.append(record.path)
-            if any(
-                candidate_path
-                and str(Path(candidate_path).resolve(strict=False))
-                == normalized_toplevel
-                for candidate_path in candidate_paths
-            ):
-                identity = record.name
-                break
-        self._identity_by_context[cache_key] = identity
-        return identity
+        context_key = (project, workspace_num)
+        identity_index = self._identity_index_by_context.get(context_key)
+        if identity_index is None:
+            identity_index = {}
+            for record in collect_repo_inventory(project=project).records:
+                clone = record.clone_for_workspace(workspace_num)
+                candidate_paths = (
+                    *((clone.path,) if clone is not None else ()),
+                    record.path,
+                )
+                for candidate_path in candidate_paths:
+                    if candidate_path:
+                        identity_index.setdefault(
+                            str(Path(candidate_path).resolve(strict=False)),
+                            record.name,
+                        )
+            self._identity_index_by_context[context_key] = identity_index
+        return identity_index.get(normalized_toplevel)
 
     def durable_candidate_commits(
         self,

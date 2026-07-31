@@ -241,6 +241,64 @@ def test_unknown_inventory_and_probe_errors_fail_safe_to_store(
     assert (failed.outcome, failed.reason) == ("store", "vcs_probe_failed")
 
 
+def test_repo_identity_collects_inventory_once_for_multiple_repositories(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "primary"
+    linked = tmp_path / "linked"
+    primary.mkdir()
+    linked.mkdir()
+    records = tuple(
+        RepoRecord(
+            name=name,
+            kind=kind,
+            project=PROJECT,
+            project_key=PROJECT,
+            path=str(path),
+            exists=True,
+            auto_clone=False,
+            description=None,
+            source="test",
+            env_name=None,
+        )
+        for name, kind, path in (
+            (PROJECT, "primary", primary),
+            ("docs", "linked", linked),
+        )
+    )
+    collection_count = 0
+
+    def collect_inventory(**_kwargs: Any) -> RepoInventory:
+        nonlocal collection_count
+        collection_count += 1
+        return RepoInventory(records)
+
+    monkeypatch.setattr(
+        "sase.core.artifact_capture_policy.collect_repo_inventory",
+        collect_inventory,
+    )
+    probe = GitVcsProbe()
+
+    assert (
+        probe.repo_identity(
+            str(primary),
+            project=PROJECT,
+            workspace_num=WORKSPACE_NUM,
+        )
+        == PROJECT
+    )
+    assert (
+        probe.repo_identity(
+            str(linked),
+            project=PROJECT,
+            workspace_num=WORKSPACE_NUM,
+        )
+        == "docs"
+    )
+    assert collection_count == 1
+
+
 def test_store_cap_does_not_count_references(
     monkeypatch: Any,
     tmp_path: Path,
