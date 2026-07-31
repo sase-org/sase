@@ -134,7 +134,8 @@ offers two branches:
 - **Close** requires feedback and closes the bead with that reason and `resolution=canceled`.
 
 The gate cannot be resolved automatically. While it remains pending, the chop suppresses duplicates; if the bead leaves
-`ready` out of band, the chop cancels the stale gate.
+`ready` out of band, the chop cancels the stale gate. If the gate becomes terminal or disappears while the bead is still
+`ready`, the next five-minute scan creates a replacement with a new generation-specific request ID.
 
 ### Agent Completion Attachments
 

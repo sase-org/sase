@@ -2996,18 +2996,18 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead update`
 
-| Flag                | Values                                              | Default    | Description                         |
-| ------------------- | --------------------------------------------------- | ---------- | ----------------------------------- |
-| `id`                | string                                              | (required) | Issue ID to update                  |
-| `-s, --status`      | `open`, `claimed`, `ready`, `in_progress`, `closed` | -          | Change status; `ready` is task-only |
-| `-t, --title`       | string                                              | -          | Change title                        |
-| `-d, --description` | string                                              | -          | Change description                  |
-| `-n, --notes`       | string                                              | -          | Change notes                        |
-| `-D, --design`      | path                                                | -          | Change plan path                    |
-| `-a, --assignee`    | string                                              | -          | Change assignee                     |
-| `-m, --model`       | string                                              | -          | Change launch model                 |
-| `-z, --size`        | `xsmall`, `small`, `medium`, `large`, `xlarge`      | -          | Change phase/task size              |
-| `--tier`            | `plan`, `epic`                                      | -          | Change plan-bead tier               |
+| Flag                | Values                                              | Default    | Description                            |
+| ------------------- | --------------------------------------------------- | ---------- | -------------------------------------- |
+| `id`                | string                                              | (required) | Issue ID to update                     |
+| `-s, --status`      | `open`, `claimed`, `ready`, `in_progress`, `closed` | -          | Change status; `ready` is task-only    |
+| `-t, --title`       | string                                              | -          | Change title                           |
+| `-d, --description` | string                                              | -          | Change description                     |
+| `-n, --notes`       | string                                              | -          | Change notes                           |
+| `-D, --design`      | path                                                | -          | Change design path; all types accepted |
+| `-a, --assignee`    | string                                              | -          | Change assignee                        |
+| `-m, --model`       | string                                              | -          | Change launch model                    |
+| `-z, --size`        | `xsmall`, `small`, `medium`, `large`, `xlarge`      | -          | Change phase/task size                 |
+| `-r, --tier`        | `plan`, `epic`                                      | -          | Change plan-bead tier                  |
 
 #### `sase bead close`
 

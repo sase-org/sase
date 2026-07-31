@@ -206,9 +206,11 @@ both inclusion and exclusion.
 
 The Plans pane keeps standalone task beads in a dedicated **Tasks** section between proposals and epics. The section
 header reports its total and identifies `◇` as the task-ready status; the pane summary includes task counts, and
-`kind:task` narrows directly to these rows. Task rows use the shared orchid `◆ task` identity and show the same status,
-size, assignee, dependency, blocker, description, notes, reference, and timestamp data as CLI and generated bead pages.
-Tasks have no parent epic or linked plan.
+`kind:task` narrows directly to these rows. Compact rows use the orchid `◆` task marker and show status, ID, title, and
+age. The preview and detail views add the task's assignee, description, notes, references, timestamps, and stored
+dependencies with their current statuses. Tasks have no parent epic, and the task detail does not show a reverse blocker
+list. If generic bead update added design metadata, ACE displays its plan reference but does not load the linked
+document into that detail.
 
 The default `s` status action is type-aware:
 
@@ -219,11 +221,12 @@ other beads: open → in_progress → closed → open
 ```
 
 Use `e` to edit a selected task's title and description. Status edits commit the owning sidecar store when necessary.
-The pane's `w` action still launches only a selected ready epic; it does not launch task workers. Launch a task from its
+The `s` action changes bead status only: moving a task from `ready` to `in_progress` does not launch a worker. The
+pane's `w` action still launches only a selected ready epic; it does not launch task workers. Launch a task from its
 `TaskTriage` notification or with `sase bead work <task-id>`.
 
 When that worker appears on the Agents tab, its bead badge points directly to the task, and its **SASE CONTEXT / BEAD**
-lane shows task title, description, and size without trying to resolve an epic plan.
+lane shows the task title and description, plus size when one is stored, without trying to resolve an epic plan.
 
 ### Commit Detail and Linked Plans
 
@@ -416,17 +419,19 @@ says so and names the key that reopens the query row.
 
 ACE uses the literal scope labels `xsmall`, `small`, `medium`, `large`, and `xlarge`, with mint, sky, gold, rose, and
 violet chips whose text remains the primary signal. Valid older plans and phase beads with an omitted size use the
-stable `small` fallback, while an invalid authored value never produces a confident chip or count.
+stable `small` fallback, while an invalid authored value never produces a confident chip or count. The Plans pane also
+uses that shared display fallback for a standalone task with no stored size. This does not change launch routing: a
+sizeless task uses `@task_worker`, not `@small_phase_worker`.
 
-| Surface                                                                  | Size contract                                                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Agents author and lander                                                 | Shows every normalized authored size in roadmap order.                                                                                                                                                                                                                                                                                                                     |
-| Agents phase worker                                                      | Shows only that worker's normalized authored size, preserving phase isolation.                                                                                                                                                                                                                                                                                             |
-| Artifacts / Plans epic, phase, and task beads                            | Shows current persisted bead sizes in rows and details; the epic detail summarizes direct children in `xsmall`, `small`, `medium`, `large`, `xlarge` order. Standalone tasks appear in their own section with their stored size when present. These execution views intentionally do not reconcile bead values with authored values because work routing follows the bead. |
-| Artifacts proposals, linked plans, and archives                          | Retains the authored `phases` property exactly once instead of adding a competing roadmap.                                                                                                                                                                                                                                                                                 |
-| Telegram epic review                                                     | Adds a validated textual size breakdown while retaining the detailed Properties card and source/PDF attachment.                                                                                                                                                                                                                                                            |
-| Epic clan summary, `sase bead show`, and epic work preview               | Continues using persisted bead sizes, which these execution surfaces already exposed.                                                                                                                                                                                                                                                                                      |
-| Raw approval, validation/schema, source/PDF, and mobile attachment paths | Remains a lossless generic/source view; authored phase metadata is preserved without a second summary.                                                                                                                                                                                                                                                                     |
+| Surface                                                                  | Size contract                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agents author and lander                                                 | Shows every normalized authored size in roadmap order.                                                                                                                                                                                                                                                                       |
+| Agents phase worker                                                      | Shows only that worker's normalized authored size, preserving phase isolation.                                                                                                                                                                                                                                               |
+| Artifacts / Plans epic, phase, and task beads                            | Shows current persisted bead sizes in rows and details; the epic detail summarizes direct children in `xsmall`, `small`, `medium`, `large`, `xlarge` order. Standalone tasks appear in their own section. A task with no stored size displays the shared `small` fallback, although its launch route remains `@task_worker`. |
+| Artifacts proposals, linked plans, and archives                          | Retains the authored `phases` property exactly once instead of adding a competing roadmap.                                                                                                                                                                                                                                   |
+| Telegram epic review                                                     | Adds a validated textual size breakdown while retaining the detailed Properties card and source/PDF attachment.                                                                                                                                                                                                              |
+| Epic clan summary, `sase bead show`, and epic work preview               | Continues using persisted bead sizes, which these execution surfaces already exposed.                                                                                                                                                                                                                                        |
+| Raw approval, validation/schema, source/PDF, and mobile attachment paths | Remains a lossless generic/source view; authored phase metadata is preserved without a second summary.                                                                                                                                                                                                                       |
 
 ## Keybindings: Artifacts / PRs
 

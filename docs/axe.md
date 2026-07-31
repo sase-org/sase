@@ -217,8 +217,9 @@ Lower-frequency status checks:
 `TaskTriage` gate per bead, and stores the bead-to-request mapping in the checks lumberjack's state directory. This scan
 does not call the dependency-aware `sase bead ready` query, so a stored-ready task with an active blocker still receives
 a gate. A still-pending gate is skipped on later ticks, preventing repeated notifications. If a task leaves `ready`
-through a launch, close, or manual retraction, the chop cancels its pending gate; if the task becomes ready again later,
-a persistent generation counter gives the replacement gate a new deterministic request ID.
+through a launch, close, or manual retraction, the chop cancels its pending gate. If a gate becomes terminal or its
+bundle disappears while the task remains `ready`, the next tick also replaces it. A persistent generation counter gives
+each replacement a new deterministic request ID, whether the task remained ready or left and became ready again.
 
 The gate presents the task title, description, and notes. **Launch** accepts optional feedback and submits a
 deduplicated global detached task for `sase bead work <task-id> --yes-to-all`; **Close** requires a reason and closes

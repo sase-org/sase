@@ -4,8 +4,8 @@ Bead is a lightweight, git-native issue tracking system built into sase. It uses
 query/reduction, and mutation logic through the required `sase_core_rs` extension, with generated JSONL compatibility
 projections for older tooling (inspired by [Fossil](https://fossil-scm.org/)). Issues are organized into plan-like
 containers, executable child phases, and standalone task beads for discovered follow-up work. Plan beads can represent
-ordinary plans or executable epics through their `tier` metadata; task beads capture independent work that does not
-need an epic DAG.
+ordinary plans or executable epics through their `tier` metadata; task beads capture independent work that does not need
+an epic DAG.
 
 ## Table of Contents
 
@@ -87,9 +87,14 @@ a tier, and may carry a size for launch-model routing. An epic proposed by a pha
 bead beneath the bead responsible for that agent. For example, phase `beads-001.2` can own child epic `beads-001.2.1`;
 an epic proposed by the land agent can become the next direct child such as `beads-001.3`.
 
-Task beads are deliberately flat: `--type task` takes no plan path or parent ID, and a task cannot carry a plan tier or
-ChangeSpec metadata. Use a task for independent follow-up work that one worker can own. Use an epic and phase beads when
-the work needs a validated plan, dependency waves, or a final land agent.
+Task beads are deliberately flat: the task creation form takes no plan path or parent ID, and a task cannot carry a plan
+tier or ChangeSpec metadata. Use a task for independent follow-up work that one worker can own. Use an epic and phase
+beads when the work needs a validated plan, dependency waves, or a final land agent.
+
+The generic `sase bead update <task-id> --design <path>` command currently accepts design metadata on a task, even
+though task creation does not. That metadata does not give the task a parent or make task launch plan-backed:
+`sase bead work` still sends the task description and notes to one worker. ACE's Plans pane shows the stored reference
+but does not load its document into the task detail.
 
 Plan beads carry a tier. The paths below are relative to the effective plans root. Use `sase repo path plans` or
 `SASE_SDD_PLANS_DIR` to locate it without depending on the storage layout.
@@ -227,8 +232,10 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    the bead with `resolution=canceled` and that feedback as the reason. The detached launch survives ACE, CLI, Telegram,
    or mobile client exit and appears in `sase task list` and ACE's Tasks tab.
 
-   Only one pending gate is kept per task. If the task leaves stored status `ready`, AXE cancels the pending gate. If it
-   returns to `ready` later, AXE creates a new generation-specific request instead of reusing a terminal response.
+   Only one pending gate is kept per task. If the task leaves stored status `ready`, AXE cancels the pending gate. If a
+   request is answered, canceled, or missing while the task is still `ready`, the next scan creates a new
+   generation-specific request. The same happens if the task leaves `ready` and returns later. Normally a launch or
+   close changes the bead state before the next five-minute scan.
 
 4. Work it. You can bypass scheduled triage and launch directly:
 
@@ -244,15 +251,17 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    `--yes-to-all` when stale-agent cleanup must also be non-interactive.
 
    Before spawning, SASE commits the `in_progress` status and `<task-id>` assignee and applies the same target
-   synchronization safety as bead-ID epic launches. A checkpoint or dispatch failure with no surviving worker restores
-   the task's prior status and assignee. The worker receives the task ID, description, and notes through the
-   `work_task_bead` xprompt and is instructed to close the task with verification evidence.
+   synchronization safety as bead-ID epic launches. A checkpoint failure, or a dispatch failure before any worker is
+   spawned, restores the task's prior status and assignee. A partial dispatch failure terminates the partial launch but
+   preserves the `in_progress` assignment for recovery. The worker receives the task ID, description, and notes through
+   the `work_task_bead` xprompt and is instructed to close the task with verification evidence.
 
 5. Route the worker model. A task's explicit `model` wins. Otherwise a stored size selects the corresponding
    `@xsmall_phase_worker`, `@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, or
    `@xlarge_phase_worker` alias; a task without size metadata uses `@task_worker`, which falls back to `@default`.
    Unlike epic phases, the current task launch prompt does not add `#plan` for `large` or `xlarge`: task size currently
-   selects the model route only.
+   selects the model route only. Do not infer routing from the shared `small` display fallback in `sase bead show` or
+   ACE's Plans pane: those surfaces currently render a sizeless task as `small`, but launch still uses `@task_worker`.
 
 ### Dependencies
 
@@ -721,10 +730,11 @@ sase bead search auth --type plan --tier epic
 Display complete details for an issue including status, type, tier, parent lineage, dependencies, blockers, description,
 notes, ChangeSpec metadata, model, linked plan path, artifact references, and the hosted page URL when one resolves
 locally. Closed beads include their resolution, close reason, and close timestamp; legacy closures without a resolution
-show `(unrecorded)`. Phase and task beads show their size when one is stored; a legacy phase without a stored size has
-the effective `small` fallback. Any bead's children are grouped as phases (with status and size) and child epics (with
-tier and status), including child epics owned by a phase bead. Nested beads show their complete lineage back to the root
-plan. A `claimed` bead also prints `Claimed by: <assignee> (agent has not started working yet)`.
+show `(unrecorded)`. Phase and task detail views always print a size: they use the stored value when present and `small`
+when it is absent. For a task, that `small` value is only a display fallback; a sizeless task launch routes through
+`@task_worker`, not `@small_phase_worker`. Any bead's children are grouped as phases (with status and size) and child
+epics (with tier and status), including child epics owned by a phase bead. Nested beads show their complete lineage back
+to the root plan. A `claimed` bead also prints `Claimed by: <assignee> (agent has not started working yet)`.
 
 `full` is the default detail block. `compact` prints the same single row as `sase bead list`. `json` emits a single-bead
 envelope with `issue`, `ancestors`, `children`, `depends_on`, `blocks`, and `plan`, plus `page_url` when a hosted page
@@ -972,14 +982,16 @@ applies.
 
 ### Task Bead Surfaces
 
-ACE's Artifacts → Plans pane renders standalone task beads in their own section with the shared orchid `◆ task` identity
-and mint `◇ ready` state. The `s` action cycles a task through `open → ready → in_progress → closed → open`
-(`claimed → ready`), while `e` edits its title and description. The pane's `w` action remains epic-only; launch tasks
+ACE's Artifacts → Plans pane renders standalone task beads in their own section with an orchid `◆` type marker and mint
+`◇ ready` state. The detail view labels the type as `task`. The `s` action only changes status; it cycles a task through
+`open → ready → in_progress → closed → open` (`claimed → ready`) but does not launch a worker when it reaches
+`in_progress`. The `e` action edits its title and description. The pane's `w` action remains epic-only; launch tasks
 from their `TaskTriage` notification or with `sase bead work <task-id>`.
 
 Generated bead pages and the mobile bead bridge expose the same literal type and status. Default non-closed mobile
-listings include ready tasks, and both mobile and ACE resolve the task's description, notes, size, dependencies, and
-blockers without inventing a parent plan.
+listings include ready tasks. ACE's task detail exposes stored metadata and each dependency's status, but it does not
+show a reverse blocker list. When task design metadata is present, the pane shows its plan reference without loading the
+linked document. Its shared phase/task presentation also shows the `small` fallback for a task with no stored size.
 
 ### Plan Approval Flow
 

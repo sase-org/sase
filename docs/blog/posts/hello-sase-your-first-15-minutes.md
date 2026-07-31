@@ -170,7 +170,7 @@ sase bead show <bead-id>  # inspects one bead in detail
 ```
 
 For a self-contained follow-up that does not need an epic, create a standalone task bead with
-`sase bead create --type task`, move it to `ready` when it is ready for triage, and launch it with
+`sase bead create --type task --title "Follow up"`, move it to `ready` when it is ready for triage, and launch it with
 `sase bead work <task-id>`. AXE also turns stored `ready` tasks into notification gates where a reviewer can launch or
 close them.
 
