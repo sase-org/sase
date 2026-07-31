@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -98,10 +99,8 @@ def test_fast_path_guards_mutations_but_not_reads(tmp_path: Path, monkeypatch) -
     monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(tmp_path / "sandbox"))
 
     assert try_handle_bead_fast_path(["search", "needle"]) == 0
-    with pytest.raises(RuntimeError, match="fast-path create"):
-        try_handle_bead_fast_path(
-            ["create", "--title", "Unsafe", "--type", "plan(plan.md)"]
-        )
+    with pytest.raises(RuntimeError, match="fast-path rm"):
+        try_handle_bead_fast_path(["rm", "beads-1"])
 
     assert calls == [["search", "needle"]]
 
@@ -201,12 +200,10 @@ def test_fast_path_refuses_unsafe_resolved_location_before_rust(
     monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(sandbox))
 
     with pytest.raises(RuntimeError) as exc_info:
-        try_handle_bead_fast_path(
-            ["create", "--title", "Unsafe", "--type", "plan(plan.md)"]
-        )
+        try_handle_bead_fast_path(["rm", "beads-1"])
 
     message = str(exc_info.value)
-    assert "fast-path create" in message
+    assert "fast-path rm" in message
     assert str(unsafe_beads_dir.resolve()) in message
     assert str(sandbox.resolve()) in message
 
@@ -251,9 +248,7 @@ def test_fast_path_refuses_mutation_from_plain_checkout_sidecar_record(
     monkeypatch.setattr("sase.core.rust.require_rust_binding", fail_binding)
 
     with pytest.raises(RuntimeError, match="available for reads only"):
-        try_handle_bead_fast_path(
-            ["create", "--title", "Unsafe", "--type", "plan(plan.md)"]
-        )
+        try_handle_bead_fast_path(["rm", "beads-1"])
 
 
 def test_fast_path_defers_list_to_argparse(monkeypatch) -> None:
@@ -275,6 +270,52 @@ def test_fast_path_defers_show_to_argparse(monkeypatch) -> None:
 
     assert try_handle_bead_fast_path(["show", "beads-1.1"]) is None
     assert try_handle_bead_fast_path(["show", "beads-1", "--format", "json"]) is None
+
+
+def test_fast_path_defers_create_to_argparse(monkeypatch) -> None:
+    def fail_context(argv: list[str]):
+        raise AssertionError(f"context should not resolve for create: {argv}")
+
+    monkeypatch.setattr(bead_fast_path, "_resolve_fast_path_context", fail_context)
+
+    assert (
+        try_handle_bead_fast_path(["create", "--title", "Probe", "--type", "task"])
+        is None
+    )
+
+
+def test_bead_create_dispatch_records_acting_agent_as_created_by(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for the Rust fast path swallowing ``create`` attribution.
+
+    Drives the real ``sase.main.entry.main`` dispatch instead of calling
+    ``handle_bead_create`` directly, since that direct-call test shape is what
+    let the fast path bypass attribution ship undetected.
+    """
+    from sase.bead.model import IssueType
+    from sase.bead.project import BeadProject
+    from sase.core.agent_identity_facade import globalize_owned_agent_name
+    from sase.main import entry
+    from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
+
+    with BeadProject.init(tmp_path):
+        pass
+    isolate_bead_store_resolution(monkeypatch, tmp_path)
+    monkeypatch.setenv("SASE_AGENT_NAME", "q8--code")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["sase", "bead", "create", "--title", "Probe", "--type", "task"],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        entry.main()
+
+    assert exc_info.value.code == 0
+    with BeadProject(tmp_path) as project:
+        task = project.list_issues(issue_types=[IssueType.TASK])[0]
+    assert task.created_by == globalize_owned_agent_name("q8--code")
 
 
 def test_fast_path_dep_reads_skip_write_guard_but_add_remains_guarded(

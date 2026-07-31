@@ -27,8 +27,10 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     if not argv or any(arg in {"-h", "--help"} for arg in argv):
         return None
     # The Rust close fast path does not yet expose the classification fields
-    # needed for truthful close/already-closed/noted/cascade rendering.
-    if argv[0] == "close":
+    # needed for truthful close/already-closed/noted/cascade rendering, and the
+    # Rust create fast path cannot resolve the acting SASE agent that
+    # ``handle_bead_create`` records as the bead's creator.
+    if argv[0] in {"close", "create"}:
         return None
     if argv[0] in {"list", "show"} or _search_uses_full_format(argv):
         return None

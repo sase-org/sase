@@ -15,16 +15,28 @@ from sase.main.bead_fast_path import (
 )
 
 
-def test_fast_path_create_and_rm_use_rust_on_sidecar_layout(
+def test_fast_path_rm_uses_rust_on_sidecar_layout(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
+    from sase.bead.cli_common import storage_plan_path
+    from sase.bead.model import IssueType
     from sase.bead.project import BeadProject
 
     root = tmp_path / "plans"
-    with BeadProject.init(root, beads_dirname="beads"):
-        pass
     plan = tmp_path / "plan.md"
     plan.write_text("# Fast path\n", encoding="utf-8")
+    design = storage_plan_path(plan.resolve())
+
+    with BeadProject.init(root, beads_dirname="beads") as project:
+        first = project.create("Fast plan", IssueType.PLAN, design=design, tier="epic")
+        second = project.create(
+            "Second fast plan", IssueType.PLAN, design=design, tier="epic"
+        )
+
+    assert first.id == "plans-1"
+    assert second.id == "plans-2"
+    assert first.design == design
+
     context = bead_fast_path._FastPathContext(
         read_beads_dirs=[root / "beads"],
         write_beads_dir=root / "beads",
@@ -46,43 +58,6 @@ def test_fast_path_create_and_rm_use_rust_on_sidecar_layout(
         "sase.bead.sync.schedule_current_bead_refresh",
         lambda: None,
     )
-
-    assert (
-        try_handle_bead_fast_path(
-            [
-                "create",
-                "--title",
-                "Fast plan",
-                "--type",
-                f"plan({plan})",
-                "--tier",
-                "epic",
-            ]
-        )
-        == 0
-    )
-    assert "Created plan: plans-1 — Fast plan" in capsys.readouterr().out
-    assert summaries[-1]["operation"] == "create"
-    from sase.bead.cli_common import storage_plan_path
-
-    with BeadProject(root, beads_dirname="beads") as project:
-        assert project.show("plans-1").design == storage_plan_path(plan.resolve())
-
-    assert (
-        try_handle_bead_fast_path(
-            [
-                "create",
-                "--title",
-                "Second fast plan",
-                "--type",
-                f"plan({plan})",
-                "--tier",
-                "epic",
-            ]
-        )
-        == 0
-    )
-    capsys.readouterr()
 
     assert try_handle_bead_fast_path(["rm", "plans-1", "plans-2"]) == 0
     output = capsys.readouterr().out
