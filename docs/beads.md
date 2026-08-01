@@ -16,6 +16,7 @@ an epic DAG.
   - [Status Lifecycle](#status-lifecycle)
   - [Bead Claim Lifecycle](#bead-claim-lifecycle)
   - [Standalone Task Workflow](#standalone-task-workflow)
+  - [Task Corroboration (+1)](#task-corroboration-1)
   - [Dependencies](#dependencies)
   - [Discovered Follow-Up Capture and Triage](#discovered-follow-up-capture-and-triage)
   - [Artifact References](#artifact-references)
@@ -38,6 +39,7 @@ sase bead create -t "New feature" --type "plan(${PLANS_ROOT}/202605/feature.md)"
 sase bead create -t "Epic" --type "plan(${PLANS_ROOT}/202605/epic.md)" --tier epic
 sase bead create -t "Sub-task" --type "phase(beads-001)" --size small # Create a sized epic phase
 sase bead create -t "Fix flaky test" --type task --size small # Create a standalone draft task
+sase bead +1 beads-002 --note "Independent reproduction" # Corroborate an existing task
 sase bead update beads-002 --status=ready               # Offer the task for human triage
 sase bead list                                          # List open, claimed, ready, and in-progress issues
 sase bead list --status=open                            # List open issues
@@ -91,13 +93,13 @@ more than one bead, SASE rejects the command and lists the candidate full IDs in
 | --------- | -------------------------------------------------------------- | ----------------------------------------- |
 | **Plan**  | Plan-like container with a tier; may be a child epic           | `{prefix}-{counter}` or `{parent_id}.{N}` |
 | **Phase** | Sized executable child within an epic/plan bead                | `{parent_id}.{N}`                         |
-| **Task**  | Independent, optionally sized work item with no parent or tier | `{prefix}-{counter}`                      |
+| **Task**  | Independent, explicitly sized work item with no parent or tier | `{prefix}-{counter}`                      |
 
 Plans are groupings that can optionally link to an SDD file via the `design` field. Phases always belong to a parent
 plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`). Task beads are top-level, carry neither a parent nor
-a tier, and may carry a size for launch-model routing. An epic proposed by a phase or land agent becomes a child plan
-bead beneath the bead responsible for that agent. For example, phase `beads-001.2` can own child epic `beads-001.2.1`;
-an epic proposed by the land agent can become the next direct child such as `beads-001.3`.
+a tier, and require a size when newly created. An epic proposed by a phase or land agent becomes a child plan bead
+beneath the bead responsible for that agent. For example, phase `beads-001.2` can own child epic `beads-001.2.1`; an
+epic proposed by the land agent can become the next direct child such as `beads-001.3`.
 
 Task beads are deliberately flat: the task creation form takes no plan path or parent ID, and a task cannot carry a plan
 tier or ChangeSpec metadata. Use a task for independent follow-up work that one worker can own. Use an epic and phase
@@ -212,7 +214,8 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
                                   └──close with reason──▶ closed (canceled)
 ```
 
-1. Create and refine a draft:
+1. Invoke `/sase_new_task`. It first checks for semantic duplicates and causally related in-progress epics. Only when
+   neither exists does it create and refine a draft:
 
    ```bash
    sase bead create -T task -t "Remove the compatibility shim" \
@@ -223,7 +226,7 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    ```
 
    New task beads start `open`. While they are open, edit their title, description, notes, references, dependencies,
-   optional model, and optional size without creating a triage notification.
+   optional model, and required size without creating a triage notification.
 
 2. Offer the task for review:
 
@@ -273,6 +276,26 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    `@xlarge_phase_worker` alias; a legacy task without size metadata uses `@small_phase_worker`. As with epic phases,
    `large` and `xlarge` task prompts add `#plan`, while smaller tasks implement directly.
 
+### Task Corroboration (+1)
+
+`sase bead +1` records one additional independently attributed report of the same actionable task. It is evidence, not a
+generic vote: duplicates share the same underlying defect/root cause or desired remediation, rather than merely a
+subsystem or similar symptom.
+
+```bash
+sase bead +1 <task-id> --note "<independent reproduction and impact>"
+sase bead +1 <task-id> --note "<independent evidence>" --ref <artifact-ref>
+```
+
+The note is required, artifact refs are repeatable, and `--author` supports explicit attribution. Each reporter counts
+at most once, and the task creator does not count as an additional reporter; a retry is an unchanged no-op that points
+the reporter to `sase bead note` for supplementary evidence. The evidence entries—not a mutable counter—derive the
+visible total and machine-readable `plus_one_count`.
+
+Adding new evidence to an `open` draft or `closed` task atomically promotes it to `ready` and clears stale close
+metadata. A `claimed`, `ready`, or `in_progress` task keeps its status. The same mutation attaches normalized artifact
+refs, and plan/phase targets are rejected without writing.
+
 ### Dependencies
 
 Dependencies are one-way relationships: issue A **depends on** issue B. Every edge records the source issue, the target
@@ -289,14 +312,19 @@ history keeps both the mistake and its correction.
 
 ### Discovered Follow-Up Capture and Triage
 
-Unless a prompt forbids bead creation, agents should capture useful work discovered outside their current scope as a
-standalone task bead:
+Unless a prompt forbids bead creation, agents should run `/sase_new_task` for useful work discovered outside their
+current scope. The skill searches every task status and all in-progress epic plans before allowing a new task:
 
 ```bash
 sase bead create -T task -t "Fix flaky integration test" \
-  -d "The retry test flakes under parallel pytest; discovered while landing sase-xy."
+  -d "The retry test flakes under parallel pytest; discovered while landing sase-xy." \
+  --size small
 sase bead update <task-id> -s ready
 ```
+
+For a semantic duplicate, the skill uses `sase bead +1` and does not create a task. When an in-progress epic credibly
+caused the issue—not merely shares its topic—the skill records a `DISCOVERED ISSUE:` note on that epic and does not
+create a task. Both records are made when both cases apply. Only a genuinely distinct issue becomes a sized draft.
 
 The task stays `open` while its title, description, size, model, references, and dependencies are drafted. Marking it
 `ready` proposes it to the project owner. The `bead_task_triage` chop scans enabled projects every five minutes and
@@ -462,6 +490,13 @@ form when passing list filters.
 
 Show all issues that have at least one active (non-closed) blocker.
 
+### `sase bead +1 <task-id>`
+
+Corroborate an existing task with independently attributed evidence. `--note` is required; `--ref` is repeatable and
+`--author` overrides normal current-agent attribution. Each reporter counts once, the creator does not count, and repeat
+reporters are unchanged no-ops. New evidence promotes `open` and `closed` tasks to `ready` atomically, preserves other
+active statuses, and rejects plan or phase beads. See [Task Corroboration (+1)](#task-corroboration-1).
+
 ### `sase bead close <id> [<id2> ...]`
 
 Close one or more issues. Every requested bead is checked before the first write, so a batch either closes completely or
@@ -512,18 +547,18 @@ When a close changes the store, SASE commits it and then publishes it according 
 
 Create a new issue.
 
-| Flag                | Required | Description                                                                                                                                                                                                                       |
-| ------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-t, --title`       | yes      | Issue title                                                                                                                                                                                                                       |
-| `-T, --type`        | yes      | Bead type: `task`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand                                                                                                          |
-| `-d, --description` | no       | Issue description                                                                                                                                                                                                                 |
-| `-a, --assignee`    | no       | Assignee name                                                                                                                                                                                                                     |
-| `--tier`            | no       | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                  |
-| `-c, --changespec`  | no       | Attach a ChangeSpec name to a plan bead                                                                                                                                                                                           |
-| `-b, --bug-id`      | no       | Bug ID for the attached ChangeSpec; requires `--changespec`                                                                                                                                                                       |
-| `-m, --model`       | no       | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase/task beads it is the worker model. |
-| `-R, --ref`         | no       | Artifact reference to attach to the bead; repeatable and stored canonically                                                                                                                                                       |
-| `-z, --size`        | no       | Phase/task size: `xsmall`, `small`, `medium`, `large`, or `xlarge`. For phases it controls model routing and plan-first policy; for tasks it currently controls model routing only.                                               |
+| Flag                | Required             | Description                                                                                                                                                                                                                       |
+| ------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-t, --title`       | yes                  | Issue title                                                                                                                                                                                                                       |
+| `-T, --type`        | yes                  | Bead type: `task`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand                                                                                                          |
+| `-d, --description` | no                   | Issue description                                                                                                                                                                                                                 |
+| `-a, --assignee`    | no                   | Assignee name                                                                                                                                                                                                                     |
+| `--tier`            | no                   | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                  |
+| `-c, --changespec`  | no                   | Attach a ChangeSpec name to a plan bead                                                                                                                                                                                           |
+| `-b, --bug-id`      | no                   | Bug ID for the attached ChangeSpec; requires `--changespec`                                                                                                                                                                       |
+| `-m, --model`       | no                   | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase/task beads it is the worker model. |
+| `-R, --ref`         | no                   | Artifact reference to attach to the bead; repeatable and stored canonically                                                                                                                                                       |
+| `-z, --size`        | task: yes; phase: no | Phase/task size: `xsmall`, `small`, `medium`, `large`, or `xlarge`. It controls model routing and whether large/xlarge work receives a plan-first handoff. Legacy sizeless tasks remain readable.                                 |
 
 ChangeSpec metadata is valid only on plan beads. It is used by the epic-approval and `sase bead work` flows to keep plan
 beads linked to the ChangeSpec they are intended to produce.
@@ -708,7 +743,7 @@ this column; it remains visible through `--tier`, `--format full`, and `--format
 | ------- | ---- | ---------------------------------------------------- |
 | `plan`  | `▸`  | Plan-like container with a tier; may be a child epic |
 | `phase` | `↳`  | Sized executable child within an epic/plan bead      |
-| `task`  | `◆`  | Independent, optionally sized work item              |
+| `task`  | `◆`  | Independent work item; new tasks require a size      |
 
 | Flag           | Values                                              | Description                                                                           |
 | -------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -736,7 +771,8 @@ as separate events rather than replacing each other.
 
 ### `sase bead onboard`
 
-Display a quick-start guide with common command examples.
+Display a quick-start guide with common command examples, including required task size, `/sase_new_task` agent policy,
+and task corroboration.
 
 ### `sase bead open <id>`
 

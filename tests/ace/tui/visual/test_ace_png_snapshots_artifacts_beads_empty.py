@@ -57,7 +57,7 @@ async def test_artifacts_beads_empty_png_snapshot(
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         pane._update_detail()
         detail = page.query_one_widget("#beads-detail", Markdown)
-        await page.wait_for(lambda _state: "sase bead create -T task" in detail.source)
+        await page.wait_for(lambda _state: "/sase_new_task" in detail.source)
         assert "TaskTriage" in detail.source
         await wait_for_svg_contains(page, "No beads yet")
         await wait_for_visual_idle(page)

@@ -949,6 +949,8 @@ Delegated launches do not use a separate "worker lane". Instead, each delegated 
 - **Standalone task-bead workers** use the task's explicit model when set. Otherwise, a stored task size selects the
   matching phase-worker alias above, while a legacy task without size metadata uses `@small_phase_worker`. Like epic
   phases, `large` and `xlarge` tasks receive an automatic `#plan`; xsmall, small, and medium tasks implement directly.
+  New tasks require an explicit size, and agents use `/sase_new_task` before creation to rule out duplicates and active
+  epic work; the legacy fallback exists only for stored historical records.
 - **Epic land agents** without an explicit land model use `@epic_lander`, or `@big_epic_lander` when their authored
   phase count meets `bead.big_epic_phase_threshold` (default `5`). Normal landers fall back to `@default`; the
   threshold-selected alias falls back independently to provider-aware `@smartest`.

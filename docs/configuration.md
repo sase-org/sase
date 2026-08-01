@@ -1056,8 +1056,9 @@ independent explicit-use pool. Override only threshold-sized epic landers with `
 override only large phases and sized tasks with `model_aliases.builtin.large_phase_worker`. `@smartest` is selected
 automatically through the threshold-sized epic and xlarge phase/task fallback chains. See
 [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
-[Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role.
-Legacy tasks without size metadata use the small phase/task route.
+[Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role. New
+tasks require an explicit size after `/sase_new_task` has ruled out a semantic duplicate and a causally related
+in-progress epic. Legacy tasks without size metadata remain launchable through the small phase/task route.
 
 `model_aliases.builtin.epic_creator` is retired. SASE no longer launches an epic-creator agent, resolves that alias
 implicitly, or treats it as a builtin override, so a stale entry should be deleted rather than repointed. `sase doctor`

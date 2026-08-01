@@ -124,8 +124,20 @@ def test_builtin_phase_and_land_prompts_capture_follow_ups() -> None:
 
     assert "sase bead note {{ bead_id }} 'PROPOSED FOLLOW-UP:" in phase_body
     assert "collect every `PROPOSED FOLLOW-UP:` note entry" in land_body
-    assert "sase bead create -T task" in land_body
-    assert "sase bead update <id> -s ready" in land_body
+    assert "review the epic bead's own notes" in land_body
+    assert "review every child note" in land_body
+    assert "Unresolved issues caused by this epic remain epic work" in land_body
+    assert "use `/sase_new_task`" in land_body
+    assert "sase bead create -T task" not in land_body
+
+
+def test_builtin_task_prompt_routes_distinct_follow_ups_through_skill() -> None:
+    body = get_all_prompts()["bd/work_task"].steps[0].prompt_part
+    assert body is not None
+
+    assert "genuinely distinct follow-up work" in body
+    assert "use `/sase_new_task`" in body
+    assert "sase bead create -T task" not in body
 
 
 def test_builtin_plan_review_globs_distinguish_prompt_from_plan(

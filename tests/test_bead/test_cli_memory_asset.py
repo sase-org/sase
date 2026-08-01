@@ -26,9 +26,10 @@ def test_generated_bead_memory_examples_parse_against_cli_contract() -> None:
         if in_bash_fence and line.startswith("sase bead "):
             examples.append(line)
 
-    assert len(examples) == 3
+    assert len(examples) == 4
     parser = create_parser()
     for example in examples:
+        example = example.replace("<size>", "small")
         concrete = re.sub(r"<[^>]+>", "example", example)
         args = parser.parse_args(shlex.split(concrete)[1:])
         assert args.command == "bead"

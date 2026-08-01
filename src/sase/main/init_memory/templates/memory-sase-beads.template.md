@@ -26,7 +26,7 @@ Ambiguous shorthand fails and lists the candidates. Output and stored relationsh
 
 - `plan` — `-T "plan(<plan_file>[,<parent_id>])"`, top level, `--tier plan|epic`.
 - `phase` — `-T "phase(<parent_id>)"`, child of a plan bead.
-- `task` — `-T task`, standalone discovered follow-up; no tier, optional `--size` for model routing.
+- `task` — `-T task`, standalone discovered follow-up; no tier, required `--size` when newly created.
 
 `sase bead work <epic-id|plan.md|task-id>` launches an epic's phase and land agents or one task worker. Epic launches
 normally come from plan approval and task launches from a `TaskTriage` gate, so hand-create beads only for tracker or
@@ -48,14 +48,26 @@ phases.
 
 ## Task Beads
 
-Capture useful work that falls outside your current task as a task bead: create it as an `open` draft, refine its
-description and dependencies, then mark it `ready`. Each ready bead raises one `TaskTriage` gate, from which the owner
-either launches `sase bead work <id>` or closes it as `canceled`.
+Before creating any task bead, invoke `/sase_new_task`. It gathers evidence and checks all task statuses plus
+in-progress epic plans. Reports with the same underlying defect/root cause or desired remediation are semantic
+duplicates: corroborate the existing task with independent evidence instead of creating another one. An issue credibly
+caused by an active epic belongs on that epic as a `DISCOVERED ISSUE:` note, even when it is also a task duplicate.
 
 ```bash
-sase bead create -T task -t "<title>" -d "<what is wrong and how you found it>"
+sase bead +1 <task-id> -n "<independent reproduction and impact>" -R <artifact-ref>
+sase bead create -T task -t "<title>" -d "<what is wrong and how you found it>" -z <size>
 sase bead update <id> -s ready
 ```
+
+A genuinely new task starts as an `open` draft; refine its description, evidence refs, dependencies, and scope before
+marking it `ready`. Each ready bead raises one `TaskTriage` gate, from which the owner either launches
+`sase bead work <id>` or closes it as `canceled`. Every new task requires an intentional size: `xsmall`, `small`,
+`medium`, `large`, or `xlarge`. Legacy sizeless tasks remain readable and launch through the small-task fallback.
+
+Each reporter contributes at most one +1, and the original creator does not count as an additional reporter. A +1 is
+append-only evidence, not a vote; repeat reporters use `sase bead note` for supplementary details. Adding the first
+valid +1 to an `open` or `closed` task atomically promotes it to `ready`, while `claimed`, `ready`, and `in_progress`
+tasks retain their status.
 
 `sase bead update` accepts one or more bead IDs and applies the same requested fields to the whole batch atomically.
 Beads that already match are reported as unchanged and are not committed; descendant-close validation evaluates the

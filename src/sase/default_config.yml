@@ -946,19 +946,20 @@ xprompts:
       You are the land agent for epic bead {{ bead_id }}: verify the epic is truly complete, integrate it with changes
       that landed since it started, then close it out.
 
-      1. Verify. Run `sase bead show {{ bead_id }}` (children, linked plan file), then `sase bead show` on each child
-         bead. Confirm every bead note was addressed, and read the actual source code and the epic's commits (bead IDs
-         appear in commit messages) to confirm the work previous agents reported complete really is. While reviewing
-         child beads, collect every `PROPOSED FOLLOW-UP:` note entry.
+      1. Verify. Run `sase bead show {{ bead_id }}` (children, linked plan file), review the epic bead's own notes, then
+         run `sase bead show` on every child and review every child note. Confirm each note was addressed, and read the
+         actual source code and the epic's commits (bead IDs appear in commit messages) to confirm the work previous
+         agents reported complete really is. While reviewing child beads, collect every `PROPOSED FOLLOW-UP:` note entry.
 
       2. Integrate. Changes committed since this epic started could not integrate with this epic's feature while it was
          incomplete. Find them (e.g. `git log` since the first commit mentioning {{ bead_id }}, excluding the epic's own
          commits; in a PR workflow also review commits on the base branch) and update anything that should now use what
          this epic added or that duplicates or conflicts with it. This integration is part of the epic's work.
 
-      3. Land. File each collected follow-up you judge worthwhile as a task bead:
-         `sase bead create -T task -t '<title>' -d '<details incl. which bead proposed it>'`, then
-         `sase bead update <id> -s ready`. Record in your close note why any entry was not filed. Close the epic with
+      3. Land. Unresolved issues caused by this epic remain epic work: plan and finish them before closing. For each
+         genuinely distinct follow-up that is not caused by the epic, use `/sase_new_task` with details identifying the
+         proposing bead; it will corroborate a duplicate, attach a causally related active-epic issue, or create a sized
+         task as appropriate. Record every outcome, including why any proposal was declined, in your close note. Close the epic with
          `sase bead close {{ bead_id }} --note "<what you verified in steps 1-2>"`. AFTER closing, run `just symvision`
          if available (epic-symbol whitelist entries for {{ bead_id }} expire at close) and remove the stale entries
          and unused code it reports. Finally, set `status: done` in the frontmatter of the epic's plan file (the PLAN
@@ -1012,8 +1013,8 @@ xprompts:
       agent name: it was set to status=in_progress by the launch that started you; do not set the status by hand. Run
       `sase bead show {{ bead_id }}`, read the description and notes, do the work, and close the bead with
       `sase bead close {{ bead_id }} --note "<what you verified>"`. If you discover genuinely distinct follow-up work,
-      do not expand this bead's scope: file a new task bead (`sase bead create -T task ...`), refine it while it is
-      `open`, and mark it ready to triage with `sase bead update <id> -s ready`.
+      do not expand this bead's scope: use `/sase_new_task` to check duplicates and active epics, then record it in the
+      location that skill selects.
   epic: |
     This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
     keep in mind that each phase will be completed by a distinct agent instance (i.e. a distinct `claude` / `agy` /

@@ -106,7 +106,8 @@ def test_first_run_empty_detail_points_to_create_and_triage(tmp_path: Path) -> N
     )
 
     assert detail.startswith("# No beads yet")
-    assert "sase bead create -T task" in detail
+    assert "/sase_new_task" in detail
+    assert "sized draft task" in detail
     assert "TaskTriage" in detail
 
 

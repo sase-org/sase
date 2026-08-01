@@ -113,6 +113,10 @@ and then launches that deterministic worker. An explicit task model wins; otherw
 corresponding size-specific phase-worker alias, while a legacy task without size uses the small route. Large and xlarge
 tasks receive the same automatic `#plan` handoff as equivalently sized phases.
 
+Agents use `/sase_new_task` before filing discovered work. The skill corroborates a semantic duplicate with
+`sase bead +1`, records work caused by an in-progress epic on that epic, and creates a new task only when neither case
+applies. Every newly created task has an explicit size; sizeless support is retained only for legacy records.
+
 ## The Promote-From-Chat Discipline
 
 Agents propose plans; humans (or distillation workflows) promote them into SDD. The reason: keeping raw transcripts out

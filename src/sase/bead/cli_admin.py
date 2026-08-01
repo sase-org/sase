@@ -387,6 +387,7 @@ Source of truth:
 
 Quick Start:
   sase bead init                                 Create sdd/beads/ in current directory
+  Agents: use /sase_new_task before creating any task bead
   sase bead create -t "Follow-up" --type task --size small
                                                   Create a standalone draft task
   sase bead +1 <task-id> -n "Independent repro"  Corroborate an existing task

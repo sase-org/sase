@@ -198,6 +198,23 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
             ),
         ),
         (
+            "sase_new_task",
+            (
+                "sase memory read sase_beads.md",
+                "sase bead list --type task --format full --limit 0",
+                "sase bead +1 <task-id>",
+                "Do not create a task",
+                "same underlying defect/root cause or desired remediation",
+                "sase bead list --type plan --tier epic --status in_progress",
+                "DISCOVERED ISSUE:",
+                "If both the duplicate and active-epic branches apply, record both",
+                "sase bead create -T task",
+                "--size <size>",
+                "xsmall",
+                "xlarge",
+            ),
+        ),
+        (
             "sase_notify",
             (
                 "sase notify list -j",

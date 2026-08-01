@@ -77,8 +77,8 @@ reference notes that agents read only when relevant.
 - Type: `short`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 53
-- Approx. tokens: 800
+- Lines: 54
+- Approx. tokens: 835
 
 ### `sase/memory/cli_rules.md`
 
@@ -104,8 +104,8 @@ reference notes that agents read only when relevant.
   lifecycle agents must never hand-edit, task-bead triage, phase-bead description prefixes, and non-cascading close,
   resolution, and note semantics.
 - Parent: `AGENTS.md`
-- Lines: 98
-- Approx. tokens: 1333
+- Lines: 110
+- Approx. tokens: 1603
 
 ### `sase/memory/symvision.md`
 
@@ -138,8 +138,8 @@ reference notes that agents read only when relevant.
 - Total notes: 11
 - Short notes: 5
 - Long notes: 6
-- Total lines: 633
-- Total approx. tokens: 9578
+- Total lines: 646
+- Total approx. tokens: 9883
 
 ## Commands
 

@@ -156,8 +156,8 @@ def build_empty_bead_detail(
     if snapshot is not None and not snapshot.tasks and not snapshot.epics:
         return (
             "# No beads yet\n\n"
-            "Create a draft task with `sase bead create -T task`, then mark it "
-            "ready for TaskTriage when it is ready to launch.\n\n"
+            "Agents use `/sase_new_task` before creating a sized draft task, then "
+            "mark it ready for TaskTriage when it is ready to launch.\n\n"
             "TaskTriage decisions can launch or close the task here in the Beads pane."
         )
     message = (

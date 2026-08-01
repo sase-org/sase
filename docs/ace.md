@@ -72,7 +72,8 @@ On first use, empty tabs render onboarding states instead of blank panels: the P
 when no ChangeSpecs or saved queries exist yet, and the Agents tab walks through launching a first agent — the
 project/ChangeSpec launch hint appears only when a launchable target exists — and can recommend installing plugins from
 the Admin Center when no third-party plugins are installed. Onboarding cards carry "learn more" links into the published
-docs. An empty Beads pane points to `sase bead create -T task` and explains how ready tasks enter TaskTriage.
+docs. An empty Beads pane points agents to `/sase_new_task`, calls out sized draft tasks, and explains how ready tasks
+enter TaskTriage.
 
 Within Artifacts, the top-level strip is numbered **1 Commits · 2 Beads · 3 Bugs · 4 PRs · 5 Files**. Press `1`–`5` to
 jump directly to a view, or use `[` / `]` to cycle. Files contains a second strip — **Plans · Chats · Other** — cycled
