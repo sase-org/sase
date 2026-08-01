@@ -55,6 +55,10 @@ def _print_markdown(info: NotificationInfo) -> None:
     sys.stdout.write(f"# Notification {info.id}\n\n")
     sys.stdout.write(f"- id: `{info.id}`\n")
     sys.stdout.write(f"- timestamp: `{info.timestamp}` ({info.age})\n")
+    if info.resurfaced_at:
+        sys.stdout.write(f"- resurfaced_at: `{info.resurfaced_at}`\n")
+    else:
+        sys.stdout.write("- resurfaced_at: none\n")
     sys.stdout.write(f"- sender: `{info.sender}`\n")
     sys.stdout.write(f"- icon: {info.icon}\n" if info.icon else "- icon: none\n")
     sys.stdout.write(f"- priority: {_bool_text(info.priority)}\n")

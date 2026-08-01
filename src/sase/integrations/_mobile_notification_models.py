@@ -20,6 +20,7 @@ class MobileNotificationBridgeRow:
     timestamp: str
     sender: str
     priority: bool
+    resurfaced_at: str | None = None
     icon: str | None = None
     notes: list[str] = field(default_factory=list)
     display_files: list[str] = field(default_factory=list)
@@ -57,6 +58,7 @@ class MobileNotificationBridgeSnapshot:
         default_factory=MobileNotificationBridgeCounts
     )
     expired_ids: list[str] = field(default_factory=list)
+    next_high_water: str | None = None
 
 
 @dataclass(frozen=True)

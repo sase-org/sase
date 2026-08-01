@@ -11,6 +11,7 @@ from sase.notifications.catalog import (
     list_notification_infos,
     notification_info_to_json,
 )
+from sase.notifications.models import format_relative_time
 from sase.project_display_names import (
     humanize_cl_names_in_text,
     humanize_vcs_refs_in_text,
@@ -55,13 +56,18 @@ def _print_pretty(infos: list[NotificationInfo]) -> None:
         print("No notifications found.")
         return
 
-    print("ID\tAGE\tSENDER\tTAGS\tSTATE\tNOTES")
+    print("ID\tAGE\tRESURFACED\tSENDER\tTAGS\tSTATE\tNOTES")
     for info in infos:
         print(
             "\t".join(
                 [
                     info.id,
                     info.age,
+                    (
+                        format_relative_time(info.resurfaced_at)
+                        if info.resurfaced_at
+                        else "-"
+                    ),
                     info.sender,
                     ",".join(info.tags) if info.tags else "-",
                     _state_label(info),

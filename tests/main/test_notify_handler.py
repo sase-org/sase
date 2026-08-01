@@ -51,6 +51,7 @@ def _make_notification(
     action_data: dict[str, str] | None = None,
     read: bool = False,
     dismissed: bool = False,
+    resurfaced_at: str | None = None,
 ) -> Notification:
     return Notification(
         id=notification_id,
@@ -64,6 +65,7 @@ def _make_notification(
         action_data=action_data or {},
         read=read,
         dismissed=dismissed,
+        resurfaced_at=resurfaced_at,
     )
 
 
@@ -390,6 +392,7 @@ def test_list_json_shape_default_limit_and_filters(
         "silent",
         "muted",
         "snooze_until",
+        "resurfaced_at",
     ]
 
 
@@ -419,6 +422,26 @@ def test_list_pretty_empty(capsys: pytest.CaptureFixture[str]) -> None:
     assert "No notifications found" in out
 
 
+def test_list_pretty_exposes_resurface_activity(
+    temp_notifications_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del temp_notifications_dir
+    append_notification(
+        _make_notification(
+            "resurfaced",
+            minutes_ago=60,
+            resurfaced_at=_timestamp(0),
+        )
+    )
+
+    handle_notify_list(_list_args(json=False))
+
+    out = capsys.readouterr().out
+    assert "ID\tAGE\tRESURFACED\tSENDER" in out
+    assert "resurfaced" in out
+
+
 def test_show_json_and_markdown(
     temp_notifications_dir: Path,
     capsys: pytest.CaptureFixture[str],
@@ -436,6 +459,7 @@ def test_show_json_and_markdown(
             action_data={
                 "error_report_path": str(Path.home() / ".sase" / "axe" / "digest.txt")
             },
+            resurfaced_at=_timestamp(0),
         )
     )
 
@@ -445,6 +469,7 @@ def test_show_json_and_markdown(
     assert payload["icon"] == "🚨"
     assert payload["tags"] == ["digest", "error"]
     assert payload["action_data"]["error_report_path"].endswith("digest.txt")
+    assert payload["resurfaced_at"] is not None
 
     handle_notify_show(_show_args(format="markdown"))
     out = capsys.readouterr().out
@@ -454,6 +479,7 @@ def test_show_json_and_markdown(
     assert "`digest`, `error`" in out
     assert "error_report_path" in out
     assert "digest.txt" in out
+    assert "resurfaced_at" in out
 
 
 def test_show_unknown_id_exits_2(

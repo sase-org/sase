@@ -50,6 +50,7 @@ def _make_notification(
     silent: bool = False,
     muted: bool = False,
     snooze_until: str | None = None,
+    resurfaced_at: str | None = None,
 ) -> Notification:
     return Notification(
         id=notification_id,
@@ -66,6 +67,7 @@ def _make_notification(
         silent=silent,
         muted=muted,
         snooze_until=snooze_until,
+        resurfaced_at=resurfaced_at,
     )
 
 
@@ -106,6 +108,7 @@ def test_lists_newest_first_with_limit_and_stable_json_keys(
         "silent",
         "muted",
         "snooze_until",
+        "resurfaced_at",
     ]
     assert payload["icon"] == "🚨"
     assert payload["priority"] is True
@@ -227,3 +230,45 @@ def test_projection_normalizes_home_paths_and_preserves_state_fields(
     assert payload["action_data"] == {"error_report_path": "~/.sase/axe/digest.txt"}
     assert payload["muted"] is True
     assert payload["snooze_until"] == snooze_until
+
+
+def test_resurfaced_old_notification_sorts_as_new_activity(
+    temp_notifications_dir: Path,
+) -> None:
+    del temp_notifications_dir
+    append_notification(_make_notification("recent", minutes_ago=1))
+    append_notification(
+        _make_notification(
+            "resurfaced",
+            minutes_ago=60,
+            resurfaced_at=_timestamp(0),
+        )
+    )
+
+    rows = list_notification_infos(limit=1)
+
+    assert [row.id for row in rows] == ["resurfaced"]
+    assert rows[0].resurfaced_at is not None
+
+
+def test_catalog_read_reconciles_due_snooze_to_current_state(
+    temp_notifications_dir: Path,
+) -> None:
+    del temp_notifications_dir
+    append_notification(
+        _make_notification(
+            "due",
+            minutes_ago=60,
+            read=True,
+            muted=True,
+            snooze_until=_timestamp(1),
+        )
+    )
+
+    row = list_notification_infos()[0]
+
+    assert row.id == "due"
+    assert row.read is False
+    assert row.muted is False
+    assert row.snooze_until is None
+    assert row.resurfaced_at is not None

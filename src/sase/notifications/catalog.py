@@ -8,11 +8,11 @@ from pathlib import Path
 from sase.notifications.models import (
     Notification,
     format_relative_time,
+    notification_activity_sort_key,
     normalize_notification_tags,
 )
 from sase.notifications.priority import is_error, is_priority
-from sase.notifications.sort import timestamp_sort_key
-from sase.notifications.store import load_notifications
+from sase.notifications.store import read_current_notification_snapshot
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,7 @@ class NotificationInfo:
     silent: bool
     muted: bool
     snooze_until: str | None
+    resurfaced_at: str | None
 
 
 def _normalize_home_path(value: str) -> str:
@@ -67,6 +68,7 @@ def _notification_info(notification: Notification) -> NotificationInfo:
         silent=notification.silent,
         muted=notification.muted,
         snooze_until=notification.snooze_until,
+        resurfaced_at=notification.resurfaced_at,
     )
 
 
@@ -104,8 +106,12 @@ def list_notification_infos(
     tag: str | None = None,
 ) -> list[NotificationInfo]:
     """Return filtered notification info rows, newest first."""
-    notifications = load_notifications(include_dismissed=include_dismissed)
-    rows = sorted(notifications, key=timestamp_sort_key, reverse=True)
+    snapshot = read_current_notification_snapshot(include_dismissed=include_dismissed)
+    rows = sorted(
+        snapshot.notifications,
+        key=notification_activity_sort_key,
+        reverse=True,
+    )
 
     if sender is not None:
         rows = [notification for notification in rows if notification.sender == sender]
@@ -134,7 +140,8 @@ def list_notification_infos(
 
 def resolve_notification_ref(notification_id: str) -> NotificationInfo | None:
     """Return one notification by exact id, including dismissed rows."""
-    for notification in load_notifications(include_dismissed=True):
+    snapshot = read_current_notification_snapshot(include_dismissed=True)
+    for notification in snapshot.notifications:
         if notification.id == notification_id:
             return _notification_info(notification)
     return None
@@ -159,6 +166,7 @@ def notification_info_to_json(info: NotificationInfo) -> dict[str, object]:
         "silent": info.silent,
         "muted": info.muted,
         "snooze_until": info.snooze_until,
+        "resurfaced_at": info.resurfaced_at,
     }
 
 

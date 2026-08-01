@@ -45,6 +45,7 @@ def _notification(
     read: bool = False,
     dismissed: bool = False,
     silent: bool = False,
+    resurfaced_at: str | None = None,
     files: list[str] | None = None,
     action_data: dict[str, str] | None = None,
 ) -> Notification:
@@ -60,6 +61,7 @@ def _notification(
         read=read,
         dismissed=dismissed,
         silent=silent,
+        resurfaced_at=resurfaced_at,
     )
 
 
@@ -90,20 +92,47 @@ def test_mobile_bridge_filters_orders_and_preserves_counts() -> None:
     ]
 
     with patch(
-        "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
+        "sase.integrations._mobile_notification_snapshot.read_current_notification_snapshot",
         return_value=_snapshot(rows),
     ) as read_snapshot:
         snapshot = read_mobile_notification_snapshot(unread_only=True, limit=1)
 
-    read_snapshot.assert_called_once_with(
-        include_dismissed=False,
-        expire_due_snoozes=True,
-    )
+    read_snapshot.assert_called_once_with(include_dismissed=False)
     assert [row.id for row in snapshot.rows] == ["plan"]
     assert snapshot.rows[0].priority is True
     assert snapshot.rows[0].icon == "📋"
     assert snapshot.counts.priority == 1
     assert snapshot.expired_ids == ["expired-row"]
+
+
+def test_mobile_bridge_uses_activity_cursor_for_ordering_and_newer_than() -> None:
+    activity_at = _fresh_fixture_timestamp("2026-05-06T18:00:00+00:00")
+    rows = [
+        _notification("recent", "2026-05-06T17:00:00+00:00"),
+        _notification(
+            "resurfaced-a",
+            "2026-05-06T12:00:00+00:00",
+            resurfaced_at=activity_at,
+        ),
+        _notification(
+            "resurfaced-b",
+            "2026-05-06T11:00:00+00:00",
+            resurfaced_at=activity_at,
+        ),
+    ]
+
+    with patch(
+        "sase.integrations._mobile_notification_snapshot.read_current_notification_snapshot",
+        return_value=_snapshot(rows),
+    ):
+        snapshot = read_mobile_notification_snapshot(
+            newer_than=f"{activity_at}|resurfaced-a",
+            limit=1,
+        )
+
+    assert [row.id for row in snapshot.rows] == ["resurfaced-b"]
+    assert snapshot.rows[0].timestamp != snapshot.rows[0].resurfaced_at
+    assert snapshot.next_high_water == f"{activity_at}|resurfaced-b"
 
 
 def test_mobile_bridge_keeps_raw_host_paths_and_safe_display_paths(
@@ -121,7 +150,7 @@ def test_mobile_bridge_keeps_raw_host_paths_and_safe_display_paths(
     ]
 
     with patch(
-        "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
+        "sase.integrations._mobile_notification_snapshot.read_current_notification_snapshot",
         return_value=_snapshot(rows),
     ):
         detail = resolve_mobile_notification_detail("detail")
@@ -263,7 +292,7 @@ def test_execute_mobile_question_action_uses_neutral_gate_executor() -> None:
 
     with (
         patch(
-            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
+            "sase.integrations._mobile_notification_snapshot.read_current_notification_snapshot",
             return_value=_snapshot([notification]),
         ),
         patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
@@ -342,7 +371,7 @@ def test_execute_mobile_gate_action_uses_selected_options_unchanged() -> None:
 
     with (
         patch(
-            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
+            "sase.integrations._mobile_notification_snapshot.read_current_notification_snapshot",
             return_value=_snapshot([notification]),
         ),
         patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
@@ -386,7 +415,7 @@ def test_execute_mobile_task_triage_reports_registered_action_kind(
 
     with (
         patch(
-            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
+            "sase.integrations._mobile_notification_snapshot.read_current_notification_snapshot",
             return_value=_snapshot([notification]),
         ),
         patch("sase.notifications.pending_actions.resolve_prefix") as resolve,

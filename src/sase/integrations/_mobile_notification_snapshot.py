@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 
-from sase.core.time import get_timezone
 from sase.integrations._mobile_notification_models import (
     MobileNotificationBridgeCounts,
     MobileNotificationBridgeRow,
     MobileNotificationBridgeSnapshot,
 )
 from sase.integrations._mobile_notification_paths import normalize_home_path
-from sase.notifications.models import Notification
+from sase.notifications.models import (
+    Notification,
+    encode_notification_activity_cursor,
+    notification_activity_sort_key,
+    notification_is_newer_than_activity_cursor,
+)
 from sase.notifications.priority import is_error, is_priority
-from sase.notifications.store import read_notification_snapshot
+from sase.notifications.store import read_current_notification_snapshot
 
 
 def read_mobile_notification_snapshot(
@@ -26,11 +29,12 @@ def read_mobile_notification_snapshot(
     newer_than: str | None = None,
 ) -> MobileNotificationBridgeSnapshot:
     """Return the gateway's read-only host notification projection."""
-    snapshot = read_notification_snapshot(
-        include_dismissed=include_dismissed,
-        expire_due_snoozes=True,
+    snapshot = read_current_notification_snapshot(include_dismissed=include_dismissed)
+    rows = sorted(
+        snapshot.notifications,
+        key=notification_activity_sort_key,
+        reverse=True,
     )
-    rows = sorted(snapshot.notifications, key=_timestamp_sort_key, reverse=True)
     if unread_only:
         rows = [row for row in rows if not row.read]
     if not include_silent:
@@ -39,7 +43,7 @@ def read_mobile_notification_snapshot(
         rows = [
             row
             for row in rows
-            if _timestamp_sort_key(row) > _parse_timestamp_sort_key(newer_than)
+            if notification_is_newer_than_activity_cursor(row, newer_than)
         ]
     if limit is not None:
         rows = rows[: max(0, limit)]
@@ -53,6 +57,9 @@ def read_mobile_notification_snapshot(
             muted=int(snapshot.counts.muted),
         ),
         expired_ids=list(snapshot.expired_ids),
+        next_high_water=(
+            encode_notification_activity_cursor(rows[0]) if rows else None
+        ),
     )
 
 
@@ -73,6 +80,7 @@ def _bridge_row(notification: Notification) -> MobileNotificationBridgeRow:
     return MobileNotificationBridgeRow(
         id=notification.id,
         timestamp=notification.timestamp,
+        resurfaced_at=notification.resurfaced_at,
         sender=notification.sender,
         priority=is_priority(notification) or is_error(notification),
         icon=notification.icon,
@@ -95,17 +103,3 @@ def _bridge_row(notification: Notification) -> MobileNotificationBridgeRow:
         muted=notification.muted,
         snooze_until=notification.snooze_until,
     )
-
-
-def _timestamp_sort_key(notification: Notification) -> datetime:
-    return _parse_timestamp_sort_key(notification.timestamp)
-
-
-def _parse_timestamp_sort_key(value: str) -> datetime:
-    try:
-        timestamp = datetime.fromisoformat(value)
-    except ValueError:
-        return datetime.min.replace(tzinfo=get_timezone())
-    if timestamp.tzinfo is None:
-        timestamp = timestamp.replace(tzinfo=get_timezone())
-    return timestamp

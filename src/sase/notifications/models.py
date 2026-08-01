@@ -2,7 +2,7 @@
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -34,6 +34,56 @@ def notification_activity_at(notification: Notification) -> str:
 def notification_activity_cursor(notification: Notification) -> tuple[str, str]:
     """Return the stable activity cursor, including the required ID tie-breaker."""
     return (notification_activity_at(notification), notification.id)
+
+
+def notification_activity_sort_key(
+    notification: Notification,
+) -> tuple[int, datetime, str, str]:
+    """Return a timezone-normalized activity key with a stable ID tie-breaker."""
+    activity_at = notification_activity_at(notification)
+    try:
+        parsed = datetime.fromisoformat(activity_at)
+    except ValueError:
+        return (0, datetime.min.replace(tzinfo=UTC), activity_at, notification.id)
+    if parsed.tzinfo is None:
+        return (0, datetime.min.replace(tzinfo=UTC), activity_at, notification.id)
+    return (1, parsed.astimezone(UTC), "", notification.id)
+
+
+def encode_notification_activity_cursor(notification: Notification) -> str:
+    """Encode the mobile-compatible ``(activity_at, id)`` cursor."""
+    activity_at, notification_id = notification_activity_cursor(notification)
+    return f"{activity_at}|{notification_id}"
+
+
+def notification_is_newer_than_activity_cursor(
+    notification: Notification,
+    cursor: str,
+) -> bool:
+    """Compare against a new activity cursor or a legacy timestamp cursor."""
+    cursor_timestamp, separator, cursor_id = cursor.rpartition("|")
+    if not separator:
+        cursor_timestamp = cursor
+        cursor_id = ""
+
+    candidate = notification_activity_at(notification)
+    try:
+        candidate_time = datetime.fromisoformat(candidate)
+        cursor_time = datetime.fromisoformat(cursor_timestamp)
+    except ValueError:
+        if candidate != cursor_timestamp:
+            return candidate > cursor_timestamp
+    else:
+        if candidate_time.tzinfo is not None and cursor_time.tzinfo is not None:
+            candidate_utc = candidate_time.astimezone(UTC)
+            cursor_utc = cursor_time.astimezone(UTC)
+            if candidate_utc != cursor_utc:
+                return candidate_utc > cursor_utc
+        elif candidate != cursor_timestamp:
+            return candidate > cursor_timestamp
+
+    # A timestamp-only rollout cursor preserves its prior strict comparison.
+    return bool(separator) and notification.id > cursor_id
 
 
 def normalize_notification_tags(tags: Iterable[str] | None) -> list[str]:
