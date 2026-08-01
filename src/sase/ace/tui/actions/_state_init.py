@@ -612,6 +612,7 @@ class StateInitMixin:
         )
 
         self._last_unread_ids: set[str] = set()
+        self._delivered_notification_activity_cursors: set[tuple[str, str]] = set()
         self._notification_snapshot_cache: Any | None = None
         self._notification_snapshot_version: int = 0
         self._notification_snapshot_refresh_pending: bool = False

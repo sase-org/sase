@@ -12,6 +12,7 @@ import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.time import get_timezone
+from sase.notifications import notification_activity_cursor
 
 from tests._notification_toasts_helpers import (
     _FakeApp,
@@ -26,6 +27,9 @@ class TestPollingDelta:
         app = _FakeApp()
         existing = _make(action="PlanApproval", notes=["already-seen"])
         app._last_unread_ids = {existing.id}
+        app._delivered_notification_activity_cursors = {
+            notification_activity_cursor(existing)
+        }
         with _patch_snapshot([existing]):
             saw_new = asyncio.run(app._poll_agent_completions())
         assert saw_new is False
@@ -178,6 +182,27 @@ class TestPollingDelta:
             second_poll_saw_new = asyncio.run(app._poll_agent_completions())
         assert second_poll_saw_new is False
         assert app.notify.call_count == 1
+
+    def test_rebuilt_unread_projection_does_not_replay_generation(self) -> None:
+        app = _FakeApp()
+        first = _make(action="JumpToAgent", notes=["Agent completed"])
+
+        with _patch_snapshot([first]):
+            first_poll_saw_new = asyncio.run(app._poll_agent_completions())
+        assert first_poll_saw_new is True
+        assert app.notify.call_count == 1
+        assert app._bell_rung == 1
+
+        with _patch_snapshot([]):
+            app._refresh_notification_count()
+        assert app._last_unread_ids == set()
+
+        with _patch_snapshot([first]):
+            second_poll_saw_new = asyncio.run(app._poll_agent_completions())
+
+        assert second_poll_saw_new is False
+        assert app.notify.call_count == 1
+        assert app._bell_rung == 1
 
     def test_disappeared_plan_reviews_schedule_one_exact_artifact_delta(
         self,
@@ -401,6 +426,42 @@ class TestSnoozeExpiry:
         assert saw_new is False
         assert app.notify.call_count == 1
         assert app._bell_rung == 1
+
+    def test_new_resurface_generation_alerts_once_for_same_id(self) -> None:
+        app = _FakeApp()
+        notification_id = "same-id-reminder"
+        original_timestamp = "2026-08-01T09:00:00-04:00"
+        original = _make(
+            id=notification_id,
+            action="JumpToAgent",
+            notes=["Agent completed"],
+            timestamp=original_timestamp,
+        )
+        resurfaced = _make(
+            id=notification_id,
+            action="JumpToAgent",
+            notes=["Agent completed"],
+            timestamp=original_timestamp,
+            resurfaced_at="2026-08-01T10:00:00-04:00",
+        )
+
+        with _patch_snapshot([original]):
+            first_poll_saw_new = asyncio.run(app._poll_agent_completions())
+        assert first_poll_saw_new is True
+        assert app.notify.call_count == 1
+        assert app._bell_rung == 1
+
+        with _patch_snapshot([resurfaced], expired_ids=[notification_id]):
+            resurface_poll_saw_new = asyncio.run(app._poll_agent_completions())
+        assert resurface_poll_saw_new is False
+        assert app.notify.call_count == 2
+        assert app._bell_rung == 2
+
+        with _patch_snapshot([resurfaced]):
+            replay_poll_saw_new = asyncio.run(app._poll_agent_completions())
+        assert replay_poll_saw_new is False
+        assert app.notify.call_count == 2
+        assert app._bell_rung == 2
 
 
 class TestRingTmuxBellNonBlocking:

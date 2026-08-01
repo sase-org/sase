@@ -23,6 +23,8 @@ from sase.ace.tui.actions.lifecycle import LifecycleMixin
 from sase.ace.tui.app import AceApp
 from sase.ace.testing import AcePage
 
+from tests._notification_toasts_helpers import _FakeApp, _make, _patch_snapshot
+
 
 def test_on_mount_is_synchronous() -> None:
     """``AceApp.on_mount`` must return before any slow disk body runs."""
@@ -80,14 +82,61 @@ def test_read_unread_notification_ids_returns_set() -> None:
 def test_read_notifications_for_startup_uses_snapshot_counts() -> None:
     """Startup indicator counts come from the Rust-backed snapshot counts."""
     mixin = LifecycleMixin.__new__(LifecycleMixin)
-    n_priority = MagicMock(id="a", read=False, silent=False, muted=False)
-    n_muted = MagicMock(id="b", read=False, silent=False, muted=True)
+    timestamp = "2026-08-01T09:00:00-04:00"
+    n_priority = MagicMock(
+        id="a",
+        read=False,
+        silent=False,
+        muted=False,
+        timestamp=timestamp,
+        resurfaced_at=None,
+    )
+    n_muted = MagicMock(
+        id="b",
+        read=False,
+        silent=False,
+        muted=True,
+        timestamp="2026-08-01T09:01:00-04:00",
+        resurfaced_at=None,
+    )
     snapshot = SimpleNamespace(
         notifications=[n_priority, n_muted],
         counts=SimpleNamespace(priority=7, errors=4, rest=3, muted=2),
     )
     with patch("sase.notifications.read_notification_snapshot", return_value=snapshot):
-        assert mixin._read_notifications_for_startup() == ({"a"}, 11, 3, 2)
+        assert mixin._read_notifications_for_startup() == (
+            {"a"},
+            {(timestamp, "a")},
+            11,
+            3,
+            2,
+        )
+
+
+def test_startup_seeded_activity_generation_does_not_toast_after_startup() -> None:
+    app = _FakeApp()
+    existing = _make(
+        id="existing-startup",
+        action="JumpToAgent",
+        notes=["already active"],
+        timestamp="2026-08-01T09:00:00-04:00",
+    )
+
+    with _patch_snapshot([existing]) as startup_read:
+        app._initialize_agent_tracking(app._read_notifications_for_startup())
+
+    startup_read.assert_called_once()
+    assert app._last_unread_ids == {existing.id}
+    assert app._delivered_notification_activity_cursors == {
+        ("2026-08-01T09:00:00-04:00", existing.id)
+    }
+
+    with _patch_snapshot([existing]):
+        saw_new = asyncio.run(app._poll_agent_completions())
+
+    assert saw_new is False
+    assert app.notify.call_count == 0
+    assert app._bell_rung == 0
 
 
 def test_read_last_selection_name_delegates_to_loader() -> None:
@@ -155,10 +204,12 @@ async def test_slow_mount_state_read_does_not_block_app_key_dispatch(
     started = Event()
     release = Event()
 
-    def slow_notifications(_self: AceApp) -> tuple[set[str], int, int, int]:
+    def slow_notifications(
+        _self: AceApp,
+    ) -> tuple[set[str], set[tuple[str, str]], int, int, int]:
         started.set()
         release.wait()
-        return set(), 0, 0, 0
+        return set(), set(), 0, 0, 0
 
     monkeypatch.setattr(AceApp, "_read_notifications_for_startup", slow_notifications)
 

@@ -40,6 +40,7 @@ class AgentNotificationMixin(
     """
 
     _last_unread_ids: set[str]
+    _delivered_notification_activity_cursors: set[tuple[str, str]]
     current_idx: int
     current_tab: TabName
     hide_non_run_agents: bool

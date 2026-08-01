@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from sase.ace.tui.actions.lifecycle import LifecycleMixin
 from sase.ace.tui.actions.agents._notifications import AgentNotificationMixin
 from sase.core.notification_store_wire import (
     NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
@@ -30,10 +31,12 @@ def _make(
     silent: bool = False,
     muted: bool = False,
     snooze_until: str | None = None,
+    resurfaced_at: str | None = None,
+    timestamp: str | None = None,
 ) -> Notification:
     return Notification(
         id=id or str(uuid.uuid4()),
-        timestamp=datetime.now(get_timezone()).isoformat(),
+        timestamp=timestamp or datetime.now(get_timezone()).isoformat(),
         sender="test",
         notes=notes or [],
         files=files or [],
@@ -43,14 +46,16 @@ def _make(
         silent=silent,
         muted=muted,
         snooze_until=snooze_until,
+        resurfaced_at=resurfaced_at,
     )
 
 
-class _FakeApp(AgentNotificationMixin):
+class _FakeApp(LifecycleMixin, AgentNotificationMixin):
     """Minimal scaffolding to exercise the polling delta logic."""
 
     def __init__(self) -> None:
         self._last_unread_ids: set[str] = set()
+        self._delivered_notification_activity_cursors: set[tuple[str, str]] = set()
         self._agents: list = []
         self._agent_status_overrides = {}
         self._agent_pre_question_status = {}

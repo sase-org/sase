@@ -77,6 +77,7 @@ class AgentNotificationPollingMixin:
         import asyncio
 
         from ._toasts import format_batch_toasts
+        from sase.notifications import notification_activity_cursor
 
         previous_snapshot = getattr(self, "_notification_snapshot_cache", None)
         previous_notifications = list(
@@ -93,6 +94,31 @@ class AgentNotificationPollingMixin:
         )
 
         unread_active = unread_priority + unread_errors + unread_rest
+        current_ids = {n.id for n in unread_active}
+        delivered_activity_cursors = getattr(
+            self,
+            "_delivered_notification_activity_cursors",
+            None,
+        )
+        if delivered_activity_cursors is None:
+            delivered_activity_cursors = set()
+            self._delivered_notification_activity_cursors = (  # type: ignore[attr-defined]
+                delivered_activity_cursors
+            )
+        new_notifications: list[Notification] = []
+        new_activity_cursors: set[tuple[str, str]] = set()
+        for notification in unread_active:
+            activity_cursor = notification_activity_cursor(notification)
+            if activity_cursor in delivered_activity_cursors:
+                continue
+            new_notifications.append(notification)
+            new_activity_cursors.add(activity_cursor)
+        new_non_resurface_notifications = [
+            notification
+            for notification in new_notifications
+            if notification.id not in expired_snoozes
+            and notification.resurfaced_at is None
+        ]
         (
             prepared_plan_notifications,
             disappeared_artifact_dirs,
@@ -104,21 +130,13 @@ class AgentNotificationPollingMixin:
             notifications,
             unread_active + unread_muted,
         )
+        delivered_activity_cursors.update(new_activity_cursors)
         self._set_notification_snapshot_cache(snapshot)
         apply_disappeared_plan_notification_refresh(
             self,
             disappeared_artifact_dirs,
             needs_broad_fallback=needs_broad_fallback,
         )
-        current_ids = {n.id for n in unread_active}
-        new_ids = current_ids - self._last_unread_ids  # type: ignore[attr-defined]
-        new_notifications = [n for n in unread_active if n.id in new_ids]
-        new_non_resurface_notifications = [
-            notification
-            for notification in new_notifications
-            if notification.id not in expired_snoozes
-            and notification.resurfaced_at is None
-        ]
 
         self._last_unread_ids = current_ids  # type: ignore[attr-defined]
 
@@ -154,10 +172,10 @@ class AgentNotificationPollingMixin:
 
         # Muted arrivals do not toast or ring. Already-handled plan reviews have
         # been filtered out of new_notifications by reconciliation. Snooze
-        # expirations independently contribute transition metadata. Durable
-        # unread/resurface state also makes an expiry visible when another
-        # process won the store transition before this reader acquired the lock.
-        should_ring_bell = bool(new_notifications or expired_snoozes)
+        # expirations are delivered through the durable activity cursor, so a
+        # reader that did not win expired_ids still alerts once for the new
+        # resurfaced generation.
+        should_ring_bell = bool(new_notifications)
         if new_notifications:
             for message, severity in format_batch_toasts(new_notifications):
                 self.notify(  # type: ignore[attr-defined]

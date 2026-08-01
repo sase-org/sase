@@ -13,6 +13,14 @@ if TYPE_CHECKING:
 
 # Type alias for tab names (used in type hints)
 TabName = Literal["changespecs", "agents", "axe"]
+type NotificationActivityCursor = tuple[str, str]
+type NotificationStartupState = tuple[
+    set[str],
+    set[NotificationActivityCursor],
+    int,
+    int,
+    int,
+]
 
 
 class LifecycleMixin:
@@ -24,6 +32,7 @@ class LifecycleMixin:
     current_tab: TabName
     _changespecs_last_idx: int
     _last_unread_ids: set[str]
+    _delivered_notification_activity_cursors: set[NotificationActivityCursor]
 
     def on_unmount(self) -> None:
         """Clean up resources when Textual tears the app down."""
@@ -92,45 +101,64 @@ class LifecycleMixin:
             n.id for n in notifications if not n.read and not n.silent and not n.muted
         }
 
-    def _read_notifications_for_startup(self) -> tuple[set[str], int, int, int]:
-        """Single-pass disk read returning unread_ids + priority/rest/muted counts.
+    def _read_notifications_for_startup(self) -> NotificationStartupState:
+        """Single-pass disk read returning unread IDs, delivered cursors, and counts.
 
         Avoids parsing the JSONL twice during startup (once for the unread-id
         seed, once for the indicator counts).
         """
-        from sase.notifications import read_notification_snapshot
+        from sase.notifications import (
+            notification_activity_cursor,
+            read_notification_snapshot,
+        )
 
         snapshot = read_notification_snapshot()
         notifications = snapshot.notifications
         unread_ids: set[str] = set()
+        delivered_activity_cursors: set[NotificationActivityCursor] = set()
         for n in notifications:
             if n.read or n.silent:
                 continue
             if not n.muted:
                 unread_ids.add(n.id)
+                delivered_activity_cursors.add(notification_activity_cursor(n))
         counts = snapshot.counts
         priority_count = counts.priority + counts.errors
         rest_count = counts.rest
         muted_count = counts.muted
-        return unread_ids, priority_count, rest_count, muted_count
+        return (
+            unread_ids,
+            delivered_activity_cursors,
+            priority_count,
+            rest_count,
+            muted_count,
+        )
 
     def _initialize_agent_tracking(
         self,
-        state: tuple[set[str], int, int, int] | None = None,
+        state: NotificationStartupState | None = None,
     ) -> None:
         """Seed unread-id tracker and notification counts from preloaded state.
 
-        ``state`` is ``(unread_ids, priority, rest, muted)``; when ``None``
-        we read from disk inline (kept for callers outside the startup
-        path). Seeding the unread set prevents bell/toast for notifications
-        that were already unread when the TUI started.
+        ``state`` is ``(unread_ids, delivered_activity_cursors, priority,
+        rest, muted)``; when ``None`` we read from disk inline (kept for
+        callers outside the startup path). Seeding the activity cursors
+        prevents bell/toast for notifications that were already unread when
+        the TUI started.
         """
         from ..widgets import NotificationIndicator
 
         if state is None:
             state = self._read_notifications_for_startup()
-        unread_ids, priority_count, rest_count, muted_count = state
+        (
+            unread_ids,
+            delivered_activity_cursors,
+            priority_count,
+            rest_count,
+            muted_count,
+        ) = state
         self._last_unread_ids = unread_ids
+        self._delivered_notification_activity_cursors = delivered_activity_cursors
 
         indicator = self.query_one("#notification-indicator", NotificationIndicator)  # type: ignore[attr-defined]
         indicator.set_counts(priority_count, rest_count, muted_count)

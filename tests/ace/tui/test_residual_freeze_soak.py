@@ -275,14 +275,16 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
     startup_started = Event()
     startup_release = Event()
 
-    def slow_startup_read(_self: AceApp) -> tuple[set[str], int, int, int]:
+    def slow_startup_read(
+        _self: AceApp,
+    ) -> tuple[set[str], set[tuple[str, str]], int, int, int]:
         with watchdog_windows.record(
             "startup",
             stack_markers=("_read_notifications_for_startup", "slow_startup_read"),
         ):
             startup_started.set()
             startup_release.wait(timeout=5.0)
-        return set(), 0, 0, 0
+        return set(), set(), 0, 0, 0
 
     monkeypatch.setattr(
         AceApp,
