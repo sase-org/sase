@@ -5,11 +5,17 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 import fcntl
 import hashlib
+import json
 import logging
+import math
 import os
+import random
+import shlex
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +30,11 @@ from sase.sdd.store import SDD_STORAGE_IN_TREE, SddStore
 _logger = logging.getLogger(__name__)
 
 EPIC_PLAN_LAUNCH_LOCK_FILENAME = "sase-epic-plan-launch.lock"
+ENV_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT = "SASE_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT"
+DEFAULT_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT_SECONDS = 900.0
+_EPIC_PLAN_LAUNCH_LOCK_INITIAL_BACKOFF_SECONDS = 0.005
+_EPIC_PLAN_LAUNCH_LOCK_MAX_BACKOFF_SECONDS = 0.25
+_EPIC_PLAN_LAUNCH_LOCK_BACKOFF_MULTIPLIER = 1.7
 
 
 @dataclass(frozen=True)
@@ -114,28 +125,143 @@ def require_epic_launch_store_health(cwd: Path) -> None:
 
 
 @contextmanager
-def epic_plan_launch_lock(repo_root: Path) -> Iterator[None]:
+def epic_plan_launch_lock(
+    repo_root: Path,
+    *,
+    plan_file: str | Path | None = None,
+    timeout: float | None = None,
+) -> Iterator[None]:
     """Serialize complete approved-plan launches for one canonical store.
 
-    This blocking lock is deliberately distinct from ``store_git_write_lock``.
-    Lock ordering is always launch lock first, then the short-lived store write
-    lock used by nested commits. Keeping the launch lock outermost lets archive,
+    This lock is deliberately distinct from ``store_git_write_lock``. Lock
+    ordering is always launch lock first, then the short-lived store write lock
+    used by nested commits. Keeping the launch lock outermost lets archive,
     bead, rollback, and terminal-push operations form one transaction without
-    self-deadlocking.
+    self-deadlocking. Acquisition is bounded so a wedged launch cannot leave
+    every later launch blocked forever.
     """
+    from sase.bead.cli_work_from_plan_types import PlanFileWorkError
+
     lock_path = _epic_plan_launch_lock_path(repo_root)
+    timeout_seconds = (
+        _epic_plan_launch_lock_timeout() if timeout is None else max(0.0, timeout)
+    )
+    waiting_plan = str(plan_file) if plan_file is not None else None
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("a+", encoding="utf-8") as lock_file:
-        while True:
-            try:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-                break
-            except InterruptedError:
-                continue
+        started = time.monotonic()
+        acquired = _acquire_epic_plan_launch_lock(
+            lock_file.fileno(),
+            timeout=timeout_seconds,
+        )
+        if not acquired:
+            holder = _read_lock_holder(lock_file)
+            waited_seconds = time.monotonic() - started
+            holder_detail = _format_epic_plan_launch_holder(holder)
+            resume_command = (
+                shlex.join(["sase", "bead", "work", waiting_plan])
+                if waiting_plan is not None
+                else None
+            )
+            resume_hint = (
+                f" Resume with `{resume_command}` after the holder finishes."
+                if resume_command is not None
+                else " Retry the same `sase bead work` command after the holder finishes."
+            )
+            raise PlanFileWorkError(
+                f"Timed out after {waited_seconds:.3f}s waiting for epic plan "
+                f"launch lock {lock_path}; {holder_detail}.{resume_hint}",
+                resume_command=resume_command,
+            )
+
+        _write_lock_holder(
+            lock_file,
+            {
+                "pid": os.getpid(),
+                "plan_file": waiting_plan or "<unknown>",
+                "started_at": datetime.now(UTC).isoformat(),
+            },
+        )
         try:
             yield
         finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            try:
+                _clear_lock_holder(lock_file)
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _epic_plan_launch_lock_timeout() -> float:
+    raw = os.environ.get(ENV_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT)
+    if raw is None:
+        return DEFAULT_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT_SECONDS
+    try:
+        timeout = float(raw)
+    except ValueError:
+        return DEFAULT_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT_SECONDS
+    if not math.isfinite(timeout) or timeout <= 0:
+        return DEFAULT_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT_SECONDS
+    return timeout
+
+
+def _acquire_epic_plan_launch_lock(fd: int, *, timeout: float) -> bool:
+    deadline = time.monotonic() + timeout
+    backoff = _EPIC_PLAN_LAUNCH_LOCK_INITIAL_BACKOFF_SECONDS
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except InterruptedError:
+            continue
+        except BlockingIOError:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            jittered_backoff = random.uniform(backoff * 0.75, backoff * 1.25)
+            time.sleep(min(remaining, jittered_backoff))
+            backoff = min(
+                _EPIC_PLAN_LAUNCH_LOCK_MAX_BACKOFF_SECONDS,
+                backoff * _EPIC_PLAN_LAUNCH_LOCK_BACKOFF_MULTIPLIER,
+            )
+
+
+def _read_lock_holder(lock_file: Any) -> dict[str, Any] | None:
+    try:
+        lock_file.seek(0)
+        raw = lock_file.read().strip()
+        value = json.loads(raw)
+    except (OSError, ValueError, TypeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _write_lock_holder(lock_file: Any, holder: dict[str, Any]) -> None:
+    try:
+        lock_file.seek(0)
+        lock_file.truncate()
+        json.dump(holder, lock_file, sort_keys=True)
+        lock_file.flush()
+    except OSError:
+        _logger.debug("Failed to write epic plan launch lock holder", exc_info=True)
+
+
+def _clear_lock_holder(lock_file: Any) -> None:
+    try:
+        lock_file.seek(0)
+        lock_file.truncate()
+        lock_file.flush()
+    except OSError:
+        _logger.debug("Failed to clear epic plan launch lock holder", exc_info=True)
+
+
+def _format_epic_plan_launch_holder(holder: dict[str, Any] | None) -> str:
+    if holder is None:
+        return "the current holder did not record its identity"
+    return (
+        f"holder pid {holder.get('pid', 'unknown')} is launching "
+        f"{holder.get('plan_file', '<unknown>')} "
+        f"(started {holder.get('started_at', 'at an unknown time')})"
+    )
 
 
 def _epic_plan_launch_lock_path(repo_root: Path) -> Path:

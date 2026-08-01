@@ -3,8 +3,10 @@
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
+from datetime import UTC, datetime
 import fcntl
 import functools
+import json
 import logging
 import os
 from pathlib import Path
@@ -28,6 +30,7 @@ DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS = 10.0
 # Waiting minutes is cheaper than proceeding unlocked into another process's
 # rebase, which is what produced the discarded bead claims this bound guards.
 DEFAULT_WORKTREE_MUTATION_LOCK_TIMEOUT_SECONDS = 180.0
+DEFAULT_STORE_WRITE_LOCK_SLOW_WAIT_SECONDS = 30.0
 STORE_WRITE_LOCK_FILENAME = "sase-store-write.lock"
 _STORE_WRITE_LOCK_POLL_SECONDS = 0.05
 
@@ -135,17 +138,56 @@ def store_git_write_lock(
         )
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("a+", encoding="utf-8") as lock_file:
+        timer = _make_store_write_lock_timer(repo_root, op=op)
+        holder_before_wait = _read_store_write_lock_holder(lock_file)
+        wait_started = time.monotonic()
         acquired = _acquire_store_write_lock(
             lock_file.fileno(),
             timeout=timeout_seconds,
         )
+        waited_seconds = time.monotonic() - wait_started
+        holder = (
+            holder_before_wait
+            if acquired
+            else _read_store_write_lock_holder(lock_file) or holder_before_wait
+        )
+        if acquired:
+            _write_store_write_lock_holder(
+                lock_file,
+                {
+                    "pid": os.getpid(),
+                    "op": op or "an unnamed store write",
+                    "acquired_at": datetime.now(UTC).isoformat(),
+                },
+            )
+        _record_store_write_lock_wait(
+            timer,
+            waited_seconds=waited_seconds,
+            acquired=acquired,
+            holder=(
+                holder
+                if not acquired
+                or waited_seconds >= DEFAULT_STORE_WRITE_LOCK_SLOW_WAIT_SECONDS
+                else None
+            ),
+        )
         if not acquired:
             _logger.warning(
                 "Timed out after %.3fs waiting for SDD store write lock %s "
-                "during %s; proceeding without it",
+                "during %s; proceeding without it%s",
                 timeout_seconds,
                 lock_path,
                 op or "an unnamed store write",
+                _format_store_write_lock_holder(holder),
+            )
+        elif waited_seconds >= DEFAULT_STORE_WRITE_LOCK_SLOW_WAIT_SECONDS:
+            _logger.warning(
+                "Slow SDD store write lock acquisition: waited %.3fs for %s "
+                "during %s%s",
+                waited_seconds,
+                lock_path,
+                op or "an unnamed store write",
+                _format_store_write_lock_holder(holder),
             )
         token = None
         if acquired:
@@ -156,7 +198,10 @@ def store_git_write_lock(
             if acquired:
                 assert token is not None
                 _held_store_write_locks.reset(token)
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                try:
+                    _clear_store_write_lock_holder(lock_file)
+                finally:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 @contextmanager
@@ -278,6 +323,92 @@ def _acquire_store_write_lock(fd: int, *, timeout: float) -> bool:
             if remaining <= 0:
                 return False
             time.sleep(min(_STORE_WRITE_LOCK_POLL_SECONDS, remaining))
+
+
+def _make_store_write_lock_timer(repo_root: Path, *, op: str | None) -> Any:
+    try:
+        from sase.agent.launch_timing import LaunchTimingRecorder
+
+        return LaunchTimingRecorder(
+            "store_git_write_lock",
+            {
+                "op": op or "an unnamed store write",
+                "repo_root": str(repo_root.expanduser().resolve(strict=False)),
+            },
+            durable=True,
+        )
+    except Exception:
+        _logger.debug("Store write lock timing setup failed", exc_info=True)
+        return None
+
+
+def _record_store_write_lock_wait(
+    timer: Any,
+    *,
+    waited_seconds: float,
+    acquired: bool,
+    holder: dict[str, Any] | None,
+) -> None:
+    if timer is None:
+        return
+    try:
+        waited_ms = waited_seconds * 1000.0
+        outcome = "acquired" if acquired else "failed_open"
+        fields: dict[str, Any] = {
+            "waited_ms": waited_ms,
+            "acquired": acquired,
+            "failed_open": not acquired,
+            "outcome": outcome,
+        }
+        if holder is not None:
+            fields["holder"] = holder
+        timer.fields.update(fields)
+        timer.mark("store_write_lock_wait", elapsed_ms=waited_ms, **fields)
+        timer.finish(outcome=outcome)
+    except Exception:
+        _logger.debug("Store write lock timing record failed", exc_info=True)
+
+
+def _read_store_write_lock_holder(lock_file: Any) -> dict[str, Any] | None:
+    try:
+        lock_file.seek(0)
+        raw = lock_file.read().strip()
+        value = json.loads(raw)
+    except (OSError, ValueError, TypeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _write_store_write_lock_holder(
+    lock_file: Any,
+    holder: dict[str, Any],
+) -> None:
+    try:
+        lock_file.seek(0)
+        lock_file.truncate()
+        json.dump(holder, lock_file, sort_keys=True)
+        lock_file.flush()
+    except OSError:
+        _logger.debug("Failed to write store lock holder", exc_info=True)
+
+
+def _clear_store_write_lock_holder(lock_file: Any) -> None:
+    try:
+        lock_file.seek(0)
+        lock_file.truncate()
+        lock_file.flush()
+    except OSError:
+        _logger.debug("Failed to clear store lock holder", exc_info=True)
+
+
+def _format_store_write_lock_holder(holder: dict[str, Any] | None) -> str:
+    if holder is None:
+        return ""
+    return (
+        f"; holder pid {holder.get('pid', 'unknown')} is running "
+        f"{holder.get('op', 'an unknown operation')} "
+        f"(acquired {holder.get('acquired_at', 'at an unknown time')})"
+    )
 
 
 def _stream_text(value: str | bytes | None) -> str:

@@ -215,7 +215,9 @@ def work_from_plan_file(
 
     with ExitStack() as stack:
         with timer.stage("plan_launch_lock"):
-            stack.enter_context(_epic_plan_launch_lock(store.repo_root))
+            stack.enter_context(
+                _epic_plan_launch_lock(store.repo_root, plan_file=source_path)
+            )
         return _work_from_plan_file_locked(
             location=location,
             store=store,

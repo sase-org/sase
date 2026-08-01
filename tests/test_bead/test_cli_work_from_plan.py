@@ -132,7 +132,11 @@ def test_plan_file_mode_persists_durable_stage_timing(
         render=False,
     )
 
-    record = json.loads(timing_path.read_text(encoding="utf-8"))
+    records = [
+        json.loads(line)
+        for line in timing_path.read_text(encoding="utf-8").splitlines()
+    ]
+    record = next(record for record in records if record["operation"] == "bead_work")
     stage_names = {stage["stage"] for stage in record["stages"]}
     assert record["operation"] == "bead_work"
     assert record["bead_id"] == result.epic_id
