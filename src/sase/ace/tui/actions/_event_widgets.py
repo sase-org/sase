@@ -236,9 +236,9 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         """Handle width change from the list widget."""
         from textual.css.query import NoMatches
 
-        from ..app import _MAX_LIST_WIDTH, _MIN_LIST_WIDTH
+        from .._app_layout import MAX_LIST_WIDTH, MIN_LIST_WIDTH
 
-        width = max(_MIN_LIST_WIDTH, min(_MAX_LIST_WIDTH, event.width))
+        width = max(MIN_LIST_WIDTH, min(MAX_LIST_WIDTH, event.width))
         try:
             list_container = self.query_one("#list-container")  # type: ignore[attr-defined]
         except NoMatches:
@@ -249,7 +249,7 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         """Handle width change from the agent list widget."""
         from textual.css.query import NoMatches
 
-        from ..app import _MAX_AGENT_LIST_WIDTH, _MIN_AGENT_LIST_WIDTH
+        from .._app_layout import MAX_AGENT_LIST_WIDTH, MIN_AGENT_LIST_WIDTH
 
         try:
             agent_list_container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
@@ -264,7 +264,10 @@ class EventWidgetHandlersMixin(EventHandlersBase):
             if (width := getattr(widget, "_requested_width", 0)) > 0
         ]
         desired_width = max([event.width, *requested_widths])
-        width = max(_MIN_AGENT_LIST_WIDTH, min(_MAX_AGENT_LIST_WIDTH, desired_width))
+        width = max(
+            MIN_AGENT_LIST_WIDTH,
+            min(MAX_AGENT_LIST_WIDTH, desired_width),
+        )
         agent_list_container.styles.width = width
 
     def on_resize(self, _event: events.Resize) -> None:
@@ -291,10 +294,10 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         """Resize the AXE sidebar to fit its widest formatted row."""
         from textual.css.query import NoMatches
 
-        from ..app import (
-            _BGCMD_LIST_RESERVED_FOR_DASHBOARD,
-            _MAX_BGCMD_LIST_WIDTH,
-            _MIN_BGCMD_LIST_WIDTH,
+        from .._app_layout import (
+            BGCMD_LIST_RESERVED_FOR_DASHBOARD,
+            MAX_BGCMD_LIST_WIDTH,
+            MIN_BGCMD_LIST_WIDTH,
         )
 
         try:
@@ -302,15 +305,15 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         except NoMatches:
             return
         terminal_width = getattr(getattr(self, "size", None), "width", 0) or 0
-        max_for_terminal = _MAX_BGCMD_LIST_WIDTH
+        max_for_terminal = MAX_BGCMD_LIST_WIDTH
         if terminal_width > 0:
-            # Leave at least ``_BGCMD_LIST_RESERVED_FOR_DASHBOARD`` cells for
+            # Leave at least ``BGCMD_LIST_RESERVED_FOR_DASHBOARD`` cells for
             # the right-hand AXE dashboard so a wide sidebar can never push
             # the dashboard out of the viewport on tight terminals.
             terminal_cap = max(
-                _MIN_BGCMD_LIST_WIDTH,
-                terminal_width - _BGCMD_LIST_RESERVED_FOR_DASHBOARD,
+                MIN_BGCMD_LIST_WIDTH,
+                terminal_width - BGCMD_LIST_RESERVED_FOR_DASHBOARD,
             )
-            max_for_terminal = min(_MAX_BGCMD_LIST_WIDTH, terminal_cap)
-        width = max(_MIN_BGCMD_LIST_WIDTH, min(max_for_terminal, event.width))
+            max_for_terminal = min(MAX_BGCMD_LIST_WIDTH, terminal_cap)
+        width = max(MIN_BGCMD_LIST_WIDTH, min(max_for_terminal, event.width))
         container.styles.width = width

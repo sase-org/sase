@@ -5,10 +5,8 @@ import os
 import sys
 from typing import TYPE_CHECKING, Literal
 
-from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.app import App
 from textual.reactive import reactive
-from textual.widgets import Header
 
 from sase.ace.tui.util.session_registration import register_ace_session
 from sase.logs import current_toast_session, record_toast
@@ -20,11 +18,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from ..changespec import ChangeSpec
 from ..query import to_canonical_string
-from ._changespec_list_layout import (
-    CL_LIST_MAX_PANEL_WIDTH,
-    CL_LIST_MIN_PANEL_WIDTH,
-)
-from .models.fold_state import FoldLevel
 from .actions import (
     AgentsMixin,
     AgentsSyncActionsMixin,
@@ -52,63 +45,61 @@ from .actions import (
     UpdateToastMixin,
     WorkspaceActionsMixin,
 )
-from .bindings import DEFAULT_BINDINGS
+from ._app_action_availability import check_app_action
+from ._app_layout import (
+    BGCMD_LIST_RESERVED_FOR_DASHBOARD as _BGCMD_LIST_RESERVED_FOR_DASHBOARD,
+)
+from ._app_layout import (
+    MAX_AGENT_LIST_WIDTH as _MAX_AGENT_LIST_WIDTH,
+)
+from ._app_layout import (
+    MAX_BGCMD_LIST_WIDTH as _MAX_BGCMD_LIST_WIDTH,
+)
+from ._app_layout import (
+    MAX_LIST_WIDTH as _MAX_LIST_WIDTH,
+)
+from ._app_layout import (
+    MIN_AGENT_LIST_WIDTH as _MIN_AGENT_LIST_WIDTH,
+)
+from ._app_layout import (
+    MIN_BGCMD_LIST_WIDTH as _MIN_BGCMD_LIST_WIDTH,
+)
+from ._app_layout import (
+    MIN_LIST_WIDTH as _MIN_LIST_WIDTH,
+)
+from ._app_layout import AppLayoutMixin
+from ._app_watchers import AppWatchersMixin
 from .artifact_tabs import (
     DEFAULT_ARTIFACTS_SUBTAB,
     DEFAULT_FILES_SUBTAB,
     ArtifactsPaneKey,
+    ArtifactsSubTab,
     FilesSubTab,
     artifacts_pane_key,
 )
+from .bindings import DEFAULT_BINDINGS
 from .exit_action import AceExitAction
+from .models.fold_state import FoldLevel
+from .tab_order import TabName
 from .util.perf import JKPerfTimer, is_enabled as _perf_enabled
-from .widgets import (
-    AgentDetail,
-    AgentInfoPanel,
-    AgentList,
-    AgentsSyncIndicator,
-    AliasOverridesIndicator,
-    ArtifactsSubTab,
-    ArtifactsView,
-    AxeDashboard,
-    AxeInfoPanel,
-    BgCmdList,
-    KeybindingFooter,
-    LLMOverrideIndicator,
-    NotificationIndicator,
-    StashedPromptsIndicator,
-    TabBar,
-    TabQuickStart,
-    TaskIndicator,
-    UpdatesAvailableIndicator,
-)
-from .tab_order import ARTIFACTS_TAB, TabName
 
 log = logging.getLogger(__name__)
 
-# Width bounds for dynamic list panel sizing (in terminal cells)
-# MIN must fit the PR status line plus padding/border; the refresh countdown
-# lives on the info panel's second row.
-_MIN_LIST_WIDTH = CL_LIST_MIN_PANEL_WIDTH
-_MAX_LIST_WIDTH = CL_LIST_MAX_PANEL_WIDTH
-
-# Width bounds for agent list panel
-_MIN_AGENT_LIST_WIDTH = 60
-_MAX_AGENT_LIST_WIDTH = 130
-
-# Width bounds for the AXE-tab sidebar (#bgcmd-list-container).
-# Min matches the previous default of 35 so the empty / short-label
-# sidebar keeps its historical look; max is raised well above the prior
-# fixed cap of 50 so long lumberjack / chop / bgcmd labels can grow the
-# sidebar to fit (Phase 1 of sdd/epics/202605/axe_tab_visual_redesign.md).
-_MIN_BGCMD_LIST_WIDTH = 35
-_MAX_BGCMD_LIST_WIDTH = 80
-# Cells reserved for the right-hand AXE dashboard so a wide sidebar can't
-# starve it on narrow terminals.
-_BGCMD_LIST_RESERVED_FOR_DASHBOARD = 40
+__all__ = [
+    "AceApp",
+    "_BGCMD_LIST_RESERVED_FOR_DASHBOARD",
+    "_MAX_AGENT_LIST_WIDTH",
+    "_MAX_BGCMD_LIST_WIDTH",
+    "_MAX_LIST_WIDTH",
+    "_MIN_AGENT_LIST_WIDTH",
+    "_MIN_BGCMD_LIST_WIDTH",
+    "_MIN_LIST_WIDTH",
+]
 
 
 class AceApp(
+    AppLayoutMixin,
+    AppWatchersMixin,
     AgentWorkflowMixin,
     AgentsMixin,
     AgentsSyncActionsMixin,
@@ -144,7 +135,6 @@ class AceApp(
 
     BINDINGS = DEFAULT_BINDINGS
 
-    # Reactive properties
     changespecs: reactive[list[ChangeSpec]] = reactive([], recompose=False)
     hooks_collapsed: reactive[FoldLevel] = reactive(
         FoldLevel.COLLAPSED, recompose=False
@@ -198,7 +188,6 @@ class AceApp(
             cancel_member_jump = getattr(self, "_cancel_member_jump_pending", None)
             if callable(cancel_member_jump):
                 cancel_member_jump(refresh_footer=False)
-            # Moving to a different agent clears any selected-attempt view.
             self._current_attempt_number = None
             if self._jk_perf is not None:
                 self._jk_perf.mark_model_updated()
@@ -219,10 +208,7 @@ class AceApp(
 
     @property
     def current_attempt_number(self) -> int | None:
-        """Selected attempt number when an attempt child row is active.
-
-        ``None`` means the live/current attempt (the parent agent row).
-        """
+        """Selected attempt number; ``None`` means the live attempt."""
         return self._current_attempt_number
 
     @current_attempt_number.setter
@@ -241,16 +227,7 @@ class AceApp(
         restart_axe: bool = False,
         initial_tab: TabName = "agents",
     ) -> None:
-        """Initialize the ace TUI app.
-
-        Args:
-            query: Query string for filtering ChangeSpecs
-            model_tier_override: Override model tier for all LLM provider instances
-            refresh_interval: Auto-refresh interval in seconds (0 to disable)
-            auto_start_axe: Whether to auto-start the axe daemon on startup
-            restart_axe: Whether to restart the axe daemon on startup
-            initial_tab: Tab to focus on startup ("changespecs", "agents", or "axe")
-        """
+        """Initialize the ace TUI app."""
         super().__init__()
         from .util.app_version import format_app_title, initial_app_version
 
@@ -288,442 +265,22 @@ class AceApp(
 
     @property
     def canonical_query_string(self) -> str:
-        """Get the canonical (normalized) form of the query string.
-
-        Converts the parsed query back to a string with:
-        - Explicit AND keywords between atoms
-        - Uppercase AND/OR keywords
-        - Quoted strings (not @-shorthand)
-        """
+        """Get the canonical (normalized) form of the query string."""
         return to_canonical_string(self.parsed_query)
 
     @property
     def current_artifacts_pane_key(self) -> ArtifactsPaneKey:
         """Return the visible leaf pane that owns Artifacts state."""
-
         return artifacts_pane_key(
             self.current_artifacts_subtab,
             self.current_files_subtab,
         )
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        """Disable tab switching when a modal screen is active or prompt is focused.
-
-        This allows modals (e.g. revive agent modal) to use priority tab
-        bindings without the app-level next_tab/prev_tab consuming the key
-        first. It also lets the prompt text area handle Tab for snippet
-        expansion.
-        """
-        if action == "open_config_center" and getattr(
-            self.screen, "_blocks_global_config_center_open", False
-        ):
-            # The active Admin Center owns its opener locally.  On home that
-            # key resumes the remembered section; on a working pane it must
-            # never push a nested Admin Center over the current one.
-            return False
-        if action in (
-            "next_tab",
-            "prev_tab",
-            "clear_marks",
-            "activate_bug_link",
-        ):
-            from textual.screen import ModalScreen
-
-            if isinstance(self.screen, ModalScreen):
-                return False
-        if action in ("next_tab", "prev_tab"):
-            from .widgets.vim_text_area import VimTextArea
-
-            if isinstance(self.focused, VimTextArea):
-                return False
-        if action in {"search_forward", "search_reverse"}:
-            from textual.screen import ModalScreen
-
-            if (
-                self.current_tab != "agents"
-                or (
-                    bool(getattr(self, "_screen_stack", ()))
-                    and isinstance(self.screen, ModalScreen)
-                )
-                or (
-                    bool(getattr(self, "_screen_stack", ()))
-                    and self._prompt_input_active()
-                )
-            ):
-                return False
-        # ``Ctrl+Space`` replays the last launch selection by remounting the
-        # prompt bar, which tears down whatever the user is currently typing
-        # (``_show_prompt_input_bar_for_home`` unmounts first). The printable
-        # launch keys (``+``, ``space``) are swallowed by the focused TextArea,
-        # so this non-printable one is the only launch entry point that can
-        # reach the app mid-prompt. Disable the action instead of the key so
-        # the guard survives rebinding and covers every focus position inside
-        # the bar (prompt panes, frontmatter panel, frontmatter cell editors).
-        if action == "start_agent_from_changespec" and (
-            bool(getattr(self, "_screen_stack", ())) and self._prompt_input_active()
-        ):
-            return False
-        if action == "edit_query" and (
-            self.current_tab == "agents"
-            or (
-                self.current_tab == ARTIFACTS_TAB
-                and self.current_artifacts_subtab == "bugs"
-            )
-        ):
-            return False
-        if action == "add_axe_item":
-            return self.current_tab == "axe"
-        if action == "toggle_axe_description":
-            return self.current_tab == "axe"
-        if action == "show_diff" and self.current_tab != ARTIFACTS_TAB:
-            return False
-        if action == "open_artifact_files" and self.current_tab != "agents":
-            return False
-        from .actions.artifact_bugs import BUG_ARTIFACT_ACTIONS
-        from .actions.artifacts import (
-            BEADS_ARTIFACT_ACTIONS,
-            CHATS_ARTIFACT_ACTIONS,
-            COMMITS_ARTIFACT_ACTIONS,
-            FILES_ARTIFACT_ACTIONS,
-            NON_PRS_ARTIFACT_ACTIONS,
-            PLANS_ARTIFACT_ACTIONS,
-        )
-
-        if (
-            self.current_tab == ARTIFACTS_TAB
-            and self.current_artifacts_pane_key != "prs"
-            and action not in NON_PRS_ARTIFACT_ACTIONS
-        ):
-            return False
-        if action in BUG_ARTIFACT_ACTIONS:
-            return (
-                self.current_tab == ARTIFACTS_TAB
-                and self.current_artifacts_pane_key == "bugs"
-            )
-        if action in COMMITS_ARTIFACT_ACTIONS:
-            return (
-                self.current_tab == ARTIFACTS_TAB
-                and self.current_artifacts_pane_key == "commits"
-            )
-        if (
-            action == "refresh"
-            and self.current_tab == ARTIFACTS_TAB
-            and self.current_artifacts_pane_key in {"bugs", "commits", "other", "chats"}
-        ):
-            # ``y`` copies the selected pane entry; explicit
-            # pane refresh is registry-backed and defaults to ``R``.
-            return False
-        if action in {
-            "cycle_artifacts_subtab",
-            "cycle_artifacts_subtab_reverse",
-        }:
-            if self.current_tab != ARTIFACTS_TAB:
-                return False
-        if action in {"cycle_files_subtab", "cycle_files_subtab_reverse"}:
-            if (
-                self.current_tab != ARTIFACTS_TAB
-                or self.current_artifacts_subtab != "files"
-            ):
-                return False
-        if action in {
-            "show_artifacts_prs",
-            "show_artifacts_commits",
-            "show_artifacts_bugs",
-            "show_artifacts_beads",
-            "show_artifacts_files",
-        }:
-            if self.current_tab != ARTIFACTS_TAB:
-                return False
-        if action == "open_saved_query_picker":
-            if (
-                self.current_tab != ARTIFACTS_TAB
-                or self.current_artifacts_subtab != "prs"
-            ):
-                return False
-        if action in PLANS_ARTIFACT_ACTIONS:
-            if (
-                self.current_tab != ARTIFACTS_TAB
-                or self.current_artifacts_pane_key != "plans"
-            ):
-                return False
-        if action in BEADS_ARTIFACT_ACTIONS:
-            if (
-                self.current_tab != ARTIFACTS_TAB
-                or self.current_artifacts_pane_key != "beads"
-            ):
-                return False
-        if action in CHATS_ARTIFACT_ACTIONS:
-            if (
-                self.current_tab != ARTIFACTS_TAB
-                or self.current_artifacts_pane_key != "chats"
-            ):
-                return False
-        if action in FILES_ARTIFACT_ACTIONS:
-            if (
-                self.current_tab != ARTIFACTS_TAB
-                or self.current_artifacts_pane_key != "other"
-            ):
-                return False
-        if action == "pick_artifacts_project":
-            if (
-                self.current_tab != ARTIFACTS_TAB
-                or self.current_artifacts_pane_key == "prs"
-            ):
-                return False
-        if action in {"toggle_thinking", "toggle_thinking_reverse", "toggle_layout"}:
-            if self.current_tab != "agents":
-                return False
-        if action in {
-            "next_agent_metadata_section",
-            "prev_agent_metadata_section",
-        }:
-            if self.current_tab != "agents":
-                return False
-        if action in {"change_status", "bulk_change_status"}:
-            if self.current_tab != ARTIFACTS_TAB:
-                return False
-        if action == "save_marked_agents":
-            if self.current_tab != "agents":
-                return False
-        if action == "zoom_panel" and self.current_tab != "agents":
-            return False
-        if action == "start_fold_mode" and (
-            self.current_tab == "axe"
-            or (
-                self.current_tab == ARTIFACTS_TAB
-                and self.current_artifacts_pane_key != "prs"
-            )
-        ):
-            return False
-        return super().check_action(action, parameters)
-
-    def compose(self) -> ComposeResult:
-        """Compose the app layout."""
-        # Apply the requested initial tab as visible; others start hidden.
-        initial_tab = self.current_tab
-        cs_classes = "" if initial_tab == "changespecs" else "hidden"
-        agents_classes = "" if initial_tab == "agents" else "hidden"
-        axe_classes = "" if initial_tab == "axe" else "hidden"
-        yield Header()
-        with Horizontal(id="top-bar"):
-            yield TabBar(id="tab-bar")
-            yield TaskIndicator(id="task-indicator")
-            yield UpdatesAvailableIndicator(id="updates-indicator")
-            yield AgentsSyncIndicator(id="agents-sync-indicator")
-            yield LLMOverrideIndicator(id="llm-override-indicator")
-            yield AliasOverridesIndicator(id="alias-overrides-indicator")
-            yield StashedPromptsIndicator(id="stashed-prompts-indicator")
-            yield NotificationIndicator(id="notification-indicator")
-        with Horizontal(id="main-container"):
-            yield ArtifactsView(
-                commits_default_filter=self._commits_default_filter,
-                id="changespecs-view",
-                classes=cs_classes,
-            )
-            with Vertical(id="agents-view", classes=agents_classes):
-                yield AgentInfoPanel(id="agent-info-panel")
-                with Horizontal(id="agents-content"):
-                    with Vertical(id="agent-list-container"):
-                        yield AgentList(id="agent-list-panel")
-                    with Vertical(id="agent-detail-container"):
-                        yield AgentDetail(id="agent-detail-panel")
-                        yield TabQuickStart(
-                            tab="agents",
-                            id="agent-quickstart-panel",
-                            classes="hidden",
-                        )
-            with Horizontal(id="axe-view", classes=axe_classes):
-                with Vertical(id="bgcmd-list-container"):
-                    yield BgCmdList(id="bgcmd-list-panel")
-                with Vertical(id="axe-container"):
-                    yield AxeInfoPanel(id="axe-info-panel")
-                    yield AxeDashboard(id="axe-dashboard")
-        yield KeybindingFooter(id="keybinding-footer")
+        """Return whether an action is available in the current UI context."""
+        return check_app_action(self, action, parameters, super().check_action)
 
     def _jk_perf_begin(self, action: str) -> None:
         """Record a key-to-paint sample start, when SASE_TUI_PERF=1."""
         if self._jk_perf is not None:
             self._jk_perf.begin(action, self.current_tab)
-
-    def watch_current_idx(self, old_idx: int, new_idx: int) -> None:
-        """React to current_idx changes."""
-        if old_idx != new_idx:
-            if (
-                self.current_tab == ARTIFACTS_TAB
-                and self.current_artifacts_subtab == "prs"
-            ):
-                self._refresh_changespecs_display_debounced()
-            elif self.current_tab == "agents":
-                self._refresh_agents_display_debounced()
-            elif self.current_tab == "axe":
-                self._refresh_axe_display_debounced()
-            if self._jk_perf is not None:
-                self.call_after_refresh(self._jk_perf.mark_painted)
-
-    def watch_current_tab(self, old_tab: TabName, new_tab: TabName) -> None:
-        """React to tab changes by showing/hiding views."""
-        if old_tab == new_tab:
-            return
-
-        cancel_member_jump = getattr(self, "_cancel_member_jump_pending", None)
-        if callable(cancel_member_jump):
-            cancel_member_jump(refresh_footer=False)
-
-        from .util.trace import set_trace_context
-
-        set_trace_context(current_tab=new_tab)
-
-        if new_tab == "axe" or (
-            new_tab == ARTIFACTS_TAB and self.current_artifacts_subtab != "prs"
-        ):
-            self._fold_mode_active = False
-
-        # Cancel any pending detail-panel debouncer for the tab we're leaving;
-        # the new tab will redraw fresh and the deferred work would land in a
-        # now-hidden view.
-        if old_tab == "agents":
-            if getattr(self, "_agent_hint_render_identity", None) is not None:
-                self._remove_hint_input_bar(refresh=False)
-            self._exit_agent_metadata_search_for_context_change()
-            self._agent_detail_debouncer.cancel()
-            self._expanded_panel_focus = False
-        elif old_tab == "axe":
-            self._axe_detail_debouncer.cancel()
-        elif old_tab == ARTIFACTS_TAB and self.current_artifacts_subtab == "prs":
-            self._changespec_detail_debouncer.cancel()
-
-        if old_tab == "agents" and getattr(self, "_panel_fold_hint_mode_active", False):
-            self._teardown_panel_fold_hint_mode(refresh_titles=False)
-
-        # Tab changes always cancel adaptive entry-jump mode.
-        self._cancel_non_pr_artifacts_jump_mode()
-        self._entry_jump_mode_active = False
-        self._entry_jump_hint_to_target = {}
-        self._entry_jump_pending_prefix = ""
-        self._entry_jump_hint_to_index = {}
-        self._entry_jump_index_to_hint = {}
-        self._entry_jump_hint_to_banner = {}
-        self._entry_jump_banner_to_hint = {}
-        self._entry_jump_hint_to_panel = {}
-        self._entry_jump_panel_to_hint = {}
-        self._entry_jump_hint_to_changespec_banner = {}
-        self._entry_jump_changespec_banner_to_hint = {}
-
-        # Update tab bar indicator
-        tab_bar = self.query_one("#tab-bar", TabBar)
-        tab_bar.update_tab(new_tab)
-
-        changespecs_view = self.query_one("#changespecs-view", ArtifactsView)
-        agents_view = self.query_one("#agents-view")
-        axe_view = self.query_one("#axe-view")
-
-        if old_tab == ARTIFACTS_TAB:
-            changespecs_view.deactivate_current()
-
-        if new_tab == ARTIFACTS_TAB:
-            changespecs_view.remove_class("hidden")
-            agents_view.add_class("hidden")
-            axe_view.add_class("hidden")
-            changespecs_view.activate_current()
-            self._sync_active_artifacts_entry_state()
-        elif new_tab == "agents":
-            changespecs_view.add_class("hidden")
-            agents_view.remove_class("hidden")
-            axe_view.add_class("hidden")
-            self._sync_artifact_file_viewer_layout()
-            # During mount, on_mount will schedule the initial async load;
-            # skip here to avoid a redundant synchronous cold load.
-            if self._mounting:
-                pass
-            else:
-                # Show cached data (if any) immediately, then refresh async.
-                # When the cache is empty, ``_refilter_agents`` falls through
-                # to scheduling an async refresh, so the cold-load arm picks
-                # up the same loading-row paint as ``on_mount``.
-                self._refilter_agents()
-                # Only re-fetch on tab switch when there's pending work to
-                # consume — the auto-refresh path tab-gates the loader, so
-                # switching to a clean agents view should not pay the load
-                # cost. Guard against early-startup tab-watch ticks.
-                if getattr(self, "_dirty_agents", False) and not getattr(
-                    self, "_agents_loading", False
-                ):
-                    if hasattr(self, "_schedule_agents_async_refresh"):
-                        self._schedule_agents_async_refresh(source="tab_switch")
-        else:  # axe
-            changespecs_view.add_class("hidden")
-            agents_view.add_class("hidden")
-            axe_view.remove_class("hidden")
-            # Show existing state immediately, then refresh async
-            self._refresh_axe_display()
-            self._schedule_axe_async_refresh()
-
-        # If one of the tab-scoped popup panels is open, refresh it in place
-        # with the new tab context.
-        from .modals import HelpModal
-
-        screen = self.screen
-        if isinstance(screen, HelpModal):
-            if new_tab == "agents":
-                self._prepare_agents_help_guide_state()
-            screen.refresh_for_tab(
-                new_tab,
-                self.canonical_query_string,
-                registry=self._keymap_registry,
-                saved_queries=dict(self._saved_queries),
-                agents_launch_targets_available=(
-                    self._agents_onboarding_launch_targets_available
-                ),
-                agents_plugins_installed=self._agents_onboarding_plugins_installed,
-            )
-
-    def watch_current_artifacts_subtab(
-        self,
-        old_subtab: ArtifactsSubTab,
-        new_subtab: ArtifactsSubTab,
-    ) -> None:
-        """Switch Artifacts panes and preserve PR detail/refresh isolation."""
-        if old_subtab == new_subtab:
-            return
-        if new_subtab != "prs":
-            self._fold_mode_active = False
-        if self._entry_jump_mode_active:
-            self._exit_entry_jump_mode()
-        else:
-            self._cancel_non_pr_artifacts_jump_mode()
-        try:
-            view = self.query_one("#changespecs-view", ArtifactsView)
-        except Exception:
-            return
-        if old_subtab == "prs":
-            self._changespec_detail_debouncer.cancel()
-        view.switch_to(new_subtab)
-        if self.current_tab != ARTIFACTS_TAB:
-            return
-        self._sync_active_artifacts_entry_state()
-
-    def watch_current_files_subtab(
-        self,
-        old_subtab: FilesSubTab,
-        new_subtab: FilesSubTab,
-    ) -> None:
-        """Switch nested Files panes while preserving top-level Files state."""
-
-        if old_subtab == new_subtab:
-            return
-        if self._entry_jump_mode_active:
-            self._exit_entry_jump_mode()
-        else:
-            self._cancel_non_pr_artifacts_jump_mode()
-        try:
-            from .widgets.artifacts import ArtifactsFilesView
-
-            view = self.query_one(ArtifactsFilesView)
-        except Exception:
-            return
-        view.switch_to(new_subtab)
-        if (
-            self.current_tab == ARTIFACTS_TAB
-            and self.current_artifacts_subtab == "files"
-        ):
-            self._sync_active_artifacts_entry_state()
