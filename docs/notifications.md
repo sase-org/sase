@@ -59,9 +59,10 @@ appear in each matching tag tab:
 | Custom    | Other normalized notification tags, sorted alphabetically after `Done`; a multi-tagged row appears in each matching tab.         |
 | `Muted`   | Notifications the user has muted or snoozed. Mute dominates every other classification; a muted plan appears under `Muted` only. |
 
-Within the active tab, rows are ordered newest-first by their `timestamp` field. Rows with equal timestamps keep their
-original arrival order, and rows whose timestamp can't be parsed fall to the bottom rather than breaking the modal. The
-sort runs on every modal rebuild, so live actions like mark-read, dismiss, mute, and snooze update the visible order
+Within the active tab, rows are ordered newest-first by their **activity time** — `resurfaced_at` when a snooze has
+expired, otherwise `timestamp` (see [Activity Ordering](#activity-ordering)). Rows with equal activity times keep their
+original arrival order, and rows whose activity time can't be parsed fall to the bottom rather than breaking the modal.
+The sort runs on every modal rebuild, so live actions like mark-read, dismiss, mute, and snooze update the visible order
 immediately. Switching tabs with `[` / `]` or a mouse click clears modal-local marks so a hidden row is never
 bulk-dismissed by accident.
 
@@ -86,8 +87,87 @@ JSONL store and remain visible in the modal — only the top-bar indicator, toas
 Press `s` to snooze a notification, or marked rows, for `15m`, `1h`, `4h`, or until tomorrow morning. A marked snooze
 computes one deadline and applies it to every target. Snoozed notifications are implicitly muted (so they fall into the
 `Muted` tab) and display a `⏰ <remaining>` badge counting down to the snooze expiry. Toggling mute off cancels any
-pending snooze. The snooze expiry is persisted, so the notification re-emerges from `Muted` on its own once the timer
-runs out.
+pending snooze. The snooze deadline is persisted as a canonical UTC instant, so the notification re-emerges from `Muted`
+on its own once the deadline passes — see [Snooze Expiry and Resurfacing](#snooze-expiry-and-resurfacing) for the exact
+state transitions, timing guarantee, and recovery behavior.
+
+### Snooze Expiry and Resurfacing
+
+#### Exact Elapsed Versus Calendar Time
+
+Duration presets (`15m`, `1h`, `4h`) mean _exactly_ that much elapsed time, so they are added on the UTC timeline. A
+four-hour snooze started just before a DST transition still expires after four real hours, not three or five. Calendar
+presets such as "tomorrow morning" resolve in the configured IANA timezone first (09:00 local) and are then converted to
+UTC for storage. Display formatting stays local; the stored deadline is always a canonical UTC RFC-3339 instant.
+
+New snooze writes accept only timezone-aware, parseable, future instants. A naive, malformed, or already-past deadline
+is rejected before any row changes, and a rejected bulk snooze leaves every target untouched. Snoozing a dismissed or
+unknown notification is likewise a no-op rather than a silent success, so the modal never shows a false "Snoozed" state
+— a store failure or stale row reloads authoritative state and shows an actionable error instead.
+
+#### State Transitions
+
+| Event             |   `muted` | `snooze_until`                 |    `read` | `resurfaced_at` | Delivery result                                       |
+| ----------------- | --------: | ------------------------------ | --------: | --------------- | ----------------------------------------------------- |
+| Snooze active row |    `true` | validated future UTC instant   | unchanged | unchanged       | hidden from active delivery until due                 |
+| Resnooze          |    `true` | replacement future UTC instant | unchanged | unchanged       | only the replacement deadline is scheduled            |
+| Expire active row |   `false` | `null`                         |   `false` | expiry instant  | one new activity generation becomes visible           |
+| Explicit unmute   |   `false` | `null`                         | unchanged | unchanged       | timer is cancelled, not treated as an expiry          |
+| Dismiss           | unchanged | `null`                         | unchanged | unchanged       | pending snooze is cancelled and can never alert later |
+
+Expiry is atomic and batched: every row that is due at the same reconciliation stamps the _same_ `resurfaced_at`
+instant, becomes unmuted and unread, and clears its deadline. A row that was marked read while snoozed still returns to
+the inbox as unread. Permanent mutes (muted with no deadline) are never touched, and dismissed rows are skipped
+entirely, so a dismissed notification can never ring later.
+
+#### Timing Guarantee
+
+While a supporting long-lived consumer is running, a snoozed notification becomes current within that consumer's
+tolerance of its wall-clock deadline:
+
+- **ACE session** — one second, including after suspend/resume, a restart, or a system-clock change, and independently
+  of `--refresh-interval`. ACE schedules a deadline-driven coordinator rather than relying on the general refresh tick.
+- **Mobile gateway** — the next authenticated list or detail read, which expires the row and publishes a
+  `notifications_changed` event so connected clients refresh.
+- **Telegram outbound chop** — the next scheduled chop run.
+
+If every consumer is offline, no alert is emitted at the deadline; the durable guarantee is instead that the **first**
+later current-state read atomically catches the row up before returning any state. Expiry is therefore never lost, only
+deferred to the next reader.
+
+Because expiry happens under the store lock, exactly one concurrent reader observes a given row in its `expired_ids`
+transition metadata. Every other consumer still observes the result through the persistent `muted`, `read`, and
+`resurfaced_at` fields, so a losing process never misses the resurfacing. ACE emits one toast and one tmux bell per
+observed resurface batch and does not repeat it on later polls.
+
+#### Activity Ordering
+
+Every consumer orders notifications by an effective activity key rather than the raw creation time:
+
+```text
+activity_at(notification)     = resurfaced_at ?? timestamp
+activity_cursor(notification) = (activity_at, notification_id)
+```
+
+`timestamp` keeps its immutable meaning as the original creation time and is what the UI displays as the sent time. The
+activity key is what makes a resurfaced snooze first-class recent activity: an old row moves to the top of the ACE
+modal, the first `sase notify list` page, and the first mobile page instead of staying buried. The notification-ID
+tie-breaker is required anywhere a cursor is persisted (mobile `newer_than`/high-water, Telegram delivery) so two rows
+sharing an activity instant cannot hide one another.
+
+#### Legacy and Malformed Deadlines
+
+A legacy row whose `snooze_until` is unparseable or timezone-naive must not stay silently muted forever. The
+current-state reconciliation path treats it as immediately due: the row resurfaces at once and is reported as an expiry,
+while every new mutation path rejects such a value outright. Rows written before the resurface field existed default
+cleanly to `resurfaced_at: null`.
+
+#### Raw Versus Current-State Reads
+
+Raw audit reads (`load_notifications()`, the non-expiring snapshot read) deliberately never mutate time-driven state, so
+inspection and export paths cannot cause a resurface as a side effect. User-facing "current inbox" reads
+(`read_current_notification_snapshot()` and the CLI, ACE, mobile, and Telegram projections built on it) atomically
+expire due rows under the store lock before projecting rows, counts, `expired_ids`, and the next active deadline.
 
 ### Top-Bar Indicator
 
@@ -282,22 +362,23 @@ this build does not recognize produces an "Unsupported notification action" warn
 
 Each notification contains:
 
-| Field          | Type         | Description                                                                                                                                                                   |
-| -------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`           | string       | UUID4 unique identifier                                                                                                                                                       |
-| `timestamp`    | string       | ISO-8601 creation timestamp                                                                                                                                                   |
-| `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                                                                                               |
-| `icon`         | string\|null | Optional single emoji or display glyph                                                                                                                                        |
-| `notes`        | list[string] | Human-readable message lines                                                                                                                                                  |
-| `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                                                                                          |
-| `tags`         | list[string] | Optional normalized labels for filtering and modal tabs                                                                                                                       |
-| `action`       | string\|null | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `TaskTriage`, `UserQuestion`, `LaunchApproval`, `ViewReport`, etc. `null` means the notification is purely informational |
-| `action_data`  | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json`                                                                         |
-| `read`         | bool         | Whether the notification has been read                                                                                                                                        |
-| `dismissed`    | bool         | Whether the notification has been dismissed                                                                                                                                   |
-| `silent`       | bool         | Silent notifications are stored but hidden from the TUI                                                                                                                       |
-| `muted`        | bool         | Muted notifications appear under `Muted` and are excluded from the indicator, arrival bell, and toasts                                                                        |
-| `snooze_until` | string\|null | ISO-8601 timestamp at which a snoozed notification automatically un-mutes                                                                                                     |
+| Field           | Type         | Description                                                                                                                                                                   |
+| --------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`            | string       | UUID4 unique identifier                                                                                                                                                       |
+| `timestamp`     | string       | ISO-8601 creation timestamp; immutable, and never rewritten by a snooze or resurface                                                                                          |
+| `sender`        | string       | Source identifier (e.g., "plan", "sync", "axe")                                                                                                                               |
+| `icon`          | string\|null | Optional single emoji or display glyph                                                                                                                                        |
+| `notes`         | list[string] | Human-readable message lines                                                                                                                                                  |
+| `files`         | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                                                                                          |
+| `tags`          | list[string] | Optional normalized labels for filtering and modal tabs                                                                                                                       |
+| `action`        | string\|null | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `TaskTriage`, `UserQuestion`, `LaunchApproval`, `ViewReport`, etc. `null` means the notification is purely informational |
+| `action_data`   | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json`                                                                         |
+| `read`          | bool         | Whether the notification has been read                                                                                                                                        |
+| `dismissed`     | bool         | Whether the notification has been dismissed                                                                                                                                   |
+| `silent`        | bool         | Silent notifications are stored but hidden from the TUI                                                                                                                       |
+| `muted`         | bool         | Muted notifications appear under `Muted` and are excluded from the indicator, arrival bell, and toasts                                                                        |
+| `snooze_until`  | string\|null | Canonical UTC RFC-3339 instant at which a snoozed notification automatically un-mutes; `null` once expired or cancelled                                                       |
+| `resurfaced_at` | string\|null | UTC instant stamped when a snooze expired; drives activity ordering and delivery cursors. `null` for rows that never resurfaced                                               |
 
 ## Silent Notifications
 
@@ -491,9 +572,13 @@ Use the explicit `list` subcommand when passing list flags; for example, use `sa
 `sase notify -j`.
 
 `sase notify list -j` prints notifications newest first with `id`, `timestamp`, `age`, `sender`, `icon`, `priority`,
-`notes`, `files`, `tags`, `action`, `action_data`, `read`, `dismissed`, `silent`, `muted`, and `snooze_until`. The
-`-q/--query` filter matches tags as well as ids, senders, notes, files, actions, and action data. Dismissed
-notifications are hidden unless `--all` is provided.
+`notes`, `files`, `tags`, `action`, `action_data`, `read`, `dismissed`, `silent`, `muted`, `snooze_until`, and
+`resurfaced_at`. The `-q/--query` filter matches tags as well as ids, senders, notes, files, actions, and action data.
+Dismissed notifications are hidden unless `--all` is provided.
+
+`list` and `show` are current-state reads: they atomically expire any due snooze before projecting, and they order and
+limit by the activity key, so a resurfaced old notification appears on the first `-l 1` page while still reporting its
+original `timestamp` and `age`.
 
 Inspect one notification by id:
 
@@ -609,5 +694,10 @@ Notifications are stored in JSONL format at `~/.sase/notifications/notifications
 multiple axe processes and the TUI can access the file without truncate-before-lock exposure. Common state-only updates
 such as mark-read, mark-all-read, mute, snooze, and dismiss use a count-only Rust mutation path unless the caller needs
 rehydrated notification rows; this keeps inbox counters cheap when ACE or a bridge process only needs mutation metadata.
+
+The Rust store also owns every temporal semantic: it validates and normalizes snooze deadlines, expires due rows
+atomically under the same lock as the read, stamps `resurfaced_at`, and reports both `expired_ids` and the earliest
+remaining `next_snooze_deadline` alongside the projected counts. Consumers schedule their timers from that projected
+deadline instead of polling. Concurrent expiring readers converge on one store state without losing appended rows.
 
 Source: `src/sase/notifications/`

@@ -2185,6 +2185,29 @@ error notifications (plan approvals, launch approvals, user questions, mentor re
 error reports), gold for regular unmuted notifications, and cyan when only muted or snoozed notifications remain. A
 trailing dot means muted unread rows also exist while the badge is showing the actionable count.
 
+### Snooze Reminder Scheduling
+
+Snooze expiry does not depend on the general refresh cadence. ACE keeps at most one timer for the nearest deadline
+reported by the current notification snapshot, so reminders fire on time even with clean inotify state or
+`--refresh-interval 0` (which disables ordinary auto-refresh). The timer callback stays thin and synchronous: it
+compares cached wall-clock values on Textual's message pump and hands the store read to a coalesced background task, so
+no disk or worker I/O runs on the pump and an expired snooze never triggers a full Agents-list rebuild.
+
+While any snooze is pending, ACE rechecks the wall clock at most one second apart, so a suspended host, a resumed
+session, or a forward/backward system-clock change re-evaluates the authoritative UTC deadline promptly instead of
+waiting out a monotonic timer. Startup reconciliation, notification-file watcher events, ordinary polling, and modal
+snooze/resnooze/unmute/dismiss completions all route through the same coalescing guard, so an external mutation can
+replace or cancel the cached nearest deadline immediately. The coordinator starts after first paint and its timer and
+task are cancelled during normal and controlled teardown.
+
+Once due, ACE performs one current-state snapshot read, applies counts, toasts, and status projections, then schedules
+the next future deadline. Each observed resurface batch produces one toast and one tmux bell — including rows that were
+marked read while snoozed — and no repeat on later polls. Cancelled, dismissed, permanently muted, and not-yet-due rows
+never ring. If another process wins the expiry, the persisted unread state and `resurfaced_at` still make the transition
+observable here. Resurfaced rows sort as recent activity in the modal while continuing to display their original sent
+time. See [`docs/notifications.md`](notifications.md#snooze-expiry-and-resurfacing) for the full state and timing
+contract.
+
 ## Notification Actions
 
 Some notifications carry an `action` field that triggers a handler when the notification is selected. The following

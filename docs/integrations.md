@@ -199,13 +199,18 @@ print(hitl_result.message, question_result.message, gate_result.message)
 ```
 
 Snapshot reads project notifications into mobile-safe rows with display paths, host paths, action state, read/dismissed
-state, mute/snooze state, and priority counts. Detail reads include dismissed and silent rows so clients can rebuild
-local state after an event-stream resync. Action helpers resolve exact IDs or unique prefixes, write the corresponding
-response JSON once, and run best-effort host side effects. The facade supports plan approvals, workflow
-human-in-the-loop actions, user-question answers, and custom gates. Custom-gate details project each choice's id, label,
-icon, feedback mode, and ordered add-ons; submissions carry only the choice id, selected add-on ids, and feedback and
-then run through the same hash-verified executor as ACE and Telegram. Action failures raise `MobilePlanActionError` with
-deterministic `code` and `target` fields for duplicate, stale, ambiguous, unsupported, missing, and invalid requests.
+state, mute/snooze state, resurface time, and priority counts. They are current-state reads: any due snooze is expired
+atomically before projection, and the reported `expired_ids` name the rows that made the transition on this read.
+Ordering, `limit`, and `newer_than` all use the `(activity_at, id)` cursor described in
+[`docs/notifications.md`](notifications.md#activity-ordering), so a resurfaced old notification appears on the first
+bounded page and crosses a `newer_than` cursor taken before it resurfaced, while `timestamp` still reports the original
+sent time. Detail reads include dismissed and silent rows so clients can rebuild local state after an event-stream
+resync. Action helpers resolve exact IDs or unique prefixes, write the corresponding response JSON once, and run
+best-effort host side effects. The facade supports plan approvals, workflow human-in-the-loop actions, user-question
+answers, and custom gates. Custom-gate details project each choice's id, label, icon, feedback mode, and ordered
+add-ons; submissions carry only the choice id, selected add-on ids, and feedback and then run through the same
+hash-verified executor as ACE and Telegram. Action failures raise `MobilePlanActionError` with deterministic `code` and
+`target` fields for duplicate, stale, ambiguous, unsupported, missing, and invalid requests.
 
 Source: `src/sase/integrations/mobile_notifications.py`
 

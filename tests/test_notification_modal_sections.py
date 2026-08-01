@@ -46,6 +46,23 @@ def test_active_tab_renders_flat_newest_first_without_section_rows() -> None:
     assert _option_ids(modal) == ["3", "1"]
 
 
+def test_resurfaced_row_sorts_as_recent_activity() -> None:
+    """A resurfaced snooze leads the tab despite its old creation time."""
+    resurfaced = _make_notification(
+        "old", action="JumpToAgent", timestamp="2026-03-10T09:00:00-04:00"
+    )
+    resurfaced.resurfaced_at = "2026-03-17T15:00:00-04:00"
+    newer = _make_notification(
+        "new", action="JumpToAgent", timestamp="2026-03-17T13:00:00-04:00"
+    )
+
+    modal = NotificationModal([resurfaced, newer])
+
+    assert _option_ids(modal) == ["0", "1"]
+    # The immutable original sent time is untouched by the reordering.
+    assert modal._notifications[0].timestamp == "2026-03-10T09:00:00-04:00"
+
+
 def test_compat_sectioned_options_wrapper_matches_flat_options() -> None:
     """The old option-builder entrypoint delegates to the flat renderer."""
     notification = _make_notification("n1", action="JumpToAgent")

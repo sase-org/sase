@@ -220,7 +220,10 @@ Then smoke the end-to-end path:
    refreshes.
 6. For FCM builds, verify push registration in Settings, send a test hint, tap the local notification, and confirm the
    app fetches host state before showing detail-sensitive UI.
-7. Forget the host and verify the app returns to the unpaired state.
+7. Snooze a notification in ACE, wait for its deadline, and verify the row returns to the mobile inbox as unread on the
+   first page, that its displayed sent time is unchanged, and that an incremental `newer_than` poll using the stored
+   `next_high_water` cursor returns it exactly once.
+8. Forget the host and verify the app returns to the unpaired state.
 
 ## Troubleshooting
 
@@ -234,6 +237,13 @@ Then smoke the end-to-end path:
   refresh after receipt or tap.
 - Auth failures after reinstall or host reset: forget the host in Android Settings and pair again.
 - Foreground notification will not appear: verify Android notification permission and that connected mode is enabled.
+- A snoozed notification never came back: with no consumer running, nothing rings at the deadline by design; the row is
+  expired atomically by the first later current-state read. Fetch `/api/v1/notifications` once and confirm it returns
+  with `resurfaced_at` set and `muted: false`. If it is still muted with a past `snooze_until`, the store read is
+  failing rather than the timer.
+- A resurfaced notification is missing from an incremental poll: confirm the client stored `next_high_water` verbatim,
+  including the `|<id>` suffix. A cursor truncated to the timestamp can hide a sibling row that shares its activity
+  instant.
 
 ## Rollback
 

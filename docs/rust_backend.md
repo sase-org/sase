@@ -26,7 +26,13 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
 - Git query parsers: `parse_git_name_status_z`, `parse_git_branch_name`, `derive_git_workspace_name`,
   `parse_git_conflicted_files`, and `parse_git_local_changes`
 - Notification JSONL store operations: `read_notifications_snapshot`, `append_notification`,
-  `apply_notification_state_update`, and `rewrite_notifications`
+  `apply_notification_state_update`, and `rewrite_notifications`. The store owns every temporal snooze semantic:
+  deadlines are validated as timezone-aware future instants and normalized to canonical UTC before any row changes (a
+  rejected bulk snooze stays atomic), the current-state read expires due and malformed-legacy rows under the same
+  exclusive lock it reads with, and snapshots/outcomes report `expired_ids` plus the earliest remaining
+  `next_snooze_deadline`. Expiry stamps one shared `resurfaced_at` per batch, marks rows unmuted and unread, skips
+  dismissed rows, and leaves permanent mutes untouched. Callers must not reimplement expiry, ordering, or deadline
+  arithmetic in Python — see [`docs/notifications.md`](notifications.md#snooze-expiry-and-resurfacing)
 - Agent cleanup planning plus deterministic cleanup mutations: dismissed-identity index writes, artifact-marker
   deletion, workspace-release text mutation, and hook/mentor/comment kill marking. These calls prefer Rust but retain
   cleanup-specific Python compatibility paths for missing or stale bindings. In the current ACE host path,
@@ -524,6 +530,7 @@ pins the Rust extension's expected output byte-for-byte across parser, query, ag
 | Query parse / canonical form | `tests/test_core_query_golden_*` (errors / eval / tokens / wire), `tests/test_core_facade/test_query.py`                    |
 | Agent artifact scan          | `tests/test_core_agent_scan.py` + `tests/agent_scan_golden/` fixture builder                                                |
 | Notification store           | `tests/test_core_notification_store.py`, `tests/test_core_facade/test_notification_store.py`                                |
+| Snooze expiry end-to-end     | `tests/notification_store/test_snooze_e2e_matrix.py`, `../sase-core/crates/sase_core/tests/notification_store_parity.rs`    |
 | Status helpers + planner     | `tests/test_core_facade/test_status.py`, `tests/test_core_status_lines.py`, `tests/test_core_status_wire.py`                |
 | Git query parsers            | `tests/test_core_git_query.py`                                                                                              |
 | Agent launch                 | `tests/test_core_agent_launch_wire.py`, `tests/test_agent_launch_executor.py`, `tests/perf/test_agent_launch_regression.py` |

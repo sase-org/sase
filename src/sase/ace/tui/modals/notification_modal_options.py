@@ -20,7 +20,7 @@ from sase.notifications import (
     format_relative_time,
     format_relative_until,
 )
-from sase.notifications.sort import timestamp_sort_key
+from sase.notifications.sort import activity_sort_key
 from sase.project_display_names import (
     humanize_cl_names_in_text,
     humanize_vcs_refs_in_text,
@@ -131,14 +131,19 @@ class NotificationOptionMixin:
     def _create_notification_options(
         self: Any, *, jump_hints: dict[int, str] | None = None
     ) -> list[Option]:
-        """Create a flat, recency-sorted option list for the active tab."""
+        """Create a flat, activity-sorted option list for the active tab.
+
+        Rows are ordered by ``resurfaced_at ?? timestamp`` so a resurfaced
+        snooze is recent activity rather than staying buried at its original
+        creation time.
+        """
         active_tag: str | None = getattr(self, "_active_notification_tag", None)
         rows: list[tuple[int, Notification]] = []
         for i, n in enumerate(self._notifications):
             if not notification_matches_tag_tab(n, active_tag):
                 continue
             rows.append((i, n))
-        rows.sort(key=lambda pair: timestamp_sort_key(pair[1]), reverse=True)
+        rows.sort(key=lambda pair: activity_sort_key(pair[1]), reverse=True)
 
         options: list[Option] = []
         marked_ids: set[str] = getattr(self, "_marked_notification_ids", set())

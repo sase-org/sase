@@ -334,6 +334,35 @@ curl -sS "$BASE_URL/api/v1/notifications?include_dismissed=true&include_silent=t
   -H "$AUTH_HEADER"
 ```
 
+Poll incrementally with the activity cursor returned as `next_high_water`:
+
+```bash
+curl -sS "$BASE_URL/api/v1/notifications?newer_than=2026-08-01T13:05:00Z%7C7f3c...&limit=25" \
+  -H "$AUTH_HEADER"
+```
+
+### Notification Activity Cursor
+
+List reads are **current-state** reads: a due snooze is expired atomically inside the store before the response is
+projected. Ordering, `limit`, and `newer_than` all use the activity cursor `(activity_at, id)`, where `activity_at` is
+`resurfaced_at` when present and `timestamp` otherwise. Each row carries both `timestamp` (the immutable original send
+time, unchanged by a snooze) and `resurfaced_at` (`null` until a snooze expires), and `next_high_water` is the
+`"<activity_at>|<id>"` cursor of the newest row in the page.
+
+Two consequences matter for clients:
+
+- An old notification whose snooze just expired is **new activity**. It appears at the top of the first page and it
+  crosses a `newer_than` cursor that was captured before it resurfaced, so an incremental poller sees it exactly once.
+- The `|<id>` tie-breaker is what prevents two rows sharing an `activity_at` from hiding one another. Persist
+  `next_high_water` verbatim. A cursor from the timestamp-only rollout format (no `|`) is still parsed and keeps its
+  prior strict comparison, so stored cursors do not need a migration step.
+
+When a list read expires a due snooze, the gateway publishes a `notifications_changed` event with
+`reason: "snooze_expired"` **after** releasing the notification-store lock, carrying the newest expired row's activity
+cursor (and its `notification_id` when exactly one row expired). Connected clients can therefore refresh from one
+unrelated read rather than waiting for another action. See
+[`docs/notifications.md`](notifications.md#snooze-expiry-and-resurfacing) for the underlying state and timing contract.
+
 Inspect a plan approval notification before acting on it:
 
 ```bash
