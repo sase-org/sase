@@ -469,6 +469,14 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
         if (
             self.current_tab == "changespecs"
+            and getattr(self, "current_artifacts_pane_key", "prs") == "beads"
+        ):
+            pane = self._beads_pane()  # type: ignore[attr-defined]
+            if pane is not None:
+                pane.show_filters()
+            return
+        if (
+            self.current_tab == "changespecs"
             and getattr(self, "current_artifacts_pane_key", "prs") == "chats"
         ):
             pane = self._chats_pane()  # type: ignore[attr-defined]

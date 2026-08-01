@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
 
 from rich.text import Text
@@ -26,6 +27,7 @@ def build_beads_scope(
     *,
     project_scope: str | None,
     project_display_name: str | None,
+    filter_tokens: tuple[str, ...] = (),
 ) -> Text:
     text = Text()
     accent = ARTIFACTS_ACCENTS["beads"]
@@ -40,6 +42,9 @@ def build_beads_scope(
         f"{key_display_name(registry.app.pick_artifacts_project)} change",
         style="dim",
     )
+    for token in filter_tokens:
+        text.append("  ·  ", style="dim")
+        text.append(token, style="dim #87D7FF")
     return text
 
 
@@ -48,6 +53,8 @@ def build_beads_status(
     *,
     loading: bool,
     load_error: str | None,
+    matched_counts: Mapping[str, int] | None = None,
+    matched_triage_count: int | None = None,
 ) -> Text:
     text = Text()
     if loading:
@@ -61,15 +68,44 @@ def build_beads_status(
         if snapshot.project is None:
             text.append(f"{len(snapshot.projects)} projects", style="bold white")
             text.append("  ·  ", style="dim")
-        text.append(f"{len(snapshot.tasks)} tasks", style=ARTIFACTS_ACCENTS["beads"])
+        text.append(
+            _matched_count_label(
+                matched_counts,
+                "task",
+                len(snapshot.tasks),
+                "tasks",
+            ),
+            style=ARTIFACTS_ACCENTS["beads"],
+        )
         text.append("  ·  ", style="dim")
-        text.append(f"{len(snapshot.epics)} epics", style="#FFD700")
+        text.append(
+            _matched_count_label(
+                matched_counts,
+                "epic",
+                len(snapshot.epics),
+                "epics",
+            ),
+            style="#FFD700",
+        )
         text.append("  ·  ", style="dim")
-        text.append(f"{phase_count} phases", style="#87D7FF")
-        if snapshot.triage_gates:
+        text.append(
+            _matched_count_label(
+                matched_counts,
+                "phase",
+                phase_count,
+                "phases",
+            ),
+            style="#87D7FF",
+        )
+        triage_count = (
+            matched_triage_count
+            if matched_counts is not None and matched_triage_count is not None
+            else len(snapshot.triage_gates)
+        )
+        if triage_count:
             text.append("  ·  ", style="dim")
             text.append(
-                f"✦ {len(snapshot.triage_gates)} awaiting triage",
+                f"✦ {triage_count} awaiting triage",
                 style=f"bold {ARTIFACTS_ACCENTS['beads']}",
             )
         if snapshot.errors:
@@ -88,6 +124,7 @@ def build_beads_hints(registry: KeymapRegistry) -> Text:
         (key_display_name(keymap.beads_next), "next"),
         (key_display_name(keymap.beads_prev), "prev"),
         (key_display_name(keymap.beads_view_selected), "view"),
+        (key_display_name(keymap.beads_filters), "filter"),
         (key_display_name(keymap.beads_expand), "expand"),
         (key_display_name(keymap.beads_collapse), "collapse"),
         (key_display_name(keymap.beads_refresh), "refresh"),
@@ -203,6 +240,18 @@ def project_badge(snapshot: BeadsSnapshot, project: str) -> str | None:
     if snapshot.project is not None:
         return None
     return snapshot.display_names.get(project, project)
+
+
+def _matched_count_label(
+    matched_counts: Mapping[str, int] | None,
+    kind: str,
+    total: int,
+    noun: str,
+) -> str:
+    count = str(total)
+    if matched_counts is not None:
+        count = f"{matched_counts.get(kind, 0)}/{total}"
+    return f"{count} {noun}"
 
 
 def single_line_text(text: str = "", *, style: str = "") -> Text:

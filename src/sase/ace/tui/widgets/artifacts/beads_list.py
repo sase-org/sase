@@ -10,7 +10,7 @@ from textual.widgets.option_list import Option
 
 from sase.bead.model import Issue
 
-from .beads_data import BeadsSnapshot
+from .beads_data import BeadsSnapshot, ProjectBead
 from .entry_navigation import (
     ArtifactEntryTarget,
     prepend_jump_hint,
@@ -64,6 +64,7 @@ def build_bead_options(
     expanded_epics: set[tuple[str, str]],
     jump_hints: Mapping[ArtifactEntryTarget, str] | None = None,
     marks: set[ArtifactEntryTarget] | None = None,
+    matched_option_ids: frozenset[str] | None = None,
 ) -> tuple[list[Option], dict[str, BeadRow]]:
     options: list[Option] = []
     rows: dict[str, BeadRow] = {}
@@ -82,14 +83,49 @@ def build_bead_options(
         )
 
     active_marks = marks or set()
+    filter_active = matched_option_ids is not None
+    matched_ids = matched_option_ids or frozenset()
+    visible_tasks = tuple(
+        item
+        for item in snapshot.tasks
+        if not filter_active
+        or row_option_id(snapshot, "task", item.project, item.issue.id) in matched_ids
+    )
+    visible_epics: list[ProjectBead] = []
+    visible_phases_by_epic: dict[tuple[str, str], tuple[ProjectBead, ...]] = {}
+    for item in snapshot.epics:
+        project = item.project
+        epic = item.issue
+        epic_option_id = row_option_id(snapshot, "epic", project, epic.id)
+        epic_matches = not filter_active or epic_option_id in matched_ids
+        phase_items = snapshot.phases_by_epic.get((project, epic.id), ())
+        visible_phases = tuple(
+            phase_item
+            for phase_item in phase_items
+            if not filter_active
+            or row_option_id(
+                snapshot,
+                "phase",
+                phase_item.project,
+                phase_item.issue.id,
+            )
+            in matched_ids
+        )
+        if epic_matches or visible_phases:
+            visible_epics.append(item)
+            visible_phases_by_epic[(project, epic.id)] = visible_phases
     triage_count = sum(
-        (task.project, task.issue.id) in snapshot.triage_gates
-        for task in snapshot.tasks
+        (task.project, task.issue.id) in snapshot.triage_gates for task in visible_tasks
     )
     options.append(
-        _section_option("Tasks", len(snapshot.tasks), triage_count=triage_count)
+        _section_option(
+            "Tasks",
+            len(visible_tasks),
+            total=len(snapshot.tasks) if filter_active else None,
+            triage_count=triage_count,
+        )
     )
-    for item in snapshot.tasks:
+    for item in visible_tasks:
         issue = item.issue
         option_id = row_option_id(snapshot, "task", item.project, issue.id)
         row = BeadRow("task", option_id, item.project, issue)
@@ -114,13 +150,25 @@ def build_bead_options(
                 id=option_id,
             )
         )
-    if not snapshot.tasks:
+    if not visible_tasks:
         options.append(
-            Option(single_line_text("  No task beads", style="dim"), disabled=True)
+            Option(
+                single_line_text(
+                    "  No matching task beads" if filter_active else "  No task beads",
+                    style="dim",
+                ),
+                disabled=True,
+            )
         )
 
-    options.append(_section_option("Epics", len(snapshot.epics)))
-    for item in snapshot.epics:
+    options.append(
+        _section_option(
+            "Epics",
+            len(visible_epics),
+            total=len(snapshot.epics) if filter_active else None,
+        )
+    )
+    for item in visible_epics:
         project = item.project
         epic = item.issue
         epic_key = (project, epic.id)
@@ -129,7 +177,9 @@ def build_bead_options(
         rows[option_id] = row
         target = bead_row_target(row)
         phases = snapshot.phases_by_epic.get(epic_key, ())
-        expanded = epic_key in expanded_epics
+        expanded = epic_key in expanded_epics or (
+            filter_active and not epic_matches and bool(visible_phases)
+        )
         options.append(
             Option(
                 prepend_jump_hint(
@@ -153,7 +203,7 @@ def build_bead_options(
         )
         if not expanded:
             continue
-        for phase_item in phases:
+        for phase_item in visible_phases_by_epic.get(epic_key, phases):
             phase = phase_item.issue
             phase_id = row_option_id(snapshot, "phase", project, phase.id)
             phase_row = BeadRow("phase", phase_id, project, phase)
@@ -177,17 +227,30 @@ def build_bead_options(
                     id=phase_id,
                 )
             )
-    if not snapshot.epics:
+    if not visible_epics:
         options.append(
-            Option(single_line_text("  No epic beads", style="dim"), disabled=True)
+            Option(
+                single_line_text(
+                    "  No matching epic beads" if filter_active else "  No epic beads",
+                    style="dim",
+                ),
+                disabled=True,
+            )
         )
     return options, rows
 
 
-def _section_option(label: str, count: int, *, triage_count: int = 0) -> Option:
+def _section_option(
+    label: str,
+    count: int,
+    *,
+    total: int | None = None,
+    triage_count: int = 0,
+) -> Option:
     text = single_line_text()
     text.append(f"── {label} ", style=f"bold {ARTIFACTS_ACCENTS['beads']}")
-    text.append(f"({count}) ", style="dim")
+    count_label = str(count) if total is None else f"{count}/{total}"
+    text.append(f"({count_label}) ", style="dim")
     if label == "Tasks" and triage_count:
         text.append(f"· ✦ {triage_count} awaiting triage ", style="bold #D787FF")
     elif label == "Epics":

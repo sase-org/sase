@@ -88,10 +88,10 @@ def _owner_key(link: BeadPlanLink) -> tuple[int, tuple[tuple[int, object], ...]]
         IssueType.TASK: 1,
         IssueType.PHASE: 2,
     }
-    return kind_order.get(link.bead_type, 3), _hierarchical_id_key(link.bead_id)
+    return kind_order.get(link.bead_type, 3), _bead_plan_link_id_key(link.bead_id)
 
 
-def _hierarchical_id_key(value: str) -> tuple[tuple[int, object], ...]:
+def _bead_plan_link_id_key(value: str) -> tuple[tuple[int, object], ...]:
     return tuple(
         (0, int(part)) if part.isdigit() else (1, part.casefold())
         for part in value.split(".")

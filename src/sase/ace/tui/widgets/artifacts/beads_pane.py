@@ -15,6 +15,7 @@ from sase.ace.tui.util.debounce import DetailPanelDebouncer
 
 from .bead_filter_bar import BeadFilterBar
 from .beads_data import BeadsSnapshot, load_beads_snapshot
+from .beads_filter_session import BeadsFilterSessionMixin
 from .beads_list import BeadRow
 from .beads_navigation import BeadsNavigationMixin, BeadsOptionList
 from .beads_options import BeadsOptionsMixin
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
 
 
 class ArtifactsBeadsPane(
+    BeadsFilterSessionMixin,
     BeadsNavigationMixin,
     BeadsOptionsMixin,
     ArtifactsPaneLifecycle,
@@ -47,6 +49,8 @@ class ArtifactsBeadsPane(
         self._load_error: str | None = None
         self._worker: Worker[Any] | None = None
         self._init_beads_navigation()
+        self._init_beads_filter_session()
+        self._init_beads_options()
 
     def compose(self) -> ComposeResult:
         yield BeadFilterBar(id="bead-filter-bar")
@@ -166,6 +170,8 @@ class ArtifactsBeadsPane(
                     cancel_jump("beads")
                 self._snapshot = result
                 self._load_error = None
+                if self._filter_session_open:
+                    self._set_filter_completion_sources()
                 self._refresh_options(preferred_id=preferred)
         elif event.state == WorkerState.ERROR:
             self._loading = False

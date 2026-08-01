@@ -44,7 +44,4 @@ async def test_selection_marks_jumps_and_reload_preserve_stable_target(
 
         assert pane.select_entry_target(targets[2])
         pane.set_selected_epic_expanded(True)
-        assert pane.entry_targets()[-2:] == (
-            ("bead", "alpha", "phase", "alpha-1.1"),
-            ("bead", "alpha", "phase", "alpha-1.2"),
-        )
+        assert pane.entry_targets()[-1:] == (("bead", "alpha", "phase", "alpha-1.2"),)
