@@ -5,7 +5,7 @@ from __future__ import annotations
 import shutil
 import sys
 import types
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +42,7 @@ def _notification(
     read: bool = False,
     muted: bool = False,
     snooze_until: str | None = None,
+    resurfaced_at: str | None = None,
 ) -> Notification:
     return Notification(
         id=id,
@@ -53,6 +54,7 @@ def _notification(
         read=read,
         muted=muted,
         snooze_until=snooze_until,
+        resurfaced_at=resurfaced_at,
     )
 
 
@@ -95,10 +97,12 @@ def test_read_snapshot_rehydrates_typed_records(
                     "silent": False,
                     "muted": False,
                     "snooze_until": None,
+                    "resurfaced_at": "2026-04-30T13:00:00+00:00",
                 }
             ],
             "counts": {"priority": 1, "rest": 0, "muted": 0},
             "expired_ids": [],
+            "next_snooze_deadline": "2026-04-30T14:00:00+00:00",
             "stats": {
                 "total_lines": 1,
                 "blank_lines": 0,
@@ -119,7 +123,35 @@ def test_read_snapshot_rehydrates_typed_records(
     assert snapshot.counts.priority == 1
     assert snapshot.notifications[0].id == "n1"
     assert snapshot.notifications[0].tags == ["done"]
+    assert snapshot.notifications[0].resurfaced_at == "2026-04-30T13:00:00+00:00"
+    assert snapshot.next_snooze_deadline == "2026-04-30T14:00:00+00:00"
     assert isinstance(snapshot.notifications[0], Notification)
+
+
+def test_read_current_snapshot_uses_canonical_expiring_core_operation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, bool, bool]] = []
+
+    def fake_read(path: str, include_dismissed: bool, expire: bool) -> dict:
+        calls.append((path, include_dismissed, expire))
+        return {
+            "schema_version": NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
+            "notifications": [],
+            "counts": {},
+            "expired_ids": [],
+            "next_snooze_deadline": None,
+            "stats": {},
+        }
+
+    _fake_module(monkeypatch, read_notifications_snapshot=fake_read)
+
+    snapshot = facade.read_current_notifications_snapshot(
+        "/tmp/notifications.jsonl", include_dismissed=True
+    )
+
+    assert calls == [("/tmp/notifications.jsonl", True, True)]
+    assert snapshot.next_snooze_deadline is None
 
 
 def test_missing_notification_binding_raises(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -298,8 +330,9 @@ def test_real_extension_round_trips_bulk_mute_and_snooze(tmp_path: Path) -> None
     )
     assert snoozed.matched_count == 2
     by_id = {n.id: n for n in snoozed.notifications}
-    assert by_id["n2"].snooze_until == deadline.isoformat()
-    assert by_id["n3"].snooze_until == deadline.isoformat()
+    normalized_deadline = deadline.astimezone(UTC).isoformat()
+    assert by_id["n2"].snooze_until == normalized_deadline
+    assert by_id["n3"].snooze_until == normalized_deadline
 
 
 def test_append_counts_uses_metadata_binding(
@@ -445,4 +478,40 @@ def test_real_extension_snapshot_can_expire_due_snoozes(tmp_path: Path) -> None:
 
     assert snapshot.expired_ids == ["snoozed"]
     assert snapshot.notifications[0].muted is False
+    assert snapshot.notifications[0].read is False
     assert snapshot.notifications[0].snooze_until is None
+    assert snapshot.notifications[0].resurfaced_at is not None
+    assert snapshot.next_snooze_deadline is None
+
+
+def test_real_extension_validates_and_normalizes_snooze_updates(tmp_path: Path) -> None:
+    _skip_without_notification_bindings()
+    path = tmp_path / "notifications.jsonl"
+    facade.rewrite_notifications(
+        path, [_notification("active"), _notification("other")]
+    )
+
+    normalized = facade.apply_notification_state_update(
+        path,
+        NotificationStateUpdateWire(
+            kind="mark_snoozed",
+            id="active",
+            until="2099-01-01T04:00:00-05:00",
+        ),
+    )
+    active = next(row for row in normalized.notifications if row.id == "active")
+    assert active.snooze_until == "2099-01-01T09:00:00+00:00"
+    assert normalized.next_snooze_deadline == "2099-01-01T09:00:00+00:00"
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        facade.apply_notification_state_update(
+            path,
+            NotificationStateUpdateWire(
+                kind="mark_many_snoozed",
+                ids=("active", "other"),
+                until="2099-01-01T09:00:00",
+            ),
+        )
+    snapshot = facade.read_notifications_snapshot(path)
+    other = next(row for row in snapshot.notifications if row.id == "other")
+    assert other.snooze_until is None

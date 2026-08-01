@@ -35,6 +35,7 @@ class NotificationStoreSnapshotWire:
     notifications: list[Notification] = field(default_factory=list)
     counts: _NotificationCountsWire = field(default_factory=_NotificationCountsWire)
     expired_ids: list[str] = field(default_factory=list)
+    next_snooze_deadline: str | None = None
     stats: _NotificationStoreStatsWire = field(
         default_factory=_NotificationStoreStatsWire
     )
@@ -50,6 +51,7 @@ class NotificationUpdateOutcomeWire:
     notifications: list[Notification] = field(default_factory=list)
     counts: _NotificationCountsWire = field(default_factory=_NotificationCountsWire)
     expired_ids: list[str] = field(default_factory=list)
+    next_snooze_deadline: str | None = None
     stats: _NotificationStoreStatsWire = field(
         default_factory=_NotificationStoreStatsWire
     )
@@ -116,6 +118,9 @@ def _notification_from_dict(data: dict[str, Any]) -> Notification:
         snooze_until=(
             None if data.get("snooze_until") is None else str(data["snooze_until"])
         ),
+        resurfaced_at=(
+            None if data.get("resurfaced_at") is None else str(data["resurfaced_at"])
+        ),
     )
 
 
@@ -137,6 +142,11 @@ def notification_snapshot_from_dict(
             **known_field_kwargs(_NotificationCountsWire, data.get("counts") or {})
         ),
         expired_ids=[str(item) for item in data.get("expired_ids") or []],
+        next_snooze_deadline=(
+            None
+            if data.get("next_snooze_deadline") is None
+            else str(data["next_snooze_deadline"])
+        ),
         stats=_NotificationStoreStatsWire(
             **known_field_kwargs(_NotificationStoreStatsWire, data.get("stats") or {})
         ),
@@ -165,6 +175,11 @@ def notification_update_outcome_from_dict(
             **known_field_kwargs(_NotificationCountsWire, data.get("counts") or {})
         ),
         expired_ids=[str(item) for item in data.get("expired_ids") or []],
+        next_snooze_deadline=(
+            None
+            if data.get("next_snooze_deadline") is None
+            else str(data["next_snooze_deadline"])
+        ),
         stats=_NotificationStoreStatsWire(
             **known_field_kwargs(_NotificationStoreStatsWire, data.get("stats") or {})
         ),

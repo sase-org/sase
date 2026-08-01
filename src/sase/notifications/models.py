@@ -23,6 +23,17 @@ class Notification:
     silent: bool = False
     muted: bool = False
     snooze_until: str | None = None  # ISO-8601 with timezone, or None
+    resurfaced_at: str | None = None  # Durable activity time after snooze expiry
+
+
+def notification_activity_at(notification: Notification) -> str:
+    """Return the durable effective activity timestamp for ordering."""
+    return notification.resurfaced_at or notification.timestamp
+
+
+def notification_activity_cursor(notification: Notification) -> tuple[str, str]:
+    """Return the stable activity cursor, including the required ID tie-breaker."""
+    return (notification_activity_at(notification), notification.id)
 
 
 def normalize_notification_tags(tags: Iterable[str] | None) -> list[str]:

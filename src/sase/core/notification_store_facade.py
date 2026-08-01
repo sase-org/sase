@@ -28,6 +28,19 @@ def read_notifications_snapshot(
     return notification_snapshot_from_dict(payload)
 
 
+def read_current_notifications_snapshot(
+    path: Path | str,
+    include_dismissed: bool = False,
+) -> NotificationStoreSnapshotWire:
+    """Read and atomically reconcile the user-facing current store state."""
+    # Keep the Python package compatible with the published minimum core while
+    # the named Rust binding rolls out; the option is a compatibility alias for
+    # the same canonical core operation.
+    binding = require_rust_binding("read_notifications_snapshot")
+    payload: dict[str, Any] = binding(str(path), include_dismissed, True)
+    return notification_snapshot_from_dict(payload)
+
+
 def apply_notification_state_update(
     path: Path | str,
     update: NotificationStateUpdateWire | dict[str, Any],
@@ -108,6 +121,7 @@ __all__ = [
     "append_notification_counts",
     "apply_notification_state_update",
     "apply_notification_state_update_counts",
+    "read_current_notifications_snapshot",
     "read_notifications_snapshot",
     "rewrite_notifications",
     "rewrite_notifications_counts",

@@ -1,9 +1,10 @@
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
 from sase.core.time import get_timezone
+from sase.notifications.models import Notification
 from sase.notifications.store import (
     append_notification,
     expire_due_snoozes,
@@ -15,6 +16,16 @@ from sase.notifications.store import (
 )
 
 from .helpers import make_notification
+
+
+def _utc_iso(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat()
+
+
+def _append_legacy_snooze(notification: Notification, deadline: datetime) -> None:
+    notification.muted = True
+    notification.snooze_until = deadline.isoformat()
+    append_notification(notification)
 
 
 class TestMarkMuted:
@@ -78,7 +89,7 @@ class TestMarkMuted:
         mark_snoozed(n.id, deadline)
         loaded = load_notifications()
         assert loaded[0].muted is True
-        assert loaded[0].snooze_until == deadline.isoformat()
+        assert loaded[0].snooze_until == _utc_iso(deadline)
 
         assert mark_muted(n.id, False) is True
         loaded = load_notifications()
@@ -159,12 +170,13 @@ class TestMarkSnoozed:
         assert mark_snoozed(n.id, deadline) is True
         loaded = load_notifications()
         assert loaded[0].muted is True
-        assert loaded[0].snooze_until == deadline.isoformat()
+        assert loaded[0].snooze_until == _utc_iso(deadline)
 
     def test_nonexistent_id(self, temp_notifications_dir: Path) -> None:
         n = make_notification()
         append_notification(n)
-        assert mark_snoozed("nonexistent", datetime.now(get_timezone())) is False
+        deadline = datetime.now(get_timezone()) + timedelta(minutes=15)
+        assert mark_snoozed("nonexistent", deadline) is False
         loaded = load_notifications()
         assert loaded[0].snooze_until is None
 
@@ -210,8 +222,8 @@ class TestMarkManySnoozed:
         by_id = {n.id: n for n in loaded}
         assert by_id[n1.id].muted is True
         assert by_id[n2.id].muted is True
-        assert by_id[n1.id].snooze_until == deadline.isoformat()
-        assert by_id[n2.id].snooze_until == deadline.isoformat()
+        assert by_id[n1.id].snooze_until == _utc_iso(deadline)
+        assert by_id[n2.id].snooze_until == _utc_iso(deadline)
         assert by_id[n3.id].snooze_until is None
 
     def test_empty_input_skips_rust_call(self, temp_notifications_dir: Path) -> None:
@@ -249,9 +261,8 @@ class TestExpireDueSnoozes:
 
     def test_flips_ready_rows(self, temp_notifications_dir: Path) -> None:
         ready = make_notification()
-        append_notification(ready)
         past = datetime.now(get_timezone()) - timedelta(seconds=1)
-        mark_snoozed(ready.id, past)
+        _append_legacy_snooze(ready, past)
 
         notifications = load_notifications()
         expired = expire_due_snoozes(notifications)
@@ -259,7 +270,9 @@ class TestExpireDueSnoozes:
         assert len(expired) == 1
         assert expired[0].id == ready.id
         assert notifications[0].muted is False
+        assert notifications[0].read is False
         assert notifications[0].snooze_until is None
+        assert notifications[0].resurfaced_at is not None
         reloaded = load_notifications()
         assert reloaded[0].muted is False
         assert reloaded[0].snooze_until is None
@@ -275,18 +288,20 @@ class TestExpireDueSnoozes:
 
         assert expired == []
         assert notifications[0].muted is True
-        assert notifications[0].snooze_until == future.isoformat()
+        assert notifications[0].snooze_until == _utc_iso(future)
         reloaded = load_notifications()
         assert reloaded[0].muted is True
-        assert reloaded[0].snooze_until == future.isoformat()
+        assert reloaded[0].snooze_until == _utc_iso(future)
 
     def test_returns_only_flipped_rows(self, temp_notifications_dir: Path) -> None:
         ready = make_notification()
         not_ready = make_notification()
         unsnoozed = make_notification()
-        for n in (ready, not_ready, unsnoozed):
-            append_notification(n)
-        mark_snoozed(ready.id, datetime.now(get_timezone()) - timedelta(minutes=1))
+        _append_legacy_snooze(
+            ready, datetime.now(get_timezone()) - timedelta(minutes=1)
+        )
+        append_notification(not_ready)
+        append_notification(unsnoozed)
         mark_snoozed(not_ready.id, datetime.now(get_timezone()) + timedelta(hours=1))
 
         notifications = load_notifications()
@@ -297,11 +312,9 @@ class TestExpireDueSnoozes:
     def test_single_rewrite_for_batch(self, temp_notifications_dir: Path) -> None:
         n1 = make_notification()
         n2 = make_notification()
-        append_notification(n1)
-        append_notification(n2)
         past = datetime.now(get_timezone()) - timedelta(minutes=1)
-        mark_snoozed(n1.id, past)
-        mark_snoozed(n2.id, past)
+        _append_legacy_snooze(n1, past)
+        _append_legacy_snooze(n2, past)
 
         notifications = load_notifications()
         with patch(

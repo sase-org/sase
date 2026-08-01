@@ -11,6 +11,8 @@ from sase.notifications.models import (
     format_absolute_time,
     format_relative_time,
     format_relative_until,
+    notification_activity_at,
+    notification_activity_cursor,
     normalize_notification_tags,
 )
 from sase.notifications.priority import is_error, is_priority
@@ -54,6 +56,7 @@ from sase.notifications.store import (
     mark_read,
     mark_snoozed,
     read_notification_snapshot,
+    read_current_notification_snapshot,
     rewrite_notifications,
 )
 
@@ -73,6 +76,8 @@ __all__ = [
     "format_absolute_time",
     "format_relative_time",
     "format_relative_until",
+    "notification_activity_at",
+    "notification_activity_cursor",
     "is_error",
     "is_priority",
     "is_question_notification",
@@ -91,6 +96,7 @@ __all__ = [
     "normalize_notification_tags",
     "notification_info_to_json",
     "read_notification_snapshot",
+    "read_current_notification_snapshot",
     "question_answer_state",
     "resolve_notification_ref",
     "rewrite_notifications",

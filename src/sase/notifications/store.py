@@ -86,6 +86,17 @@ def _rust_read_notifications_snapshot(
     )
 
 
+def _rust_read_current_notifications_snapshot(
+    path: Path,
+    include_dismissed: bool = False,
+) -> Any:
+    from sase.core import notification_store_facade
+
+    return notification_store_facade.read_current_notifications_snapshot(
+        path, include_dismissed
+    )
+
+
 def _rust_rewrite_notifications(path: Path, notifications: list[Notification]) -> Any:
     from sase.core.notification_store_facade import rewrite_notifications_counts
 
@@ -178,8 +189,25 @@ def read_notification_snapshot(
     expire_due_snoozes: bool = False,
 ) -> Any:
     """Read a Rust-backed notification snapshot for count-sensitive callers."""
-    snapshot = _rust_read_notifications_snapshot(
-        _notifications_path(), include_dismissed, expire_due_snoozes
+    if expire_due_snoozes:
+        snapshot = _rust_read_current_notifications_snapshot(
+            _notifications_path(), include_dismissed
+        )
+    else:
+        snapshot = _rust_read_notifications_snapshot(
+            _notifications_path(), include_dismissed
+        )
+    if snapshot.expired_ids:
+        _invalidate_load_cache()
+    return snapshot
+
+
+def read_current_notification_snapshot(
+    include_dismissed: bool = False,
+) -> Any:
+    """Read the current inbox state after atomically reconciling snoozes."""
+    snapshot = _rust_read_current_notifications_snapshot(
+        _notifications_path(), include_dismissed
     )
     if snapshot.expired_ids:
         _invalidate_load_cache()
@@ -264,35 +292,13 @@ def mark_snoozed(notification_id: str, until: datetime) -> bool:
 
 
 def expire_due_snoozes(notifications: list[Notification]) -> list[Notification]:
-    """Flip any snoozed notifications whose deadline has passed.
-
-    Walks ``notifications`` (which the caller already loaded), finds rows
-    where ``snooze_until`` is set and at or before now, and sets
-    ``muted=False`` and ``snooze_until=None`` on them — both in-memory
-    and on disk via a single rewrite. Returns the list of rows that just
-    expired (empty if none).
-    """
+    """Reconcile due/legacy snoozes in Rust and update the supplied rows."""
     from sase.core.time import get_timezone
 
+    if not any(notification.snooze_until for notification in notifications):
+        return []
+
     now = datetime.now(get_timezone())
-    expired: list[Notification] = []
-    for n in notifications:
-        if not n.snooze_until:
-            continue
-        try:
-            deadline = datetime.fromisoformat(n.snooze_until)
-        except ValueError:
-            continue
-        if deadline.tzinfo is None:
-            deadline = deadline.replace(tzinfo=get_timezone())
-        if deadline <= now:
-            n.muted = False
-            n.snooze_until = None
-            expired.append(n)
-
-    if not expired:
-        return expired
-
     outcome = _apply_state_update(
         _state_update(kind="expire_snoozes", now=now.isoformat()),
         include_notifications=True,
@@ -309,6 +315,8 @@ def expire_due_snoozes(notifications: list[Notification]) -> list[Notification]:
         updated = rows_by_id.get(n.id)
         n.muted = updated.muted if updated is not None else False
         n.snooze_until = updated.snooze_until if updated is not None else None
+        n.read = updated.read if updated is not None else False
+        n.resurfaced_at = updated.resurfaced_at if updated is not None else None
         expired.append(n)
     return expired
 

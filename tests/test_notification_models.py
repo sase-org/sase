@@ -9,6 +9,8 @@ from sase.notifications.models import (
     Notification,
     format_relative_time,
     format_relative_until,
+    notification_activity_at,
+    notification_activity_cursor,
     normalize_notification_tags,
 )
 
@@ -26,6 +28,26 @@ class TestNotificationDataclass:
         assert n.silent is False
         assert n.muted is False
         assert n.snooze_until is None
+        assert n.resurfaced_at is None
+
+    def test_activity_cursor_prefers_resurface_time_and_breaks_ties_by_id(
+        self,
+    ) -> None:
+        original = Notification(
+            id="a", timestamp="2025-01-01T00:00:00+00:00", sender="crs"
+        )
+        resurfaced = Notification(
+            id="b",
+            timestamp="2024-01-01T00:00:00+00:00",
+            sender="crs",
+            resurfaced_at="2025-02-01T00:00:00+00:00",
+        )
+
+        assert notification_activity_at(original) == original.timestamp
+        assert notification_activity_cursor(resurfaced) == (
+            "2025-02-01T00:00:00+00:00",
+            "b",
+        )
 
     def test_silent_flag(self) -> None:
         n = Notification(
