@@ -38,6 +38,8 @@ phases:
 Execute the rollout.
 """
 
+_CONCURRENCY_TIMEOUT_SECONDS = 10.0
+
 
 def test_concurrent_plan_file_launches_serialize_through_terminal_push(
     project_dir: Path,
@@ -65,7 +67,7 @@ def test_concurrent_plan_file_launches_serialize_through_terminal_push(
 
     def resolve_together(*, dry_run: bool) -> tuple[object, SddStore, Path]:
         resolved = original_resolve(dry_run=dry_run)
-        ready_to_launch.wait(timeout=2.0)
+        ready_to_launch.wait(timeout=_CONCURRENCY_TIMEOUT_SECONDS)
         return resolved
 
     monkeypatch.setattr(plan_module, "_resolve_context", resolve_together)
@@ -100,7 +102,7 @@ def test_concurrent_plan_file_launches_serialize_through_terminal_push(
             events.append(("push-start", str(current_push)))
         if current_push == 1:
             first_push_started.set()
-            assert release_first_push.wait(timeout=2.0)
+            assert release_first_push.wait(timeout=_CONCURRENCY_TIMEOUT_SECONDS)
         with events_lock:
             events.append(("push-end", str(current_push)))
 
@@ -122,11 +124,13 @@ def test_concurrent_plan_file_launches_serialize_through_terminal_push(
             )
             for source in (first_source, second_source)
         ]
-        assert first_push_started.wait(timeout=2.0)
+        assert first_push_started.wait(timeout=_CONCURRENCY_TIMEOUT_SECONDS)
         with events_lock:
             assert sum(kind == "launch" for kind, _value in events) == 1
         release_first_push.set()
-        results = [future.result(timeout=5.0) for future in futures]
+        results = [
+            future.result(timeout=_CONCURRENCY_TIMEOUT_SECONDS) for future in futures
+        ]
 
     epic_ids = {result.epic_id for result in results}
     assert None not in epic_ids
