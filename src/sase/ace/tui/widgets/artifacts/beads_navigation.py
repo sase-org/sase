@@ -10,6 +10,7 @@ from textual.widgets.option_list import Option
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.keymaps import KeymapRegistry
+from sase.bead.model import Issue, IssueType, Status
 
 from .._prompt_preview_target import PreviewPayload
 from .beads_data import BeadsSnapshot
@@ -78,6 +79,7 @@ class BeadsNavigationMixin(_MixinBase):
     _syncing_options: bool
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
     _entry_marks: set[ArtifactEntryTarget]
+    _pending_entry_target: ArtifactEntryTarget | None
 
     if TYPE_CHECKING:
 
@@ -97,6 +99,7 @@ class BeadsNavigationMixin(_MixinBase):
         self._syncing_options = False
         self._entry_jump_hints = {}
         self._entry_marks = set()
+        self._pending_entry_target = None
 
     def selected_row(self) -> BeadRow | None:
         option_list = self._option_list()
@@ -155,7 +158,42 @@ class BeadsNavigationMixin(_MixinBase):
                 self._update_detail()
             else:
                 self._detail_debouncer.schedule(self._update_detail)
+            self._sync_artifacts_footer()
         return True
+
+    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        if self.select_entry_target(target):
+            self._pending_entry_target = None
+            return True
+        self._pending_entry_target = target
+        if self._snapshot is not None and self._snapshot.project == self.project_scope:
+            self._refresh_options()
+        return False
+
+    def clear_pending_entry_target(self) -> None:
+        self._pending_entry_target = None
+
+    def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
+        row = self.selected_row()
+        if row is None:
+            return ()
+        snapshot = self._snapshot
+        entries: list[tuple[str, str]] = []
+        if snapshot is not None and snapshot.plan_links.get(
+            (row.project, row.issue.id)
+        ):
+            entries.append(("beads_open_plan", "linked plan"))
+        if _can_launch_bead_row(row, snapshot):
+            entries.append(("beads_launch_work", "launch"))
+        entries.append(
+            (
+                "beads_close",
+                "reopen" if row.issue.status is Status.CLOSED else "close",
+            )
+        )
+        if _bead_row_linked_bug(row, snapshot) is not None:
+            entries.append(("beads_open_bug", "open bug"))
+        return tuple(entries)
 
     def apply_entry_jump_hints(
         self,
@@ -173,6 +211,13 @@ class BeadsNavigationMixin(_MixinBase):
     def apply_entry_marks(self, marks: set[ArtifactEntryTarget]) -> None:
         self._entry_marks = set(marks)
         self._refresh_options(update_detail=False)
+
+    def _sync_artifacts_footer(self) -> None:
+        if not getattr(self, "artifacts_active", False):
+            return
+        sync = getattr(self.app, "_sync_active_artifacts_entry_state", None)
+        if callable(sync):
+            sync()
 
     def _option_index_for_target(self, target: ArtifactEntryTarget) -> int | None:
         option_list = self._option_list()
@@ -308,6 +353,43 @@ class BeadsNavigationMixin(_MixinBase):
                     )
                 )
         return None
+
+
+def _can_launch_bead_row(
+    row: BeadRow,
+    snapshot: BeadsSnapshot | None,
+) -> bool:
+    issue = row.issue
+    if issue.status is Status.CLOSED:
+        return False
+    if issue.issue_type is IssueType.PHASE:
+        return False
+    if issue.issue_type is IssueType.TASK:
+        return issue.status in {Status.OPEN, Status.READY}
+    if snapshot is None:
+        return False
+    key = (row.project, issue.id)
+    return bool(snapshot.phases_by_epic.get(key)) and key not in snapshot.blocked_ids
+
+
+def _bead_row_linked_bug(
+    row: BeadRow,
+    snapshot: BeadsSnapshot | None,
+) -> Issue | None:
+    issue = row.issue
+    if row.kind == "epic":
+        return issue if issue.changespec_bug_id else None
+    if issue.parent_id is None or snapshot is None:
+        return None
+    epic = next(
+        (
+            item.issue
+            for item in snapshot.epics
+            if item.project == row.project and item.issue.id == issue.parent_id
+        ),
+        None,
+    )
+    return epic if epic is not None and epic.changespec_bug_id else None
 
 
 __all__ = ["BeadsNavigationMixin", "BeadsOptionList"]

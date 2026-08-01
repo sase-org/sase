@@ -242,6 +242,7 @@ class ArtifactsMixin(
         ).show_artifacts_pane(
             self.current_artifacts_pane_key,
             mark_count=len(self._active_artifacts_marks()),
+            conditional_entries=self._artifacts_footer_entries(),
         )
 
     def _artifacts_entry_navigator(
@@ -259,6 +260,38 @@ class ArtifactsMixin(
         except Exception:
             return None
         return cast(ArtifactEntryNavigator, pane)
+
+    def _artifacts_footer_entries(self) -> tuple[tuple[str, str], ...]:
+        pane = self._artifacts_entry_navigator()
+        if pane is None:
+            return ()
+        resolver = getattr(pane, "conditional_footer_entries", None)
+        if not callable(resolver):
+            return ()
+        return tuple(resolver())
+
+    def _request_artifacts_entry(
+        self,
+        pane_key: ArtifactsPaneKey,
+        target: ArtifactEntryTarget,
+    ) -> None:
+        """Switch to a leaf pane and select *target* when its rows are ready."""
+
+        if pane_key in FILES_SUBTAB_ORDER:
+            self.current_files_subtab = cast(FilesSubTab, pane_key)
+            self._switch_artifacts_subtab("files")
+        else:
+            self._switch_artifacts_subtab(cast(ArtifactsSubTab, pane_key))
+        pane = self._artifacts_entry_navigator(pane_key)
+        if pane is None:
+            return
+        request = getattr(pane, "request_entry_target", None)
+        if callable(request):
+            request(target)
+        else:
+            pane.select_entry_target(target)
+        if self.current_tab == ARTIFACTS_TAB:
+            self._sync_active_artifacts_entry_state()
 
     def _active_artifacts_marks(self) -> set[ArtifactEntryTarget]:
         """Return the app-owned mark set for the visible non-PR pane."""
@@ -466,6 +499,7 @@ class ArtifactsMixin(
                 ).show_artifacts_pane(
                     self.current_artifacts_pane_key,
                     mark_count=len(self._active_artifacts_marks()),
+                    conditional_entries=self._artifacts_footer_entries(),
                 )
             except Exception:
                 pass

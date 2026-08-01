@@ -23,6 +23,9 @@ class ArtifactEntryNavigator(Protocol):
     def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
         """Select and focus a currently visible target."""
 
+    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        """Select a target now, or remember it for the next loaded row model."""
+
     def apply_entry_jump_hints(
         self,
         hints: Mapping[ArtifactEntryTarget, str],
@@ -37,6 +40,9 @@ class ArtifactEntryNavigator(Protocol):
         marks: set[ArtifactEntryTarget],
     ) -> None:
         """Repaint rows using the app-owned stable-target mark set."""
+
+    def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
+        """Return action names and labels that depend on the selected row."""
 
 
 def select_relative_entry(

@@ -112,6 +112,7 @@ class ArtifactsBeadsPane(
         self._update_static("#beads-info", self._scope_text())
         if not changed:
             return
+        self.clear_pending_entry_target()
         self._load_error = None
         if self.artifacts_active:
             self._request_load(force=False)
@@ -195,6 +196,7 @@ class ArtifactsBeadsPane(
             self._update_detail()
         else:
             self._detail_debouncer.schedule(self._update_detail)
+        self._sync_artifacts_footer()
 
     @on(OptionList.OptionSelected, "#beads-list")
     def _on_option_selected(self, event: OptionList.OptionSelected) -> None:

@@ -21,7 +21,7 @@ from .plans_deep_archive import (
     merge_archive_matches,
 )
 from .plans_filtering import PlanFilterIndex, compile_plan_matcher
-from .plans_list import PlanRow, build_plan_options, row_option_id
+from .plans_list import PlanRow, build_plan_options, plan_row_target, row_option_id
 from .plans_rendering import (
     build_empty_plan_detail,
     build_plans_hints,
@@ -47,11 +47,13 @@ class PlansOptionsMixin(_MixinBase):
     _snapshot: PlansSnapshot | None
     _filter_session_open: bool
     _filter_query_error: PlanFilterQueryError | None
+    _live_filter_values: PlanFilterValues | None
     _loading: bool
     _load_error: str | None
     _rows: dict[str, PlanRow]
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
     _entry_marks: set[ArtifactEntryTarget]
+    _pending_entry_target: ArtifactEntryTarget | None
     _detail_debouncer: DetailPanelDebouncer | None
     _syncing_options: bool
     _display_matched_counts: dict[str, int] | None
@@ -77,6 +79,12 @@ class PlansOptionsMixin(_MixinBase):
             self,
             values: PlanFilterValues,
         ) -> tuple[bool, str | None]: ...
+
+        def _invalidate_deep_archive_request(self) -> None: ...
+
+        def _close_filter_session(self) -> None: ...
+
+        def _sync_artifacts_footer(self) -> None: ...
 
         def _first_selectable_index(self) -> int | None: ...
 
@@ -195,6 +203,19 @@ class PlansOptionsMixin(_MixinBase):
             archive_total=self._display_archive_total,
         )
         self._rows = rows
+        pending_id = self._pending_option_id()
+        if pending_id is None and self._pending_entry_target is not None:
+            if not values.is_empty and self._clear_filter_for_entry_jump():
+                self._notify_filter_cleared_for_entry_jump()
+                self._refresh_options(
+                    preferred_id=preferred_id,
+                    update_detail=update_detail,
+                )
+                return
+            if self._loaded_current_snapshot():
+                self._notify_pending_entry_missing()
+        if pending_id is not None:
+            preferred_id = pending_id
         target_index = next(
             (
                 index
@@ -213,6 +234,8 @@ class PlansOptionsMixin(_MixinBase):
             option_list.replace_options(options, highlighted=target_index)
         finally:
             self._syncing_options = False
+        if pending_id is not None:
+            self._pending_entry_target = None
         self._update_status()
         self._update_static("#plans-info", self._scope_text())
         if self._filter_session_open and self._filter_query_error is None:
@@ -230,6 +253,7 @@ class PlansOptionsMixin(_MixinBase):
                 self._update_detail()
             else:
                 self._detail_debouncer.schedule(self._update_detail)
+        self._sync_artifacts_footer()
 
     def _scope_text(self) -> Text:
         return build_plans_scope(
@@ -270,6 +294,49 @@ class PlansOptionsMixin(_MixinBase):
             self.query_one(selector, Static).update(content)
         except Exception:
             pass
+
+    def _pending_option_id(self) -> str | None:
+        target = self._pending_entry_target
+        if target is None:
+            return None
+        return next(
+            (
+                option_id
+                for option_id, row in self._rows.items()
+                if plan_row_target(row) == target
+            ),
+            None,
+        )
+
+    def _clear_filter_for_entry_jump(self) -> bool:
+        if self.filters.is_empty and not self._filter_session_open:
+            return False
+        self.filters = PlanFilterValues()
+        self._filter_query_error = None
+        self._invalidate_deep_archive_request()
+        if self._filter_session_open:
+            self._close_filter_session()
+        else:
+            self._live_filter_values = None
+        return True
+
+    def _notify_filter_cleared_for_entry_jump(self) -> None:
+        notify = getattr(self, "notify", None)
+        if callable(notify):
+            notify("Cleared Plans filter to show linked plan")
+
+    def _notify_pending_entry_missing(self) -> None:
+        self._pending_entry_target = None
+        notify = getattr(self, "notify", None)
+        if callable(notify):
+            notify("Linked plan is no longer visible in Plans", severity="warning")
+
+    def _loaded_current_snapshot(self) -> bool:
+        return (
+            self._snapshot is not None
+            and self._snapshot.project == self.project_scope
+            and not self._loading
+        )
 
 
 __all__ = ["PlansOptionsMixin"]

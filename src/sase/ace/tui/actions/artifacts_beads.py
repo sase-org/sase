@@ -493,8 +493,24 @@ class ArtifactsBeadsActionsMixin:
         )
 
     def action_beads_open_plan(self) -> None:
-        """Declared cross-link action; the crosslinks phase fills the body."""
-        self._beads_pane()
+        selected = self._selected_bead()
+        if selected is None:
+            return
+        pane, row = selected
+        snapshot = pane.snapshot
+        plan_path = (
+            ""
+            if snapshot is None
+            else snapshot.plan_links.get((row.project, row.issue.id), "")
+        )
+        if not plan_path:
+            self.notify("This bead links no plan file", severity="warning")  # type: ignore[attr-defined]
+            return
+        plan_kind = "archive" if row.issue.status is Status.CLOSED else "active"
+        self._request_artifacts_entry(  # type: ignore[attr-defined]
+            "plans",
+            ("plan", row.project, plan_kind, plan_path),
+        )
 
     def action_beads_refresh(self) -> None:
         if (pane := self._beads_pane()) is not None:

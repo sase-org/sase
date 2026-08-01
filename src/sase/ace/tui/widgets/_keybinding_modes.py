@@ -101,10 +101,13 @@ class KeybindingModesMixin:
         pane_key: str = "commits",
         *,
         mark_count: int = 0,
+        conditional_entries: tuple[tuple[str, str], ...] = (),
     ) -> None:
         """Clear PR-only conditional bindings on non-PR Artifacts panes."""
         del pane_key
-        bindings: list[tuple[str, str]] = []
+        bindings: list[tuple[str, str]] = [
+            (self._kd(action_name), label) for action_name, label in conditional_entries
+        ]
         if mark_count:
             bindings.append((self._kd("clear_marks"), f"unmark ({mark_count})"))
         self._update_display(bindings)

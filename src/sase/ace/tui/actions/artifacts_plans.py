@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from sase.bead.model import IssueType
+
+from ..widgets.artifacts.bead_plan_links import BeadPlanLink
 from ..widgets.artifacts.plans_pane import ArtifactsPlansPane
 
 PLANS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
@@ -63,8 +66,16 @@ class ArtifactsPlansActionsMixin:
             pane.request_refresh()
 
     def action_plans_open_bead(self) -> None:
-        """Declared cross-link action; the crosslinks phase fills the body."""
-        self._plans_pane()
+        pane = self._plans_pane()
+        row = None if pane is None else pane.selected_row()
+        link = None if row is None else row.bead_link
+        if link is None:
+            self.notify("No bead links this plan file", severity="warning")  # type: ignore[attr-defined]
+            return
+        self._request_artifacts_entry(  # type: ignore[attr-defined]
+            "beads",
+            ("bead", link.project, _bead_row_kind(link), link.bead_id),
+        )
 
     def action_plans_approve(self) -> None:
         self._open_selected_plan_approval(intent="approve")
@@ -83,6 +94,14 @@ class ArtifactsPlansActionsMixin:
         opened = handle_plan_approval(self, row.proposal.notification)
         if opened and intent == "reject":
             self.notify("Review the plan, then press r to confirm rejection")  # type: ignore[attr-defined]
+
+
+def _bead_row_kind(link: BeadPlanLink) -> str:
+    if link.bead_type is IssueType.TASK:
+        return "task"
+    if link.bead_type is IssueType.PHASE:
+        return "phase"
+    return "epic"
 
 
 __all__ = ["ArtifactsPlansActionsMixin", "PLANS_ARTIFACT_ACTIONS"]

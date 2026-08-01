@@ -72,6 +72,7 @@ class PlansNavigationMixin(_MixinBase):
     _syncing_options: bool
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
     _entry_marks: set[ArtifactEntryTarget]
+    _pending_entry_target: ArtifactEntryTarget | None
 
     if TYPE_CHECKING:
 
@@ -90,6 +91,7 @@ class PlansNavigationMixin(_MixinBase):
         self._syncing_options = False
         self._entry_jump_hints = {}
         self._entry_marks = set()
+        self._pending_entry_target = None
 
     def selected_row(self) -> PlanRow | None:
         option_list = self._option_list()
@@ -147,7 +149,26 @@ class PlansNavigationMixin(_MixinBase):
                 self._update_detail()
             else:
                 self._detail_debouncer.schedule(self._update_detail)
+            self._sync_artifacts_footer()
         return True
+
+    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        if self.select_entry_target(target):
+            self._pending_entry_target = None
+            return True
+        self._pending_entry_target = target
+        if self._snapshot is not None and self._snapshot.project == self.project_scope:
+            self._refresh_options()
+        return False
+
+    def clear_pending_entry_target(self) -> None:
+        self._pending_entry_target = None
+
+    def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
+        row = self.selected_row()
+        if row is None or row.bead_link is None:
+            return ()
+        return (("plans_open_bead", "linked bead"),)
 
     def apply_entry_jump_hints(
         self,
@@ -164,6 +185,13 @@ class PlansNavigationMixin(_MixinBase):
     def apply_entry_marks(self, marks: set[ArtifactEntryTarget]) -> None:
         self._entry_marks = set(marks)
         self._refresh_options(update_detail=False)
+
+    def _sync_artifacts_footer(self) -> None:
+        if not getattr(self, "artifacts_active", False):
+            return
+        sync = getattr(self.app, "_sync_active_artifacts_entry_state", None)
+        if callable(sync):
+            sync()
 
     def _option_index_for_target(self, target: ArtifactEntryTarget) -> int | None:
         option_list = self._option_list()
