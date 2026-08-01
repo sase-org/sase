@@ -17,6 +17,7 @@ from ...models.artifact_file_clipboard import (
     artifact_file_materialized_stored_path,
     artifact_file_source_clipboard_path,
 )
+from ...widgets.artifacts.beads_list import bead_row_target
 from ...widgets.artifacts.chats_list import chat_row_target
 from ...widgets.artifacts.plans_list import plan_row_target
 from ._base import ClipboardBase
@@ -28,10 +29,20 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
     """Copy individual fields from visible or marked Artifacts entries."""
 
     def _copy_bead_target(self, target: str) -> None:
-        """Keep placeholder Beads copy keys inert until rows are implemented."""
-
-        del target
-        self.notify("No bead selected", severity="warning")  # type: ignore[attr-defined]
+        pane = self._beads_pane()  # type: ignore[attr-defined]
+        marked = self._visible_marked_targets(pane)
+        if marked is not None:
+            self._copy_marked_bead_targets(pane, marked, target)
+            return
+        row = pane.selected_row() if pane is not None else None
+        if row is None:
+            self.notify("No bead selected", severity="warning")  # type: ignore[attr-defined]
+            return
+        self._schedule_artifacts_copy(
+            lambda: _bead_copy_value(pane, row, target),
+            copied_message=f"Copied bead {target}",
+            content_shaped=target == "body",
+        )
 
     def _copy_commit_target(self, target: str) -> None:
         pane = self._commits_pane()  # type: ignore[attr-defined]
@@ -365,6 +376,29 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
             ),
         )
 
+    def _copy_marked_bead_targets(
+        self,
+        pane: Any,
+        targets: tuple[tuple[str, ...], ...],
+        target: str,
+    ) -> None:
+        if not targets:
+            return
+        by_target = {
+            bead_row_target(row): row for row in getattr(pane, "_rows", {}).values()
+        }
+        rows = [by_target[item] for item in targets if item in by_target]
+        self._schedule_marked_copy(
+            [
+                (
+                    row.row_id,
+                    partial(_bead_copy_value, pane, row, target),
+                )
+                for row in rows
+            ],
+            plural_label=f"bead {_plural(target)}",
+        )
+
     def _copy_marked_chat_targets(
         self,
         pane: Any,
@@ -675,6 +709,22 @@ def _plan_copy_value(pane: Any, row: Any, target: str) -> str:
     if not value:
         raise ValueError(f"{row.row_id} has no {target}")
     return value
+
+
+def _bead_copy_value(pane: Any, row: Any, target: str) -> str:
+    issue = row.issue
+    if target == "id":
+        return str(issue.id)
+    if target == "title":
+        return str(issue.title)
+    if target == "design":
+        if not issue.design.strip():
+            raise ValueError(f"{row.row_id} has no design plan reference")
+        return str(issue.design)
+    preview = pane.preview_for_row(row)
+    if target == "body":
+        return str(preview.content)
+    raise ValueError(f"unknown bead copy target: {target}")
 
 
 def _plural(value: str) -> str:

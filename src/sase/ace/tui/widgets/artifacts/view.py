@@ -12,6 +12,7 @@ from textual.widgets import ContentSwitcher
 from ...keymaps import KeymapRegistry
 from ...tab_order import ARTIFACTS_TAB
 from ..panel_tab_strip import PanelTab, PanelTabStrip
+from .beads_pane import ArtifactsBeadsPane
 from .bugs import ArtifactsBugsPane
 from .commits import CommitsPane
 from .files_view import ArtifactsFilesView
@@ -51,6 +52,7 @@ _ARTIFACT_TABS: tuple[PanelTab, ...] = tuple(
 _DETAIL_SCROLL_IDS: dict[ArtifactsPaneKey, str] = {
     "commits": "commits-detail-scroll",
     "bugs": "bugs-body-scroll",
+    "beads": "beads-detail-scroll",
 }
 
 
@@ -85,7 +87,7 @@ class ArtifactsView(Vertical):
                 id=ARTIFACTS_PANE_IDS["commits"],
             )
             yield ArtifactsBugsPane(id=ARTIFACTS_PANE_IDS["bugs"])
-            yield ArtifactPlaceholderPane("beads", id=ARTIFACTS_PANE_IDS["beads"])
+            yield ArtifactsBeadsPane(id=ARTIFACTS_PANE_IDS["beads"])
             yield ArtifactsFilesView(id=ARTIFACTS_PANE_IDS["files"])
 
     def on_mount(self) -> None:
@@ -155,6 +157,7 @@ class ArtifactsView(Vertical):
         """Forward configured key display to project-backed panes."""
         for pane in self.query(ArtifactPlaceholderPane):
             pane.set_keymap_registry(registry)
+        self.query_one(ArtifactsBeadsPane).set_keymap_registry(registry)
         self.query_one(ArtifactsFilesView).set_keymap_registry(registry)
         self.query_one(CommitsPane).set_keymap_registry(registry)
         self.query_one(ArtifactsBugsPane).set_keymap_registry(registry)
@@ -176,6 +179,10 @@ class ArtifactsView(Vertical):
             )
         for pane in self.query(ArtifactPlaceholderPane):
             pane.set_project_scope(project, display_name=display_name)
+        self.query_one(ArtifactsBeadsPane).set_project_scope(
+            project,
+            display_name=display_name,
+        )
         self.query_one(ArtifactsFilesView).set_project_scope(
             project,
             display_name=display_name,

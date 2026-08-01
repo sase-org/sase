@@ -25,6 +25,8 @@ def reference_for_entry_target(
         "chat": "chat",
         "bugs": "bug",
         "bug": "bug",
+        "beads": "bead",
+        "bead": "bead",
         "plans": "plan",
         "plan": "plan",
         "files": "file",
@@ -52,6 +54,12 @@ def reference_for_entry_target(
         if expected == "bug" and len(target) == 3:
             project = _project_display_name(target[1], context)
             return parse_artifact_ref(f"bug:{project}#{int(target[2])}").rendered
+        if expected == "bead" and len(target) == 4:
+            issue = getattr(row, "issue", None)
+            issue_id = getattr(issue, "id", None)
+            if not isinstance(issue_id, str) or not issue_id:
+                return None
+            return parse_artifact_ref(f"bead:{issue_id}").rendered
         if expected == "plan" and len(target) == 4:
             return _reference_for_plan_row(target[2], row, context)
     except (KeyError, TypeError, ValueError):

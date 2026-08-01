@@ -125,7 +125,8 @@ def _selected_artifact_object(pane: Any, subtab: str) -> Any | None:
     if subtab in {"chats", "other"}:
         return getattr(pane, "selected_entry", None)
     if subtab == "beads":
-        return None
+        resolver = getattr(pane, "selected_row", None)
+        return resolver() if callable(resolver) else None
     return getattr(pane, "selected_issue", None)
 
 
@@ -148,11 +149,16 @@ def _artifact_objects(
             for target in ordered_targets
             if target in commit_by_target
         )
-    if subtab in {"plans", "chats", "other"}:
+    if subtab in {"beads", "plans", "chats", "other"}:
         rows = getattr(pane, "_rows", {}).values()
         row_by_target: dict[tuple[str, ...], Any] = {}
         for row in rows:
-            if subtab == "plans":
+            if subtab == "beads":
+                from ...widgets.artifacts.beads_list import bead_row_target
+
+                target = bead_row_target(row)
+                value = row
+            elif subtab == "plans":
                 from ...widgets.artifacts.plans_list import plan_row_target
 
                 target = plan_row_target(row)
@@ -227,7 +233,10 @@ def _artifact_identity(subtab: str, value: Any | None) -> str:
             return str(plan.title or plan.name)
         return str(getattr(value, "row_id", ""))
     if subtab == "beads":
-        return str(getattr(value, "id", ""))
+        issue = getattr(value, "issue", None)
+        if issue is None:
+            return ""
+        return f"{getattr(issue, 'id', '')} · {getattr(issue, 'title', '')}"
     if subtab == "chats":
         return str(getattr(value, "basename", ""))
     if subtab == "bugs":

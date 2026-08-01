@@ -27,6 +27,7 @@ from sase.ace.tui.modals.inventory_project_picker import (
 )
 from sase.ace.tui.widgets import (
     ArtifactPlaceholderPane,
+    ArtifactsBeadsPane,
     ArtifactsChatsPane,
     ArtifactsFilesPane,
     ArtifactsPrsPane,
@@ -356,6 +357,7 @@ async def test_scope_inventory_is_lazy_and_picker_updates_all_placeholders(
         assert commits.project_scope == "Alpha"
         assert commits.filters.project == "Alpha"
         assert page.app.query_one(ArtifactsChatsPane).project_scope == "alpha"
+        assert page.app.query_one(ArtifactsBeadsPane).project_scope == "alpha"
         assert page.app.query_one(ArtifactsFilesPane).project_scope == "alpha"
 
         retained_filters = replace(

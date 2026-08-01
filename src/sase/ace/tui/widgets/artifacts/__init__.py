@@ -1,6 +1,7 @@
 """Artifacts tab widgets."""
 
 from .bugs import ArtifactsBugsPane, BugIssueList, BugLinkList
+from .beads_pane import ArtifactsBeadsPane, BeadRow
 from .chats_pane import ArtifactsChatsPane
 from .commits import CommitsPane, CommitsTimeline
 from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
@@ -37,6 +38,7 @@ __all__ = [
     "ArtifactEntryNavigator",
     "ArtifactEntryTarget",
     "ArtifactsBugsPane",
+    "ArtifactsBeadsPane",
     "ArtifactsChatsPane",
     "ArtifactsFilesPane",
     "ArtifactsFilesView",
@@ -50,6 +52,7 @@ __all__ = [
     "CommitsTimeline",
     "BugIssueList",
     "BugLinkList",
+    "BeadRow",
     "DEFAULT_ARTIFACTS_SUBTAB",
     "DEFAULT_FILES_SUBTAB",
     "FilesSubTab",

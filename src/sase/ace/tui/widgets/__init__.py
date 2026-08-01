@@ -15,6 +15,7 @@ from .axe_onboarding import AxeOnboarding
 from .artifacts import (
     ARTIFACTS_SUBTAB_ORDER,
     ArtifactPlaceholderPane,
+    ArtifactsBeadsPane,
     ArtifactsChatsPane,
     ArtifactsFilesPane,
     ArtifactsFilesView,
@@ -75,6 +76,7 @@ __all__ = [
     "AxeOnboarding",
     "ARTIFACTS_SUBTAB_ORDER",
     "ArtifactPlaceholderPane",
+    "ArtifactsBeadsPane",
     "ArtifactsChatsPane",
     "ArtifactsFilesPane",
     "ArtifactsFilesView",

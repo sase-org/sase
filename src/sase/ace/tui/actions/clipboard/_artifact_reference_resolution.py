@@ -14,6 +14,7 @@ from sase.artifact_refs import (
 )
 
 from ...widgets.artifacts.chats_list import chat_row_target
+from ...widgets.artifacts.beads_list import bead_row_target
 from ...widgets.artifacts.plans_list import plan_row_target
 from ._representations import (
     ArtifactReferenceItem,
@@ -60,6 +61,28 @@ def reference_items_for_targets(
                     cwd,
                     markdown_label=subject,
                     kind_label="commit",
+                )
+            )
+    elif subtab == "beads":
+        beads_by_target: dict[tuple[str, ...], Any] = {
+            bead_row_target(row): row for row in getattr(pane, "_rows", {}).values()
+        }
+        snapshot = getattr(pane, "_snapshot", None)
+        workspace_dirs = getattr(snapshot, "workspace_dirs", {})
+        for target in targets:
+            row = beads_by_target.get(target)
+            if row is None:
+                continue
+            project = row.project
+            items.append(
+                ArtifactReferenceItem(
+                    row.row_id,
+                    target,
+                    row,
+                    project,
+                    workspace_dirs.get(project) or cwd,
+                    markdown_label=str(row.issue.title or row.row_id),
+                    kind_label="bead",
                 )
             )
     elif subtab == "plans":
