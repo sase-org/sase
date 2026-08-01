@@ -31,9 +31,9 @@ import yaml  # type: ignore[import-untyped]
 #
 # Most roles fall back to another alias (ultimately ``@default``) when they are
 # not explicitly configured. A fallback reference may carry an effort overlay,
-# such as ``@default@high``; an outer effort still wins. ``smartest`` and
-# ``cheapest`` instead own ordered provider fallbacks, while ``cheap`` and
-# ``cheaper`` own load-balanced pools. ``default`` itself falls back to the
+# such as ``@default@high``; an outer effort still wins. ``smartest`` owns an
+# ordered provider fallback, while ``cheap``, ``cheaper``, and ``cheapest`` own
+# independent load-balanced pools. ``default`` itself falls back to the
 # configured or autodetected provider's tier default. See
 # ``model_alias_defaults.yml`` for the current value of every default.
 

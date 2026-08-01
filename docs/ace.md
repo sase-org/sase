@@ -2082,12 +2082,13 @@ independent:
 - An override on **`default`** drives the no-`%model` launch default and every alias that resolves through `@default`.
   It renders in a gold top-bar pill as `PROVIDER(model)[@<effort>] <time-left>`.
 - An override on **any other alias** takes effect wherever that alias is resolved. A size-specific phase override
-  affects only that alias. Overrides on `@smartest`, `@cheaper`, and `@cheapest` suspend their ordered fallback or
-  independent load-balanced rotation until the override expires or is cleared. It is surfaced by a distinct, concise
-  violet top-bar pill: a single active override renders as `@<alias>[@<effort>] <time-left>`, and several render as
-  `@<alias> +N`, naming the alphabetically first alias and counting the rest. In both pills, lane color carries the
-  "override" meaning while the effort suffix and time use a recessive tone; `∞` means until cleared. Hover either pill
-  for full target and expiry details, or click it to open the Models panel.
+  affects only that alias. Overrides on `@smartest` suspend its ordered fallback, while overrides on `@cheap`,
+  `@cheaper`, and `@cheapest` suspend their independent load-balanced rotations until the override expires or is
+  cleared. It is surfaced by a distinct, concise violet top-bar pill: a single active override renders as
+  `@<alias>[@<effort>] <time-left>`, and several render as `@<alias> +N`, naming the alphabetically first alias and
+  counting the rest. In both pills, lane color carries the "override" meaning while the effort suffix and time use a
+  recessive tone; `∞` means until cleared. Hover either pill for full target and expiry details, or click it to open the
+  Models panel.
 
 Overrides do not displace explicit launch intent: explicit prompt directives (`%model:codex/o3`,
 `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win, already-running
@@ -2148,8 +2149,9 @@ preview.
   consuming it.
 - Highlight `cheap`, `e`, choose `Custom...`, enter `claude/sonnet@xhigh | codex/gpt-5.5`, and confirm — small phases
   round-robin across this independent pool without consuming the `cheaper` cursor.
-- Highlight `cheapest`, `e`, choose `Custom...`, enter `claude/haiku || codex/gpt-5.3-codex-spark`, and confirm —
-  explicit `@cheapest` launches use this independent provider fallback without consuming any pool cursor.
+- Highlight `cheapest`, `e`, choose `Custom...`, enter `claude/haiku | codex/gpt-5.3-codex-spark`, and confirm —
+  explicit `@cheapest` launches round-robin across this independent pool without consuming the `cheap` or `cheaper`
+  cursor.
 - Highlight `big_epic_lander`, `e`, pick a model, and confirm — only threshold-selected epic landers use that persistent
   target; leaving it implicit follows provider-aware `@smartest` independently of `@epic_lander`.
 - Highlight `big_epic_lander`, `e`, filter for `@coder`, select it, and confirm — the persistent value is the dynamic

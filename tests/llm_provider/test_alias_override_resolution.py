@@ -295,6 +295,7 @@ def test_default_override_does_not_move_selector_backed_lanes(
 
     assert resolve_model_alias("@smartest") == "claude/claude-fable-5"
     assert resolve_model_alias("@xlarge_phase_worker") == "claude/claude-fable-5"
+    assert resolve_model_alias("@cheapest") == "claude/haiku"
     cheap = resolve_model_alias_with_effort("@cheap")
     small = resolve_model_alias_with_effort("@small_phase_worker")
     assert (cheap.target, cheap.effort) == ("claude/sonnet", "xhigh")

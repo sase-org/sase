@@ -71,7 +71,7 @@ def test_role_alias_helpers() -> None:
     assert implicit_model_alias_value("cheapest") == targets["cheapest"]
     cheapest_selector = parse_model_alias_selector(targets["cheapest"])
     assert cheapest_selector is not None
-    assert cheapest_selector.mode == "fallback"
+    assert cheapest_selector.mode == "round_robin"
     assert implicit_model_alias_fallback("codex_coder") == "coder"
     assert implicit_model_alias_fallback_reference("codex_coder") == "@coder"
     assert implicit_model_alias_fallback_effort("codex_coder") is None

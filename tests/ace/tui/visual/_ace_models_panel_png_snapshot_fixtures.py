@@ -211,8 +211,8 @@ def calm_views() -> list[AliasView]:
             "role",
             provider="claude",
             model="haiku",
-            description="Lowest-cost provider fallback for explicit use.",
-            selector_mode="fallback",
+            description="Lowest-cost load-balanced pool for explicit use.",
+            selector_mode="round_robin",
             selector_members=(
                 ModelAliasSelectorMember(
                     value="claude/haiku",

@@ -270,7 +270,7 @@ their work reference, and use `@large_phase_worker` and `@xlarge_phase_worker`. 
 `@cheaper`, `@cheap`, `@default@high`, `@smart`, and `@smartest` for `xsmall`, `small`, `medium`, `large`, and `xlarge`
 respectively. Set an explicit phase `model` only when the user's prompt requested that model; the explicit model is
 valid at every size and always wins over size-derived routing without changing whether the phase receives `#plan`. The
-standalone `@cheapest` provider fallback is available for explicit use but is not selected automatically. When the
+standalone `@cheapest` load-balanced pool is available for explicit use but is not selected automatically. When the
 top-level model is omitted, the land agent uses `@epic_lander` below `bead.big_epic_phase_threshold` and
 `@big_epic_lander` at or above the threshold (default `5`). The normal role falls back to `@default`; the
 threshold-selected role falls back independently to provider-aware `@smartest`. An explicit top-level land model or

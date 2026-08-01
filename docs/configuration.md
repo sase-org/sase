@@ -999,7 +999,7 @@ llm_provider:
       big_epic_lander: codex/gpt-5.6-sol # specialize threshold-selected epic landers
       cheap: claude/sonnet@xhigh | codex/gpt-5.5 # small-phase pool
       cheaper: claude/sonnet@medium | codex/gpt-5.5@medium # xsmall-phase pool
-      cheapest: claude/haiku || codex/gpt-5.3-codex-spark # explicit-use fallback
+      cheapest: claude/haiku | codex/gpt-5.3-codex-spark # explicit-use pool
       medium_phase_worker: "@default@high" # follows @default at high effort
       large_phase_worker: "@smart"
       smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # ordered fallback
@@ -1047,16 +1047,15 @@ built-in bucket name joins that row while remaining independently addressable an
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases** that resolve even when unset:
 `@default` (no-`%model` launches), `@coder` and the per-provider `@<provider>_coder` (plan coder follow-ups),
 `@epic_lander`, `@big_epic_lander`, `@task_worker`, the five `<size>_phase_worker` aliases, `@smartest`, `@smart`,
-`@cheap`, `@cheaper`, and `@cheapest` (bead/epic role launches). `@epic_lander` and `@task_worker` fall back to
-`@default`, while `@big_epic_lander` falls back independently to `@smartest`; xsmall phases and tasks fall back to
-`@cheaper`, small ones to `@cheap`, medium ones to `@default@high`, large ones to `@smart` (which itself falls back to
-`@default`), and xlarge ones to `@smartest`. The implicit `@smartest` value is
-`claude/claude-fable-5 || codex/gpt-5.6-sol`, preferring Claude when its CLI is installed. `@cheaper` owns the automatic
-xsmall phase/task pool and `@cheap` the small phase/task pool, while `@cheapest` owns an independent explicit-use
-provider fallback. Override only threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`; override
-only large phases and sized tasks with `model_aliases.builtin.large_phase_worker`. `@smartest` is selected automatically
-through the threshold-sized epic and xlarge phase/task fallback chains. See
-[Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
+`@cheap`, and `@cheaper`, plus explicit-use `@cheapest`. `@epic_lander` and `@task_worker` fall back to `@default`,
+while `@big_epic_lander` falls back independently to `@smartest`; xsmall phases and tasks fall back to `@cheaper`, small
+ones to `@cheap`, medium ones to `@default@high`, large ones to `@smart` (which itself falls back to `@default`), and
+xlarge ones to `@smartest`. The implicit `@smartest` value is `claude/claude-fable-5 || codex/gpt-5.6-sol`, preferring
+Claude when its CLI is installed. `@cheaper` owns the automatic xsmall phase/task pool and `@cheap` the small phase/task
+pool, while `@cheapest` owns an independent explicit-use pool. Override only threshold-sized epic landers with
+`model_aliases.builtin.big_epic_lander`; override only large phases and sized tasks with
+`model_aliases.builtin.large_phase_worker`. `@smartest` is selected automatically through the threshold-sized epic and
+xlarge phase/task fallback chains. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
 [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role.
 
 `model_aliases.builtin.epic_creator` is retired. SASE no longer launches an epic-creator agent, resolves that alias

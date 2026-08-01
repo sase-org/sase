@@ -66,5 +66,5 @@ aliases:
       Lower-cost load-balanced pool used automatically by extra-small phase
       agents.
   cheapest:
-    target: "claude/haiku || codex/gpt-5.3-codex-spark"
-    description: "Lowest-cost provider fallback available for explicit use."
+    target: "claude/haiku | codex/gpt-5.3-codex-spark"
+    description: "Lowest-cost load-balanced pool available for explicit use."

@@ -219,6 +219,63 @@ def test_cheap_and_cheaper_use_independent_rotations(
     )
 
 
+def test_implicit_cheapest_pool_peeks_and_consumes_independently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda _target: True,
+    )
+
+    assert resolve_model_alias("@cheapest") == "claude/haiku"
+    assert resolve_model_alias("@cheapest") == "claude/haiku"
+    assert resolve_model_alias("@cheapest", consume=True) == "claude/haiku"
+    assert resolve_model_alias("@cheapest") == "codex/gpt-5.3-codex-spark"
+    assert resolve_model_alias("@cheapest", consume=True) == (
+        "codex/gpt-5.3-codex-spark"
+    )
+    assert resolve_model_alias("@cheapest", consume=True) == "claude/haiku"
+
+
+def test_cheap_cheaper_and_cheapest_use_independent_rotations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda _target: True,
+    )
+
+    cheap_first = resolve_model_alias_with_effort("@cheap", consume=True)
+    cheaper_first = resolve_model_alias_with_effort("@cheaper", consume=True)
+    cheapest_first = resolve_model_alias_with_effort("@cheapest", consume=True)
+    cheap_second = resolve_model_alias_with_effort("@cheap", consume=True)
+    cheaper_second = resolve_model_alias_with_effort("@cheaper", consume=True)
+    cheapest_second = resolve_model_alias_with_effort("@cheapest", consume=True)
+
+    assert (cheap_first.target, cheap_first.effort) == (
+        "claude/sonnet",
+        "xhigh",
+    )
+    assert (cheaper_first.target, cheaper_first.effort) == (
+        "claude/sonnet",
+        "medium",
+    )
+    assert (cheapest_first.target, cheapest_first.effort) == ("claude/haiku", None)
+    assert (cheap_second.target, cheap_second.effort) == ("codex/gpt-5.5", None)
+    assert (cheaper_second.target, cheaper_second.effort) == (
+        "codex/gpt-5.5",
+        "medium",
+    )
+    assert (cheapest_second.target, cheapest_second.effort) == (
+        "codex/gpt-5.3-codex-spark",
+        None,
+    )
+
+
 @pytest.mark.parametrize(
     ("alias", "expected"),
     [
@@ -245,7 +302,7 @@ def test_implicit_cheap_pools_skip_unavailable_provider(
     assert (peeked.target, peeked.effort) == expected
 
 
-def test_old_cheapest_fingerprint_does_not_carry_cursor_to_new_pool(
+def test_prior_cheapest_fingerprint_does_not_carry_cursor_to_shipped_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cfg: dict[str, object] = {

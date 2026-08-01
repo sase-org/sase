@@ -108,24 +108,25 @@ def test_every_fallback_resolves_to_a_declared_alias_name() -> None:
         )
 
 
-def test_smartest_and_cheapest_are_fallbacks_cheap_and_cheaper_are_pools() -> None:
+def test_smartest_is_fallback_and_cheap_family_are_pools() -> None:
     """Pin the *shape* of the selector-valued defaults, not their literal targets."""
     targets = implicit_alias_targets()
 
     smartest = parse_model_alias_selector(targets[SMARTEST_MODEL_ALIAS_NAME])
-    cheapest = parse_model_alias_selector(targets[CHEAPEST_MODEL_ALIAS_NAME])
     cheap = parse_model_alias_selector(targets[CHEAP_MODEL_ALIAS_NAME])
     cheaper = parse_model_alias_selector(targets[CHEAPER_MODEL_ALIAS_NAME])
+    cheapest = parse_model_alias_selector(targets[CHEAPEST_MODEL_ALIAS_NAME])
     assert smartest is not None and smartest.mode == "fallback"
-    assert cheapest is not None and cheapest.mode == "fallback"
     assert cheap is not None and cheap.mode == "round_robin"
     assert cheaper is not None and cheaper.mode == "round_robin"
+    assert cheapest is not None and cheapest.mode == "round_robin"
 
 
-def test_cheap_and_cheaper_ship_the_expected_members_and_efforts() -> None:
+def test_cheap_family_ships_the_expected_members_and_efforts() -> None:
     targets = implicit_alias_targets()
     cheap = parse_model_alias_selector(targets[CHEAP_MODEL_ALIAS_NAME])
     cheaper = parse_model_alias_selector(targets[CHEAPER_MODEL_ALIAS_NAME])
+    cheapest = parse_model_alias_selector(targets[CHEAPEST_MODEL_ALIAS_NAME])
 
     assert cheap is not None
     assert cheap.members == (
@@ -136,6 +137,11 @@ def test_cheap_and_cheaper_ship_the_expected_members_and_efforts() -> None:
     assert cheaper.members == (
         "claude/sonnet@medium",
         "codex/gpt-5.5@medium",
+    )
+    assert cheapest is not None
+    assert cheapest.members == (
+        "claude/haiku",
+        "codex/gpt-5.3-codex-spark",
     )
 
 

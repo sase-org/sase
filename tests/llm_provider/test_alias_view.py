@@ -113,7 +113,7 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     cheapest_selector = parse_model_alias_selector(targets["cheapest"])
     assert cheapest_selector is not None
     assert by_name["cheapest"].implicit_value == targets["cheapest"]
-    assert by_name["cheapest"].selector_mode == cheapest_selector.mode == "fallback"
+    assert by_name["cheapest"].selector_mode == cheapest_selector.mode == "round_robin"
     assert [member.value for member in by_name["cheapest"].selector_members] == list(
         cheapest_selector.members
     )

@@ -73,7 +73,7 @@ def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> Non
                     "smartest": ("claude/claude-fable-5 || codex/gpt-5.6-sol"),
                     "cheap": "claude/sonnet@xhigh | codex/gpt-5.5",
                     "cheaper": "claude/sonnet@medium | codex/gpt-5.5@medium",
-                    "cheapest": "claude/haiku || codex/gpt-5.3-codex-spark",
+                    "cheapest": "claude/haiku | codex/gpt-5.3-codex-spark",
                 }
             }
         }

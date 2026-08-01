@@ -169,7 +169,7 @@ def test_model_alias_description_builtin_and_custom(
         "Lower-cost load-balanced pool used automatically by extra-small phase agents."
     )
     assert model_alias_description("cheapest") == (
-        "Lowest-cost provider fallback available for explicit use."
+        "Lowest-cost load-balanced pool available for explicit use."
     )
     assert model_alias_description("claude_coder") == (
         "Coder follow-up agents for plans authored by claude."

@@ -570,7 +570,7 @@ llm_provider:
       task_worker: "@default" # standalone tasks without size metadata
       cheap: claude/sonnet@xhigh | codex/gpt-5.5 # small-phase pool
       cheaper: claude/sonnet@medium | codex/gpt-5.5@medium # xsmall-phase pool
-      cheapest: claude/haiku || codex/gpt-5.3-codex-spark # explicit-use fallback
+      cheapest: claude/haiku | codex/gpt-5.3-codex-spark # explicit-use pool
       xsmall_phase_worker: "@cheaper"
       small_phase_worker: "@cheap"
       medium_phase_worker: "@default@high"
@@ -693,8 +693,8 @@ provider-neutral and read-only.
 #### Implicit role aliases
 
 On top of any aliases you configure, SASE always exposes a fixed set of **implicit role aliases** that resolve even when
-you have not defined them. Most fall back through other aliases to `@default`; `@smartest` and `@cheapest` own ordered
-provider fallbacks, while `@cheap` and `@cheaper` own independent built-in pools:
+you have not defined them. Most fall back through other aliases to `@default`; `@smartest` owns an ordered provider
+fallback, while `@cheap`, `@cheaper`, and `@cheapest` own independent built-in pools:
 
 | Alias                  | Role                                                                                                    | Fallback when not configured                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -713,7 +713,7 @@ provider fallbacks, while `@cheap` and `@cheaper` own independent built-in pools
 | `@smartest`            | Highest-capability model selected for xlarge phases/tasks and threshold-sized epic landers.             | `claude/claude-fable-5 \|\| codex/gpt-5.6-sol`                                          |
 | `@cheap`               | Load-balanced pool selected automatically for small phase/task workers.                                 | `claude/sonnet@xhigh \| codex/gpt-5.5`                                                  |
 | `@cheaper`             | Lower-cost load-balanced pool selected automatically for extra-small phase/task workers.                | `claude/sonnet@medium \| codex/gpt-5.5@medium`                                          |
-| `@cheapest`            | Lowest-cost provider fallback available for explicit use.                                               | `claude/haiku \|\| codex/gpt-5.3-codex-spark`                                           |
+| `@cheapest`            | Lowest-cost load-balanced pool available for explicit use.                                              | `claude/haiku \| codex/gpt-5.3-codex-spark`                                             |
 
 Override any role by configuring an alias of the same name. A common setup routes coder follow-ups to a second provider
 while normal epic landers track `@default`. Threshold-selected epic landers deliberately diverge through
@@ -721,8 +721,8 @@ while normal epic landers track `@default`. Threshold-selected epic landers deli
 `big_epic_lander` directly to replace the large-epic policy. Phase sizes likewise diverge: xsmall uses `@cheaper`, small
 uses `@cheap`, medium uses `@default@high`, large uses `@smart`, and xlarge uses `@smartest`. The implicit `@smartest`
 value prefers Claude Fable 5 whenever the Claude CLI is installed and otherwise selects Codex GPT-5.6 SOL; a configured
-or temporary override bypasses that fallback. The standalone `@cheapest` fallback has no automatic consumer and is
-available for explicit launches:
+or temporary override bypasses that fallback. The standalone `@cheapest` pool has no automatic consumer and is available
+for explicit launches with its own rotation:
 
 ```yaml
 llm_provider:
@@ -735,7 +735,7 @@ llm_provider:
       task_worker: "@default" # standalone tasks without size metadata
       cheap: claude/sonnet@xhigh | codex/gpt-5.5
       cheaper: claude/sonnet@medium | codex/gpt-5.5@medium
-      cheapest: claude/haiku || codex/gpt-5.3-codex-spark
+      cheapest: claude/haiku | codex/gpt-5.3-codex-spark
       medium_phase_worker: "@default@high"
       xsmall_phase_worker: "@cheaper"
       small_phase_worker: "@cheap"
@@ -972,7 +972,7 @@ llm_provider:
       codex_coder: claude/opus # Codex-authored plans hand coding to Claude
       cheap: claude/sonnet@xhigh | codex/gpt-5.5
       cheaper: claude/sonnet@medium | codex/gpt-5.5@medium
-      cheapest: claude/haiku || codex/gpt-5.3-codex-spark
+      cheapest: claude/haiku | codex/gpt-5.3-codex-spark
       medium_phase_worker: codex/gpt-5.6-sol@high # explicitly route medium phases to Codex
       smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # xlarge phase/epic fallback
       big_epic_lander: codex/gpt-5.6-sol # threshold-selected epic landers run on Codex
@@ -1003,11 +1003,11 @@ line.
 
 Overrides are **per-alias** and independent. An override takes effect wherever that alias is resolved, including a
 `default` override at every direct or nested `@default` hop. For example, an override on `@medium_phase_worker` affects
-only that size alias. Active overrides on selector-owning aliases such as `@smartest`, `@cheap`, `@cheaper`, and
-`@cheapest` suspend their ordered fallback or independent rotation for the override's duration. Those selectors pin
-concrete targets rather than referencing `@default`, so a `default` override does not move them or their dependent size
-lanes; override the selector-owning or size alias itself to move one of those lanes. Machine-wide temporary overrides do
-not change:
+only that size alias. Active overrides on `@smartest` suspend its ordered fallback, while overrides on `@cheap`,
+`@cheaper`, and `@cheapest` suspend their independent load-balanced rotations for the override's duration. Those
+selectors pin concrete targets rather than referencing `@default`, so a `default` override does not move them or their
+dependent size lanes; override the selector-owning or size alias itself to move one of those lanes. Machine-wide
+temporary overrides do not change:
 
 - Already-running agents — they keep whatever provider/model they were launched with.
 - Explicit concrete `%model` prompt targets — they still take precedence. A `%model(...)` alias keyword is a separate,
