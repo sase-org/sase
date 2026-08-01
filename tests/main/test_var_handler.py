@@ -80,8 +80,12 @@ def test_var_help_keeps_subcommands_and_set_options_alphabetized(
         parser.parse_args(["var", "set", "--help"])
     assert exc.value.code == 0
     set_help = capsys.readouterr().out
-    assert set_help.index("\n  -j, --json") < set_help.index("\n  -v, --value ")
-    assert set_help.index("\n  -v, --value ") < set_help.index("\n  -f, --value-file")
+    # Match on ", --option" rather than "-x, --option" since argparse's
+    # short-flag/metavar formatting for options that take a value differs
+    # between Python 3.12 (`-v TEXT, --value TEXT`) and 3.13+ (`-v, --value
+    # TEXT`); the comma before the long option is stable across versions.
+    assert set_help.index(", --json") < set_help.index(", --value ")
+    assert set_help.index(", --value ") < set_help.index(", --value-file")
 
 
 @pytest.mark.parametrize(
