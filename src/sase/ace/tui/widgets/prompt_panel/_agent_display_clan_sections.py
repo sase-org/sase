@@ -25,12 +25,17 @@ from ...models._agent_clan_sections import (
 from ...models.fold_state import FoldLevel
 from ...tools.slow import format_long_duration
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
+from ._agent_display_state import HeaderHintState
 from ._fold_language import append_fold_glyph, fold_count_style
 from ._helpers import append_major_section_divider, append_section_heading
 from ._agent_display_state import HeaderHintState
 from ._container_hint_text import container_text_with_file_hints
 from ._hint_caps import HintContentBudget
 from ._output_variable_rich import append_var_value_lines, var_value_style
+from ._tool_call_report_hints import (
+    register_tool_call_report_hint,
+    tool_call_report_hint_marker_width,
+)
 
 _TRIAGE_ENTRY_LIMIT = 8
 _TRIAGE_SLOW_TOOL_LIMIT = 5
@@ -281,6 +286,7 @@ def append_slow_tool_calls_section(
     entries: tuple[ClanSlowToolEntry, ...],
     *,
     level: FoldLevel,
+    hint_state: HeaderHintState | None = None,
 ) -> None:
     """Render slow tools as headings, top-five triage rows, or all grouped calls."""
     _append_fold_heading(
@@ -293,17 +299,44 @@ def append_slow_tool_calls_section(
     if level == FoldLevel.COLLAPSED:
         return
     if level == FoldLevel.EXPANDED:
-        for entry in entries[:_TRIAGE_SLOW_TOOL_LIMIT]:
-            _append_slow_tool_line(text, entry)
+        visible_entries = entries[:_TRIAGE_SLOW_TOOL_LIMIT]
+        hint_marker_width = _slow_tool_hint_marker_width(
+            visible_entries,
+            hint_state,
+        )
+        for entry in visible_entries:
+            _append_slow_tool_line(
+                text,
+                entry,
+                hint_state=hint_state,
+                hint_marker_width=hint_marker_width,
+            )
         _append_more_tail(text, len(entries), _TRIAGE_SLOW_TOOL_LIMIT)
         return
+    hint_marker_width = _slow_tool_hint_marker_width(entries, hint_state)
     grouped: dict[str, list[ClanSlowToolEntry]] = defaultdict(list)
     for entry in entries:
         grouped[entry.member_label].append(entry)
     for member_label, member_entries in grouped.items():
         _append_member_subheading(text, member_label)
         for entry in member_entries:
-            _append_slow_tool_line(text, entry, indent="  ")
+            _append_slow_tool_line(
+                text,
+                entry,
+                indent="  ",
+                hint_state=hint_state,
+                hint_marker_width=hint_marker_width,
+            )
+
+
+def _slow_tool_hint_marker_width(
+    entries: tuple[ClanSlowToolEntry, ...],
+    hint_state: HeaderHintState | None,
+) -> int:
+    return tool_call_report_hint_marker_width(
+        (entry.call.entry for entry in entries),
+        hint_state,
+    )
 
 
 def _append_slow_tool_line(
@@ -311,6 +344,8 @@ def _append_slow_tool_line(
     entry: ClanSlowToolEntry,
     *,
     indent: str = "",
+    hint_state: HeaderHintState | None = None,
+    hint_marker_width: int = 0,
 ) -> None:
     call = entry.call
     raw = call.entry
@@ -318,10 +353,17 @@ def _append_slow_tool_line(
         "running" if call.is_running else "incomplete" if call.did_not_complete else ""
     )
     target = raw.compact_target or raw.detail
+    hint_marker = register_tool_call_report_hint(
+        raw,
+        hint_state=hint_state,
+        source_label=entry.source_label,
+        agent_name=entry.member_label,
+    )
     text.append(f"{indent}• ", style="dim #D75FFF")
     if not indent:
         text.append(entry.member_label, style=_AGENT_NAME_ANNOTATION_STYLE)
         text.append(" · ", style="dim")
+    _append_hint_marker_cell(text, hint_marker, hint_marker_width)
     text.append(raw.display_tool_name, style="bold #87D7FF")
     text.append(
         " · " + format_long_duration(call.effective_duration_ms),
@@ -332,6 +374,20 @@ def _append_slow_tool_line(
     if target:
         text.append(" · " + first_meaningful_line(target, max_chars=96), style="dim")
     text.append("\n")
+
+
+def _append_hint_marker_cell(
+    text: Text,
+    marker: str | None,
+    marker_width: int,
+) -> None:
+    if marker_width <= 0:
+        return
+    if marker is None:
+        text.append(" " * (marker_width + 1))
+        return
+    text.append(marker, style="bold #FFFF00")
+    text.append(" ")
 
 
 def _append_triage_line(

@@ -20,11 +20,6 @@ from sase.ace.tui.tools.slow import (
     normalize_slow_tool_call_threshold_ms,
     select_slow_tool_calls,
 )
-from sase.ace.tui.tools.report import (
-    SlowToolCallReportSpec,
-    tool_call_report_path,
-)
-
 from ...models.fold_scale import (
     AGENT_FOLD_SCALE,
     FoldScale,
@@ -50,6 +45,10 @@ from ._agent_slow_tools_detail import (
 )
 from ._fold_language import append_fold_section_heading
 from ._helpers import append_major_section_divider, append_section_heading
+from ._tool_call_report_hints import (
+    register_tool_call_report_hint,
+    tool_call_report_hint_marker_width,
+)
 
 _COLOR_HEADER = "bold #D7AF5F underline"
 _COLOR_TOOL_NAME = "bold"
@@ -395,13 +394,10 @@ def _hint_marker_width(
     visible: tuple[_SourcedSlowToolCall, ...],
     hint_state: HeaderHintState | None,
 ) -> int:
-    if hint_state is None:
-        return 0
-    report_count = sum(1 for item in visible if _is_report_hint_eligible(item))
-    if not report_count:
-        return 0
-    largest_hint = hint_state.hint_counter + report_count - 1
-    return cell_len(f"[{largest_hint}]")
+    return tool_call_report_hint_marker_width(
+        (item.slow_call.entry for item in visible),
+        hint_state,
+    )
 
 
 def _register_tool_call_report_hint(
@@ -410,24 +406,12 @@ def _register_tool_call_report_hint(
     hint_state: HeaderHintState | None,
     agent_name: str | None,
 ) -> str | None:
-    if hint_state is None or not _is_report_hint_eligible(sourced):
-        return None
-
-    hint_number = hint_state.hint_counter
-    hint_state.hint_counter += 1
-    report_path = tool_call_report_path(sourced.slow_call.entry)
-    hint_state.hint_mappings[hint_number] = report_path
-    hint_state.tool_call_reports[report_path] = SlowToolCallReportSpec(
-        entry=sourced.slow_call.entry,
+    return register_tool_call_report_hint(
+        sourced.slow_call.entry,
+        hint_state=hint_state,
         source_label=sourced.source.label,
         agent_name=agent_name,
-        report_path=report_path,
     )
-    return f"[{hint_number}]"
-
-
-def _is_report_hint_eligible(sourced: _SourcedSlowToolCall) -> bool:
-    return sourced.slow_call.entry.status in {"success", "failure"}
 
 
 def _agent_name(agent: object) -> str | None:

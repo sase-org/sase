@@ -330,6 +330,7 @@ def build_clan_detail_text(
                 fold_level,
                 overrides,
             ),
+            hint_state=hint_state,
         )
 
     prompts = disk.prompts if disk is not None else ()

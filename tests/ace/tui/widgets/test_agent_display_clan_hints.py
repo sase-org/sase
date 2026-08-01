@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -145,6 +146,52 @@ def test_clan_summary_styles_survive_hint_insertion(tmp_path: Path) -> None:
 
     assert rendered.plain[bold_span.start : bold_span.end] == ("See [1] src/styled.py")
     assert state.hint_mappings == {1: str(tmp_path / "src/styled.py")}
+
+
+def test_clan_slow_tool_hints_register_report_specs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    container, snapshot = rich_clan_snapshot()
+    disk = snapshot.disk
+    assert disk is not None
+    slow_tool = disk.slow_tool_calls[0]
+    entry = replace(
+        slow_tool.call.entry,
+        status="success",
+        tool_use_id="clan-success",
+        source_path="/tmp/tool-calls.jsonl",
+        line_number=17,
+    )
+    call = replace(slow_tool.call, entry=entry)
+    snapshot = replace(
+        snapshot,
+        disk=replace(
+            disk,
+            slow_tool_calls=(replace(slow_tool, call=call),),
+        ),
+    )
+    panel = FakePromptPanel()
+    panel.app = _fold_app(FoldLevel.EXPANDED)
+    _warm_clan_snapshot(panel, container, snapshot)
+
+    result = panel.update_display_with_hints(container)
+    plain = plain_of(panel.captured[-1])
+
+    report_hints = {
+        number: path
+        for number, path in result.file_hints.items()
+        if path in result.tool_call_reports
+    }
+    assert len(report_hints) == 1
+    report_hint, report_path = next(iter(report_hints.items()))
+    assert f"• .one · [{report_hint}] Bash · 2m 5s · just check" in plain
+    assert report_path.startswith(str(tmp_path / ".sase" / "tool_call_reports"))
+    spec = result.tool_call_reports[report_path]
+    assert spec.entry is entry
+    assert spec.agent_name == ".one"
+    assert spec.source_label == "attempt 1"
 
 
 def test_clan_hint_render_reports_loading_and_enriched_states() -> None:
