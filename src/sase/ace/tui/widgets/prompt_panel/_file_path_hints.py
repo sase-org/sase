@@ -64,6 +64,12 @@ class _AppendableText(Protocol):
     ) -> object: ...
 
 
+class FileHintPathResolver(Protocol):
+    """Resolve one matched file token before the workspace fallback."""
+
+    def __call__(self, path: str, workspace_dir: str | None) -> str: ...
+
+
 @lru_cache(maxsize=256)
 def resolve_agent_workspace_dir(
     workspace_num: int | None,
@@ -145,6 +151,8 @@ def append_text_with_file_hints(
     hint_mappings: dict[int, str],
     workspace_dir: str | None,
     style: str = "",
+    *,
+    path_resolver: FileHintPathResolver | None = None,
 ) -> int:
     """Append text content with ``[N]`` hint markers before file paths.
 
@@ -178,7 +186,11 @@ def append_text_with_file_hints(
             text.append(content[last_end:full_match_start], style=style)
 
         # Resolve the path (using group 2, without @ prefix)
-        resolved_path = resolve_file_path(path, workspace_dir)
+        resolved_path = (
+            path_resolver(path, workspace_dir)
+            if path_resolver is not None
+            else resolve_file_path(path, workspace_dir)
+        )
 
         # Add hint marker and styled file path
         text.append(f"[{hint_counter}] ", style="bold #FFFF00")

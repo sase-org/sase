@@ -5,7 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import Mock
 
 from rich.text import Text
 from textual.worker import Worker, WorkerState
@@ -14,8 +16,11 @@ from sase.ace.tui.actions.agents._display_detail import DetailMixin
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.models._agent_clan_sections import (
     CLAN_DISK_SECTIONS,
+    ClanContextEntry,
+    ClanContextLane,
     ClanDiskMemberSnapshot,
     ClanDiskSnapshot,
+    ClanSectionSnapshot,
     ClanTextEntry,
     aggregate_clan_in_memory,
 )
@@ -31,6 +36,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation import (
     _aggregate_clan_slow_tool_calls,
     _ClanDiskContentCache,
     _load_clan_disk_member_snapshot,
+    build_clan_disk_snapshot,
     cache_clan_disk_snapshot,
     clear_clan_snapshot_loading,
     get_cached_clan_section_snapshot,
@@ -542,6 +548,94 @@ def test_clan_snapshot_revision_changes_only_when_worker_result_merges() -> None
     assert initial.revision == loading.revision == cleared.revision == 0
     assert first.revision == refreshed.revision == 1
     assert second is not None and second.revision == 2
+
+
+def test_clan_worker_indexes_logical_plan_reference(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    member = _agent("research.one", workspace_dir=str(tmp_path), workspace_num=7)
+    container = project_clan_tree([member])[0]
+    container.clan_summary = "Plan: plans:202608/clan.md"
+    in_memory = aggregate_clan_in_memory(container)
+    disk = _disk_for(ClanSectionSnapshot(in_memory=in_memory))
+    resolved = tmp_path / "plans" / "202608" / "clan.md"
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation."
+        "build_agent_group_disk_snapshot",
+        lambda *_args, **_kwargs: disk,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.parse_plan_reference",
+        lambda value: SimpleNamespace(path=value.split(":", 1)[1]),
+    )
+    resolve = Mock(return_value=SimpleNamespace(resolved_path=resolved))
+    monkeypatch.setattr("sase.sdd.plan_refs.resolve_plan_reference", resolve)
+
+    enriched = build_clan_disk_snapshot(
+        object(),
+        container,
+        in_memory,
+        sections={"replies"},
+    )
+
+    assert enriched.hint_paths["plans:202608/clan.md"] == str(resolved)
+    assert enriched.hint_paths["202608/clan.md"] == str(resolved)
+    resolve.assert_called_once_with(
+        "plans:202608/clan.md",
+        workspace_dir=str(tmp_path),
+        workspace_num=7,
+    )
+
+
+def test_clan_worker_indexes_known_context_path_suffixes(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    member = _agent("research.one", workspace_dir=str(tmp_path))
+    container = project_clan_tree([member])[0]
+    in_memory = aggregate_clan_in_memory(container)
+    target = tmp_path / "artifacts" / "reports" / "findings.md"
+    artifact = ArtifactFilePath(
+        display_path="reports/findings.md",
+        actual_path=str(target),
+    )
+    disk = ClanDiskSnapshot(
+        loaded_sections=frozenset({"context"}),
+        members=(),
+        replies=(),
+        prompts=(),
+        context_lanes=(
+            ClanContextLane(
+                label="ARTIFACTS",
+                entries=(
+                    ClanContextEntry(
+                        key=str(target),
+                        label=artifact.display_path,
+                        member_labels=(".one",),
+                        values=(artifact,),
+                    ),
+                ),
+            ),
+        ),
+        slow_tool_calls=(),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation."
+        "build_agent_group_disk_snapshot",
+        lambda *_args, **_kwargs: disk,
+    )
+
+    enriched = build_clan_disk_snapshot(
+        object(),
+        container,
+        in_memory,
+        sections={"context"},
+    )
+
+    assert enriched.hint_paths["reports/findings.md"] == str(target)
+    assert enriched.hint_paths["findings.md"] == str(target)
 
 
 def test_clan_worker_coalesces_and_discards_stale_selection(

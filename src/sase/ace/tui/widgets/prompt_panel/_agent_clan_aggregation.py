@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Collection
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from threading import Lock
 from typing import Any, cast
@@ -27,6 +28,8 @@ from ._agent_clan_disk_aggregation import (
     aggregate_clan_context_lanes as _aggregate_clan_context_lanes,
     aggregate_clan_slow_tool_calls as _aggregate_clan_slow_tool_calls,
 )
+from ._agent_display_clan_context import clan_context_entry_hint_target
+from ._file_path_hints import resolve_agent_workspace_dir
 from ._agent_clan_member_content import (
     clan_member_source_token as _clan_member_source_token,
     load_clan_disk_member_snapshot as _load_clan_disk_member_snapshot,
@@ -35,6 +38,7 @@ from ._agent_clan_member_content import (
 _CLAN_MEMBER_CACHE_MAX_ENTRIES = 512
 _CLAN_SNAPSHOT_CACHE_MAX_ENTRIES = 128
 _CLAN_SNAPSHOT_REFRESH_SECONDS = 10.0
+_LOGICAL_PLAN_REFERENCE_RE = re.compile(r"(?<![\w])@?([A-Za-z][\w-]*:[\w.+\-/]+)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,7 +254,7 @@ def build_clan_disk_snapshot(
     """Load and aggregate requested disk sections; call only off-thread."""
     rows = clan_section_member_rows(agent)
     label_by_identity = {member.identity: member.label for member in in_memory.members}
-    return build_agent_group_disk_snapshot(
+    disk = build_agent_group_disk_snapshot(
         widget,
         rows,
         labels=label_by_identity,
@@ -259,6 +263,112 @@ def build_clan_disk_snapshot(
         now=now,
         slow_tool_threshold_ms=slow_tool_threshold_ms,
     )
+    return replace(
+        disk,
+        hint_paths=_build_clan_hint_paths(
+            agent,
+            rows=rows,
+            labels=label_by_identity,
+            disk=disk,
+        ),
+    )
+
+
+def _build_clan_hint_paths(
+    agent: Agent,
+    *,
+    rows: tuple[Agent, ...],
+    labels: dict[ClanAgentIdentity, str],
+    disk: ClanDiskSnapshot,
+) -> dict[str, str]:
+    """Build worker-only aliases from displayed path tokens to real targets."""
+    hint_paths: dict[str, str] = {}
+    fallback_workspace, workspace_num = _clan_hint_workspace_context(rows)
+    member_workspaces = {
+        labels[row.identity]: resolve_agent_workspace_dir(
+            row.effective_workspace_num,
+            row.project_file,
+            row.workspace_dir,
+        )
+        for row in rows
+        if row.identity in labels
+    }
+
+    for lane in disk.context_lanes:
+        for entry in lane.entries:
+            target = clan_context_entry_hint_target(
+                lane.label,
+                entry,
+                member_workspaces=member_workspaces,
+                fallback_workspace=fallback_workspace,
+            )
+            if target is None:
+                continue
+            _index_hint_path(hint_paths, entry.label, target)
+            _index_hint_path(hint_paths, entry.key, target)
+            _index_hint_path(hint_paths, target, target)
+
+    if fallback_workspace is None:
+        return hint_paths
+
+    from sase.sdd.plan_refs import parse_plan_reference, resolve_plan_reference
+
+    for match in _LOGICAL_PLAN_REFERENCE_RE.finditer(agent.clan_summary or ""):
+        reference = match.group(1)
+        try:
+            parsed = parse_plan_reference(reference)
+            resolution = resolve_plan_reference(
+                reference,
+                workspace_dir=fallback_workspace,
+                workspace_num=workspace_num,
+            )
+        except Exception:
+            continue
+        if resolution.resolved_path is None:
+            continue
+        target = str(resolution.resolved_path)
+        _index_hint_path(hint_paths, reference, target)
+        _index_hint_path(hint_paths, parsed.path, target)
+        _index_hint_path(hint_paths, target, target)
+    return hint_paths
+
+
+def _clan_hint_workspace_context(rows: tuple[Agent, ...]) -> tuple[str | None, int]:
+    """Return the first addressable clan member workspace and its number."""
+    for row in rows:
+        workspace_num = row.effective_workspace_num
+        if not row.workspace_dir and not (
+            workspace_num is not None and workspace_num > 0
+        ):
+            continue
+        workspace_dir = resolve_agent_workspace_dir(
+            workspace_num,
+            row.project_file,
+            row.workspace_dir,
+        )
+        if workspace_dir is not None:
+            return (
+                workspace_dir,
+                workspace_num if workspace_num and workspace_num > 0 else 1,
+            )
+    return None, 1
+
+
+def _index_hint_path(index: dict[str, str], displayed: str, target: str) -> None:
+    """Index a displayed path plus each path-component suffix, first wins."""
+    value = displayed.strip().lstrip("@")
+    if not value:
+        return
+    index.setdefault(value, target)
+    path_value = value
+    if not value.startswith("/") and ":" in value:
+        _kind, remainder = value.split(":", 1)
+        if remainder:
+            path_value = remainder
+            index.setdefault(remainder, target)
+    parts = tuple(part for part in path_value.split("/") if part and part != ".")
+    for offset in range(len(parts)):
+        index.setdefault("/".join(parts[offset:]), target)
 
 
 def build_agent_group_disk_snapshot(

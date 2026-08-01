@@ -9,8 +9,8 @@ worker layer and is merged into :class:`ClanSectionSnapshot` later.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 
@@ -206,6 +206,7 @@ class ClanDiskSnapshot:
     prompts: tuple[ClanTextEntry, ...]
     context_lanes: tuple[ClanContextLane, ...]
     slow_tool_calls: tuple[ClanSlowToolEntry, ...]
+    hint_paths: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

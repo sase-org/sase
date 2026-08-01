@@ -102,6 +102,81 @@ def test_clan_summary_paths_render_ordered_hints_from_member_workspace(
     assert not result.header_enrichment_pending
 
 
+def test_clan_summary_prefers_worker_resolved_plan_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    container, snapshot = rich_clan_snapshot()
+    member = clan_section_member_rows(container)[0]
+    member.workspace_dir = str(tmp_path)
+    container.clan_summary = "Plan: plans:202608/clan.md"
+    resolved = str(tmp_path / "plan-store" / "202608" / "clan.md")
+    disk = snapshot.disk
+    assert disk is not None
+    snapshot = replace(
+        snapshot,
+        disk=replace(
+            disk,
+            hint_paths={"202608/clan.md": resolved},
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.resolve_plan_reference",
+        Mock(side_effect=AssertionError("renderer performed a plan-store lookup")),
+    )
+    state = HeaderHintState(1, {}, None, {})
+
+    rendered = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        hint_state=state,
+    )
+
+    assert "Plan: plans:[1] 202608/clan.md" in rendered.plain
+    assert state.hint_mappings == {1: resolved}
+
+
+def test_clan_summary_matches_known_artifact_suffix(tmp_path: Path) -> None:
+    container, snapshot = rich_clan_snapshot()
+    member = clan_section_member_rows(container)[0]
+    member.workspace_dir = str(tmp_path)
+    container.clan_summary = "Artifact: reports/findings.md"
+    resolved = str(tmp_path / "artifacts" / "reports" / "findings.md")
+    disk = snapshot.disk
+    assert disk is not None
+    snapshot = replace(
+        snapshot,
+        disk=replace(
+            disk,
+            hint_paths={
+                str(tmp_path / "artifacts" / "reports" / "findings.md"): resolved
+            },
+        ),
+    )
+    state = HeaderHintState(1, {}, None, {})
+
+    build_clan_detail_text(container, snapshot=snapshot, hint_state=state)
+
+    assert state.hint_mappings == {1: resolved}
+
+
+def test_clan_summary_unresolved_token_uses_workspace_fallback(tmp_path: Path) -> None:
+    container, snapshot = rich_clan_snapshot()
+    member = clan_section_member_rows(container)[0]
+    member.workspace_dir = str(tmp_path)
+    container.clan_summary = "Unknown: docs/missing.md"
+    state = HeaderHintState(1, {}, None, {})
+
+    rendered = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        hint_state=state,
+    )
+
+    assert "Unknown: [1] docs/missing.md" in rendered.plain
+    assert state.hint_mappings == {1: str(tmp_path / "docs" / "missing.md")}
+
+
 def test_clan_hint_render_preserves_folded_snapshot_structure(tmp_path: Path) -> None:
     container, snapshot = rich_clan_snapshot()
     member = clan_section_member_rows(container)[0]

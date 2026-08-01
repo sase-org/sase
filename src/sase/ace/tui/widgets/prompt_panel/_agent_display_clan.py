@@ -44,7 +44,10 @@ from ._agent_display_clan_sections import (
     minimal_context_lanes,
 )
 from ._agent_display_state import HeaderHintState
-from ._container_hint_text import container_text_with_file_hints
+from ._container_hint_text import (
+    container_hint_path_resolver,
+    container_text_with_file_hints,
+)
 from ._file_path_hints import FILE_PATH_RE, resolve_agent_workspace_dir
 from ._fold_language import append_fold_header_line, append_scanning_tail
 from ._hint_caps import HintContentBudget
@@ -134,6 +137,11 @@ def build_clan_detail_text(
     )
     overrides = section_fold_overrides or {}
     hint_budget = HintContentBudget() if hint_state is not None else None
+    hint_path_resolver = (
+        container_hint_path_resolver(snapshot.disk.hint_paths)
+        if hint_state is not None and snapshot.disk is not None
+        else None
+    )
     member_hint_workspace = (
         _clan_member_hint_workspace_resolver(
             agent,
@@ -238,6 +246,7 @@ def build_clan_detail_text(
                 hint_state,
                 workspace_dir=hint_state.workspace_dir,
                 budget=hint_budget,
+                path_resolver=hint_path_resolver,
             )
         text.append_text(summary)
         text.append("\n\n")
