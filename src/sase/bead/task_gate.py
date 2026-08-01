@@ -299,33 +299,79 @@ def translate_task_triage_response(
 
 def _resolve_task_triage_project_cwd(project: str) -> Path:
     """Resolve an explicit ProjectSpec key to its canonical primary checkout."""
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
-    from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
-
-    if not is_valid_sase_project_name(project):
-        raise GateError(
-            "invalid_task_project",
-            "payload.project",
-            f"invalid SASE project key: {project}",
-        )
-    project_dir = sase_projects_dir() / project
-    project_file = Path(preferred_project_spec_path(str(project_dir), project))
-    if not project_file.is_file():
-        raise GateError(
-            "invalid_task_project",
-            "payload.project",
-            f"project file is missing for {project}",
-        )
-    from sase.bead.task_launch import resolve_task_launch_cwd
+    from sase.bead.task_launch import resolve_task_launch_cwd_for_project
 
     try:
-        return resolve_task_launch_cwd(None, agent_project_file=project_file)
+        return resolve_task_launch_cwd_for_project(project)
     except (FileNotFoundError, ValueError) as exc:
         raise GateError(
             "invalid_task_project",
             "payload.project",
             str(exc),
         ) from exc
+
+
+def find_pending_task_triage(project: str, bead_id: str) -> str | None:
+    """Return the pending TaskTriage request matching trusted payload fields."""
+    from sase.notification_gates.durability import read_json_object
+    from sase.notification_gates.paths import interaction_requests_dir
+
+    kind_dir = interaction_requests_dir() / TASK_TRIAGE_KIND
+    try:
+        bundles = sorted(kind_dir.iterdir())
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return None
+    for bundle in bundles:
+        if not bundle.is_dir():
+            continue
+        if (bundle / "response.json").exists() or (
+            bundle / "cancellation.json"
+        ).exists():
+            continue
+        try:
+            envelope = read_json_object(bundle / "request.json")
+        except GateError:
+            continue
+        if envelope.get("kind") != TASK_TRIAGE_KIND:
+            continue
+        payload = envelope.get("payload")
+        if not isinstance(payload, Mapping):
+            continue
+        if payload.get("project") != project or payload.get("bead_id") != bead_id:
+            continue
+        request_id = envelope.get("request_id")
+        if isinstance(request_id, str) and request_id:
+            return request_id
+    return None
+
+
+def cancel_task_triage(
+    project: str,
+    bead_id: str,
+    *,
+    reason: str,
+    source: str = "ace",
+) -> bool:
+    """Cancel a pending task triage and settle its notification."""
+    request_id = find_pending_task_triage(project, bead_id)
+    if request_id is None:
+        return False
+    from sase.notification_gates.executor import cancel_gate
+    from sase.notification_gates.paths import bundle_paths
+
+    try:
+        cancel_gate(
+            bundle_paths(TASK_TRIAGE_KIND, request_id).root,
+            reason=reason,
+            source=source,
+        )
+    except GateError as exc:
+        if exc.code == "already_answered":
+            return False
+        raise
+    return True
 
 
 def launch_task_triage(
@@ -429,9 +475,11 @@ __all__ = [
     "TASK_TRIAGE_PRIMARY_BRANCH",
     "TASK_TRIAGE_QUERY",
     "TaskTriageAction",
+    "cancel_task_triage",
     "close_task_triage",
     "create_task_triage_gate",
     "execute_task_triage_gate_command",
+    "find_pending_task_triage",
     "launch_task_triage",
     "render_task_triage_preview",
     "task_triage_gate_command_script",

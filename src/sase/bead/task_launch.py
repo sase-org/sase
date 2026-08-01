@@ -55,6 +55,20 @@ def resolve_task_launch_cwd(
     )
 
 
+def resolve_task_launch_cwd_for_project(project: str) -> Path:
+    """Resolve an explicit SASE project key to its primary checkout."""
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
+
+    if not is_valid_sase_project_name(project):
+        raise ValueError(f"invalid SASE project key: {project}")
+    project_dir = sase_projects_dir() / project
+    project_file = Path(preferred_project_spec_path(str(project_dir), project))
+    if not project_file.is_file():
+        raise FileNotFoundError(f"project file is missing for {project}")
+    return resolve_task_launch_cwd(None, agent_project_file=project_file)
+
+
 def submit_task_launch_task(
     task_id: str,
     *,
@@ -83,6 +97,22 @@ def submit_task_launch_task(
         )
 
 
+def submit_task_launch_for_project(
+    project: str,
+    bead_id: str,
+    *,
+    feedback: str | None = None,
+    origin: TaskLaunchOrigin | None = None,
+) -> BackgroundTask:
+    """Resolve *project* and submit or reuse its detached task launch."""
+    return submit_task_launch_task(
+        bead_id,
+        cwd=resolve_task_launch_cwd_for_project(project),
+        feedback=feedback,
+        origin=origin or "api",
+    )
+
+
 def _active_task_launch(task_id: str) -> BackgroundTask | None:
     """Return the newest active detached launch for *task_id*, if any."""
     from sase.tasks import (
@@ -107,6 +137,8 @@ def _active_task_launch(task_id: str) -> BackgroundTask | None:
 __all__ = [
     "TaskLaunchOrigin",
     "resolve_task_launch_cwd",
+    "resolve_task_launch_cwd_for_project",
+    "submit_task_launch_for_project",
     "submit_task_launch_task",
     "task_launch_origin_from_gate_source",
 ]

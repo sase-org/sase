@@ -73,7 +73,11 @@ from .agent_cleanup_modal import (
 )
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
+from .bead_close_modal import BeadCloseModal, BeadCloseResult
+from .bead_create_modal import BeadCreateModal, BeadCreateResult
 from .bead_edit_modal import BeadEditModal, BeadEditResult
+from .bead_editor_modal import BeadEditorModal, BeadEditorResult
+from .bead_note_modal import BeadNoteModal
 from .command_palette_modal import CommandPaletteModal
 from .copy_as_modal import CopyAsModal
 from .copy_as_types import CopyAsContext, CopyAsRow
@@ -205,6 +209,13 @@ from .unified_xprompt_save_modal import (
 from .xprompt_select_modal import XPromptSelection, XPromptSelectModal
 
 __all__ = [
+    "BeadCloseModal",
+    "BeadCloseResult",
+    "BeadCreateModal",
+    "BeadCreateResult",
+    "BeadEditorModal",
+    "BeadEditorResult",
+    "BeadNoteModal",
     "AddableProperty",
     "AddPropertyModal",
     "PropertyPickerItem",

@@ -12,6 +12,7 @@ from sase.bead.task_launch import (
     _build_task_launch_argv,
     resolve_task_launch_cwd,
     submit_task_launch_task,
+    submit_task_launch_for_project,
     task_launch_origin_from_gate_source,
 )
 
@@ -147,3 +148,33 @@ def test_submit_task_launch_task_deduplicates_active_bead_id(
         "kind": "detached",
     }
     submit_task.assert_not_called()
+
+
+def test_submit_task_launch_for_project_reuses_project_resolution(
+    tmp_path: Path,
+) -> None:
+    task = SimpleNamespace(task_id="submitted")
+    with (
+        patch(
+            "sase.bead.task_launch.resolve_task_launch_cwd_for_project",
+            return_value=tmp_path,
+        ) as resolve,
+        patch(
+            "sase.bead.task_launch.submit_task_launch_task", return_value=task
+        ) as submit,
+    ):
+        result = submit_task_launch_for_project(
+            "sase",
+            "sase-42",
+            feedback="Focus the fix",
+            origin="ace",
+        )
+
+    assert result is task
+    resolve.assert_called_once_with("sase")
+    submit.assert_called_once_with(
+        "sase-42",
+        cwd=tmp_path,
+        feedback="Focus the fix",
+        origin="ace",
+    )

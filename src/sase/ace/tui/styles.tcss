@@ -755,55 +755,72 @@ MarkdownBlock > .code_inline {
     text-overflow: ellipsis;
 }
 
-#bead-edit-container {
+.bead-modal-container {
     width: 76;
     max-width: 92%;
-    height: 28;
+    height: 36;
     max-height: 90%;
-    border: round #AF87FF;
+    border: round #D787FF;
     background: $panel;
     padding: 1 2;
 }
 
-BeadEditModal {
+BeadEditorModal,
+BeadNoteModal,
+BeadCreateModal,
+BeadCloseModal {
     align: center middle;
     background: $background 70%;
 }
 
-#bead-edit-title {
+.bead-modal-container.small {
+    height: 18;
+}
+
+.bead-modal-title {
     width: 100%;
     height: 2;
-    color: #AF87FF;
+    color: #D787FF;
     text-style: bold;
     content-align: center middle;
 }
 
-.bead-edit-label {
+.bead-modal-fields {
+    height: 1fr;
+}
+
+.bead-modal-label {
     width: 100%;
     height: 1;
     margin-top: 1;
     color: $text-muted;
 }
 
-#bead-edit-title-input {
+#bead-editor-description,
+#bead-editor-notes,
+#bead-create-description,
+#bead-close-note,
+#bead-note-text {
     width: 100%;
-    height: 3;
-}
-
-#bead-edit-description-input {
-    width: 100%;
-    height: 1fr;
+    height: 6;
     border: round #5F5F87;
 }
 
-#bead-edit-buttons {
+.bead-modal-warning {
+    width: 100%;
+    height: auto;
+    color: #FFAF5F;
+    margin-bottom: 1;
+}
+
+.bead-modal-buttons {
     width: 100%;
     height: 3;
     align-horizontal: center;
     margin-top: 1;
 }
 
-#bead-edit-buttons Button {
+.bead-modal-buttons Button {
     margin: 0 1;
 }
 
