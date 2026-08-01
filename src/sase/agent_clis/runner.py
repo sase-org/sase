@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
+import tempfile
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+
+from sase.core.paths import get_sase_managed_tmpdir
 
 COMMAND_TIMEOUT_SECONDS = 300.0
 PROBE_TIMEOUT_SECONDS = 5.0
@@ -68,14 +72,21 @@ def run_command(
     args = tuple(str(item) for item in argv)
     start = clock()
     try:
-        completed = run_fn(
-            list(args),
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
+        with tempfile.TemporaryDirectory(
+            prefix="command-",
+            dir=get_sase_managed_tmpdir("agent-clis"),
+        ) as command_tmpdir:
+            child_env = os.environ.copy()
+            child_env["TMPDIR"] = command_tmpdir
+            completed = run_fn(
+                list(args),
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+                env=child_env,
+            )
     except FileNotFoundError as exc:
         raise _CommandNotFoundError(args) from exc
     except subprocess.TimeoutExpired as exc:

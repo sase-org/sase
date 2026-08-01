@@ -47,6 +47,12 @@ def _aged_dir(root: Path, relative: str, *, age_seconds: float) -> Path:
 def test_horizons_are_chosen_per_subdirectory(tmp_path: Path) -> None:
     stale_editor = _aged_file(tmp_path, "editors/note.md", age_seconds=13 * HOUR)
     fresh_editor = _aged_file(tmp_path, "editors/open.md", age_seconds=11 * HOUR)
+    stale_agent_cli = _aged_dir(
+        tmp_path, "agent-clis/command-old", age_seconds=13 * HOUR
+    )
+    fresh_agent_cli = _aged_dir(
+        tmp_path, "agent-clis/command-live", age_seconds=11 * HOUR
+    )
     # Well past the command-scratch horizon, but the Agents tab still reads it.
     young_prompt = _aged_file(tmp_path, "launch-prompts/a.md", age_seconds=13 * HOUR)
     old_prompt = _aged_file(tmp_path, "launch-prompts/b.md", age_seconds=15 * DAY)
@@ -55,11 +61,17 @@ def test_horizons_are_chosen_per_subdirectory(tmp_path: Path) -> None:
 
     assert not stale_editor.exists()
     assert fresh_editor.exists()
+    assert not stale_agent_cli.exists()
+    assert fresh_agent_cli.exists()
     assert young_prompt.exists()
     assert not old_prompt.exists()
-    assert result.removed == 2
-    assert result.removed_by_subdir == {"editors": 1, "launch-prompts": 1}
-    assert result.scanned == 4
+    assert result.removed == 3
+    assert result.removed_by_subdir == {
+        "agent-clis": 1,
+        "editors": 1,
+        "launch-prompts": 1,
+    }
+    assert result.scanned == 6
     assert not result.capped
 
 

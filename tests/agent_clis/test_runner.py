@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -10,6 +12,7 @@ from sase.agent_clis.runner import (
     _CommandTimedOutError,
     run_command,
 )
+from sase.core.paths import get_sase_managed_tmpdir
 
 
 def test_run_command_captures_nonzero_without_shell() -> None:
@@ -23,6 +26,12 @@ def test_run_command_captures_nonzero_without_shell() -> None:
 
     assert result.returncode == 7
     assert result.output == "err\nout"
+    child_env = captured.pop("env")
+    assert isinstance(child_env, dict)
+    command_tmpdir = Path(child_env["TMPDIR"])
+    assert command_tmpdir.parent == Path(get_sase_managed_tmpdir("agent-clis"))
+    assert command_tmpdir.name.startswith("command-")
+    assert not command_tmpdir.exists()
     assert captured == {
         "stdin": subprocess.DEVNULL,
         "capture_output": True,
@@ -48,3 +57,32 @@ def test_run_command_maps_startup_errors(
 
     with pytest.raises(expected):
         run_command(["tool"], run_fn=fail)
+
+
+def test_run_command_routes_child_tempfiles_through_managed_storage(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    watched_tmpdir = tmp_path / "watched"
+    watched_tmpdir.mkdir()
+    monkeypatch.setenv("TMPDIR", str(watched_tmpdir))
+
+    result = run_command(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import tempfile; "
+                "from pathlib import Path; "
+                "root = Path(tempfile.gettempdir()); "
+                "(root / 'opencode').mkdir(); "
+                "print(root)"
+            ),
+        ]
+    )
+
+    assert result.returncode == 0
+    command_tmpdir = Path(result.stdout.strip())
+    assert command_tmpdir.parent == Path(get_sase_managed_tmpdir("agent-clis"))
+    assert not command_tmpdir.exists()
+    assert not (watched_tmpdir / "opencode").exists()

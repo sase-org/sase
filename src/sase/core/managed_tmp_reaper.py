@@ -53,6 +53,7 @@ are safe to bound at the handoff horizon.
 MANAGED_TMPDIR_HORIZONS: Mapping[str, float] = {
     # Scratch whose reader is the command that wrote it.
     "ace-profiles": COMMAND_SCRATCH_HORIZON_SECONDS,
+    "agent-clis": COMMAND_SCRATCH_HORIZON_SECONDS,
     "artifact-pages": COMMAND_SCRATCH_HORIZON_SECONDS,
     "commit-messages": COMMAND_SCRATCH_HORIZON_SECONDS,
     "editors": COMMAND_SCRATCH_HORIZON_SECONDS,
