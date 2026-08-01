@@ -31,10 +31,23 @@ def register_gate_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             "  sase gate create < gate-request.json\n"
+            "  sase gate create --panel deployments < gate-request.json\n"
             "  sase gate create --sender deploy-review --tag production "
             "< gate-request.json"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    create_parser.add_argument(
+        "-o",
+        "--origin-agent",
+        default=None,
+        help="Attribute the gate to the agent it was filed on behalf of",
+    )
+    create_parser.add_argument(
+        "-p",
+        "--panel",
+        default=None,
+        help="Place the gate's notification in a named notification panel tab",
     )
     create_parser.add_argument(
         "-s",

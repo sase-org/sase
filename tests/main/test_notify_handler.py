@@ -155,10 +155,23 @@ def test_parser_registers_explicit_create_alias() -> None:
 def test_parser_registers_gate_create_wait_options_and_help() -> None:
     parser = create_parser()
     create_args = parser.parse_args(
-        ["gate", "create", "--sender", "worker", "--tag", "review"]
+        [
+            "gate",
+            "create",
+            "--origin-agent",
+            "filer.agent",
+            "--panel",
+            "reviews",
+            "--sender",
+            "worker",
+            "--tag",
+            "review",
+        ]
     )
     assert create_args.command == "gate"
     assert create_args.gate_subcommand == "create"
+    assert create_args.origin_agent == "filer.agent"
+    assert create_args.panel == "reviews"
     assert create_args.sender == "worker"
     assert create_args.tag == ["review"]
 
@@ -193,6 +206,10 @@ def test_parser_registers_gate_create_wait_options_and_help() -> None:
         if isinstance(action, argparse._SubParsersAction)
     )
     assert list(gate_subparsers.choices) == ["create", "wait"]
+    create_help = gate_subparsers.choices["create"].format_help()
+    assert "--origin-agent" in create_help
+    assert "--panel" in create_help
+    assert "sase gate create --panel deployments" in create_help
     wait_subparsers = next(
         action
         for action in gate_parser._actions

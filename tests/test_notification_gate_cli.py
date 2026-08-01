@@ -153,6 +153,32 @@ def test_gate_create_json_and_raw_notify_privileged_rejection(
     assert "privileged" in capsys.readouterr().err
 
 
+def test_gate_create_presentation_overrides_reach_notification(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del gate_home
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(gate_spec())))
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_gate_command(
+            argparse.Namespace(
+                gate_subcommand="create",
+                origin_agent="  filer.agent  ",
+                panel=" Reviews ",
+                sender=None,
+                tag=None,
+            )
+        )
+
+    assert excinfo.value.code == 0
+    capsys.readouterr()
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.action_data["panel"] == "reviews"
+    assert notification.action_data["origin_agent"] == "filer.agent"
+
+
 def test_raw_notify_creation_preserves_silent(
     gate_home: Path,
     monkeypatch: pytest.MonkeyPatch,

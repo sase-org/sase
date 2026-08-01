@@ -28,14 +28,20 @@ def handle_gate_command(args: argparse.Namespace) -> NoReturn:
 def _handle_gate_create(args: argparse.Namespace) -> NoReturn:
     """Create a durable gate from a JSON specification read from stdin."""
     data = _read_stdin_object()
+    origin_agent = getattr(args, "origin_agent", None)
+    panel = getattr(args, "panel", None)
     sender = getattr(args, "sender", None)
     cli_tags = getattr(args, "tag", None)
-    if sender is not None or cli_tags:
+    if origin_agent is not None or panel is not None or sender is not None or cli_tags:
         presentation = data.get("presentation", data.get("notification", {}))
         if not isinstance(presentation, dict):
             print("Error: presentation must be an object", file=sys.stderr)
             sys.exit(1)
         presentation = dict(presentation)
+        if origin_agent is not None:
+            presentation["origin_agent"] = origin_agent
+        if panel is not None:
+            presentation["panel"] = panel
         if sender is not None:
             presentation["sender"] = sender
         if cli_tags:

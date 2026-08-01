@@ -1,0 +1,84 @@
+"""Normalization helpers for generic notification gate presentation fields."""
+
+from __future__ import annotations
+
+import re
+import unicodedata
+
+from sase.notification_gates.models import GateError
+
+GATE_PANEL_ACTION_DATA_KEY = "panel"
+GATE_ORIGIN_AGENT_ACTION_DATA_KEY = "origin_agent"
+RESERVED_GATE_PANELS = frozenset({"errors", "general", "muted"})
+
+_GATE_PANEL_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+_MAX_GATE_PANEL_LENGTH = 32
+_MAX_GATE_ORIGIN_AGENT_LENGTH = 128
+
+
+def normalize_gate_panel(value: object) -> str | None:
+    """Return a canonical notification panel name, if one was declared."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise _invalid_panel(value, "must be a string")
+    panel = value.strip().lower()
+    if len(panel) > _MAX_GATE_PANEL_LENGTH:
+        raise _invalid_panel(
+            value,
+            f"must be at most {_MAX_GATE_PANEL_LENGTH} characters",
+        )
+    if panel in RESERVED_GATE_PANELS or panel.startswith("__"):
+        reserved = ", ".join(sorted(RESERVED_GATE_PANELS))
+        raise _invalid_panel(
+            value,
+            f"is reserved; reserved panels are: {reserved}, and names beginning "
+            "with '__'",
+        )
+    if not _GATE_PANEL_RE.fullmatch(panel):
+        raise _invalid_panel(value, "must match [a-z0-9][a-z0-9_-]*")
+    return panel
+
+
+def normalize_gate_origin_agent(value: object) -> str | None:
+    """Return the stripped agent attribution declared by a gate producer."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise _invalid_origin_agent(value, "must be a string")
+    origin_agent = value.strip()
+    if not origin_agent:
+        raise _invalid_origin_agent(value, "must be non-empty")
+    if len(origin_agent) > _MAX_GATE_ORIGIN_AGENT_LENGTH:
+        raise _invalid_origin_agent(
+            value,
+            f"must be at most {_MAX_GATE_ORIGIN_AGENT_LENGTH} characters",
+        )
+    if any(unicodedata.category(character) == "Cc" for character in origin_agent):
+        raise _invalid_origin_agent(value, "must not contain control characters")
+    return origin_agent
+
+
+def _invalid_panel(value: object, reason: str) -> GateError:
+    return GateError(
+        "invalid_presentation",
+        "presentation.panel",
+        f"invalid panel {value!r}: {reason}",
+    )
+
+
+def _invalid_origin_agent(value: object, reason: str) -> GateError:
+    return GateError(
+        "invalid_presentation",
+        "presentation.origin_agent",
+        f"invalid origin agent {value!r}: {reason}",
+    )
+
+
+__all__ = [
+    "GATE_ORIGIN_AGENT_ACTION_DATA_KEY",
+    "GATE_PANEL_ACTION_DATA_KEY",
+    "RESERVED_GATE_PANELS",
+    "normalize_gate_origin_agent",
+    "normalize_gate_panel",
+]

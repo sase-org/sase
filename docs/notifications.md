@@ -317,9 +317,15 @@ Failed user-agent notifications do not carry `done`; failures remain error repor
 Memory proposal notifications created by `sase memory write --notify` carry the `memory` tag. Use the `memory` tab in
 ACE or `sase notify list --tag memory` to find proposal review notification rows.
 
-In ACE, tags create modal tabs above the notification list after the synthetic `HITL`, `Errors`, and `General` tabs. The
-`done` tab is intended as the quick path for successful agent completions; reading or jumping to a done Agents-tab row
-dismisses its matching completion notification, so it disappears from the `Done` tab after the next refresh. Failed
+In ACE, tags create modal tabs above the notification list after the synthetic `HITL`, `Errors`, and `General` tabs. A
+gate may instead declare `presentation.panel` to place its notification in a named panel tab. A declared panel takes
+precedence over the synthetic `HITL` and `Errors` routing, while muting still takes precedence over every other tab.
+Panel names are stripped, lowercased, limited to 32 characters, and may contain lowercase letters, digits, underscores,
+and hyphens. The synthetic names `errors`, `general`, and `muted`, along with names beginning with `__`, are reserved;
+`hitl` is allowed. A panel name matching a tag merges into that tag's tab.
+
+The `done` tab is intended as the quick path for successful agent completions; reading or jumping to a done Agents-tab
+row dismisses its matching completion notification, so it disappears from the `Done` tab after the next refresh. Failed
 agent notifications stay untagged by `done` and continue to render under the `Errors` tab.
 
 ## CLI
@@ -360,6 +366,8 @@ For example, this custom gate offers a restart-and-verify group plus a separate 
     "sender": "maintenance",
     "icon": "🛡️",
     "notes": ["Restart the API after reviewing the health report?"],
+    "panel": "deployments",
+    "origin_agent": "maintenance.agent",
     "preview": "preview.md"
   },
   "query": "(restart AND verify) OR reject",
@@ -421,6 +429,12 @@ For example, this custom gate offers a restart-and-verify group plus a separate 
   "auto": false
 }
 ```
+
+`presentation.panel` selects the named notification panel tab described in [Tags](#tags). `presentation.origin_agent`
+attributes the gate to the agent it was filed on behalf of; it is stripped, limited to 128 characters, and stored
+without consulting the local agent registry so remote agent names remain valid. Both fields are projected into
+notification `action_data` as `panel` and `origin_agent`; producers may not write those protected keys directly through
+`presentation.action_data`.
 
 `presentation.icon`, `option.icon`, and `group.icon` each accept one emoji or display glyph. Each `OR` branch is a
 mutually exclusive resolution path. A singleton branch renders as one button; an `AND` branch renders selectable option

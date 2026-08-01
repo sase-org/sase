@@ -23,6 +23,7 @@ class GateAdapter:
     """The stable typed transport and legacy-file shape for one gate kind."""
 
     kind: str
+    display_title: str
     action: str
     pending_action_kind: str
     sender: str
@@ -239,6 +240,7 @@ def _default_branch_selection(
 _ADAPTERS = (
     GateAdapter(
         kind="plan",
+        display_title="Plan Approval",
         action="PlanApproval",
         pending_action_kind="plan_approval",
         sender="plan",
@@ -249,6 +251,7 @@ _ADAPTERS = (
     ),
     GateAdapter(
         kind="epic_plan",
+        display_title="Epic Approval",
         action="EpicApproval",
         pending_action_kind="epic_approval",
         sender="epic",
@@ -259,6 +262,7 @@ _ADAPTERS = (
     ),
     GateAdapter(
         kind="question",
+        display_title="Question",
         action="UserQuestion",
         pending_action_kind="user_question",
         sender="question",
@@ -270,6 +274,7 @@ _ADAPTERS = (
     ),
     GateAdapter(
         kind="launch",
+        display_title="Launch Approval",
         action="LaunchApproval",
         pending_action_kind="launch_approval",
         sender="launch",
@@ -280,6 +285,7 @@ _ADAPTERS = (
     ),
     GateAdapter(
         kind="hitl",
+        display_title="HITL",
         action="HITL",
         pending_action_kind="hitl",
         sender="hitl",
@@ -290,6 +296,7 @@ _ADAPTERS = (
     ),
     GateAdapter(
         kind="task_triage",
+        display_title="Task Triage",
         action="TaskTriage",
         pending_action_kind="task_triage",
         sender="bead-task-triage",
@@ -302,6 +309,7 @@ _ADAPTERS = (
     ),
     GateAdapter(
         kind="custom",
+        display_title="Custom Gate",
         action="CustomGate",
         pending_action_kind="custom_gate",
         sender="custom",

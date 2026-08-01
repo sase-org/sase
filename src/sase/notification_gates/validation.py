@@ -18,6 +18,12 @@ from sase.notification_gates.models import (
     GateSpec,
     validate_icon,
 )
+from sase.notification_gates.presentation import (
+    GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
+    GATE_PANEL_ACTION_DATA_KEY,
+    normalize_gate_origin_agent,
+    normalize_gate_panel,
+)
 
 
 def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
@@ -131,6 +137,8 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         )
     protected = {
         "bundle_path",
+        GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
+        GATE_PANEL_ACTION_DATA_KEY,
         "request_id",
         "request_kind",
         "request_path",
@@ -152,6 +160,8 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "presentation.silent",
             "silent must be a boolean",
         )
+    normalize_gate_panel(presentation.get("panel"))
+    normalize_gate_origin_agent(presentation.get("origin_agent"))
     try:
         json.dumps(spec.payload, allow_nan=False)
         json.dumps(spec.producer, allow_nan=False)

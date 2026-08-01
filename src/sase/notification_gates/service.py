@@ -31,6 +31,12 @@ from sase.notification_gates.models import (
     GateError,
     GateSpec,
 )
+from sase.notification_gates.presentation import (
+    GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
+    GATE_PANEL_ACTION_DATA_KEY,
+    normalize_gate_origin_agent,
+    normalize_gate_panel,
+)
 from sase.notification_gates.paths import (
     RESPONSE_FILENAME,
     assert_owned_bundle,
@@ -332,6 +338,12 @@ def _build_notification(
             adapter.legacy_directory_key: str(paths.root),
         }
     )
+    panel = normalize_gate_panel(presentation.get("panel"))
+    if panel is not None:
+        action_data[GATE_PANEL_ACTION_DATA_KEY] = panel
+    origin_agent = normalize_gate_origin_agent(presentation.get("origin_agent"))
+    if origin_agent is not None:
+        action_data[GATE_ORIGIN_AGENT_ACTION_DATA_KEY] = origin_agent
     if preview is not None:
         action_data["preview_path"] = str(owned_resource_path(paths.root, preview))
     sender = str(presentation.get("sender", adapter.sender)).strip()

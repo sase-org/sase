@@ -69,6 +69,124 @@ def test_custom_gate_projects_query_groups_and_privileged_pending_action(
     assert entry["action_kind"] == "custom_gate"
 
 
+def test_gate_presentation_panel_and_origin_agent_project_to_action_data(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    spec = gate_spec()
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["panel"] = " HITL "
+    presentation["origin_agent"] = "  remote.agent  "
+
+    create_gate(spec)
+
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.action_data["panel"] == "hitl"
+    assert notification.action_data["origin_agent"] == "remote.agent"
+
+
+def test_absent_gate_presentation_fields_do_not_change_action_data(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    create_gate(gate_spec())
+
+    [notification] = load_notifications(include_dismissed=True)
+    assert set(notification.action_data) == {
+        "artifacts_dir",
+        "bundle_path",
+        "preview_path",
+        "request_id",
+        "request_kind",
+        "request_path",
+        "response_path",
+    }
+
+
+@pytest.mark.parametrize("panel", ["errors", "general", "muted"])
+def test_reserved_gate_presentation_panels_are_rejected(
+    gate_home: Path,
+    panel: str,
+) -> None:
+    del gate_home
+    spec = gate_spec()
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["panel"] = panel
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == "invalid_presentation"
+    assert exc_info.value.target == "presentation.panel"
+    assert panel in str(exc_info.value)
+    assert all(name in str(exc_info.value) for name in ("errors", "general", "muted"))
+
+
+@pytest.mark.parametrize(
+    "panel",
+    ["", " ", "-bad", "bad.panel", "Bad Panel", "__hidden", "a" * 33, 7],
+)
+def test_malformed_gate_presentation_panels_are_rejected(
+    gate_home: Path,
+    panel: object,
+) -> None:
+    del gate_home
+    spec = gate_spec()
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["panel"] = panel
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == "invalid_presentation"
+    assert exc_info.value.target == "presentation.panel"
+    assert repr(panel) in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "origin_agent",
+    ["", "   ", "agent\nname", "agent\x00name", "a" * 129, 7],
+)
+def test_malformed_gate_origin_agents_are_rejected(
+    gate_home: Path,
+    origin_agent: object,
+) -> None:
+    del gate_home
+    spec = gate_spec()
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["origin_agent"] = origin_agent
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == "invalid_presentation"
+    assert exc_info.value.target == "presentation.origin_agent"
+    assert repr(origin_agent) in str(exc_info.value)
+
+
+@pytest.mark.parametrize("key", ["panel", "origin_agent"])
+def test_gate_presentation_action_data_cannot_bypass_normalization(
+    gate_home: Path,
+    key: str,
+) -> None:
+    del gate_home
+    spec = gate_spec()
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["action_data"] = {key: "forged"}
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == "reserved_action_data"
+    assert exc_info.value.target == "presentation.action_data"
+    assert key in str(exc_info.value)
+
+
 def test_custom_gate_auto_and_unsafe_display_shapes_are_rejected(
     gate_home: Path,
 ) -> None:
@@ -178,9 +296,11 @@ def test_gate_adapter_registry_declares_surface_capabilities() -> None:
 
     assert {
         "default_feedback",
+        "display_title",
         "generic_form",
         "branch_actionable",
     } <= GateAdapter.__dataclass_fields__.keys()
+    assert all(adapter.display_title.strip() for adapter in adapters.values())
     assert {
         kind
         for kind, adapter in adapters.items()
