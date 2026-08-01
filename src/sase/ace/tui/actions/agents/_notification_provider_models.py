@@ -27,6 +27,7 @@ class AceNotificationSnapshot:
     notifications: list[Notification] = field(default_factory=list)
     counts: AceNotificationCounts = field(default_factory=AceNotificationCounts)
     expired_ids: list[str] = field(default_factory=list)
+    next_snooze_deadline: str | None = None
     shared_snapshot: AceSnapshot[Notification] | None = None
 
 

@@ -380,12 +380,17 @@ def test_artifact_change_uses_cached_sdd_beads_dir_for_local_store(
 def test_artifact_change_does_not_schedule_agent_load_for_notifications() -> None:
     app = _FakeApp(watcher_active=True)
     path = Path.home() / ".sase" / "notifications" / "notification.json"
+    scheduled: list[str] = []
+    app._schedule_notification_poll = (  # type: ignore[attr-defined]
+        lambda *, source: scheduled.append(source)
+    )
 
     app._on_artifact_change((path,))
 
     assert app._dirty_notifications is True
     assert app._dirty_agents is False
     assert app.refresh_calls == []
+    assert scheduled == ["watcher"]
 
 
 def test_selection_navigation_does_not_trigger_refresh_work() -> None:

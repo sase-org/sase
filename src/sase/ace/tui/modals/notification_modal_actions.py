@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from sase.ace.tui.actions.task_actions import (
@@ -15,6 +15,19 @@ from sase.core.time import get_timezone
 from sase.notification_gates.registry import PRIVILEGED_GATE_ACTIONS
 
 from .snooze_duration_modal import SnoozeDurationModal
+
+
+def _resolve_snooze_deadline(
+    result: timedelta | datetime,
+    *,
+    now_utc: datetime | None = None,
+) -> datetime:
+    """Resolve relative durations on UTC and calendar choices in local time."""
+    if isinstance(result, datetime):
+        if result.tzinfo is None or result.utcoffset() is None:
+            return result.replace(tzinfo=get_timezone())
+        return result
+    return (now_utc or datetime.now(UTC)) + result
 
 
 @dataclass(frozen=True)
@@ -140,6 +153,7 @@ class NotificationStateActionsMixin:
             marked_indices
         )
         self._mark_many_dismissed(notification_ids)
+        self._request_authoritative_notification_refresh()
         self._notifications = [n for n in self._notifications if n.id not in id_set]
         self._marked_notification_ids.clear()
         self._coerce_active_notification_tag(previous_tabs=previous_tabs)
@@ -258,6 +272,20 @@ class NotificationStateActionsMixin:
             return self in stack
         return screen is None
 
+    def _request_authoritative_notification_refresh(self: Any) -> None:
+        """Refresh ACE's snapshot/deadline cache after a modal mutation."""
+        try:
+            app = self.app
+        except Exception:
+            return
+        schedule = getattr(app, "_schedule_notification_poll", None)
+        if callable(schedule):
+            schedule(source="mutation")
+            return
+        schedule = getattr(app, "_schedule_notification_snapshot_refresh", None)
+        if callable(schedule):
+            schedule()
+
     def _rebuild_after_bulk_notification_reclassification(
         self: Any,
         *,
@@ -316,6 +344,7 @@ class NotificationStateActionsMixin:
         notification = self._notifications[idx]
         replacement_id = self._replacement_notification_id_after_dismiss(idx)
         self._mark_dismissed(notification.id)
+        self._request_authoritative_notification_refresh()
 
         self._notifications.pop(idx)
         self._coerce_active_notification_tag(previous_tabs=previous_tabs)
@@ -351,6 +380,7 @@ class NotificationStateActionsMixin:
             return 0
 
         self._mark_many_dismissed(notification_ids)
+        self._request_authoritative_notification_refresh()
         del self._notifications[start_idx:end_idx]
         self._coerce_active_notification_tag(previous_tabs=previous_tabs)
         highlight = min(start_idx, len(self._notifications) - 1)
@@ -383,6 +413,7 @@ class NotificationStateActionsMixin:
         new_muted = not notification.muted
         was_snoozed = notification.snooze_until is not None
         self._mark_muted(notification.id, new_muted)
+        self._request_authoritative_notification_refresh()
         notification.muted = new_muted
         if not new_muted:
             notification.snooze_until = None
@@ -423,11 +454,16 @@ class NotificationStateActionsMixin:
                     muted=new_muted,
                     cancelled_snoozes=cancelled_snoozes,
                 )
+            success = matched == len(ids)
             return _NotificationMutationResult(
                 action="mute",
                 ids=ids,
-                success=True,
-                message="Notifications updated",
+                success=success,
+                message=(
+                    "Notifications updated"
+                    if success
+                    else "one or more notifications are stale or no longer exist"
+                ),
                 matched_count=matched,
                 muted=new_muted,
                 cancelled_snoozes=cancelled_snoozes,
@@ -443,6 +479,7 @@ class NotificationStateActionsMixin:
         self: Any, result: _NotificationMutationResult
     ) -> None:
         """Apply a completed bulk mute/unmute mutation on the UI thread."""
+        self._request_authoritative_notification_refresh()
         if not result.success:
             self.notify(
                 f"Notification update failed: {result.message}", severity="error"
@@ -497,33 +534,22 @@ class NotificationStateActionsMixin:
         )
         if idx is None:
             return
-        notification = self._notifications[idx]
+        notification_id = self._notifications[idx].id
 
         def _on_picked(result: timedelta | datetime | None) -> None:
             if result is None:
                 self.notify("Snooze cancelled")
                 return
-            previous_tabs = self._tag_tabs()
-            replacement_id = self._replacement_notification_id_after_reclassification(
-                idx
+            description = (
+                "until tomorrow morning"
+                if isinstance(result, datetime)
+                else f"for {self._format_delta(result)}"
             )
-            if isinstance(result, datetime):
-                snooze_until = result
-                description = "until tomorrow morning"
-            else:
-                snooze_until = datetime.now(get_timezone()) + result
-                description = f"for {self._format_delta(result)}"
-
-            self._mark_snoozed(notification.id, snooze_until)
-            notification.muted = True
-            notification.snooze_until = snooze_until.isoformat()
-
-            self._rebuild_after_notification_reclassification(
-                previous_tabs=previous_tabs,
-                changed_notification_id=notification.id,
-                replacement_notification_id=replacement_id,
+            self._dispatch_single_snooze(
+                notification_id,
+                snooze_until=_resolve_snooze_deadline(result),
+                description=description,
             )
-            self.notify(f"Snoozed {description}")
 
         self.app.push_screen(SnoozeDurationModal(), callback=_on_picked)
 
@@ -534,19 +560,92 @@ class NotificationStateActionsMixin:
             if result is None:
                 self.notify("Snooze cancelled")
                 return
-            if isinstance(result, datetime):
-                snooze_until = result
-                description = "until tomorrow morning"
-            else:
-                snooze_until = datetime.now(get_timezone()) + result
-                description = f"for {self._format_delta(result)}"
+            description = (
+                "until tomorrow morning"
+                if isinstance(result, datetime)
+                else f"for {self._format_delta(result)}"
+            )
             self._dispatch_bulk_snooze(
                 notification_ids,
-                snooze_until=snooze_until,
+                snooze_until=_resolve_snooze_deadline(result),
                 description=description,
             )
 
         self.app.push_screen(SnoozeDurationModal(), callback=_on_picked)
+
+    def _dispatch_single_snooze(
+        self: Any,
+        notification_id: str,
+        *,
+        snooze_until: datetime,
+        description: str,
+    ) -> None:
+        """Persist one snooze off the message pump and apply only on a match."""
+
+        def _task() -> _NotificationMutationResult:
+            try:
+                matched = bool(self._mark_snoozed(notification_id, snooze_until))
+            except Exception as exc:
+                return _NotificationMutationResult(
+                    action="snooze",
+                    ids=(notification_id,),
+                    success=False,
+                    message=str(exc),
+                    snooze_until=snooze_until.isoformat(),
+                    description=description,
+                )
+            return _NotificationMutationResult(
+                action="snooze",
+                ids=(notification_id,),
+                success=matched,
+                message=(
+                    "Notification snoozed"
+                    if matched
+                    else "notification is stale, dismissed, or no longer exists"
+                ),
+                matched_count=int(matched),
+                snooze_until=snooze_until.isoformat(),
+                description=description,
+            )
+
+        self._submit_notification_state_task(
+            label="Snooze notification",
+            task=_task,
+            on_complete=self._complete_single_snooze,
+        )
+
+    def _complete_single_snooze(self: Any, result: _NotificationMutationResult) -> None:
+        """Apply a successful single-row snooze on the UI thread."""
+        self._request_authoritative_notification_refresh()
+        if not result.success:
+            self.notify(
+                f"Could not snooze notification: {result.message}",
+                severity="error",
+            )
+            return
+        if not self._notification_modal_still_active():
+            return
+        idx = next(
+            (
+                i
+                for i, notification in enumerate(self._notifications)
+                if notification.id == result.ids[0]
+            ),
+            None,
+        )
+        if idx is None:
+            return
+        previous_tabs = self._tag_tabs()
+        replacement_id = self._replacement_notification_id_after_reclassification(idx)
+        notification = self._notifications[idx]
+        notification.muted = True
+        notification.snooze_until = result.snooze_until
+        self._rebuild_after_notification_reclassification(
+            previous_tabs=previous_tabs,
+            changed_notification_id=notification.id,
+            replacement_notification_id=replacement_id,
+        )
+        self.notify(f"Snoozed {result.description}")
 
     def _dispatch_bulk_snooze(
         self: Any,
@@ -574,11 +673,16 @@ class NotificationStateActionsMixin:
                     snooze_until=snooze_until.isoformat(),
                     description=description,
                 )
+            success = matched == len(ids)
             return _NotificationMutationResult(
                 action="snooze",
                 ids=ids,
-                success=True,
-                message="Notifications snoozed",
+                success=success,
+                message=(
+                    "Notifications snoozed"
+                    if success
+                    else "one or more notifications are stale or cannot be snoozed"
+                ),
                 matched_count=matched,
                 snooze_until=snooze_until.isoformat(),
                 description=description,
@@ -592,6 +696,7 @@ class NotificationStateActionsMixin:
 
     def _complete_bulk_snooze(self: Any, result: _NotificationMutationResult) -> None:
         """Apply a completed bulk snooze mutation on the UI thread."""
+        self._request_authoritative_notification_refresh()
         if not result.success:
             self.notify(
                 f"Notification update failed: {result.message}", severity="error"

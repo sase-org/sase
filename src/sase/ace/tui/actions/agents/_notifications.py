@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from ._notification_deadlines import AgentNotificationDeadlineMixin
 from ._notification_modal_flow import AgentNotificationModalMixin
 from ._notification_polling import AgentNotificationPollingMixin
 from ._notification_provider import AgentNotificationProviderMixin
@@ -30,6 +31,7 @@ class AgentNotificationMixin(
     AgentNotificationUnreadMixin,
     AgentNotificationStatusMixin,
     AgentNotificationPollingMixin,
+    AgentNotificationDeadlineMixin,
     AgentNotificationModalMixin,
 ):
     """Mixin providing notification polling and display methods.

@@ -120,6 +120,10 @@ class StartupLoadsMixin:
         try:
             notif_state = await asyncio.to_thread(self._read_notifications_for_startup)
             self._initialize_agent_tracking(notif_state)
+            # Seed existing unread IDs first so startup does not replay old
+            # alerts, then reconcile overdue snoozes and arm the nearest
+            # deadline independently of the general refresh setting.
+            self._schedule_notification_poll(source="startup")
 
             stash_counts = await asyncio.to_thread(self._read_prompt_stash_counts)
             self._apply_prompt_stash_counts(*stash_counts)

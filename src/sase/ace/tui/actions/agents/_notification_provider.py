@@ -210,6 +210,13 @@ class AgentNotificationProviderMixin:
         self._notification_snapshot_version = (  # type: ignore[attr-defined]
             getattr(self, "_notification_snapshot_version", 0) + 1
         )
+        sync_deadline = getattr(
+            self,
+            "_sync_notification_deadline_from_snapshot",
+            None,
+        )
+        if callable(sync_deadline):
+            sync_deadline(snapshot)
 
     def _read_notification_snapshot_from_provider(
         self: Any,

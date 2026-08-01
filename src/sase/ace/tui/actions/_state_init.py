@@ -616,6 +616,11 @@ class StateInitMixin:
         self._notification_snapshot_version: int = 0
         self._notification_snapshot_refresh_pending: bool = False
         self._notification_snapshot_refresh_followup: bool = False
+        self._notification_deadline_timer: Timer | None = None
+        self._notification_deadline_epoch: float | None = None
+        self._notification_poll_scheduled: bool = False
+        self._notification_poll_running: bool = False
+        self._notification_poll_pending: bool = False
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._agent_display_status_by_identity: dict[

@@ -94,6 +94,7 @@ def _snapshot(
     notifications: list[Notification],
     *,
     expired_ids: list[str] | None = None,
+    next_snooze_deadline: str | None = None,
 ) -> NotificationStoreSnapshotWire:
     priority_count = 0
     rest_count = 0
@@ -117,6 +118,7 @@ def _snapshot(
         notifications=list(notifications),
         counts=counts,
         expired_ids=expired_ids or [],
+        next_snooze_deadline=next_snooze_deadline,
     )
 
 
@@ -124,8 +126,13 @@ def _patch_snapshot(
     notifications: list[Notification],
     *,
     expired_ids: list[str] | None = None,
+    next_snooze_deadline: str | None = None,
 ) -> Any:
     return patch(
         "sase.notifications.read_notification_snapshot",
-        return_value=_snapshot(notifications, expired_ids=expired_ids),
+        return_value=_snapshot(
+            notifications,
+            expired_ids=expired_ids,
+            next_snooze_deadline=next_snooze_deadline,
+        ),
     )

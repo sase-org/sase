@@ -180,9 +180,9 @@ class NotificationModal(
         """Persist multiple notifications' snooze deadline."""
         return mark_many_snoozed(notification_ids, snooze_until)
 
-    def _mark_snoozed(self, notification_id: str, snooze_until: Any) -> None:
+    def _mark_snoozed(self, notification_id: str, snooze_until: Any) -> bool:
         """Persist one notification's snooze deadline."""
-        mark_snoozed(notification_id, snooze_until)
+        return mark_snoozed(notification_id, snooze_until)
 
     def _get_highlighted_notification(self) -> Notification | None:
         """Return the notification object for the currently highlighted option."""

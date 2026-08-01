@@ -100,6 +100,7 @@ def notification_snapshot_with_shared_metadata(
         notifications=snapshot.notifications,
         counts=snapshot.counts,
         expired_ids=snapshot.expired_ids,
+        next_snooze_deadline=snapshot.next_snooze_deadline,
         shared_snapshot=shared_snapshot,
     )
 

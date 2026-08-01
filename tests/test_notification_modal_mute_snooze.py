@@ -1,9 +1,14 @@
 """Tests for NotificationModal mute, label, and snooze actions."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
-from sase.ace.tui.modals.notification_modal_actions import _NotificationMutationResult
+from sase.ace.tui.modals.notification_modal_actions import (
+    _NotificationMutationResult,
+    _resolve_snooze_deadline,
+)
+from sase.core.time import get_timezone
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.notification_modal_tags import MUTED_TAB_KEY
 
@@ -259,6 +264,9 @@ def test_snooze_callback_with_timedelta_calls_mark_snoozed() -> None:
         patch("sase.ace.tui.modals.notification_modal.mark_snoozed") as mock_mark,
     ):
         mock_app.push_screen = fake_push_screen
+        mock_app._submit_tracked_task = None
+        mock_app.screen = modal
+        mock_mark.return_value = True
         modal.action_snooze()
 
         assert captured_callback, "callback was not registered"
@@ -289,12 +297,15 @@ def test_snooze_callback_with_datetime_uses_until_label() -> None:
     def fake_push_screen(_screen, *, callback) -> None:
         captured_callback.append(callback)
 
-    target = datetime(2026, 4, 22, 9, 0, 0)
+    target = datetime(2026, 4, 22, 9, 0, 0, tzinfo=get_timezone())
     with (
         patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app,
         patch("sase.ace.tui.modals.notification_modal.mark_snoozed") as mock_mark,
     ):
         mock_app.push_screen = fake_push_screen
+        mock_app._submit_tracked_task = None
+        mock_app.screen = modal
+        mock_mark.return_value = True
         modal.action_snooze()
         captured_callback[0](target)
 
@@ -329,6 +340,85 @@ def test_snooze_callback_none_is_cancellation() -> None:
     assert notification.snooze_until is None
     assert notification.muted is False
     modal.notify.assert_called_once_with("Snooze cancelled")
+
+
+def test_single_snooze_submits_tracked_background_write() -> None:
+    notification = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([notification])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    captured_callback: list = []
+
+    def fake_push_screen(_screen, *, callback) -> None:
+        captured_callback.append(callback)
+
+    with (
+        patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app,
+        patch("sase.ace.tui.modals.notification_modal.mark_snoozed") as mock_mark,
+    ):
+        mock_app.push_screen = fake_push_screen
+        mock_app._submit_tracked_task.return_value = object()
+        modal.action_snooze()
+        captured_callback[0](timedelta(minutes=15))
+
+    mock_mark.assert_not_called()
+    assert notification.muted is False
+    assert notification.snooze_until is None
+    mock_app._submit_tracked_task.assert_called_once()
+    args = mock_app._submit_tracked_task.call_args.args
+    kwargs = mock_app._submit_tracked_task.call_args.kwargs
+    assert callable(args[3])
+    assert kwargs["dedup_key"] == "notification-state"
+    assert kwargs["exclusive_scopes"] == ("notification-state",)
+
+
+def test_single_snooze_stale_row_does_not_show_false_success() -> None:
+    notification = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([notification])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+    captured_callback: list = []
+
+    def fake_push_screen(_screen, *, callback) -> None:
+        captured_callback.append(callback)
+
+    with (
+        patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app,
+        patch(
+            "sase.ace.tui.modals.notification_modal.mark_snoozed",
+            return_value=False,
+        ),
+    ):
+        mock_app.push_screen = fake_push_screen
+        mock_app._submit_tracked_task = None
+        mock_app.screen = modal
+        modal.action_snooze()
+        captured_callback[0](timedelta(minutes=15))
+
+    assert notification.muted is False
+    assert notification.snooze_until is None
+    modal._rebuild_list.assert_not_called()
+    modal.notify.assert_called_once_with(
+        "Could not snooze notification: notification is stale, dismissed, or no longer exists",
+        severity="error",
+    )
+
+
+def test_relative_snooze_uses_exact_elapsed_utc_across_dst_transitions() -> None:
+    ny = ZoneInfo("America/New_York")
+    cases = [
+        datetime(2026, 3, 8, 1, 30, tzinfo=ny),
+        datetime(2026, 11, 1, 1, 30, tzinfo=ny, fold=0),
+    ]
+
+    for local_start in cases:
+        start_utc = local_start.astimezone(UTC)
+        deadline = _resolve_snooze_deadline(
+            timedelta(hours=4),
+            now_utc=start_utc,
+        )
+        assert deadline - start_utc == timedelta(hours=4)
+        assert deadline.tzinfo is UTC
 
 
 def test_snooze_with_marks_uses_one_picker_and_bulk_call() -> None:

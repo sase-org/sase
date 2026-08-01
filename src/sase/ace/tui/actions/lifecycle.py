@@ -34,6 +34,11 @@ class LifecycleMixin:
         )
         if callable(cancel_agent_hint_render):
             cancel_agent_hint_render()
+        cancel_notification_deadlines = getattr(
+            self, "_cancel_notification_deadline_coordinator", None
+        )
+        if callable(cancel_notification_deadlines):
+            cancel_notification_deadlines()
         cancel_pump_free_tasks(self)
         self._stop_tui_stall_watchdog()
         stop_watcher = getattr(self, "_stop_artifact_watcher", None)
@@ -312,6 +317,15 @@ class LifecycleMixin:
 
             cancel_pump_free_tasks(self)
 
+        def cancel_notification_deadlines() -> None:
+            cancel = getattr(
+                self,
+                "_cancel_notification_deadline_coordinator",
+                None,
+            )
+            if callable(cancel):
+                cancel()
+
         def shutdown_loader_executor() -> None:
             from sase.ace.tui.models._loaders._json_cache import (
                 shutdown_loader_executor as shutdown,
@@ -352,6 +366,7 @@ class LifecycleMixin:
             cleanup(self._save_current_selection)
             cleanup(self._stop_tui_stall_watchdog)
             cleanup(stop_artifact_watcher)
+            cleanup(cancel_notification_deadlines)
             cleanup(cancel_async_refresh_tasks)
             cleanup(cancel_artifact_discovery)
             cleanup(cancel_content_search_refresh)

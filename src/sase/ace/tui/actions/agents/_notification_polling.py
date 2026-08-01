@@ -46,6 +46,23 @@ class AgentNotificationPollingMixin:
     """Poll notification state and update notification indicators."""
 
     async def _poll_agent_completions(self: Any) -> bool:
+        """Run notification reads serially and collapse overlap to one follow-up."""
+        if getattr(self, "_notification_poll_running", False):
+            self._notification_poll_pending = True  # type: ignore[attr-defined]
+            return False
+
+        self._notification_poll_running = True  # type: ignore[attr-defined]
+        saw_new = False
+        try:
+            while True:
+                self._notification_poll_pending = False  # type: ignore[attr-defined]
+                saw_new = await self._poll_agent_completions_once() or saw_new
+                if not getattr(self, "_notification_poll_pending", False):
+                    return saw_new
+        finally:
+            self._notification_poll_running = False  # type: ignore[attr-defined]
+
+    async def _poll_agent_completions_once(self: Any) -> bool:
         """Poll notification store for new unread notifications.
 
         Detects when unread count increases and applies toast/bell policy.
@@ -53,10 +70,9 @@ class AgentNotificationPollingMixin:
         parse happens off the main thread so the polling tick doesn't
         block the event loop while the user is settling into the TUI.
 
-        Returns ``True`` when the poll observed newly unread active
-        notifications. Muted arrivals and snooze-expiration-only reminders do
-        not count for refresh scheduling even though they still update the UI
-        and may ring the bell.
+        Returns ``True`` when the poll observed newly unread, non-resurfaced
+        activity that may require an Agents refresh. Snooze expirations update
+        indicators/toasts and ring the bell without rebuilding the agent list.
         """
         import asyncio
 
@@ -97,6 +113,12 @@ class AgentNotificationPollingMixin:
         current_ids = {n.id for n in unread_active}
         new_ids = current_ids - self._last_unread_ids  # type: ignore[attr-defined]
         new_notifications = [n for n in unread_active if n.id in new_ids]
+        new_non_resurface_notifications = [
+            notification
+            for notification in new_notifications
+            if notification.id not in expired_snoozes
+            and notification.resurfaced_at is None
+        ]
 
         self._last_unread_ids = current_ids  # type: ignore[attr-defined]
 
@@ -124,11 +146,17 @@ class AgentNotificationPollingMixin:
                 for notification in new_notifications
                 if notification.id not in auto_dismissed_ids
             ]
+            new_non_resurface_notifications = [
+                notification
+                for notification in new_non_resurface_notifications
+                if notification.id not in auto_dismissed_ids
+            ]
 
         # Muted arrivals do not toast or ring. Already-handled plan reviews have
         # been filtered out of new_notifications by reconciliation. Snooze
-        # expirations independently ring once per batch because read and snoozed
-        # rows do not re-enter unread.
+        # expirations independently contribute transition metadata. Durable
+        # unread/resurface state also makes an expiry visible when another
+        # process won the store transition before this reader acquired the lock.
         should_ring_bell = bool(new_notifications or expired_snoozes)
         if new_notifications:
             for message, severity in format_batch_toasts(new_notifications):
@@ -147,7 +175,7 @@ class AgentNotificationPollingMixin:
         if should_ring_bell:
             await self._ring_tmux_bell_async()
 
-        return bool(new_notifications)
+        return bool(new_non_resurface_notifications)
 
     def _refresh_notification_count(self: Any) -> None:
         """Reload unread notification count from disk and update the indicator.

@@ -27,6 +27,7 @@ def notification_snapshot_from_direct(snapshot: Any) -> AceNotificationSnapshot:
     counts = getattr(snapshot, "counts", AceNotificationCounts())
     notifications = list(getattr(snapshot, "notifications", []))
     expired_ids = list(getattr(snapshot, "expired_ids", []))
+    next_snooze_deadline = getattr(snapshot, "next_snooze_deadline", None)
     normalized = AceNotificationSnapshot(
         notifications=notifications,
         counts=AceNotificationCounts(
@@ -36,6 +37,7 @@ def notification_snapshot_from_direct(snapshot: Any) -> AceNotificationSnapshot:
             muted=count_value(counts, "muted"),
         ),
         expired_ids=expired_ids,
+        next_snooze_deadline=next_snooze_deadline,
     )
     return notification_snapshot_with_shared_metadata(
         normalized,

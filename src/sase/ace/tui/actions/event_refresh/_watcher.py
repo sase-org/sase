@@ -61,6 +61,12 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
             self._dirty_axe = True
         if "notifications" in targets:
             self._dirty_notifications = True
+            schedule_poll = getattr(self, "_schedule_notification_poll", None)
+            if callable(schedule_poll):
+                # File mutations may replace or cancel the cached nearest
+                # deadline. Refresh this small surface immediately even when
+                # general auto-refresh is disabled.
+                schedule_poll(source="watcher")
         if self._prompt_input_active():
             pending = set(getattr(self, "_artifact_change_deferred_paths", ()))
             pending.update(changed_paths or ())
