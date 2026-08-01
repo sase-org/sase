@@ -179,5 +179,9 @@ class AgentNotificationUnreadMixin:
                 # Manual unread guards a row even without a notification.
                 if agent.identity not in manual_ids:
                     unread_ids.discard(agent.identity)
+        if unread_ids - before:
+            invalidate_bulk_undo = getattr(self, "_invalidate_bulk_read_undo", None)
+            if callable(invalidate_bulk_undo):
+                invalidate_bulk_undo()
         if unread_ids != before and hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None  # type: ignore[attr-defined]

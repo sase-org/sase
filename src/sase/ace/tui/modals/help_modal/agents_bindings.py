@@ -260,7 +260,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'mark_all_unread_done_agents_read'))}",
-                    "Mark all unread done agents read",
+                    "Mark all unread done agents read / undo",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'kill_and_edit'))}",

@@ -254,8 +254,8 @@ def test_merged_default_config_marks_all_unread_done_agents_read_with_u(
         for _section, bindings in agents_bindings(reg)
         for key, label in bindings
     }
-    assert (",u", "Mark all unread done agents read") in agent_pairs
-    assert (",U", "Mark all unread done agents read") not in agent_pairs
+    assert (",u", "Mark all unread done agents read / undo") in agent_pairs
+    assert (",U", "Mark all unread done agents read / undo") not in agent_pairs
 
 
 def test_help_advertises_update_sase_on_all_tabs() -> None:

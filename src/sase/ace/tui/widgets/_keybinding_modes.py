@@ -272,6 +272,7 @@ class KeybindingModesMixin:
         has_notification: bool = False,
         has_mentor_results: bool = False,
         has_unread_completed_agent: bool = False,
+        has_bulk_read_undo_available: bool = False,
         has_stopped_agent: bool = False,
         has_revertable_agent: bool = False,
         marked_agent_count: int = 0,
@@ -284,6 +285,7 @@ class KeybindingModesMixin:
             has_notification: Whether the selected agent has a pending notification.
             has_mentor_results: Whether the selected ChangeSpec has mentor results.
             has_unread_completed_agent: Whether any completed agent is unread.
+            has_bulk_read_undo_available: Whether the last bulk read can be undone.
             has_stopped_agent: Whether any stopped agent is loaded.
             has_revertable_agent: Whether the selected Agents-tab row is a
                 done/failed agent whose commits can be reverted.
@@ -328,6 +330,10 @@ class KeybindingModesMixin:
                 )
                 bindings.append(
                     (k("mark_all_unread_done_agents_read"), "mark all read")
+                )
+            elif has_bulk_read_undo_available:
+                bindings.append(
+                    (k("mark_all_unread_done_agents_read"), "undo mark all read")
                 )
         bindings.append((k("prompt_history"), "prompt history"))
         bindings.append((k("prompt_history_edit_first"), "edit history"))

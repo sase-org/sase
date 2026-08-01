@@ -8,6 +8,7 @@ import pytest
 
 from ._agent_unread_helpers import make_agent
 from ._agent_unread_navigation_helpers import UnreadJumpApp
+from sase.ace.tui.actions.agents._unread_state import BulkUnreadToggleOutcome
 from sase.ace.tui.models._agent_tree import project_clan_tree
 
 
@@ -155,7 +156,7 @@ def test_manual_unread_guards_per_row_dismissal(
     notification_dismiss.assert_not_called()
 
 
-def test_mark_all_unread_done_agents_read_clears_state_once(
+def test_bulk_unread_toggle_marks_restores_and_marks_again(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dismiss = Mock(return_value=2)
@@ -170,13 +171,17 @@ def test_mark_all_unread_done_agents_read_clears_state_once(
     app._unread_completed_agent_ids.update(
         {first.identity, second.identity, running.identity}
     )
-    app._manual_unread_agent_ids.update({first.identity, second.identity})
+    app._manual_unread_agent_ids.add(second.identity)
+    app._agent_info_metrics_cache = ("cached",)
 
-    count = app._mark_all_unread_done_agents_read()
+    result = app._toggle_all_unread_done_agents_read()
 
-    assert count == 2
+    assert result.outcome is BulkUnreadToggleOutcome.MARKED_READ
+    assert result.count == 2
     assert app._unread_completed_agent_ids == {running.identity}
     assert app._manual_unread_agent_ids == set()
+    assert app._pending_bulk_read_agent_ids == {first.identity, second.identity}
+    assert app._agent_info_metrics_cache is None
     dismiss.assert_called_once_with(
         [
             {"cl_name": first.cl_name, "raw_suffix": first.raw_suffix},
@@ -187,8 +192,41 @@ def test_mark_all_unread_done_agents_read_clears_state_once(
     assert app.refresh_calls == []
     assert app.patch_calls == [first, second]
 
+    app.patch_calls.clear()
+    app._agent_info_metrics_cache = ("cached",)
 
-def test_mark_all_unread_done_agents_read_noops_without_terminal_unread(
+    result = app._toggle_all_unread_done_agents_read()
+
+    assert result.outcome is BulkUnreadToggleOutcome.RESTORED_UNREAD
+    assert result.count == 2
+    assert app._unread_completed_agent_ids == {
+        first.identity,
+        second.identity,
+        running.identity,
+    }
+    assert app._manual_unread_agent_ids == {first.identity, second.identity}
+    assert app._pending_bulk_read_agent_ids is None
+    assert app._agent_info_metrics_cache is None
+    assert app.patch_calls == [first, second]
+    dismiss.assert_called_once()
+
+    app._reconcile_unread_from_completion_notifications([])
+    assert first.identity in app._unread_completed_agent_ids
+    assert second.identity in app._unread_completed_agent_ids
+
+    app.patch_calls.clear()
+
+    result = app._toggle_all_unread_done_agents_read()
+
+    assert result.outcome is BulkUnreadToggleOutcome.MARKED_READ
+    assert result.count == 2
+    assert app._unread_completed_agent_ids == {running.identity}
+    assert app._manual_unread_agent_ids == set()
+    assert app._pending_bulk_read_agent_ids == {first.identity, second.identity}
+    assert dismiss.call_count == 2
+
+
+def test_bulk_unread_toggle_noops_without_terminal_unread(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dismiss = Mock(return_value=0)
@@ -200,10 +238,89 @@ def test_mark_all_unread_done_agents_read_noops_without_terminal_unread(
     app = UnreadJumpApp([running])
     app._unread_completed_agent_ids.add(running.identity)
 
-    assert app._mark_all_unread_done_agents_read() == 0
+    result = app._toggle_all_unread_done_agents_read()
 
+    assert result.outcome is BulkUnreadToggleOutcome.NOOP
+    assert result.count == 0
     assert app._unread_completed_agent_ids == {running.identity}
+    assert app._pending_bulk_read_agent_ids is None
     dismiss.assert_not_called()
     assert app.notification_count_refresh_calls == 0
     assert app.refresh_calls == []
     assert app.patch_calls == []
+
+
+def test_bulk_unread_restore_skips_missing_and_nonterminal_identities() -> None:
+    restored = make_agent(name="restored", status="DONE", raw_suffix="restored")
+    missing = make_agent(name="missing", status="DONE", raw_suffix="missing")
+    running = make_agent(name="running", status="RUNNING", raw_suffix="running")
+    app = UnreadJumpApp([restored, running])
+    app._pending_bulk_read_agent_ids = {
+        restored.identity,
+        missing.identity,
+        running.identity,
+    }
+
+    result = app._toggle_all_unread_done_agents_read()
+
+    assert result.outcome is BulkUnreadToggleOutcome.RESTORED_UNREAD
+    assert result.count == 1
+    assert app._unread_completed_agent_ids == {restored.identity}
+    assert app._manual_unread_agent_ids == {restored.identity}
+    assert app._pending_bulk_read_agent_ids is None
+    assert app.patch_calls == [restored]
+
+
+def test_bulk_unread_restore_noops_and_consumes_when_no_identity_is_eligible() -> None:
+    running = make_agent(name="running", status="RUNNING", raw_suffix="running")
+    app = UnreadJumpApp([running])
+    app._pending_bulk_read_agent_ids = {running.identity}
+
+    result = app._toggle_all_unread_done_agents_read()
+
+    assert result.outcome is BulkUnreadToggleOutcome.NOOP
+    assert app._pending_bulk_read_agent_ids is None
+    assert app._unread_completed_agent_ids == set()
+    assert app._manual_unread_agent_ids == set()
+    assert app.patch_calls == []
+
+
+def test_bulk_unread_mark_uses_refresh_fallback_and_invalidates_metrics() -> None:
+    first = make_agent(name="first", status="DONE", raw_suffix="first")
+    second = make_agent(name="second", status="DONE", raw_suffix="second")
+    app = UnreadJumpApp([first, second], patch_result=False)
+    app._unread_completed_agent_ids.update({first.identity, second.identity})
+    app._agent_info_metrics_cache = ("cached",)
+
+    result = app._toggle_all_unread_done_agents_read()
+
+    assert result.outcome is BulkUnreadToggleOutcome.MARKED_READ
+    assert app._agent_info_metrics_cache is None
+    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+
+
+def test_manual_unread_add_invalidates_pending_bulk_read_undo(
+    notification_dismiss: Mock,
+) -> None:
+    first = make_agent(name="first", status="DONE", raw_suffix="first")
+    second = make_agent(name="second", status="DONE", raw_suffix="second")
+    app = UnreadJumpApp([first, second])
+    app._unread_completed_agent_ids.add(first.identity)
+    assert (
+        app._toggle_all_unread_done_agents_read().outcome
+        is BulkUnreadToggleOutcome.MARKED_READ
+    )
+    app.current_idx = 1
+
+    app._toggle_agent_unread()
+
+    assert app._pending_bulk_read_agent_ids is None
+    assert app._unread_completed_agent_ids == {second.identity}
+    assert app._manual_unread_agent_ids == {second.identity}
+
+    app._toggle_agent_unread()
+    result = app._toggle_all_unread_done_agents_read()
+
+    assert result.outcome is BulkUnreadToggleOutcome.NOOP
+    assert first.identity not in app._unread_completed_agent_ids
+    assert notification_dismiss.call_count == 2

@@ -625,6 +625,9 @@ class StateInitMixin:
         self._notification_poll_pending: bool = False
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._pending_bulk_read_agent_ids: (
+            set[tuple[AgentType, str, str | None]] | None
+        ) = None
         self._agent_display_status_by_identity: dict[
             tuple[AgentType, str, str | None], str
         ] = {}

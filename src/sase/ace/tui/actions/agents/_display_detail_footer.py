@@ -63,6 +63,7 @@ class AgentFooterDisplayMixin:
                     else False
                 ),
                 has_unread_completed_agent=self._has_unread_completed_agent(),  # type: ignore[attr-defined]
+                has_bulk_read_undo_available=self._has_bulk_read_undo_available(),  # type: ignore[attr-defined]
                 has_stopped_agent=self._has_stopped_agent(),  # type: ignore[attr-defined]
             )
         elif getattr(self, "_bang_mode_active", False):

@@ -7,6 +7,10 @@ from unittest.mock import MagicMock
 
 from sase.ace.tui.actions.agent_workflow._entry_points import EntryPointsMixin
 from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
+from sase.ace.tui.actions.agents._unread_state import (
+    BulkUnreadToggleOutcome,
+    BulkUnreadToggleResult,
+)
 from sase.ace.tui.actions.changespec._core import ChangeSpecMixin
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.widgets import KeybindingFooter
@@ -47,7 +51,10 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.jump_stopped_result = True
         self.full_history_refresh_count = 0
         self.mark_all_unread_count = 0
-        self.mark_all_unread_result = 2
+        self.mark_all_unread_result = BulkUnreadToggleResult(
+            BulkUnreadToggleOutcome.MARKED_READ,
+            2,
+        )
         self.prompt_history_calls: list[dict[str, bool]] = []
         self.home_agent_count = 0
         self.quick_changespec_agent_count = 0
@@ -101,7 +108,7 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
     def action_refresh_agents_full_history(self) -> None:
         self.full_history_refresh_count += 1
 
-    def _mark_all_unread_done_agents_read(self) -> int:
+    def _toggle_all_unread_done_agents_read(self) -> BulkUnreadToggleResult:
         self.mark_all_unread_count += 1
         return self.mark_all_unread_result
 

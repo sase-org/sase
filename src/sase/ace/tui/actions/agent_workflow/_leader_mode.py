@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import agent_is_asking
 
+from ..agents._unread_state import BulkUnreadToggleOutcome
 from ._types import TabName
 
 if TYPE_CHECKING:
@@ -173,10 +174,14 @@ class LeaderModeMixin:
         if key == leader_keys["mark_all_unread_done_agents_read"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":
-                marked_count = self._mark_all_unread_done_agents_read()  # type: ignore[attr-defined]
-                if marked_count:
+                result = self._toggle_all_unread_done_agents_read()  # type: ignore[attr-defined]
+                if result.outcome is BulkUnreadToggleOutcome.MARKED_READ:
                     self.notify(  # type: ignore[attr-defined]
-                        f"Marked {marked_count} completed agents read"
+                        f"Marked {result.count} completed agents read"
+                    )
+                elif result.outcome is BulkUnreadToggleOutcome.RESTORED_UNREAD:
+                    self.notify(  # type: ignore[attr-defined]
+                        f"Restored {result.count} completed agents unread"
                     )
                 else:
                     self.notify("No unread completed agents")  # type: ignore[attr-defined]
@@ -343,6 +348,7 @@ class LeaderModeMixin:
 
         has_notification = False
         has_unread_completed_agent = False
+        has_bulk_read_undo = False
         has_stopped_agent = False
         has_revertable_agent = False
         marked_agent_count = 0
@@ -354,6 +360,7 @@ class LeaderModeMixin:
                 has_notification = agent_is_asking(agent.status)
                 has_revertable_agent = is_revertable_agent_status(agent.status)
             has_unread_completed_agent = self._has_unread_completed_agent()  # type: ignore[attr-defined]
+            has_bulk_read_undo = self._has_bulk_read_undo_available()  # type: ignore[attr-defined]
             has_stopped_agent = self._has_stopped_agent()  # type: ignore[attr-defined]
             marked_agent_count = len(getattr(self, "_marked_agents", set()))
 
@@ -365,6 +372,7 @@ class LeaderModeMixin:
                 has_notification=has_notification,
                 has_mentor_results=has_mentor_results,
                 has_unread_completed_agent=has_unread_completed_agent,
+                has_bulk_read_undo_available=has_bulk_read_undo,
                 has_stopped_agent=has_stopped_agent,
                 has_revertable_agent=has_revertable_agent,
                 marked_agent_count=marked_agent_count,

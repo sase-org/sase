@@ -51,6 +51,10 @@ class _ProjectionApp(AgentsMixinCore):
         self._current_group_key: tuple[str, ...] | None = None
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._pending_bulk_read_agent_ids: (
+            set[tuple[AgentType, str, str | None]] | None
+        ) = None
+        self._agent_info_metrics_cache: tuple[object, ...] | None = None
         self._notification_snapshot_cache = None
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, object]] = []
@@ -125,6 +129,41 @@ def test_reconcile_marks_unread_when_notification_active() -> None:
     )
 
     assert agent.identity in app._unread_completed_agent_ids
+
+
+def test_reconcile_new_unread_invalidates_pending_bulk_read_undo() -> None:
+    first = make_agent(name="first", status="DONE", raw_suffix="first")
+    second = make_agent(name="second", status="DONE", raw_suffix="second")
+    app = _ProjectionApp([first, second])
+    app._pending_bulk_read_agent_ids = {first.identity}
+
+    app._reconcile_unread_from_completion_notifications(
+        [_make_notification(cl_name=second.cl_name, raw_suffix=second.raw_suffix)]
+    )
+
+    assert app._pending_bulk_read_agent_ids is None
+    assert app._unread_completed_agent_ids == {second.identity}
+
+    app._reconcile_unread_from_completion_notifications([])
+    assert app._pending_bulk_read_agent_ids is None
+
+
+def test_reconcile_preserving_or_removing_unread_keeps_pending_bulk_read_undo() -> None:
+    agent = make_agent(status="DONE")
+    saved = make_agent(name="saved", status="DONE", raw_suffix="saved")
+    app = _ProjectionApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    app._pending_bulk_read_agent_ids = {saved.identity}
+
+    app._reconcile_unread_from_completion_notifications(
+        [_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)]
+    )
+
+    assert app._pending_bulk_read_agent_ids == {saved.identity}
+
+    app._reconcile_unread_from_completion_notifications([])
+    assert app._pending_bulk_read_agent_ids == {saved.identity}
+    assert app._unread_completed_agent_ids == set()
 
 
 def test_reconcile_clears_unread_when_notification_missing() -> None:

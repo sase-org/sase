@@ -196,10 +196,29 @@ def test_footer_surfaces_unread_done_jump_only_when_available() -> None:
     assert "mark all read" in _last_labels(captured)
 
     footer.update_leader_bindings(
-        current_tab="agents", has_unread_completed_agent=False
+        current_tab="agents",
+        has_unread_completed_agent=True,
+        has_bulk_read_undo_available=True,
+    )
+    assert "mark all read" in _last_labels(captured)
+    assert "undo mark all read" not in _last_labels(captured)
+
+    footer.update_leader_bindings(
+        current_tab="agents",
+        has_unread_completed_agent=False,
+        has_bulk_read_undo_available=True,
     )
     assert "next unread done" not in _last_labels(captured)
     assert "mark all read" not in _last_labels(captured)
+    assert "undo mark all read" in _last_labels(captured)
+
+    footer.update_leader_bindings(
+        current_tab="agents",
+        has_unread_completed_agent=False,
+        has_bulk_read_undo_available=False,
+    )
+    assert "mark all read" not in _last_labels(captured)
+    assert "undo mark all read" not in _last_labels(captured)
 
 
 def test_footer_surfaces_stopped_jump_only_when_available() -> None:

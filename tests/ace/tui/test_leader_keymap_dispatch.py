@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import asyncio
 
+from sase.ace.tui.actions.agents._unread_state import (
+    BulkUnreadToggleOutcome,
+    BulkUnreadToggleResult,
+)
 from tests.ace.tui._leader_keymap_helpers import _FakeApp, _make_cs
 
 
@@ -423,7 +427,7 @@ def test_leader_u_marks_all_unread_done_agents_read_on_agents_tab() -> None:
 
 def test_leader_u_notifies_when_no_unread_done_agents() -> None:
     app = _FakeApp(current_tab="agents")
-    app.mark_all_unread_result = 0
+    app.mark_all_unread_result = BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
 
     handled = app._handle_leader_key("u")
 
@@ -431,6 +435,42 @@ def test_leader_u_notifies_when_no_unread_done_agents() -> None:
     assert app.mark_all_unread_count == 1
     assert app.notifications == ["No unread completed agents"]
     assert app.refresh_count == 1
+
+
+def test_leader_u_notifies_when_bulk_read_is_restored() -> None:
+    app = _FakeApp(current_tab="agents")
+    app.mark_all_unread_result = BulkUnreadToggleResult(
+        BulkUnreadToggleOutcome.RESTORED_UNREAD,
+        2,
+    )
+
+    handled = app._handle_leader_key("u")
+
+    assert handled is True
+    assert app.mark_all_unread_count == 1
+    assert app.notifications == ["Restored 2 completed agents unread"]
+    assert app.refresh_count == 0
+
+
+def test_leader_u_records_and_repeat_invokes_bulk_toggle_again() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    handled = app._handle_leader_key("u")
+    app.mark_all_unread_result = BulkUnreadToggleResult(
+        BulkUnreadToggleOutcome.RESTORED_UNREAD,
+        2,
+    )
+    repeated = app._handle_leader_key("comma")
+
+    assert handled is True
+    assert repeated is True
+    assert app.mark_all_unread_count == 2
+    assert app._last_leader_key == "u"
+    assert app.notifications == [
+        "Marked 2 completed agents read",
+        "Restored 2 completed agents unread",
+    ]
+    assert app.refresh_count == 0
 
 
 def test_leader_uppercase_u_opens_sase_update_shortcut() -> None:

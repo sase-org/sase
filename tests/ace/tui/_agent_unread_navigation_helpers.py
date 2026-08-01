@@ -52,6 +52,10 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
             )
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._pending_bulk_read_agent_ids: (
+            set[tuple[AgentType, str, str | None]] | None
+        ) = None
+        self._agent_info_metrics_cache: tuple[Any, ...] | None = None
         self._entry_jump_agents_anchor_stack: list[Any] = []
         self._visible = visible
         self._stops = stops
@@ -135,6 +139,10 @@ class LeaderUnreadJumpApp(
         self._keymap_registry = load_keymap_registry({})
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._pending_bulk_read_agent_ids: (
+            set[tuple[AgentType, str, str | None]] | None
+        ) = None
+        self._agent_info_metrics_cache: tuple[Any, ...] | None = None
         self._entry_jump_agents_anchor_stack: list[Any] = []
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, Any]] = []
