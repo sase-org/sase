@@ -32,11 +32,13 @@ def test_installed_core_plan_header_round_trip() -> None:
     module = importlib.import_module("sase_core_rs")
 
     assert tool.validate_round_trip(module) == {
-        "schema_version": 2,
+        "schema_version": 3,
         "disposition": "canonical",
-        "section_kinds": ["PROMPT", "BEAD", "COMMITS"],
+        "section_kinds": ["PROMPT", "BEAD", "ARTIFACTS", "COMMITS"],
         "mutation_round_trip": True,
         "unlinked_bead": True,
+        "cross_repo_prompt": True,
+        "artifacts_section": True,
         "fenced_examples_ignored": True,
         "legacy_parent_removed": True,
     }

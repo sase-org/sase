@@ -10,7 +10,7 @@ from types import ModuleType
 from typing import Any
 
 
-WIRE_SCHEMA_VERSION = 2
+WIRE_SCHEMA_VERSION = 3
 REQUIRED_BINDINGS = (
     "sdd_plan_header_block_wire_schema_version",
     "sdd_plan_header_block_parse",
@@ -44,7 +44,19 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
         {
             "kind": "PROMPT",
             "label": "202607/prompts/example.md",
-            "target": "prompts/example.md",
+            "target": (
+                "https://github.com/sase-org/sase--agents/blob/main/"
+                "prompts/202607/example.md"
+            ),
+        },
+        {
+            "kind": "ARTIFACTS",
+            "entries": [
+                {
+                    "label": "diagram.png",
+                    "target": "../../artifacts/202607/abcdef012345-diagram.png",
+                }
+            ],
         },
         {
             "kind": "BEAD",
@@ -76,7 +88,7 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
     if not isinstance(parsed_sections, list):
         raise RuntimeError(f"unexpected parse result: {parsed!r}")
     section_kinds = [section.get("kind") for section in parsed_sections]
-    if section_kinds != ["PROMPT", "BEAD", "COMMITS"]:
+    if section_kinds != ["PROMPT", "BEAD", "ARTIFACTS", "COMMITS"]:
         raise RuntimeError(f"unexpected section order: {section_kinds!r}")
 
     unlinked_bead = module.sdd_plan_header_block_render(
@@ -176,6 +188,8 @@ metadata:
         "section_kinds": section_kinds,
         "mutation_round_trip": True,
         "unlinked_bead": True,
+        "cross_repo_prompt": True,
+        "artifacts_section": True,
         "fenced_examples_ignored": True,
         "legacy_parent_removed": True,
     }

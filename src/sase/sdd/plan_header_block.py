@@ -8,7 +8,7 @@ from typing import Any
 
 from sase.core.rust import require_rust_binding
 
-PLAN_HEADER_BLOCK_WIRE_SCHEMA_VERSION = 2
+PLAN_HEADER_BLOCK_WIRE_SCHEMA_VERSION = 3
 MAX_RENDERED_PLAN_HEADER_ENTRIES = 50
 
 
@@ -30,12 +30,13 @@ class PlanHeaderSectionKind(StrEnum):
     PARENT = "PARENT"
     BEAD = "BEAD"
     AGENTS = "AGENTS"
+    ARTIFACTS = "ARTIFACTS"
     COMMITS = "COMMITS"
 
 
 @dataclass(frozen=True)
 class PlanHeaderEntry:
-    """One item in an AGENTS or COMMITS section."""
+    """One item in an AGENTS, ARTIFACTS, or COMMITS section."""
 
     label: str
     target: str | None = None

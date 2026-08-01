@@ -44,11 +44,22 @@ def test_typed_mutations_preserve_other_sections() -> None:
         kind=PlanHeaderSectionKind.AGENTS,
         entries=(PlanHeaderEntry(label="alice.athena.agent"),),
     )
+    artifacts = PlanHeaderSection(
+        kind=PlanHeaderSectionKind.ARTIFACTS,
+        entries=(
+            PlanHeaderEntry(
+                label="diagram.png",
+                target="../../artifacts/202608/abcdef012345-diagram.png",
+            ),
+        ),
+    )
     bead = PlanHeaderSection(
         kind=PlanHeaderSectionKind.BEAD,
         label="sase-ai.8",
     )
-    document = f"{render_plan_header_block((agents, bead, prompt))}\n\n# Plan\n"
+    document = (
+        f"{render_plan_header_block((artifacts, agents, bead, prompt))}\n\n# Plan\n"
+    )
 
     parent = PlanHeaderSection(
         kind=PlanHeaderSectionKind.PARENT,
@@ -66,9 +77,11 @@ def test_typed_mutations_preserve_other_sections() -> None:
         PlanHeaderSectionKind.PARENT,
         PlanHeaderSectionKind.BEAD,
         PlanHeaderSectionKind.AGENTS,
+        PlanHeaderSectionKind.ARTIFACTS,
     )
     assert parsed.sections[2].label == "sase-ai.8"
     assert parsed.sections[2].target is None
+    assert parsed.sections[4].entries[0].label == "diagram.png"
     assert (
         remove_plan_header_section(
             updated,
