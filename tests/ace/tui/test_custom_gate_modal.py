@@ -6,7 +6,7 @@ import pytest
 from textual.app import App
 from textual.binding import Binding
 from textual.containers import VerticalScroll
-from textual.widgets import Button, Input
+from textual.widgets import Button, Input, Static
 
 from sase.ace.tui.keymaps import (
     GateModalKeymaps,
@@ -57,9 +57,12 @@ def _data(
     primary_branch: tuple[str, ...] | None = None,
     preview_name: str | None = None,
     preview_text: str | None = None,
+    title: str = "Custom Gate",
+    origin_agent: str | None = None,
 ) -> CustomGateModalData:
     return CustomGateModalData(
         request_id="custom-ace",
+        title=title,
         sender="review-agent",
         icon="🛡️",
         notes=("Review guarded work.",),
@@ -73,6 +76,7 @@ def _data(
             branches=branches,
             primary_branch=primary_branch or branches[0],
         ),
+        origin_agent=origin_agent,
     )
 
 
@@ -355,6 +359,51 @@ async def test_previewless_gate_composes_compact_actions_only() -> None:
         assert not modal.query(".gate-review-document")
         actions = modal.query_one("#custom-gate-review-scroll", VerticalScroll)
         assert actions.has_class("gate-review-actions--compact")
+
+
+async def test_header_uses_adapter_title_and_omits_absent_filer() -> None:
+    modal = CustomGateModal(
+        _data(
+            options=(_option("proceed"),),
+            branches=(("proceed",),),
+            title="Task Triage",
+        )
+    )
+
+    async with _TestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        rendered = modal.query_one("#custom-gate-title", Static).render().plain
+        assert "Task Triage" in rendered
+        assert "Custom Gate" not in rendered
+        assert not modal.query("#custom-gate-origin")
+
+
+async def test_declared_origin_agent_renders_filed_by_above_context() -> None:
+    modal = CustomGateModal(
+        _data(
+            options=(_option("proceed"),),
+            branches=(("proceed",),),
+            origin_agent="claude_coder",
+        )
+    )
+
+    async with _TestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        origin = modal.query_one("#custom-gate-origin", Static)
+        assert origin.render().plain == "Filed by @claude_coder"
+        assert origin.has_class("gate-review-origin")
+
+        siblings = list(modal.query_one("#custom-gate-review-scroll").children)
+        context_index = next(
+            index
+            for index, widget in enumerate(siblings)
+            if isinstance(widget, Static) and widget.render().plain == "Context"
+        )
+        assert siblings.index(origin) < context_index
 
 
 def test_bindings_match_shared_branch_actions() -> None:

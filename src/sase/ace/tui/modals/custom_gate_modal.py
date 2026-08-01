@@ -44,6 +44,7 @@ class CustomGateModalData:
     """Verified display data loaded from one custom gate bundle."""
 
     request_id: str
+    title: str
     sender: str
     icon: str
     notes: tuple[str, ...]
@@ -51,6 +52,7 @@ class CustomGateModalData:
     preview_name: str | None
     preview_text: str | None
     gate: GateBranchData
+    origin_agent: str | None = None
 
 
 @dataclass(frozen=True)
@@ -136,6 +138,12 @@ class CustomGateModal(
             )
 
     def _compose_actions(self) -> ComposeResult:
+        if self._data.origin_agent:
+            yield Static(
+                self._origin_text(self._data.origin_agent),
+                id="custom-gate-origin",
+                classes="gate-review-origin",
+            )
         yield Static("Context", classes="gate-review-section-title")
         yield Static(self._notes(), id="custom-gate-notes")
         if self._data.attachments:
@@ -220,10 +228,23 @@ class CustomGateModal(
 
     def _title(self) -> str:
         return (
-            f"[bold cyan]{escape(self._data.icon)} Custom Gate[/bold cyan]  "
+            f"[bold cyan]{escape(self._data.icon)} "
+            f"{escape(self._data.title)}[/bold cyan]  "
             f"[bold]{escape(self._data.sender)}[/bold]  "
             f"[dim]{escape(self._data.request_id)}[/dim]"
         )
+
+    def _origin_text(self, origin_agent: str) -> Text:
+        from sase.core.agent_identity_facade import present_agent_name
+
+        try:
+            presented = present_agent_name(origin_agent)
+        except Exception:
+            presented = origin_agent
+        text = Text()
+        text.append("Filed by ", style="dim")
+        text.append(f"@{presented}", style="bold #87D7FF")
+        return text
 
     def _notes(self) -> Text:
         text = Text()

@@ -89,6 +89,7 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
     """Read and verify the custom gate bundle in a worker thread."""
     from ...modals import CustomGateModalData, GateBranchData
     from ...modals.notification_modal_constants import notification_icon
+    from ...modals.notification_modal_tags import notification_origin_agent
     from sase.notification_gates.hashing import load_and_verify_bundle
     from sase.notification_gates.models import GateError
     from sase.notification_gates.paths import resolve_notification_bundle
@@ -116,6 +117,7 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
     attachments = tuple(dict.fromkeys(Path(path).name for path in notification.files))
     return CustomGateModalData(
         request_id=str(envelope.get("request_id") or notification.id),
+        title=adapter.display_title,
         sender=notification.sender,
         icon=notification_icon(notification.action, notification.icon),
         notes=tuple(notification.notes),
@@ -123,6 +125,7 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
         preview_name=None if preview_path is None else preview_path.name,
         preview_text=preview_text,
         gate=gate,
+        origin_agent=notification_origin_agent(notification),
     )
 
 

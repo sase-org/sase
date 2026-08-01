@@ -11,6 +11,7 @@ from textual.events import Click
 from textual.message import Message
 from textual.widgets import Static
 
+from sase.notification_gates.presentation import GATE_ORIGIN_AGENT_ACTION_DATA_KEY
 from sase.notifications import Notification, is_error
 
 HITL_TAB_KEY = "hitl"
@@ -57,6 +58,16 @@ def notification_display_tags(notification: Notification) -> list[str]:
         seen.add(tag)
         tags.append(tag)
     return tags
+
+
+def notification_origin_agent(notification: Notification) -> str | None:
+    """Return the agent a notification's gate was filed on behalf of."""
+    raw = getattr(notification, "action_data", None) or {}
+    value = raw.get(GATE_ORIGIN_AGENT_ACTION_DATA_KEY)
+    if not isinstance(value, str):
+        return None
+    origin_agent = value.strip()
+    return origin_agent or None
 
 
 def _notification_modal_tab_keys(notification: Notification) -> list[str | None]:

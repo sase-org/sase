@@ -73,6 +73,7 @@ def _data(
         )
     return CustomGateModalData(
         request_id="deploy-production-42",
+        title="Custom Gate",
         sender="release-guardian",
         icon="🛡️",
         notes=(

@@ -70,6 +70,7 @@ def _custom_data(*, feedback: str = "disabled") -> CustomGateModalData:
     )
     return CustomGateModalData(
         request_id="debug-request",
+        title="Custom Gate",
         sender="test-agent",
         icon="🛡️",
         notes=("Review this gate",),

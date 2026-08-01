@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -235,12 +235,29 @@ def test_custom_gate_loader_projects_icons_preview_and_defaults(
     data = _load_custom_gate_modal_data(notification)
 
     assert data.icon == "🛡️"
+    assert data.title == "Custom Gate"
+    assert data.origin_agent is None
     assert data.sender == "safety-agent"
     assert data.preview_name == "preview.md"
     assert data.preview_text is not None and "Guarded work" in data.preview_text
     assert data.gate.options[0].icon == "✅"
     assert data.gate.options[1].default_selected is True
     assert data.gate.branches == (("approve", "audit"),)
+
+
+def test_custom_gate_loader_carries_declared_origin_agent(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    spec = _spec()
+    presentation = cast(dict[str, object], spec["presentation"])
+    spec["presentation"] = {**presentation, "origin_agent": "claude_coder"}
+    create_gate(spec)
+    notification = load_notifications()[0]
+
+    data = _load_custom_gate_modal_data(notification)
+
+    assert data.origin_agent == "claude_coder"
 
 
 def test_task_triage_loader_uses_generic_branch_modal_data(
@@ -260,6 +277,7 @@ def test_task_triage_loader_uses_generic_branch_modal_data(
     data = _load_custom_gate_modal_data(notification)
 
     assert data.icon == "✦"
+    assert data.title == "Task Triage"
     assert data.sender == "bead"
     assert data.preview_name == "task.md"
     assert data.preview_text is not None

@@ -51,6 +51,7 @@ def _custom_modal(
     return CustomGateModal(
         CustomGateModalData(
             request_id="footer-test",
+            title="Custom Gate",
             sender="review-agent",
             icon="",
             notes=(),
