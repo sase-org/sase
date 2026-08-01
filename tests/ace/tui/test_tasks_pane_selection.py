@@ -7,32 +7,32 @@ from textual.widgets import OptionList
 
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 
-from tests.ace.tui.test_tasks_pane import (
-    _TasksTestApp,
-    _open_tasks_pane,
-    _patch_store_loader,
-    _queue,
-    _task,
+from tests.ace.tui._tasks_pane_helpers import (
+    TasksTestApp,
+    open_tasks_pane,
+    patch_store_loader,
+    queue,
+    task,
 )
 
 
 async def test_tasks_loading_echo_preserves_requested_store_bookmark(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _patch_store_loader(monkeypatch, [])
-    first = _task(
+    patch_store_loader(monkeypatch, [])
+    first = task(
         "first",
         label="sync first",
         status="success",
         age_seconds=10,
     )
-    second = _task(
+    second = task(
         "second",
         label="sync second",
         status="success",
         age_seconds=20,
     )
-    requested = _task(
+    requested = task(
         "store-wanted",
         label="sync requested",
         status="success",
@@ -40,8 +40,8 @@ async def test_tasks_loading_echo_preserves_requested_store_bookmark(
     )
     state = AdminCenterSessionState()
 
-    async with _TasksTestApp(_queue(second, first)).run_test() as pilot:
-        _, pane = await _open_tasks_pane(pilot, session_state=state)
+    async with TasksTestApp(queue(second, first)).run_test() as pilot:
+        _, pane = await open_tasks_pane(pilot, session_state=state)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
         state.tasks.task.record("store-wanted", 1)
@@ -68,14 +68,14 @@ async def test_tasks_loading_echo_preserves_requested_store_bookmark(
 async def test_tasks_stale_rebuild_echo_cannot_record_neighbor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _patch_store_loader(monkeypatch, [])
-    alpha = _task(
+    patch_store_loader(monkeypatch, [])
+    alpha = task(
         "alpha",
         label="sync alpha",
         status="success",
         age_seconds=10,
     )
-    beta = _task(
+    beta = task(
         "beta",
         label="sync beta",
         status="success",
@@ -83,8 +83,8 @@ async def test_tasks_stale_rebuild_echo_cannot_record_neighbor(
     )
     state = AdminCenterSessionState()
 
-    async with _TasksTestApp(_queue(beta, alpha)).run_test() as pilot:
-        _, pane = await _open_tasks_pane(pilot, session_state=state)
+    async with TasksTestApp(queue(beta, alpha)).run_test() as pilot:
+        _, pane = await open_tasks_pane(pilot, session_state=state)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
         pane._store_loaded_once = True
@@ -106,8 +106,8 @@ async def test_tasks_stale_rebuild_echo_cannot_record_neighbor(
 async def test_tasks_bookmark_rekeys_when_durable_id_is_minted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _patch_store_loader(monkeypatch, [])
-    task = _task(
+    patch_store_loader(monkeypatch, [])
+    task_info = task(
         "local-task",
         label="sync local",
         status="running",
@@ -116,12 +116,12 @@ async def test_tasks_bookmark_rekeys_when_durable_id_is_minted(
     state = AdminCenterSessionState()
     state.tasks.task.record("local-task", 0)
 
-    async with _TasksTestApp(_queue(task)).run_test() as pilot:
-        _, pane = await _open_tasks_pane(pilot, session_state=state)
+    async with TasksTestApp(queue(task_info)).run_test() as pilot:
+        _, pane = await open_tasks_pane(pilot, session_state=state)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
 
-        task.durable_task_id = "durable-task"
+        task_info.durable_task_id = "durable-task"
         pane._tasks = pane._merged_tasks()
         pane._rebuild_list()
         await pilot.pause()
@@ -135,14 +135,14 @@ async def test_tasks_bookmark_rekeys_when_durable_id_is_minted(
 async def test_tasks_authoritative_identity_miss_uses_nearest_row_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _patch_store_loader(monkeypatch, [])
-    alpha = _task(
+    patch_store_loader(monkeypatch, [])
+    alpha = task(
         "alpha",
         label="sync alpha",
         status="success",
         age_seconds=10,
     )
-    beta = _task(
+    beta = task(
         "beta",
         label="sync beta",
         status="success",
@@ -151,8 +151,8 @@ async def test_tasks_authoritative_identity_miss_uses_nearest_row_fallback(
     state = AdminCenterSessionState()
     state.tasks.task.record("beta", 1)
 
-    async with _TasksTestApp(_queue(beta, alpha)).run_test() as pilot:
-        _, pane = await _open_tasks_pane(pilot, session_state=state)
+    async with TasksTestApp(queue(beta, alpha)).run_test() as pilot:
+        _, pane = await open_tasks_pane(pilot, session_state=state)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
         pane._store_loaded_once = True
