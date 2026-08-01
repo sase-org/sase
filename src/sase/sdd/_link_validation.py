@@ -7,6 +7,7 @@ from typing import Any
 
 from sase.sdd._link_files import list_sdd_files, resolve_sdd_root
 from sase.sdd._link_models import Severity, SddFile, SddIssue, SddValidation
+from sase.sdd._legacy_prompt_files import list_plans_store_prompt_files
 from sase.sdd._link_support import (
     PLAN_KINDS,
     expected_link_type,
@@ -46,19 +47,20 @@ def validate_sdd_tree(
     by_path = {file.path.resolve(): file for file in files}
     issues: list[SddIssue] = []
 
-    for file in files:
-        if file.kind == "prompts":
-            issues.append(
-                SddIssue(
-                    severity="warning",
-                    code="prompt-in-plans-store",
-                    path=file.relpath,
-                    message=(
-                        "prompt Markdown remains in the plans store; migrate it "
-                        "to the canonical agents-sidecar archive"
-                    ),
-                )
+    for prompt_path, _month in list_plans_store_prompt_files(root):
+        issues.append(
+            SddIssue(
+                severity="error",
+                code="prompt-in-plans-store",
+                path=prompt_path.relative_to(root).as_posix(),
+                message=(
+                    "prompt Markdown remains in the plans store; migrate it "
+                    "to the canonical agents-sidecar archive"
+                ),
             )
+        )
+
+    for file in files:
         if file.parse_error is not None:
             issues.append(
                 SddIssue(

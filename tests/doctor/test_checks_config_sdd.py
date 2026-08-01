@@ -72,7 +72,7 @@ def test_config_sdd_uses_materialized_separate_repo_store(
 
     assert check.status == "OK"
     assert check.data["sdd_root"] == str((tmp_path / ".sase" / "sdd").resolve())
-    assert check.data["file_count"] == 2
+    assert check.data["file_count"] == 1
 
 
 def test_config_sdd_allows_non_strict_validation_warnings(tmp_path: Path) -> None:
@@ -328,16 +328,12 @@ def _write_regressed_split_clones(primary: Path) -> tuple[Path, Path]:
 
 
 def _write_sdd_pair(root: Path) -> None:
-    prompt = root / "prompts" / "202605" / "linked.md"
     tale = root / "plans" / "202605" / "linked.md"
-    prompt.parent.mkdir(parents=True, exist_ok=True)
     tale.parent.mkdir(parents=True, exist_ok=True)
-    prompt.write_text(
-        "---\nplan: .sase/sdd/plans/202605/linked.md\n---\n# Prompt\n",
-        encoding="utf-8",
-    )
     tale.write_text(
-        "---\nprompt: .sase/sdd/prompts/202605/linked.md\ntier: tale\n---\n# Tale\n",
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [prompts/202605/linked.md](https://example.test/prompt)"
+        "\n\n# Tale\n",
         encoding="utf-8",
     )
 

@@ -11,11 +11,9 @@ import pytest
 from sase.main import plan_command_handler
 from sase.main.parser import create_parser
 from sase.main.plan_links_handler import handle_plan_links_command
-from sase.sdd.links import repair_sdd_links
 from tests.main.plan_links_handler_helpers import (
     make_args,
     mark_tmp_path_as_project,
-    write_pair,
 )
 
 __all__ = ["mark_tmp_path_as_project"]
@@ -92,7 +90,7 @@ def test_plan_command_dispatches_links() -> None:
     links_mock.assert_called_once_with(args)
 
 
-def test_repair_links_write_backfills_unambiguous_pair(
+def test_repair_ignores_retired_plans_store_prompts(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "sdd"
@@ -110,113 +108,22 @@ def test_repair_links_write_backfills_unambiguous_pair(
 
     assert excinfo.value.code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert {action["field"] for action in payload["actions"]} == {"plan", "prompt"}
-    assert payload["changed_files"] == [
-        "plans/202605/fixme.md",
-        "plans/202605/prompts/fixme.md",
-    ]
-    assert prompt.read_text(encoding="utf-8") == (
-        "- **PLAN:** [../sdd/plans/202605/fixme.md](../fixme.md)\n\n# Prompt\n"
-    )
-    plan_text = plan.read_text(encoding="utf-8")
-    assert "keep: yes" in plan_text
-    assert (
-        "- **PROMPT:** [sdd/plans/202605/prompts/fixme.md]"
-        "(prompts/fixme.md)" in plan_text
-    )
-    assert plan_text.endswith("(prompts/fixme.md)\n\n# Epic\n")
-
-    second = make_args(plan_links_subcommand="repair", path=str(root), write=True)
-    with pytest.raises(SystemExit) as second_excinfo:
-        handle_plan_links_command(second)
-    assert second_excinfo.value.code == 0
-    second_payload = json.loads(capsys.readouterr().out)
-    assert second_payload["actions"] == []
-    assert second_payload["changed_files"] == []
-
-
-def test_repair_dry_run_reports_legacy_links_without_writing(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    root = tmp_path / "sdd"
-    prompt, plan = write_pair(root)
-    before = {
-        prompt: prompt.read_text(encoding="utf-8"),
-        plan: plan.read_text(encoding="utf-8"),
-    }
-
-    with pytest.raises(SystemExit) as excinfo:
-        handle_plan_links_command(
-            make_args(plan_links_subcommand="repair", path=str(root), write=False)
-        )
-
-    assert excinfo.value.code == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert {action["field"] for action in payload["actions"]} == {
-        "plan",
-        "prompt",
-    }
+    assert payload["actions"] == []
     assert payload["changed_files"] == []
-    assert {path: path.read_text(encoding="utf-8") for path in before} == before
-
-
-def test_repair_removes_redundant_legacy_property_and_preserves_body(
-    tmp_path: Path,
-) -> None:
-    root = tmp_path / "repo--plans"
-    prompt = root / "202607" / "prompts" / "mixed.md"
-    plan = root / "202607" / "mixed.md"
-    prompt.parent.mkdir(parents=True)
-    prompt.write_text(
-        "---\nplan: 202607/mixed.md\nkeep: yes\n---\n\n"
-        "- **PLAN:** [../202607/mixed.md](../mixed.md)\n\n# Prompt\n",
-        encoding="utf-8",
-    )
-    plan.write_text(
-        "---\ntier: tale\n---\n\n"
-        "- **PROMPT:** [202607/prompts/mixed.md](prompts/mixed.md)\n\n"
-        "# Plan\n",
-        encoding="utf-8",
-    )
-
-    report = repair_sdd_links(str(root), write=True)
-
-    assert not report.issues
-    assert report.changed_files == ["202607/prompts/mixed.md"]
-    assert prompt.read_text(encoding="utf-8") == (
-        "---\nkeep: yes\n---\n\n"
-        "- **PLAN:** [../202607/mixed.md](../mixed.md)\n\n# Prompt\n"
-    )
-    assert repair_sdd_links(str(root), write=True).changed_files == []
-
-
-def test_repair_refuses_conflicting_mixed_representations(tmp_path: Path) -> None:
-    root = tmp_path / "repo--plans"
-    prompt = root / "202607" / "prompts" / "mixed.md"
-    plan = root / "202607" / "mixed.md"
-    prompt.parent.mkdir(parents=True)
-    prompt.write_text(
-        "---\nplan: 202607/other.md\n---\n\n"
-        "- **PLAN:** [../202607/mixed.md](../mixed.md)\n\n# Prompt\n",
-        encoding="utf-8",
-    )
-    plan.write_text(
-        "---\ntier: tale\n---\n\n"
-        "- **PROMPT:** [202607/prompts/mixed.md](prompts/mixed.md)\n\n"
-        "# Plan\n",
-        encoding="utf-8",
-    )
-    before = prompt.read_text(encoding="utf-8")
-
-    report = repair_sdd_links(str(root), write=True)
-
-    assert any(issue.code == "link-conflict" for issue in report.issues)
-    assert prompt.read_text(encoding="utf-8") == before
+    assert prompt.read_text(encoding="utf-8") == "# Prompt\n"
+    assert "keep: yes" in plan.read_text(encoding="utf-8")
 
 
 def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     root = tmp_path / "sdd"
-    write_pair(root)
+    plan = root / "plans" / "202605" / "linked.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [prompts/202605/linked.md](https://example.test/prompt)"
+        "\n\n# Plan\n",
+        encoding="utf-8",
+    )
 
     with pytest.raises(SystemExit) as excinfo:
         handle_plan_links_command(
@@ -225,27 +132,19 @@ def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
 
     assert excinfo.value.code == 0
     rows = json.loads(capsys.readouterr().out)
-    assert {row["path"] for row in rows} == {
-        "plans/202605/linked.md",
-        "plans/202605/prompts/linked.md",
-    }
-    assert all(row["bidirectional"] for row in rows)
+    assert [row["path"] for row in rows] == ["plans/202605/linked.md"]
+    assert rows[0]["target"] == "prompts/202605/linked.md"
 
 
 def test_links_json_projects_canonical_labels(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "repo--plans"
-    prompt = root / "202607" / "prompts" / "linked.md"
     plan = root / "202607" / "linked.md"
-    prompt.parent.mkdir(parents=True)
-    prompt.write_text(
-        "- **PLAN:** [../202607/linked.md](../linked.md)\n\n# Prompt\n",
-        encoding="utf-8",
-    )
+    plan.parent.mkdir(parents=True)
     plan.write_text(
         "---\ntier: tale\n---\n\n"
-        "- **PROMPT:** [202607/prompts/linked.md](prompts/linked.md)\n\n"
+        "- **PROMPT:** [prompts/202607/linked.md](https://example.test/prompt)\n\n"
         "# Plan\n",
         encoding="utf-8",
     )
@@ -256,23 +155,19 @@ def test_links_json_projects_canonical_labels(
         )
 
     rows = json.loads(capsys.readouterr().out)
-    assert {row["target"] for row in rows} == {
-        "../202607/linked.md",
-        "202607/prompts/linked.md",
-    }
-    assert all(row["bidirectional"] for row in rows)
+    assert [row["target"] for row in rows] == ["prompts/202607/linked.md"]
 
 
-def test_flat_sidecar_root_validates_plan_pairs(
+def test_flat_sidecar_root_validates_archived_prompt_link(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "repo--plans"
-    prompt = root / "202607" / "prompts" / "linked.md"
     plan = root / "202607" / "linked.md"
-    prompt.parent.mkdir(parents=True)
-    prompt.write_text("---\nplan: 202607/linked.md\n---\n# Prompt\n", encoding="utf-8")
+    plan.parent.mkdir(parents=True)
     plan.write_text(
-        "---\nprompt: 202607/prompts/linked.md\ntier: tale\n---\n# Plan\n",
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [prompts/202607/linked.md](https://example.test/prompt)"
+        "\n\n# Plan\n",
         encoding="utf-8",
     )
 
@@ -284,10 +179,7 @@ def test_flat_sidecar_root_validates_plan_pairs(
     assert excinfo.value.code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
-    assert {item["path"] for item in payload["files"]} == {
-        "202607/linked.md",
-        "202607/prompts/linked.md",
-    }
+    assert [item["path"] for item in payload["files"]] == ["202607/linked.md"]
 
 
 def test_list_invalid_path_exits_nonzero(

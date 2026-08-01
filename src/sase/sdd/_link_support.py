@@ -13,8 +13,7 @@ from sase.sdd.artifact_links import (
 )
 
 PLAN_KINDS = ("tales", "epics")
-PROMPT_KINDS = ("prompts", "specs")
-LIST_KINDS = ("prompts", "plans", "tales", "epics")
+LIST_KINDS = ("plans", "tales", "epics")
 
 
 def resolve_link_path(

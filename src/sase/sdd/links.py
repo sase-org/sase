@@ -23,7 +23,6 @@ from sase.sdd._link_repair import repair_sdd_links
 from sase.sdd._link_support import (
     LIST_KINDS,
     PLAN_KINDS,
-    PROMPT_KINDS,
     expected_link_type,
     infer_counterpart,
     link_reference,

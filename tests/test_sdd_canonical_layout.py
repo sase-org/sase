@@ -44,7 +44,7 @@ def test_active_sources_and_docs_use_only_canonical_plan_paths() -> None:
     assert _matches([*operational_sources, *current_docs]) == []
 
 
-def test_operational_tests_keep_only_the_explicit_stale_link_rejection() -> None:
+def test_operational_tests_use_only_canonical_plan_paths() -> None:
     matches = _matches(list((_ROOT / "tests").rglob("*.py")))
 
-    assert matches == ["tests/main/test_plan_links_validate_handler.py"]
+    assert matches == []

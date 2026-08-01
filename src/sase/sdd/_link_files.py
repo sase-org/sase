@@ -9,7 +9,7 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 
 from sase.sdd._link_models import SddFile
-from sase.sdd._link_support import LIST_KINDS, PROMPT_KINDS, relpath
+from sase.sdd._link_support import LIST_KINDS, relpath
 from sase.sdd._paths import has_month_dirs, is_month_dir_name
 from sase.sdd.artifact_links import parse_sdd_artifact_link
 from sase.sdd.plan_tiers import classify_plan_file
@@ -35,20 +35,6 @@ def list_sdd_files(root: Path, *, kind: str = "all") -> list[SddFile]:
     plans_root = root / "plans"
     if not has_month_dirs(plans_root):
         plans_root = root
-    if kind in {"all", "prompts"}:
-        if plans_root.is_dir():
-            for path in sorted(plans_root.glob("*/prompts/*.md")):
-                sdd_file = _read_sdd_file(root, path, "prompts")
-                if sdd_file is not None:
-                    files.append(sdd_file)
-        for physical_kind in PROMPT_KINDS:
-            kind_root = root / physical_kind
-            if not kind_root.is_dir():
-                continue
-            for path in sorted(kind_root.glob("*/*.md")):
-                sdd_file = _read_sdd_file(root, path, "prompts")
-                if sdd_file is not None:
-                    files.append(sdd_file)
     if kind in {"all", "plans", "tales", "epics"}:
         kind_root = plans_root
         if kind_root.is_dir():
@@ -65,17 +51,10 @@ def list_sdd_files(root: Path, *, kind: str = "all") -> list[SddFile]:
 
 def _read_sdd_file(root: Path, path: Path, kind: str) -> SddFile | None:
     parts = path.relative_to(root).parts
-    nested_prompt = (
-        kind == "prompts"
-        and len(parts) == 4
-        and parts[0] == "plans"
-        and parts[2] == "prompts"
-    )
-    flat_prompt = kind == "prompts" and len(parts) == 3 and parts[1] == "prompts"
-    flat_plan = kind != "prompts" and len(parts) == 2
-    if len(parts) != 3 and not nested_prompt and not flat_prompt and not flat_plan:
+    flat_plan = len(parts) == 2
+    if len(parts) != 3 and not flat_plan:
         return None
-    yyyymm = parts[0] if flat_prompt or flat_plan else parts[1]
+    yyyymm = parts[0] if flat_plan else parts[1]
     if not is_month_dir_name(yyyymm):
         return None
     content = path.read_text(encoding="utf-8")

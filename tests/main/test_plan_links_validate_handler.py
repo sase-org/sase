@@ -8,16 +8,30 @@ from pathlib import Path
 import pytest
 
 from sase.main.plan_links_handler import handle_plan_links_command
+from sase.sdd._link_files import list_sdd_files
 from sase.sdd.links import validate_sdd_tree
 from tests.main.plan_links_handler_helpers import (
     make_args,
     mark_tmp_path_as_project,
-    write_pair,
 )
 
 __all__ = ["mark_tmp_path_as_project"]
 
 pytestmark = pytest.mark.usefixtures("mark_tmp_path_as_project")
+
+
+def _write_archived_plan(root: Path, name: str = "linked") -> Path:
+    plan = root / "plans" / "202605" / f"{name}.md"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text(
+        "---\ntier: tale\n---\n\n"
+        f"- **PROMPT:** [prompts/202605/{name}.md]"
+        f"(https://github.com/example/project--agents/blob/main/"
+        f"prompts/202605/{name}.md)\n\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    return plan
 
 
 def test_validate_accepts_empty_sidecar_clone_root(tmp_path: Path) -> None:
@@ -34,9 +48,8 @@ def test_validate_allows_default_unpaired_warnings(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "sdd"
-    write_pair(root)
+    _write_archived_plan(root)
     unpaired = root / "plans" / "202605" / "unpaired.md"
-    unpaired.parent.mkdir(parents=True, exist_ok=True)
     unpaired.write_text("---\ntier: tale\n---\n# Unpaired plan\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
@@ -53,9 +66,8 @@ def test_validate_show_warnings_flag_displays_warning_lines(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "sdd"
-    write_pair(root)
     unpaired = root / "plans" / "202605" / "unpaired.md"
-    unpaired.parent.mkdir(parents=True, exist_ok=True)
+    unpaired.parent.mkdir(parents=True)
     unpaired.write_text("---\ntier: tale\n---\n# Unpaired plan\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
@@ -63,7 +75,6 @@ def test_validate_show_warnings_flag_displays_warning_lines(
 
     assert excinfo.value.code == 0
     out = capsys.readouterr().out
-    assert "SDD validation passed" in out
     assert "unpaired-file" in out
     assert "(use --show-warnings to display)" not in out
 
@@ -76,21 +87,20 @@ def test_validate_default_uses_configured_separate_repo_store(
         "sdd:\n  storage: separate_repo\n", encoding="utf-8"
     )
     (tmp_path / "sdd" / "beads").mkdir(parents=True)
-    write_pair(tmp_path / ".sase" / "sdd")
+    _write_archived_plan(tmp_path / ".sase" / "sdd")
 
     with pytest.raises(SystemExit) as excinfo:
         handle_plan_links_command(make_args(path=None))
 
     assert excinfo.value.code == 0
-    assert "SDD validation passed: 2 files" in capsys.readouterr().out
+    assert "SDD validation passed: 1 files" in capsys.readouterr().out
 
 
-def test_validate_strict_fails_unpaired_warnings(tmp_path: Path) -> None:
+def test_validate_strict_fails_unpaired_plan(tmp_path: Path) -> None:
     root = tmp_path / "sdd"
-    (root / "prompts" / "202605").mkdir(parents=True)
-    (root / "prompts" / "202605" / "legacy.md").write_text(
-        "# Legacy prompt\n", encoding="utf-8"
-    )
+    plan = root / "plans" / "202605" / "legacy.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("---\ntier: tale\n---\n# Plan\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
         handle_plan_links_command(make_args(path=str(root), strict=True, quiet=True))
@@ -98,31 +108,11 @@ def test_validate_strict_fails_unpaired_warnings(tmp_path: Path) -> None:
     assert excinfo.value.code == 1
 
 
-def test_validate_fails_missing_link_prints_repair_hint(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    root = tmp_path / "sdd"
-    prompt = root / "plans" / "202605" / "prompts" / "orphaned.md"
-    plan = root / "plans" / "202605" / "orphaned.md"
-    prompt.parent.mkdir(parents=True)
-    plan.parent.mkdir(parents=True, exist_ok=True)
-    prompt.write_text("# Prompt\n", encoding="utf-8")
-    plan.write_text("---\ntier: tale\n---\n# Plan\n", encoding="utf-8")
-
-    with pytest.raises(SystemExit) as excinfo:
-        handle_plan_links_command(make_args(path=str(root)))
-
-    assert excinfo.value.code == 1
-    err = capsys.readouterr().err
-    assert "missing-link" in err
-    assert "sase plan links repair --write" in err
-
-
 def test_validate_passing_run_prints_no_repair_hint(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "sdd"
-    write_pair(root)
+    _write_archived_plan(root)
 
     with pytest.raises(SystemExit) as excinfo:
         handle_plan_links_command(make_args(path=str(root)))
@@ -130,93 +120,33 @@ def test_validate_passing_run_prints_no_repair_hint(
     assert excinfo.value.code == 0
     out, err = capsys.readouterr()
     assert "SDD validation passed" in out
-    assert "sase plan links repair --write" not in out
-    assert "sase plan links repair --write" not in err
+    assert "sase plan links repair --write" not in out + err
 
 
-def test_validate_fails_broken_bidirectional_link(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    root = tmp_path / "sdd"
-    prompt, plan = write_pair(root)
-    plan.write_text(
-        "---\nprompt: sdd/plans/202605/prompts/other.md\ntier: tale\n---\n# Plan\n",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(SystemExit) as excinfo:
-        handle_plan_links_command(make_args(path=str(root), json=True))
-
-    assert excinfo.value.code == 1
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["ok"] is False
-    assert any(error["code"] == "link-missing-target" for error in payload["errors"])
-    assert prompt.exists()
-
-
-def test_validate_accepts_both_legacy_frontmatter_encodings(
-    tmp_path: Path,
-) -> None:
+def test_validate_reports_broken_relative_prompt_target(tmp_path: Path) -> None:
     root = tmp_path / "repo--plans"
-    prompt = root / "202607" / "prompts" / "mixed.md"
-    plan = root / "202607" / "mixed.md"
-    prompt.parent.mkdir(parents=True)
-    prompt.write_text(
-        "---\nplan: '[../202607/mixed.md](../mixed.md)'\n---\n# Prompt\n",
-        encoding="utf-8",
-    )
-    plan.write_text(
-        "---\nprompt: 202607/prompts/mixed.md\ntier: tale\n---\n# Plan\n",
-        encoding="utf-8",
-    )
-
-    validation = validate_sdd_tree(str(root))
-
-    assert validation.ok
-    assert validation.errors == []
-
-
-def test_validate_reports_broken_canonical_href(
-    tmp_path: Path,
-) -> None:
-    root = tmp_path / "repo--plans"
-    prompt = root / "202607" / "prompts" / "broken.md"
     plan = root / "202607" / "broken.md"
-    prompt.parent.mkdir(parents=True)
-    prompt.write_text(
-        "- **PLAN:** [../202607/broken.md](../missing.md)\n\n# Prompt\n",
-        encoding="utf-8",
-    )
+    plan.parent.mkdir(parents=True)
     plan.write_text(
         "---\ntier: tale\n---\n\n"
-        "- **PROMPT:** [202607/prompts/broken.md](prompts/broken.md)\n\n"
+        "- **PROMPT:** [prompts/202607/broken.md](prompts/broken.md)\n\n"
         "# Plan\n",
         encoding="utf-8",
     )
 
     validation = validate_sdd_tree(str(root))
 
-    assert not validation.ok
     issue = next(
         issue for issue in validation.errors if issue.code == "link-missing-target"
     )
-    assert "../missing.md" in issue.message
+    assert "prompts/broken.md" in issue.message
 
 
 def test_validate_accepts_external_prompt_target_and_marks_plan_paired(
     tmp_path: Path,
 ) -> None:
     root = tmp_path / "repo--plans"
-    plan = root / "202608" / "external.md"
-    plan.parent.mkdir(parents=True)
-    plan.write_text(
-        "---\ntier: tale\n---\n\n"
-        "- **PROMPT:** [prompts/202608/external.md]"
-        "(https://github.com/example/project--agents/blob/main/"
-        "prompts/202608/external.md)\n\n"
-        "# Plan\n",
-        encoding="utf-8",
-    )
+    _write_archived_plan(root, "external")
 
     validation = validate_sdd_tree(str(root))
 
@@ -225,32 +155,38 @@ def test_validate_accepts_external_prompt_target_and_marks_plan_paired(
     assert not any(issue.code == "link-missing-target" for issue in validation.issues)
 
 
-def test_validate_warns_for_prompt_remaining_in_plans_store(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "relative",
+    (
+        "202608/prompts/legacy.md",
+        "plans/202608/prompts/legacy.md",
+        "prompts/202608/legacy.md",
+        "specs/202608/legacy.md",
+    ),
+)
+def test_validate_errors_for_prompt_remaining_in_plans_store(
+    tmp_path: Path,
+    relative: str,
+) -> None:
     root = tmp_path / "repo--plans"
-    prompt = root / "202608" / "prompts" / "legacy.md"
+    prompt = root / relative
     prompt.parent.mkdir(parents=True)
     prompt.write_text("# Historical prompt\n", encoding="utf-8")
 
     validation = validate_sdd_tree(str(root))
 
-    assert validation.ok
-    assert (
-        sum(issue.code == "prompt-in-plans-store" for issue in validation.issues) == 1
-    )
+    assert not validation.ok
+    assert [issue.code for issue in validation.errors] == ["prompt-in-plans-store"]
+    assert list_sdd_files(root, kind="all") == []
 
 
 def test_validate_reports_unresolvable_parent_section(tmp_path: Path) -> None:
     root = tmp_path / "repo--plans"
-    prompt = root / "202607" / "prompts" / "child.md"
     plan = root / "202607" / "child.md"
-    prompt.parent.mkdir(parents=True)
-    prompt.write_text(
-        "- **PLAN:** [../202607/child.md](../child.md)\n\n# Prompt\n",
-        encoding="utf-8",
-    )
+    plan.parent.mkdir(parents=True)
     plan.write_text(
         "---\ntier: tale\n---\n\n"
-        "- **PROMPT:** [202607/prompts/child.md](prompts/child.md)\n"
+        "- **PROMPT:** [prompts/202607/child.md](https://example.test/child)\n"
         "- **PARENT:** [202607/missing.md](missing.md)\n\n"
         "# Plan\n",
         encoding="utf-8",
@@ -261,115 +197,13 @@ def test_validate_reports_unresolvable_parent_section(tmp_path: Path) -> None:
     assert any(issue.code == "parent-missing-target" for issue in validation.errors)
 
 
-def test_validate_rejects_malformed_markdown_like_link(tmp_path: Path) -> None:
-    root = tmp_path / "repo--plans"
-    prompt = root / "202607" / "prompts" / "malformed.md"
-    plan = root / "202607" / "malformed.md"
-    prompt.parent.mkdir(parents=True)
-    prompt.write_text(
-        "- **PLAN:** [../202607/malformed.md] ../malformed.md\n\n# Prompt\n",
-        encoding="utf-8",
-    )
-    plan.write_text(
-        "---\nprompt: 202607/prompts/malformed.md\ntier: tale\n---\n# Plan\n",
-        encoding="utf-8",
-    )
-
-    validation = validate_sdd_tree(str(root))
-
-    assert any(issue.code == "link-format" for issue in validation.errors)
-
-
-def test_validate_accepts_redundant_mixed_transition(tmp_path: Path) -> None:
-    root = tmp_path / "repo--plans"
-    prompt = root / "202607" / "prompts" / "mixed.md"
-    plan = root / "202607" / "mixed.md"
-    prompt.parent.mkdir(parents=True)
-    prompt.write_text(
-        "---\nplan: 202607/mixed.md\n---\n\n"
-        "- **PLAN:** [../202607/mixed.md](../mixed.md)\n\n# Prompt\n",
-        encoding="utf-8",
-    )
-    plan.write_text(
-        "---\ntier: tale\n---\n\n"
-        "- **PROMPT:** [202607/prompts/mixed.md](prompts/mixed.md)\n\n"
-        "# Plan\n",
-        encoding="utf-8",
-    )
-
-    validation = validate_sdd_tree(str(root))
-
-    assert validation.ok
-    assert validation.errors == []
-
-
-def test_validate_rejects_conflicting_mixed_representations(tmp_path: Path) -> None:
-    root = tmp_path / "repo--plans"
-    prompt = root / "202607" / "prompts" / "mixed.md"
-    plan = root / "202607" / "mixed.md"
-    prompt.parent.mkdir(parents=True)
-    prompt.write_text(
-        "---\nplan: 202607/other.md\n---\n\n"
-        "- **PLAN:** [../202607/mixed.md](../mixed.md)\n\n# Prompt\n",
-        encoding="utf-8",
-    )
-    plan.write_text(
-        "---\ntier: tale\n---\n\n"
-        "- **PROMPT:** [202607/prompts/mixed.md](prompts/mixed.md)\n\n"
-        "# Plan\n",
-        encoding="utf-8",
-    )
-
-    validation = validate_sdd_tree(str(root))
-
-    assert any(issue.code == "link-conflict" for issue in validation.errors)
-
-
-@pytest.mark.parametrize(
-    ("prompt_content", "code"),
-    [
-        (
-            "- **PLAN:** [../202607/invalid.md](../invalid.md)\n"
-            "- **PLAN:** [../202607/invalid.md](../invalid.md)\n\n# Prompt\n",
-            "link-format",
-        ),
-        (
-            "- **PROMPT:** [202607/prompts/invalid.md](invalid.md)\n\n# Prompt\n",
-            "link-kind",
-        ),
-        (
-            "# Prompt\n\n- **PLAN:** [../202607/invalid.md](../invalid.md)\n",
-            "link-placement",
-        ),
-    ],
-)
-def test_validate_rejects_duplicate_wrong_kind_and_misplaced_bullets(
-    tmp_path: Path, prompt_content: str, code: str
-) -> None:
-    root = tmp_path / "repo--plans"
-    prompt = root / "202607" / "prompts" / "invalid.md"
-    plan = root / "202607" / "invalid.md"
-    prompt.parent.mkdir(parents=True)
-    prompt.write_text(prompt_content, encoding="utf-8")
-    plan.write_text(
-        "---\ntier: tale\n---\n\n"
-        "- **PROMPT:** [202607/prompts/invalid.md](prompts/invalid.md)\n\n"
-        "# Plan\n",
-        encoding="utf-8",
-    )
-
-    validation = validate_sdd_tree(str(root))
-
-    assert any(issue.code == code for issue in validation.errors)
-
-
-def test_validate_reports_invalid_yaml_frontmatter(
+def test_validate_reports_invalid_plan_frontmatter(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "sdd"
-    path = root / "prompts" / "202605" / "bad.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("---\nplan: [unterminated\n---\n# Bad\n", encoding="utf-8")
+    path = root / "plans" / "202605" / "bad.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("---\ntier: [unterminated\n---\n# Bad\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
         handle_plan_links_command(make_args(path=str(root), json=True))
@@ -377,129 +211,3 @@ def test_validate_reports_invalid_yaml_frontmatter(
     assert excinfo.value.code == 1
     payload = json.loads(capsys.readouterr().out)
     assert payload["errors"][0]["code"] == "frontmatter-parse"
-
-
-def test_validate_downgrades_allowlisted_legacy_error(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import sase.sdd.links as links
-
-    root = tmp_path / "sdd"
-    path = root / "prompts" / "202605" / "legacy.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        "---\nplan: sdd/plans/202605/missing.md\n---\n# Legacy prompt\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(
-        links,
-        "LEGACY_INVALID_SDD_ERROR_ALLOWLIST",
-        frozenset({"prompts/202605/legacy.md"}),
-    )
-
-    with pytest.raises(SystemExit) as excinfo:
-        handle_plan_links_command(make_args(path=str(root), json=True))
-
-    assert excinfo.value.code == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["ok"] is True
-    assert payload["errors"] == []
-    warnings = {warning["code"]: warning for warning in payload["warnings"]}
-    assert warnings["link-missing-target-legacy-allowed"] == {
-        "severity": "warning",
-        "code": "link-missing-target-legacy-allowed",
-        "path": "prompts/202605/legacy.md",
-        "message": "'plan' target does not exist: "
-        "sdd/plans/202605/missing.md; "
-        "legacy SDD validation error allowlisted",
-    }
-    assert warnings["prompt-in-plans-store"]["path"] == "prompts/202605/legacy.md"
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        "recover_uncommitted_audit_work_1.md",
-        "sase_mobile_mvp_legend.md",
-    ],
-)
-def test_validate_quarantines_retired_legend_prompt_links(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-    name: str,
-) -> None:
-    root = tmp_path / "sdd"
-    path = root / "plans" / "202605" / "prompts" / name
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        f"---\nplan: sdd/legends/202605/{name}\n---\n# Legacy prompt\n",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(SystemExit) as excinfo:
-        handle_plan_links_command(make_args(path=str(root), json=True))
-
-    assert excinfo.value.code == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["errors"] == []
-    assert any(
-        warning["code"] == "link-missing-target-legacy-allowed"
-        for warning in payload["warnings"]
-    )
-    assert any(
-        warning["code"] == "prompt-in-plans-store" for warning in payload["warnings"]
-    )
-
-
-def test_validate_does_not_allowlist_other_paths(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import sase.sdd.links as links
-
-    root = tmp_path / "sdd"
-    path = root / "prompts" / "202605" / "new.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        "---\nplan: sdd/plans/202605/missing.md\n---\n# New prompt\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(
-        links,
-        "LEGACY_INVALID_SDD_ERROR_ALLOWLIST",
-        frozenset({"prompts/202605/legacy.md"}),
-    )
-
-    with pytest.raises(SystemExit) as excinfo:
-        handle_plan_links_command(make_args(path=str(root), json=True))
-
-    assert excinfo.value.code == 1
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["ok"] is False
-    assert payload["errors"][0]["code"] == "link-missing-target"
-    assert [warning["code"] for warning in payload["warnings"]] == [
-        "prompt-in-plans-store"
-    ]
-
-
-def test_validate_does_not_resolve_legacy_plan_link_to_canonical_plan(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    root = tmp_path / "sdd"
-    prompt = root / "prompts" / "202605" / "linked.md"
-    plan = root / "plans" / "202605" / "linked.md"
-    prompt.parent.mkdir(parents=True)
-    plan.parent.mkdir(parents=True)
-    prompt.write_text(
-        "---\nplan: sdd/tales/202605/linked.md\n---\n# Prompt\n",
-        encoding="utf-8",
-    )
-    plan.write_text(
-        "---\nprompt: sdd/prompts/202605/linked.md\ntier: tale\n---\n# Plan\n",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(SystemExit) as excinfo:
-        handle_plan_links_command(make_args(path=str(root), quiet=True))
-
-    assert excinfo.value.code == 1
-    assert "target does not exist" in capsys.readouterr().err

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from importlib import import_module
 import json
 from pathlib import Path
 
@@ -33,13 +32,13 @@ def handle_agents_prompts(args: argparse.Namespace) -> int:
     """Dispatch ``sase agent prompts`` subcommands."""
 
     subcommand = getattr(args, "prompts_subcommand", None)
-    if subcommand == "migrate":
-        return _handle_migrate(args)
     try:
         context = _resolve_context(getattr(args, "project", None))
     except ValueError as exc:
         error_console.print(f"[red]Error:[/red] {exc}")
         return 1
+    if subcommand == "migrate":
+        return _handle_migrate(args, context)
     if subcommand == "list":
         return _handle_list(args, context)
     if subcommand == "show":
@@ -124,17 +123,22 @@ def _handle_validate(
     return 0 if validation.ok else 1
 
 
-def _handle_migrate(args: argparse.Namespace) -> int:
-    """Delegate to the migration phase when its implementation is installed."""
+def _handle_migrate(
+    args: argparse.Namespace,
+    context: _PromptArchiveContext,
+) -> int:
+    """Move historical plans-sidecar prompts into the canonical archive."""
 
-    try:
-        module = import_module("sase.agents_sync.prompt_archive.migration")
-    except ImportError:
-        error_console.print(
-            "[red]Error:[/red] prompt archive migration is unavailable in this build"
-        )
-        return 2
-    return int(module.migrate_prompt_archive(args))
+    if context.plans_repo is None:
+        error_console.print("[red]Error:[/red] plans sidecar checkout is unavailable")
+        return 1
+    from sase.agents_sync.prompt_archive.migration import migrate_prompt_archive
+
+    return migrate_prompt_archive(
+        args,
+        target=context.target,
+        plans_repo=context.plans_repo,
+    )
 
 
 def _resolve_context(project: str | None) -> _PromptArchiveContext:

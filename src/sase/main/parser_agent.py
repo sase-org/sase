@@ -512,6 +512,8 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase agent prompts\n"
             "  sase agent prompts list --month 202608\n"
+            "  sase agent prompts migrate\n"
+            "  sase agent prompts migrate --write\n"
             "  sase agent prompts show 202608/example.md\n"
             "  sase agent prompts validate --show-warnings\n"
             "  sase agent prompts validate --json"
