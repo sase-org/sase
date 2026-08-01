@@ -90,6 +90,12 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert [member.value for member in by_name["cheap"].selector_members] == list(
         cheap_selector.members
     )
+    assert [
+        (member.target, member.effort) for member in by_name["cheap"].selector_members
+    ] == [
+        ("claude/sonnet", "xhigh"),
+        ("codex/gpt-5.5", None),
+    ]
     cheaper_selector = parse_model_alias_selector(targets["cheaper"])
     assert cheaper_selector is not None
     assert by_name["cheaper"].implicit_value == targets["cheaper"]
@@ -97,6 +103,12 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert [member.value for member in by_name["cheaper"].selector_members] == list(
         cheaper_selector.members
     )
+    assert [
+        (member.target, member.effort) for member in by_name["cheaper"].selector_members
+    ] == [
+        ("claude/sonnet", "medium"),
+        ("codex/gpt-5.5", "medium"),
+    ]
     assert by_name["cheapest"].kind == "role"
     cheapest_selector = parse_model_alias_selector(targets["cheapest"])
     assert cheapest_selector is not None

@@ -165,8 +165,11 @@ def test_small_phase_and_cheap_share_one_rotation(
         lambda _target: True,
     )
 
-    assert resolve_model_alias("@small_phase_worker", consume=True) == "claude/opus"
-    assert resolve_model_alias("@cheap", consume=True) == "codex/gpt-5.5"
+    small = resolve_model_alias_with_effort("@small_phase_worker", consume=True)
+    cheap = resolve_model_alias_with_effort("@cheap", consume=True)
+
+    assert (small.target, small.effort) == ("claude/sonnet", "xhigh")
+    assert (cheap.target, cheap.effort) == ("codex/gpt-5.5", None)
 
 
 def test_xsmall_phase_and_cheaper_share_one_rotation(
@@ -179,10 +182,11 @@ def test_xsmall_phase_and_cheaper_share_one_rotation(
         lambda _target: True,
     )
 
-    assert resolve_model_alias("@xsmall_phase_worker", consume=True) == "claude/sonnet"
-    assert resolve_model_alias("@cheaper", consume=True) == (
-        "codex/gpt-5.3-codex-spark"
-    )
+    xsmall = resolve_model_alias_with_effort("@xsmall_phase_worker", consume=True)
+    cheaper = resolve_model_alias_with_effort("@cheaper", consume=True)
+
+    assert (xsmall.target, xsmall.effort) == ("claude/sonnet", "medium")
+    assert (cheaper.target, cheaper.effort) == ("codex/gpt-5.5", "medium")
 
 
 def test_cheap_and_cheaper_use_independent_rotations(
@@ -195,18 +199,38 @@ def test_cheap_and_cheaper_use_independent_rotations(
         lambda _target: True,
     )
 
-    assert resolve_model_alias("@cheap", consume=True) == "claude/opus"
-    assert resolve_model_alias("@cheaper", consume=True) == "claude/sonnet"
-    assert resolve_model_alias("@cheap", consume=True) == "codex/gpt-5.5"
-    assert resolve_model_alias("@cheaper", consume=True) == (
-        "codex/gpt-5.3-codex-spark"
+    cheap_first = resolve_model_alias_with_effort("@cheap", consume=True)
+    cheaper_first = resolve_model_alias_with_effort("@cheaper", consume=True)
+    cheap_second = resolve_model_alias_with_effort("@cheap", consume=True)
+    cheaper_second = resolve_model_alias_with_effort("@cheaper", consume=True)
+
+    assert (cheap_first.target, cheap_first.effort) == (
+        "claude/sonnet",
+        "xhigh",
+    )
+    assert (cheaper_first.target, cheaper_first.effort) == (
+        "claude/sonnet",
+        "medium",
+    )
+    assert (cheap_second.target, cheap_second.effort) == ("codex/gpt-5.5", None)
+    assert (cheaper_second.target, cheaper_second.effort) == (
+        "codex/gpt-5.5",
+        "medium",
     )
 
 
-@pytest.mark.parametrize("alias", ["cheap", "cheaper", "cheapest"])
+@pytest.mark.parametrize(
+    ("alias", "expected"),
+    [
+        ("cheap", ("codex/gpt-5.5", None)),
+        ("cheaper", ("codex/gpt-5.5", "medium")),
+        ("cheapest", ("codex/gpt-5.3-codex-spark", None)),
+    ],
+)
 def test_implicit_cheap_pools_skip_unavailable_provider(
     monkeypatch: pytest.MonkeyPatch,
     alias: str,
+    expected: tuple[str, str | None],
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
     monkeypatch.setattr(
@@ -215,8 +239,10 @@ def test_implicit_cheap_pools_skip_unavailable_provider(
         lambda target: target.startswith("codex/"),
     )
 
-    assert resolve_model_alias(f"@{alias}", consume=True).startswith("codex/")
-    assert resolve_model_alias(f"@{alias}").startswith("codex/")
+    consumed = resolve_model_alias_with_effort(f"@{alias}", consume=True)
+    peeked = resolve_model_alias_with_effort(f"@{alias}")
+    assert (consumed.target, consumed.effort) == expected
+    assert (peeked.target, peeked.effort) == expected
 
 
 def test_old_cheapest_fingerprint_does_not_carry_cursor_to_new_pool(

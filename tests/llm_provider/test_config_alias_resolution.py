@@ -239,7 +239,7 @@ def test_launch_phase_worker_override_has_no_builtin_effect(
     )
 
     overrides = {"phase_worker": "codex/o3"}
-    assert resolve_model_alias("@small_phase_worker", overrides) == "claude/opus"
+    assert resolve_model_alias("@small_phase_worker", overrides) == "claude/sonnet"
     assert resolve_model_alias("@medium_phase_worker", overrides) == "claude/opus"
     assert resolve_model_alias("@large_phase_worker", overrides) == "claude/opus"
     assert resolve_model_alias("@phase_worker", overrides) == "phase_worker"
@@ -254,7 +254,7 @@ def test_launch_size_phase_override_is_independent_for_that_size(
         "medium_phase_worker": "claude/sonnet",
         "large_phase_worker": "codex/o3",
     }
-    assert resolve_model_alias("@small_phase_worker", overrides) == "claude/opus"
+    assert resolve_model_alias("@small_phase_worker", overrides) == "claude/sonnet"
     assert resolve_model_alias("@medium_phase_worker", overrides) == "claude/sonnet"
     assert resolve_model_alias("@large_phase_worker", overrides) == "codex/o3"
 

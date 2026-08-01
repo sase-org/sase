@@ -122,6 +122,23 @@ def test_smartest_and_cheapest_are_fallbacks_cheap_and_cheaper_are_pools() -> No
     assert cheaper is not None and cheaper.mode == "round_robin"
 
 
+def test_cheap_and_cheaper_ship_the_expected_members_and_efforts() -> None:
+    targets = implicit_alias_targets()
+    cheap = parse_model_alias_selector(targets[CHEAP_MODEL_ALIAS_NAME])
+    cheaper = parse_model_alias_selector(targets[CHEAPER_MODEL_ALIAS_NAME])
+
+    assert cheap is not None
+    assert cheap.members == (
+        "claude/sonnet@xhigh",
+        "codex/gpt-5.5",
+    )
+    assert cheaper is not None
+    assert cheaper.members == (
+        "claude/sonnet@medium",
+        "codex/gpt-5.5@medium",
+    )
+
+
 def test_medium_phase_worker_carries_high_effort() -> None:
     fallback = role_alias_fallbacks()[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME]
     _clean, effort = split_model_effort(fallback)

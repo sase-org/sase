@@ -568,8 +568,8 @@ llm_provider:
       codex_coder: claude/opus # coder follow-ups from Codex-authored plans
       big_epic_lander: codex/gpt-5.6-sol # threshold-selected epic landers
       task_worker: "@default" # standalone tasks without size metadata
-      cheap: claude/opus@medium | codex/gpt-5.5 # small-phase pool
-      cheaper: claude/sonnet | codex/gpt-5.3-codex-spark # xsmall-phase pool
+      cheap: claude/sonnet@xhigh | codex/gpt-5.5 # small-phase pool
+      cheaper: claude/sonnet@medium | codex/gpt-5.5@medium # xsmall-phase pool
       cheapest: claude/haiku || codex/gpt-5.3-codex-spark # explicit-use fallback
       xsmall_phase_worker: "@cheaper"
       small_phase_worker: "@cheap"
@@ -711,8 +711,8 @@ provider fallbacks, while `@cheap` and `@cheaper` own independent built-in pools
 | `@xlarge_phase_worker` | Extra-large phase/task worker with no explicit per-bead model.                                          | `@smartest`                                                                             |
 | `@smart`               | High-capability model selected automatically for large phases and tasks.                                | `@default`                                                                              |
 | `@smartest`            | Highest-capability model selected for xlarge phases/tasks and threshold-sized epic landers.             | `claude/claude-fable-5 \|\| codex/gpt-5.6-sol`                                          |
-| `@cheap`               | Load-balanced pool selected automatically for small phase/task workers.                                 | `claude/opus@medium \| codex/gpt-5.5`                                                   |
-| `@cheaper`             | Lower-cost load-balanced pool selected automatically for extra-small phase/task workers.                | `claude/sonnet \| codex/gpt-5.3-codex-spark`                                            |
+| `@cheap`               | Load-balanced pool selected automatically for small phase/task workers.                                 | `claude/sonnet@xhigh \| codex/gpt-5.5`                                                  |
+| `@cheaper`             | Lower-cost load-balanced pool selected automatically for extra-small phase/task workers.                | `claude/sonnet@medium \| codex/gpt-5.5@medium`                                          |
 | `@cheapest`            | Lowest-cost provider fallback available for explicit use.                                               | `claude/haiku \|\| codex/gpt-5.3-codex-spark`                                           |
 
 Override any role by configuring an alias of the same name. A common setup routes coder follow-ups to a second provider
@@ -733,8 +733,8 @@ llm_provider:
       codex_coder: claude/opus # Codex-authored plans hand coding to Claude
       big_epic_lander: codex/gpt-5.6-sol # large epic land agents only
       task_worker: "@default" # standalone tasks without size metadata
-      cheap: claude/opus@medium | codex/gpt-5.5
-      cheaper: claude/sonnet | codex/gpt-5.3-codex-spark
+      cheap: claude/sonnet@xhigh | codex/gpt-5.5
+      cheaper: claude/sonnet@medium | codex/gpt-5.5@medium
       cheapest: claude/haiku || codex/gpt-5.3-codex-spark
       medium_phase_worker: "@default@high"
       xsmall_phase_worker: "@cheaper"
@@ -970,8 +970,8 @@ llm_provider:
       default: opus
       claude_coder: codex/gpt-5.6-sol # Claude-authored plans hand coding to Codex
       codex_coder: claude/opus # Codex-authored plans hand coding to Claude
-      cheap: claude/opus@medium | codex/gpt-5.5
-      cheaper: claude/sonnet | codex/gpt-5.3-codex-spark
+      cheap: claude/sonnet@xhigh | codex/gpt-5.5
+      cheaper: claude/sonnet@medium | codex/gpt-5.5@medium
       cheapest: claude/haiku || codex/gpt-5.3-codex-spark
       medium_phase_worker: codex/gpt-5.6-sol@high # explicitly route medium phases to Codex
       smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # xlarge phase/epic fallback

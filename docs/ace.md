@@ -2143,10 +2143,10 @@ preview.
   that target through `@xlarge_phase_worker` → `@smartest` and `@big_epic_lander` → `@smartest`.
 - Leave `smartest` implicit — its `claude/claude-fable-5 || codex/gpt-5.6-sol` fallback prefers Claude when installed
   and otherwise selects Codex without changing load-balancing state.
-- Highlight `cheaper`, `e`, choose `Custom...`, enter `claude/sonnet | codex/gpt-5.3-codex-spark`, and confirm — xsmall
-  phases round-robin across installed providers while the panel continues to show the next selection without consuming
-  it.
-- Highlight `cheap`, `e`, choose `Custom...`, enter `claude/opus@medium | codex/gpt-5.5`, and confirm — small phases
+- Highlight `cheaper`, `e`, choose `Custom...`, enter `claude/sonnet@medium | codex/gpt-5.5@medium`, and confirm —
+  xsmall phases round-robin across installed providers while the panel continues to show the next selection without
+  consuming it.
+- Highlight `cheap`, `e`, choose `Custom...`, enter `claude/sonnet@xhigh | codex/gpt-5.5`, and confirm — small phases
   round-robin across this independent pool without consuming the `cheaper` cursor.
 - Highlight `cheapest`, `e`, choose `Custom...`, enter `claude/haiku || codex/gpt-5.3-codex-spark`, and confirm —
   explicit `@cheapest` launches use this independent provider fallback without consuming any pool cursor.

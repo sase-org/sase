@@ -58,10 +58,10 @@ aliases:
       Highest-capability model used automatically by extra-large phase agents
       and large epic landers.
   cheap:
-    target: "claude/opus@medium | codex/gpt-5.5"
+    target: "claude/sonnet@xhigh | codex/gpt-5.5"
     description: "Load-balanced pool used automatically by small phase agents."
   cheaper:
-    target: "claude/sonnet | codex/gpt-5.3-codex-spark"
+    target: "claude/sonnet@medium | codex/gpt-5.5@medium"
     description: >-
       Lower-cost load-balanced pool used automatically by extra-small phase
       agents.

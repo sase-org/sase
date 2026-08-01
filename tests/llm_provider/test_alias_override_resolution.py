@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import pytest
 
-from sase.llm_provider.config import resolve_model_alias
+from sase.llm_provider.config import (
+    resolve_model_alias,
+    resolve_model_alias_with_effort,
+)
 from sase.llm_provider.registry import (
     resolve_model_provider,
     resolve_model_provider_with_effort,
@@ -95,8 +98,16 @@ def test_stale_override_on_phase_worker_has_no_builtin_effect(
 
     set_alias_override("phase_worker", "codex/o3", None, source="panel")
     assert resolve_model_alias("@phase_worker") == "phase_worker"
-    assert resolve_model_provider("xsmall_phase_worker") == ("claude", "sonnet")
-    assert resolve_model_provider("small_phase_worker") == ("claude", "opus")
+    assert resolve_model_provider_with_effort("xsmall_phase_worker") == (
+        "claude",
+        "sonnet",
+        "medium",
+    )
+    assert resolve_model_provider_with_effort("small_phase_worker") == (
+        "claude",
+        "sonnet",
+        "xhigh",
+    )
     assert resolve_model_provider("medium_phase_worker") == ("claude", "opus")
     assert resolve_model_provider("large_phase_worker") == ("claude", "opus")
     assert resolve_model_provider("xlarge_phase_worker") == (
@@ -118,7 +129,11 @@ def test_size_specific_phase_override_is_independent(
 
     set_alias_override("large_phase_worker", "codex/o3", None, source="panel")
 
-    assert resolve_model_provider("small_phase_worker") == ("claude", "opus")
+    assert resolve_model_provider_with_effort("small_phase_worker") == (
+        "claude",
+        "sonnet",
+        "xhigh",
+    )
     assert resolve_model_provider("medium_phase_worker") == ("claude", "sonnet")
     assert resolve_model_provider("large_phase_worker") == ("codex", "o3")
 
@@ -280,5 +295,7 @@ def test_default_override_does_not_move_selector_backed_lanes(
 
     assert resolve_model_alias("@smartest") == "claude/claude-fable-5"
     assert resolve_model_alias("@xlarge_phase_worker") == "claude/claude-fable-5"
-    assert resolve_model_alias("@cheap") == "claude/opus"
-    assert resolve_model_alias("@small_phase_worker") == "claude/opus"
+    cheap = resolve_model_alias_with_effort("@cheap")
+    small = resolve_model_alias_with_effort("@small_phase_worker")
+    assert (cheap.target, cheap.effort) == ("claude/sonnet", "xhigh")
+    assert (small.target, small.effort) == ("claude/sonnet", "xhigh")

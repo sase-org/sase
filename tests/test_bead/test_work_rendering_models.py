@@ -8,6 +8,7 @@ import pytest
 
 from sase.bead.model import PhaseSize, Status
 from sase.bead.work import _build_epic_work_plan, render_multi_prompt
+from sase.llm_provider.config import resolve_model_alias_with_effort
 from sase.llm_provider.registry import resolve_model_provider
 from sase.xprompt.workflow_models import Workflow
 
@@ -373,8 +374,10 @@ class TestModelDirective:
         )
         assert stripped == pre_model_baseline
         assert_bare_auto_directives(rendered)
-        # The role aliases resolve through @default to the configured provider.
-        assert resolve_model_provider("@small_phase_worker") == ("claude", "opus")
+        # The selector-backed phase role preserves its pool member's effort.
+        small = resolve_model_alias_with_effort("@small_phase_worker")
+        assert (small.target, small.effort) == ("claude/sonnet", "xhigh")
+        # The lander role still resolves through @default.
         assert resolve_model_provider("@epic_lander") == ("claude", "opus")
 
     def test_model_does_not_inject_extra_directives(

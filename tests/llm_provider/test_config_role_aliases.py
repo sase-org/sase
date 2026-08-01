@@ -284,10 +284,14 @@ def test_epic_execution_role_aliases_follow_size_specific_fallbacks(
     assert resolve_model_alias("big_epic_lander") == "claude/claude-fable-5"
     assert resolve_model_alias("xlarge_phase_worker") == "claude/claude-fable-5"
     assert resolve_model_alias("large_phase_worker") == "codex/gpt-5.6-sol"
-    assert resolve_model_alias("small_phase_worker") == "claude/opus"
-    assert resolve_model_alias("xsmall_phase_worker") == "claude/sonnet"
-    assert resolve_model_alias("cheap") == "claude/opus"
-    assert resolve_model_alias("cheaper") == "claude/sonnet"
+    small = resolve_model_alias_with_effort("small_phase_worker")
+    xsmall = resolve_model_alias_with_effort("xsmall_phase_worker")
+    cheap = resolve_model_alias_with_effort("cheap")
+    cheaper = resolve_model_alias_with_effort("cheaper")
+    assert (small.target, small.effort) == ("claude/sonnet", "xhigh")
+    assert (xsmall.target, xsmall.effort) == ("claude/sonnet", "medium")
+    assert (cheap.target, cheap.effort) == ("claude/sonnet", "xhigh")
+    assert (cheaper.target, cheaper.effort) == ("claude/sonnet", "medium")
     assert resolve_model_alias("cheapest") == "claude/haiku"
 
 
@@ -352,7 +356,8 @@ def test_stale_phase_worker_builtin_does_not_control_medium_phase(
         },
     )
 
-    assert resolve_model_alias("small_phase_worker") == "claude/opus"
+    small = resolve_model_alias_with_effort("small_phase_worker")
+    assert (small.target, small.effort) == ("claude/sonnet", "xhigh")
     assert resolve_model_alias("medium_phase_worker") == "codex/gpt-5.6-sol"
     monkeypatch.setattr(
         "sase.llm_provider.config._resolved_target_is_available",
@@ -377,7 +382,8 @@ def test_configured_phase_size_alias_shadows_default_only_for_that_size(
         },
     )
 
-    assert resolve_model_alias("small_phase_worker") == "claude/opus"
+    small = resolve_model_alias_with_effort("small_phase_worker")
+    assert (small.target, small.effort) == ("claude/sonnet", "xhigh")
     assert resolve_model_alias("medium_phase_worker") == "claude/sonnet"
     assert resolve_model_alias("large_phase_worker") == "codex/o3"
 

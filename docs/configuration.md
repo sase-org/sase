@@ -997,8 +997,8 @@ llm_provider:
       claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
       codex_coder: claude/opus # coder follow-ups from Codex-authored plans
       big_epic_lander: codex/gpt-5.6-sol # specialize threshold-selected epic landers
-      cheap: claude/opus@medium | codex/gpt-5.5 # small-phase pool
-      cheaper: claude/sonnet | codex/gpt-5.3-codex-spark # xsmall-phase pool
+      cheap: claude/sonnet@xhigh | codex/gpt-5.5 # small-phase pool
+      cheaper: claude/sonnet@medium | codex/gpt-5.5@medium # xsmall-phase pool
       cheapest: claude/haiku || codex/gpt-5.3-codex-spark # explicit-use fallback
       medium_phase_worker: "@default@high" # follows @default at high effort
       large_phase_worker: "@smart"
