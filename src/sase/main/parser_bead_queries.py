@@ -233,13 +233,15 @@ def register_bead_show_parser(
             "dependencies, blockers, description, notes, ChangeSpec, and the "
             "linked plan. --format compact prints the same single row as "
             "'sase bead list'; --format json adds the resolved parent, child, "
-            "dependency, blocker, and plan graph as machine-readable data."
+            "dependency, blocker, and plan graph as machine-readable data. "
+            "--color now applies to --format full as well as compact."
         ),
         epilog=(
             "Examples:\n"
             "  sase bead show sase-64\n"
             "  sase bead show sase-64 --format compact\n"
-            "  sase bead show sase-64 --format json"
+            "  sase bead show sase-64 --format json\n"
+            "  sase bead show sase-64 --style rich --color always"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -256,6 +258,17 @@ def register_bead_show_parser(
         choices=["compact", "json", "full"],
         default="full",
         help="Output format: compact, json, or full (default: full)",
+    )
+    parser.add_argument(
+        "-S",
+        "--style",
+        choices=["auto", "plain", "color", "rich"],
+        default="auto",
+        help=(
+            "Styling level for --format full: auto, plain, color, or rich "
+            "(default: auto). --color decides whether ANSI may be emitted; "
+            "--style decides how much styling to apply"
+        ),
     )
     parser.add_argument("id", help="Full or shorthand issue ID")
 

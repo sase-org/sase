@@ -9,33 +9,10 @@ from typing import Literal, cast
 from rich.cells import cell_len
 from rich.text import Text
 
+from sase.ansi_style import ANSI_RESET as _ANSI_RESET
+from sase.ansi_style import xterm256_foreground_style
+
 BeadTypeValue = Literal["plan", "phase", "task"]
-
-_ANSI_RESET = "\x1b[0m"
-_XTERM_CUBE_LEVELS = (0, 95, 135, 175, 215, 255)
-
-
-def _xterm256_foreground_style(accent_color: str) -> str:
-    """Derive the ANSI SGR foreground escape for an xterm-256 cube color.
-
-    Deriving this from ``accent_color`` (rather than pinning a second literal)
-    is what keeps the CLI's ANSI output and the Rich accent from drifting
-    apart as colors are added or changed.
-    """
-    hex_value = accent_color.lstrip("#")
-    channels = (
-        int(hex_value[0:2], 16),
-        int(hex_value[2:4], 16),
-        int(hex_value[4:6], 16),
-    )
-    r, g, b = (
-        min(
-            range(len(_XTERM_CUBE_LEVELS)), key=lambda i: abs(_XTERM_CUBE_LEVELS[i] - c)
-        )
-        for c in channels
-    )
-    index = 16 + 36 * r + 6 * g + b
-    return f"\x1b[38;5;{index}m"
 
 
 @dataclass(frozen=True)
@@ -55,7 +32,7 @@ class _BeadTypePresentation:
     @property
     def cli_style(self) -> str:
         """Return the ANSI SGR foreground code matching ``accent_color``."""
-        return _xterm256_foreground_style(self.accent_color)
+        return xterm256_foreground_style(self.accent_color)
 
 
 BEAD_TYPE_PRESENTATIONS: dict[BeadTypeValue, _BeadTypePresentation] = {

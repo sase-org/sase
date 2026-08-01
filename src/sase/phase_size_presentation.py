@@ -7,6 +7,8 @@ from typing import Literal, cast
 
 from rich.text import Text
 
+from sase.ansi_style import xterm256_foreground_style
+
 PhaseSizeValue = Literal["xsmall", "small", "medium", "large", "xlarge"]
 
 PHASE_SIZE_VALUES: tuple[PhaseSizeValue, ...] = (
@@ -24,6 +26,16 @@ PHASE_SIZE_STYLES: dict[PhaseSizeValue, str] = {
     "xlarge": "bold white on #AF5FFF",
 }
 PHASE_SIZE_CHIP_WIDTH = max(len(f" {value} ") for value in PHASE_SIZE_VALUES)
+
+# CLI accents for each size, matching the hue embedded in PHASE_SIZE_STYLES so
+# ``sase bead show``'s ``Size:`` line and the TUI chips never drift apart.
+PHASE_SIZE_ACCENTS: dict[PhaseSizeValue, str] = {
+    "xsmall": "#5FD7AF",
+    "small": "#87D7FF",
+    "medium": "#FFD75F",
+    "large": "#D75F87",
+    "xlarge": "#AF5FFF",
+}
 
 
 def normalize_phase_size(value: object) -> PhaseSizeValue | None:
@@ -56,11 +68,21 @@ def phase_size_chip(
     )
 
 
+def phase_size_cli_style(value: object) -> str | None:
+    """Return the ANSI SGR foreground code for a phase size, or ``None``."""
+    normalized = normalize_phase_size(value)
+    if normalized is None:
+        return None
+    return xterm256_foreground_style(PHASE_SIZE_ACCENTS[normalized])
+
+
 __all__ = [
+    "PHASE_SIZE_ACCENTS",
     "PHASE_SIZE_CHIP_WIDTH",
     "PHASE_SIZE_STYLES",
     "PHASE_SIZE_VALUES",
     "PhaseSizeValue",
     "normalize_phase_size",
     "phase_size_chip",
+    "phase_size_cli_style",
 ]

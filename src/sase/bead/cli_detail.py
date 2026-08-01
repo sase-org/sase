@@ -11,9 +11,15 @@ from typing import Literal
 
 from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead.cli_common import status_icon
+from sase.bead.cli_dep_render import ANSI_BOLD_BLUE
+from sase.bead.cli_detail_prose import highlight_prose
+from sase.bead.cli_detail_style import DetailPalette, DetailStyle
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
 from sase.bead.project import BeadProject
+from sase.bead_status_presentation import bead_status_presentation
+from sase.bead_type_presentation import bead_type_presentation
 from sase.core.agent_identity_facade import present_agent_name
+from sase.phase_size_presentation import phase_size_cli_style
 
 
 @dataclass(frozen=True)
@@ -158,138 +164,222 @@ def render_issue_detail(
     reference_context: ArtifactRefContext | None = None,
     creator_url: str | None = None,
     page_url: str | None = None,
+    style: DetailStyle = DetailStyle.PLAIN,
 ) -> str:
-    """Render the established human-readable bead detail block."""
+    """Render the established human-readable bead detail block.
+
+    Styling is purely additive ANSI: for any *detail* and any *style*,
+    stripping SGR escapes from the output reproduces the ``DetailStyle.PLAIN``
+    bytes exactly. See ``sase/repos/plans/202608/bead_show_styling.md``.
+    """
     issue = detail.issue
+    palette = DetailPalette.for_style(style)
+    status = bead_status_presentation(issue.status)
     lines = [
         (
-            f"{status_icon(issue.status)} {issue.id} · {issue.title}"
-            f"   [{issue.status.value.upper()}]"
+            f"{palette.accent(status_icon(issue.status), status.cli_style)} "
+            f"{palette.accent(issue.id, ANSI_BOLD_BLUE)} "
+            f"{palette.separator('·')} {palette.title(issue.title)}"
+            f"   {palette.accent(f'[{issue.status.value.upper()}]', status.cli_style)}"
         )
     ]
-    tier = f" · Tier: {issue.tier.value}" if issue.tier else ""
+    type_value = palette.accent(
+        issue.issue_type.value, bead_type_presentation(issue.issue_type).cli_style
+    )
+    tier = (
+        f" {palette.separator('·')} {palette.label('Tier:')} "
+        f"{palette.tier(issue.tier.value)}"
+        if issue.tier
+        else ""
+    )
+    owner = issue.owner or palette.placeholder("(none)")
     lines.append(
-        f"Type: {issue.issue_type.value}{tier} · Owner: {issue.owner or '(none)'}"
+        f"{palette.label('Type:')} {type_value}{tier} "
+        f"{palette.separator('·')} {palette.label('Owner:')} {owner}"
     )
     if issue.assignee:
-        lines.append(f"Assignee: {issue.assignee}")
+        lines.append(f"{palette.label('Assignee:')} {issue.assignee}")
     if issue.status == Status.CLAIMED:
         lines.append(
-            f"Claimed by: {issue.assignee} (agent has not started working yet)"
+            f"{palette.label('Claimed by:')} {issue.assignee} "
+            "(agent has not started working yet)"
         )
     if issue.model:
-        lines.append(f"Model: {issue.model}")
+        lines.append(f"{palette.label('Model:')} {issue.model}")
     if issue.issue_type in {IssueType.PHASE, IssueType.TASK}:
-        lines.append(f"Size: {_phase_size_value(issue)}")
+        size_value = _phase_size_value(issue)
+        lines.append(
+            f"{palette.label('Size:')} "
+            f"{palette.accent(size_value, phase_size_cli_style(size_value))}"
+        )
 
     if issue.created_by:
         try:
             creator_label = present_agent_name(issue.created_by)
         except Exception:
             creator_label = issue.created_by
-        lines.extend(["", "CREATED BY", f"  {creator_label}"])
+        lines.extend(["", palette.section("CREATED BY"), f"  {creator_label}"])
         if creator_url:
-            lines.append(f"  → {creator_url}")
+            lines.append(f"  {palette.separator('→')} {palette.url(creator_url)}")
 
     if page_url:
-        lines.extend(["", "PAGE", f"  {page_url}"])
+        lines.extend(["", palette.section("PAGE"), f"  {palette.url(page_url)}"])
 
     if issue.status == Status.CLOSED:
+        resolution_value = (
+            issue.resolution.value
+            if issue.resolution
+            else palette.placeholder("(unrecorded)")
+        )
+        close_reason_value = issue.close_reason or palette.placeholder("(none)")
+        closed_at_value = issue.closed_at or palette.placeholder("(unknown)")
         lines.extend(
             [
                 "",
-                "RESOLUTION",
-                (
-                    "  Resolution: "
-                    f"{issue.resolution.value if issue.resolution else '(unrecorded)'}"
-                ),
-                f"  Close reason: {issue.close_reason or '(none)'}",
-                f"  Closed at: {issue.closed_at or '(unknown)'}",
+                palette.section("RESOLUTION"),
+                f"  {palette.label('Resolution:')} {resolution_value}",
+                f"  {palette.label('Close reason:')} {close_reason_value}",
+                f"  {palette.label('Closed at:')} {closed_at_value}",
             ]
         )
 
     if issue.parent_id:
-        lineage = [issue.id]
+        lineage = [palette.accent(issue.id, ANSI_BOLD_BLUE)]
         for ancestor in detail.ancestors:
             if ancestor.issue is None:
-                lineage.append(f"{ancestor.issue_id} (not found)")
+                lineage.append(
+                    f"{palette.accent(ancestor.issue_id, ANSI_BOLD_BLUE)} "
+                    f"{palette.dangling('(not found)')}"
+                )
             else:
-                lineage.append(f"{_lineage_kind(ancestor.issue)} {ancestor.issue.id}")
-        lines.extend(["", "PARENT", f"  ↑ {' ← '.join(lineage)}"])
+                lineage.append(
+                    f"{_lineage_kind(ancestor.issue)} "
+                    f"{palette.accent(ancestor.issue.id, ANSI_BOLD_BLUE)}"
+                )
+        arrow = f" {palette.separator('←')} "
+        lines.extend(
+            [
+                "",
+                palette.section("PARENT"),
+                f"  {palette.separator('↑')} {arrow.join(lineage)}",
+            ]
+        )
 
     if detail.phases or detail.child_epics:
-        lines.extend(["", "CHILDREN"])
+        lines.extend(["", palette.section("CHILDREN")])
         if detail.phases:
-            lines.append("  PHASES")
+            lines.append(f"  {palette.subsection('PHASES')}")
             for child_ref in detail.phases:
                 child = child_ref.issue
                 assert child is not None
+                child_status = bead_status_presentation(child.status)
+                child_size = _phase_size_value(child)
                 lines.append(
-                    f"    {status_icon(child.status)} {child.id}: {child.title}"
-                    f"   [{child.status.value.upper()}]"
-                    f" · Size: {_phase_size_value(child)}"
+                    f"    {palette.accent(status_icon(child.status), child_status.cli_style)}"
+                    f" {palette.accent(child.id, ANSI_BOLD_BLUE)}: {child.title}"
+                    "   "
+                    f"{palette.accent(f'[{child.status.value.upper()}]', child_status.cli_style)}"
+                    f" {palette.separator('·')} {palette.label('Size:')} "
+                    f"{palette.accent(child_size, phase_size_cli_style(child_size))}"
                 )
         if detail.child_epics:
-            lines.append("  CHILD EPICS")
+            lines.append(f"  {palette.subsection('CHILD EPICS')}")
             for child_ref in detail.child_epics:
                 child = child_ref.issue
                 assert child is not None
-                child_tier = child.tier.value if child.tier else "(none)"
+                child_status = bead_status_presentation(child.status)
+                child_tier = (
+                    palette.tier(child.tier.value)
+                    if child.tier
+                    else palette.placeholder("(none)")
+                )
                 lines.append(
-                    f"    {status_icon(child.status)} {child.id}: {child.title}"
-                    f"   [{child.status.value.upper()}] · Tier: {child_tier}"
+                    f"    {palette.accent(status_icon(child.status), child_status.cli_style)}"
+                    f" {palette.accent(child.id, ANSI_BOLD_BLUE)}: {child.title}"
+                    "   "
+                    f"{palette.accent(f'[{child.status.value.upper()}]', child_status.cli_style)}"
+                    f" {palette.separator('·')} {palette.label('Tier:')} {child_tier}"
                 )
 
     if detail.depends_on:
-        lines.extend(["", "DEPENDS ON"])
+        lines.extend(["", palette.section("DEPENDS ON")])
         for dependency in detail.depends_on:
             dep_issue = dependency.issue
             if dep_issue is None:
-                lines.append(f"  → {dependency.issue_id} (not found)")
-            else:
                 lines.append(
-                    f"  → {status_icon(dep_issue.status)} {dep_issue.id}:"
-                    f" {dep_issue.title}   [{dep_issue.status.value.upper()}]"
+                    f"  {palette.separator('→')} "
+                    f"{palette.accent(dependency.issue_id, ANSI_BOLD_BLUE)} "
+                    f"{palette.dangling('(not found)')}"
+                )
+            else:
+                dep_status = bead_status_presentation(dep_issue.status)
+                lines.append(
+                    f"  {palette.separator('→')} "
+                    f"{palette.accent(status_icon(dep_issue.status), dep_status.cli_style)}"
+                    f" {palette.accent(dep_issue.id, ANSI_BOLD_BLUE)}:"
+                    f" {dep_issue.title}   "
+                    f"{palette.accent(f'[{dep_issue.status.value.upper()}]', dep_status.cli_style)}"
                 )
 
     if detail.blocks:
-        lines.extend(["", "BLOCKS"])
+        lines.extend(["", palette.section("BLOCKS")])
         for blocked_ref in detail.blocks:
             blocked = blocked_ref.issue
             if blocked is None:
-                lines.append(f"  ← {blocked_ref.issue_id} (not found)")
-            else:
                 lines.append(
-                    f"  ← {status_icon(blocked.status)} {blocked.id}:"
-                    f" {blocked.title}   [{blocked.status.value.upper()}]"
+                    f"  {palette.separator('←')} "
+                    f"{palette.accent(blocked_ref.issue_id, ANSI_BOLD_BLUE)} "
+                    f"{palette.dangling('(not found)')}"
+                )
+            else:
+                blocked_status = bead_status_presentation(blocked.status)
+                lines.append(
+                    f"  {palette.separator('←')} "
+                    f"{palette.accent(status_icon(blocked.status), blocked_status.cli_style)}"
+                    f" {palette.accent(blocked.id, ANSI_BOLD_BLUE)}:"
+                    f" {blocked.title}   "
+                    f"{palette.accent(f'[{blocked.status.value.upper()}]', blocked_status.cli_style)}"
                 )
 
     if issue.description:
-        lines.extend(["", "DESCRIPTION", f"  {issue.description}"])
+        lines.extend(
+            [
+                "",
+                palette.section("DESCRIPTION"),
+                f"  {highlight_prose(issue.description, style=style)}",
+            ]
+        )
     if issue.notes:
-        lines.extend(["", "NOTES", f"  {issue.notes}"])
+        lines.extend(
+            [
+                "",
+                palette.section("NOTES"),
+                f"  {highlight_prose(issue.notes, style=style)}",
+            ]
+        )
     if issue.issue_type == IssueType.PLAN and (
         issue.changespec_name or issue.changespec_bug_id
     ):
-        lines.extend(["", "CHANGESPEC"])
+        lines.extend(["", palette.section("CHANGESPEC")])
         if issue.changespec_name:
-            lines.append(f"  Name: {issue.changespec_name}")
+            lines.append(f"  {palette.label('Name:')} {issue.changespec_name}")
         if issue.changespec_bug_id:
-            lines.append(f"  Bug ID: {issue.changespec_bug_id}")
+            lines.append(f"  {palette.label('Bug ID:')} {issue.changespec_bug_id}")
 
     if detail.plan is not None:
         plan = detail.plan
-        lines.extend(["", plan.section])
+        lines.extend(["", palette.section(plan.section)])
         if plan.from_ref is not None:
             resolved_parent = plan.from_ref.issue
             assert resolved_parent is not None
             parent_kind = "epic" if resolved_parent.tier == BeadTier.EPIC else "plan"
             lines.append(
-                f"  From parent {parent_kind} bead "
-                f"{resolved_parent.id} · {resolved_parent.title}"
+                f"  {palette.separator(f'From parent {parent_kind} bead')} "
+                f"{palette.accent(resolved_parent.id, ANSI_BOLD_BLUE)} "
+                f"{palette.separator('·')} {resolved_parent.title}"
             )
         lines.extend(
-            f"  {line}"
+            f"  {palette.path(line)}"
             for line in _display_design_path(
                 plan.path,
                 relativize=relativize_design,
@@ -313,9 +403,10 @@ def render_issue_detail(
                 )
             except (OSError, RuntimeError, ValueError):
                 pass
-        lines.extend(["", "REFS"])
+        lines.extend(["", palette.section("REFS")])
         lines.extend(
-            f"  {line}" for line in artifact_ref_list_display_lines(resolved_refs)
+            f"  {palette.path(line)}"
+            for line in artifact_ref_list_display_lines(resolved_refs)
         )
 
     return "\n".join(lines) + "\n"

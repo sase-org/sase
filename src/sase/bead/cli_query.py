@@ -23,6 +23,7 @@ from sase.bead.cli_detail import (
     resolve_bead_page_url,
     resolve_issue_detail,
 )
+from sase.bead.cli_detail_style import DetailStyle, resolve_detail_style
 from sase.bead.model import (
     BeadSearchMatch,
     BeadTier,
@@ -125,10 +126,18 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
 
+        style = resolve_detail_style(
+            style=getattr(args, "style", "auto"),
+            color=getattr(args, "color", "auto"),
+        )
         match args.format:
             case "compact":
-                use_color = resolve_color(getattr(args, "color", "auto"))
-                print(_render_list_compact([issue], use_color=use_color), end="")
+                print(
+                    _render_list_compact(
+                        [issue], use_color=style is not DetailStyle.PLAIN
+                    ),
+                    end="",
+                )
             case "json":
                 detail = resolve_issue_detail(view, issue)
                 print(
@@ -158,6 +167,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                             else None
                         ),
                         page_url=resolve_bead_page_url(issue.id),
+                        style=style,
                     ),
                     end="",
                 )

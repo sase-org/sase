@@ -809,10 +809,30 @@ envelope with `issue`, `ancestors`, `children`, `depends_on`, `blocks`, and `pla
 URL resolves and `created_by_url` when the creator's hosted agent page resolves; every relationship reference includes a
 `resolved` flag and fixed null-valued fields for unresolved IDs.
 
-| Flag           | Values                    | Description                       |
-| -------------- | ------------------------- | --------------------------------- |
-| `-c, --color`  | `auto`, `always`, `never` | Color mode for compact output     |
-| `-f, --format` | `compact`, `json`, `full` | Output format; defaults to `full` |
+`--format full` renders a semantically colored, syntax-highlighted detail block controlled by `-S/--style`. Styling is
+purely additive ANSI: stripping SGR escapes from any styled output reproduces the exact `plain` bytes, so piping to a
+non-TTY (as every agent does) is unaffected. `--color` decides **whether** ANSI may be emitted; `--style` decides **how
+much** styling to apply once that gate is open:
+
+| `--style` | Meaning                                                                                               |
+| --------- | ----------------------------------------------------------------------------------------------------- |
+| `auto`    | Resolve to `rich` when color is enabled, else `plain`. Default.                                       |
+| `plain`   | No ANSI at all, regardless of `--color`.                                                              |
+| `color`   | Semantic palette on structural chrome (glyphs, IDs, section headers, labels, statuses, sizes, paths). |
+| `rich`    | `color` plus markdown/code syntax highlighting inside `DESCRIPTION` and `NOTES`.                      |
+
+`--style` has no effect on `--format json`, which is never styled. For `--format compact`, `plain` forces no ANSI while
+`color` and `rich` are equivalent (there is no prose to highlight in a compact row).
+
+```bash
+sase bead show sase-64 --style rich --color always
+```
+
+| Flag           | Values                           | Description                                           |
+| -------------- | -------------------------------- | ----------------------------------------------------- |
+| `-c, --color`  | `auto`, `always`, `never`        | Color mode; now applies to `--format full` too        |
+| `-f, --format` | `compact`, `json`, `full`        | Output format; defaults to `full`                     |
+| `-S, --style`  | `auto`, `plain`, `color`, `rich` | Styling level for `--format full`; defaults to `auto` |
 
 ### `sase bead stats`
 
