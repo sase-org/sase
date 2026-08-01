@@ -939,7 +939,7 @@ defaults. Common entries include:
 | `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                         |
 | `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                        |
 | `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`; uses the default queue priority                         |
-| `#bd/work_task`       | Task-agent prompt used by `sase bead work`; carries wait priority 15                                     |
+| `#bd/work_task`       | Task-agent prompt used by `sase bead work`; uses the default queue priority                              |
 | `#bd/land_epic`       | Final land agent prompt used by `sase bead work`; uses the default queue priority after dependency waits |
 | `#bd/review/plan`     | Plan-review helper for an epic plan                                                                      |
 | `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                                    |
@@ -961,6 +961,10 @@ the declared parent order while removing duplicates.
 To see the exact body of any built-in inline xprompt, run `sase xprompt expand --trace '#<name>'` or browse the catalog
 with `sase xprompt catalog`. Use `sase xprompt explain <name>` for workflows; the explain command takes the workflow
 name without a `#` or `#!` marker.
+
+Bundled task, phase, and lander workers do not author a priority wait, so they use the runner's default priority (`10`)
+when otherwise eligible. Higher-precedence project, user, config, and plugin overrides supply their own bodies and may
+choose a different priority.
 
 ### Bundled Follow-Up XPrompts
 

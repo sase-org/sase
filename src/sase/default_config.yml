@@ -980,7 +980,6 @@ xprompts:
     input:
       bead_id: word
     content: |
-      %wait(priority=15)
       Can you complete the work for task bead {{ bead_id }}? The bead is already reserved for you and assigned to your
       agent name: it was set to status=in_progress by the launch that started you; do not set the status by hand. Run
       `sase bead show {{ bead_id }}`, read the description and notes, do the work, and close the bead with

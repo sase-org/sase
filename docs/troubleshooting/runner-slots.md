@@ -19,10 +19,9 @@ later launch whose higher threshold currently permits it to run. Parallel family
 renders them as nested rows. Serial family follow-ups are exempt so a running parent can safely wait for child work;
 workflow Python/bash steps and axe ChangeSpec runners are exempt as well.
 
-The bundled epic phase and lander xprompts used by `sase bead work` do not set an authored wait priority. They use the
-default priority (`10`) once their rendered phase-DAG and bead-dependency waits resolve. The independent bundled
-`#bd/work_task` xprompt still carries `%wait(priority=15)` for standalone task-bead work. A project, user, or plugin
-override of any bundled xprompt supplies its own body and may choose a different priority.
+The bundled task, epic phase, and lander xprompts used by `sase bead work` do not set an authored wait priority. They
+use the default priority (`10`) once their rendered phase-DAG, bead-dependency, or other waits resolve. A project, user,
+config, or plugin override of any bundled xprompt supplies its own body and may choose a different priority.
 
 Selecting a ranked waiter in ACE also shows a bounded `QUEUE` ladder. Its `N ahead` count includes only earlier entries
 whose runner threshold is greater than or equal to the selected waiter's threshold—the entries that become eligible no
