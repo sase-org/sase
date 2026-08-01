@@ -11,7 +11,6 @@ from sase.sdd.files import (
     write_sdd_files,
     write_sdd_spec,
 )
-from sase.sdd._paths import get_yyyymm
 from sase.sdd.artifact_links import parse_sdd_artifact_link
 from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
 
@@ -52,31 +51,39 @@ def test_write_sdd_files() -> None:
 
 def test_write_sdd_files_supports_flat_sidecar_plans_root(tmp_path: Path) -> None:
     source = tmp_path / "source.md"
-    source.write_text("# Plan\n", encoding="utf-8")
+    source.write_text(
+        "---\n"
+        "tier: tale\n"
+        "title: Flat sidecar plan\n"
+        "goal: Preserve canonical links in a flat plans sidecar\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
     plans_root = tmp_path / "repo--plans"
 
-    prompt, plan = write_sdd_files(
-        plans_root,
-        "flat_plan",
-        "# Prompt\n",
-        str(source),
-        plans_root=plans_root,
-    )
+    with patch("sase.sdd.files.get_yyyymm", return_value="202608"):
+        prompt, plan = write_sdd_files(
+            plans_root,
+            "flat_plan",
+            "# Prompt\n",
+            str(source),
+            plans_root=plans_root,
+        )
 
-    assert prompt == plans_root / get_yyyymm() / "prompts" / "flat_plan.md"
-    assert plan == plans_root / get_yyyymm() / "flat_plan.md"
+    assert prompt == plans_root / "202608" / "prompts" / "flat_plan.md"
+    assert plan == plans_root / "202608" / "flat_plan.md"
     prompt_text = prompt.read_text(encoding="utf-8")
     plan_text = plan.read_text(encoding="utf-8")
     prompt_fm, _, _ = parse_frontmatter(prompt_text)
     plan_fm, _, _ = parse_frontmatter(plan_text)
     assert "plan" not in prompt_fm
     assert "prompt" not in plan_fm
+    assert plan_fm["title"] == "Flat sidecar plan"
+    assert plan_fm["goal"] == "Preserve canonical links in a flat plans sidecar"
+    assert "- **PLAN:** [../202608/flat_plan.md](../flat_plan.md)" in prompt_text
     assert (
-        f"- **PLAN:** [../{get_yyyymm()}/flat_plan.md](../flat_plan.md)" in prompt_text
-    )
-    assert (
-        f"- **PROMPT:** [{get_yyyymm()}/prompts/flat_plan.md]"
-        "(prompts/flat_plan.md)" in plan_text
+        "- **PROMPT:** [202608/prompts/flat_plan.md](prompts/flat_plan.md)" in plan_text
     )
 
 
@@ -88,30 +95,43 @@ def test_write_sdd_files_rebases_seeded_parent_section(tmp_path: Path) -> None:
     from sase.sdd.plan_header_writes import upsert_parent_plan_section
 
     plans_root = tmp_path / "plans"
-    parent = plans_root / "202607" / "parent.md"
+    parent = plans_root / "202608" / "parent.md"
     parent.parent.mkdir(parents=True)
     parent.write_text("# Parent\n", encoding="utf-8")
     source = tmp_path / "source.md"
     source.write_text(
-        upsert_parent_plan_section("# Child\n", "plans:202607/parent.md"),
+        upsert_parent_plan_section(
+            "---\n"
+            "tier: tale\n"
+            "title: Child plan\n"
+            "goal: Preserve and rebase the parent plan link\n"
+            "---\n"
+            "# Child\n",
+            "plans:202608/parent.md",
+        ),
         encoding="utf-8",
     )
 
-    _prompt, plan = write_sdd_files(
-        tmp_path,
-        "child",
-        "# Prompt\n",
-        str(source),
-        plans_root=plans_root,
-    )
+    with patch("sase.sdd.files.get_yyyymm", return_value="202608"):
+        _prompt, plan = write_sdd_files(
+            tmp_path,
+            "child",
+            "# Prompt\n",
+            str(source),
+            plans_root=plans_root,
+        )
 
-    parsed = parse_plan_header_block(plan.read_text(encoding="utf-8"))
+    plan_text = plan.read_text(encoding="utf-8")
+    plan_fm, _, _ = parse_frontmatter(plan_text)
+    assert plan_fm["title"] == "Child plan"
+    assert plan_fm["goal"] == "Preserve and rebase the parent plan link"
+    parsed = parse_plan_header_block(plan_text)
     assert [section.kind for section in parsed.sections] == [
         PlanHeaderSectionKind.PROMPT,
         PlanHeaderSectionKind.PARENT,
     ]
     parent_section = parsed.sections[1]
-    assert parent_section.label == "202607/parent.md"
+    assert parent_section.label == "202608/parent.md"
     assert parent_section.target == "parent.md"
 
 
