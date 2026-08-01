@@ -36,18 +36,15 @@ def run_agent_publication_step(
             )
         cp.completed_steps.append("publish_bead_pages")
         checkpoint_save(cp)
-    if "publish_agent_hood" in cp.completed_steps:
-        return True
-
     from sase.agents_sync.commit_publication import (
         refresh_committed_plan_header,
     )
 
-    refresh_committed_plan_header(
-        str(cp.payload.get("message") or ""),
-        primary_root=cp.cwd,
-    )
     if not cp.publication_agent:
+        refresh_committed_plan_header(
+            str(cp.payload.get("message") or ""),
+            primary_root=cp.cwd,
+        )
         return True
 
     if not cp.primary_revision:
@@ -74,6 +71,43 @@ def run_agent_publication_step(
             return False
         cp.primary_revision = revision.strip()
         checkpoint_save(cp)
+
+    if "publish_prompt_archive" not in cp.completed_steps:
+        from sase.agents_sync.prompt_archive import publish_prompt_archive
+
+        try:
+            prompt_outcome = publish_prompt_archive(
+                cp.publication_agent,
+                cp.primary_revision,
+                commit_cwd=cp.cwd,
+            )
+            if prompt_outcome.error:
+                print_status(
+                    "The primary commit succeeded, but prompt archive "
+                    f"publication was deferred: {prompt_outcome.error}",
+                    "warning",
+                )
+            elif prompt_outcome.skip_reason:
+                print_status(
+                    "The primary commit succeeded, but prompt archive "
+                    f"publication was skipped: {prompt_outcome.skip_reason}.",
+                    "warning",
+                )
+        except Exception as exc:  # noqa: BLE001 - best-effort projection.
+            print_status(
+                "The primary commit succeeded, but prompt archive publication "
+                f"was deferred: {exc}",
+                "warning",
+            )
+        cp.completed_steps.append("publish_prompt_archive")
+        checkpoint_save(cp)
+
+    refresh_committed_plan_header(
+        str(cp.payload.get("message") or ""),
+        primary_root=cp.cwd,
+    )
+    if "publish_agent_hood" in cp.completed_steps:
+        return True
 
     from sase.agents_sync.commit_publication import (
         publish_committed_agent_hood,

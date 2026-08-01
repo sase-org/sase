@@ -17,6 +17,7 @@ from sase.agents_sync.inventory import (
     ProjectHoodInventory,
     build_project_hood_inventory,
 )
+from sase.agents_sync.inventory_models import InventoryRun
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.publication import publish_agent_hood
 from sase.agents_sync.publication_outbox import (
@@ -84,7 +85,7 @@ def publish_committed_agent_hood(
 
     selector = project
     if selector is None and commit_cwd is not None:
-        selector = _resolve_publication_project_key(
+        selector = resolve_publication_project_key(
             commit_cwd,
             git_runner=git_runner,
         )
@@ -206,7 +207,7 @@ def _retired_count(items: tuple[AgentPublicationOutboxItem, ...]) -> int:
     return sum(item.terminal for item in items)
 
 
-def _resolve_publication_project_key(
+def resolve_publication_project_key(
     commit_cwd: Path | str,
     *,
     git_runner: GitRunner = run_git,
@@ -340,7 +341,10 @@ def _publish_queued_transaction(
     if not prepared:
         return _DrainResult(item_errors=item_errors)
     commit_result = git_sync.commit_agents_payload_if_dirty(
-        target.sidecar_path, owner, git_runner
+        target.sidecar_path,
+        owner,
+        git_runner,
+        extra_paths=("prompts", "artifacts"),
     )
     if isinstance(commit_result, str):
         return _DrainResult(
@@ -421,7 +425,10 @@ def _publish_queued_transaction(
     if not retry_prepared:
         return _DrainResult(item_errors=all_item_errors)
     retry_commit = git_sync.commit_agents_payload_if_dirty(
-        target.sidecar_path, owner, git_runner
+        target.sidecar_path,
+        owner,
+        git_runner,
+        extra_paths=("prompts", "artifacts"),
     )
     if isinstance(retry_commit, str):
         return _DrainResult(
@@ -460,6 +467,7 @@ def _prepare_publications(
     requests_by_hood: dict[str, list[AgentPublicationOutboxItem]] = {}
     prepared: list[AgentPublicationOutboxItem] = []
     errors: list[str] = []
+    prompt_runs = _prompt_runs_by_request(inventory, identity)
     for request in requests:
         requests_by_hood.setdefault(request.local_hood, []).append(request)
 
@@ -475,6 +483,13 @@ def _prepare_publications(
                 inventory=inventory,
                 git_runner=git_runner,
             )
+            for hood_request in hood_requests:
+                _prepare_prompt_archive_retry(
+                    target,
+                    hood_request,
+                    git_runner,
+                    prompt_runs=prompt_runs,
+                )
             published_by_hood[request.local_hood] = hood_requests
         except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
             error = f"could not publish agent hood {request.local_hood!r}: {exc}"
@@ -546,6 +561,52 @@ def _prepare_publications(
     )
 
 
+def _prepare_prompt_archive_retry(
+    target: ProjectTarget,
+    request: AgentPublicationOutboxItem,
+    git_runner: GitRunner,
+    *,
+    prompt_runs: dict[tuple[str, str], InventoryRun],
+) -> None:
+    """Regenerate one queued prompt archive in the active sidecar transaction."""
+
+    matching = prompt_runs.get((request.local_agent, request.primary_revision))
+    if matching is None or matching.source_label is None:
+        return
+    artifacts_dir = Path(matching.source_label)
+    if not (artifacts_dir / "raw_xprompt.md").is_file():
+        return
+    from sase.agents_sync.prompt_archive.publish import prepare_prompt_archive
+
+    prepare_prompt_archive(
+        target=target,
+        repo=target.sidecar_path,
+        agent_name=matching.local_name,
+        global_agent=matching.global_name,
+        primary_revision=request.primary_revision,
+        commit_cwd=target.primary_checkout,
+        agent_artifacts_dir=artifacts_dir,
+        git_runner=git_runner,
+    )
+
+
+def _prompt_runs_by_request(
+    inventory: ProjectHoodInventory,
+    identity: AgentIdentitySnapshot,
+) -> dict[tuple[str, str], InventoryRun]:
+    indexed: dict[tuple[str, str], InventoryRun] = {}
+    for run in inventory.runs:
+        local_name = getattr(run, "local_name", None)
+        if not isinstance(local_name, str):
+            continue
+        lane = lane_ref_for_agent(local_name, identity).local_name
+        for commit in getattr(run, "commits", ()):
+            sha = getattr(commit, "sha", None)
+            if isinstance(sha, str):
+                indexed.setdefault((lane, sha), run)
+    return indexed
+
+
 def _record_failure(
     target: ProjectTarget,
     error: str,
@@ -587,4 +648,5 @@ __all__ = [
     "PlanHeaderRefreshOutcome",
     "publish_committed_agent_hood",
     "refresh_committed_plan_header",
+    "resolve_publication_project_key",
 ]

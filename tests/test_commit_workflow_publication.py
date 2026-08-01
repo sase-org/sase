@@ -9,9 +9,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.agents_sync.commit_publication import _CommitPublicationOutcome
+from sase.agents_sync.prompt_archive import PromptArchivePublicationOutcome
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.commit_footer_facade import LinkedCommitTagValue
+from sase.workflows.commit.checkpoint import CommitCheckpoint
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
+from sase.workflows.commit.workflow_publication import run_agent_publication_step
 from tests._commit_workflow_fixtures import (
     commit_artifacts_dir,  # noqa: F401 (registers artifacts_dir fixture)
     make_provider,
@@ -19,6 +22,48 @@ from tests._commit_workflow_fixtures import (
 )
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
+
+
+def test_prompt_archive_precedes_plan_refresh_and_hood_publication(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    order: list[str] = []
+    cp = CommitCheckpoint(
+        method="create_commit",
+        payload={"message": "fix: archive"},
+        cwd=str(tmp_path),
+        primary_revision="a" * 40,
+        publication_agent="worker",
+        completed_steps=["publish_bead_pages"],
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.publish_prompt_archive",
+        lambda *_args, **_kwargs: (
+            order.append("archive") or PromptArchivePublicationOutcome(published=True)
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.commit_publication.refresh_committed_plan_header",
+        lambda *_args, **_kwargs: order.append("refresh"),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+        lambda *_args, **_kwargs: (
+            order.append("hood") or _CommitPublicationOutcome(published=True)
+        ),
+    )
+
+    assert run_agent_publication_step(
+        cp,
+        "create_commit",
+        checkpoint_save=lambda _cp: None,
+        get_vcs_provider=lambda _cwd: pytest.fail("revision is already resolved"),
+    )
+
+    assert order == ["archive", "refresh", "hood"]
+    assert "publish_prompt_archive" in cp.completed_steps
+    assert "publish_agent_hood" in cp.completed_steps
 
 
 @pytest.fixture(autouse=True)

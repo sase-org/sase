@@ -1,0 +1,287 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+
+import pytest
+import sase_core_rs
+
+from sase.agents_sync.models import ProjectTarget, SyncOutcome, TargetSelection
+from sase.agents_sync.prompt_archive import publish as archive_publish
+from sase.agents_sync.prompt_archive.naming import resolve_prompt_name
+from sase.agents_sync.prompt_archive.paths import relative_artifact_link
+from sase.agents_sync.prompt_archive.publish import (
+    prepare_prompt_archive,
+    publish_prompt_archive,
+)
+from sase.core.agent_identity_facade import AgentOwnerIdentity
+from tests.agents_sync.commit_publication_fixtures import git, setup_target
+
+
+class _HostedLinks:
+    def agent_url(self, name: str) -> str:
+        return f"https://example.test/agents/{name}"
+
+    def plan_url(self, plan_ref: str) -> str:
+        return f"https://example.test/plans/{plan_ref.removeprefix('plans:')}"
+
+    def blob_url_for_repository(
+        self,
+        _root: Path,
+        revision: str,
+        path: str,
+    ) -> str:
+        return f"https://example.test/blob/{revision}/{path}"
+
+    def commit_url_for_repository(self, _root: Path, sha: str) -> str:
+        return f"https://example.test/commit/{sha}"
+
+
+def _record(
+    *,
+    artifacts_dir: Path,
+    raw_ref: str,
+    label: str,
+    sha256: str | None = None,
+    pool_relpath: str | None = None,
+    vcs_repo: str | None = None,
+    vcs_relpath: str | None = None,
+    ref_kind: str = "file",
+    locator: str | None = None,
+) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "recorded_at": "2026-08-01T14:22:03Z",
+        "agent_artifacts_dir": str(artifacts_dir),
+        "raw_ref": raw_ref,
+        "expanded_ref": raw_ref,
+        "ref_kind": ref_kind,
+        "label": label,
+        "source_path": None,
+        "sha256": sha256,
+        "size_bytes": None,
+        "mime_type": None,
+        "pool_relpath": pool_relpath,
+        "vcs_repo": vcs_repo,
+        "vcs_relpath": vcs_relpath,
+        "locator": locator,
+        "skipped_reason": None,
+    }
+
+
+def _write_manifest(workspace: Path, rows: list[dict[str, object]]) -> None:
+    path = workspace / ".sase/artifacts/prompt-artifacts.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(
+            f"{sase_core_rs.prompt_artifact_manifest_render_record(row)}\n"
+            for row in rows
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    artifacts_dir = tmp_path / "runs/20260801120000"
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "workspace_dir": str(workspace),
+                "sdd_plan_path": "plans:202608/example_plan.md",
+            }
+        )
+    )
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        "Use @~/diagram.png, @src/demo.py, and @bug:proj#7.\n"
+    )
+
+    content = b"diagram bytes"
+    digest = hashlib.sha256(content).hexdigest()
+    pool_name = sase_core_rs.prompt_artifact_pool_filename(digest, "diagram.png")
+    pool = workspace / ".sase/artifacts/pool" / pool_name
+    pool.parent.mkdir(parents=True)
+    pool.write_bytes(content)
+    rows = [
+        _record(
+            artifacts_dir=artifacts_dir,
+            raw_ref="@~/diagram.png",
+            label="diagram.png",
+            sha256=digest,
+            pool_relpath=f"pool/{pool_name}",
+        ),
+        _record(
+            artifacts_dir=artifacts_dir,
+            raw_ref="@src/demo.py",
+            label="src/demo.py",
+            sha256="b" * 64,
+            vcs_repo="primary",
+            vcs_relpath="src/demo.py",
+        ),
+        _record(
+            artifacts_dir=artifacts_dir,
+            raw_ref="@bug:proj#7",
+            label="proj#7",
+            ref_kind="bug",
+            locator="https://example.test/issues/7",
+        ),
+    ]
+    _write_manifest(workspace, rows)
+
+    repo = tmp_path / "agents"
+    repo.mkdir()
+    target = ProjectTarget(
+        "proj",
+        "Project",
+        workspace,
+        (workspace,),
+        repo,
+        "git@example.test:project/agents.git",
+    )
+    hosted = _HostedLinks()
+    monkeypatch.setattr(archive_publish, "_hosted_resolver", lambda *_a: hosted)
+    monkeypatch.setattr(
+        archive_publish,
+        "_repository_roots",
+        lambda: {"primary": workspace.resolve()},
+    )
+    monkeypatch.setattr("sase.file_references.format_with_prettier", lambda text: text)
+
+    first = prepare_prompt_archive(
+        target=target,
+        repo=repo,
+        agent_name="worker",
+        global_agent="alice.athena.worker",
+        primary_revision="a" * 40,
+        commit_cwd=workspace,
+        agent_artifacts_dir=artifacts_dir,
+    )
+    first_bytes = first.prompt_path.read_bytes()
+    second = prepare_prompt_archive(
+        target=target,
+        repo=repo,
+        agent_name="worker",
+        global_agent="alice.athena.worker",
+        primary_revision="a" * 40,
+        commit_cwd=workspace,
+        agent_artifacts_dir=artifacts_dir,
+    )
+
+    assert first.prompt_path == repo / "prompts/202608/example_plan.md"
+    assert second.prompt_path == first.prompt_path
+    assert second.prompt_path.read_bytes() == first_bytes
+    document = first.prompt_path.read_text()
+    assert (
+        f"[@~/diagram.png]({relative_artifact_link('202608', pool_name)})" in document
+    )
+    assert (
+        f"[@src/demo.py](https://example.test/blob/{'a' * 40}/src/demo.py)" in document
+    )
+    assert "[@bug:proj#7](https://example.test/issues/7)" in document
+    assert (repo / "artifacts/202608" / pool_name).read_bytes() == content
+    index = (repo / "prompts/202608/README.md").read_text()
+    assert "[example_plan.md](example_plan.md)" in index
+    assert "| 3 |" in index
+
+
+def test_prompt_name_reuses_same_run_and_suffixes_another_run() -> None:
+    listing = ("plan.md", "plan_1.md")
+    assert resolve_prompt_name("plan", "agent", listing) == "plan_2"
+    assert (
+        resolve_prompt_name(
+            "plan",
+            "agent",
+            listing,
+            reusable_names=("plan",),
+        )
+        == "plan"
+    )
+    assert resolve_prompt_name(None, "alice.athena.agent", ()) == ("alice.athena.agent")
+
+
+def test_publish_prompt_archive_missing_agents_target_is_nonfatal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.agents_sync.commit_publication.resolve_publication_project_key",
+        lambda *_args, **_kwargs: "proj",
+    )
+    monkeypatch.setattr(
+        archive_publish,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection(
+            (),
+            (SyncOutcome("proj", "Project", skip_reason="agents sidecar disabled"),),
+        ),
+    )
+
+    outcome = publish_prompt_archive(
+        "worker",
+        "a" * 40,
+        commit_cwd=tmp_path,
+    )
+
+    assert not outcome.published
+    assert outcome.skip_reason == "agents sidecar disabled"
+    assert outcome.error is None
+
+
+def test_publish_prompt_archive_without_artifacts_is_git_idempotent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, remote = setup_target(tmp_path)
+    artifacts_dir = tmp_path / "runs/20260801130000"
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"workspace_dir": str(target.primary_checkout)})
+    )
+    (artifacts_dir / "raw_xprompt.md").write_text("Archive this prompt.\n")
+    monkeypatch.setattr(
+        archive_publish,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        archive_publish,
+        "require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
+    monkeypatch.setattr(
+        archive_publish,
+        "_hosted_resolver",
+        lambda *_args: _HostedLinks(),
+    )
+    monkeypatch.setattr("sase.file_references.format_with_prettier", lambda text: text)
+
+    first = publish_prompt_archive(
+        "worker",
+        "a" * 40,
+        project="Project",
+        commit_cwd=target.primary_checkout,
+        agent_artifacts_dir=artifacts_dir,
+    )
+    second = publish_prompt_archive(
+        "worker",
+        "a" * 40,
+        project="Project",
+        commit_cwd=target.primary_checkout,
+        agent_artifacts_dir=artifacts_dir,
+    )
+
+    assert first.published and first.error is None
+    assert not second.published and second.error is None
+    verify = tmp_path / "verify-prompt"
+    git(tmp_path, "clone", str(remote), str(verify))
+    prompt = verify / "prompts/202608/alice.athena.worker.md"
+    assert prompt.is_file()
+    assert "Archive this prompt." in prompt.read_text()
+    assert not (verify / "artifacts/202608").exists()

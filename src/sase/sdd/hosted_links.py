@@ -224,6 +224,25 @@ class HostedLinkResolver:
             sha=sha.strip().casefold(),
         )
 
+    def blob_url_for_repository(
+        self,
+        repository_root: Path | str,
+        revision: str,
+        path: str,
+    ) -> str | None:
+        """Return an immutable hosted blob URL for one repository path."""
+
+        root = Path(repository_root).expanduser().resolve(strict=False)
+        coordinates = self._repository_remote(root)
+        if coordinates is None:
+            return None
+        return github_blob_url(
+            coordinates.remote_url,
+            provider=coordinates.provider,
+            branch=revision.strip(),
+            path=path,
+        )
+
     def _plans_remote(self) -> _RemoteCoordinates | None:
         return self._memoized("plans", self._resolve_plans_remote)
 

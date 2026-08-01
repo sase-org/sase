@@ -7,7 +7,7 @@ import pytest
 
 from sase.agents_sync import commit_publication, targets
 from sase.agents_sync.commit_publication import (
-    _resolve_publication_project_key,
+    resolve_publication_project_key,
     publish_committed_agent_hood,
 )
 from sase.agents_sync.models import SyncOutcome, TargetSelection
@@ -75,7 +75,7 @@ def test_resolves_known_repository_kinds(
 
     for record in records:
         assert (
-            _resolve_publication_project_key(Path(record.path) / "nested")
+            resolve_publication_project_key(Path(record.path) / "nested")
             == record.project_key
         )
 
@@ -150,7 +150,7 @@ def test_resolves_numbered_sidecar_clone(
         lambda: RepoInventory((record,)),
     )
 
-    assert _resolve_publication_project_key(workspace_path / "nested") == "host-project"
+    assert resolve_publication_project_key(workspace_path / "nested") == "host-project"
 
 
 def test_prefers_primary_on_path_tie(
@@ -170,7 +170,7 @@ def test_prefers_primary_on_path_tie(
         lambda: RepoInventory(records),
     )
 
-    assert _resolve_publication_project_key(root) == "primary-host"
+    assert resolve_publication_project_key(root) == "primary-host"
 
 
 def test_unregistered_repository_without_name_fallback_is_skipped(
