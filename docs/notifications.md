@@ -44,12 +44,15 @@ marked protected notification is included in the batch.
 ### Tabs and Ordering
 
 The modal renders a compact tab strip above the list when more than one top-level filter is present. Muted notifications
-always move to `Muted`; otherwise HITL actions and errors take precedence over ordinary tags. Non-muted, non-HITL,
-non-error notifications with multiple tags appear in each matching tag tab:
+always move to `Muted`. A gate may declare `presentation.panel` to place its notification in a named panel tab; for
+non-muted rows, that declared panel takes precedence over the synthetic `HITL` and `Errors` routing. Remaining HITL
+actions and errors take precedence over ordinary tags. Non-muted, non-HITL, non-error notifications with multiple tags
+appear in each matching tag tab:
 
 | Tab       | Contents                                                                                                                         |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `HITL`    | Plan and epic approvals, task triage, user questions, workflow HITL prompts, and launch approvals.                               |
+| `HITL`    | Plan and epic approvals, user questions, workflow HITL prompts, launch approvals, and generic gates without a declared panel.    |
+| Panel     | Gates with `presentation.panel`, sorted alphabetically after `HITL`; built-in task triage gates use the `Beads` panel.           |
 | `Errors`  | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                  |
 | `General` | Untagged non-HITL, non-error, unmuted notifications.                                                                             |
 | `Done`    | Non-HITL, non-error notifications carrying the `done` tag, pinned before other custom tags.                                      |
@@ -318,12 +321,12 @@ Failed user-agent notifications do not carry `done`; failures remain error repor
 Memory proposal notifications created by `sase memory write --notify` carry the `memory` tag. Use the `memory` tab in
 ACE or `sase notify list --tag memory` to find proposal review notification rows.
 
-In ACE, tags create modal tabs above the notification list after the synthetic `HITL`, `Errors`, and `General` tabs. A
-gate may instead declare `presentation.panel` to place its notification in a named panel tab. A declared panel takes
-precedence over the synthetic `HITL` and `Errors` routing, while muting still takes precedence over every other tab.
-Panel names are stripped, lowercased, limited to 32 characters, and may contain lowercase letters, digits, underscores,
-and hyphens. The synthetic names `errors`, `general`, and `muted`, along with names beginning with `__`, are reserved;
-`hitl` is allowed. A panel name matching a tag merges into that tag's tab.
+In ACE, tags create modal tabs above the notification list after the synthetic `HITL`, declared panel tabs, `Errors`,
+`General`, and `Done` tabs. A gate may declare `presentation.panel` to place its notification in a named panel tab. A
+declared panel takes precedence over the synthetic `HITL` and `Errors` routing, while muting still takes precedence over
+every other tab. Panel names are stripped, lowercased, limited to 32 characters, and may contain lowercase letters,
+digits, underscores, and hyphens. The synthetic names `errors`, `general`, and `muted`, along with names beginning with
+`__`, are reserved; `hitl` is allowed. A panel name matching a tag merges into that tag's tab.
 
 The `done` tab is intended as the quick path for successful agent completions; reading or jumping to a done Agents-tab
 row dismisses its matching completion notification, so it disappears from the `Done` tab after the next refresh. Failed
