@@ -13,6 +13,7 @@ from sase.ace.tui.widgets.artifacts.beads_detail import (
 )
 from sase.ace.tui.widgets.artifacts.beads_list import build_bead_options
 from sase.ace.tui.widgets.artifacts.beads_rendering import build_empty_bead_detail
+from sase.bead.model import TaskPlusOneEvidence
 from tests.ace.tui._artifacts_beads_helpers import snapshot
 
 
@@ -107,3 +108,46 @@ def test_first_run_empty_detail_points_to_create_and_triage(tmp_path: Path) -> N
     assert detail.startswith("# No beads yet")
     assert "sase bead create -T task" in detail
     assert "TaskTriage" in detail
+
+
+def test_task_rows_and_detail_render_plus_one_badges_and_evidence(
+    tmp_path: Path,
+) -> None:
+    value = snapshot(tmp_path)
+    issue = value.tasks[0].issue
+    issue.plus_one_evidence.append(
+        TaskPlusOneEvidence(
+            timestamp="2026-08-01T15:00:00Z",
+            reporter="agent.beta",
+            note="Reproduced after clearing the cache.",
+            refs=("research:202608/cache.md",),
+        )
+    )
+
+    options, _rows = build_bead_options(
+        value,
+        project_scope="alpha",
+        loading=False,
+        expanded_epics=set(),
+    )
+    task_row = next(
+        option.prompt.plain for option in options if option.id == "task:alpha-ready"
+    )
+    console = Console(width=100, color_system=None)
+    with console.capture() as capture:
+        console.print(
+            bead_properties_header(
+                issue,
+                value,
+                project="alpha",
+                project_name="Alpha",
+            )
+        )
+    body = bead_body_markdown(issue)
+
+    assert "[+1]" in task_row
+    assert "[+1]" in capture.get()
+    assert "+1 reports" in capture.get()
+    assert "## +1 Evidence" in body
+    assert "+1 agent.beta · 2026-08-01T15:00:00Z" in body
+    assert "research:202608/cache.md" in body

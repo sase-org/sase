@@ -15,6 +15,12 @@ from sase.bead.cli_dep_render import ANSI_BOLD_BLUE
 from sase.bead.cli_detail_prose import highlight_prose
 from sase.bead.cli_detail_style import DetailPalette, DetailStyle
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
+from sase.bead.plus_one_presentation import (
+    PLUS_ONE_CLI_STYLE,
+    PLUS_ONE_SECTION_LABEL,
+    plus_one_badge,
+    plus_one_evidence_label,
+)
 from sase.bead.project import BeadProject
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_type_presentation import bead_type_presentation
@@ -175,12 +181,14 @@ def render_issue_detail(
     issue = detail.issue
     palette = DetailPalette.for_style(style)
     status = bead_status_presentation(issue.status)
+    badge = plus_one_badge(issue.plus_one_count)
     lines = [
         (
             f"{palette.accent(status_icon(issue.status), status.cli_style)} "
             f"{palette.accent(issue.id, ANSI_BOLD_BLUE)} "
             f"{palette.separator('·')} {palette.title(issue.title)}"
             f"   {palette.accent(f'[{issue.status.value.upper()}]', status.cli_style)}"
+            + (f" {palette.accent(f'[{badge}]', PLUS_ONE_CLI_STYLE)}" if badge else "")
         )
     ]
     type_value = palette.accent(
@@ -357,6 +365,15 @@ def render_issue_detail(
                 f"  {highlight_prose(issue.notes, style=style)}",
             ]
         )
+    if issue.plus_one_evidence:
+        lines.extend(
+            _render_plus_one_evidence_lines(
+                issue,
+                palette=palette,
+                style=style,
+                reference_context=reference_context,
+            )
+        )
     if issue.issue_type == IssueType.PLAN and (
         issue.changespec_name or issue.changespec_bug_id
     ):
@@ -410,6 +427,50 @@ def render_issue_detail(
         )
 
     return "\n".join(lines) + "\n"
+
+
+def _render_plus_one_evidence_lines(
+    issue: Issue,
+    *,
+    palette: DetailPalette,
+    style: DetailStyle,
+    reference_context: ArtifactRefContext | None,
+) -> list[str]:
+    """Render structured corroboration without performing extra store reads."""
+
+    from sase.artifact_ref_lists import (
+        ArtifactRefListEntry,
+        artifact_ref_list_display_lines,
+        resolve_artifact_ref_list,
+    )
+
+    lines = [
+        "",
+        palette.accent(PLUS_ONE_SECTION_LABEL, PLUS_ONE_CLI_STYLE),
+    ]
+    for evidence in issue.plus_one_evidence:
+        lines.append(
+            f"  {palette.accent(plus_one_evidence_label(evidence), PLUS_ONE_CLI_STYLE)}"
+        )
+        note = highlight_prose(evidence.note, style=style)
+        lines.extend(f"    {line}" for line in note.splitlines())
+        if not evidence.refs:
+            continue
+        resolved_refs: Iterable[ArtifactRefListEntry | str] = evidence.refs
+        if reference_context is not None:
+            try:
+                resolved_refs = resolve_artifact_ref_list(
+                    evidence.refs,
+                    context=reference_context,
+                )
+            except (OSError, RuntimeError, ValueError):
+                pass
+        lines.append(f"    {palette.label('Refs:')}")
+        lines.extend(
+            f"      {palette.path(line)}"
+            for line in artifact_ref_list_display_lines(resolved_refs)
+        )
+    return lines
 
 
 def render_issue_detail_json(

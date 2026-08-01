@@ -10,6 +10,12 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.bead_type_presentation import bead_type_presentation
+from sase.bead.plus_one_presentation import (
+    PLUS_ONE_RICH_STYLE,
+    plus_one_badge,
+    plus_one_evidence_label,
+    plus_one_reports_label,
+)
 from sase.phase_size_presentation import phase_size_chip
 
 from ...models.agent_associated_plan import BeadSummary
@@ -32,6 +38,8 @@ _BEAD_FIELD_LABELS = (
     "Epic Plan",
     "Epic Title",
     "Size",
+    "+1 Reports",
+    "+1 Evidence",
 )
 BEAD_FIELD_LABEL_WIDTH = cell_len(f"  {max(_BEAD_FIELD_LABELS, key=len)}: ")
 BEAD_PLAN_STATE_STYLE = "dim italic #FF8787"
@@ -78,6 +86,8 @@ class ResponsiveBeadSection:
         details.append(self.summary.bead_type, style=COLOR_SUMMARY)
         details.append(" ", style=COLOR_SUMMARY)
         details.append(self.summary.id, style=COLOR_BEAD_PRIMARY)
+        if badge := plus_one_badge(self.summary.plus_one_count):
+            details.append(f"  [{badge}]", style=PLUS_ONE_RICH_STYLE)
         append_context_lane_header(
             text,
             BEAD_SECTION_LABEL,
@@ -96,6 +106,11 @@ class ResponsiveBeadSection:
                 rows.append((self._label("Notes"), self._notes_value()))
             if self.summary.size is not None:
                 rows.append((self._label("Size"), self._size_value()))
+            if self.summary.plus_one_count:
+                rows.append((self._label("+1 Reports"), self._plus_one_count_value()))
+                rows.append(
+                    (self._label("+1 Evidence"), self._plus_one_evidence_value())
+                )
             return tuple(rows)
         rows = [
             (self._label("Phase Title"), self._bead_title_value()),
@@ -158,3 +173,20 @@ class ResponsiveBeadSection:
             self.summary.size,
             unavailable_style=COLOR_EMPTY,
         )
+
+    def _plus_one_count_value(self) -> Text:
+        return Text(
+            plus_one_reports_label(self.summary.plus_one_count),
+            style=PLUS_ONE_RICH_STYLE,
+        )
+
+    def _plus_one_evidence_value(self) -> Text:
+        text = Text()
+        for index, evidence in enumerate(self.summary.plus_one_evidence):
+            if index:
+                text.append("\n\n")
+            text.append(plus_one_evidence_label(evidence), style=PLUS_ONE_RICH_STYLE)
+            text.append(f"\n{evidence.note}", style=COLOR_REASON)
+            if evidence.refs:
+                text.append(f"\nRefs: {', '.join(evidence.refs)}", style="dim #87AFFF")
+        return text

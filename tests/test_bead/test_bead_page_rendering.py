@@ -14,6 +14,7 @@ from sase.bead.model import (
     PhaseSize,
     Resolution,
     Status,
+    TaskPlusOneEvidence,
 )
 from sase.bead.project import BeadProject
 from sase.bead_pages.associations import (
@@ -531,6 +532,42 @@ def test_task_bead_page_renders_the_task_identity_and_ready_status() -> None:
     assert "**Status:** ◇ ready · **Type:** ◆ task" in rendered
     assert "**Size:** small" in rendered
     assert "[Bead Pages](../README.md) / sase-task" in rendered
+
+
+def test_task_bead_page_renders_bounded_linked_plus_one_callouts() -> None:
+    task = Issue(
+        "sase-task",
+        "Fix the stale cache",
+        status=Status.READY,
+        issue_type=IssueType.TASK,
+        size=PhaseSize.MEDIUM,
+        plus_one_evidence=[
+            TaskPlusOneEvidence(
+                timestamp="2026-08-01T15:00:00Z",
+                reporter="agent.beta",
+                note="# Reproduced\n```unsafe",
+                refs=("plans:202608/cache.md",),
+            )
+        ],
+    )
+    view = _View((task,))
+
+    rendered = render_bead_page(
+        cast(BeadProject, view),
+        task,
+        BeadAssociationIndex(MappingProxyType({})),
+        link_resolver=_ReferenceLinks(),
+    )
+
+    assert "**+1 reports:** +1" in rendered
+    assert "## +1 Evidence" in rendered
+    assert "> **+1** by `agent.beta` · 2026-08-01 15:00:00 UTC" in rendered
+    assert "> \\# Reproduced" in rendered
+    assert "> \\```unsafe" in rendered
+    assert (
+        "[plans:202608/cache.md](https://example.test/plans/202608/cache.md)"
+        in rendered
+    )
 
 
 def test_roster_renders_every_bead_type_with_its_shared_glyph() -> None:

@@ -31,8 +31,8 @@ def _render_bead_pages_roster(
         "",
         "Generated pages for every bead lineage in this project.",
         "",
-        "| Bead | Title | Type | Tier | Status | Phases | Agents | Commits |",
-        "| --- | --- | --- | --- | --- | ---: | ---: | ---: |",
+        "| Bead | Title | Type | Tier | Status | +1 | Phases | Agents | Commits |",
+        "| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
     ]
     for issue in roots:
         associations = association_index.for_bead(issue.id)
@@ -45,6 +45,7 @@ def _render_bead_pages_roster(
             f"{type_glyph} {issue.issue_type.value} | "
             f"{tier} | "
             f"{issue.status.value} | "
+            f"{issue.plus_one_count} | "
             f"{phase_counts[issue.id]} | "
             f"{len(associations.agents)} | "
             f"{len(associations.commits)} |"

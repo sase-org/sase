@@ -301,7 +301,11 @@ def test_bead_reference_displays_prefer_the_path_a_reference_resolves_to(
         "alpha-1", "Cited", refs=["research:202607/capture.md", "bead:nowhere-1"]
     )
 
-    displays = helper._issue_reference_displays(issue, project="alpha", beads_dir=None)
+    displays = helper._reference_displays(
+        issue.refs,
+        project="alpha",
+        beads_dir=None,
+    )
 
     assert displays == [str(resolved), "bead:nowhere-1"]
 
@@ -385,6 +389,13 @@ def test_beads_list_bridge_lists_ready_task_beads_by_default_and_by_filter(
             description="Follow-up",
             size="small",
         )
+        task, changed = project.plus_one(
+            task.id,
+            "Reproduced from mobile.",
+            reporter="agent.beta",
+            refs=("research:202608/mobile.md",),
+        )
+        assert changed
         project.update(task.id, status=Status.READY.value)
     seed_known_projects(tmp_path, {"alpha": alpha_dir})
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
@@ -405,6 +416,8 @@ def test_beads_list_bridge_lists_ready_task_beads_by_default_and_by_filter(
     assert summary["bead_type"] == "task"
     assert summary["status"] == "ready"
     assert summary["tier"] is None
+    assert summary["size"] == "small"
+    assert summary["plus_one_count"] == 1
 
     filtered_code, filtered, _ = run_bridge(
         {
@@ -418,6 +431,20 @@ def test_beads_list_bridge_lists_ready_task_beads_by_default_and_by_filter(
 
     assert filtered_code == 0
     assert [row["id"] for row in filtered["beads"]] == [task.id]  # type: ignore[index]
+
+    show_code, shown, _ = run_bridge(
+        {"schema_version": 1, "project": "alpha", "bead_id": task.id},
+        "beads-show",
+    )
+    assert show_code == 0
+    assert shown["bead"]["plus_one_evidence"] == [  # type: ignore[index]
+        {
+            "timestamp": task.plus_one_evidence[0].timestamp,
+            "reporter": "agent.beta",
+            "note": "Reproduced from mobile.",
+            "refs": ["research:202608/mobile.md"],
+        }
+    ]
 
 
 def test_beads_list_bridge_reports_partial_project_read_failure(

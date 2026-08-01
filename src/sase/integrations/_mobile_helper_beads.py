@@ -263,6 +263,8 @@ def _bead_summary_wire(
         "project": project,
         "parent_id": issue.parent_id,
         "assignee": issue.assignee or None,
+        "size": issue.size.value if issue.size is not None else None,
+        "plus_one_count": issue.plus_one_count,
         "updated_at": issue.updated_at or None,
         "dependency_count": len(issue.dependencies),
         "block_count": _block_count(issue.id, all_issues),
@@ -303,11 +305,24 @@ def _bead_detail_wire(
             project=project,
             beads_dir=representative_dir,
         ),
-        "refs": _issue_reference_displays(
-            issue,
+        "refs": _reference_displays(
+            issue.refs,
             project=project,
             beads_dir=representative_dir,
         ),
+        "plus_one_evidence": [
+            {
+                "timestamp": evidence.timestamp,
+                "reporter": evidence.reporter,
+                "note": evidence.note,
+                "refs": _reference_displays(
+                    evidence.refs,
+                    project=project,
+                    beads_dir=representative_dir,
+                ),
+            }
+            for evidence in issue.plus_one_evidence
+        ],
         "dependencies": [dependency.depends_on_id for dependency in issue.dependencies],
         "blocks": blocks,
         "children": children,
@@ -352,8 +367,8 @@ def _issue_plan_path(
     )
 
 
-def _issue_reference_displays(
-    issue: Issue,
+def _reference_displays(
+    refs: list[str] | tuple[str, ...],
     *,
     project: str | None,
     beads_dir: Path | None,
@@ -365,21 +380,21 @@ def _issue_reference_displays(
     form, which is the whole point of storing references instead of paths.
     """
 
-    if not issue.refs:
+    if not refs:
         return []
     workspace_dir = _plan_resolution_workspace(project, beads_dir)
     if workspace_dir is None:
-        return list(issue.refs)
+        return list(refs)
     try:
         from sase.artifact_ref_context import artifact_ref_context
         from sase.artifact_ref_lists import resolve_artifact_ref_list
 
         entries = resolve_artifact_ref_list(
-            issue.refs,
+            refs,
             context=artifact_ref_context(workspace_dir, 1),
         )
     except Exception:
-        return list(issue.refs)
+        return list(refs)
     return [
         entry.rendered
         if entry.resolution.resolved_path is None

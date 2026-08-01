@@ -50,7 +50,7 @@ class BeadFilterBar(FilterBar):
         ("assignee", "assigned person or agent"),
         ("owner", "owner email or name"),
         ("model", "work model"),
-        ("has", "plan, bug, deps, notes, triage"),
+        ("has", "+1, plan, bug, deps, notes, triage"),
         ("since", "Nh/Nd/Nw, today, YYYY-MM-DD"),
         ("until", "Nh/Nd/Nw, today, YYYY-MM-DD"),
     )

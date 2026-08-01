@@ -311,9 +311,11 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
         TASK_TRIAGE_QUERY,
         TaskTriageAction,
         render_task_triage_preview,
+        task_triage_presentation_note,
         task_triage_gate_command_script,
         task_triage_result_schema,
     )
+    from sase.bead.model import PhaseSize, TaskPlusOneEvidence
     from sase.core.paths import is_valid_sase_project_name
 
     if spec.continuation_mode != TASK_TRIAGE_CONTINUATION_MODE:
@@ -339,11 +341,20 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
         )
 
     payload = spec.payload
-    if set(payload) != {"bead_id", "project", "title"}:
+    expected_payload_fields = {
+        "bead_id",
+        "project",
+        "title",
+        "size",
+        "refs",
+        "plus_one_count",
+        "plus_one_evidence",
+    }
+    if set(payload) != expected_payload_fields:
         raise GateError(
             "invalid_task_triage_payload",
             "payload",
-            "task triage payload must contain only bead_id, project, and title",
+            "task triage payload does not match the structured presentation contract",
         )
     for field in ("bead_id", "title"):
         value = payload.get(field)
@@ -359,6 +370,90 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
             "invalid_task_triage_payload",
             "payload.project",
             "task triage payload requires a canonical SASE project key",
+        )
+    size = payload.get("size")
+    if size is not None and (
+        not isinstance(size, str) or size not in {item.value for item in PhaseSize}
+    ):
+        raise GateError(
+            "invalid_task_triage_payload",
+            "payload.size",
+            "task triage payload size must be null or a valid task size",
+        )
+    refs = payload.get("refs")
+    if not isinstance(refs, list) or any(not isinstance(ref, str) for ref in refs):
+        raise GateError(
+            "invalid_task_triage_payload",
+            "payload.refs",
+            "task triage payload refs must be a string list",
+        )
+    raw_evidence = payload.get("plus_one_evidence")
+    if not isinstance(raw_evidence, list):
+        raise GateError(
+            "invalid_task_triage_payload",
+            "payload.plus_one_evidence",
+            "task triage +1 evidence must be a list",
+        )
+    evidence: list[TaskPlusOneEvidence] = []
+    reporters: set[str] = set()
+    for index, raw_item in enumerate(raw_evidence):
+        if not isinstance(raw_item, Mapping) or set(raw_item) != {
+            "timestamp",
+            "reporter",
+            "note",
+            "refs",
+        }:
+            raise GateError(
+                "invalid_task_triage_payload",
+                f"payload.plus_one_evidence.{index}",
+                "task triage +1 evidence entry is malformed",
+            )
+        item_refs = raw_item.get("refs")
+        if not isinstance(item_refs, list) or any(
+            not isinstance(ref, str) for ref in item_refs
+        ):
+            raise GateError(
+                "invalid_task_triage_payload",
+                f"payload.plus_one_evidence.{index}.refs",
+                "task triage +1 evidence refs must be a string list",
+            )
+        if any(
+            not isinstance(raw_item.get(field), str)
+            for field in ("timestamp", "reporter", "note")
+        ):
+            raise GateError(
+                "invalid_task_triage_payload",
+                f"payload.plus_one_evidence.{index}",
+                "task triage +1 evidence text fields must be strings",
+            )
+        item = TaskPlusOneEvidence(
+            timestamp=cast(str, raw_item["timestamp"]),
+            reporter=cast(str, raw_item["reporter"]),
+            note=cast(str, raw_item["note"]),
+            refs=tuple(item_refs),
+        )
+        try:
+            item.validate()
+        except ValueError as exc:
+            raise GateError(
+                "invalid_task_triage_payload",
+                f"payload.plus_one_evidence.{index}",
+                str(exc),
+            ) from exc
+        if item.reporter in reporters:
+            raise GateError(
+                "invalid_task_triage_payload",
+                f"payload.plus_one_evidence.{index}.reporter",
+                "task triage +1 evidence reporters must be unique",
+            )
+        reporters.add(item.reporter)
+        evidence.append(item)
+    count = payload.get("plus_one_count")
+    if not isinstance(count, int) or isinstance(count, bool) or count != len(evidence):
+        raise GateError(
+            "invalid_task_triage_payload",
+            "payload.plus_one_count",
+            "task triage +1 count must equal its evidence entries",
         )
 
     if tuple(option.id for option in spec.options) != TASK_TRIAGE_OPTION_IDS:
@@ -448,7 +543,11 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
                 "task triage command does not match the registered adapter",
             )
 
-    expected_note = f"{payload['bead_id']} — {payload['title']}"
+    expected_note = task_triage_presentation_note(
+        cast(str, payload["bead_id"]),
+        cast(str, payload["title"]),
+        count,
+    )
     presentation = spec.presentation
     origin_agent = presentation.get("origin_agent")
     if (
@@ -467,27 +566,45 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
             "presentation",
             "task triage presentation does not match the registered adapter",
         )
-    preview_prefix = (
-        f"# {payload['bead_id']} — {payload['title']}\n\n"
-        + (f"**Filed by:** `@{origin_agent}`\n\n" if origin_agent else "")
-        + "## Description\n\n"
+    description_marker = "__TASK_TRIAGE_DESCRIPTION__"
+    notes_marker = "__TASK_TRIAGE_NOTES__"
+    template = render_task_triage_preview(
+        bead_id=cast(str, payload["bead_id"]),
+        title=cast(str, payload["title"]),
+        description=description_marker,
+        notes=notes_marker,
+        created_by=cast(str, origin_agent or ""),
+        size=cast(str | None, size),
+        refs=cast(list[str], refs),
+        plus_one_evidence=evidence,
     )
-    preview_body = (
-        preview_content[len(preview_prefix) :]
-        if isinstance(preview_content, str)
+    preview_prefix, marker, template_tail = template.partition(description_marker)
+    description_notes_separator, marker_two, preview_suffix = template_tail.partition(
+        notes_marker
+    )
+    preview_body = ""
+    if (
+        marker
+        and marker_two
+        and isinstance(preview_content, str)
         and preview_content.startswith(preview_prefix)
-        else ""
-    )
-    description, separator, notes = preview_body.partition("\n\n## Notes\n\n")
+        and preview_content.endswith(preview_suffix)
+    ):
+        body_end = len(preview_content) - len(preview_suffix)
+        preview_body = preview_content[len(preview_prefix) : body_end]
+    description, separator, notes = preview_body.partition(description_notes_separator)
     expected_preview = (
         render_task_triage_preview(
             bead_id=cast(str, payload["bead_id"]),
             title=cast(str, payload["title"]),
             description=description,
-            notes=notes[:-1],
+            notes=notes,
             created_by=cast(str, origin_agent or ""),
+            size=cast(str | None, size),
+            refs=cast(list[str], refs),
+            plus_one_evidence=evidence,
         )
-        if separator and notes.endswith("\n")
+        if separator
         else None
     )
     if preview_content != expected_preview:

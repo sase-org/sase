@@ -7,6 +7,13 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
+from sase.bead.plus_one_presentation import (
+    PLUS_ONE_RICH_STYLE,
+    PLUS_ONE_SECTION_LABEL,
+    plus_one_badge,
+    plus_one_evidence_label,
+    plus_one_reports_label,
+)
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_type_presentation import bead_type_chip
 from sase.phase_size_presentation import (
@@ -34,6 +41,8 @@ def bead_properties_header(
     title = Text(f"{status.tui_glyph} ", style=status.rich_style)
     title.append(issue.id, style="bold #FFD700")
     title.append(f" · {issue.title}", style="bold white")
+    if badge := plus_one_badge(issue.plus_one_count):
+        title.append(f"  [{badge}]", style=PLUS_ONE_RICH_STYLE)
     properties: list[DetailProperty] = [
         ("ID", issue.id),
         ("Type", bead_type_chip(issue.issue_type)),
@@ -44,6 +53,8 @@ def bead_properties_header(
         properties.append(("Tier", issue.tier.value))
     if issue.issue_type in (IssueType.PHASE, IssueType.TASK):
         properties.append(("Size", phase_size_chip(issue.size or PhaseSize.SMALL)))
+    if issue.plus_one_count:
+        properties.append(("+1 reports", plus_one_reports_label(issue.plus_one_count)))
     if (
         issue.issue_type is IssueType.PLAN
         and issue.tier is BeadTier.EPIC
@@ -109,6 +120,7 @@ def bead_body_markdown(
             ]
         )
     lines.extend(["## Description", "", issue.description or "_No description._"])
+    lines.extend(_plus_one_evidence_markdown(issue))
     if issue.notes:
         lines.extend(["", "## Notes", "", issue.notes])
     return "\n".join(lines)
@@ -135,6 +147,8 @@ def bead_preview_markdown(
         lines.append(f"**Tier:** {issue.tier.value}  ")
     if issue.size is not None:
         lines.append(f"**Size:** {issue.size.value}  ")
+    if issue.plus_one_count:
+        lines.append(f"**+1 reports:** {issue.plus_one_count}  ")
     if issue.assignee:
         lines.append(f"**Assignee:** {issue.assignee}  ")
     if issue.owner:
@@ -179,6 +193,24 @@ def bead_preview_markdown(
     if issue.close_reason:
         lines.append(f"- Close reason: {issue.close_reason}")
     return "\n".join(lines)
+
+
+def _plus_one_evidence_markdown(issue: Issue) -> list[str]:
+    if not issue.plus_one_evidence:
+        return []
+    lines = ["", f"## {PLUS_ONE_SECTION_LABEL.title()}", ""]
+    for index, evidence in enumerate(issue.plus_one_evidence):
+        if index:
+            lines.append("")
+        label = plus_one_evidence_label(evidence).replace("`", "\\`")
+        lines.append(f"> [!TIP] **{label}**")
+        lines.extend(
+            f"> {line}" if line else ">" for line in evidence.note.splitlines()
+        )
+        if evidence.refs:
+            lines.append(">")
+            lines.append(f"> **Refs:** {', '.join(evidence.refs)}")
+    return lines
 
 
 def resolved_plan_path(

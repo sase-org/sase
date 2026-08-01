@@ -8,6 +8,7 @@ from datetime import datetime
 from types import MappingProxyType
 
 from sase.bead.filter_query import BeadFilterValues
+from sase.bead.plus_one_presentation import plus_one_evidence_search_text
 
 from .beads_data import BeadsSnapshot, ProjectBead
 from .beads_list import BeadRowKind, row_option_id
@@ -188,6 +189,8 @@ def _record(
         has_labels.add("notes")
     if issue_key in snapshot.triage_gates:
         has_labels.add("triage")
+    if issue.plus_one_count:
+        has_labels.add("+1")
     project_labels = _fold_labels((project, display_name))
     folded_has = frozenset(has_labels)
     folded_statuses = frozenset(status_labels)
@@ -199,6 +202,7 @@ def _record(
             issue.notes,
             issue.design,
             *issue.refs,
+            plus_one_evidence_search_text(issue.plus_one_evidence),
             issue.assignee,
             issue.owner,
             issue.created_by,

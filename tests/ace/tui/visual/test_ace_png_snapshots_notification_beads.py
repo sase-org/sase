@@ -14,6 +14,7 @@ from sase.ace.tui.modals.custom_gate_modal import (
 from sase.ace.tui.modals.gate_branch_controls import GateBranchData
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.bead.task_gate import _build_task_triage_gate_spec
+from sase.bead.model import TaskPlusOneEvidence
 from sase.notification_gates.models import GateOption
 from sase.notification_gates.registry import adapter_for_kind
 from sase.notifications import Notification
@@ -206,6 +207,16 @@ def _task_triage_modal_data() -> CustomGateModalData:
         ),
         notes="Discovered while landing sase-cw.",
         created_by="claude_coder",
+        size="medium",
+        refs=("research:202608/flaky-renderer.md",),
+        plus_one_evidence=(
+            TaskPlusOneEvidence(
+                timestamp="2026-08-01T15:00:00Z",
+                reporter="codex_reviewer",
+                note="Reproduced under the same parallel renderer load.",
+                refs=("research:202608/flaky-renderer.md",),
+            ),
+        ),
         producer={"agent": "bead_task_triage"},
     )
     adapter = adapter_for_kind("task_triage")

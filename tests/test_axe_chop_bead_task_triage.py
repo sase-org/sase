@@ -11,7 +11,7 @@ import pytest
 
 import sase.scripts.sase_chop_bead_task_triage as task_triage
 from sase.axe.chop_script_context import ChopScriptContext
-from sase.bead.model import Issue, IssueType, Status
+from sase.bead.model import Issue, IssueType, PhaseSize, Status, TaskPlusOneEvidence
 from sase.chops.builtin import BuiltinChopRuntime
 from sase.chops.sdk import ChopLogger
 
@@ -47,6 +47,7 @@ def _task(
         description="Make cache invalidation deterministic.",
         notes="Discovered while landing sase-bg.",
         created_by=created_by,
+        size=PhaseSize.SMALL,
     )
 
 
@@ -97,8 +98,8 @@ def test_ready_task_is_gated_once_while_gate_remains_pending(
         "sase-task.1": created[0]["request_id"]
     }
     assert state["projects"]["sase"]["generations"] == {"sase-task.1": 1}
-    assert state["projects"]["sase"]["contracts"] == {
-        "sase-task.1": task_triage._PRESENTATION_CONTRACT
+    assert state["projects"]["sase"]["fingerprints"] == {
+        "sase-task.1": task_triage._presentation_fingerprint(ready[0])
     }
 
 
@@ -120,7 +121,7 @@ def test_blank_task_creator_is_forwarded_without_placeholder(
     assert created[0]["created_by"] == ""
 
 
-def test_old_presentation_contract_is_canceled_and_recreated(
+def test_missing_presentation_fingerprint_is_canceled_and_recreated(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -134,7 +135,6 @@ def test_old_presentation_contract_is_canceled_and_recreated(
             "sase": task_triage._ProjectState(
                 gates={"sase-task.1": old_request_id},
                 generations={"sase-task.1": 1},
-                contracts={"sase-task.1": 1},
             )
         },
     )
@@ -155,17 +155,20 @@ def test_old_presentation_contract_is_canceled_and_recreated(
     result = task_triage._run(_runtime(tmp_path))
 
     assert result.counters == {"gated": 1, "canceled": 1, "skipped": 0}
-    assert canceled == [(old_request_id, "task_triage_presentation_upgraded")]
+    assert canceled == [(old_request_id, "task_triage_presentation_changed")]
     assert created[0]["request_id"].endswith("-g2")
     state = task_triage._read_state(state_path)["sase"]
-    assert state.contracts == {"sase-task.1": task_triage._PRESENTATION_CONTRACT}
+    assert state.fingerprints == {
+        "sase-task.1": task_triage._presentation_fingerprint(ready[0])
+    }
 
 
-def test_current_presentation_contract_remains_pending(
+def test_current_presentation_fingerprint_remains_pending(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    _patch_project(monkeypatch, tmp_path, [_task()])
+    task = _task()
+    _patch_project(monkeypatch, tmp_path, [task])
     request_id = task_triage._request_id("sase", "sase-task.1", 1)
     task_triage._write_state(
         tmp_path / task_triage._STATE_FILENAME,
@@ -173,8 +176,8 @@ def test_current_presentation_contract_remains_pending(
             "sase": task_triage._ProjectState(
                 gates={"sase-task.1": request_id},
                 generations={"sase-task.1": 1},
-                contracts={
-                    "sase-task.1": task_triage._PRESENTATION_CONTRACT,
+                fingerprints={
+                    "sase-task.1": task_triage._presentation_fingerprint(task),
                 },
             )
         },
@@ -197,18 +200,18 @@ def test_current_presentation_contract_remains_pending(
     assert result.counters == {"gated": 0, "canceled": 0, "skipped": 1}
 
 
-@pytest.mark.parametrize("stored_contract", [None, "invalid", True, 0])
-def test_missing_or_malformed_contract_defaults_to_legacy_version(
+@pytest.mark.parametrize("stored_fingerprint", [None, "", True, 0])
+def test_missing_or_malformed_fingerprint_is_discarded(
     tmp_path: Path,
-    stored_contract: object,
+    stored_fingerprint: object,
 ) -> None:
     state_path = tmp_path / task_triage._STATE_FILENAME
     project: dict[str, object] = {
         "gates": {"sase-task.1": "old-request"},
         "generations": {"sase-task.1": 1},
     }
-    if stored_contract is not None:
-        project["contracts"] = {"sase-task.1": stored_contract}
+    if stored_fingerprint is not None:
+        project["fingerprints"] = {"sase-task.1": stored_fingerprint}
     state_path.write_text(
         json.dumps({"schema_version": 1, "projects": {"sase": project}}),
         encoding="utf-8",
@@ -216,7 +219,44 @@ def test_missing_or_malformed_contract_defaults_to_legacy_version(
 
     state = task_triage._read_state(state_path)["sase"]
 
-    assert state.contracts == {"sase-task.1": 1}
+    assert state.fingerprints == {}
+
+
+def test_later_plus_one_refreshes_pending_triage_presentation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    task = _task()
+    ready = [task]
+    _patch_project(monkeypatch, tmp_path, ready)
+    created: list[dict[str, Any]] = []
+    canceled: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **kwargs: created.append(kwargs),
+    )
+    monkeypatch.setattr(task_triage, "_gate_state", lambda _request_id: "pending")
+    monkeypatch.setattr(
+        task_triage,
+        "_cancel_pending_gate",
+        lambda request_id, *, reason: canceled.append((request_id, reason)) or True,
+    )
+
+    task_triage._run(_runtime(tmp_path))
+    task.plus_one_evidence.append(
+        TaskPlusOneEvidence(
+            timestamp="2026-08-01T15:00:00Z",
+            reporter="agent.beta",
+            note="Independent reproduction.",
+        )
+    )
+    refreshed = task_triage._run(_runtime(tmp_path))
+
+    assert refreshed.counters == {"gated": 1, "canceled": 1, "skipped": 0}
+    assert canceled == [(created[0]["request_id"], "task_triage_presentation_changed")]
+    assert created[1]["plus_one_evidence"] == task.plus_one_evidence
+    assert created[1]["request_id"].endswith("-g2")
 
 
 def test_stale_gate_is_canceled_and_ready_again_uses_new_generation(

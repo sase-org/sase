@@ -9,6 +9,7 @@ from rich.cells import cell_len
 from rich.console import Console
 
 from sase.ace.tui.models.agent_associated_plan import BeadSummary, PhaseBeadSummary
+from sase.bead.model import TaskPlusOneEvidence
 from sase.ace.tui.widgets.prompt_panel._agent_bead_section import (
     BEAD_FIELD_LABEL_WIDTH,
     BEAD_PLAN_STATE_STYLE,
@@ -188,6 +189,40 @@ def test_task_and_phase_notes_follow_description() -> None:
     )
     assert "Task Title:" in task_plain
     assert "Epic Plan:" not in task_plain
+
+
+def test_task_bead_lane_renders_plus_one_count_and_evidence() -> None:
+    evidence = TaskPlusOneEvidence(
+        timestamp="2026-08-01T15:00:00Z",
+        reporter="agent.beta",
+        note="Independent reproduction.",
+        refs=("research:202608/cache.md",),
+    )
+    task_summary = BeadSummary(
+        id="sase-task.5",
+        phase_title="Corroborated task",
+        description="Carry evidence into the Agents tab.",
+        actual_plan_path=None,
+        display_plan_path=None,
+        plan_exists=False,
+        plan_readable=False,
+        epic_title=None,
+        size="medium",
+        bead_type="task",
+        plus_one_evidence=(evidence,),
+    )
+
+    header, _ = build_header_text(
+        make_agent(agent_name=task_summary.id),
+        summary=DetailHeaderSummary(phase_bead=task_summary),
+    )
+
+    assert "[+1]" in header.plain
+    assert "+1 Reports:" in header.plain
+    assert "1 +1 report" in header.plain
+    assert "+1 Evidence:" in header.plain
+    assert "+1 agent.beta · 2026-08-01T15:00:00Z" in header.plain
+    assert "research:202608/cache.md" in header.plain
 
 
 def test_bead_notes_render_literal_multiline_and_wrap_losslessly() -> None:

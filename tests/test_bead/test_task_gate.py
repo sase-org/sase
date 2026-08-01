@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.bead.model import TaskPlusOneEvidence
 from sase.bead.task_gate import (
     TASK_TRIAGE_COMMAND_PATHS,
     TASK_TRIAGE_PREVIEW_PATH,
@@ -64,6 +65,10 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
         "bead_id": "sase-task.1",
         "project": "sase",
         "title": "Follow up on the cache",
+        "size": None,
+        "refs": [],
+        "plus_one_count": 0,
+        "plus_one_evidence": [],
     }
     assert [(option["id"], option["feedback"]) for option in request["options"]] == [
         ("launch", "optional"),
@@ -91,6 +96,45 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
     [entry] = pending_actions.read_pending_action_store()["actions"].values()
     assert entry["action_kind"] == "task_triage"
     assert adapter_for_kind("task_triage").auto_policy == "forbidden"
+
+
+def test_task_triage_presents_structured_plus_one_evidence(gate_home: Path) -> None:
+    del gate_home
+    evidence = TaskPlusOneEvidence(
+        timestamp="2026-08-01T15:00:00Z",
+        reporter="agent.beta",
+        note="Reproduced after clearing the cache.",
+        refs=("research:202608/cache.md",),
+    )
+
+    gate = create_task_triage_gate(
+        request_id="task-triage-plus-one",
+        bead_id="sase-task.2",
+        project="sase",
+        title="Cache remains stale",
+        size="medium",
+        refs=("research:202608/cache.md",),
+        plus_one_evidence=(evidence,),
+    )
+
+    request = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    assert request["payload"]["plus_one_count"] == 1
+    assert request["payload"]["plus_one_evidence"] == [
+        {
+            "timestamp": evidence.timestamp,
+            "reporter": evidence.reporter,
+            "note": evidence.note,
+            "refs": list(evidence.refs),
+        }
+    ]
+    assert request["presentation"]["notes"] == [
+        "sase-task.2 [+1] — Cache remains stale"
+    ]
+    preview = (gate.bundle_path / TASK_TRIAGE_PREVIEW_PATH).read_text(encoding="utf-8")
+    assert "**Size:** `medium`" in preview
+    assert "## +1 Evidence" in preview
+    assert "+1 agent.beta · 2026-08-01T15:00:00Z" in preview
+    assert "Reproduced after clearing the cache." in preview
 
 
 def test_task_triage_gate_omits_blank_origin_agent(gate_home: Path) -> None:

@@ -32,6 +32,11 @@ from sase.bead.model import (
     Status,
 )
 from sase.bead.project import BeadProject
+from sase.bead.plus_one_presentation import (
+    PLUS_ONE_CLI_STYLE,
+    plus_one_badge,
+    plus_one_evidence_search_text,
+)
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_type_presentation import (
     BEAD_TYPE_VALUES,
@@ -228,7 +233,12 @@ def handle_bead_ready(args: argparse.Namespace) -> None:
             return
         for issue in issues:
             parent = f" ← {issue.parent_id}" if issue.parent_id else ""
-            print(f"{status_icon(issue.status)} {issue.id} · {issue.title}{parent}")
+            badge = plus_one_badge(issue.plus_one_count)
+            suffix = f" [{badge}]" if badge else ""
+            print(
+                f"{status_icon(issue.status)} {issue.id} · "
+                f"{issue.title}{suffix}{parent}"
+            )
         print(f"\n{'-' * 60}")
         suffix = "" if len(issues) == 1 else "s"
         print(f"Ready: {len(issues)} task bead{suffix} with no active blockers")
@@ -243,7 +253,9 @@ def handle_bead_blocked(args: argparse.Namespace) -> None:
         for issue in issues:
             blockers = [d.depends_on_id for d in issue.dependencies]
             blocker_str = ", ".join(blockers)
-            print(f"● {issue.id} · {issue.title}  [blocked by: {blocker_str}]")
+            badge = plus_one_badge(issue.plus_one_count)
+            suffix = f" [{badge}]" if badge else ""
+            print(f"● {issue.id} · {issue.title}{suffix}  [blocked by: {blocker_str}]")
 
 
 def handle_bead_stats(args: argparse.Namespace) -> None:
@@ -259,6 +271,7 @@ def handle_bead_stats(args: argparse.Namespace) -> None:
         print(f"  Plans:       {s.get('plan', 0)}")
         print(f"  Phases:      {s.get('phase', 0)}")
         print(f"  Tasks:       {s.get('task', 0)}")
+        print(f"  +1 Reports:  {s.get('plus_one', 0)}")
 
 
 def _render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
@@ -276,7 +289,13 @@ def _render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
         status_glyph = styled(status.glyph, status.cli_style, use_color)
         issue_id = styled(issue.id, ANSI_BOLD_BLUE, use_color)
         parent = f" ← {issue.parent_id}" if issue.parent_id else ""
-        lines.append(f"{type_cell} {status_glyph} {issue_id} · {issue.title}{parent}")
+        badge = plus_one_badge(issue.plus_one_count)
+        badge_text = (
+            f" {styled(f'[{badge}]', PLUS_ONE_CLI_STYLE, use_color)}" if badge else ""
+        )
+        lines.append(
+            f"{type_cell} {status_glyph} {issue_id} · {issue.title}{badge_text}{parent}"
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -337,8 +356,13 @@ def _render_search_compact(
             use_color=use_color,
             width=type_width,
         )
+        badge = plus_one_badge(issue.plus_one_count)
+        badge_text = (
+            f" {styled(f'[{badge}]', PLUS_ONE_CLI_STYLE, use_color)}" if badge else ""
+        )
         lines.append(
-            f"{type_cell} {status_icon(issue.status)} {issue.id} · {issue.title}"
+            f"{type_cell} {status_icon(issue.status)} {issue.id} · "
+            f"{issue.title}{badge_text}"
         )
         snippet = _compact_snippet(match, query)
         if snippet:
@@ -397,6 +421,7 @@ def _search_field_value(issue: Issue, field: str) -> str:
         "notes": issue.notes,
         "design": issue.design,
         "refs": "\n".join(issue.refs),
+        "plus_one_evidence": plus_one_evidence_search_text(issue.plus_one_evidence),
         "owner": issue.owner,
         "assignee": issue.assignee,
         "model": issue.model,

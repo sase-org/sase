@@ -13,7 +13,13 @@ from sase.ace.tui.models.agent_associated_plan import (
     resolve_agent_plan_enrichment,
 )
 from sase.agent.bead_display import BeadIssueLookupSession
-from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize
+from sase.bead.model import (
+    BeadTier,
+    Issue,
+    IssueType,
+    PhaseSize,
+    TaskPlusOneEvidence,
+)
 from tests.ace.tui.models._agent_associated_plan_helpers import write_epic, write_plan
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
@@ -672,6 +678,13 @@ def test_task_worker_resolves_to_plan_free_task_bead_lane(
             "continued line\r\n\r\n"
             "[2026-08-01T14:07:00Z · bob] second note  "
         ),
+        plus_one_evidence=[
+            TaskPlusOneEvidence(
+                timestamp="2026-08-01T15:00:00Z",
+                reporter="agent.beta",
+                note="Independent reproduction.",
+            )
+        ],
     )
     monkeypatch.setattr(
         plan_model,
@@ -706,4 +719,6 @@ def test_task_worker_resolves_to_plan_free_task_bead_lane(
         "continued line\n\n"
         "[2026-08-01T14:07:00Z · bob] second note"
     )
+    assert enrichment.bead_summary.plus_one_count == 1
+    assert enrichment.bead_summary.plus_one_evidence == tuple(task.plus_one_evidence)
     assert enrichment.bead_summary.display_plan_path is None

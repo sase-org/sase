@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from sase.notification_gates.entrypoints import gate_command_entrypoint
 from sase.notification_gates.models import GateError
+from sase.bead.model import TaskPlusOneEvidence
+from sase.bead.plus_one_presentation import (
+    PLUS_ONE_SECTION_LABEL,
+    plus_one_badge,
+    plus_one_evidence_label,
+)
 
 if TYPE_CHECKING:
     from sase.bead.task_launch import TaskLaunchOrigin
@@ -55,6 +61,9 @@ def create_task_triage_gate(
     description: str = "",
     notes: str = "",
     created_by: str = "",
+    size: str | None = None,
+    refs: Sequence[str] = (),
+    plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
     producer: Mapping[str, Any] | None = None,
 ) -> Any:
     """Create one human-only triage gate for a ready standalone task bead."""
@@ -69,6 +78,9 @@ def create_task_triage_gate(
             description=description,
             notes=notes,
             created_by=created_by,
+            size=size,
+            refs=refs,
+            plus_one_evidence=plus_one_evidence,
             producer=producer,
         )
     )
@@ -83,6 +95,9 @@ def _build_task_triage_gate_spec(
     description: str = "",
     notes: str = "",
     created_by: str = "",
+    size: str | None = None,
+    refs: Sequence[str] = (),
+    plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
     producer: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the only request shape accepted by the TaskTriage adapter."""
@@ -91,10 +106,12 @@ def _build_task_triage_gate_spec(
         "additionalProperties": False,
     }
     origin_agent = created_by.strip()
+    evidence = tuple(plus_one_evidence)
+    count = len(evidence)
     presentation: dict[str, Any] = {
         "sender": "bead",
         "icon": "✦",
-        "notes": [f"{bead_id} — {title}"],
+        "notes": [task_triage_presentation_note(bead_id, title, count)],
         "tags": ["bead", "task"],
         "panel": "beads",
         "files": [TASK_TRIAGE_PREVIEW_PATH],
@@ -112,6 +129,18 @@ def _build_task_triage_gate_spec(
             "bead_id": bead_id,
             "project": project,
             "title": title,
+            "size": size,
+            "refs": list(refs),
+            "plus_one_count": count,
+            "plus_one_evidence": [
+                {
+                    "timestamp": item.timestamp,
+                    "reporter": item.reporter,
+                    "note": item.note,
+                    "refs": list(item.refs),
+                }
+                for item in evidence
+            ],
         },
         "presentation": presentation,
         "query": TASK_TRIAGE_QUERY,
@@ -160,6 +189,9 @@ def _build_task_triage_gate_spec(
                     description=description,
                     notes=notes,
                     created_by=origin_agent,
+                    size=size,
+                    refs=refs,
+                    plus_one_evidence=evidence,
                 ),
             },
         ],
@@ -174,17 +206,63 @@ def render_task_triage_preview(
     description: str,
     notes: str,
     created_by: str = "",
+    size: str | None = None,
+    refs: Sequence[str] = (),
+    plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
 ) -> str:
     """Render the reviewed Markdown detail shown by ACE and mobile clients."""
     description_text = description.strip() or "_No description._"
     notes_text = notes.strip() or "_No notes._"
     filer = f"**Filed by:** `@{created_by}`\n\n" if created_by else ""
+    metadata = ""
+    if size:
+        metadata += f"**Size:** `{_markdown_code(size)}`\n\n"
+    if refs:
+        rendered_refs = ", ".join(f"`{_markdown_code(ref)}`" for ref in refs)
+        metadata += f"**References:** {rendered_refs}\n\n"
+    evidence_section = _task_triage_evidence_preview(plus_one_evidence)
     return (
         f"# {bead_id} — {title}\n\n"
         f"{filer}"
+        f"{metadata}"
         f"## Description\n\n{description_text}\n\n"
         f"## Notes\n\n{notes_text}\n"
+        f"{evidence_section}"
     )
+
+
+def task_triage_presentation_note(bead_id: str, title: str, count: int) -> str:
+    """Return the stable notification summary for one task triage gate."""
+
+    badge = plus_one_badge(count)
+    suffix = f" [{badge}]" if badge else ""
+    return f"{bead_id}{suffix} — {title}"
+
+
+def _task_triage_evidence_preview(
+    evidence_rows: Sequence[TaskPlusOneEvidence],
+) -> str:
+    if not evidence_rows:
+        return ""
+    lines = ["", f"## {PLUS_ONE_SECTION_LABEL.title()}", ""]
+    for index, evidence in enumerate(evidence_rows):
+        if index:
+            lines.append("")
+        label = plus_one_evidence_label(evidence).replace("`", "\\`")
+        lines.append(f"> [!TIP] **{label}**")
+        lines.extend(
+            f"> {line}" if line else ">" for line in evidence.note.splitlines()
+        )
+        if evidence.refs:
+            rendered_refs = ", ".join(
+                f"`{_markdown_code(ref)}`" for ref in evidence.refs
+            )
+            lines.extend([">", f"> **References:** {rendered_refs}"])
+    return "\n".join(lines) + "\n"
+
+
+def _markdown_code(value: str) -> str:
+    return value.replace("`", "\\`")
 
 
 def task_triage_gate_command_script(option_id: str) -> str:

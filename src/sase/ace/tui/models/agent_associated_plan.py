@@ -458,6 +458,7 @@ def _task_bead_summary(issue: Issue) -> BeadSummary:
         size=normalize_phase_size(issue.size),
         bead_type="task",
         notes=_normalize_bead_notes(issue.notes),
+        plus_one_evidence=tuple(issue.plus_one_evidence),
     )
 
 

@@ -46,7 +46,14 @@ BeadCompletionKind = Literal[
 ]
 
 DERIVED_BEAD_STATUS_VALUES: tuple[str, ...] = ("blocked", "launched", "triage")
-BEAD_HAS_VALUES: tuple[str, ...] = ("plan", "bug", "deps", "notes", "triage")
+BEAD_HAS_VALUES: tuple[str, ...] = (
+    "+1",
+    "plan",
+    "bug",
+    "deps",
+    "notes",
+    "triage",
+)
 DEFAULT_BEAD_FILTER_QUERY = "-status:closed"
 
 _FILTER_KEYS = (

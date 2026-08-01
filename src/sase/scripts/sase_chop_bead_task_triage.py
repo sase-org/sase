@@ -25,9 +25,7 @@ from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import bundle_paths
 from sase.notification_gates.poller import poll_gate
 
-_STATE_SCHEMA_VERSION = 1
-# Bump when pending task-triage gates need a presentation refresh.
-_PRESENTATION_CONTRACT = 2
+_STATE_SCHEMA_VERSION = 2
 _STATE_FILENAME = "bead_task_triage.json"
 _LOCK_FILENAME = "bead_task_triage.lock"
 
@@ -38,7 +36,7 @@ _GateState = Literal["pending", "terminal", "missing"]
 class _ProjectState:
     gates: dict[str, str] = field(default_factory=dict)
     generations: dict[str, int] = field(default_factory=dict)
-    contracts: dict[str, int] = field(default_factory=dict)
+    fingerprints: dict[str, str] = field(default_factory=dict)
 
 
 def _read_state(path: Path) -> dict[str, _ProjectState]:
@@ -58,7 +56,7 @@ def _read_state(path: Path) -> dict[str, _ProjectState]:
             continue
         raw_gates = raw_project.get("gates")
         raw_generations = raw_project.get("generations")
-        raw_contracts = raw_project.get("contracts")
+        raw_fingerprints = raw_project.get("fingerprints")
         gates = (
             {
                 bead_id: request_id
@@ -80,23 +78,23 @@ def _read_state(path: Path) -> dict[str, _ProjectState]:
             if isinstance(raw_generations, dict)
             else {}
         )
-        contracts: dict[str, int] = {}
-        for bead_id in gates:
-            contract = (
-                raw_contracts.get(bead_id, 1) if isinstance(raw_contracts, dict) else 1
-            )
-            contracts[bead_id] = (
-                contract
-                if isinstance(contract, int)
-                and not isinstance(contract, bool)
-                and contract >= 1
-                else 1
-            )
-        if gates or generations or contracts:
+        fingerprints = (
+            {
+                bead_id: fingerprint
+                for bead_id, fingerprint in raw_fingerprints.items()
+                if isinstance(bead_id, str)
+                and bead_id in gates
+                and isinstance(fingerprint, str)
+                and fingerprint
+            }
+            if isinstance(raw_fingerprints, dict)
+            else {}
+        )
+        if gates or generations or fingerprints:
             projects[project_name] = _ProjectState(
                 gates=gates,
                 generations=generations,
-                contracts=contracts,
+                fingerprints=fingerprints,
             )
     return projects
 
@@ -109,10 +107,10 @@ def _write_state(path: Path, projects: dict[str, _ProjectState]) -> None:
             project_name: {
                 "gates": dict(sorted(project.gates.items())),
                 "generations": dict(sorted(project.generations.items())),
-                "contracts": dict(sorted(project.contracts.items())),
+                "fingerprints": dict(sorted(project.fingerprints.items())),
             }
             for project_name, project in sorted(projects.items())
-            if project.gates or project.generations or project.contracts
+            if project.gates or project.generations or project.fingerprints
         },
     }
     fd, temporary_path = tempfile.mkstemp(
@@ -176,6 +174,34 @@ def _request_id(project_name: str, bead_id: str, generation: int) -> str:
     digest = hashlib.sha256(identity).hexdigest()[:12]
     bead_component = bead_id[:80]
     return f"bead-task-triage-{bead_component}-{digest}-g{generation}"
+
+
+def _presentation_fingerprint(issue: Issue) -> str:
+    """Hash every persisted field that changes the pending triage presentation."""
+
+    payload = {
+        "title": issue.title,
+        "description": issue.description,
+        "notes": issue.notes,
+        "size": issue.size.value if issue.size else None,
+        "refs": list(issue.refs),
+        "plus_one_evidence": [
+            {
+                "timestamp": evidence.timestamp,
+                "reporter": evidence.reporter,
+                "note": evidence.note,
+                "refs": list(evidence.refs),
+            }
+            for evidence in issue.plus_one_evidence
+        ],
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _gate_state(request_id: str) -> _GateState:
@@ -262,14 +288,14 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
 
             issue = ready_tasks.pop(bead_id, None)
             if issue is not None and gate_state == "pending":
-                contract = project_state.contracts.get(bead_id, 1)
-                if contract >= _PRESENTATION_CONTRACT:
+                fingerprint = _presentation_fingerprint(issue)
+                if project_state.fingerprints.get(bead_id) == fingerprint:
                     skipped += 1
                     continue
                 try:
                     was_canceled = _cancel_pending_gate(
                         request_id,
-                        reason="task_triage_presentation_upgraded",
+                        reason="task_triage_presentation_changed",
                     )
                 except Exception as exc:  # noqa: BLE001 - retry on the next tick.
                     runtime.log.warning(
@@ -291,7 +317,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                 canceled += int(was_canceled)
 
             del project_state.gates[bead_id]
-            project_state.contracts.pop(bead_id, None)
+            project_state.fingerprints.pop(bead_id, None)
             state_changed = True
             if issue is not None:
                 ready_tasks[bead_id] = issue
@@ -308,6 +334,9 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                     description=issue.description,
                     notes=issue.notes,
                     created_by=issue.created_by,
+                    size=issue.size.value if issue.size else None,
+                    refs=issue.refs,
+                    plus_one_evidence=issue.plus_one_evidence,
                     producer={
                         "chop": "bead_task_triage",
                         "project": project_name,
@@ -321,7 +350,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                 continue
             project_state.gates[bead_id] = request_id
             project_state.generations[bead_id] = generation
-            project_state.contracts[bead_id] = _PRESENTATION_CONTRACT
+            project_state.fingerprints[bead_id] = _presentation_fingerprint(issue)
             gated += 1
             state_changed = True
 

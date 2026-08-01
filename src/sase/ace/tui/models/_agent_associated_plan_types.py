@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from sase.bead.model import TaskPlusOneEvidence
 from sase.bead_type_presentation import BeadTypeValue
 from sase.phase_size_presentation import PhaseSizeValue
 from sase.sdd.plan_display import (
@@ -44,6 +45,13 @@ class BeadSummary:
     size: PhaseSizeValue | None
     bead_type: BeadTypeValue = "phase"
     notes: str | None = None
+    plus_one_evidence: tuple[TaskPlusOneEvidence, ...] = ()
+
+    @property
+    def plus_one_count(self) -> int:
+        """Return the derived corroboration count for task summaries."""
+
+        return len(self.plus_one_evidence)
 
     @property
     def title(self) -> str | None:

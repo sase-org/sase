@@ -25,6 +25,7 @@ from sase.bead.filter_query import (
     default_bead_filter_values,
     parse_bead_filter_query,
 )
+from sase.bead.model import TaskPlusOneEvidence
 from tests.ace.tui._artifacts_beads_helpers import snapshot
 
 
@@ -123,6 +124,27 @@ def test_filter_terms_match_bead_metadata_and_derived_labels(tmp_path: Path) -> 
         "alpha-1.2",
     ]
     assert _matched_ids(tmp_path, '"Render the tree" -deps') == []
+
+
+def test_has_plus_one_and_evidence_text_use_cached_filter_index(tmp_path: Path) -> None:
+    value = snapshot(tmp_path)
+    value.tasks[1].issue.plus_one_evidence.append(
+        TaskPlusOneEvidence(
+            timestamp="2026-08-01T15:00:00Z",
+            reporter="agent.beta",
+            note="Cold restart reproduction.",
+            refs=("research:202608/cache.md",),
+        )
+    )
+    index = build_bead_filter_index(value)
+
+    has_matcher = compile_bead_matcher(parse_bead_filter_query("has:+1"))
+    text_matcher = compile_bead_matcher(parse_bead_filter_query('"cold restart"'))
+
+    assert [record.bead_id for record in index if has_matcher(record)] == ["alpha-open"]
+    assert [record.bead_id for record in index if text_matcher(record)] == [
+        "alpha-open"
+    ]
 
 
 def test_default_hide_closed_filter_hides_closed_phases_and_shows_counts(

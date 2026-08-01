@@ -10,6 +10,10 @@ from sase.agents_sync.rendering_markdown import md_cell, md_code, md_escape
 from sase.bead.cli_common import status_icon
 from sase.bead.cli_detail import IssueDetail
 from sase.bead.model import Issue, Status
+from sase.bead.plus_one_presentation import (
+    PLUS_ONE_SECTION_LABEL,
+    plus_one_badge,
+)
 from sase.bead_pages.paths import bead_lineage_root
 from sase.bead_type_presentation import bead_type_presentation
 
@@ -98,6 +102,39 @@ def render_prose_sections(issue: Issue) -> list[str]:
     return lines
 
 
+def render_plus_one_evidence(
+    issue: Issue,
+    *,
+    plan_links: PlanLinkResolver | None,
+) -> list[str]:
+    """Render bounded, structurally safe corroboration callouts."""
+
+    if not issue.plus_one_evidence:
+        return []
+    lines = ["", f"## {PLUS_ONE_SECTION_LABEL.title()}", ""]
+    evidence_rows = sorted(
+        issue.plus_one_evidence,
+        key=lambda item: (item.timestamp, item.reporter, item.note, item.refs),
+    )
+    for index, evidence in enumerate(evidence_rows):
+        if index:
+            lines.append("")
+        instant = _render_instant(evidence.timestamp)
+        lines.append(f"> **+1** by `{md_code(evidence.reporter)}` · {instant}")
+        lines.append(">")
+        lines.extend(
+            f"> {line}" if line else ">"
+            for line in _bounded_prose(evidence.note).splitlines()
+        )
+        if evidence.refs:
+            lines.append(">")
+            refs = ", ".join(
+                _reference_item(reference, plan_links) for reference in evidence.refs
+            )
+            lines.append(f"> **References:** {refs}")
+    return lines
+
+
 def _breadcrumb(issue: Issue) -> str:
     root = bead_lineage_root(issue.id)
     if issue.id == root:
@@ -118,6 +155,8 @@ def _primary_facts(issue: Issue) -> str:
     ]
     if issue.tier is not None:
         values.append(f"**Tier:** {issue.tier.value}")
+    if badge := plus_one_badge(issue.plus_one_count):
+        values.append(f"**+1 reports:** {badge}")
     if issue.status == Status.CLOSED:
         resolution = issue.resolution.value if issue.resolution else "(unrecorded)"
         values.insert(1, f"**Resolution:** {resolution}")
@@ -237,6 +276,7 @@ __all__ = [
     "MAX_RENDERED_PROSE_CHARS",
     "PlanLinkResolver",
     "render_identity",
+    "render_plus_one_evidence",
     "render_prose_sections",
     "render_references",
 ]
