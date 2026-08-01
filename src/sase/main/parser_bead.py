@@ -11,6 +11,7 @@ from sase.main.parser_bead_lifecycle import (
     register_bead_note_parser,
     register_bead_onboard_parser,
     register_bead_open_parser,
+    register_bead_plus_one_parser,
     register_bead_rm_parser,
     register_bead_update_parser,
     register_bead_work_parser,
@@ -45,7 +46,8 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="bead_subcommand", help="Bead subcommands"
     )
 
-    # Keep the established registration order so the CLI help remains stable.
+    # Keep subcommands sorted so the public help remains easy to scan.
+    register_bead_plus_one_parser(bead_subparsers)
     register_bead_blocked_parser(bead_subparsers)
     register_bead_close_parser(bead_subparsers)
     register_bead_create_parser(bead_subparsers)

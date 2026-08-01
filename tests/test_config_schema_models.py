@@ -63,7 +63,6 @@ def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> Non
                     "default": "claude/opus",
                     "coder": "@default",
                     "codex_coder": "claude/opus",
-                    "task_worker": "@default",
                     "xsmall_phase_worker": "@cheaper",
                     "small_phase_worker": "@cheap",
                     "medium_phase_worker": "@default@high",

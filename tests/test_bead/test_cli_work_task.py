@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,7 @@ from sase.bead.cli_work_commit import (
     TaskLaunchCheckpointError,
     checkpoint_task_work_launch,
 )
-from sase.bead.model import Status
+from sase.bead.model import PhaseSize, Status
 from sase.bead.project import BeadProject
 from sase.bead.work import SASE_BEAD_ID_ENV, VCSLaunchContext
 
@@ -124,7 +125,7 @@ def test_task_work_launches_one_checkpointed_agent(
     assert captured["query"] == (
         f"#git:sase #commit\n"
         f"%id({task_id}, bead={task_id})\n"
-        f"%m:@task_worker\n"
+        f"%m:@small_phase_worker\n"
         f"#bd/work_task:{task_id}\n"
         "Preserve the public API."
     )
@@ -159,6 +160,61 @@ def test_task_work_dry_run_is_read_only(
     output = capsys.readouterr().out
     assert "--- Task prompt (dry run) ---" in output
     assert f"#bd/work_task:{task_id}" in output
+
+
+@pytest.mark.parametrize(
+    ("size", "alias", "expects_plan"),
+    [
+        (PhaseSize.XSMALL, "@xsmall_phase_worker", False),
+        (PhaseSize.SMALL, "@small_phase_worker", False),
+        (PhaseSize.MEDIUM, "@medium_phase_worker", False),
+        (PhaseSize.LARGE, "@large_phase_worker", True),
+        (PhaseSize.XLARGE, "@xlarge_phase_worker", True),
+    ],
+)
+def test_task_work_dry_run_routes_all_sizes_through_phase_policy(
+    size: PhaseSize,
+    alias: str,
+    expects_plan: bool,
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    task_id = seed_task(project_dir, size=size)
+
+    bead_cli.handle_bead_work(make_args(task_id, dry_run=True))
+
+    prompt = capsys.readouterr().out.split("--- Task prompt (dry run) ---\n", 1)[1]
+    assert f"%m:{alias}" in prompt.splitlines()
+    assert ("#plan" in prompt.splitlines()) is expects_plan
+    assert "\n---\n" not in prompt
+
+
+def test_task_work_dry_run_normalizes_legacy_sizeless_task_to_small(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        issues_path = project.beads_dir / "issues.jsonl"
+        events_dir = project.beads_dir / "events"
+    legacy = {
+        "id": "sase-legacy",
+        "title": "Legacy sizeless task",
+        "status": "ready",
+        "issue_type": "task",
+        "parent_id": None,
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "dependencies": [],
+    }
+    issues_path.write_text(json.dumps(legacy) + "\n", encoding="utf-8")
+    if events_dir.exists():
+        shutil.rmtree(events_dir)
+
+    bead_cli.handle_bead_work(make_args("sase-legacy", dry_run=True))
+
+    prompt = capsys.readouterr().out.split("--- Task prompt (dry run) ---\n", 1)[1]
+    assert "%m:@small_phase_worker" in prompt.splitlines()
+    assert "#plan" not in prompt.splitlines()
 
 
 def test_task_work_persists_durable_stage_timing(

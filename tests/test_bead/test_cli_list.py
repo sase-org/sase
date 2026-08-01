@@ -199,7 +199,7 @@ def test_handle_bead_list_explicit_compact_matches_default(
 def _seed_one_of_each_type(project_dir: Path) -> dict[str, str]:
     with BeadProject(project_dir) as proj:
         plan = proj.create("Plan Bead", IssueType.PLAN)
-        task = proj.create("Task Bead", IssueType.TASK)
+        task = proj.create("Task Bead", IssueType.TASK, size="small")
         phase = proj.create("Phase Bead", IssueType.PHASE, parent_id=plan.id)
     return {"plan": plan.id, "phase": phase.id, "task": task.id}
 

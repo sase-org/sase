@@ -110,8 +110,8 @@ killed, or finished-but-unclosed phases keep dependents and the land agent parke
 
 For a task bead, the same command renders one prompt, checkpoints the task as `in_progress` with assignee `<task-id>`,
 and then launches that deterministic worker. An explicit task model wins; otherwise a stored size selects the
-corresponding size-specific phase-worker alias, while a task without size uses `@task_worker`. Task size currently
-changes model routing only: even `large` and `xlarge` tasks do not receive the phase launcher's automatic `#plan`.
+corresponding size-specific phase-worker alias, while a legacy task without size uses the small route. Large and xlarge
+tasks receive the same automatic `#plan` handoff as equivalently sized phases.
 
 ## The Promote-From-Chat Discipline
 

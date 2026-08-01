@@ -114,7 +114,7 @@ def test_handle_bead_search_compact_renders_aligned_type_glyphs(
             IssueType.PHASE,
             parent_id=plan.id,
         )
-        task = proj.create("Needle Task", IssueType.TASK)
+        task = proj.create("Needle Task", IssueType.TASK, size="small")
 
     args = create_parser().parse_args(["bead", "search", "needle", "--color", "never"])
     bead_cli.handle_bead_search(args)
@@ -142,7 +142,7 @@ def test_handle_bead_search_compact_colors_type_glyphs(
     with BeadProject(project_dir) as proj:
         plan = proj.create("Needle Plan", IssueType.PLAN)
         proj.create("Needle Phase", IssueType.PHASE, parent_id=plan.id)
-        proj.create("Needle Task", IssueType.TASK)
+        proj.create("Needle Task", IssueType.TASK, size="small")
 
     args = create_parser().parse_args(["bead", "search", "needle", "--color", "always"])
     bead_cli.handle_bead_search(args)

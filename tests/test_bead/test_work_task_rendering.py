@@ -27,7 +27,7 @@ def test_task_prompt_has_exact_single_segment_order_and_feedback_tail() -> None:
     assert rendered == (
         "#gh:sase #commit\n"
         "%id(!sase-42, bead=sase-42)\n"
-        "%m:@task_worker\n"
+        "%m:@small_phase_worker\n"
         "#custom/work_task:sase-42\n"
         "Please preserve the compatibility shim."
     )
@@ -52,13 +52,37 @@ def test_task_model_uses_size_specific_phase_worker_alias(
 
 
 def test_task_model_precedence_prefers_alias_aware_explicit_model() -> None:
-    assert task_model_directive_value("task_worker", size=PhaseSize.LARGE) == (
-        "@task_worker"
-    )
+    assert task_model_directive_value("smart", size=PhaseSize.LARGE) == "@smart"
     assert task_model_directive_value("claude/opus", size=PhaseSize.LARGE) == (
         "claude/opus"
     )
-    assert task_model_directive_value("", size=None) == "@task_worker"
+    assert task_model_directive_value("", size=None) == "@small_phase_worker"
+
+
+@pytest.mark.parametrize(
+    ("size", "expects_plan"),
+    [
+        (PhaseSize.XSMALL, False),
+        (PhaseSize.SMALL, False),
+        (PhaseSize.MEDIUM, False),
+        (PhaseSize.LARGE, True),
+        (PhaseSize.XLARGE, True),
+        (None, False),
+    ],
+)
+def test_task_prompt_reuses_phase_plan_first_routing(
+    size: PhaseSize | None,
+    expects_plan: bool,
+) -> None:
+    rendered = render_task_prompt(
+        "sase-42",
+        size=size,
+        work_task_xprompt=Workflow(name="bd/work_task"),
+        vcs_context=VCSLaunchContext(vcs_workflow="git", project_name="sase"),
+    )
+
+    assert ("#plan" in rendered.splitlines()) is expects_plan
+    assert "\n---\n" not in rendered
 
 
 def test_task_feedback_rejects_top_level_segment_separator() -> None:

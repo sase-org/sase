@@ -70,6 +70,7 @@ def main() -> NoReturn:
     # --- bead ---
     if args.command == "bead":
         from sase.bead.cli import (
+            handle_bead_plus_one,
             handle_bead_blocked,
             handle_bead_close,
             handle_bead_create,
@@ -96,6 +97,7 @@ def main() -> NoReturn:
 
         bead_sub = getattr(args, "bead_subcommand", None)
         _BEAD_HANDLERS = {
+            "+1": handle_bead_plus_one,
             "blocked": handle_bead_blocked,
             "close": handle_bead_close,
             "create": handle_bead_create,
@@ -123,7 +125,7 @@ def main() -> NoReturn:
         if handler is None:
             print(
                 "Usage: sase bead"
-                " {blocked,close,create,dep,doctor,history,init,list,onboard,open,pages,ready,ref,resolve-conflicts,rm,search,show,stats,sync,update,work}"
+                " {+1,blocked,close,create,dep,doctor,history,init,list,note,onboard,open,pages,ready,ref,resolve-conflicts,rm,search,show,stats,sync,update,work}"
             )
             sys.exit(1)
         try:

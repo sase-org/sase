@@ -148,9 +148,6 @@ def test_model_alias_description_builtin_and_custom(
         "Epic land agents selected for plans at or above the configured "
         "phase-count threshold."
     )
-    assert model_alias_description("task_worker") == (
-        "Standalone agents that implement task beads without size metadata."
-    )
     assert model_alias_description("phase_worker") is None
     assert model_alias_description("medium_phase_worker") == (
         "Medium bead phase agents that implement directly."
@@ -200,7 +197,6 @@ def test_model_alias_names_include_configured_and_special(
         "coder",
         "epic_lander",
         "big_epic_lander",
-        "task_worker",
         "xsmall_phase_worker",
         "small_phase_worker",
         "medium_phase_worker",

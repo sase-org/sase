@@ -68,7 +68,7 @@ def test_close_ready_task_persists_close_and_cancels_pending_gate(
 ) -> None:
     del gate_home
     with BeadProject(project_dir) as project:
-        task = project.create("Ready task", IssueType.TASK)
+        task = project.create("Ready task", IssueType.TASK, size="small")
         project.update(task.id, status=Status.READY.value)
     gate = _gate("close-integration", bead_id=task.id)
 

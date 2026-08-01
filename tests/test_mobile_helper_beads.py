@@ -379,7 +379,12 @@ def test_beads_list_bridge_lists_ready_task_beads_by_default_and_by_filter(
     alpha_root = tmp_path / "alpha"
     alpha_dir, _, _, _ = seed_bead_project(alpha_root)
     with BeadProject.init(alpha_root) as project:
-        task = project.create("Alpha Task", IssueType.TASK, description="Follow-up")
+        task = project.create(
+            "Alpha Task",
+            IssueType.TASK,
+            description="Follow-up",
+            size="small",
+        )
         project.update(task.id, status=Status.READY.value)
     seed_known_projects(tmp_path, {"alpha": alpha_dir})
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))

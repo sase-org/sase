@@ -158,7 +158,9 @@ def test_bead_store_mutation_routes_explicit_cwd_to_commit_and_push(
     )
 
     with bead_store_mutation(auto_commit, cwd=project_dir) as mutation:
-        issue = mutation.project.create("Cross-project close", IssueType.TASK)
+        issue = mutation.project.create(
+            "Cross-project close", IssueType.TASK, size="small"
+        )
         mutation.commit(f"chore(beads): create {issue.id}")
 
     assert commit_calls == [
@@ -229,8 +231,8 @@ def test_handle_bead_update_multi_id_commits_once_and_pushes_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     with BeadProject(project_dir) as project:
-        first = project.create("First", IssueType.TASK)
-        second = project.create("Second", IssueType.TASK)
+        first = project.create("First", IssueType.TASK, size="small")
+        second = project.create("Second", IssueType.TASK, size="small")
     auto_commit = MagicMock(return_value=True)
     push = MagicMock()
     monkeypatch.setattr("sase.bead.cli_crud.auto_commit_bead_store", auto_commit)

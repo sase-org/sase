@@ -780,7 +780,6 @@ llm_provider:
   #     codex_coder: claude/opus    # coder follow-ups from Codex-authored plans
   #     epic_lander: "@default"     # epic land agents
   #     big_epic_lander: "@smartest" # threshold-selected epic land agents
-  #     task_worker: "@default"     # standalone task-bead agents without size metadata
   #     xsmall_phase_worker: "@cheaper" # extra-small bead phase agents
   #     small_phase_worker: "@cheap"    # small bead phase agents
   #     medium_phase_worker: "@default@high" # follows @default at high effort

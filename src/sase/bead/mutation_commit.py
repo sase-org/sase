@@ -7,6 +7,8 @@ from collections.abc import Sequence
 
 def mutation_commit_message(operation: str, issue_ids: list[str]) -> str | None:
     """Return the canonical auto-commit message for one CLI mutation."""
+    if operation == "+1" and issue_ids:
+        return f"chore(beads): +1 {issue_ids[0]}"
     if operation == "create" and issue_ids:
         return f"chore(beads): create {issue_ids[0]}"
     if operation == "update" and issue_ids:

@@ -567,7 +567,6 @@ llm_provider:
       claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
       codex_coder: claude/opus # coder follow-ups from Codex-authored plans
       big_epic_lander: codex/gpt-5.6-sol # threshold-selected epic landers
-      task_worker: "@default" # standalone tasks without size metadata
       cheap: claude/sonnet@xhigh | codex/gpt-5.5 # small-phase pool
       cheaper: claude/sonnet@medium | codex/gpt-5.5@medium # xsmall-phase pool
       cheapest: claude/haiku | codex/gpt-5.3-codex-spark # explicit-use pool
@@ -703,7 +702,6 @@ fallback, while `@cheap`, `@cheaper`, and `@cheapest` own independent built-in p
 | `@<provider>_coder`    | Coder follow-up for a plan authored by `<provider>` (`@claude_coder`, `@codex_coder`, `@agy_coder`, …). | `@coder`                                                                                |
 | `@epic_lander`         | Epic land agent with no explicit land model.                                                            | `@default`                                                                              |
 | `@big_epic_lander`     | Epic land agent selected when the authored phase count meets the configured threshold.                  | `@smartest`                                                                             |
-| `@task_worker`         | Standalone task-bead worker when the task has no explicit model or size.                                | `@default`                                                                              |
 | `@xsmall_phase_worker` | Extra-small phase/task worker with no explicit per-bead model.                                          | `@cheaper`                                                                              |
 | `@small_phase_worker`  | Small phase/task worker with no explicit per-bead model.                                                | `@cheap`                                                                                |
 | `@medium_phase_worker` | Medium phase/task worker with no explicit per-bead model.                                               | `@default@high`                                                                         |
@@ -732,7 +730,6 @@ llm_provider:
       claude_coder: codex/gpt-5.6-sol # Claude-authored plans hand coding to Codex
       codex_coder: claude/opus # Codex-authored plans hand coding to Claude
       big_epic_lander: codex/gpt-5.6-sol # large epic land agents only
-      task_worker: "@default" # standalone tasks without size metadata
       cheap: claude/sonnet@xhigh | codex/gpt-5.5
       cheaper: claude/sonnet@medium | codex/gpt-5.5@medium
       cheapest: claude/haiku | codex/gpt-5.3-codex-spark
@@ -950,9 +947,8 @@ Delegated launches do not use a separate "worker lane". Instead, each delegated 
   `#plan`. An explicit per-bead model is accepted at every size and always wins without changing the size-based planning
   policy.
 - **Standalone task-bead workers** use the task's explicit model when set. Otherwise, a stored task size selects the
-  matching phase-worker alias above, while a task without size metadata uses `@task_worker` and falls back to
-  `@default`. The current task prompt implements directly at every size; unlike epic phases, `large` and `xlarge` tasks
-  do not receive an automatic `#plan`.
+  matching phase-worker alias above, while a legacy task without size metadata uses `@small_phase_worker`. Like epic
+  phases, `large` and `xlarge` tasks receive an automatic `#plan`; xsmall, small, and medium tasks implement directly.
 - **Epic land agents** without an explicit land model use `@epic_lander`, or `@big_epic_lander` when their authored
   phase count meets `bead.big_epic_phase_threshold` (default `5`). Normal landers fall back to `@default`; the
   threshold-selected alias falls back independently to provider-aware `@smartest`.

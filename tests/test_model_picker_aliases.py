@@ -37,13 +37,12 @@ def test_alias_context_builds_styled_rows_after_models() -> None:
     )
     assert provider_index == 0
     assert alias_index > provider_index
-    assert [row.option_id for row in rows[alias_index : alias_index + 16]] == [
+    assert [row.option_id for row in rows[alias_index : alias_index + 15]] == [
         "__header_aliases__",
         "@default",
         "@coder",
         "@epic_lander",
         "@big_epic_lander",
-        "@task_worker",
         "@xsmall_phase_worker",
         "@small_phase_worker",
         "@medium_phase_worker",
@@ -119,7 +118,6 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
         make_alias_view("codex_coder", "provider_coder"),
         make_alias_view("epic_lander", "role"),
         make_alias_view("big_epic_lander", "role"),
-        make_alias_view("task_worker", "role"),
         make_alias_view("xsmall_phase_worker", "role"),
         make_alias_view("small_phase_worker", "role"),
         make_alias_view("medium_phase_worker", "role"),

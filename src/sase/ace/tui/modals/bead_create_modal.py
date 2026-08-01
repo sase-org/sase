@@ -17,7 +17,7 @@ from sase.bead.model import PhaseSize
 class BeadCreateResult:
     title: str
     description: str
-    size: str | None
+    size: str
     ready: bool
 
 
@@ -41,7 +41,10 @@ class BeadCreateModal(ModalScreen[BeadCreateResult | None]):
             yield TextArea("", id="bead-create-description")
             yield Label("Size", classes="bead-modal-label")
             yield Select(
-                [("None", ""), *[(size.value, size.value) for size in PhaseSize]],
+                [
+                    ("Choose a size…", ""),
+                    *[(size.value, size.value) for size in PhaseSize],
+                ],
                 value="",
                 allow_blank=False,
                 id="bead-create-size",
@@ -66,7 +69,11 @@ class BeadCreateModal(ModalScreen[BeadCreateResult | None]):
         if not title:
             self.notify("Task title cannot be empty", severity="error")
             return
-        size = str(self.query_one("#bead-create-size", Select).value) or None
+        size = str(self.query_one("#bead-create-size", Select).value)
+        if not size:
+            self.notify("Task size is required", severity="error")
+            self.query_one("#bead-create-size", Select).focus()
+            return
         self.dismiss(
             BeadCreateResult(
                 title=title,

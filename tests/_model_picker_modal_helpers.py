@@ -50,7 +50,6 @@ def make_alias_context(
             ),
             make_alias_view("epic_lander", "role", provider="claude", model="opus"),
             make_alias_view("big_epic_lander", "role", provider="claude", model="opus"),
-            make_alias_view("task_worker", "role", provider="claude", model="opus"),
             make_alias_view(
                 "xsmall_phase_worker", "role", provider="claude", model="sonnet"
             ),

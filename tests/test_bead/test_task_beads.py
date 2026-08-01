@@ -59,7 +59,16 @@ def test_create_task_records_acting_agent(
 
     monkeypatch.setenv("SASE_AGENT_NAME", "q8--code")
     args = create_parser().parse_args(
-        ["bead", "create", "--title", "Agent follow-up", "--type", "task"]
+        [
+            "bead",
+            "create",
+            "--title",
+            "Agent follow-up",
+            "--type",
+            "task",
+            "--size",
+            "small",
+        ]
     )
 
     bead_cli.handle_bead_create(args)
@@ -71,7 +80,16 @@ def test_create_task_records_acting_agent(
 
 def test_create_task_without_agent_records_store_owner(project_dir: Path) -> None:
     args = create_parser().parse_args(
-        ["bead", "create", "--title", "Human follow-up", "--type", "task"]
+        [
+            "bead",
+            "create",
+            "--title",
+            "Human follow-up",
+            "--type",
+            "task",
+            "--size",
+            "small",
+        ]
     )
 
     bead_cli.handle_bead_create(args)
@@ -105,6 +123,23 @@ def test_create_phase_inherits_parent_creator(project_dir: Path) -> None:
     with BeadProject(project_dir) as project:
         phase = project.list_issues(issue_types=[IssueType.PHASE])[0]
     assert phase.created_by == creator
+
+
+def test_create_task_requires_size(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = create_parser().parse_args(
+        ["bead", "create", "--title", "Missing size", "--type", "task"]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        bead_cli.handle_bead_create(args)
+
+    assert exc_info.value.code == 1
+    assert "task beads require -z/--size" in capsys.readouterr().err
+    with BeadProject(project_dir) as project:
+        assert project.list_issues(issue_types=[IssueType.TASK]) == []
 
 
 def test_create_plan_prefers_frontmatter_proposer(project_dir: Path) -> None:
@@ -155,7 +190,9 @@ def test_ready_stats_and_detail_handlers_render_task_semantics(
             IssueType.TASK,
             size=PhaseSize.MEDIUM,
         )
-        blocked = project.create("Blocked follow-up", IssueType.TASK)
+        blocked = project.create(
+            "Blocked follow-up", IssueType.TASK, size=PhaseSize.SMALL
+        )
         project.update(first.id, status="ready")
         project.update(blocked.id, status="ready")
         project.add_dependency(blocked.id, first.id)
@@ -182,7 +219,7 @@ def test_ready_handler_uses_task_specific_empty_message(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with BeadProject(project_dir) as project:
-        project.create("Draft follow-up", IssueType.TASK)
+        project.create("Draft follow-up", IssueType.TASK, size=PhaseSize.SMALL)
 
     bead_cli.handle_bead_ready(create_parser().parse_args(["bead", "ready"]))
 

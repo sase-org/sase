@@ -13,7 +13,7 @@ from sase.bead.mutation_commit import (
 
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
-_MUTATING_VERBS = frozenset({"close", "create", "open", "ref", "rm", "update"})
+_MUTATING_VERBS = frozenset({"+1", "close", "create", "open", "ref", "rm", "update"})
 _READ_ONLY_DEP_ACTIONS = frozenset({"list", "tree"})
 _READ_ONLY_REF_ACTIONS = frozenset({"list"})
 

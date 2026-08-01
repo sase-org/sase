@@ -24,7 +24,6 @@ from sase.llm_provider.config import EPIC_LANDER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import LARGE_PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import SMALL_PHASE_WORKER_MODEL_ALIAS_NAME
-from sase.llm_provider.config import TASK_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import format_model_directive_value
@@ -328,9 +327,7 @@ def task_model_directive_value(
     """Return the authoritative ``%model`` value for a task-bead agent."""
     if explicit_model:
         return format_model_directive_value(explicit_model)
-    if size is not None and size != "":
-        return phase_model_directive_value(None, size=size)
-    return role_model_directive_value(TASK_WORKER_MODEL_ALIAS_NAME)
+    return phase_model_directive_value(None, size=size)
 
 
 def render_task_prompt(
@@ -357,6 +354,8 @@ def render_task_prompt(
         f"%m:{task_model_directive_value(model, size=size)}",
         f"#{work_task_xprompt.name}:{bead_id}",
     ]
+    if phase_requires_plan(size):
+        lines.append("#plan")
     if feedback_text:
         lines.append(feedback_text)
     return "\n".join(lines)

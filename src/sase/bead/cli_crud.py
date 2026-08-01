@@ -7,6 +7,9 @@ import re
 import sys
 from pathlib import Path
 
+from rich.console import Console
+from rich.markup import escape
+
 from sase.agent.identity import discover_agent_identity
 from sase.bead.cli_common import (
     auto_commit_bead_store,
@@ -101,6 +104,13 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         print("Error: --tier can only be set on plan beads", file=sys.stderr)
         sys.exit(1)
     size = getattr(args, "size", None)
+    if issue_type == IssueType.TASK and size is None:
+        print(
+            "Error: task beads require -z/--size "
+            "(xsmall, small, medium, large, or xlarge)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     if issue_type == IssueType.PLAN and size is not None:
         print("Error: --size can only be set on phase or task beads", file=sys.stderr)
         sys.exit(1)
@@ -158,6 +168,51 @@ def handle_bead_create(args: argparse.Namespace) -> None:
             sys.exit(1)
         mutation.commit(require_mutation_commit_message("create", [issue.id]))
     print(f"Created {issue.issue_type.value}: {issue.id} — {issue.title}")
+
+
+def handle_bead_plus_one(args: argparse.Namespace) -> None:
+    """Record independently attributed evidence on an existing task bead."""
+    with bead_store_mutation(auto_commit_bead_store) as mutation:
+        try:
+            reporter = getattr(args, "author", None)
+            if reporter is None:
+                identity = discover_agent_identity()
+                reporter = (
+                    identity.name if identity is not None else mutation.project.owner
+                )
+            issue, changed = mutation.project.plus_one(
+                args.id,
+                args.note,
+                reporter=reporter,
+                refs=getattr(args, "ref", None) or (),
+            )
+        except KeyError:
+            print(f"Error: issue not found: {args.id}", file=sys.stderr)
+            sys.exit(1)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        if changed:
+            mutation.commit(require_mutation_commit_message("+1", [issue.id]))
+
+    report_word = "report" if issue.plus_one_count == 1 else "reports"
+    if changed:
+        Console().print(
+            f"[green]✓[/green] +1 recorded: {escape(issue.id)} — "
+            f"[bold]+{issue.plus_one_count}[/bold] independent {report_word}"
+        )
+        return
+    if reporter == issue.created_by:
+        reason = "the task creator does not count as an additional reporter"
+    else:
+        reason = (
+            f"{reporter} already reported this task; use `sase bead note` "
+            "for supplementary evidence"
+        )
+    Console().print(
+        f"[yellow]·[/yellow] Unchanged: {escape(issue.id)} — "
+        f"{escape(reason)} ([bold]+{issue.plus_one_count}[/bold])"
+    )
 
 
 def _print_update_results(

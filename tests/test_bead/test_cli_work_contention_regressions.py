@@ -65,7 +65,7 @@ def test_concurrent_bead_mutations_wait_past_the_old_lock_timeout(
     monkeypatch.setenv("SASE_BEAD_MUTATION_LOCK_TIMEOUT", "5")
     with BeadProject(project_dir) as project:
         bead_ids = [
-            project.create(f"Seeded task {index}", IssueType.TASK).id
+            project.create(f"Seeded task {index}", IssueType.TASK, size="small").id
             for index in range(36)
         ]
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import re
 from pathlib import Path
 from typing import Any
 
@@ -99,8 +100,9 @@ def test_fast_path_guards_mutations_but_not_reads(tmp_path: Path, monkeypatch) -
     monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(tmp_path / "sandbox"))
 
     assert try_handle_bead_fast_path(["search", "needle"]) == 0
-    with pytest.raises(RuntimeError, match="fast-path rm"):
-        try_handle_bead_fast_path(["rm", "beads-1"])
+    for argv in (["+1", "beads-1", "-n", "evidence"], ["rm", "beads-1"]):
+        with pytest.raises(RuntimeError, match=re.escape(f"fast-path {argv[0]}")):
+            try_handle_bead_fast_path(argv)
 
     assert calls == [["search", "needle"]]
 
@@ -314,7 +316,17 @@ def test_bead_create_dispatch_records_acting_agent_as_created_by(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["sase", "bead", "create", "--title", "Probe", "--type", "task"],
+        [
+            "sase",
+            "bead",
+            "create",
+            "--title",
+            "Probe",
+            "--type",
+            "task",
+            "--size",
+            "small",
+        ],
     )
 
     with pytest.raises(SystemExit) as exc_info:

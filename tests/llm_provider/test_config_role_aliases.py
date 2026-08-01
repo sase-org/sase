@@ -39,7 +39,6 @@ def test_role_alias_helpers() -> None:
     assert role_model_directive_value("default") == "@default"
     assert implicit_model_alias_fallback("big_epic_lander") == "smartest"
     assert implicit_model_alias_fallback("epic_lander") == "default"
-    assert implicit_model_alias_fallback("task_worker") == "default"
     assert implicit_model_alias_fallback("xsmall_phase_worker") == "cheaper"
     assert implicit_model_alias_fallback("small_phase_worker") == "cheap"
     assert implicit_model_alias_fallback("medium_phase_worker") == "default"

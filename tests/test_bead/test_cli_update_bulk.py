@@ -15,7 +15,7 @@ from sase.bead.project import BeadProject
 
 def _create_issue(project_dir: Path, title: str) -> Issue:
     with BeadProject(project_dir) as proj:
-        return proj.create(title, IssueType.TASK)
+        return proj.create(title, IssueType.TASK, size="small")
 
 
 def _update_args(ids: list[str], **fields: object) -> argparse.Namespace:

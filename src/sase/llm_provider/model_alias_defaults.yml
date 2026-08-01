@@ -27,9 +27,6 @@ aliases:
     description: >-
       Epic land agents selected for plans at or above the configured
       phase-count threshold.
-  task_worker:
-    fallback: "@default"
-    description: "Standalone agents that implement task beads without size metadata."
   xsmall_phase_worker:
     fallback: "@cheaper"
     description: >-

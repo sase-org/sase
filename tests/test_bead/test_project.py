@@ -159,6 +159,7 @@ def test_create_records_explicit_created_by(project):
     issue = project.create(
         "Attributed task",
         IssueType.TASK,
+        size="small",
         created_by="bbugyi200.athena.q8--plan",
     )
     assert issue.created_by == "bbugyi200.athena.q8--plan"
@@ -166,7 +167,7 @@ def test_create_records_explicit_created_by(project):
 
 
 def test_create_without_created_by_falls_back_to_owner(project):
-    issue = project.create("Unattributed task", IssueType.TASK)
+    issue = project.create("Unattributed task", IssueType.TASK, size="small")
     assert issue.created_by == issue.owner
 
 
@@ -274,8 +275,8 @@ def test_list_filter_type(project):
 
 
 def test_ready(project):
-    first = project.create("First", IssueType.TASK)
-    second = project.create("Second", IssueType.TASK)
+    first = project.create("First", IssueType.TASK, size="small")
+    second = project.create("Second", IssueType.TASK, size="small")
     project.update(first.id, status="ready")
     project.update(second.id, status="ready")
     project.add_dependency(second.id, first.id)

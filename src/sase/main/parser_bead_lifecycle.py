@@ -5,6 +5,49 @@ from __future__ import annotations
 import argparse
 
 
+def register_bead_plus_one_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead +1``."""
+    parser = subparsers.add_parser(
+        "+1",
+        help="Corroborate an existing task with independent evidence",
+        description=(
+            "Record one independently attributed report on an existing task bead. "
+            "Each reporter counts at most once; later details belong in `sase bead "
+            "note`. Draft and closed tasks are promoted to ready."
+        ),
+        epilog=(
+            "Examples:\n"
+            '  sase bead +1 sase-ab -n "Reproduced on Linux with v0.14.0"\n'
+            '  sase bead +1 ab -n "Trace confirms the same failure" '
+            "-R research:202608/trace.txt\n"
+            '  sase bead +1 sase-ab -a agent.two -n "Independent reproduction"'
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("id", help="Full or shorthand task bead ID")
+    parser.add_argument(
+        "-a",
+        "--author",
+        metavar="NAME",
+        help="Reporter recorded on the evidence (default: current agent, else owner)",
+    )
+    parser.add_argument(
+        "-n",
+        "--note",
+        required=True,
+        metavar="TEXT",
+        help="Required independent reproduction or impact evidence",
+    )
+    parser.add_argument(
+        "-R",
+        "--ref",
+        action="append",
+        help="Artifact reference supporting the evidence (repeatable)",
+    )
+
+
 def register_bead_close_parser(
     subparsers: argparse._SubParsersAction,
 ) -> None:
@@ -81,7 +124,23 @@ def register_bead_create_parser(
     subparsers: argparse._SubParsersAction,
 ) -> None:
     """Register ``sase bead create``."""
-    parser = subparsers.add_parser("create", help="Create a new issue")
+    parser = subparsers.add_parser(
+        "create",
+        help="Create a new issue",
+        description=(
+            "Create a plan, phase, or standalone task bead. New task beads "
+            "require an explicit size; plan beads reject size, while raw phase "
+            "creation accepts it optionally."
+        ),
+        epilog=(
+            "Examples:\n"
+            '  sase bead create -T task -t "Fix retry race" -z medium\n'
+            '  sase bead create -T phase(sase-ab) -t "Add endpoint" -z small\n'
+            "  sase bead create -T plan(plans:202608/feature.md) "
+            '-t "Feature" -r epic'
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("-a", "--assignee", help="Assignee")
     parser.add_argument(
         "-b",

@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from sase.bead.model import IssueType, Status
+from sase.bead.model import IssueType, PhaseSize, Status
 from sase.bead.project import BeadProject
 
 
@@ -83,10 +83,11 @@ def seed_task(
     *,
     status: Status = Status.READY,
     assignee: str = "",
+    size: PhaseSize | None = PhaseSize.SMALL,
 ) -> str:
     """Create one task bead with the requested launch state."""
     with BeadProject(project_dir) as proj:
-        task = proj.create("Standalone task", IssueType.TASK)
+        task = proj.create("Standalone task", IssueType.TASK, size=size)
         if status is Status.CLOSED:
             proj.close([task.id])
         elif status is not Status.OPEN or assignee:

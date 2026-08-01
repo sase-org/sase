@@ -387,7 +387,9 @@ Source of truth:
 
 Quick Start:
   sase bead init                                 Create sdd/beads/ in current directory
-  sase bead create -t "Follow-up" --type task    Create a standalone draft task
+  sase bead create -t "Follow-up" --type task --size small
+                                                  Create a standalone draft task
+  sase bead +1 <task-id> -n "Independent repro"  Corroborate an existing task
   sase bead create -t "Fix bug" --type phase(<plan-id>)
   sase bead create -t "New feature" --type plan(sdd/plans/202605/feature.md) --tier plan
   sase bead create -t "Epic" --type plan(sdd/plans/202605/epic.md) --tier epic

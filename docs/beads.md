@@ -270,10 +270,8 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
 
 5. Route the worker model. A task's explicit `model` wins. Otherwise a stored size selects the corresponding
    `@xsmall_phase_worker`, `@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, or
-   `@xlarge_phase_worker` alias; a task without size metadata uses `@task_worker`, which falls back to `@default`.
-   Unlike epic phases, the current task launch prompt does not add `#plan` for `large` or `xlarge`: task size currently
-   selects the model route only. Do not infer routing from the shared `small` display fallback in `sase bead show` or
-   ACE's Plans pane: those surfaces currently render a sizeless task as `small`, but launch still uses `@task_worker`.
+   `@xlarge_phase_worker` alias; a legacy task without size metadata uses `@small_phase_worker`. As with epic phases,
+   `large` and `xlarge` task prompts add `#plan`, while smaller tasks implement directly.
 
 ### Dependencies
 
@@ -798,10 +796,9 @@ page when that URL resolves. A human-created bead shows the creator's email with
 or print the hosted-agent link — only `sase bead show` does. Compact `sase bead list`/`sase bead search` rows never show
 the creator at all. Closed beads include their resolution, close reason, and close timestamp; legacy closures without a
 resolution show `(unrecorded)`. Phase and task detail views always print a size: they use the stored value when present
-and `small` when it is absent. For a task, that `small` value is only a display fallback; a sizeless task launch routes
-through `@task_worker`, not `@small_phase_worker`. Any bead's children are grouped as phases (with status and size) and
-child epics (with tier and status), including child epics owned by a phase bead. Nested beads show their complete
-lineage back to the root plan. A `claimed` bead also prints
+and `small` when it is absent. Legacy sizeless task launches use the same `@small_phase_worker` fallback. Any bead's
+children are grouped as phases (with status and size) and child epics (with tier and status), including child epics
+owned by a phase bead. Nested beads show their complete lineage back to the root plan. A `claimed` bead also prints
 `Claimed by: <assignee> (agent has not started working yet)`.
 
 `full` is the default detail block. `compact` prints the same single row as `sase bead list`. `json` emits a single-bead
@@ -889,8 +886,8 @@ For a task bead, `sase bead work <task-id>` accepts `ready` (normal), `open` (ma
 `--dry-run` prints the single worker prompt without changing the bead or agent registry. A real launch:
 
 1. Force-reuses the task ID as the deterministic agent name after showing or confirming any destructive cleanup.
-2. Selects the bead's stored model, the size-derived phase-worker alias, or `@task_worker` in that order.
-3. Renders one VCS-aware prompt ending in `#bd/work_task:<task-id>`.
+2. Selects the bead's stored model or its size-derived phase-worker alias; missing legacy size normalizes to small.
+3. Renders one VCS-aware prompt ending in `#bd/work_task:<task-id>`, plus `#plan` for large/xlarge tasks.
 4. Sets `status=in_progress` and `assignee=<task-id>` in one checkpoint commit, publishes it, then launches the worker.
 5. Restores the prior task state if dispatch fails before any runner starts; a live runner keeps the checkpoint.
 

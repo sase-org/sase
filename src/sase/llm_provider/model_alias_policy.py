@@ -25,7 +25,7 @@ import yaml  # type: ignore[import-untyped]
 #
 #   - ``default``: the model used when a prompt has no explicit ``%model``.
 #   - ``coder`` / ``<provider>_coder``: coder follow-up roles.
-#   - ``epic_lander`` / ``big_epic_lander`` / ``task_worker`` /
+#   - ``epic_lander`` / ``big_epic_lander`` /
 #     ``<size>_phase_worker`` / ``smart`` / ``smartest`` /
 #     ``cheap`` / ``cheaper`` / ``cheapest``: bead/epic roles.
 #
@@ -51,9 +51,6 @@ EPIC_LANDER_MODEL_ALIAS_NAME = "epic_lander"
 
 #: The implicit large-epic lander role alias (threshold-selected follow-up).
 BIG_EPIC_LANDER_MODEL_ALIAS_NAME = "big_epic_lander"
-
-#: The implicit standalone task-bead worker role alias.
-TASK_WORKER_MODEL_ALIAS_NAME = "task_worker"
 
 #: The implicit extra-small-phase role alias.
 XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME = "xsmall_phase_worker"
@@ -91,7 +88,6 @@ _ROLE_ALIAS_NAME_CONSTANTS: tuple[str, ...] = (
     CODER_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-    TASK_WORKER_MODEL_ALIAS_NAME,
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,

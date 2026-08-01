@@ -68,6 +68,7 @@ def test_fast_path_rm_uses_rust_on_sidecar_layout(
 
 
 def test_mutation_commit_messages_match_slow_path_contract() -> None:
+    assert _mutation_commit_message("+1", ["beads-1"]) == ("chore(beads): +1 beads-1")
     assert _mutation_commit_message("create", ["beads-1"]) == (
         "chore(beads): create beads-1"
     )
@@ -225,7 +226,7 @@ def test_execute_bead_cli_materializes_when_the_fast_path_context_defers(
     from sase.bead.project import BeadProject
 
     with BeadProject.init(tmp_path) as project:
-        issue = project.create("Deferred", IssueType.TASK)
+        issue = project.create("Deferred", IssueType.TASK, size="small")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
     monkeypatch.setattr(
