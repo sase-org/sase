@@ -8,7 +8,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from ..prompt_catalog import PromptCatalogSnapshot
-    from ..widgets.prompt_completion import PromptCompletionSettings
+    from ..widgets.prompt_completion import (
+        PromptCompletionSettings,
+        PromptSpellcheckSettings,
+    )
     from ..widgets.xprompt_arg_assist import XPromptAssistEntry
 
 log = logging.getLogger(__name__)
@@ -44,6 +47,10 @@ class StartupPromptCatalogMixin:
     def get_prompt_completion_settings(self: Any) -> PromptCompletionSettings:
         """Return parsed prompt completion behavior settings."""
         return self._prompt_completion_settings
+
+    def get_prompt_spellcheck_settings(self: Any) -> PromptSpellcheckSettings:
+        """Return parsed sticky-misspelling-highlight behavior settings."""
+        return self._prompt_spellcheck_settings
 
     def get_prompt_catalog_assist_entries(
         self: Any,

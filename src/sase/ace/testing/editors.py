@@ -1,5 +1,6 @@
 """Focused text-editor test harnesses for ace widgets."""
 
+from collections.abc import Sequence
 from typing import Any
 
 from textual.app import App, ComposeResult
@@ -10,10 +11,48 @@ from sase.ace.tui.widgets.vim_text_area import VimTextArea
 
 
 class _PromptTestApp(App[None]):
-    """Minimal app hosting a single PromptTextArea for isolation testing."""
+    """Minimal app hosting a single PromptTextArea for isolation testing.
+
+    Implements the misspellings provider surface in memory so widget tests can
+    seed sticky-misspelling state without touching ``~/.sase``.
+    """
+
+    def __init__(self, misspellings: Sequence[str] = ()) -> None:
+        super().__init__()
+        self._misspelled_words: frozenset[str] = frozenset(
+            word.casefold() for word in misspellings
+        )
+        self._misspellings_generation_count = 0
 
     def compose(self) -> ComposeResult:
         yield PromptTextArea(id="ta")
+
+    def misspelled_words(self) -> frozenset[str]:
+        return self._misspelled_words
+
+    def misspellings_generation(self) -> int:
+        return self._misspellings_generation_count
+
+    def record_misspelling(self, word: str) -> None:
+        key = word.casefold()
+        if key and key not in self._misspelled_words:
+            self._misspelled_words = self._misspelled_words | {key}
+            self._misspellings_generation_count += 1
+
+    def allow_word(self, word: str) -> None:
+        key = word.casefold()
+        if key in self._misspelled_words:
+            self._misspelled_words = self._misspelled_words - {key}
+            self._misspellings_generation_count += 1
+
+    def forget_misspelling(self, word: str) -> None:
+        key = word.casefold()
+        if key in self._misspelled_words:
+            self._misspelled_words = self._misspelled_words - {key}
+            self._misspellings_generation_count += 1
+
+    def warm_misspellings(self) -> None:
+        return None
 
 
 class PromptPage:
@@ -33,18 +72,20 @@ class PromptPage:
         cursor: tuple[int, int] = (0, 0),
         mode: str = "normal",
         size: tuple[int, int] | None = None,
+        misspellings: Sequence[str] = (),
     ) -> None:
         self._init_text = text
         self._init_cursor = cursor
         self._init_mode = mode
         self._size = size
+        self._misspellings = misspellings
         self._app: _PromptTestApp | None = None
         self._ta: PromptTextArea | None = None
         self._pilot: Any = None
         self._pilot_cm: Any = None
 
     async def __aenter__(self) -> "PromptPage":
-        self._app = _PromptTestApp()
+        self._app = _PromptTestApp(self._misspellings)
         if self._size is not None:
             self._pilot_cm = self._app.run_test(size=self._size)
         else:

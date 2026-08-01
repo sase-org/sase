@@ -249,6 +249,11 @@ class AgentOnboarding(VerticalScroll):
             text.append("launch against a specific project or PR instead.")
             text.append("\n")
         text.append("The prompt bar works from any tab.", style="dim")
+        text.append("\n")
+        text.append(
+            "Words K proves misspelled stay underlined in every prompt after that.",
+            style="dim",
+        )
         return text
 
     @staticmethod

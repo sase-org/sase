@@ -98,6 +98,10 @@ CODEBLOCK_HIGHLIGHT_STACK = (
     "```"
 )
 
+MISSPELLING_HIGHLIGHT_PROMPT = (
+    "Please recieve the attached report and confirm reciept\nbefore the meeting starts."
+)
+
 BULLET_HIGHLIGHT_SOLO = (
     "Release checklist for the prompt polish:\n"
     "- Draft the changelog and tag the #gh:sase milestone\n"

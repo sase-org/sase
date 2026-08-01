@@ -4502,6 +4502,12 @@ SpellcheckPanelModal .spellcheck-choice-row.selected {
     background: $boost;
 }
 
+SpellcheckPanelModal .spellcheck-empty-row {
+    height: 1;
+    color: $text-muted;
+    text-style: italic;
+}
+
 SpellcheckPanelModal #spellcheck-footer {
     text-align: center;
     color: $text-muted;

@@ -15,6 +15,7 @@ from sase.core.word_lookup import (
     check_spelling,
     extract_lookup_word,
     look_up_definitions,
+    natural_word_ranges,
 )
 
 
@@ -251,3 +252,66 @@ def _runner(
 
 def _unexpected_runner(*_args: object, **_kwargs: object) -> object:
     raise AssertionError("runner should not be called")
+
+
+def _offset_to_location(text: str, offset: int) -> tuple[int, int]:
+    row = text.count("\n", 0, offset)
+    line_start = text.rfind("\n", 0, offset) + 1
+    return row, offset - line_start
+
+
+def test_natural_word_ranges_agrees_with_extract_lookup_word_everywhere() -> None:
+    text = (
+        "Hello world, don't-worry\n"
+        "café state-of-the-art 'quoted'\n"
+        "skip_this version2 2cool -edge- keep\n"
+    )
+    lines = text.split("\n")
+
+    ranges = list(natural_word_ranges(text))
+    assert ranges
+
+    for start, end, word in ranges:
+        assert text[start:end] == word
+        row, start_col = _offset_to_location(text, start)
+        end_row, end_col = _offset_to_location(text, end)
+        assert row == end_row
+
+        for col in range(start_col, end_col):
+            span = extract_lookup_word(lines[row], row, col)
+            assert span == WordSpan(word, row, start_col, end_col)
+
+
+def test_natural_word_ranges_rejects_digit_and_underscore_runs() -> None:
+    words = [
+        word for _start, _end, word in natural_word_ranges("skip_this version2 2cool")
+    ]
+    assert words == []
+
+
+def test_natural_word_ranges_accepts_interior_connectors_and_trims_edges() -> None:
+    words = [
+        word
+        for _start, _end, word in natural_word_ranges(
+            "-hello- don't 'quoted' state-of-the-art"
+        )
+    ]
+    assert words == ["hello", "don't", "quoted", "state-of-the-art"]
+
+
+def test_natural_word_ranges_enforces_the_64_char_cap() -> None:
+    too_long = "a" * 65
+    exactly_64 = "a" * 64
+
+    assert list(natural_word_ranges(too_long)) == []
+    assert list(natural_word_ranges(exactly_64)) == [(0, 64, exactly_64)]
+
+
+def test_natural_word_ranges_uses_absolute_offsets_across_lines() -> None:
+    text = "first line\nsecond café line\nthird line"
+
+    ranges = list(natural_word_ranges(text))
+
+    assert (text.index("café"), text.index("café") + len("café"), "café") in ranges
+    third_start = text.index("third")
+    assert (third_start, third_start + len("third"), "third") in ranges

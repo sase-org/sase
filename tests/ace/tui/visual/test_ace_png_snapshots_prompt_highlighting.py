@@ -18,6 +18,7 @@ from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import (
     BULLET_HIGHLIGHT_SOLO,
     CODEBLOCK_HIGHLIGHT_SOLO,
     CODEBLOCK_HIGHLIGHT_STACK,
+    MISSPELLING_HIGHLIGHT_PROMPT,
     SEARCH_PROMPT,
     TODO_HIGHLIGHT_STACK,
     TODO_RESTORED_PROMPT,
@@ -253,6 +254,47 @@ async def test_prompt_artifact_ref_highlight_png_snapshot(
             "prompt_artifact_ref_highlight_120x40",
             title="ACE prompt input — artifact-reference highlighting",
         )
+
+
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "prompt_misspelling_highlight_dark_120x40",
+            "ACE prompt input — sticky misspelling highlighting, dark theme",
+        ),
+        (
+            "textual-light",
+            "prompt_misspelling_highlight_light_120x40",
+            "ACE prompt input — sticky misspelling highlighting, light theme",
+        ),
+    ],
+)
+async def test_prompt_misspelling_highlight_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    # Seed the durable store directly, the same way a prior ``K`` session
+    # would have left it, so the app's normal cold-start warm discovers it.
+    from sase.history.prompt_misspellings import record_misspelling
+
+    record_misspelling("recieve")
+    record_misspelling("reciept")
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        page.app.theme = theme
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+        await mount_prompt_bar(page, MISSPELLING_HIGHLIGHT_PROMPT)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 
 
 @pytest.mark.parametrize(

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Literal
+
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
@@ -9,11 +12,26 @@ from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from sase.core.word_lookup import MISSPELLING_COLOR
+
 _MAX_SUGGESTIONS = 9
 
 
-class SpellcheckPanelModal(ModalScreen[str | None]):
-    """Offer up to nine immediately applicable spelling corrections."""
+@dataclass(frozen=True, slots=True)
+class SpellcheckChoice:
+    """The user's choice from the spelling suggestion panel."""
+
+    action: Literal["apply", "accept"]
+    suggestion: str = ""
+
+
+class SpellcheckPanelModal(ModalScreen[SpellcheckChoice | None]):
+    """Offer up to nine immediately applicable spelling corrections.
+
+    A word with no suggestions still opens the panel -- with a dim
+    ``no suggestions`` row instead of choices -- so ``a`` can accept it. That
+    matters most for proper nouns, which ``aspell`` rarely has ideas about.
+    """
 
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
@@ -23,40 +41,48 @@ class SpellcheckPanelModal(ModalScreen[str | None]):
         ("k", "select_previous", "Previous"),
         ("ctrl+n", "select_next", "Next"),
         ("ctrl+p", "select_previous", "Previous"),
+        ("a", "accept", "Accept"),
     ]
 
     def __init__(self, word: str, suggestions: tuple[str, ...]) -> None:
         super().__init__()
         self._word = word
         self._suggestions = suggestions[:_MAX_SUGGESTIONS]
-        if not self._suggestions:
-            raise ValueError("SpellcheckPanelModal requires at least one suggestion")
         self._selected_index = 0
 
     def compose(self) -> ComposeResult:
         with Container(id="spellcheck-container"):
             yield Static(self._build_title(), id="spellcheck-title")
-            for index, _suggestion in enumerate(self._suggestions):
+            if self._suggestions:
+                for index, _suggestion in enumerate(self._suggestions):
+                    yield Static(
+                        self._build_row(index),
+                        id=f"spellcheck-choice-{index}",
+                        classes="spellcheck-choice-row",
+                    )
+            else:
                 yield Static(
-                    self._build_row(index),
-                    id=f"spellcheck-choice-{index}",
-                    classes="spellcheck-choice-row",
+                    "no suggestions",
+                    id="spellcheck-empty-row",
+                    classes="spellcheck-empty-row",
                 )
-            yield Static(
-                "1-9 apply | j/k move | Enter apply | Esc cancel",
-                id="spellcheck-footer",
-            )
+            yield Static(self._build_footer(), id="spellcheck-footer")
 
     def on_mount(self) -> None:
         self._refresh_rows()
+
+    def _build_footer(self) -> str:
+        if not self._suggestions:
+            return "j/k move | a accept | Esc cancel"
+        return "1-9 apply | j/k move | a accept | Enter apply | Esc cancel"
 
     def _build_title(self) -> Text:
         title = Text()
         title.append("≡", style="bold #FFD700")
         title.append(" ")
-        title.append("SPELLING", style="bold #FF8787")
+        title.append("SPELLING", style=f"bold {MISSPELLING_COLOR}")
         title.append("  ")
-        title.append(self._word, style="bold underline #FF8787")
+        title.append(self._word, style=f"bold underline {MISSPELLING_COLOR}")
         return title
 
     def _build_row(self, index: int) -> Text:
@@ -64,9 +90,9 @@ class SpellcheckPanelModal(ModalScreen[str | None]):
         row = Text()
         row.append(
             ">" if selected else " ",
-            style="bold #FF8787" if selected else "",
+            style=f"bold {MISSPELLING_COLOR}" if selected else "",
         )
-        row.append(f" {index + 1} ", style="#FF8787")
+        row.append(f" {index + 1} ", style=MISSPELLING_COLOR)
         row.append(
             self._suggestions[index],
             style="bold white" if selected else "white",
@@ -87,6 +113,9 @@ class SpellcheckPanelModal(ModalScreen[str | None]):
         elif event.key in {"escape", "q"}:
             self._stop_key(event)
             self.action_cancel()
+        elif event.key == "a":
+            self._stop_key(event)
+            self.action_accept()
         elif event.key in {"j", "ctrl+n"}:
             self._stop_key(event)
             self.action_select_next()
@@ -97,7 +126,11 @@ class SpellcheckPanelModal(ModalScreen[str | None]):
             self._stop_key(event)
             index = int(event.key) - 1
             if index < len(self._suggestions):
-                self.dismiss(self._suggestions[index])
+                self.dismiss(
+                    SpellcheckChoice(
+                        action="apply", suggestion=self._suggestions[index]
+                    )
+                )
         elif event.character and event.character.isprintable():
             self._stop_key(event)
 
@@ -109,8 +142,18 @@ class SpellcheckPanelModal(ModalScreen[str | None]):
     def action_cancel(self) -> None:
         self.dismiss(None)
 
+    def action_accept(self) -> None:
+        self.dismiss(SpellcheckChoice(action="accept"))
+
     def action_apply_selected(self) -> None:
-        self.dismiss(self._suggestions[self._selected_index])
+        if not self._suggestions:
+            return
+        self.dismiss(
+            SpellcheckChoice(
+                action="apply",
+                suggestion=self._suggestions[self._selected_index],
+            )
+        )
 
     def action_select_next(self) -> None:
         self._select_relative(1)
@@ -119,8 +162,10 @@ class SpellcheckPanelModal(ModalScreen[str | None]):
         self._select_relative(-1)
 
     def _select_relative(self, offset: int) -> None:
+        if not self._suggestions:
+            return
         self._selected_index = (self._selected_index + offset) % len(self._suggestions)
         self._refresh_rows()
 
 
-__all__ = ["SpellcheckPanelModal"]
+__all__ = ["SpellcheckChoice", "SpellcheckPanelModal"]

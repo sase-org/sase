@@ -160,6 +160,9 @@ ace:
     history_word_count: 10000
     common_placeholder_count: 100
     word_min_length: 5
+  prompt_spellcheck:
+    highlight: true
+    max_remembered_words: 5000
   prompt_inputs:
     collect_raw_placeholders: true
     xprompt_placeholder_args: true

@@ -17,6 +17,7 @@ from ..util.nav_gate import NavigationGate
 from ._startup_common_placeholders import StartupCommonPlaceholdersMixin
 from ._startup_history_words import StartupHistoryWordsMixin
 from ._startup_loads import StartupLoadsMixin
+from ._startup_misspellings import StartupMisspellingsMixin
 from ._startup_mount import StartupMountMixin
 from ._startup_prompt_catalog import StartupPromptCatalogMixin
 from ._startup_watchers import StartupWatchersMixin
@@ -25,9 +26,13 @@ from ._state_init import StateInitMixin
 if TYPE_CHECKING:
     from .navigation._types import JumpAllResult
     from ..prompt_catalog import PromptCatalogSnapshot
-    from ..widgets.prompt_completion import PromptCompletionSettings
+    from ..widgets.prompt_completion import (
+        PromptCompletionSettings,
+        PromptSpellcheckSettings,
+    )
     from ..widgets.xprompt_arg_assist import XPromptAssistEntry
     from sase.history.prompt_placeholders import CommonPlaceholderSourceToken
+    from sase.history.prompt_misspellings import MisspellingsSourceToken
     from sase.history.prompt_words import HistoryWordsSourceToken
 
 TabName = Literal["changespecs", "agents", "axe"]
@@ -37,6 +42,7 @@ class StartupMixin(
     StateInitMixin,
     StartupHistoryWordsMixin,
     StartupCommonPlaceholdersMixin,
+    StartupMisspellingsMixin,
     StartupPromptCatalogMixin,
     StartupLoadsMixin,
     StartupWatchersMixin,
@@ -123,6 +129,7 @@ class StartupMixin(
     _prompt_source_debounce_timer: Timer | None
     _prompt_source_debounce_config_dirty: bool
     _prompt_completion_settings: PromptCompletionSettings
+    _prompt_spellcheck_settings: PromptSpellcheckSettings
     _history_prompt_words_cache: list[str] | None
     _history_prompt_words_source_token: HistoryWordsSourceToken | None
     _history_prompt_words_rebuild_in_flight: bool
@@ -132,4 +139,10 @@ class StartupMixin(
     _common_placeholders_generation: int
     _common_placeholders_rebuild_in_flight: bool
     _common_placeholders_rebuild_pending: bool
+    _misspelled_words_cache: frozenset[str] | None
+    _allowed_misspellings_cache: frozenset[str] | None
+    _misspellings_source_token: MisspellingsSourceToken | None
+    _misspellings_generation: int
+    _misspellings_rebuild_in_flight: bool
+    _misspellings_rebuild_pending: bool
     _slow_tool_call_threshold_ms: int

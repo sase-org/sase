@@ -563,6 +563,7 @@ ace:
 | `keymaps`                  | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
 | `prompt_completion`        | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
 | `prompt_inputs`            | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
+| `prompt_spellcheck`        | dict         | see below | Sticky misspelling highlight settings for the ACE prompt input.                                                                                            |
 | `repro_output_dir`         | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
 | `snippets`                 | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
 | `tribes`                   | dict         | see below | Per-tribe ACE TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                      |
@@ -860,6 +861,34 @@ Source: `src/sase/ace/tui/widgets/prompt_completion.py`, `src/sase/ace/tui/widge
 `src/sase/ace/tui/widgets/history_word_completion.py`, `src/sase/history/prompt_words.py`,
 `src/sase/history/prompt_placeholders.py`, `src/sase/ace/tui/widgets/prompt_completion_root.py`,
 `src/sase/ace/tui/widgets/recursive_file_finder.py`
+
+#### `ace.prompt_spellcheck`
+
+Controls the sticky misspelling highlight in the ACE prompt input. Every word `K` proves misspelled (an aspell
+`misspelled` verdict) is remembered durably and underlined in every prompt input from then on; `K` on a word already
+remembered is what teaches ACE about it, not a background spell-checker.
+
+```yaml
+ace:
+  prompt_spellcheck:
+    highlight: true
+    max_remembered_words: 5000
+```
+
+| Field                  | Type | Default | Description                                                                                                            |
+| ---------------------- | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `highlight`            | bool | `true`  | Whether remembered misspellings are underlined in prompt inputs. `K` still records and clears misspellings when false. |
+| `max_remembered_words` | int  | `5000`  | Maximum words retained in each of the misspelled and accepted-word lists; `0` disables remembering new misspellings.   |
+
+Remembered words are stored at `sase_home()/prompt_misspellings.json`, casefolded for matching but keeping the
+first-seen spelling. Pressing `a` in the correction panel accepts a word instead of applying a suggestion, moving it
+into the accepted list so it is never flagged again; `K` on an already-correct remembered word (for example, after
+adding it to your `aspell` personal dictionary) clears it automatically. Retention evicts the oldest entries once a list
+exceeds `max_remembered_words`.
+
+Source: `src/sase/history/prompt_misspellings.py`, `src/sase/core/word_lookup.py`,
+`src/sase/ace/tui/widgets/_misspelling_highlight.py`, `src/sase/ace/tui/actions/_startup_misspellings.py`,
+`src/sase/ace/tui/modals/spellcheck_panel_modal.py`
 
 #### `ace.prompt_inputs`
 

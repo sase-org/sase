@@ -73,6 +73,27 @@ def test_prompt_completion_artifact_menu_default_contract() -> None:
     )
 
 
+def test_config_schema_validates_ace_prompt_spellcheck_settings() -> None:
+    validator = Draft7Validator(schema())
+    validator.validate(
+        {
+            "ace": {
+                "prompt_spellcheck": {
+                    "highlight": False,
+                    "max_remembered_words": 1000,
+                }
+            }
+        }
+    )
+    for invalid in (
+        {"highlight": "yes"},
+        {"max_remembered_words": -1},
+        {"unknown": True},
+    ):
+        with pytest.raises(ValidationError):
+            validator.validate({"ace": {"prompt_spellcheck": invalid}})
+
+
 def test_config_schema_validates_ace_agents_sync_settings() -> None:
     validator = Draft7Validator(schema())
     validator.validate(

@@ -175,6 +175,157 @@ async def test_k_without_lookup_tools_toasts_without_modal(
         assert not _top_is(page, SpellcheckPanelModal)
 
 
+async def test_k_on_misspelling_records_word_before_panel_opens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.check_spelling",
+        lambda _word: SpellCheckResult(status="misspelled", suggestions=("hello",)),
+    )
+
+    async with PromptPage("helllo there", cursor=(0, 2), size=(80, 24)) as page:
+        await page.press("K")
+        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+
+        assert "helllo" in page.ta.app.misspelled_words()
+
+
+async def test_spellcheck_escape_leaves_word_squiggled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.check_spelling",
+        lambda _word: SpellCheckResult(
+            status="misspelled",
+            suggestions=("separate", "separated"),
+        ),
+    )
+
+    async with PromptPage("seperate", cursor=(0, 2), size=(80, 24)) as page:
+        await page.press("K")
+        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.press("escape")
+        await _wait_for(page, lambda: not _top_is(page, SpellcheckPanelModal))
+
+        assert "seperate" in page.ta.app.misspelled_words()
+        page.ta._build_highlight_map()
+        names = [name for row in page.ta._highlights.values() for *_range, name in row]
+        assert "spell.misspelled" in names
+
+
+async def test_k_on_misspelling_without_suggestions_opens_panel_instead_of_notifying(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.check_spelling",
+        lambda _word: SpellCheckResult(status="misspelled", suggestions=()),
+    )
+    notifications: list[str] = []
+
+    async with PromptPage("zzzzz word", cursor=(0, 2), size=(80, 24)) as page:
+        monkeypatch.setattr(
+            page.ta,
+            "notify",
+            lambda message, severity=None: notifications.append(message),
+        )
+
+        await page.press("K")
+        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+
+        assert notifications == []
+        assert "zzzzz" in page.ta.app.misspelled_words()
+
+
+async def test_spellcheck_accept_clears_the_squiggle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.check_spelling",
+        lambda _word: SpellCheckResult(status="misspelled", suggestions=()),
+    )
+    notifications: list[str] = []
+
+    async with PromptPage("Bugyi wrote this", cursor=(0, 2), size=(80, 24)) as page:
+        monkeypatch.setattr(
+            page.ta,
+            "notify",
+            lambda message, severity=None: notifications.append(message),
+        )
+        await page.press("K")
+        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.press("a")
+        await _wait_for(page, lambda: not _top_is(page, SpellcheckPanelModal))
+
+        assert "bugyi" not in page.ta.app.misspelled_words()
+        assert notifications == ["'Bugyi' will no longer be flagged as misspelled"]
+
+
+async def test_k_on_now_correct_remembered_word_forgets_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.check_spelling",
+        lambda _word: SpellCheckResult(status="correct"),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.look_up_definitions",
+        lambda _word: DefinitionResult(status="no_match"),
+    )
+    notifications: list[str] = []
+
+    async with PromptPage(
+        "hello there",
+        cursor=(0, 2),
+        size=(80, 24),
+        misspellings=["hello"],
+    ) as page:
+        monkeypatch.setattr(
+            page.ta,
+            "notify",
+            lambda message, severity=None: notifications.append(message),
+        )
+        assert "hello" in page.ta.app.misspelled_words()
+
+        await page.press("K")
+        await _wait_for(page, lambda: bool(notifications))
+
+        assert "hello" not in page.ta.app.misspelled_words()
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        SpellCheckResult(status="unavailable"),
+        SpellCheckResult(status="error", detail="boom"),
+    ],
+)
+async def test_unavailable_and_error_verdicts_record_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+    spelling: SpellCheckResult,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.check_spelling",
+        lambda _word: spelling,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.look_up_definitions",
+        lambda _word: DefinitionResult(status="unavailable"),
+    )
+    notifications: list[str] = []
+
+    async with PromptPage("wrod there", cursor=(0, 2), size=(80, 24)) as page:
+        monkeypatch.setattr(
+            page.ta,
+            "notify",
+            lambda message, severity=None: notifications.append(message),
+        )
+
+        await page.press("K")
+        await _wait_for(page, lambda: bool(notifications))
+
+        assert page.ta.app.misspelled_words() == frozenset()
+
+
 @pytest.mark.parametrize(
     ("text", "cursor"),
     [

@@ -177,10 +177,16 @@ def init_late_startup_state(
     self._slow_tool_call_threshold_ms = slow_tool_call_threshold_ms_from_config(
         ace_cfg if isinstance(ace_cfg, dict) else {}
     )
-    from ..widgets.prompt_completion import parse_prompt_completion_settings
+    from ..widgets.prompt_completion import (
+        parse_prompt_completion_settings,
+        parse_prompt_spellcheck_settings,
+    )
 
     self._prompt_completion_settings = parse_prompt_completion_settings(
         ace_cfg.get("prompt_completion", {}) if isinstance(ace_cfg, dict) else {}
+    )
+    self._prompt_spellcheck_settings = parse_prompt_spellcheck_settings(
+        ace_cfg.get("prompt_spellcheck", {}) if isinstance(ace_cfg, dict) else {}
     )
     self._history_prompt_words_cache = None
     self._history_prompt_words_source_token = None
@@ -191,6 +197,12 @@ def init_late_startup_state(
     self._common_placeholders_generation = 0
     self._common_placeholders_rebuild_in_flight = False
     self._common_placeholders_rebuild_pending = False
+    self._misspelled_words_cache = None
+    self._allowed_misspellings_cache = None
+    self._misspellings_source_token = None
+    self._misspellings_generation = 0
+    self._misspellings_rebuild_in_flight = False
+    self._misspellings_rebuild_pending = False
     user_snippets: dict[str, str] = (
         ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}
     )

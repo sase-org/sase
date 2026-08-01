@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Literal
 
@@ -14,6 +14,10 @@ _ASPELL_TIMEOUT_SECONDS = 3.0
 _DICT_TIMEOUT_SECONDS = 5.0
 _DICT_NO_MATCH_EXIT_CODE = 20
 _CONNECTORS = frozenset({"'", "-"})
+
+# The salmon used for both the spellcheck correction panel and the sticky
+# misspelling underline in the prompt input, so the two visibly match.
+MISSPELLING_COLOR = "#FF8787"
 
 _DefinitionStatus = Literal["ok", "no_match", "unavailable", "error"]
 _SpellCheckStatus = Literal["correct", "misspelled", "unavailable", "error"]
@@ -88,16 +92,55 @@ def extract_lookup_word(
     while end < len(line) and _is_candidate_char(line[end]):
         end += 1
 
-    candidate = line[start:end]
+    validated = _validate_word_run(line, start, end)
+    if validated is None:
+        return None
+    start, end, word = validated
+    return WordSpan(word=word, row=row, start_col=start, end_col=end)
+
+
+def natural_word_ranges(text: str) -> Iterator[tuple[int, int, str]]:
+    """Yield ``(start, end, word)`` for every K-targetable word in *text*.
+
+    Offsets are absolute Python character offsets over the whole document.
+    Word runs never cross newlines, since ``\\n`` is neither alpha nor a
+    connector. Shares :func:`_validate_word_run` with :func:`extract_lookup_word`
+    so the cursor-targeted and whole-document rules cannot diverge.
+    """
+    length = len(text)
+    index = 0
+    while index < length:
+        if not _is_candidate_char(text[index]):
+            index += 1
+            continue
+        start = index
+        end = index + 1
+        while end < length and _is_candidate_char(text[end]):
+            end += 1
+        validated = _validate_word_run(text, start, end)
+        if validated is not None:
+            yield validated
+        index = end
+
+
+def _validate_word_run(text: str, start: int, end: int) -> tuple[int, int, str] | None:
+    """Trim connectors and validate a raw candidate run of *text*.
+
+    A candidate run is a maximal span of alpha/digit/underscore/connector
+    characters. Returns the trimmed ``(start, end, word)`` or ``None`` when the
+    run contains a digit/underscore, is empty, exceeds the length cap, or has a
+    non-interior connector.
+    """
+    candidate = text[start:end]
     if any(char.isdigit() or char == "_" for char in candidate):
         return None
 
-    while start < end and line[start] in _CONNECTORS:
+    while start < end and text[start] in _CONNECTORS:
         start += 1
-    while end > start and line[end - 1] in _CONNECTORS:
+    while end > start and text[end - 1] in _CONNECTORS:
         end -= 1
 
-    word = line[start:end]
+    word = text[start:end]
     if not word or len(word) > _MAX_WORD_LENGTH:
         return None
     if not all(
@@ -106,7 +149,7 @@ def extract_lookup_word(
     ):
         return None
 
-    return WordSpan(word=word, row=row, start_col=start, end_col=end)
+    return start, end, word
 
 
 def check_spelling(
@@ -281,6 +324,7 @@ def _one_line(text: str) -> str:
 
 
 __all__ = [
+    "MISSPELLING_COLOR",
     "DefinitionResult",
     "DefinitionSection",
     "SpellCheckResult",
@@ -288,4 +332,5 @@ __all__ = [
     "check_spelling",
     "extract_lookup_word",
     "look_up_definitions",
+    "natural_word_ranges",
 ]

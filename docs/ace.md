@@ -3373,6 +3373,15 @@ Definitions require the optional `dict` command. Spell checking requires GNU `as
 feature without affecting the rest of prompt preview. Run `sase doctor -D` to see the exact optional-tool status and
 installation hint.
 
+Every word `K` proves misspelled is remembered durably and gets a red underline in every prompt input from that moment
+on, in every `sase ace` session -- no live spell-checking runs on every keystroke; only what `K` has already checked is
+ever squiggled. Press `a` in the correction panel to accept a word instead of applying a suggestion; accepted words stop
+being flagged and `K` on them no longer opens the panel for that reason. A `K` press on a now-correctly-spelled
+remembered word (for example, after adding it to your `aspell` personal dictionary) clears its squiggle automatically.
+The remembered words are stored at `sase_home()/prompt_misspellings.json`; see
+[`ace.prompt_spellcheck`](configuration.md#aceprompt_spellcheck) to disable the highlight or change how many words are
+retained.
+
 ACE also computes a non-disruptive live suggestion after a short debounce while the prompt input is in INSERT mode. The
 suggestion appears in the prompt bar subtitle as `[^L] accept ...`; press `Ctrl+L` to accept it. `Enter` still submits
 the prompt as typed, so live suggestions cannot accidentally replace text on send.

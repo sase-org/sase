@@ -16,6 +16,8 @@ from sase.core.word_lookup import (
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
+
+    from sase.ace.tui.modals.spellcheck_panel_modal import SpellcheckChoice
 else:
     _MixinBase = object
 
@@ -74,14 +76,16 @@ class PromptWordLookupMixin(_MixinBase):
                 severity="error",
             )
             return True
+        if spelling.status == "correct":
+            if span.word.casefold() in self._prompt_misspelled_words():
+                self._forget_prompt_misspelling(span.word)
+            return False
         if spelling.status != "misspelled":
             return False
-        if not spelling.suggestions:
-            self.notify(
-                f"'{span.word}' is not in the dictionary (no suggestions)",
-                severity="warning",
-            )
-            return True
+
+        # Record before pushing the panel so an Esc out of it still lands on an
+        # already-squiggled word.
+        self._record_prompt_misspelling(span.word)
 
         from sase.ace.tui.modals.spellcheck_panel_modal import (
             SpellcheckPanelModal,
@@ -89,7 +93,7 @@ class PromptWordLookupMixin(_MixinBase):
 
         self.app.push_screen(
             SpellcheckPanelModal(span.word, spelling.suggestions),
-            lambda suggestion: self._apply_spelling_suggestion(span, suggestion),
+            lambda choice: self._apply_spelling_suggestion(span, choice),
         )
         return True
 
@@ -130,9 +134,14 @@ class PromptWordLookupMixin(_MixinBase):
     def _apply_spelling_suggestion(
         self,
         span: WordSpan,
-        suggestion: str | None,
+        choice: SpellcheckChoice | None,
     ) -> None:
-        if suggestion is None:
+        if choice is None:
+            # The word stays flagged, which is the point of Esc/cancel.
+            return
+        if choice.action == "accept":
+            self._allow_prompt_misspelling(span.word)
+            self.notify(f"'{span.word}' will no longer be flagged as misspelled")
             return
 
         if span.row >= self.document.line_count:
@@ -145,7 +154,7 @@ class PromptWordLookupMixin(_MixinBase):
 
         start = (span.row, span.start_col)
         end = (span.row, span.end_col)
-        self.replace(suggestion, start, end)
+        self.replace(choice.suggestion, start, end)
         self.cursor_location = start
 
     def _notify_word_changed_before_apply(self, word: str) -> None:
@@ -156,6 +165,31 @@ class PromptWordLookupMixin(_MixinBase):
 
     def _word_lookup_request_is_current(self, request_id: int) -> bool:
         return request_id == self._prompt_preview_request_id and self.is_mounted
+
+    def _prompt_misspelled_words(self) -> frozenset[str]:
+        provider = getattr(self.app, "misspelled_words", None)
+        if not callable(provider):
+            return frozenset()
+        try:
+            words = provider()
+        except Exception:
+            return frozenset()
+        return words if isinstance(words, frozenset) else frozenset()
+
+    def _record_prompt_misspelling(self, word: str) -> None:
+        recorder = getattr(self.app, "record_misspelling", None)
+        if callable(recorder):
+            recorder(word)
+
+    def _forget_prompt_misspelling(self, word: str) -> None:
+        forgetter = getattr(self.app, "forget_misspelling", None)
+        if callable(forgetter):
+            forgetter(word)
+
+    def _allow_prompt_misspelling(self, word: str) -> None:
+        allower = getattr(self.app, "allow_word", None)
+        if callable(allower):
+            allower(word)
 
 
 __all__ = ["PromptWordLookupMixin"]

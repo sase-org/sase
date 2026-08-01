@@ -63,6 +63,36 @@ class PromptSoftCompletion:
 DEFAULT_PROMPT_COMPLETION_SETTINGS = PromptCompletionSettings()
 
 
+@dataclass(frozen=True, slots=True)
+class PromptSpellcheckSettings:
+    """Parsed sticky-misspelling-highlight settings for the TUI prompt bar."""
+
+    highlight: bool = True
+    max_remembered_words: int = 5000
+
+
+DEFAULT_PROMPT_SPELLCHECK_SETTINGS = PromptSpellcheckSettings()
+
+
+def parse_prompt_spellcheck_settings(raw: Any) -> PromptSpellcheckSettings:
+    """Parse ``ace.prompt_spellcheck`` with conservative fallbacks."""
+    if not isinstance(raw, dict):
+        raw = {}
+
+    highlight = bool(raw.get("highlight", DEFAULT_PROMPT_SPELLCHECK_SETTINGS.highlight))
+    max_remembered_words = _parse_non_negative_int(
+        raw.get(
+            "max_remembered_words",
+            DEFAULT_PROMPT_SPELLCHECK_SETTINGS.max_remembered_words,
+        ),
+        DEFAULT_PROMPT_SPELLCHECK_SETTINGS.max_remembered_words,
+    )
+    return PromptSpellcheckSettings(
+        highlight=highlight,
+        max_remembered_words=max_remembered_words,
+    )
+
+
 def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
     """Parse ``ace.prompt_completion`` with conservative fallbacks."""
     if not isinstance(raw, dict):

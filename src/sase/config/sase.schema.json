@@ -746,6 +746,24 @@
             }
           }
         },
+        "prompt_spellcheck": {
+          "type": "object",
+          "description": "Sticky misspelling highlight settings for the ACE prompt input",
+          "additionalProperties": false,
+          "properties": {
+            "highlight": {
+              "type": "boolean",
+              "description": "Whether words K has proven misspelled are underlined in every prompt input; K still records misspellings when false",
+              "default": true
+            },
+            "max_remembered_words": {
+              "type": "integer",
+              "description": "Maximum words retained in each of the misspelled and allowed lists; 0 disables remembering new misspellings",
+              "minimum": 0,
+              "default": 5000
+            }
+          }
+        },
         "prompt_inputs": {
           "type": "object",
           "description": "Prompt input collection settings for the ACE prompt input",
