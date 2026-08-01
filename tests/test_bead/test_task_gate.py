@@ -36,6 +36,7 @@ def _spec(*, request_id: str = "task-triage-1") -> dict[str, Any]:
         title="Follow up on the cache",
         description="Make invalidation deterministic.",
         notes="Discovered while landing sase-bg.",
+        created_by="claude_coder",
         producer={"agent_name": "triage-test"},
     )
 
@@ -51,6 +52,7 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
         title="Follow up on the cache",
         description="Make invalidation deterministic.",
         notes="Discovered while landing sase-bg.",
+        created_by="claude_coder",
     )
 
     request = json.loads(gate.request_path.read_text(encoding="utf-8"))
@@ -67,19 +69,46 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
         ("launch", "optional"),
         ("close", "required"),
     ]
+    assert request["presentation"]["sender"] == "bead"
+    assert request["presentation"]["notes"] == ["sase-task.1 — Follow up on the cache"]
+    assert request["presentation"]["tags"] == ["bead", "task"]
+    assert request["presentation"]["panel"] == "beads"
+    assert request["presentation"]["origin_agent"] == "claude_coder"
     preview = (gate.bundle_path / TASK_TRIAGE_PREVIEW_PATH).read_text(encoding="utf-8")
     assert "# sase-task.1 — Follow up on the cache" in preview
+    assert "**Filed by:** `@claude_coder`" in preview
     assert "Make invalidation deterministic." in preview
     assert "Discovered while landing sase-bg." in preview
 
     [notification] = load_notifications()
     assert notification.action == "TaskTriage"
-    assert notification.sender == "bead-task-triage"
+    assert notification.sender == "bead"
     assert notification.icon == "✦"
     assert notification.tags == ["bead", "task"]
+    assert notification.notes == ["sase-task.1 — Follow up on the cache"]
+    assert notification.action_data["panel"] == "beads"
+    assert notification.action_data["origin_agent"] == "claude_coder"
     [entry] = pending_actions.read_pending_action_store()["actions"].values()
     assert entry["action_kind"] == "task_triage"
     assert adapter_for_kind("task_triage").auto_policy == "forbidden"
+
+
+def test_task_triage_gate_omits_blank_origin_agent(gate_home: Path) -> None:
+    del gate_home
+    gate = create_task_triage_gate(
+        request_id="task-triage-without-filer",
+        bead_id="sase-task.1",
+        project="sase",
+        title="Follow up on the cache",
+        created_by="  ",
+    )
+
+    request = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    assert "origin_agent" not in request["presentation"]
+    preview = (gate.bundle_path / TASK_TRIAGE_PREVIEW_PATH).read_text(encoding="utf-8")
+    assert "Filed by" not in preview
+    [notification] = load_notifications()
+    assert "origin_agent" not in notification.action_data
 
 
 def test_task_triage_rejects_automatic_resolution(gate_home: Path) -> None:
@@ -121,6 +150,14 @@ def test_task_triage_rejects_automatic_resolution(gate_home: Path) -> None:
                 }
             ),
             "invalid_task_triage_resources",
+        ),
+        (
+            lambda spec: spec["presentation"].update(panel="reviews"),
+            "invalid_task_triage_presentation",
+        ),
+        (
+            lambda spec: spec["presentation"].update(origin_agent="forged-agent"),
+            "invalid_task_triage_preview",
         ),
     ],
 )

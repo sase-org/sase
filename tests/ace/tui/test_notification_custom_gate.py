@@ -260,7 +260,7 @@ def test_task_triage_loader_uses_generic_branch_modal_data(
     data = _load_custom_gate_modal_data(notification)
 
     assert data.icon == "✦"
-    assert data.sender == "bead-task-triage"
+    assert data.sender == "bead"
     assert data.preview_name == "task.md"
     assert data.preview_text is not None
     assert "Preserve the compatibility path." in data.preview_text

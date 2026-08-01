@@ -26,6 +26,8 @@ from sase.notification_gates.paths import bundle_paths
 from sase.notification_gates.poller import poll_gate
 
 _STATE_SCHEMA_VERSION = 1
+# Bump when pending task-triage gates need a presentation refresh.
+_PRESENTATION_CONTRACT = 2
 _STATE_FILENAME = "bead_task_triage.json"
 _LOCK_FILENAME = "bead_task_triage.lock"
 
@@ -36,6 +38,7 @@ _GateState = Literal["pending", "terminal", "missing"]
 class _ProjectState:
     gates: dict[str, str] = field(default_factory=dict)
     generations: dict[str, int] = field(default_factory=dict)
+    contracts: dict[str, int] = field(default_factory=dict)
 
 
 def _read_state(path: Path) -> dict[str, _ProjectState]:
@@ -55,6 +58,7 @@ def _read_state(path: Path) -> dict[str, _ProjectState]:
             continue
         raw_gates = raw_project.get("gates")
         raw_generations = raw_project.get("generations")
+        raw_contracts = raw_project.get("contracts")
         gates = (
             {
                 bead_id: request_id
@@ -76,10 +80,23 @@ def _read_state(path: Path) -> dict[str, _ProjectState]:
             if isinstance(raw_generations, dict)
             else {}
         )
-        if gates or generations:
+        contracts: dict[str, int] = {}
+        for bead_id in gates:
+            contract = (
+                raw_contracts.get(bead_id, 1) if isinstance(raw_contracts, dict) else 1
+            )
+            contracts[bead_id] = (
+                contract
+                if isinstance(contract, int)
+                and not isinstance(contract, bool)
+                and contract >= 1
+                else 1
+            )
+        if gates or generations or contracts:
             projects[project_name] = _ProjectState(
                 gates=gates,
                 generations=generations,
+                contracts=contracts,
             )
     return projects
 
@@ -92,9 +109,10 @@ def _write_state(path: Path, projects: dict[str, _ProjectState]) -> None:
             project_name: {
                 "gates": dict(sorted(project.gates.items())),
                 "generations": dict(sorted(project.generations.items())),
+                "contracts": dict(sorted(project.contracts.items())),
             }
             for project_name, project in sorted(projects.items())
-            if project.gates or project.generations
+            if project.gates or project.generations or project.contracts
         },
     }
     fd, temporary_path = tempfile.mkstemp(
@@ -167,12 +185,16 @@ def _gate_state(request_id: str) -> _GateState:
     return "pending" if poll_gate(paths.root) is None else "terminal"
 
 
-def _cancel_pending_gate(request_id: str) -> bool:
+def _cancel_pending_gate(
+    request_id: str,
+    *,
+    reason: str = "task_bead_no_longer_ready",
+) -> bool:
     paths = bundle_paths(TASK_TRIAGE_KIND, request_id)
     try:
         cancel_gate(
             paths.root,
-            reason="task_bead_no_longer_ready",
+            reason=reason,
             source="bead_task_triage",
         )
     except GateError as exc:
@@ -240,8 +262,22 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
 
             issue = ready_tasks.pop(bead_id, None)
             if issue is not None and gate_state == "pending":
-                skipped += 1
-                continue
+                contract = project_state.contracts.get(bead_id, 1)
+                if contract >= _PRESENTATION_CONTRACT:
+                    skipped += 1
+                    continue
+                try:
+                    was_canceled = _cancel_pending_gate(
+                        request_id,
+                        reason="task_triage_presentation_upgraded",
+                    )
+                except Exception as exc:  # noqa: BLE001 - retry on the next tick.
+                    runtime.log.warning(
+                        f"[bead_task_triage] Failed to refresh stale presentation "
+                        f"for gate {request_id}: {exc}"
+                    )
+                    continue
+                canceled += int(was_canceled)
 
             if issue is None and gate_state == "pending":
                 try:
@@ -255,6 +291,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                 canceled += int(was_canceled)
 
             del project_state.gates[bead_id]
+            project_state.contracts.pop(bead_id, None)
             state_changed = True
             if issue is not None:
                 ready_tasks[bead_id] = issue
@@ -270,6 +307,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                     title=issue.title,
                     description=issue.description,
                     notes=issue.notes,
+                    created_by=issue.created_by,
                     producer={
                         "chop": "bead_task_triage",
                         "project": project_name,
@@ -283,6 +321,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                 continue
             project_state.gates[bead_id] = request_id
             project_state.generations[bead_id] = generation
+            project_state.contracts[bead_id] = _PRESENTATION_CONTRACT
             gated += 1
             state_changed = True
 

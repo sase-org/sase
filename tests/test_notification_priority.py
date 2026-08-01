@@ -17,7 +17,7 @@ def test_user_question_is_priority() -> None:
 
 
 def test_task_triage_is_priority() -> None:
-    assert is_priority(_n(sender="bead-task-triage", action="TaskTriage"))
+    assert is_priority(_n(sender="bead", action="TaskTriage"))
 
 
 def test_jump_to_mentor_review_is_priority() -> None:

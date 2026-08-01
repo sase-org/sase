@@ -310,6 +310,7 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
         TASK_TRIAGE_PREVIEW_PATH,
         TASK_TRIAGE_QUERY,
         TaskTriageAction,
+        render_task_triage_preview,
         task_triage_gate_command_script,
         task_triage_result_schema,
     )
@@ -404,6 +405,20 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
             TASK_TRIAGE_PREVIEW_PATH,
             "task triage preview resource is invalid",
         )
+    try:
+        preview_content = (
+            preview.content
+            if preview.content is not None
+            else preview.source.read_text(encoding="utf-8")
+            if preview.source is not None
+            else None
+        )
+    except OSError as exc:
+        raise GateError(
+            "invalid_task_triage_preview",
+            TASK_TRIAGE_PREVIEW_PATH,
+            f"cannot read task triage preview: {exc}",
+        ) from exc
     for option_id, path in TASK_TRIAGE_COMMAND_PATHS.items():
         command = resources[path]
         if command.role != "command" or not command.executable:
@@ -433,13 +448,17 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
                 "task triage command does not match the registered adapter",
             )
 
-    expected_note = f"Task ready for triage: {payload['bead_id']} — {payload['title']}"
+    expected_note = f"{payload['bead_id']} — {payload['title']}"
     presentation = spec.presentation
+    origin_agent = presentation.get("origin_agent")
     if (
-        presentation.get("sender") != "bead-task-triage"
+        presentation.get("sender") != "bead"
         or presentation.get("icon") != "✦"
         or presentation.get("notes") != [expected_note]
         or presentation.get("tags") != ["bead", "task"]
+        or presentation.get("panel") != "beads"
+        or (origin_agent is not None and not isinstance(origin_agent, str))
+        or (isinstance(origin_agent, str) and not origin_agent)
         or presentation.get("files") != [TASK_TRIAGE_PREVIEW_PATH]
         or presentation.get("preview") != TASK_TRIAGE_PREVIEW_PATH
     ):
@@ -447,4 +466,33 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
             "invalid_task_triage_presentation",
             "presentation",
             "task triage presentation does not match the registered adapter",
+        )
+    preview_prefix = (
+        f"# {payload['bead_id']} — {payload['title']}\n\n"
+        + (f"**Filed by:** `@{origin_agent}`\n\n" if origin_agent else "")
+        + "## Description\n\n"
+    )
+    preview_body = (
+        preview_content[len(preview_prefix) :]
+        if isinstance(preview_content, str)
+        and preview_content.startswith(preview_prefix)
+        else ""
+    )
+    description, separator, notes = preview_body.partition("\n\n## Notes\n\n")
+    expected_preview = (
+        render_task_triage_preview(
+            bead_id=cast(str, payload["bead_id"]),
+            title=cast(str, payload["title"]),
+            description=description,
+            notes=notes[:-1],
+            created_by=cast(str, origin_agent or ""),
+        )
+        if separator and notes.endswith("\n")
+        else None
+    )
+    if preview_content != expected_preview:
+        raise GateError(
+            "invalid_task_triage_preview",
+            TASK_TRIAGE_PREVIEW_PATH,
+            "task triage preview does not match the registered adapter",
         )

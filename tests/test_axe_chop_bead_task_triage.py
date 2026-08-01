@@ -34,7 +34,11 @@ def _runtime(tmp_path: Path, *, dry_run: bool = False) -> BuiltinChopRuntime:
     )
 
 
-def _task(bead_id: str = "sase-task.1") -> Issue:
+def _task(
+    bead_id: str = "sase-task.1",
+    *,
+    created_by: str = "claude_coder",
+) -> Issue:
     return Issue(
         id=bead_id,
         title="Follow up on cache invalidation",
@@ -42,6 +46,7 @@ def _task(bead_id: str = "sase-task.1") -> Issue:
         issue_type=IssueType.TASK,
         description="Make cache invalidation deterministic.",
         notes="Discovered while landing sase-bg.",
+        created_by=created_by,
     )
 
 
@@ -82,6 +87,7 @@ def test_ready_task_is_gated_once_while_gate_remains_pending(
     assert created[0]["bead_id"] == "sase-task.1"
     assert created[0]["project"] == "sase"
     assert created[0]["title"] == "Follow up on cache invalidation"
+    assert created[0]["created_by"] == "claude_coder"
     assert created[0]["request_id"].endswith("-g1")
 
     state = json.loads(
@@ -91,6 +97,126 @@ def test_ready_task_is_gated_once_while_gate_remains_pending(
         "sase-task.1": created[0]["request_id"]
     }
     assert state["projects"]["sase"]["generations"] == {"sase-task.1": 1}
+    assert state["projects"]["sase"]["contracts"] == {
+        "sase-task.1": task_triage._PRESENTATION_CONTRACT
+    }
+
+
+def test_blank_task_creator_is_forwarded_without_placeholder(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_project(monkeypatch, tmp_path, [_task(created_by="")])
+    created: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **kwargs: created.append(kwargs),
+    )
+
+    result = task_triage._run(_runtime(tmp_path))
+
+    assert result.counters == {"gated": 1, "canceled": 0, "skipped": 0}
+    assert created[0]["created_by"] == ""
+
+
+def test_old_presentation_contract_is_canceled_and_recreated(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    ready = [_task()]
+    _patch_project(monkeypatch, tmp_path, ready)
+    old_request_id = task_triage._request_id("sase", "sase-task.1", 1)
+    state_path = tmp_path / task_triage._STATE_FILENAME
+    task_triage._write_state(
+        state_path,
+        {
+            "sase": task_triage._ProjectState(
+                gates={"sase-task.1": old_request_id},
+                generations={"sase-task.1": 1},
+                contracts={"sase-task.1": 1},
+            )
+        },
+    )
+    canceled: list[tuple[str, str]] = []
+    created: list[dict[str, Any]] = []
+    monkeypatch.setattr(task_triage, "_gate_state", lambda _request_id: "pending")
+    monkeypatch.setattr(
+        task_triage,
+        "_cancel_pending_gate",
+        lambda request_id, *, reason: canceled.append((request_id, reason)) or True,
+    )
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **kwargs: created.append(kwargs),
+    )
+
+    result = task_triage._run(_runtime(tmp_path))
+
+    assert result.counters == {"gated": 1, "canceled": 1, "skipped": 0}
+    assert canceled == [(old_request_id, "task_triage_presentation_upgraded")]
+    assert created[0]["request_id"].endswith("-g2")
+    state = task_triage._read_state(state_path)["sase"]
+    assert state.contracts == {"sase-task.1": task_triage._PRESENTATION_CONTRACT}
+
+
+def test_current_presentation_contract_remains_pending(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_project(monkeypatch, tmp_path, [_task()])
+    request_id = task_triage._request_id("sase", "sase-task.1", 1)
+    task_triage._write_state(
+        tmp_path / task_triage._STATE_FILENAME,
+        {
+            "sase": task_triage._ProjectState(
+                gates={"sase-task.1": request_id},
+                generations={"sase-task.1": 1},
+                contracts={
+                    "sase-task.1": task_triage._PRESENTATION_CONTRACT,
+                },
+            )
+        },
+    )
+    monkeypatch.setattr(task_triage, "_gate_state", lambda _request_id: "pending")
+    monkeypatch.setattr(
+        task_triage,
+        "_cancel_pending_gate",
+        lambda *_args, **_kwargs: pytest.fail("current gate was canceled"),
+    )
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **_kwargs: pytest.fail("duplicate gate was created"),
+    )
+
+    result = task_triage._run(_runtime(tmp_path))
+
+    assert result.reason == "no_triage_changes"
+    assert result.counters == {"gated": 0, "canceled": 0, "skipped": 1}
+
+
+@pytest.mark.parametrize("stored_contract", [None, "invalid", True, 0])
+def test_missing_or_malformed_contract_defaults_to_legacy_version(
+    tmp_path: Path,
+    stored_contract: object,
+) -> None:
+    state_path = tmp_path / task_triage._STATE_FILENAME
+    project: dict[str, object] = {
+        "gates": {"sase-task.1": "old-request"},
+        "generations": {"sase-task.1": 1},
+    }
+    if stored_contract is not None:
+        project["contracts"] = {"sase-task.1": stored_contract}
+    state_path.write_text(
+        json.dumps({"schema_version": 1, "projects": {"sase": project}}),
+        encoding="utf-8",
+    )
+
+    state = task_triage._read_state(state_path)["sase"]
+
+    assert state.contracts == {"sase-task.1": 1}
 
 
 def test_stale_gate_is_canceled_and_ready_again_uses_new_generation(

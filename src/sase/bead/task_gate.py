@@ -54,6 +54,7 @@ def create_task_triage_gate(
     title: str,
     description: str = "",
     notes: str = "",
+    created_by: str = "",
     producer: Mapping[str, Any] | None = None,
 ) -> Any:
     """Create one human-only triage gate for a ready standalone task bead."""
@@ -67,6 +68,7 @@ def create_task_triage_gate(
             title=title,
             description=description,
             notes=notes,
+            created_by=created_by,
             producer=producer,
         )
     )
@@ -80,6 +82,7 @@ def _build_task_triage_gate_spec(
     title: str,
     description: str = "",
     notes: str = "",
+    created_by: str = "",
     producer: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the only request shape accepted by the TaskTriage adapter."""
@@ -87,6 +90,18 @@ def _build_task_triage_gate_spec(
         "type": "object",
         "additionalProperties": False,
     }
+    origin_agent = created_by.strip()
+    presentation: dict[str, Any] = {
+        "sender": "bead",
+        "icon": "✦",
+        "notes": [f"{bead_id} — {title}"],
+        "tags": ["bead", "task"],
+        "panel": "beads",
+        "files": [TASK_TRIAGE_PREVIEW_PATH],
+        "preview": TASK_TRIAGE_PREVIEW_PATH,
+    }
+    if origin_agent:
+        presentation["origin_agent"] = origin_agent
     return {
         "schema_version": 3,
         "kind": TASK_TRIAGE_KIND,
@@ -98,14 +113,7 @@ def _build_task_triage_gate_spec(
             "project": project,
             "title": title,
         },
-        "presentation": {
-            "sender": "bead-task-triage",
-            "icon": "✦",
-            "notes": [f"Task ready for triage: {bead_id} — {title}"],
-            "tags": ["bead", "task"],
-            "files": [TASK_TRIAGE_PREVIEW_PATH],
-            "preview": TASK_TRIAGE_PREVIEW_PATH,
-        },
+        "presentation": presentation,
         "query": TASK_TRIAGE_QUERY,
         "primary_branch": list(TASK_TRIAGE_PRIMARY_BRANCH),
         "options": [
@@ -146,11 +154,12 @@ def _build_task_triage_gate_spec(
             {
                 "path": TASK_TRIAGE_PREVIEW_PATH,
                 "role": "preview",
-                "content": _render_task_triage_preview(
+                "content": render_task_triage_preview(
                     bead_id=bead_id,
                     title=title,
                     description=description,
                     notes=notes,
+                    created_by=origin_agent,
                 ),
             },
         ],
@@ -158,18 +167,21 @@ def _build_task_triage_gate_spec(
     }
 
 
-def _render_task_triage_preview(
+def render_task_triage_preview(
     *,
     bead_id: str,
     title: str,
     description: str,
     notes: str,
+    created_by: str = "",
 ) -> str:
     """Render the reviewed Markdown detail shown by ACE and mobile clients."""
     description_text = description.strip() or "_No description._"
     notes_text = notes.strip() or "_No notes._"
+    filer = f"**Filed by:** `@{created_by}`\n\n" if created_by else ""
     return (
         f"# {bead_id} — {title}\n\n"
+        f"{filer}"
         f"## Description\n\n{description_text}\n\n"
         f"## Notes\n\n{notes_text}\n"
     )
@@ -421,6 +433,7 @@ __all__ = [
     "create_task_triage_gate",
     "execute_task_triage_gate_command",
     "launch_task_triage",
+    "render_task_triage_preview",
     "task_triage_gate_command_script",
     "task_triage_result_schema",
     "translate_task_triage_response",
