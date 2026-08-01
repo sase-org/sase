@@ -170,6 +170,7 @@ def handle_bead_search(args: argparse.Namespace) -> None:
         print("Error: search query cannot be empty", file=sys.stderr)
         sys.exit(2)
 
+    use_color = resolve_color(getattr(args, "color", "auto"))
     with get_read_view() as view:
         statuses = [Status(s) for s in args.status] if args.status else None
         issue_types = [IssueType(t) for t in args.type] if args.type else None
@@ -184,7 +185,14 @@ def handle_bead_search(args: argparse.Namespace) -> None:
 
         match args.format:
             case "compact":
-                print(_render_search_compact(matches, args.query), end="")
+                print(
+                    _render_search_compact(
+                        matches,
+                        args.query,
+                        use_color=use_color,
+                    ),
+                    end="",
+                )
             case "json":
                 print(_render_search_json(matches, args.query), end="")
             case "full":
@@ -299,14 +307,29 @@ def _render_list_json(
     return json.dumps(envelope, indent=2) + "\n"
 
 
-def _render_search_compact(matches: list[BeadSearchMatch], query: str) -> str:
+def _render_search_compact(
+    matches: list[BeadSearchMatch],
+    query: str,
+    *,
+    use_color: bool,
+) -> str:
     if not matches:
         return f'No beads match "{query}".\n'
 
+    type_width = max(
+        cell_len(bead_type_presentation(value).glyph) for value in BEAD_TYPE_VALUES
+    )
     lines: list[str] = []
     for match in matches:
         issue = match.issue
-        lines.append(f"{status_icon(issue.status)} {issue.id} · {issue.title}")
+        type_cell = bead_type_cli_cell(
+            issue.issue_type,
+            use_color=use_color,
+            width=type_width,
+        )
+        lines.append(
+            f"{type_cell} {status_icon(issue.status)} {issue.id} · {issue.title}"
+        )
         snippet = _compact_snippet(match, query)
         if snippet:
             lines.append(f"  {snippet}")

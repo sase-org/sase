@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from rich.cells import cell_len
 
 from sase.bead import cli as bead_cli
 from sase.bead.model import IssueType
@@ -100,6 +101,56 @@ def test_handle_bead_search_compact_snippet_uses_matching_line(
     assert "Multiline Description" in out
     assert "Needle appears later" in out
     assert "Overview line" not in out
+
+
+def test_handle_bead_search_compact_renders_aligned_type_glyphs(
+    project_dir,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        plan = proj.create("Needle Plan", IssueType.PLAN)
+        phase = proj.create(
+            "Needle Phase",
+            IssueType.PHASE,
+            parent_id=plan.id,
+        )
+        task = proj.create("Needle Task", IssueType.TASK)
+
+    args = create_parser().parse_args(["bead", "search", "needle", "--color", "never"])
+    bead_cli.handle_bead_search(args)
+
+    lines = capsys.readouterr().out.splitlines()
+    expected = {
+        plan.id: "▸",
+        phase.id: "↳",
+        task.id: "◆",
+    }
+    prefixes: list[str] = []
+    for issue_id, glyph in expected.items():
+        line = next(line for line in lines if f" {issue_id} ·" in line)
+        assert line.startswith(f"{glyph} ")
+        status_index = next(i for i, char in enumerate(line) if char in "○◎◇◐✓")
+        prefixes.append(line[:status_index])
+
+    assert len({cell_len(prefix) for prefix in prefixes}) == 1
+
+
+def test_handle_bead_search_compact_colors_type_glyphs(
+    project_dir,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        plan = proj.create("Needle Plan", IssueType.PLAN)
+        proj.create("Needle Phase", IssueType.PHASE, parent_id=plan.id)
+        proj.create("Needle Task", IssueType.TASK)
+
+    args = create_parser().parse_args(["bead", "search", "needle", "--color", "always"])
+    bead_cli.handle_bead_search(args)
+
+    out = capsys.readouterr().out
+    assert "\x1b[38;5;220m▸\x1b[0m " in out
+    assert "\x1b[38;5;117m↳\x1b[0m " in out
+    assert "\x1b[38;5;177m◆\x1b[0m " in out
 
 
 def test_handle_bead_search_json_outputs_envelope(
