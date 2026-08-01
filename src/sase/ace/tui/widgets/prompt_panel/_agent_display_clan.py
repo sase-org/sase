@@ -13,6 +13,7 @@ from sase.agent.status_buckets import status_bucket_for_values
 from ...agent_count_chip import format_agent_count_chip
 from ...models._agent_clan import clan_member_counts
 from ...models._agent_clan_sections import (
+    ClanAgentIdentity,
     ClanDiskSection,
     ClanSectionSnapshot,
     aggregate_clan_in_memory,
@@ -44,7 +45,7 @@ from ._agent_display_clan_sections import (
 )
 from ._agent_display_state import HeaderHintState
 from ._container_hint_text import container_text_with_file_hints
-from ._file_path_hints import resolve_agent_workspace_dir
+from ._file_path_hints import FILE_PATH_RE, resolve_agent_workspace_dir
 from ._fold_language import append_fold_header_line, append_scanning_tail
 from ._hint_caps import HintContentBudget
 from ._member_roster import MemberJumpMap, append_member_roster
@@ -133,6 +134,14 @@ def build_clan_detail_text(
     )
     overrides = section_fold_overrides or {}
     hint_budget = HintContentBudget() if hint_state is not None else None
+    member_hint_workspace = (
+        _clan_member_hint_workspace_resolver(
+            agent,
+            hint_state=hint_state,
+        )
+        if hint_state is not None
+        else None
+    )
     members = ordered_clan_members(agent)
     family_members = tuple(member for member in members if family_children(member))
     agent_count = sum(
@@ -239,6 +248,9 @@ def build_clan_detail_text(
             text,
             errors,
             level=_effective_fold_level("errors", fold_level, overrides),
+            hint_state=hint_state,
+            hint_budget=hint_budget,
+            member_hint_workspace=member_hint_workspace,
         )
 
     output_variables = snapshot.in_memory.output_variables
@@ -253,6 +265,9 @@ def build_clan_detail_text(
                 fold_level,
                 overrides,
             ),
+            hint_state=hint_state,
+            hint_budget=hint_budget,
+            member_hint_workspace=member_hint_workspace,
         )
 
     workflow_variables = snapshot.in_memory.workflow_variables
@@ -267,6 +282,9 @@ def build_clan_detail_text(
                 fold_level,
                 overrides,
             ),
+            hint_state=hint_state,
+            hint_budget=hint_budget,
+            member_hint_workspace=member_hint_workspace,
         )
 
     required_disk_sections = clan_disk_sections_for_fold_state(
@@ -283,6 +301,9 @@ def build_clan_detail_text(
             title="REPLIES",
             section_id="replies",
             level=_effective_fold_level("replies", fold_level, overrides),
+            hint_state=hint_state,
+            hint_budget=hint_budget,
+            member_hint_workspace=member_hint_workspace,
         )
 
     context_loaded = disk_section_loaded(snapshot, "context")
@@ -319,6 +340,9 @@ def build_clan_detail_text(
             title="PROMPTS",
             section_id="prompts",
             level=_effective_fold_level("prompts", fold_level, overrides),
+            hint_state=hint_state,
+            hint_budget=hint_budget,
+            member_hint_workspace=member_hint_workspace,
         )
     loaded_disk_sections = disk.loaded_sections if disk is not None else frozenset()
     if snapshot.loading_sections.intersection(required_disk_sections) or not (
@@ -342,6 +366,37 @@ def _clan_hint_workspace(agent: Agent) -> str | None:
             member.workspace_dir,
         )
     return None
+
+
+def _clan_member_hint_workspace_resolver(
+    agent: Agent,
+    *,
+    hint_state: HeaderHintState,
+) -> Callable[[ClanAgentIdentity, str], str | None]:
+    """Resolve and cache member-local workspaces only for path-bearing text."""
+    members = {member.identity: member for member in clan_section_member_rows(agent)}
+    resolved: dict[ClanAgentIdentity, str | None] = {}
+
+    def resolve(identity: ClanAgentIdentity, content: str) -> str | None:
+        if FILE_PATH_RE.search(content) is None:
+            return hint_state.workspace_dir
+        if identity not in resolved:
+            member = members.get(identity)
+            member_workspace = (
+                resolve_agent_workspace_dir(
+                    member.effective_workspace_num,
+                    member.project_file,
+                    member.workspace_dir,
+                )
+                if member is not None
+                else None
+            )
+            if member_workspace is None and hint_state.workspace_dir is None:
+                hint_state.workspace_dir = _clan_hint_workspace(agent)
+            resolved[identity] = member_workspace or hint_state.workspace_dir
+        return resolved[identity]
+
+    return resolve
 
 
 __all__ = [

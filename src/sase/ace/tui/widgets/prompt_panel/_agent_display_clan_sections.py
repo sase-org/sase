@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 
 from rich.syntax import Syntax
 from rich.text import Text
@@ -10,6 +11,7 @@ from rich.text import Text
 from sase.core.output_variable_display import var_value_preview
 
 from ...models._agent_clan_sections import (
+    ClanAgentIdentity,
     ClanContextEntry,
     ClanContextLane,
     ClanDiskSection,
@@ -25,6 +27,9 @@ from ...tools.slow import format_long_duration
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ._fold_language import append_fold_glyph, fold_count_style
 from ._helpers import append_major_section_divider, append_section_heading
+from ._agent_display_state import HeaderHintState
+from ._container_hint_text import container_text_with_file_hints
+from ._hint_caps import HintContentBudget
 from ._output_variable_rich import append_var_value_lines, var_value_style
 
 _TRIAGE_ENTRY_LIMIT = 8
@@ -32,6 +37,8 @@ _TRIAGE_SLOW_TOOL_LIMIT = 5
 _CLAN_SECTION_HEADING_STYLE = "bold #D7AF5F underline"
 _CLAN_MEMBER_SUBHEADING_STYLE = "bold #D75FFF"
 _CLAN_BODY_STYLE = "#D7D7FF"
+
+type ClanMemberHintWorkspace = Callable[[ClanAgentIdentity, str], str | None]
 
 
 def _append_fold_heading(
@@ -56,6 +63,9 @@ def append_errors_section(
     entries: tuple[ClanErrorEntry, ...],
     *,
     level: FoldLevel,
+    hint_state: HeaderHintState | None = None,
+    hint_budget: HintContentBudget | None = None,
+    member_hint_workspace: ClanMemberHintWorkspace | None = None,
 ) -> None:
     """Render ERRORS as count-only, triage previews, or full diagnostics."""
     _append_fold_heading(
@@ -69,15 +79,38 @@ def append_errors_section(
         return
     if level == FoldLevel.EXPANDED:
         for entry in entries[:_TRIAGE_ENTRY_LIMIT]:
-            _append_triage_line(text, entry.member_label, entry.preview)
+            _append_triage_line(
+                text,
+                entry.member_label,
+                entry.preview,
+                member_identity=entry.member_identity,
+                hint_state=hint_state,
+                hint_budget=hint_budget,
+                member_hint_workspace=member_hint_workspace,
+            )
         _append_more_tail(text, len(entries), _TRIAGE_ENTRY_LIMIT)
         return
     for entry in entries:
         _append_member_subheading(text, entry.member_label)
-        _append_full_body(text, entry.message, style="#FF8787")
+        _append_full_body(
+            text,
+            entry.message,
+            style="#FF8787",
+            member_identity=entry.member_identity,
+            hint_state=hint_state,
+            hint_budget=hint_budget,
+            member_hint_workspace=member_hint_workspace,
+        )
         if entry.traceback:
             text.append("  traceback\n", style="bold #FF5F5F")
-            _append_traceback(text, entry.traceback)
+            _append_traceback(
+                text,
+                entry.traceback,
+                member_identity=entry.member_identity,
+                hint_state=hint_state,
+                hint_budget=hint_budget,
+                member_hint_workspace=member_hint_workspace,
+            )
 
 
 def append_variables_section(
@@ -87,6 +120,9 @@ def append_variables_section(
     title: str,
     section_id: str,
     level: FoldLevel,
+    hint_state: HeaderHintState | None = None,
+    hint_budget: HintContentBudget | None = None,
+    member_hint_workspace: ClanMemberHintWorkspace | None = None,
 ) -> None:
     """Render variables as count-only, one-line assignments, or full values."""
     _append_fold_heading(
@@ -107,6 +143,10 @@ def append_variables_section(
                 value,
                 separator=" = ",
                 body_style=var_value_style(entry.value),
+                member_identity=entry.member_identity,
+                hint_state=hint_state,
+                hint_budget=hint_budget,
+                member_hint_workspace=member_hint_workspace,
             )
         _append_more_tail(text, len(entries), _TRIAGE_ENTRY_LIMIT)
         return
@@ -117,11 +157,21 @@ def append_variables_section(
         _append_member_subheading(text, member_label)
         for entry in member_entries:
             text.append(f"  {entry.name}\n", style="bold #87D7FF")
+            value_text = Text()
             append_var_value_lines(
-                text,
+                value_text,
                 entry.value,
                 first_prefix=Text("    ", style="dim"),
                 continuation_prefix="    ",
+            )
+            text.append_text(
+                _text_with_member_hints(
+                    value_text,
+                    member_identity=entry.member_identity,
+                    hint_state=hint_state,
+                    hint_budget=hint_budget,
+                    member_hint_workspace=member_hint_workspace,
+                )
             )
 
 
@@ -132,6 +182,9 @@ def append_text_section(
     title: str,
     section_id: str,
     level: FoldLevel,
+    hint_state: HeaderHintState | None = None,
+    hint_budget: HintContentBudget | None = None,
+    member_hint_workspace: ClanMemberHintWorkspace | None = None,
 ) -> None:
     """Render reply/prompt bodies as headings, previews, or full member bodies."""
     _append_fold_heading(
@@ -153,6 +206,10 @@ def append_text_section(
                 label,
                 entry.preview or "—",
                 kind=entry.kind,
+                member_identity=entry.member_identity,
+                hint_state=hint_state,
+                hint_budget=hint_budget,
+                member_hint_workspace=member_hint_workspace,
             )
         _append_more_tail(text, len(entries), _TRIAGE_ENTRY_LIMIT)
         return
@@ -166,7 +223,15 @@ def append_text_section(
                 "bold #AF87FF" if entry.kind == "AGENT XPROMPT" else "bold #87D7FF"
             )
             text.append(f"  {entry.kind}\n", style=kind_style)
-            _append_full_body(text, entry.body, indent="    ")
+            _append_full_body(
+                text,
+                entry.body,
+                indent="    ",
+                member_identity=entry.member_identity,
+                hint_state=hint_state,
+                hint_budget=hint_budget,
+                member_hint_workspace=member_hint_workspace,
+            )
 
 
 def append_context_section(
@@ -277,15 +342,26 @@ def _append_triage_line(
     separator: str = " · ",
     kind: str | None = None,
     body_style: str = _CLAN_BODY_STYLE,
+    member_identity: ClanAgentIdentity | None = None,
+    hint_state: HeaderHintState | None = None,
+    hint_budget: HintContentBudget | None = None,
+    member_hint_workspace: ClanMemberHintWorkspace | None = None,
 ) -> None:
     text.append("• ", style="dim #D75FFF")
     text.append(label, style=_AGENT_NAME_ANNOTATION_STYLE)
     if kind:
         text.append(f" · {kind}", style="italic #AF87FF")
     text.append(separator, style="dim")
-    text.append(
-        first_meaningful_line(body, max_chars=120) or "—",
-        style=body_style,
+    visible_body = first_meaningful_line(body, max_chars=120) or "—"
+    body_text = Text(visible_body, style=body_style)
+    text.append_text(
+        _text_with_member_hints(
+            body_text,
+            member_identity=member_identity,
+            hint_state=hint_state,
+            hint_budget=hint_budget,
+            member_hint_workspace=member_hint_workspace,
+        )
     )
     text.append("\n")
 
@@ -300,15 +376,37 @@ def _append_full_body(
     *,
     style: str = _CLAN_BODY_STYLE,
     indent: str = "  ",
+    member_identity: ClanAgentIdentity | None = None,
+    hint_state: HeaderHintState | None = None,
+    hint_budget: HintContentBudget | None = None,
+    member_hint_workspace: ClanMemberHintWorkspace | None = None,
 ) -> None:
+    body_text = Text()
     lines = body.splitlines() or ["—"]
     for line in lines:
-        text.append(indent, style="dim")
-        text.append(line or " ", style=style)
-        text.append("\n")
+        body_text.append(indent, style="dim")
+        body_text.append(line or " ", style=style)
+        body_text.append("\n")
+    text.append_text(
+        _text_with_member_hints(
+            body_text,
+            member_identity=member_identity,
+            hint_state=hint_state,
+            hint_budget=hint_budget,
+            member_hint_workspace=member_hint_workspace,
+        )
+    )
 
 
-def _append_traceback(text: Text, traceback: str) -> None:
+def _append_traceback(
+    text: Text,
+    traceback: str,
+    *,
+    member_identity: ClanAgentIdentity | None = None,
+    hint_state: HeaderHintState | None = None,
+    hint_budget: HintContentBudget | None = None,
+    member_hint_workspace: ClanMemberHintWorkspace | None = None,
+) -> None:
     """Append traceback text with the regular agent panel's pytb highlighting."""
     highlighted = Syntax(
         traceback,
@@ -316,10 +414,39 @@ def _append_traceback(text: Text, traceback: str) -> None:
         theme="monokai",
         word_wrap=True,
     ).highlight(traceback)
+    traceback_text = Text()
     for line in highlighted.split("\n", allow_blank=True):
-        text.append("  ", style="dim")
-        text.append_text(line)
-        text.append("\n")
+        traceback_text.append("  ", style="dim")
+        traceback_text.append_text(line)
+        traceback_text.append("\n")
+    text.append_text(
+        _text_with_member_hints(
+            traceback_text,
+            member_identity=member_identity,
+            hint_state=hint_state,
+            hint_budget=hint_budget,
+            member_hint_workspace=member_hint_workspace,
+        )
+    )
+
+
+def _text_with_member_hints(
+    content: Text,
+    *,
+    member_identity: ClanAgentIdentity | None,
+    hint_state: HeaderHintState | None,
+    hint_budget: HintContentBudget | None,
+    member_hint_workspace: ClanMemberHintWorkspace | None,
+) -> Text:
+    """Annotate one visible body fragment against its owning member."""
+    if member_identity is None or hint_state is None or member_hint_workspace is None:
+        return content
+    return container_text_with_file_hints(
+        content,
+        hint_state,
+        workspace_dir=member_hint_workspace(member_identity, content.plain),
+        budget=hint_budget,
+    )
 
 
 def _append_more_tail(text: Text, total: int, shown: int) -> None:
