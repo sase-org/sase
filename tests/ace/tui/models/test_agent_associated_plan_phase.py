@@ -27,7 +27,7 @@ def _clear_plan_caches() -> Iterator[None]:
     plan_model._PLAN_ASSOCIATION_CACHE.clear()
 
 
-def test_modern_phase_without_plan_stays_bead_only_without_lookup(
+def test_modern_phase_without_authored_plan_allows_exact_note_lookup(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -41,10 +41,23 @@ def test_modern_phase_without_plan_stays_bead_only_without_lookup(
         plan_committed=True,
         workspace_dir=str(tmp_path),
     )
+    phase = Issue(
+        id="sase-1.2",
+        title="Ignored bead title",
+        issue_type=IssueType.PHASE,
+        parent_id="stale-parent",
+        notes="[2026-08-01T14:00:00Z · bryan] implementation note",
+    )
+    lookups: list[str] = []
+
+    def lookup(_agent: object, bead_id: str, **_kwargs: object) -> Issue | None:
+        lookups.append(bead_id)
+        return phase if bead_id == phase.id else None
+
     monkeypatch.setattr(
         plan_model,
         "_lookup_issue",
-        lambda *_args, **_kwargs: pytest.fail("modern phase must not read beads"),
+        lookup,
     )
 
     enrichment = resolve_agent_plan_enrichment(agent)
@@ -52,10 +65,13 @@ def test_modern_phase_without_plan_stays_bead_only_without_lookup(
     assert enrichment.role == "phase"
     assert enrichment.phase_bead is not None
     assert enrichment.phase_bead.actual_plan_path == str(plan.resolve())
+    assert enrichment.phase_bead.phase_title == "Independent documentation"
     assert enrichment.phase_bead.epic_title == "Epic phase metadata"
     assert enrichment.phase_bead.size == "small"
+    assert enrichment.phase_bead.notes == phase.notes
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_paths == (str(plan.resolve()),)
+    assert lookups == [phase.id]
 
 
 def test_legacy_phase_resolves_parent_design_but_suppresses_plan(
@@ -69,6 +85,10 @@ def test_legacy_phase_resolves_parent_design_but_suppresses_plan(
         title="Phase",
         issue_type=IssueType.PHASE,
         parent_id="sase-1",
+        notes=(
+            "[2026-08-01T15:00:00Z · phase-agent] exact phase note\n\n"
+            "[2026-08-01T15:04:00Z · reviewer] follow-up"
+        ),
     )
     epic = Issue(
         id="sase-1",
@@ -76,12 +96,19 @@ def test_legacy_phase_resolves_parent_design_but_suppresses_plan(
         issue_type=IssueType.PLAN,
         tier=BeadTier.EPIC,
         design="plans/epic.md",
+        notes="parent note must not appear",
     )
     issues = {phase.id: phase, epic.id: epic}
+    lookups: list[str] = []
+
+    def lookup(_agent: object, bead_id: str, **_kwargs: object) -> Issue | None:
+        lookups.append(bead_id)
+        return issues.get(bead_id)
+
     monkeypatch.setattr(
         plan_model,
         "_lookup_issue",
-        lambda _agent, bead_id, **_kwargs: issues.get(bead_id),
+        lookup,
     )
 
     with BeadIssueLookupSession() as lookup_session:
@@ -101,9 +128,11 @@ def test_legacy_phase_resolves_parent_design_but_suppresses_plan(
         plan_readable=True,
         epic_title="Epic phase metadata",
         size="small",
+        notes=phase.notes,
     )
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_path == str(plan.resolve())
+    assert lookups == [phase.id, epic.id]
 
 
 def test_phase_pending_authored_plan_keeps_parent_bead_and_uses_archive(
@@ -128,10 +157,16 @@ def test_phase_pending_authored_plan_keeps_parent_bead_and_uses_archive(
         plan_committed=True,
         workspace_dir=str(tmp_path),
     )
+    lookups: list[str] = []
+
+    def lookup(_agent: object, bead_id: str, **_kwargs: object) -> None:
+        lookups.append(bead_id)
+        return None
+
     monkeypatch.setattr(
         plan_model,
         "_lookup_issue",
-        lambda *_args, **_kwargs: pytest.fail("explicit parent must not read beads"),
+        lookup,
     )
 
     enrichment = resolve_agent_plan_enrichment(agent)
@@ -146,6 +181,7 @@ def test_phase_pending_authored_plan_keeps_parent_bead_and_uses_archive(
         str(epic.resolve()),
         str(authored.resolve()),
     )
+    assert lookups == ["sase-83.1"]
 
 
 @pytest.mark.parametrize(
@@ -314,7 +350,7 @@ def test_missing_parent_store_does_not_suppress_authored_plan(
     ],
     ids=["first", "middle", "nested-epic-id"],
 )
-def test_modern_phase_uses_validated_frontmatter_order_without_bead_lookup(
+def test_modern_phase_uses_validated_frontmatter_order_for_structure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     epic_bead_id: str,
@@ -333,10 +369,21 @@ def test_modern_phase_uses_validated_frontmatter_order_without_bead_lookup(
         plan_committed=True,
         workspace_dir=str(tmp_path),
     )
+    phase_issue = Issue(
+        id=phase_bead_id,
+        title="Stale bead title must not win",
+        issue_type=IssueType.PHASE,
+        parent_id="stale-parent",
+        description="Stale bead description must not win.",
+        notes="phase-owned note survives structure projection",
+        size=PhaseSize.XLARGE,
+    )
     monkeypatch.setattr(
         plan_model,
         "_lookup_issue",
-        lambda *_args, **_kwargs: pytest.fail("modern phase must not read beads"),
+        lambda _agent, bead_id, **_kwargs: (
+            phase_issue if bead_id == phase_issue.id else None
+        ),
     )
 
     enrichment = resolve_agent_plan_enrichment(agent)
@@ -352,9 +399,59 @@ def test_modern_phase_uses_validated_frontmatter_order_without_bead_lookup(
         plan_readable=True,
         epic_title="Epic phase metadata",
         size=expected_size,  # type: ignore[arg-type]
+        notes=phase_issue.notes,
     )
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_path == str(plan.resolve())
+
+
+@pytest.mark.parametrize("lookup_result", ["missing", "wrong-type"], ids=str)
+def test_modern_phase_issue_lookup_failure_keeps_plan_summary_note_free(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    lookup_result: str,
+) -> None:
+    plan = write_epic(tmp_path / "plans" / "epic.md")
+    wrong_type = Issue(
+        id="sase-1.1",
+        title="Wrong type",
+        issue_type=IssueType.TASK,
+        notes="task notes must not appear on a phase lane",
+    )
+
+    def lookup(_agent: object, bead_id: str, **_kwargs: object) -> Issue | None:
+        if lookup_result == "wrong-type" and bead_id == wrong_type.id:
+            return wrong_type
+        return None
+
+    monkeypatch.setattr(plan_model, "_lookup_issue", lookup)
+
+    enrichment = resolve_agent_plan_enrichment(
+        make_agent(
+            agent_name="sase-1.1",
+            epic_bead_id="sase-1",
+            phase_bead_id="sase-1.1",
+            epic_plan_ref="plans/epic.md",
+            sdd_plan_path="plans/epic.md",
+            plan_committed=True,
+            workspace_dir=str(tmp_path),
+        )
+    )
+
+    assert enrichment.role == "phase"
+    assert enrichment.phase_bead == PhaseBeadSummary(
+        id="sase-1.1",
+        phase_title="Canonical phase summaries",
+        description="Normalize the authoritative validator payload.",
+        actual_plan_path=str(plan.resolve()),
+        display_plan_path="plans/epic.md",
+        plan_exists=True,
+        plan_readable=True,
+        epic_title="Epic phase metadata",
+        size="small",
+        notes=None,
+    )
+    assert enrichment.associated_plan is None
 
 
 def test_modern_phase_normalizes_multiline_description(tmp_path: Path) -> None:
@@ -570,6 +667,11 @@ def test_task_worker_resolves_to_plan_free_task_bead_lane(
         issue_type=IssueType.TASK,
         description="Render task metadata without reading a plan file.",
         size=PhaseSize.MEDIUM,
+        notes=(
+            "  [2026-08-01T14:03:00Z · alice] first note\r\n"
+            "continued line\r\n\r\n"
+            "[2026-08-01T14:07:00Z · bob] second note  "
+        ),
     )
     monkeypatch.setattr(
         plan_model,
@@ -599,4 +701,9 @@ def test_task_worker_resolves_to_plan_free_task_bead_lane(
     assert enrichment.bead_summary.title == task.title
     assert enrichment.bead_summary.description == task.description
     assert enrichment.bead_summary.size == "medium"
+    assert enrichment.bead_summary.notes == (
+        "[2026-08-01T14:03:00Z · alice] first note\n"
+        "continued line\n\n"
+        "[2026-08-01T14:07:00Z · bob] second note"
+    )
     assert enrichment.bead_summary.display_plan_path is None

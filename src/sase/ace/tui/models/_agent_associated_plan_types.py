@@ -43,6 +43,7 @@ class BeadSummary:
     epic_title: str | None
     size: PhaseSizeValue | None
     bead_type: BeadTypeValue = "phase"
+    notes: str | None = None
 
     @property
     def title(self) -> str | None:
@@ -96,3 +97,12 @@ class ResolvedPlanAssociation:
     epic_bead_id: str | None = None
     phase_bead_id: str | None = None
     bead_summary: BeadSummary | None = None
+    notes: str | None = None
+
+
+def normalize_bead_notes(text: str | None) -> str | None:
+    """Normalize persisted bead notes without flattening intentional lines."""
+    if not text:
+        return None
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    return normalized or None

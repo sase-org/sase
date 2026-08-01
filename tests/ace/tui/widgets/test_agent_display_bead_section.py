@@ -48,6 +48,7 @@ def _bead_summary(
     phase_title: str | None = "Responsive BEAD lane",
     epic_title: str | None = "Phase bead context lane",
     size: PhaseSizeValue | None = "medium",
+    notes: str | None = None,
 ) -> PhaseBeadSummary:
     return PhaseBeadSummary(
         id=bead_id,
@@ -59,6 +60,7 @@ def _bead_summary(
         plan_readable=readable,
         epic_title=epic_title,
         size=size,
+        notes=notes,
     )
 
 
@@ -109,6 +111,7 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
     assert "Bead:" not in plain
     assert "▸ BEAD · ↳ phase sase-42.3\n" in plain
     assert "ID:" not in plain
+    assert "Notes:" not in plain
     assert plain.count("sase-42.3") == 1
     assert (
         plain.index("▸ BEAD · ↳ phase sase-42.3")
@@ -146,6 +149,86 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
         rendered = "".join(_render(header, width=width))
         assert rendered.count("sase-42.3") == 1
         assert "…" not in rendered
+
+
+def test_task_and_phase_notes_follow_description() -> None:
+    notes = "[2026-08-01T14:09:00Z · bryan] ready for implementation"
+    phase = _header(_bead_summary(notes=notes))
+    phase_plain = phase.plain
+
+    assert (
+        phase_plain.index("Description:")
+        < phase_plain.index("Notes:")
+        < phase_plain.index("Size:")
+    )
+
+    task_summary = BeadSummary(
+        id="sase-task.4",
+        phase_title="Task lane",
+        description="Show only task-owned metadata.",
+        actual_plan_path=None,
+        display_plan_path=None,
+        plan_exists=False,
+        plan_readable=False,
+        epic_title=None,
+        size="medium",
+        bead_type="task",
+        notes=notes,
+    )
+    task_header, _ = build_header_text(
+        make_agent(agent_name=task_summary.id),
+        summary=DetailHeaderSummary(phase_bead=task_summary),
+    )
+    task_plain = task_header.plain
+
+    assert (
+        task_plain.index("Description:")
+        < task_plain.index("Notes:")
+        < task_plain.index("Size:")
+    )
+    assert "Task Title:" in task_plain
+    assert "Epic Plan:" not in task_plain
+
+
+def test_bead_notes_render_literal_multiline_and_wrap_losslessly() -> None:
+    notes = (
+        "[2026-08-01T14:03:00Z · alice] [ready] first note\n"
+        "Second line keeps unicode 界終 and plain [brackets].\n\n"
+        "[2026-08-01T14:07:00Z · bob] This follow-up line is long enough "
+        "to fold through the existing responsive table without losing words."
+    )
+    header = _header(_bead_summary(notes=notes))
+
+    assert notes in header.plain
+    assert header.plain.index("Description:") < header.plain.index("Notes:")
+    assert header.plain.index("[ready]") < header.plain.index("界終")
+    assert header.plain.index("界終") < header.plain.index("follow-up line")
+    assert_span_covers(header, "[ready]", COLOR_REASON)
+    assert_span_covers(header, "plain [brackets]", COLOR_REASON)
+
+    for width in (120, 28):
+        lines = _field_lines(header, "Notes", width=width)
+        rendered = "\n".join(lines)
+        assert all(
+            cell_len(line) <= min(width, BEAD_SECTION_MAX_WIDTH) for line in lines
+        )
+        assert all(line.startswith(" " * BEAD_FIELD_LABEL_WIDTH) for line in lines[1:])
+        assert "…" not in rendered
+        normalized = " ".join(rendered.split())
+        for token in ("[ready]", "unicode", "界終", "follow-up"):
+            assert token in rendered
+        for token in ("plain [brackets]", "responsive table"):
+            assert token in normalized
+
+
+def test_blank_notes_omit_row_and_keep_note_free_shape() -> None:
+    baseline = _header(_bead_summary(notes=None))
+    blank = _header(_bead_summary(notes=" \n\t "))
+
+    assert BEAD_FIELD_LABEL_WIDTH == cell_len("  Phase Title: ")
+    assert blank.plain == baseline.plain
+    for width in (120, 28):
+        assert _render(blank, width=width) == _render(baseline, width=width)
 
 
 def test_phase_and_epic_titles_render_distinct_values() -> None:

@@ -56,6 +56,7 @@ from ._agent_associated_plan_types import (
     PhaseBeadSummary as PhaseBeadSummary,
     PlanFileMetadata as _PlanFileMetadata,
     ResolvedPlanAssociation as _ResolvedPlanAssociation,
+    normalize_bead_notes as _normalize_bead_notes,
 )
 from .agent import Agent
 
@@ -88,9 +89,9 @@ def resolve_agent_plan_enrichment(
 
     This function may touch plan, workspace, and bead storage. Callers must
     keep it inside the existing deferred detail-header enrichment worker.
-    Modern phase metadata takes an explicit parent-epic reference and never
-    consults bead storage; legacy rows retain the bounded local compatibility
-    lookup.
+    Modern phase structure takes an explicit parent-epic reference; optional
+    notes may still be enriched from the exact local phase bead. Legacy rows
+    retain the bounded local compatibility lookup for parent-plan recovery.
     """
     initial_role = _initial_agent_plan_role(agent)
     role: AgentPlanRole = "phase" if initial_role == "ambiguous" else initial_role
@@ -100,6 +101,7 @@ def resolve_agent_plan_enrichment(
             agent,
             lookup_session=lookup_session,
             resolve_parent_association=_phase_parent_association,
+            resolve_issue_association=_phase_issue_association,
             load_plan_metadata=_load_plan_metadata,
             resolve_plan_reference=_resolve_cached_reference,
         )
@@ -150,6 +152,7 @@ def resolve_agent_plan_enrichment(
                 agent,
                 lookup_session=lookup_session,
                 resolve_parent_association=_phase_parent_association,
+                resolve_issue_association=_phase_issue_association,
                 load_plan_metadata=_load_plan_metadata,
                 resolve_plan_reference=_resolve_cached_reference,
                 parent_association=association,
@@ -307,6 +310,34 @@ def _phase_parent_association(
     )
 
 
+def _phase_issue_association(
+    agent: Agent,
+    bead_id: str,
+    lookup_session: BeadIssueLookupSession | None,
+) -> _ResolvedPlanAssociation:
+    key = _association_key(agent, "bead-issue", bead_id)
+    cached = _PLAN_ASSOCIATION_CACHE.get(key)
+    if cached is not _CACHE_MISS:
+        assert isinstance(cached, _ResolvedPlanAssociation)
+        return cached
+
+    if lookup_session is None:
+        with BeadIssueLookupSession() as owned_session:
+            association = _resolve_bead_issue_association(
+                agent,
+                bead_id,
+                lookup_session=owned_session,
+            )
+    else:
+        association = _resolve_bead_issue_association(
+            agent,
+            bead_id,
+            lookup_session=lookup_session,
+        )
+    _PLAN_ASSOCIATION_CACHE.set(key, association)
+    return association
+
+
 def _cached_bead_plan_association(
     agent: Agent,
     bead_id: str,
@@ -346,6 +377,7 @@ def _resolve_bead_plan_association(
     issue = _lookup_issue(agent, bead_id, lookup_session=lookup_session)
     if issue is None:
         return _ResolvedPlanAssociation(None)
+    notes = _normalize_bead_notes(issue.notes)
     is_phase = issue.issue_type is IssueType.PHASE
     is_epic = issue.issue_type is IssueType.PLAN and issue.tier is BeadTier.EPIC
     is_task = issue.issue_type is IssueType.TASK
@@ -372,6 +404,7 @@ def _resolve_bead_plan_association(
             epic_bead_id=epic_bead_id,
             phase_bead_id=phase_bead_id,
             bead_summary=bead_summary,
+            notes=notes,
         )
     return _ResolvedPlanAssociation(
         _resolve_plan_reference(design, agent),
@@ -381,6 +414,33 @@ def _resolve_bead_plan_association(
         epic_bead_id=epic_bead_id,
         phase_bead_id=phase_bead_id,
         bead_summary=bead_summary,
+        notes=notes,
+    )
+
+
+def _resolve_bead_issue_association(
+    agent: Agent,
+    bead_id: str,
+    *,
+    lookup_session: BeadIssueLookupSession,
+) -> _ResolvedPlanAssociation:
+    issue = _lookup_issue(agent, bead_id, lookup_session=lookup_session)
+    if issue is None:
+        return _ResolvedPlanAssociation(None)
+    is_phase = issue.issue_type is IssueType.PHASE
+    is_epic = issue.issue_type is IssueType.PLAN and issue.tier is BeadTier.EPIC
+    is_task = issue.issue_type is IssueType.TASK
+    role: Literal["phase", "task", "land"] | None = (
+        "phase" if is_phase else ("task" if is_task else ("land" if is_epic else None))
+    )
+    return _ResolvedPlanAssociation(
+        None,
+        known_epic=is_phase or is_epic,
+        role=role,
+        epic_bead_id=issue.parent_id if is_phase else (issue.id if is_epic else None),
+        phase_bead_id=issue.id if is_phase else None,
+        bead_summary=_task_bead_summary(issue) if is_task else None,
+        notes=_normalize_bead_notes(issue.notes),
     )
 
 
@@ -397,6 +457,7 @@ def _task_bead_summary(issue: Issue) -> BeadSummary:
         epic_title=None,
         size=normalize_phase_size(issue.size),
         bead_type="task",
+        notes=_normalize_bead_notes(issue.notes),
     )
 
 

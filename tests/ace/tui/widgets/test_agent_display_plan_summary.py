@@ -268,9 +268,15 @@ def test_modern_phase_renders_one_frontmatter_bead_and_no_plan(
         workspace_dir=str(tmp_path),
         step_type="bash",
     )
+    lookups: list[str] = []
+
+    def lookup(_agent: object, bead_id: str, **_kwargs: object) -> None:
+        lookups.append(bead_id)
+        return None
+
     monkeypatch.setattr(
         "sase.ace.tui.models.agent_associated_plan._lookup_issue",
-        lambda *_args, **_kwargs: pytest.fail("modern phase must not read beads"),
+        lookup,
     )
 
     summary = build_detail_header_summary(agent)
@@ -280,6 +286,7 @@ def test_modern_phase_renders_one_frontmatter_bead_and_no_plan(
     assert "Bead:" not in header.plain
     assert "▸ BEAD · ↳ phase sase-9.2\n" in header.plain
     assert "ID:" not in header.plain
+    assert "Notes:" not in header.plain
     assert header.plain.count("▸ BEAD · ↳ phase sase-9.2") == 1
     assert " Description: Show only this selected phase description.\n" in (
         header.plain
@@ -288,6 +295,7 @@ def test_modern_phase_renders_one_frontmatter_bead_and_no_plan(
     assert "   Epic Plan: plans/epic.md\n" in header.plain
     assert "  Epic Title: Role-aware metadata\n" in header.plain
     assert "▸ PLAN" not in header.plain
+    assert lookups == ["sase-9.2"]
     assert "Goal:" not in header.plain
     assert "Path:" not in header.plain
     assert "Build metadata" not in header.plain

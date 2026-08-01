@@ -12,6 +12,10 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.zoom_panel_rendering import renderable_to_text
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_associated_plan import (
+    BeadSummary,
+    _AgentPlanEnrichment,
+)
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -550,6 +554,79 @@ async def test_agents_phase_bead_context_png_snapshot(
             page,
             "agents_phase_bead_context_120x40",
             title="ACE agents phase BEAD context lane",
+        )
+
+
+async def test_agents_task_bead_notes_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    notes = (
+        "[2026-08-01T14:03:00Z · alice] Confirmed the notes row belongs "
+        "directly under the task description.\n\n"
+        "[2026-08-01T14:07:00Z · bob] This second note is intentionally long "
+        "enough to wrap in the BEAD lane while keeping attribution readable."
+    )
+    bead = BeadSummary(
+        id="sase-notes.4",
+        phase_title="Display persisted bead notes",
+        description="Render task metadata without requiring a plan file.",
+        actual_plan_path=None,
+        display_plan_path=None,
+        plan_exists=False,
+        plan_readable=False,
+        epic_title=None,
+        size="medium",
+        bead_type="task",
+        notes=notes,
+    )
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-task-notes",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 8, 1, 14, 0, 0),
+        raw_suffix="20260801140000",
+        agent_name="sase-notes.4",
+        step_type="bash",
+        workspace_dir=str(tmp_path),
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_header_summary."
+        "resolve_agent_plan_enrichment",
+        lambda *_args, **_kwargs: _AgentPlanEnrichment("task", bead, None, ()),
+    )
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual-task-notes"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "Notes:")
+        await wait_for_visual_idle(page)
+
+        svg_plain = page.export_svg(title="ACE task BEAD notes assertion").replace(
+            "&#160;",
+            " ",
+        )
+        assert "Task Title:" in svg_plain
+        assert "Description:" in svg_plain
+        assert "Notes:" in svg_plain
+        assert "Size:" in svg_plain
+        assert "alice" in svg_plain
+        assert "bob" in svg_plain
+        assert "attribution readable" in svg_plain
+        assert "Epic Plan:" not in svg_plain
+        assert "Epic Title:" not in svg_plain
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_task_bead_notes_120x40",
+            title="ACE agents task BEAD notes lane",
         )
 
 

@@ -28,6 +28,7 @@ BEAD_SECTION_MAX_WIDTH = 80
 _BEAD_FIELD_LABELS = (
     "Phase Title",
     "Description",
+    "Notes",
     "Epic Plan",
     "Epic Title",
     "Size",
@@ -91,16 +92,25 @@ class ResponsiveBeadSection:
                 (self._label("Task Title"), self._bead_title_value()),
                 (self._label("Description"), self._description_value()),
             ]
+            if self.summary.notes and self.summary.notes.strip():
+                rows.append((self._label("Notes"), self._notes_value()))
             if self.summary.size is not None:
                 rows.append((self._label("Size"), self._size_value()))
             return tuple(rows)
-        return (
+        rows = [
             (self._label("Phase Title"), self._bead_title_value()),
             (self._label("Description"), self._description_value()),
-            (self._label("Size"), self._size_value()),
-            (self._label("Epic Plan"), self._plan_value()),
-            (self._label("Epic Title"), self._title_value()),
+        ]
+        if self.summary.notes and self.summary.notes.strip():
+            rows.append((self._label("Notes"), self._notes_value()))
+        rows.extend(
+            [
+                (self._label("Size"), self._size_value()),
+                (self._label("Epic Plan"), self._plan_value()),
+                (self._label("Epic Title"), self._title_value()),
+            ]
         )
+        return tuple(rows)
 
     @staticmethod
     def _label(label: str) -> str:
@@ -111,6 +121,9 @@ class ResponsiveBeadSection:
         if self.summary.description:
             return Text(self.summary.description, style=COLOR_REASON)
         return Text("unavailable", style=COLOR_EMPTY)
+
+    def _notes_value(self) -> Text:
+        return Text(self.summary.notes or "", style=COLOR_REASON)
 
     def _bead_title_value(self) -> Text:
         if self.summary.title:

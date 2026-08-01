@@ -32,6 +32,7 @@ ParentAssociationResolver = Callable[
     [Agent, str, BeadIssueLookupSession | None],
     ResolvedPlanAssociation,
 ]
+IssueAssociationResolver = ParentAssociationResolver
 PlanMetadataLoader = Callable[[Path], PlanFileMetadata]
 PlanReferenceResolver = Callable[[Agent, str, str], Path]
 
@@ -41,6 +42,7 @@ def resolve_phase_plan_enrichment(
     *,
     lookup_session: BeadIssueLookupSession | None,
     resolve_parent_association: ParentAssociationResolver,
+    resolve_issue_association: IssueAssociationResolver,
     load_plan_metadata: PlanMetadataLoader,
     resolve_plan_reference: PlanReferenceResolver,
     parent_association: ResolvedPlanAssociation | None = None,
@@ -50,6 +52,7 @@ def resolve_phase_plan_enrichment(
     epic_bead_id = agent.epic_bead_id
     parent_reference = agent.epic_plan_ref
     parent_path: Path | None = None
+    notes: str | None = None
 
     if not parent_reference and agent.agent_family_role == "phase":
         # Damaged pre-field phase rows carried the parent epic in the generic
@@ -63,6 +66,16 @@ def resolve_phase_plan_enrichment(
             "parent-direct",
             parent_reference,
         )
+        if agent.phase_bead_id and agent.epic_plan_ref:
+            issue_association = resolve_issue_association(
+                agent,
+                agent.phase_bead_id,
+                lookup_session,
+            )
+            notes = _phase_notes_from_association(
+                issue_association,
+                agent.phase_bead_id,
+            )
     else:
         bead_id = phase_bead_id or derive_agent_bead_id_from_name(
             agent.presented_agent_name or agent.agent_name
@@ -78,6 +91,7 @@ def resolve_phase_plan_enrichment(
             parent_reference = parent_association.plan_reference
             epic_bead_id = parent_association.epic_bead_id or epic_bead_id
             phase_bead_id = parent_association.phase_bead_id or phase_bead_id
+            notes = _phase_notes_from_association(parent_association, phase_bead_id)
 
     phase_bead: PhaseBeadSummary | None = None
     if phase_bead_id is not None:
@@ -85,6 +99,7 @@ def resolve_phase_plan_enrichment(
             phase_bead = unavailable_phase_bead(
                 phase_bead_id,
                 plan_reference=parent_reference,
+                notes=notes,
             )
         else:
             parent_metadata = load_plan_metadata(parent_path)
@@ -95,6 +110,7 @@ def resolve_phase_plan_enrichment(
                 phase_bead_id=phase_bead_id,
                 plan_reference=parent_reference or str(parent_path),
                 plan_path=parent_path,
+                notes=notes,
             )
 
     associated_plan, authored_path = _resolve_phase_authored_plan(
@@ -240,6 +256,7 @@ def phase_bead_summary(
     phase_bead_id: str,
     plan_reference: str,
     plan_path: Path,
+    notes: str | None = None,
 ) -> PhaseBeadSummary:
     """Build one render-ready selected-phase summary from validated order."""
     summary = unavailable_phase_bead(
@@ -248,6 +265,7 @@ def phase_bead_summary(
         metadata=metadata,
         plan_reference=plan_reference,
         plan_path=plan_path,
+        notes=notes,
     )
     phase_index = _phase_index(epic_bead_id, phase_bead_id)
     if (
@@ -274,6 +292,7 @@ def phase_bead_summary(
         epic_title=metadata.title,
         size=phase.size,
         bead_type="phase",
+        notes=summary.notes,
     )
 
 
@@ -284,6 +303,7 @@ def unavailable_phase_bead(
     metadata: PlanFileMetadata | None = None,
     plan_reference: str | None = None,
     plan_path: Path | None = None,
+    notes: str | None = None,
 ) -> PhaseBeadSummary:
     """Return a phase identity with honest optional-field fallbacks."""
     actual_path = str(plan_path) if plan_path is not None else None
@@ -303,7 +323,21 @@ def unavailable_phase_bead(
         epic_title=None,
         size=None,
         bead_type="phase",
+        notes=notes,
     )
+
+
+def _phase_notes_from_association(
+    association: ResolvedPlanAssociation,
+    phase_bead_id: str | None,
+) -> str | None:
+    if (
+        phase_bead_id is None
+        or association.role != "phase"
+        or association.phase_bead_id != phase_bead_id
+    ):
+        return None
+    return association.notes
 
 
 def _phase_display_plan_path(

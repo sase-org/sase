@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 
 import sase.ace.tui.models.agent_associated_plan as plan_model
+import sase.ace.tui.models._agent_associated_plan_cache as cache_model
+from sase.ace.tui.models.agent_associated_plan import resolve_agent_plan_enrichment
 from sase.bead.model import BeadTier, Issue, IssueType
 from tests.ace.tui.models._agent_associated_plan_helpers import (
     resolve_agent_associated_plan,
@@ -57,6 +59,56 @@ def test_bead_tier_preserves_known_epic_fallback_on_association_cache_hit(
     cached = resolve_agent_associated_plan(agent)
     assert cached is not None
     assert cached.phase_availability == "unavailable"
+
+
+def test_phase_note_association_cache_reuses_lookup_and_refreshes_after_ttl(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = 10.0
+    monkeypatch.setattr(cache_model, "monotonic", lambda: now)
+    write_epic(tmp_path / "plans" / "epic.md")
+    agent = make_agent(
+        agent_name="sase-1.1",
+        epic_bead_id="sase-1",
+        phase_bead_id="sase-1.1",
+        epic_plan_ref="plans/epic.md",
+        sdd_plan_path="plans/epic.md",
+        plan_committed=True,
+        workspace_dir=str(tmp_path),
+    )
+    issue = Issue(
+        id="sase-1.1",
+        title="Phase",
+        issue_type=IssueType.PHASE,
+        parent_id="sase-1",
+        notes="first note",
+    )
+    lookups: list[str] = []
+
+    def lookup(_agent: object, bead_id: str, **_kwargs: object) -> Issue | None:
+        lookups.append(bead_id)
+        return issue if bead_id == issue.id else None
+
+    monkeypatch.setattr(plan_model, "_lookup_issue", lookup)
+
+    first = resolve_agent_plan_enrichment(agent).phase_bead
+    cached = resolve_agent_plan_enrichment(agent).phase_bead
+
+    assert first is not None
+    assert cached is not None
+    assert first.notes == "first note"
+    assert cached.notes == "first note"
+    assert lookups == [issue.id]
+
+    issue.notes = "second note"
+    now += 61.0
+
+    refreshed = resolve_agent_plan_enrichment(agent).phase_bead
+
+    assert refreshed is not None
+    assert refreshed.notes == "second note"
+    assert lookups == [issue.id, issue.id]
 
 
 def test_frontmatter_cache_reuses_parse_until_mtime_changes(

@@ -110,7 +110,7 @@ def _summary() -> _DetailHeaderSummary:
     )
 
 
-def _phase_summary(bead_id: str) -> PhaseBeadSummary:
+def _phase_summary(bead_id: str, *, notes: str | None = None) -> PhaseBeadSummary:
     return PhaseBeadSummary(
         id=bead_id,
         phase_title="Deferred selected phase title",
@@ -121,6 +121,7 @@ def _phase_summary(bead_id: str) -> PhaseBeadSummary:
         plan_readable=True,
         epic_title="Deferred phase epic",
         size="medium",
+        notes=notes,
     )
 
 
@@ -214,7 +215,12 @@ def test_successful_phase_enrichment_replaces_cold_header_with_bead_lane(
     )
     panel = _HeaderEnrichmentPanel()
     _set_context(panel, agent.identity, current=True)
-    summary = _DetailHeaderSummary(phase_bead=_phase_summary("sase-7.2"))
+    summary = _DetailHeaderSummary(
+        phase_bead=_phase_summary(
+            "sase-7.2",
+            notes="[2026-08-01T14:10:00Z · reviewer] deferred note",
+        )
+    )
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_async."
         "build_detail_header_summary",
@@ -224,6 +230,7 @@ def test_successful_phase_enrichment_replaces_cold_header_with_bead_lane(
     panel.update_display(agent)
     assert "Bead:" not in plain_of(panel.captured[-1])
     assert "▸ BEAD" not in plain_of(panel.captured[-1])
+    assert "Notes:" not in plain_of(panel.captured[-1])
 
     assert panel.worker_fn is not None
     panel.worker.result = panel.worker_fn()
@@ -238,6 +245,7 @@ def test_successful_phase_enrichment_replaces_cold_header_with_bead_lane(
     assert "ID:" not in plain
     assert plain.count("▸ BEAD · ↳ phase sase-7.2") == 1
     assert " Description: Deferred selected phase description.\n" in plain
+    assert "        Notes: [2026-08-01T14:10:00Z · reviewer] deferred note\n" in plain
 
 
 def test_successful_header_enrichment_posts_completion_message(
