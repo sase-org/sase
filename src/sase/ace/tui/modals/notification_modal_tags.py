@@ -1,7 +1,8 @@
-"""Tag tab helpers for the notification modal."""
+"""Tag and panel tab helpers for the notification modal."""
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
@@ -11,8 +12,14 @@ from textual.events import Click
 from textual.message import Message
 from textual.widgets import Static
 
-from sase.notification_gates.presentation import GATE_ORIGIN_AGENT_ACTION_DATA_KEY
 from sase.notifications import Notification, is_error
+from sase.notification_gates.models import GateError
+from sase.notification_gates.presentation import (
+    GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
+    GATE_PANEL_ACTION_DATA_KEY,
+    normalize_gate_origin_agent,
+    normalize_gate_panel,
+)
 
 HITL_TAB_KEY = "hitl"
 ERRORS_TAB_KEY = "errors"
@@ -60,20 +67,33 @@ def notification_display_tags(notification: Notification) -> list[str]:
     return tags
 
 
-def notification_origin_agent(notification: Notification) -> str | None:
-    """Return the agent a notification's gate was filed on behalf of."""
-    raw = getattr(notification, "action_data", None) or {}
-    value = raw.get(GATE_ORIGIN_AGENT_ACTION_DATA_KEY)
-    if not isinstance(value, str):
+def _notification_panel_key(notification: Notification) -> str | None:
+    """Return a valid declared panel key, tolerating malformed stored data."""
+    try:
+        return normalize_gate_panel(
+            notification.action_data.get(GATE_PANEL_ACTION_DATA_KEY)
+        )
+    except (AttributeError, GateError):
         return None
-    origin_agent = value.strip()
-    return origin_agent or None
+
+
+def notification_origin_agent(notification: Notification) -> str | None:
+    """Return a valid declared origin agent, tolerating malformed stored data."""
+    try:
+        return normalize_gate_origin_agent(
+            notification.action_data.get(GATE_ORIGIN_AGENT_ACTION_DATA_KEY)
+        )
+    except (AttributeError, GateError):
+        return None
 
 
 def _notification_modal_tab_keys(notification: Notification) -> list[str | None]:
     """Return the top-level modal tabs this notification belongs to."""
     if notification.muted:
         return [MUTED_TAB_KEY]
+    panel_key = _notification_panel_key(notification)
+    if panel_key is not None:
+        return [panel_key]
     if notification.action in _HITL_ACTIONS:
         return [HITL_TAB_KEY]
     if is_error(notification):
@@ -101,33 +121,45 @@ def _notification_tab_label(tab_key: str | None) -> str:
     synthetic_label = _SYNTHETIC_TAB_LABELS.get(tab_key)
     if synthetic_label is not None:
         return synthetic_label
-    return tab_key[:1].upper() + tab_key[1:]
+    words = (word for word in re.split(r"[-_]", tab_key) if word)
+    label = " ".join(word[:1].upper() + word[1:] for word in words)
+    return label or tab_key
 
 
 def build_notification_tag_tabs(
     notifications: list[Notification],
 ) -> list[NotificationTagTab]:
-    """Build modal tabs: HITL, Errors, General, Done, tags, then Muted."""
+    """Build actionable panel tabs before informational and tag tabs."""
     counts: Counter[str | None] = Counter()
+    panel_keys: set[str] = set()
     for notification in notifications:
+        panel_key = _notification_panel_key(notification)
+        if panel_key is not None:
+            panel_keys.add(panel_key)
         for tab_key in _notification_modal_tab_keys(notification):
             counts[tab_key] += 1
 
-    leading_order: tuple[str | None, ...] = (
-        HITL_TAB_KEY,
-        ERRORS_TAB_KEY,
-        None,
-        "done",
-    )
-    ordered_keys: list[str | None] = [
-        tab_key for tab_key in leading_order if tab_key in counts
-    ]
+    ordered_keys: list[str | None] = []
+
+    def append_if_counted(tab_key: str | None) -> None:
+        if tab_key in counts and tab_key not in ordered_keys:
+            ordered_keys.append(tab_key)
+
+    append_if_counted(HITL_TAB_KEY)
+    for panel_key in sorted(
+        panel_keys,
+        key=lambda key: _notification_tab_label(key).casefold(),
+    ):
+        append_if_counted(panel_key)
+    for tab_key in (ERRORS_TAB_KEY, None, "done"):
+        append_if_counted(tab_key)
+
     ordered_keys.extend(
         sorted(
             (
                 tab_key
                 for tab_key in counts
-                if tab_key not in leading_order and tab_key != MUTED_TAB_KEY
+                if tab_key not in ordered_keys and tab_key != MUTED_TAB_KEY
             ),
             key=lambda tab_key: _notification_tab_label(tab_key).casefold(),
         )

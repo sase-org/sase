@@ -167,6 +167,27 @@ def test_next_prev_tag_tab_cycles_without_general_tab() -> None:
     assert modal._active_notification_tag == "review"
 
 
+def test_panel_and_hyphenated_tag_labels_are_humanized() -> None:
+    """Panel and tag tabs share title-style labels split on separators."""
+    beads = _make_notification(
+        "beads",
+        action="TaskTriage",
+        action_data={"panel": "beads"},
+    )
+    code_review = _make_notification(
+        "review",
+        action="JumpToAgent",
+        tags=["code-review"],
+    )
+
+    modal = NotificationModal([beads, code_review])
+
+    assert [(tab.tag, tab.label) for tab in modal._tag_tabs()] == [
+        ("beads", "Beads"),
+        ("code-review", "Code Review"),
+    ]
+
+
 def test_dismiss_last_row_in_active_tag_falls_back_to_nearest_tab() -> None:
     """When a tag disappears after dismiss, the active tab moves to its neighbor."""
     done = _make_notification("done", action="JumpToAgent")

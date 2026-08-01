@@ -3,6 +3,8 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.notification_modal_tags import (
     MUTED_TAB_KEY,
@@ -73,6 +75,59 @@ def test_hitl_actions_share_hitl_tab() -> None:
 
     modal._active_notification_tag = None
     assert _option_ids(modal) == ["4"]
+
+
+def test_declared_panel_routes_task_triage_out_of_hitl() -> None:
+    """A declared panel takes precedence over synthetic HITL routing."""
+    task_triage = _make_notification(
+        "task",
+        action="TaskTriage",
+        action_data={"panel": " Beads "},
+    )
+
+    modal = NotificationModal([task_triage])
+
+    assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
+        ("beads", "Beads", 1)
+    ]
+    assert modal._active_notification_tag == "beads"
+    assert _option_ids(modal) == ["0"]
+    modal._active_notification_tag = "hitl"
+    assert _option_ids(modal) == []
+
+
+def test_muted_declared_panel_routes_only_to_muted() -> None:
+    """Muted state takes precedence over a declared panel."""
+    task_triage = _make_notification(
+        "task",
+        action="TaskTriage",
+        action_data={"panel": "beads"},
+    )
+    task_triage.muted = True
+
+    modal = NotificationModal([task_triage])
+
+    assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
+        (MUTED_TAB_KEY, "Muted", 1)
+    ]
+
+
+@pytest.mark.parametrize("stored_panel", ["errors", "bad panel!", "__internal", ""])
+def test_invalid_stored_panel_falls_back_to_existing_routing(
+    stored_panel: str,
+) -> None:
+    """Malformed persisted panel data never breaks or overrides HITL routing."""
+    task_triage = _make_notification(
+        "task",
+        action="TaskTriage",
+        action_data={"panel": stored_panel},
+    )
+
+    modal = NotificationModal([task_triage])
+
+    assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
+        ("hitl", "HITL", 1)
+    ]
 
 
 def test_error_notifications_share_errors_tab() -> None:
@@ -349,6 +404,62 @@ def test_mixed_tab_order_places_muted_last() -> None:
         ("alpha", "Alpha", 1),
         ("zeta", "Zeta", 1),
         (MUTED_TAB_KEY, "Muted", 1),
+    ]
+
+
+def test_declared_panels_sort_after_hitl_and_before_other_tabs() -> None:
+    """Actionable panel queues precede errors, general, done, and tag tabs."""
+    notifications = [
+        _make_notification("hitl", action="PlanApproval"),
+        _make_notification(
+            "zeta-panel",
+            action="CustomGate",
+            action_data={"panel": "zeta-panel"},
+        ),
+        _make_notification(
+            "beads",
+            action="TaskTriage",
+            action_data={"panel": "beads"},
+        ),
+        _make_notification("error", action="ViewErrorReport"),
+        _make_notification("general", action="JumpToAgent"),
+        _make_notification("done", action="JumpToAgent", tags=["done"]),
+        _make_notification("memory", action="JumpToAgent", tags=["memory"]),
+        _make_notification("muted", action="JumpToAgent"),
+    ]
+    notifications[3].sender = "axe"
+    notifications[-1].muted = True
+
+    modal = NotificationModal(notifications)
+
+    assert [tab.tag for tab in modal._tag_tabs()] == [
+        "hitl",
+        "beads",
+        "zeta-panel",
+        "errors",
+        None,
+        "done",
+        "memory",
+        MUTED_TAB_KEY,
+    ]
+
+
+def test_panel_and_tag_collision_is_counted_once_and_sorted_as_panel() -> None:
+    """A tag matching a declared panel shares the actionable panel tab."""
+    panel = _make_notification(
+        "panel",
+        action="CustomGate",
+        action_data={"panel": "review"},
+    )
+    tagged = _make_notification("tagged", action="JumpToAgent", tags=["review"])
+    error = _make_notification("error", action="ViewErrorReport")
+    error.sender = "axe"
+
+    modal = NotificationModal([tagged, error, panel])
+
+    assert [(tab.tag, tab.count) for tab in modal._tag_tabs()] == [
+        ("review", 2),
+        ("errors", 1),
     ]
 
 

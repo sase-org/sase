@@ -13,6 +13,9 @@ def _make_notification(
     notification_id: str,
     action: str | None = None,
     timestamp: str = "2026-03-17T12:00:00-04:00",
+    *,
+    tags: list[str] | None = None,
+    action_data: dict[str, str] | None = None,
 ) -> Notification:
     """Create a minimal notification object for modal tests."""
     return Notification(
@@ -20,6 +23,8 @@ def _make_notification(
         timestamp=timestamp,
         sender="test",
         action=action,
+        tags=list(tags or []),
+        action_data=dict(action_data or {}),
     )
 
 

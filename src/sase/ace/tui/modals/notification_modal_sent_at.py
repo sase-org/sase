@@ -1,4 +1,4 @@
-"""Sent-at line for the notification modal detail pane."""
+"""Metadata line for the notification modal detail pane."""
 
 from __future__ import annotations
 
@@ -13,16 +13,29 @@ from sase.notifications import (
     format_relative_time,
 )
 
+from .notification_modal_tags import notification_origin_agent
+
 SENT_AT_ID = "notification-sent-at"
 
 
 def _build_sent_at_text(notification: Notification) -> Text:
-    """Build the styled 'sent <absolute> · <relative>' line."""
+    """Build the styled send-time and optional filer metadata line."""
     text = Text(no_wrap=True, overflow="ellipsis")
     text.append("sent ")
     text.append(format_absolute_time(notification.timestamp), style="bold")
     text.append(" · ", style="dim")
     text.append(format_relative_time(notification.timestamp), style="dim")
+    origin_agent = notification_origin_agent(notification)
+    if origin_agent is not None:
+        from sase.core.agent_identity_facade import present_agent_name
+
+        try:
+            presented_agent = present_agent_name(origin_agent)
+        except Exception:
+            presented_agent = origin_agent
+        text.append(" · ", style="dim")
+        text.append("filed by ", style="dim")
+        text.append(f"@{presented_agent}", style="#87D7FF")
     return text
 
 

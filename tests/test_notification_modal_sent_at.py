@@ -51,6 +51,56 @@ class TestBuildSentAtText:
         assert spans_by_text.get("today 13:18:42") == "bold"
         assert spans_by_text.get("4m ago") == "dim"
 
+    def test_renders_presented_origin_agent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.core.agent_identity_facade.present_agent_name",
+            lambda _name: "claude_coder",
+        )
+        notification = _make_notification(
+            "n1",
+            action_data={"origin_agent": " bbugyi200.athena.claude_coder "},
+        )
+
+        text = _build_sent_at_text(notification)
+
+        assert text.plain == ("sent today 13:18:42 · 4m ago · filed by @claude_coder")
+        spans_by_text = {
+            text.plain[start:end]: style for start, end, style in text.spans
+        }
+        assert spans_by_text.get("filed by ") == "dim"
+        assert spans_by_text.get("@claude_coder") == "#87D7FF"
+
+    def test_omits_blank_origin_agent(self) -> None:
+        notification = _make_notification(
+            "n1",
+            action_data={"origin_agent": "   "},
+        )
+
+        assert _build_sent_at_text(notification).plain == (
+            "sent today 13:18:42 · 4m ago"
+        )
+
+    def test_falls_back_to_raw_origin_when_presentation_fails(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fail_to_present(_name: str) -> str:
+            raise RuntimeError("identity unavailable")
+
+        monkeypatch.setattr(
+            "sase.core.agent_identity_facade.present_agent_name",
+            fail_to_present,
+        )
+        notification = _make_notification(
+            "n1",
+            action_data={"origin_agent": "remote.agent"},
+        )
+
+        assert _build_sent_at_text(notification).plain.endswith(
+            " · filed by @remote.agent"
+        )
+
 
 class _SentAtHost(NotificationSentAtMixin):
     def __init__(self, label: Any) -> None:
