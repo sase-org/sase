@@ -69,6 +69,57 @@ def test_named_local_detection_zero_names_skips_registry(
     assert detect_agent_cli_statuses_for_names(()) == ()
 
 
+def test_full_collection_filters_hidden_management_providers_before_probing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[tuple[dict[str, object], object]] = []
+    payload = {
+        "providers": {
+            "visible": {"autodetect_cli_name": "visible"},
+            "hidden": {
+                "autodetect_cli_name": "hidden",
+                "hidden_from_agent_cli_management": True,
+            },
+            "legacy": {"autodetect_cli_name": "legacy"},
+            "truthy": {
+                "autodetect_cli_name": "truthy",
+                "hidden_from_agent_cli_management": "yes",
+            },
+        }
+    }
+
+    def _detect(
+        providers: dict[str, object],
+        *,
+        env: object,
+        run_fn: object,
+    ) -> tuple[AgentCliStatus, ...]:
+        del run_fn
+        seen.append((providers, env))
+        return ()
+
+    monkeypatch.setattr(operations, "detect_agent_cli_statuses", _detect)
+
+    assert (
+        operations.collect_agent_cli_statuses(
+            metadata_payload=payload,
+            env={"PATH": "/bin"},
+            latest_fn=lambda _packages, **_kwargs: {},
+        )
+        == ()
+    )
+    assert seen == [
+        (
+            {
+                "visible": payload["providers"]["visible"],
+                "legacy": payload["providers"]["legacy"],
+                "truthy": payload["providers"]["truthy"],
+            },
+            {"PATH": "/bin"},
+        )
+    ]
+
+
 def test_named_local_detection_filters_metadata_before_probing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -89,19 +140,32 @@ def test_named_local_detection_filters_metadata_before_probing(
         "providers": {
             "claude": {"autodetect_cli_name": "claude"},
             "codex": {"autodetect_cli_name": "codex"},
+            "fakey": {
+                "autodetect_cli_name": "fakey",
+                "hidden_from_agent_cli_management": True,
+            },
+            "legacy": {"autodetect_cli_name": "legacy"},
         }
     }
     env = {"PATH": "/bin"}
 
     assert (
         detect_agent_cli_statuses_for_names(
-            ("codex",),
+            ("codex", "fakey", "legacy"),
             metadata_payload=payload,
             env=env,
         )
         == ()
     )
-    assert seen == [({"codex": payload["providers"]["codex"]}, env)]
+    assert seen == [
+        (
+            {
+                "codex": payload["providers"]["codex"],
+                "legacy": payload["providers"]["legacy"],
+            },
+            env,
+        )
+    ]
 
 
 def test_plan_includes_docs_for_not_installed_bundled_and_manual_skips() -> None:

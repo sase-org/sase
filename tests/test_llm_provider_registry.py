@@ -279,6 +279,48 @@ def test_provider_metadata_hidden_from_model_pickers_defaults_to_not_hidden() ->
     assert metadata["hidden_from_model_pickers"] is False
 
 
+def test_provider_metadata_hidden_from_agent_cli_management_true() -> None:
+    """A provider that opts out of agent-CLI management is flagged."""
+
+    class FakeProvider:
+        def llm_provider_name(self) -> str:
+            return "fake"
+
+        def llm_hidden_from_agent_cli_management(self) -> bool:
+            return True
+
+    metadata = registry._provider_metadata("fake", FakeProvider())
+
+    assert metadata["hidden_from_agent_cli_management"] is True
+
+
+def test_provider_metadata_hidden_from_agent_cli_management_false() -> None:
+    """A provider that explicitly returns False stays manageable."""
+
+    class FakeProvider:
+        def llm_provider_name(self) -> str:
+            return "fake"
+
+        def llm_hidden_from_agent_cli_management(self) -> bool:
+            return False
+
+    metadata = registry._provider_metadata("fake", FakeProvider())
+
+    assert metadata["hidden_from_agent_cli_management"] is False
+
+
+def test_provider_metadata_hidden_from_agent_cli_management_defaults_visible() -> None:
+    """A provider that omits the hook is manageable (third-party compatible)."""
+
+    class FakeProvider:
+        def llm_provider_name(self) -> str:
+            return "fake"
+
+    metadata = registry._provider_metadata("fake", FakeProvider())
+
+    assert metadata["hidden_from_agent_cli_management"] is False
+
+
 def test_model_picker_hidden_provider_names_reads_from_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

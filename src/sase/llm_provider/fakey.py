@@ -151,6 +151,10 @@ class FakeyProvider(LLMProvider):
         return True
 
     @hookimpl
+    def llm_hidden_from_agent_cli_management(self) -> bool:
+        return True
+
+    @hookimpl
     def llm_default_retry_config(self) -> ProviderRetryConfig:
         from .retry_config import _RETRY_CONTINUATION_NUDGE, ProviderRetryConfig
 

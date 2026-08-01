@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from types import SimpleNamespace
 from typing import Any
 
@@ -9,13 +10,17 @@ import pytest
 from textual.widgets import ContentSwitcher, OptionList
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.modals import plugins_browser_loading as loading
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
 from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
+from sase.agent_clis import operations
 from sase.agent_clis.models import (
     AgentCliUpdateResult,
+    AgentCliStatus,
+    InstallMethod,
     AgentCliUpdatesReady,
     UpdateResultStatus,
 )
@@ -26,6 +31,7 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
     _open_plugins_pane,
     _patch_catalog,
     _patch_other_panes,
+    _render,
 )
 
 
@@ -85,6 +91,91 @@ async def test_agent_cli_session_restores_subtab_and_row_by_identity(
         assert pane._active_subtab == "agent-clis"
         assert option_list.highlighted == 1
         assert state.updates.agent_clis.identity == "codex"
+
+
+async def test_agent_cli_pane_uses_shared_filtered_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    payload = {
+        "providers": {
+            "claude": {
+                "autodetect_cli_name": "claude",
+                "install": {"display_name": "Claude Code"},
+            },
+            "fakey": {
+                "autodetect_cli_name": "fakey",
+                "hidden_from_agent_cli_management": True,
+                "install": {"display_name": "Fakey"},
+            },
+        }
+    }
+
+    def _detect(
+        providers: Mapping[str, Mapping[str, Any]],
+        *,
+        env: Mapping[str, str] | None,
+        run_fn: Any,
+    ) -> tuple[AgentCliStatus, ...]:
+        del env, run_fn
+        return tuple(
+            AgentCliStatus(
+                name=name,
+                display_name=str(metadata["install"]["display_name"]),
+                binary=str(metadata["autodetect_cli_name"]),
+                executable=f"/bin/{name}",
+                installed_version="1.0.0",
+                latest_version=None,
+                install_method=InstallMethod.SELF_MANAGED,
+                update_available=False,
+                docs_url=None,
+                install_hint=f"install {name}",
+                self_update_argv=("update",),
+            )
+            for name, metadata in providers.items()
+        )
+
+    monkeypatch.setattr(
+        operations.llm_registry,
+        "get_llm_metadata_payload",
+        lambda: payload,
+    )
+    monkeypatch.setattr(operations, "detect_agent_cli_statuses", _detect)
+    monkeypatch.setattr(
+        loading,
+        "provider_cli_status_color_map",
+        lambda: {"claude": "#D97757", "fakey": "#FF5FAF"},
+    )
+    statuses, error, colors = loading._collect_agent_clis_for_pane(
+        refresh=False,
+        offline=True,
+    )
+    assert error is None
+    assert [status.name for status in statuses] == ["claude"]
+
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=statuses,
+        agent_cli_colors=colors,
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane._switch_to_subtab("agent-clis")
+        option_list = pane.query_one("#agent-clis-list", OptionList)
+
+        ids = [
+            option_list.get_option_at_index(index).id
+            for index in range(option_list.option_count)
+        ]
+        assert ids == ["agent-cli__claude"]
+        assert "agent-cli__fakey" not in ids
+        assert pane._agent_cli_by_name("fakey") is None
+        current = pane._current_agent_cli()
+        assert current is not None
+        assert current.name == "claude"
+        assert "1 agent CLIs · 1 installed" in _render(pane._agent_cli_summary())
 
 
 async def test_updates_subtabs_handle_brackets_from_core_and_lists(

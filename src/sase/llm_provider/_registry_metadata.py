@@ -89,6 +89,9 @@ def provider_metadata(name: str, plugin: object) -> dict[str, Any]:
         "hidden_from_model_pickers": (
             _call_optional(plugin, "llm_hidden_from_model_pickers") is True
         ),
+        "hidden_from_agent_cli_management": (
+            _call_optional(plugin, "llm_hidden_from_agent_cli_management") is True
+        ),
     }
 
 

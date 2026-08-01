@@ -29,6 +29,10 @@ above (`%model:fakey-large`, `sase run -m fakey-large`) and `%model:fakey/fakey-
 panel (`,m`) unless you explicitly configure `model_aliases.custom.fakey_coder` — once configured, it appears and is
 editable like any other alias.
 
+Fakey is also intentionally absent from `sase agent-cli` inventories and the SASE Admin Center's **Updates → Agent
+CLIs** list. It is bundled for internal testing rather than independently installed or updated, but explicit execution,
+provider routing, and `sase doctor` diagnostics remain available.
+
 ## Scenario Selection and Precedence
 
 Scenario settings are layered from least to most specific:

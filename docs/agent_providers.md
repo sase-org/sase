@@ -112,6 +112,10 @@ installation or authentication and is deliberately placed last in provider autod
 model picker and `%model` completion menu, so select it explicitly with a model such as `%model:fakey-large` or
 `llm_provider.provider: fakey`; do not use it for production coding work.
 
+Because Fakey is bundled and internal, it is also absent from `sase agent-cli` inventories and the Admin Center's
+**Updates → Agent CLIs** list. That management visibility is separate from routing and diagnostics: explicit fakey
+selection, the `fakey` console script, provider autodetection metadata, and `sase doctor` checks remain supported.
+
 For demos and hermetic end-to-end tests, `SASE_LLM_EXEC_PROVIDER=fakey` dispatches through fakey while preserving the
 requested provider/model in display metadata. Run artifacts record the dispatched provider as `exec_llm_provider`.
 
@@ -136,11 +140,12 @@ behavior), see the [LLM provider reference](llms.md).
 
 ## Inventory and Updates
 
-`sase agent-cli` is the inventory and update surface for the provider CLIs on this machine. A bare `sase agent-cli`
+`sase agent-cli` is the inventory and update surface for independently manageable provider CLIs on this machine.
+Internal or bundled providers can opt out when they are not separately installed or updated. A bare `sase agent-cli`
 means `sase agent-cli list`.
 
 ```bash
-sase agent-cli list            # every supported CLI, its versions, and install method
+sase agent-cli list            # manageable provider CLIs, versions, and install methods
 sase agent-cli list -v         # add resolved executable paths, docs URLs, and probe errors
 sase agent-cli update codex    # update one CLI
 sase agent-cli update -a -n    # preview every planned command without running anything
@@ -164,7 +169,7 @@ SASE only automates updates it can identify safely, and it never uses `sudo` and
 | npm, non-writable global root    | Skipped as manual, with the exact command to run under an npm setup owned by your user. |
 | Self-managed with a self-update  | Runs the provider's own declared update command.                                        |
 | Homebrew                         | Skipped as manual, with the `brew upgrade <package>` command to run.                    |
-| Bundled (`fakey`)                | Skipped; it ships with SASE and moves with `sase update`.                               |
+| Bundled visible provider         | Skipped; update it with the package that ships that provider.                           |
 | Not installed, or method unknown | Skipped, with the install hint or a note that SASE will not guess an update command.    |
 
 Anything already at its latest known version is reported as an explicit `already up to date` skip rather than being

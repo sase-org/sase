@@ -102,6 +102,7 @@ def _provider_metadata(
         str(name): metadata
         for name, metadata in raw_providers.items()
         if isinstance(metadata, Mapping)
+        and metadata.get("hidden_from_agent_cli_management") is not True
     }
 
 

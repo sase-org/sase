@@ -261,6 +261,7 @@ def test_fakey_hiding_from_pickers_is_display_only() -> None:
 
     payload = get_llm_metadata_payload()
     assert payload["providers"]["fakey"]["hidden_from_model_pickers"] is True
+    assert payload["providers"]["fakey"]["hidden_from_agent_cli_management"] is True
     assert "fakey" in model_picker_hidden_provider_names()
 
     # Bare-name inference and short aliases are untouched by hiding.

@@ -128,3 +128,16 @@ class LLMHookSpec:
         compatible without implementing it.
         """
         ...
+
+    @hookspec(firstresult=True)
+    def llm_hidden_from_agent_cli_management(self) -> bool | None:
+        """Whether this provider should be hidden from agent-CLI management.
+
+        Internal or otherwise non-independently manageable providers return
+        ``True`` to opt out of ``sase agent-cli`` inventory/update operations
+        and the Admin Center's Updates → Agent CLIs surface. Hiding here does
+        not affect routing, model resolution, autodetection, direct provider
+        invocation, or doctor diagnostics. Omitting this hook means "visible",
+        so third-party providers stay compatible without implementing it.
+        """
+        ...
