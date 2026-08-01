@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections import OrderedDict
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -23,17 +24,23 @@ from ...models._agent_clan_sections import (
     ClanSlowToolEntry,
     first_meaningful_line,
 )
+from ...models.agent import Agent
 from ..file_panel._linked_deltas import LinkedDeltaGroup
+from ._agent_clan_commits import aggregate_clan_commit_lane
 
 
 def aggregate_clan_context_lanes(
     in_memory: ClanInMemorySnapshot,
     members: tuple[ClanDiskMemberSnapshot, ...],
+    *,
+    member_rows: Collection[Agent] = (),
 ) -> tuple[ClanContextLane, ...]:
     """De-duplicate context entries while preserving lane and member order."""
     accumulators: dict[str, OrderedDict[str, _ContextAccumulator]] = {
         label: OrderedDict() for label in CLAN_CONTEXT_LANE_ORDER
     }
+    member_labels = {member.identity: member.label for member in in_memory.members}
+    commit_lane = aggregate_clan_commit_lane(member_rows, labels=member_labels)
 
     for bead_id in in_memory.bead_ids:
         _add_context(accumulators, "BEAD", bead_id, bead_id, None, bead_id)
@@ -159,8 +166,13 @@ def aggregate_clan_context_lanes(
 
     lanes: list[ClanContextLane] = []
     for lane_label in CLAN_CONTEXT_LANE_ORDER:
-        entries = tuple(
-            accumulator.freeze() for accumulator in accumulators[lane_label].values()
+        entries = (
+            commit_lane.entries
+            if lane_label == "COMMITS" and commit_lane is not None
+            else tuple(
+                accumulator.freeze()
+                for accumulator in accumulators[lane_label].values()
+            )
         )
         if entries:
             lanes.append(ClanContextLane(label=lane_label, entries=entries))

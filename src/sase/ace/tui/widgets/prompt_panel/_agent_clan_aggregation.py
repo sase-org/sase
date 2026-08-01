@@ -411,7 +411,11 @@ def build_agent_group_disk_snapshot(
         else ()
     )
     context_lanes = (
-        _aggregate_clan_context_lanes(in_memory, members)
+        _aggregate_clan_context_lanes(
+            in_memory,
+            members,
+            member_rows=rows,
+        )
         if "context" in loaded_sections and in_memory is not None
         else ()
     )

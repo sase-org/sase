@@ -480,6 +480,17 @@ def agent_commit_groups(agent: Agent) -> tuple[_AgentCommitGroup, ...]:
     return _persisted_commit_groups(agent, step_output)
 
 
+def agent_commit_view_specs(
+    agent: Agent,
+) -> tuple[tuple[CommitViewSpec, str, RepoKind], ...]:
+    """Return ordered public commit-view records parsed without disk I/O."""
+    return tuple(
+        (commit.view_spec, group.repo_name, group.repo_kind)
+        for group in agent_commit_groups(agent)
+        for commit in group.commits
+    )
+
+
 def count_agent_commit_groups(commit_groups: tuple[_AgentCommitGroup, ...]) -> int:
     """Return the number of commit rows across attributed repository groups."""
     return sum(len(group.commits) for group in commit_groups)

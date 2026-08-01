@@ -319,7 +319,7 @@ def build_clan_detail_text(
     context_lanes = (
         disk.context_lanes
         if disk is not None and context_loaded
-        else minimal_context_lanes(snapshot)
+        else minimal_context_lanes(snapshot, agent)
     )
     if context_lanes:
         context_level = _effective_fold_level("context", fold_level, overrides)

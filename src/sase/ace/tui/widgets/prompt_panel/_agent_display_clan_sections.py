@@ -11,6 +11,7 @@ from rich.text import Text
 from sase.core.output_variable_display import var_value_preview
 
 from ...models._agent_clan_sections import (
+    CLAN_CONTEXT_LANE_ORDER,
     ClanAgentIdentity,
     ClanContextEntry,
     ClanContextLane,
@@ -20,13 +21,16 @@ from ...models._agent_clan_sections import (
     ClanSlowToolEntry,
     ClanTextEntry,
     ClanVariableEntry,
+    clan_section_member_rows,
     first_meaningful_line,
 )
+from ...models.agent import Agent
 from ...models.fold_state import FoldLevel
 from ...tools.slow import format_long_duration
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
+from ._agent_clan_commits import aggregate_clan_commit_lane
 from ._agent_display_clan_context import clan_context_entry_hint_target
-from ._agent_display_state import HeaderHintState
+from ._agent_display_state import CommitViewSpec, HeaderHintState
 from ._fold_language import append_fold_glyph, fold_count_style
 from ._helpers import append_major_section_divider, append_section_heading
 from ._container_hint_text import container_text_with_file_hints
@@ -273,6 +277,18 @@ def append_context_section(
         text.append(f"{lane.label}\n", style="bold #87D7FF")
         for entry in lane.entries:
             text.append("  • ", style="dim #D75FFF")
+            commit_spec = (
+                next(
+                    (
+                        value
+                        for value in entry.values
+                        if isinstance(value, CommitViewSpec)
+                    ),
+                    None,
+                )
+                if lane.label == "COMMITS"
+                else None
+            )
             hint_target = (
                 clan_context_entry_hint_target(
                     lane.label,
@@ -280,10 +296,15 @@ def append_context_section(
                     member_workspaces=member_workspaces or {},
                     fallback_workspace=fallback_workspace,
                 )
-                if hint_state is not None
+                if hint_state is not None and commit_spec is None
                 else None
             )
-            if hint_target is not None and hint_state is not None:
+            if commit_spec is not None and hint_state is not None:
+                hint_number = hint_state.hint_counter
+                text.append(f"[{hint_number}] ", style="bold #FFFF00")
+                hint_state.commit_views[hint_number] = commit_spec
+                hint_state.hint_counter += 1
+            elif hint_target is not None and hint_state is not None:
                 hint_number = hint_state.hint_counter
                 text.append(f"[{hint_number}] ", style="bold #FFFF00")
                 hint_state.hint_mappings[hint_number] = hint_target
@@ -539,47 +560,52 @@ def disk_section_loaded(
 
 def minimal_context_lanes(
     snapshot: ClanSectionSnapshot,
+    agent: Agent,
 ) -> tuple[ClanContextLane, ...]:
     """Build context lanes available before disk enrichment completes."""
     in_memory = snapshot.in_memory
-    lanes: list[ClanContextLane] = []
+    lanes_by_label: dict[str, ClanContextLane] = {}
     if in_memory.bead_ids:
-        lanes.append(
-            ClanContextLane(
-                label="BEAD",
-                entries=tuple(
-                    ClanContextEntry(key=value, label=value, member_labels=())
-                    for value in in_memory.bead_ids
-                ),
-            )
+        lanes_by_label["BEAD"] = ClanContextLane(
+            label="BEAD",
+            entries=tuple(
+                ClanContextEntry(key=value, label=value, member_labels=())
+                for value in in_memory.bead_ids
+            ),
         )
     if in_memory.plan_paths:
-        lanes.append(
-            ClanContextLane(
-                label="PLAN",
-                entries=tuple(
-                    ClanContextEntry(
-                        key=value,
-                        label=value,
-                        member_labels=(),
-                        values=(value,),
-                    )
-                    for value in in_memory.plan_paths
-                ),
-            )
+        lanes_by_label["PLAN"] = ClanContextLane(
+            label="PLAN",
+            entries=tuple(
+                ClanContextEntry(
+                    key=value,
+                    label=value,
+                    member_labels=(),
+                    values=(value,),
+                )
+                for value in in_memory.plan_paths
+            ),
         )
+    commit_lane = aggregate_clan_commit_lane(
+        clan_section_member_rows(agent),
+        labels={member.identity: member.label for member in in_memory.members},
+    )
+    if commit_lane is not None:
+        lanes_by_label["COMMITS"] = commit_lane
     if in_memory.workspace_numbers:
-        lanes.append(
-            ClanContextLane(
-                label="WORKSPACES",
-                entries=tuple(
-                    ClanContextEntry(
-                        key=f"workspace:{value}",
-                        label=f"workspace {value}",
-                        member_labels=(),
-                    )
-                    for value in in_memory.workspace_numbers
-                ),
-            )
+        lanes_by_label["WORKSPACES"] = ClanContextLane(
+            label="WORKSPACES",
+            entries=tuple(
+                ClanContextEntry(
+                    key=f"workspace:{value}",
+                    label=f"workspace {value}",
+                    member_labels=(),
+                )
+                for value in in_memory.workspace_numbers
+            ),
         )
-    return tuple(lanes)
+    return tuple(
+        lanes_by_label[label]
+        for label in CLAN_CONTEXT_LANE_ORDER
+        if label in lanes_by_label
+    )
