@@ -53,7 +53,51 @@ def workspace_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="Missing workspace checkouts",
             runner=lambda: _check_missing_workspace_checkouts(context),
         ),
+        CheckSpec(
+            id="workspace.legacy_artifact_home",
+            group="workspace",
+            title="Legacy prompt artifact home",
+            runner=lambda: _check_legacy_artifact_home(context),
+        ),
     )
+
+
+def _check_legacy_artifact_home(context: DoctorContext) -> DiagnosticCheck:
+    """Report the retired project-local ``.sase/home`` staging directory."""
+
+    legacy_home = _find_legacy_artifact_home(context.cwd)
+    if legacy_home is None:
+        return DiagnosticCheck(
+            id="workspace.legacy_artifact_home",
+            group="workspace",
+            status="OK",
+            title="Legacy prompt artifact home",
+            summary="no stale .sase/home directory was found",
+            data={"path": None},
+        )
+    return DiagnosticCheck(
+        id="workspace.legacy_artifact_home",
+        group="workspace",
+        status="WARN",
+        title="Legacy prompt artifact home",
+        summary=f"stale prompt staging directory found at {legacy_home}",
+        details=("New prompt working copies are staged under .sase/artifacts/home.",),
+        next_steps=(
+            f"After confirming no live agent uses it, remove `{legacy_home}`.",
+        ),
+        data={"path": str(legacy_home)},
+    )
+
+
+def _find_legacy_artifact_home(start: Path) -> Path | None:
+    current = start.expanduser().resolve(strict=False)
+    while True:
+        candidate = current / ".sase" / "home"
+        if candidate.is_dir():
+            return candidate
+        if current.parent == current:
+            return None
+        current = current.parent
 
 
 def _check_missing_workspace_checkouts(context: DoctorContext) -> DiagnosticCheck:

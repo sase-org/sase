@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from pathlib import Path
 
 import pytest
 from sase.file_references import (
@@ -103,10 +104,39 @@ def test_process_file_references_home_mode_absolute_path_unchanged() -> None:
         os.unlink(temp_path)
 
 
+def test_process_file_references_home_mode_does_not_stage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "source.txt"
+    source.write_text("content", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "run"))
+
+    assert process_file_references("Check @source.txt", is_home_mode=True) == (
+        "Check @source.txt"
+    )
+    assert not (tmp_path / ".sase/artifacts/prompt-artifacts.jsonl").exists()
+
+
+def test_process_file_references_stages_existing_relative_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "source.txt"
+    source.write_text("content", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "run"))
+
+    assert process_file_references("Check @source.txt") == "Check @source.txt"
+    manifest = tmp_path / ".sase/artifacts/prompt-artifacts.jsonl"
+    assert manifest.is_file()
+
+
 def test_process_file_references_normal_mode_copies_home_files(
     tmp_path: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that normal mode copies home-dir files to .sase/home/."""
+    """Test normal mode copies home-dir files to .sase/artifacts/home/."""
     monkeypatch.chdir(tmp_path)
 
     home_dir = os.path.expanduser("~")
@@ -124,12 +154,12 @@ def test_process_file_references_normal_mode_copies_home_files(
         prompt = f"Check @{tilde_path}"
         result = process_file_references(prompt, is_home_mode=False)
 
-        # .sase/home should be created with home-relative structure
-        dest_path = os.path.join(tmp_path, ".sase", "home", rel_path)
+        # .sase/artifacts/home should preserve home-relative structure.
+        dest_path = os.path.join(tmp_path, ".sase", "artifacts", "home", rel_path)
         assert os.path.exists(dest_path)
 
         # Prompt should reference the copied file
-        assert f"@.sase/home/{rel_path}" in result
+        assert f"@.sase/artifacts/home/{rel_path}" in result
     finally:
         os.unlink(temp_path)
 

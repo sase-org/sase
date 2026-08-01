@@ -55,6 +55,7 @@ class _ParsedFileRefs:
     """Holds categorized file references from parsing."""
 
     absolute_paths: list[tuple[str, str]] = field(default_factory=list)
+    relative_paths: list[str] = field(default_factory=list)
     parent_dir_paths: list[str] = field(default_factory=list)
     missing_files: list[str] = field(default_factory=list)
     seen_paths: dict[str, int] = field(default_factory=dict)
@@ -128,8 +129,11 @@ def _parse_file_refs(prompt: str) -> _ParsedFileRefs:
             continue
 
         # Check if the file exists (relative path)
-        if not os.path.exists(file_path) and file_path not in result.missing_files:
-            result.missing_files.append(file_path)
+        if not os.path.exists(file_path):
+            if file_path not in result.missing_files:
+                result.missing_files.append(file_path)
+        elif file_path not in result.relative_paths:
+            result.relative_paths.append(file_path)
 
     return result
 
@@ -206,12 +210,18 @@ def validate_file_references(prompt: str) -> None:
         sys.exit(1)
 
 
-def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
+def process_file_references(
+    prompt: str,
+    *,
+    is_home_mode: bool = False,
+    staged_file_paths: set[str] | None = None,
+) -> str:
     """
     Process file paths prefixed with '@' in the prompt.
 
     For absolute paths (when is_home_mode=False):
-    - Home-directory files (~/ paths): copy to .sase/home/<path_relative_to_home>/
+    - Home-directory files (~/ paths): copy to
+      .sase/artifacts/home/<path_relative_to_home>/
     - Non-home absolute files: leave the absolute path in the prompt unchanged
 
     For absolute paths (when is_home_mode=True):
@@ -221,7 +231,8 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
 
     This function extracts all file paths from the prompt that are prefixed
     with '@' and verifies that:
-    1. Home-dir absolute paths are copied to .sase/home/ (or just expanded in home mode)
+    1. Home-dir absolute paths are copied to .sase/artifacts/home/ (or just
+       expanded in home mode)
     2. Non-home absolute paths are left unchanged in the prompt
     3. Relative paths do not start with '..' (to prevent escaping CWD)
     4. All files exist
@@ -233,10 +244,12 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
     Args:
         prompt: The prompt text to process
         is_home_mode: If True, skip copying files and just expand tilde paths
+        staged_file_paths: Resolved paths already staged by artifact-reference
+            expansion and therefore excluded from duplicate plain-file staging
 
     Returns:
-        The modified prompt with home-dir paths replaced by relative paths to .sase/home/
-        (or expanded paths in home mode)
+        The modified prompt with home-dir paths replaced by relative paths to
+        .sase/artifacts/home/ (or expanded paths in home mode)
 
     Raises:
         SystemExit: If any referenced file starts with '..', does not exist, or is duplicated
@@ -245,10 +258,6 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
 
     if _print_validation_errors(parsed):
         sys.exit(1)
-
-    # If there are no absolute paths to process, just return the original prompt
-    if not parsed.absolute_paths:
-        return prompt
 
     # In home mode, just expand tilde paths without copying
     if is_home_mode:
@@ -264,20 +273,19 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
     # Split absolute paths into home-dir vs non-home
     home_dir = os.path.expanduser("~")
     home_paths: list[tuple[str, str]] = []
-    non_home_paths: list[tuple[str, str]] = []
 
     for original_path, expanded_path in parsed.absolute_paths:
         if expanded_path.startswith(home_dir + "/") or expanded_path == home_dir:
             home_paths.append((original_path, expanded_path))
-        else:
-            non_home_paths.append((original_path, expanded_path))
 
-    # Copy home-directory files to .sase/home/<relative_path>
+    # Copy home-directory files to .sase/artifacts/home/<relative_path>
     if home_paths:
         file_count = len(home_paths)
         file_word = "file" if file_count == 1 else "files"
         print_status(
-            f"Processing {file_count} home-dir {file_word} - copying to .sase/home/",
+            "Processing "
+            f"{file_count} home-dir {file_word} - copying to "
+            ".sase/artifacts/home/",
             "info",
         )
 
@@ -285,7 +293,7 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
 
     for original_path, expanded_path in home_paths:
         rel_path = os.path.relpath(expanded_path, home_dir)
-        dest_path = os.path.join(".sase", "home", rel_path)
+        dest_path = os.path.join(".sase", "artifacts", "home", rel_path)
 
         # Create parent directories as needed
         Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
@@ -312,7 +320,50 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
             "success",
         )
 
+    _stage_file_references(
+        parsed,
+        replacements,
+        staged_file_paths=staged_file_paths or set(),
+    )
+
     return modified_prompt
+
+
+def _stage_file_references(
+    parsed: _ParsedFileRefs,
+    replacements: dict[str, str],
+    *,
+    staged_file_paths: set[str],
+) -> None:
+    """Best-effort staging for every resolved plain ``@path`` reference."""
+
+    from sase.core.prompt_artifact_staging import stage_prompt_artifact
+
+    for original_path, expanded_path in parsed.absolute_paths:
+        if _normalized_staging_path(expanded_path) in staged_file_paths:
+            continue
+        rewritten_path = replacements.get(original_path, original_path)
+        stage_prompt_artifact(
+            raw_ref=f"@{original_path}",
+            expanded_ref=f"@{rewritten_path}",
+            resolved_path=expanded_path,
+            ref_kind="file",
+            label=Path(expanded_path).name,
+        )
+    for relative_path in parsed.relative_paths:
+        if _normalized_staging_path(relative_path) in staged_file_paths:
+            continue
+        stage_prompt_artifact(
+            raw_ref=f"@{relative_path}",
+            expanded_ref=f"@{relative_path}",
+            resolved_path=relative_path,
+            ref_kind="file",
+            label=Path(relative_path).name,
+        )
+
+
+def _normalized_staging_path(path: Path | str) -> str:
+    return str(Path(path).expanduser().resolve(strict=False))
 
 
 # --- Command substitution processing ($(cmd) syntax) ---

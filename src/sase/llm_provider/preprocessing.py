@@ -162,14 +162,23 @@ def preprocess_prompt_late(
     prompt = process_command_substitution(prompt)
 
     # 3. Artifact references, before file refs consume their resolved paths.
+    staged_artifact_paths: set[str] = set()
     if file_ref_mode == "process":
-        prompt = process_artifact_references(prompt, is_home_mode=is_home_mode)
+        prompt = process_artifact_references(
+            prompt,
+            is_home_mode=is_home_mode,
+            staged_file_paths=staged_artifact_paths,
+        )
     elif file_ref_mode == "validate":
         validate_artifact_references(prompt, is_home_mode=is_home_mode)
 
     # 4. File references
     if file_ref_mode == "process":
-        prompt = process_file_references(prompt, is_home_mode=is_home_mode)
+        prompt = process_file_references(
+            prompt,
+            is_home_mode=is_home_mode,
+            staged_file_paths=staged_artifact_paths,
+        )
     elif file_ref_mode == "validate":
         validate_file_references(prompt)
 

@@ -257,6 +257,8 @@ DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS = 60
 DEFAULT_TASK_HISTORY_LIMIT = 100
 DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT = 50
 DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN = 20
+DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024
+DEFAULT_ARTIFACT_CAPTURE_POOL_MAX_BYTES = 1024 * 1024 * 1024
 DEFAULT_ARTIFACT_RETENTION_ENABLED = False
 DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL = 3
 DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS = 90
@@ -366,6 +368,40 @@ def get_artifact_capture_max_history_scan() -> int:
     if type(value) is int and value >= 1:
         return value
     return DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN
+
+
+def get_artifact_capture_max_file_size_bytes() -> int:
+    """Return the maximum size of one pooled prompt artifact."""
+    artifacts = load_merged_config().get("artifacts", {})
+    capture = artifacts.get("capture", {}) if isinstance(artifacts, dict) else {}
+    value = (
+        capture.get(
+            "max_file_size_bytes",
+            DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES,
+        )
+        if isinstance(capture, dict)
+        else DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES
+    )
+    if type(value) is int and value >= 1:
+        return value
+    return DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES
+
+
+def get_artifact_capture_pool_max_bytes() -> int:
+    """Return the workspace-local prompt-artifact pool budget."""
+    artifacts = load_merged_config().get("artifacts", {})
+    capture = artifacts.get("capture", {}) if isinstance(artifacts, dict) else {}
+    value = (
+        capture.get(
+            "pool_max_bytes",
+            DEFAULT_ARTIFACT_CAPTURE_POOL_MAX_BYTES,
+        )
+        if isinstance(capture, dict)
+        else DEFAULT_ARTIFACT_CAPTURE_POOL_MAX_BYTES
+    )
+    if type(value) is int and value >= 1:
+        return value
+    return DEFAULT_ARTIFACT_CAPTURE_POOL_MAX_BYTES
 
 
 def _artifact_retention_config() -> dict[str, Any]:

@@ -62,11 +62,11 @@ class TestExtractRecordableFileRefs:
         assert extract_recordable_file_refs("just ~ here") == []
 
     def test_excludes_at_prefixed_local_sase_paths(self) -> None:
-        text = "look at @.sase/home/foo.md and @.sase/memory/x.md"
+        text = "look at @.sase/artifacts/home/foo.md and @.sase/memory/x.md"
         assert extract_recordable_file_refs(text) == []
 
     def test_excludes_bare_local_sase_paths(self) -> None:
-        text = "touching .sase/home/foo.md but not recorded"
+        text = "touching .sase/artifacts/home/foo.md but not recorded"
         assert extract_recordable_file_refs(text) == []
 
     def test_keeps_global_sase_tilde_paths(self) -> None:
@@ -163,7 +163,9 @@ class TestFileReferenceStore:
     def test_load_filters_local_sase_entries(self, tmp_path: Path) -> None:
         store = tmp_path / "hist.json"
         store.write_text(
-            json.dumps({"paths": ["/etc/hosts", ".sase/home/a.md", "~/b.md"]}),
+            json.dumps(
+                {"paths": ["/etc/hosts", ".sase/artifacts/home/a.md", "~/b.md"]}
+            ),
             encoding="utf-8",
         )
         with patch("sase.history.file_references._HISTORY_FILE", store):
@@ -172,7 +174,7 @@ class TestFileReferenceStore:
     def test_record_scrubs_preexisting_local_sase_entries(self, tmp_path: Path) -> None:
         store = tmp_path / "hist.json"
         store.write_text(
-            json.dumps({"paths": ["/old", ".sase/home/a.md", "~/keep.md"]}),
+            json.dumps({"paths": ["/old", ".sase/artifacts/home/a.md", "~/keep.md"]}),
             encoding="utf-8",
         )
         with patch("sase.history.file_references._HISTORY_FILE", store):

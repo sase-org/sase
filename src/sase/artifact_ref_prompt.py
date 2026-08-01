@@ -50,14 +50,21 @@ def process_artifact_references(
     *,
     is_home_mode: bool = False,
     context: ArtifactRefContext | None = None,
+    staged_file_paths: set[str] | None = None,
 ) -> str:
-    """Resolve and expand live artifact references in a launch prompt."""
+    """Resolve and expand live artifact references in a launch prompt.
+
+    Successfully staged file paths are added to ``staged_file_paths`` so the
+    following plain-file pass does not record generated ``@/path`` tokens as
+    separate authored references.
+    """
 
     return _expand_artifact_references(
         prompt,
         is_home_mode=is_home_mode,
         context=context,
         rewrite=True,
+        staged_file_paths=staged_file_paths,
     )
 
 
@@ -74,6 +81,7 @@ def validate_artifact_references(
         is_home_mode=is_home_mode,
         context=context,
         rewrite=False,
+        staged_file_paths=None,
     )
 
 
@@ -83,6 +91,7 @@ def _expand_artifact_references(
     is_home_mode: bool,
     context: ArtifactRefContext | None,
     rewrite: bool,
+    staged_file_paths: set[str] | None,
 ) -> str:
     if "@" not in prompt:
         return prompt
@@ -98,7 +107,7 @@ def _expand_artifact_references(
     literal_ranges = literal_zone_ranges(prompt)
     byte_to_char = _byte_to_character_offsets(prompt)
     replacements: list[tuple[int, int, str]] = []
-    consumptions: list[tuple[ArtifactRef, ArtifactRefResolution, Path | None]] = []
+    consumptions: list[tuple[ArtifactRef, ArtifactRefResolution, Path | None, str]] = []
     failures: list[_ArtifactRefFailure] = []
     known_kinds = set(context.known_kinds)
     for candidate in candidates:
@@ -142,7 +151,7 @@ def _expand_artifact_references(
             failures.append(_ArtifactRefFailure(candidate.text, "missing", str(exc)))
             continue
         replacements.append((start, end, replacement_text))
-        consumptions.append((parsed, resolution, resolved_path))
+        consumptions.append((parsed, resolution, resolved_path, replacement_text))
 
     if failures:
         _print_artifact_ref_failures(failures)
@@ -153,6 +162,10 @@ def _expand_artifact_references(
     expanded = prompt
     for start, end, replacement_text in reversed(replacements):
         expanded = f"{expanded[:start]}{replacement_text}{expanded[end:]}"
+    if not is_home_mode:
+        staged = _stage_artifact_references(consumptions)
+        if staged_file_paths is not None:
+            staged_file_paths.update(staged)
     _record_artifact_ref_consumption(consumptions)
     return expanded
 
@@ -231,12 +244,12 @@ def _artifact_ref_replacement(
 
 
 def _record_artifact_ref_consumption(
-    consumptions: list[tuple[ArtifactRef, ArtifactRefResolution, Path | None]],
+    consumptions: list[tuple[ArtifactRef, ArtifactRefResolution, Path | None, str]],
 ) -> None:
     try:
         events: list[ArtifactConsumptionEvent] = []
         seen_refs: set[str] = set()
-        for parsed, resolution, resolved_path in consumptions:
+        for parsed, resolution, resolved_path, _replacement_text in consumptions:
             fragment_free = replace(parsed, fragment=None)
             reference = render_artifact_ref(fragment_free)
             if reference in seen_refs:
@@ -275,6 +288,47 @@ def _record_artifact_ref_consumption(
         append_artifact_consumption_events(events)
     except Exception as exc:
         log.debug("Could not record artifact-reference consumption: %s", exc)
+
+
+def _stage_artifact_references(
+    consumptions: list[tuple[ArtifactRef, ArtifactRefResolution, Path | None, str]],
+) -> set[str]:
+    """Stage the exact resolution list used by consumption telemetry."""
+
+    from sase.core.prompt_artifact_staging import stage_prompt_artifact
+
+    staged_file_paths: set[str] = set()
+    for parsed, resolution, resolved_path, replacement_text in consumptions:
+        raw_ref = f"@{render_artifact_ref(parsed)}"
+        record = stage_prompt_artifact(
+            raw_ref=raw_ref,
+            expanded_ref=replacement_text,
+            resolved_path=resolved_path,
+            ref_kind=parsed.kind,
+            label=_artifact_ref_label(parsed, resolved_path, raw_ref),
+            locator=resolution.locator,
+        )
+        if record is not None and resolved_path is not None and resolved_path.is_file():
+            staged_file_paths.add(str(resolved_path.resolve(strict=False)))
+    return staged_file_paths
+
+
+def _artifact_ref_label(
+    reference: ArtifactRef,
+    resolved_path: Path | None,
+    raw_ref: str,
+) -> str:
+    if resolved_path is not None and resolved_path.is_file():
+        return resolved_path.name
+    payload = reference.payload
+    for value in (payload.path, payload.name, payload.id):
+        if value:
+            return Path(value).name
+    if payload.number is not None:
+        return f"{payload.project or 'bug'}#{payload.number}"
+    if payload.repo and payload.sha:
+        return f"{payload.repo}@{payload.sha}"
+    return raw_ref.removeprefix("@")
 
 
 def _materialize_vcs_file_reference(

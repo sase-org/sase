@@ -19,6 +19,7 @@ from sase.core.artifact_capture_policy import (
     CaptureCandidate,
     CaptureLimits,
     GitVcsProbe,
+    capture_file_exceeds_size_limit,
     decide_captures,
 )
 from tests._sdd_commit_helpers import init_test_git_repo
@@ -27,6 +28,11 @@ from tests._sdd_commit_helpers import init_test_git_repo
 PROJECT = "widget"
 WORKSPACE_NUM = 7
 LIMITS = CaptureLimits(max_stored_per_agent=50, max_history_scan=20)
+
+
+def test_capture_file_size_limit_is_strictly_greater_than_cap() -> None:
+    assert not capture_file_exceeds_size_limit(10, max_file_size_bytes=10)
+    assert capture_file_exceeds_size_limit(11, max_file_size_bytes=10)
 
 
 def _git(cwd: Path, *args: str) -> str:
@@ -271,15 +277,61 @@ def test_store_cap_does_not_count_references(
 
 
 @pytest.mark.parametrize(
-    ("config", "stored", "history"),
+    ("config", "stored", "history", "file_size", "pool_size"),
     [
-        ({}, 50, 20),
-        ({"artifacts": {"capture": {"max_stored_per_agent": 7}}}, 7, 20),
-        ({"artifacts": {"capture": {"max_history_scan": 3}}}, 50, 3),
-        ({"artifacts": {"capture": {"max_stored_per_agent": 0}}}, 50, 20),
-        ({"artifacts": {"capture": {"max_history_scan": True}}}, 50, 20),
-        ({"artifacts": []}, 50, 20),
-        ({"artifacts": {"capture": "invalid"}}, 50, 20),
+        ({}, 50, 20, 104857600, 1073741824),
+        (
+            {
+                "artifacts": {
+                    "capture": {
+                        "max_stored_per_agent": 7,
+                        "max_file_size_bytes": 123,
+                        "pool_max_bytes": 456,
+                    }
+                }
+            },
+            7,
+            20,
+            123,
+            456,
+        ),
+        (
+            {"artifacts": {"capture": {"max_history_scan": 3}}},
+            50,
+            3,
+            104857600,
+            1073741824,
+        ),
+        (
+            {
+                "artifacts": {
+                    "capture": {
+                        "max_stored_per_agent": 0,
+                        "max_file_size_bytes": 0,
+                        "pool_max_bytes": True,
+                    }
+                }
+            },
+            50,
+            20,
+            104857600,
+            1073741824,
+        ),
+        (
+            {"artifacts": {"capture": {"max_history_scan": True}}},
+            50,
+            20,
+            104857600,
+            1073741824,
+        ),
+        ({"artifacts": []}, 50, 20, 104857600, 1073741824),
+        (
+            {"artifacts": {"capture": "invalid"}},
+            50,
+            20,
+            104857600,
+            1073741824,
+        ),
     ],
 )
 def test_capture_config_accessors_validate_values(
@@ -287,11 +339,15 @@ def test_capture_config_accessors_validate_values(
     config: dict[str, Any],
     stored: int,
     history: int,
+    file_size: int,
+    pool_size: int,
 ) -> None:
     monkeypatch.setattr(config_core, "load_merged_config", lambda: config)
 
     assert config_core.get_artifact_capture_max_stored_per_agent() == stored
     assert config_core.get_artifact_capture_max_history_scan() == history
+    assert config_core.get_artifact_capture_max_file_size_bytes() == file_size
+    assert config_core.get_artifact_capture_pool_max_bytes() == pool_size
 
 
 @pytest.mark.parametrize(
@@ -376,6 +432,8 @@ def test_capture_config_default_and_schema() -> None:
     assert defaults["artifacts"]["capture"] == {
         "max_stored_per_agent": 50,
         "max_history_scan": 20,
+        "max_file_size_bytes": 104857600,
+        "pool_max_bytes": 1073741824,
     }
     capture = schema["properties"]["artifacts"]["properties"]["capture"]
     assert capture["additionalProperties"] is False
@@ -391,6 +449,10 @@ def test_capture_config_default_and_schema() -> None:
     }
     assert capture["properties"]["max_history_scan"]["minimum"] == 1
     assert capture["properties"]["max_history_scan"]["default"] == 20
+    assert capture["properties"]["max_file_size_bytes"]["minimum"] == 1
+    assert capture["properties"]["max_file_size_bytes"]["default"] == 104857600
+    assert capture["properties"]["pool_max_bytes"]["minimum"] == 1
+    assert capture["properties"]["pool_max_bytes"]["default"] == 1073741824
     assert defaults["artifacts"]["retention"] == {
         "enabled": False,
         "keep_per_label": 3,

@@ -45,6 +45,12 @@ artifacts:
     # Bounded number of commits searched per file when looking for a durable
     # commit that holds its exact content.
     max_history_scan: 20
+    # Files above this size are hashed and recorded but are not copied into the
+    # workspace-local prompt-artifact pool.
+    max_file_size_bytes: 104857600
+    # Opportunistic GC removes already-published terminal-run artifacts after
+    # the workspace-local prompt-artifact pool grows beyond this budget.
+    pool_max_bytes: 1073741824
   retention:
     # Retention removes nothing until this is true. Explicit artifacts, artifacts
     # referenced by a bead, plan, or ChangeSpec, and the newest capture of every

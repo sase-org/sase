@@ -232,6 +232,20 @@ class GitVcsProbe:
             return None
 
 
+def capture_file_exceeds_size_limit(
+    size_bytes: int,
+    *,
+    max_file_size_bytes: int | None = None,
+) -> bool:
+    """Return whether one file is too large for automatic byte capture."""
+
+    if max_file_size_bytes is None:
+        from sase.config import get_artifact_capture_max_file_size_bytes
+
+        max_file_size_bytes = get_artifact_capture_max_file_size_bytes()
+    return size_bytes > max(1, max_file_size_bytes)
+
+
 def decide_captures(
     candidates: Sequence[CaptureCandidate],
     *,

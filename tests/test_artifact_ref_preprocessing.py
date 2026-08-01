@@ -7,6 +7,7 @@ import subprocess
 from unittest.mock import patch
 
 import pytest
+import sase_core_rs
 
 from sase import artifact_ref_prompt
 from sase.artifact_refs import (
@@ -21,6 +22,7 @@ from sase.artifact_refs import (
     validate_artifact_references,
 )
 from sase.llm_provider.preprocessing import preprocess_prompt_late
+from sase.file_references import process_file_references
 
 
 @pytest.fixture(autouse=True)
@@ -376,6 +378,82 @@ def test_rewrite_records_one_edge_per_expanded_reference(
     ]
 
 
+def test_rewrite_stages_the_same_resolved_reference_list(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+    staged: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "sase.core.prompt_artifact_staging.stage_prompt_artifact",
+        lambda **kwargs: staged.append(kwargs),
+    )
+
+    process_artifact_references("Read @plans:report.md.", context=context)
+
+    assert staged == [
+        {
+            "raw_ref": "@plans:report.md",
+            "expanded_ref": f"@{plan}",
+            "resolved_path": plan,
+            "ref_kind": "plans",
+            "label": "report.md",
+            "locator": None,
+        }
+    ]
+
+
+def test_home_mode_does_not_stage_artifact_references(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+    staged: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "sase.core.prompt_artifact_staging.stage_prompt_artifact",
+        lambda **kwargs: staged.append(kwargs),
+    )
+
+    process_artifact_references(
+        "Read @plans:report.md.",
+        context=context,
+        is_home_mode=True,
+    )
+
+    assert staged == []
+
+
+def test_artifact_expansion_is_not_restaged_as_plain_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "run"))
+    staged_paths: set[str] = set()
+
+    expanded = process_artifact_references(
+        "Read @plans:report.md.",
+        context=context,
+        staged_file_paths=staged_paths,
+    )
+    process_file_references(expanded, staged_file_paths=staged_paths)
+
+    manifest = tmp_path / ".sase/artifacts/prompt-artifacts.jsonl"
+    rows = sase_core_rs.prompt_artifact_manifest_parse(manifest.read_bytes())
+    assert len(rows) == 1
+    assert rows[0]["raw_ref"] == "@plans:report.md"
+
+
 def test_fragment_is_recorded_separately_from_fragment_free_ref(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -524,11 +602,23 @@ def test_late_preprocessing_expands_artifacts_before_file_refs(
 ) -> None:
     seen: list[tuple[str, bool]] = []
 
-    def expand(prompt: str, *, is_home_mode: bool) -> str:
+    def expand(
+        prompt: str,
+        *,
+        is_home_mode: bool,
+        staged_file_paths: set[str],
+    ) -> str:
+        assert staged_file_paths == set()
         seen.append(("artifact", is_home_mode))
         return prompt.replace("@plans:x.md", "@/resolved/x.md")
 
-    def process(prompt: str, *, is_home_mode: bool) -> str:
+    def process(
+        prompt: str,
+        *,
+        is_home_mode: bool,
+        staged_file_paths: set[str],
+    ) -> str:
+        assert staged_file_paths == set()
         seen.append(("file", is_home_mode))
         assert "@/resolved/x.md" in prompt
         return prompt

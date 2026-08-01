@@ -10,7 +10,7 @@ from sase.file_references import process_file_references
 
 
 def testprocess_file_references_tilde_expansion() -> None:
-    """Test that tilde paths are copied to .sase/ with home-relative structure."""
+    """Test that tilde paths are copied with home-relative structure."""
     # Create a temp file to reference
     with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as f:
         temp_path = f.name
@@ -37,12 +37,12 @@ def testprocess_file_references_tilde_expansion() -> None:
                     with patch("sase.file_references.print_file_operation"):
                         result = process_file_references(prompt)
 
-                # The tilde path should be replaced with a relative path to .sase/home/
+                # The tilde path is replaced with the new artifact-home path.
                 assert f"@{tilde_path}" not in result
-                assert f"@.sase/home/{rel_path}" in result
+                assert f"@.sase/artifacts/home/{rel_path}" in result
 
                 # Check that the file was copied with home-relative structure
-                copied_file = os.path.join(".sase", "home", rel_path)
+                copied_file = os.path.join(".sase", "artifacts", "home", rel_path)
                 assert os.path.exists(copied_file)
 
                 # Verify content was copied correctly

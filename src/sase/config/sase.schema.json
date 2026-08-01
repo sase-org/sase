@@ -2006,6 +2006,18 @@
               "minimum": 1,
               "default": 20,
               "description": "Maximum number of durable commits searched per file for an exact version-control-backed artifact revision."
+            },
+            "max_file_size_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 104857600,
+              "description": "Maximum size of one file copied into the workspace-local prompt-artifact pool. Larger files are still hashed and recorded."
+            },
+            "pool_max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1073741824,
+              "description": "Maximum workspace-local prompt-artifact pool size before opportunistic garbage collection."
             }
           }
         },

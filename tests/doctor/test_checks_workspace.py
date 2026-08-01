@@ -12,6 +12,7 @@ from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
 )
 from sase.doctor.checks_workspace import (
+    _check_legacy_artifact_home,
     _check_missing_workspace_checkouts,
     _check_workspace_registry,
     workspace_check_specs,
@@ -235,4 +236,28 @@ def test_workspace_check_specs_registers_missing_checkout_check(
 ) -> None:
     ids = [spec.id for spec in workspace_check_specs(_context(tmp_path))]
 
-    assert ids == ["workspace.registry", "workspace.missing_checkouts"]
+    assert ids == [
+        "workspace.registry",
+        "workspace.missing_checkouts",
+        "workspace.legacy_artifact_home",
+    ]
+
+
+def test_legacy_artifact_home_doctor_reports_stale_directory(
+    tmp_path: Path,
+) -> None:
+    nested = tmp_path / "repo" / "src"
+    nested.mkdir(parents=True)
+    legacy_home = tmp_path / "repo" / ".sase" / "home"
+    legacy_home.mkdir(parents=True)
+    context = DoctorContext(
+        cwd=nested,
+        project="alpha",
+        sase_home=tmp_path / "global-sase",
+    )
+
+    check = _check_legacy_artifact_home(context)
+
+    assert check.status == "WARN"
+    assert check.data["path"] == str(legacy_home)
+    assert "confirming no live agent" in check.next_steps[0]
