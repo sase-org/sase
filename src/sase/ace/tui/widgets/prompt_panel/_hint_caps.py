@@ -14,8 +14,8 @@ from ...util.lazy_syntax import (
     truncate_plain_content,
 )
 from ._file_path_hints import (
-    FILE_PATH_RE,
     append_text_with_file_hints,
+    iter_file_path_matches,
 )
 
 HINT_TRUNCATION_STYLE = "dim italic #87D7FF"
@@ -61,7 +61,7 @@ def _drop_partial_trailing_path(content: str, source: str) -> str:
     if not content or len(content) >= len(source):
         return content
     match = None
-    for candidate in FILE_PATH_RE.finditer(content):
+    for candidate in iter_file_path_matches(content):
         match = candidate
     if match is None or match.end(2) != len(content):
         return content

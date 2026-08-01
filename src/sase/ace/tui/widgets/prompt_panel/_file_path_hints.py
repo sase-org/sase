@@ -11,10 +11,7 @@ from rich.style import StyleType
 from rich.text import Text
 
 
-# Regex to match file paths in text.
-# Group 1: optional @ prefix (sase file reference convention)
-# Group 2: the actual file path
-FILE_PATH_RE = re.compile(
+_FILE_PATH_PATTERN = (
     r"(?<![/\w@.])"  # Not preceded by word char, /, @, or .
     r"(@?)"  # Group 1: optional @ prefix
     r"("  # Group 2: the file path
@@ -31,7 +28,15 @@ FILE_PATH_RE = re.compile(
     r"(?:[\w\-]+/[\w.+\-/]*\.[\w]+)"
     r")"
 )
+# Regex to match file paths in text.
+# Group 1: optional @ prefix (sase file reference convention)
+# Group 2: the actual file path
+FILE_PATH_RE = re.compile(_FILE_PATH_PATTERN)
 _FILE_PATH_RE = FILE_PATH_RE
+_HTTP_URL_PATTERN = r"(?<!\w)(?i:https?)://[^\s<>()\[\]{}'\"`]+"
+_FILE_PATH_OR_HTTP_URL_RE = re.compile(
+    f"(?:{_HTTP_URL_PATTERN})|(?:{_FILE_PATH_PATTERN})"
+)
 
 
 _annotated_char_scopes: list[list[int]] = []
@@ -144,6 +149,18 @@ def clear_file_hint_resolution_caches() -> None:
     resolve_file_path.cache_clear()
 
 
+def iter_file_path_matches(content: str) -> Generator[re.Match[str], None, None]:
+    """Yield file-path matches that are not contained in HTTP(S) URLs."""
+    for match in _FILE_PATH_OR_HTTP_URL_RE.finditer(content):
+        if match.group(2) is not None:
+            yield match
+
+
+def has_file_path(content: str) -> bool:
+    """Return whether *content* has a file path outside HTTP(S) URLs."""
+    return next(iter_file_path_matches(content), None) is not None
+
+
 def append_text_with_file_hints(
     text: _AppendableText,
     content: str,
@@ -174,7 +191,7 @@ def append_text_with_file_hints(
         counter[0] += len(content)
 
     last_end = 0
-    for match in FILE_PATH_RE.finditer(content):
+    for match in iter_file_path_matches(content):
         at_prefix = match.group(1)
         path = match.group(2)
         # Include @ prefix in display range

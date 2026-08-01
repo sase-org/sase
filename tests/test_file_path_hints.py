@@ -2,6 +2,7 @@
 
 from unittest.mock import Mock
 
+import pytest
 from rich.text import Text
 
 from sase.ace.tui.util.lazy_syntax import PLAIN_RENDER_MAX_LINES
@@ -185,6 +186,28 @@ def test_append_multiple_paths_increment_counter() -> None:
     assert 2 in mappings
     assert "[1] " in text.plain
     assert "[2] " in text.plain
+
+
+@pytest.mark.parametrize("scheme", ["http", "https"])
+def test_append_skips_paths_contained_in_http_urls(scheme: str) -> None:
+    """Path-shaped URL suffixes stay plain while real paths get hints."""
+    url = (
+        f"{scheme}://github.com/sase-org/sase--beads/blob/main/pages/sase-d9/README.md"
+    )
+    text = Text()
+    mappings: dict[int, str] = {}
+
+    counter = append_text_with_file_hints(
+        text,
+        f"Read {url}, then open docs/local.md.",
+        1,
+        mappings,
+        "/workspace",
+    )
+
+    assert counter == 2
+    assert text.plain == f"Read {url}, then open [1] docs/local.md."
+    assert mappings == {1: "/workspace/docs/local.md"}
 
 
 def test_append_continues_from_given_counter() -> None:

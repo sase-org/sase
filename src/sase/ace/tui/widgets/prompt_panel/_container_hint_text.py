@@ -8,9 +8,9 @@ from rich.text import Text
 
 from ._agent_display_state import HeaderHintState
 from ._file_path_hints import (
-    FILE_PATH_RE,
     FileHintPathResolver,
     append_text_with_file_hints,
+    iter_file_path_matches,
     resolve_file_path,
 )
 from ._hint_caps import HintContentBudget, bound_hint_content
@@ -34,7 +34,7 @@ def container_text_with_file_hints(
             match.start(1) if match.group(1) else match.start(2),
             len(f"[{counter + index}] "),
         )
-        for index, match in enumerate(FILE_PATH_RE.finditer(source_text))
+        for index, match in enumerate(iter_file_path_matches(source_text))
     )
     text = Text(style=source.style)
     hint_state.hint_counter = append_text_with_file_hints(

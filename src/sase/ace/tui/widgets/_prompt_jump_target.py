@@ -14,7 +14,7 @@ from sase.ace.tui.widgets._prompt_preview_target import (
     detect_preview_target_at_cursor,
 )
 from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
-    FILE_PATH_RE,
+    iter_file_path_matches,
     resolve_file_path,
 )
 from sase.xprompt.loader import get_xprompt_or_workflow
@@ -145,7 +145,7 @@ def _detect_file_token_suffix_at_cursor(
     cursor_offset: int,
 ) -> JumpToken | None:
     offset = max(0, min(cursor_offset, len(text)))
-    for match in FILE_PATH_RE.finditer(text):
+    for match in iter_file_path_matches(text):
         at_prefix = match.group(1)
         target = match.group(2)
         start = match.start(1) if at_prefix else match.start(2)

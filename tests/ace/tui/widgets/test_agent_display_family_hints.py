@@ -151,6 +151,25 @@ def test_family_content_hints_are_full_at_both_levels_and_use_phase_workspace(
     assert rendered_paths == [expected_paths, expected_paths]
 
 
+def test_family_hint_render_skips_paths_inside_http_urls(tmp_path: Path) -> None:
+    root, _child = make_family(tmp_path)
+    workspace = tmp_path / "root-workspace"
+    workspace.mkdir()
+    root.workspace_dir = str(workspace)
+    url = "https://github.com/sase-org/sase--beads/blob/main/pages/sase-d9/README.md"
+    Path(root.response_path or "").write_text(
+        f"Read {url}, then open docs/local.md.\n",
+        encoding="utf-8",
+    )
+    panel = FakePromptPanel()
+
+    result = panel.update_display_with_hints(root)
+    plain = plain_of(panel.captured[-1])
+
+    assert result.file_hints == {1: str(workspace / "docs/local.md")}
+    assert f"Read {url}, then open [1] docs/local.md." in plain
+
+
 @pytest.mark.parametrize("level", [FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED])
 def test_family_hint_render_caps_total_member_content(
     tmp_path: Path,

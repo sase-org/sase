@@ -102,6 +102,23 @@ def test_clan_summary_paths_render_ordered_hints_from_member_workspace(
     assert not result.header_enrichment_pending
 
 
+def test_clan_summary_skips_paths_inside_http_urls(tmp_path: Path) -> None:
+    container, snapshot = rich_clan_snapshot()
+    member = clan_section_member_rows(container)[0]
+    member.workspace_dir = str(tmp_path)
+    url = "https://github.com/sase-org/sase--beads/blob/main/pages/sase-d9/README.md"
+    container.clan_summary = f"Read {url}, then open docs/local.md."
+    panel = FakePromptPanel()
+    panel.app = _fold_app(FoldLevel.COLLAPSED)
+    _warm_clan_snapshot(panel, container, snapshot)
+
+    result = panel.update_display_with_hints(container)
+    plain = plain_of(panel.captured[-1])
+
+    assert result.file_hints == {1: str(tmp_path / "docs/local.md")}
+    assert f"Read {url}, then open [1] docs/local.md." in plain
+
+
 def test_clan_summary_prefers_worker_resolved_plan_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

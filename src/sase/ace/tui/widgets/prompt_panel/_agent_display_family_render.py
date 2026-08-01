@@ -29,7 +29,7 @@ from ._agent_xprompt_highlighting import known_xprompt_skill_names
 from ._container_hint_text import container_text_with_file_hints
 from ._fold_language import fold_count_style
 from ._file_path_hints import (
-    FILE_PATH_RE,
+    has_file_path,
     resolve_agent_workspace_dir,
 )
 from ._hint_caps import HintContentBudget
@@ -234,7 +234,7 @@ class AgentFamilyDisplayMixin:
     @staticmethod
     def _family_member_hint_workspace(agent: Agent, content: str) -> str | None:
         """Resolve a phase workspace only when its visible text has a path."""
-        if FILE_PATH_RE.search(content) is None:
+        if not has_file_path(content):
             return None
         return resolve_agent_workspace_dir(
             agent.effective_workspace_num,

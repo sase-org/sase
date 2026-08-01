@@ -391,6 +391,34 @@ class TestAgentXPromptRendering:
             "#work([1] @src/raw.py) %auto",
         )
 
+    def test_hint_mode_skips_paths_inside_http_urls(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace_dir = tmp_path / "workspace"
+        workspace_dir.mkdir()
+        url = (
+            "https://github.com/sase-org/sase--beads/blob/main/pages/sase-d9/README.md"
+        )
+        panel = FakePromptPanel()
+        agent = make_artifact_agent(
+            tmp_path,
+            status="DONE",
+            workspace_dir=str(workspace_dir),
+            raw_xprompt="Review the linked bead",
+        )
+        Path(agent.response_path).write_text(
+            f"Read {url}, then open docs/local.md.\n",
+            encoding="utf-8",
+        )
+
+        result = panel.update_display_with_hints(agent)
+        plain = plain_of(panel.captured[-1])
+
+        assert url in plain
+        assert result.file_hints == {1: str(workspace_dir / "docs/local.md")}
+        assert f"Read {url}, then open [1] docs/local.md." in plain
+
     def test_oversized_xprompt_falls_back_to_plain_text(
         self,
         tmp_path: Path,

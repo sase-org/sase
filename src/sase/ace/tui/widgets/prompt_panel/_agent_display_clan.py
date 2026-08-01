@@ -48,7 +48,7 @@ from ._container_hint_text import (
     container_hint_path_resolver,
     container_text_with_file_hints,
 )
-from ._file_path_hints import FILE_PATH_RE, resolve_agent_workspace_dir
+from ._file_path_hints import has_file_path, resolve_agent_workspace_dir
 from ._fold_language import append_fold_header_line, append_scanning_tail
 from ._hint_caps import HintContentBudget
 from ._member_roster import MemberJumpMap, append_member_roster
@@ -404,7 +404,7 @@ def _clan_member_hint_workspace_resolver(
     resolved: dict[ClanAgentIdentity, str | None] = {}
 
     def resolve(identity: ClanAgentIdentity, content: str) -> str | None:
-        if FILE_PATH_RE.search(content) is None:
+        if not has_file_path(content):
             return hint_state.workspace_dir
         if identity not in resolved:
             member = members.get(identity)
