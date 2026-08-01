@@ -215,6 +215,7 @@ class ClanSectionSnapshot:
     in_memory: ClanInMemorySnapshot
     disk: ClanDiskSnapshot | None = None
     loading_sections: frozenset[ClanDiskSection] = frozenset()
+    revision: int = 0
 
 
 def clan_section_member_rows(agent: Agent) -> tuple[Agent, ...]:

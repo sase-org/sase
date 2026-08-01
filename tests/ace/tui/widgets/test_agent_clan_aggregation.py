@@ -31,7 +31,11 @@ from sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation import (
     _aggregate_clan_slow_tool_calls,
     _ClanDiskContentCache,
     _load_clan_disk_member_snapshot,
+    cache_clan_disk_snapshot,
+    clear_clan_snapshot_loading,
     get_cached_clan_section_snapshot,
+    mark_clan_snapshot_loading,
+    prepare_clan_section_snapshot,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
 from sase.ace.tui.widgets.prompt_panel._agent_display_clan import (
@@ -515,6 +519,29 @@ def test_collapsed_presence_discovery_enriches_and_reuses_member_artifacts(
     assert "SLOW TOOL CALLS" not in enriched
     assert "⋯ scanning member data…" not in enriched
     assert panel.worker_runs == 1
+
+
+def test_clan_snapshot_revision_changes_only_when_worker_result_merges() -> None:
+    member = _agent("research.one")
+    container = project_clan_tree([member])[0]
+    panel = _ClanPanel()
+
+    initial = prepare_clan_section_snapshot(panel, container)
+    mark_clan_snapshot_loading(panel, container, {"replies"})
+    loading = get_cached_clan_section_snapshot(panel, container)
+    assert loading is not None
+    clear_clan_snapshot_loading(panel, container)
+    cleared = get_cached_clan_section_snapshot(panel, container)
+    assert cleared is not None
+
+    first = cache_clan_disk_snapshot(panel, container, _disk_for(initial))
+    assert first is not None
+    refreshed = prepare_clan_section_snapshot(panel, container)
+    second = cache_clan_disk_snapshot(panel, container, _disk_for(refreshed))
+
+    assert initial.revision == loading.revision == cleared.revision == 0
+    assert first.revision == refreshed.revision == 1
+    assert second is not None and second.revision == 2
 
 
 def test_clan_worker_coalesces_and_discards_stale_selection(

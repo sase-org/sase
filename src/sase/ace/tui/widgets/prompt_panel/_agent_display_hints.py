@@ -18,6 +18,7 @@ from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
 
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, AgentType, wait_display_agent
+from ...models._agent_clan_sections import clan_section_member_rows
 from ...models.agent_hoods import agent_owns_lane
 from ...util.lazy_syntax import CachedRenderable
 from ...util.trace import tui_trace
@@ -28,7 +29,14 @@ from ._agent_display_content import (
     render_phase_divider,
     render_timestamp_divider,
 )
-from ._agent_display_clan import panel_fold_state_from_widget
+from ._agent_clan_aggregation import (
+    get_cached_clan_section_snapshot,
+    prepare_clan_section_snapshot,
+)
+from ._agent_display_clan import (
+    clan_disk_sections_for_fold_state,
+    panel_fold_state_from_widget,
+)
 from ._agent_display_context import runner_capacity_for_app
 from ._agent_display_header import AgentHeader, build_header_text
 from ._agent_display_header_summary import (
@@ -193,12 +201,31 @@ def _agent_hint_render_cache_key(
 ) -> _AgentHintRenderCacheKey:
     """Build the conservative key for the current annotated document."""
     fold_level, fold_overrides = panel_fold_state_from_widget(widget)
-    raw_xprompt = agent.get_raw_xprompt_content()
+    if agent.is_clan_container:
+        snapshot = get_cached_clan_section_snapshot(widget, agent)
+        member_states = tuple(
+            (member.identity, member.display_status)
+            for member in clan_section_member_rows(agent)
+        )
+        agent_state_digest = _digest_parts(
+            member_states,
+            agent.agent_clan,
+            agent.agent_clan_generation,
+            snapshot.revision if snapshot is not None else 0,
+        )
+        source_digest = _digest_parts(agent.clan_summary)
+        summary_key = None
+        raw_xprompt = None
+    else:
+        agent_state_digest = _digest_parts(agent)
+        source_digest = _source_digest(agent)
+        summary_key = detail_header_summary_cache_key(widget, agent)
+        raw_xprompt = agent.get_raw_xprompt_content()
     return _AgentHintRenderCacheKey(
         agent_identity=cast(tuple[object, ...], agent.identity),
-        agent_state_digest=_digest_parts(agent),
-        source_digest=_source_digest(agent),
-        summary_key=detail_header_summary_cache_key(widget, agent),
+        agent_state_digest=agent_state_digest,
+        source_digest=source_digest,
+        summary_key=summary_key,
         fold_level=fold_level,
         fold_overrides=_fold_overrides_key(fold_overrides),
         context_digest=_hint_context_digest(widget, agent, raw_xprompt),
@@ -313,6 +340,8 @@ class AgentHintsDisplayMixin:
         prepare_sections = getattr(self, "prepare_section_document_for_agent", None)
         if callable(prepare_sections):
             prepare_sections(agent)
+        if agent.is_clan_container:
+            prepare_clan_section_snapshot(self, agent)
         self._reset_markdown_render_cache_for_agent(agent)  # type: ignore[attr-defined]
         cache_key = _agent_hint_render_cache_key(self, agent)
         cache = _agent_hint_render_cache(self)
@@ -340,7 +369,10 @@ class AgentHintsDisplayMixin:
                     )
                 self.update(cached.renderable)  # type: ignore[attr-defined]
                 if cached.result.header_enrichment_pending:
-                    self._start_agent_detail_header_enrichment_from_context(agent)  # type: ignore[attr-defined]
+                    if agent.is_clan_container:
+                        self._start_clan_section_enrichment_from_context(agent)  # type: ignore[attr-defined]
+                    else:
+                        self._start_agent_detail_header_enrichment_from_context(agent)  # type: ignore[attr-defined]
                 extra["cache"] = "hit"
                 render = cached.result
             else:
@@ -402,6 +434,8 @@ class AgentHintsDisplayMixin:
         cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
         if callable(cancel_slow_tick):
             cancel_slow_tick()
+        if agent.is_clan_container:
+            return self._update_clan_display_with_hints(agent)
         humanize_text = self._humanize_display_text  # type: ignore[attr-defined]
         workspace_dir = resolve_agent_workspace_dir(
             agent.effective_workspace_num,
@@ -681,4 +715,58 @@ class AgentHintsDisplayMixin:
             tool_call_reports=tool_call_reports,
             commit_views=header_hint_state.commit_views,
             header_enrichment_pending=summary is None,
+        )
+
+    def _update_clan_display_with_hints(self, agent: Agent) -> AgentHintRender:
+        """Render one fold-aware clan document with summary path hints."""
+        self._cancel_tribe_section_worker_for_agent_selection()  # type: ignore[attr-defined]
+        self._cancel_clan_section_worker_for_selection_change(agent)  # type: ignore[attr-defined]
+        snapshot = prepare_clan_section_snapshot(self, agent)
+        fold_level, fold_overrides = panel_fold_state_from_widget(self)
+        required_sections = clan_disk_sections_for_fold_state(
+            fold_level,
+            fold_overrides,
+        )
+        self.set_clan_disk_sections_required(required_sections)  # type: ignore[attr-defined]
+        try:
+            app = self.app  # type: ignore[attr-defined]
+        except Exception:
+            app = None
+
+        hint_mappings: dict[int, str] = {}
+        tool_call_reports: dict[str, SlowToolCallReportSpec] = {}
+        hint_state = HeaderHintState(
+            hint_counter=1,
+            hint_mappings=hint_mappings,
+            workspace_dir=None,
+            tool_call_reports=tool_call_reports,
+        )
+        clan_text, _error_tb_syntax = build_header_text(
+            agent,
+            hint_state=hint_state,
+            unread_agent_ids=getattr(app, "_unread_completed_agent_ids", set()),
+            clan_snapshot=snapshot,
+            clan_fold_level=fold_level,
+            clan_section_fold_overrides=fold_overrides,
+            member_jump_map_publisher=member_jump_map_publisher_for(app),
+        )
+        self.update(self._prepare_cached_hint_renderable(clan_text))  # type: ignore[attr-defined]
+
+        self._cancel_agent_bead_display_worker_for_selection_change(agent)  # type: ignore[attr-defined]
+        self._cancel_agent_linked_delta_worker_for_selection_change(agent)  # type: ignore[attr-defined]
+        self._cancel_agent_detail_header_worker_for_selection_change(agent)  # type: ignore[attr-defined]
+        self._start_clan_section_enrichment_from_context(agent)  # type: ignore[attr-defined]
+
+        snapshot = get_cached_clan_section_snapshot(self, agent) or snapshot
+        loaded_sections = (
+            snapshot.disk.loaded_sections if snapshot.disk is not None else frozenset()
+        )
+        enrichment_pending = bool(snapshot.loading_sections) or not (
+            required_sections.issubset(loaded_sections)
+        )
+        return AgentHintRender(
+            file_hints=hint_mappings,
+            tool_call_reports=tool_call_reports,
+            commit_views=hint_state.commit_views,
+            header_enrichment_pending=enrichment_pending,
         )

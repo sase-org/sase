@@ -219,10 +219,7 @@ class AgentDetailRenderMixin:
             )
             if changed:
                 self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
-            if (
-                not current_agent.is_clan_container
-                and self._should_render_agent_detail_with_hints()
-            ):
+            if self._should_render_agent_detail_with_hints():
                 self._render_agent_detail_with_hints(agent_detail, current_agent)
             else:
                 agent_detail.update_display(

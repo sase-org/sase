@@ -141,6 +141,28 @@ async def test_family_with_displayed_artifact_mounts_view_hint_input() -> None:
 
 
 @pytest.mark.asyncio
+async def test_clan_with_summary_path_mounts_hint_input_without_warning() -> None:
+    app = _PendingAgentViewApp()
+    app.agent = SimpleNamespace(
+        cl_name="research",
+        identity=("research", "clan"),
+        is_family_container_row=False,
+        is_clan_container=True,
+    )
+    app.detail = _ReadyFamilyAgentDetail()
+
+    app._view_agent_files()
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    app.notify.assert_not_called()
+    assert app._hint_mappings == {1: "/tmp/family-report.txt"}
+    assert app._hint_mode_active
+    assert len(app.container.mounted) == 1
+    assert isinstance(app.container.mounted[0], HintInputBar)
+
+
+@pytest.mark.asyncio
 async def test_ordinary_agent_empty_hint_render_keeps_warning_behavior() -> None:
     app = _PendingAgentViewApp()
     app.detail = _EmptyAgentDetail()

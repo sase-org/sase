@@ -16,6 +16,7 @@ from ...models._agent_clan_sections import (
     ClanDiskSection,
     ClanSectionSnapshot,
     aggregate_clan_in_memory,
+    clan_section_member_rows,
 )
 from ...models.agent import Agent, AgentType
 from ...models.fold_scale import CLAN_FOLD_SCALE, effective_fold_level
@@ -41,7 +42,11 @@ from ._agent_display_clan_sections import (
     disk_section_loaded,
     minimal_context_lanes,
 )
+from ._agent_display_state import HeaderHintState
+from ._container_hint_text import container_text_with_file_hints
+from ._file_path_hints import resolve_agent_workspace_dir
 from ._fold_language import append_fold_header_line, append_scanning_tail
+from ._hint_caps import HintContentBudget
 from ._member_roster import MemberJumpMap, append_member_roster
 
 _CLAN_HEADING_STYLE = f"bold {_CLAN_IDENTITY_COLOR} underline"
@@ -113,6 +118,7 @@ clan_fold_state_from_widget = panel_fold_state_from_widget
 def build_clan_detail_text(
     agent: Agent,
     *,
+    hint_state: HeaderHintState | None = None,
     now: datetime | None = None,
     unread_ids: Collection[tuple[AgentType, str, str | None]] = (),
     snapshot: ClanSectionSnapshot | None = None,
@@ -126,6 +132,7 @@ def build_clan_detail_text(
         in_memory=aggregate_clan_in_memory(agent)
     )
     overrides = section_fold_overrides or {}
+    hint_budget = HintContentBudget() if hint_state is not None else None
     members = ordered_clan_members(agent)
     family_members = tuple(member for member in members if family_children(member))
     agent_count = sum(
@@ -215,6 +222,14 @@ def build_clan_detail_text(
             summary = Text.from_markup(agent.clan_summary)
         except MarkupError:
             summary = Text(agent.clan_summary)
+        if hint_state is not None:
+            hint_state.workspace_dir = _clan_hint_workspace(agent)
+            summary = container_text_with_file_hints(
+                summary,
+                hint_state,
+                workspace_dir=hint_state.workspace_dir,
+                budget=hint_budget,
+            )
         text.append_text(summary)
         text.append("\n\n")
 
@@ -311,6 +326,22 @@ def build_clan_detail_text(
     ):
         append_scanning_tail(text)
     return text
+
+
+def _clan_hint_workspace(agent: Agent) -> str | None:
+    """Resolve the first real clan member workspace for summary paths."""
+    for member in clan_section_member_rows(agent):
+        if not member.workspace_dir and not (
+            member.effective_workspace_num is not None
+            and member.effective_workspace_num > 0
+        ):
+            continue
+        return resolve_agent_workspace_dir(
+            member.effective_workspace_num,
+            member.project_file,
+            member.workspace_dir,
+        )
+    return None
 
 
 __all__ = [

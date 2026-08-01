@@ -96,6 +96,7 @@ def build_header_text(
         return (
             build_clan_detail_text(
                 agent,
+                hint_state=hint_state,
                 unread_ids=unread_agent_ids,
                 snapshot=clan_snapshot,
                 fold_level=clan_fold_level,

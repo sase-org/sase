@@ -26,13 +26,13 @@ from ._agent_display_family import (
 from ._agent_display_header import AgentHeader
 from ._agent_display_state import HeaderHintState
 from ._agent_xprompt_highlighting import known_xprompt_skill_names
+from ._container_hint_text import container_text_with_file_hints
 from ._fold_language import fold_count_style
 from ._file_path_hints import (
     FILE_PATH_RE,
-    append_text_with_file_hints,
     resolve_agent_workspace_dir,
 )
-from ._hint_caps import HintContentBudget, bound_hint_content
+from ._hint_caps import HintContentBudget
 from ._helpers import (
     PROMPT_PANEL_SECTION_HEADING_STYLE,
     append_section_heading,
@@ -205,38 +205,12 @@ class AgentFamilyDisplayMixin:
         raw_xprompt: str | None = None,
     ) -> Text:
         """Return one visible family content fragment with numbered paths."""
-        source = content if isinstance(content, Text) else Text(content)
-        bounded = bound_hint_content(source.plain, budget=budget)
-        source_text = bounded.content
-        counter = hint_state.hint_counter
-        insertions = tuple(
-            (
-                match.start(1) if match.group(1) else match.start(2),
-                len(f"[{counter + index}] "),
-            )
-            for index, match in enumerate(FILE_PATH_RE.finditer(source_text))
+        text = container_text_with_file_hints(
+            content,
+            hint_state,
+            workspace_dir=workspace_dir,
+            budget=budget,
         )
-        text = Text(style=source.style)
-        hint_state.hint_counter = append_text_with_file_hints(
-            text,
-            source_text,
-            hint_state.hint_counter,
-            hint_state.hint_mappings,
-            workspace_dir,
-        )
-        for span in source.spans:
-            if span.start >= len(source_text):
-                continue
-            span_end = min(span.end, len(source_text))
-            start = span.start + sum(
-                width for position, width in insertions if position <= span.start
-            )
-            end = span_end + sum(
-                width for position, width in insertions if position < span_end
-            )
-            text.stylize(span.style, start, end)
-        if bounded.notice is not None:
-            text.append_text(bounded.notice)
         if xprompt_agent is None or raw_xprompt is None:
             return text
 

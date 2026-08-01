@@ -120,11 +120,15 @@ def prepare_clan_section_snapshot(widget: object, agent: Agent) -> ClanSectionSn
     ):
         disk = cached.snapshot.disk
         loading_sections = cached.snapshot.loading_sections
+        revision = cached.snapshot.revision
         enriched_monotonic = cached.enriched_monotonic
+    else:
+        revision = 0
     snapshot = ClanSectionSnapshot(
         in_memory=in_memory,
         disk=disk,
         loading_sections=loading_sections,
+        revision=revision,
     )
     cache[agent.identity] = _ClanSnapshotCacheEntry(
         snapshot=snapshot,
@@ -184,6 +188,7 @@ def mark_clan_snapshot_loading(
         in_memory=entry.snapshot.in_memory,
         disk=entry.snapshot.disk,
         loading_sections=frozenset(sections),
+        revision=entry.snapshot.revision,
     )
     cache[agent.identity] = _ClanSnapshotCacheEntry(
         snapshot=snapshot,
@@ -201,6 +206,7 @@ def clear_clan_snapshot_loading(widget: object, agent: Agent) -> None:
         snapshot=ClanSectionSnapshot(
             in_memory=entry.snapshot.in_memory,
             disk=entry.snapshot.disk,
+            revision=entry.snapshot.revision,
         ),
         enriched_monotonic=entry.enriched_monotonic,
     )
@@ -222,6 +228,7 @@ def cache_clan_disk_snapshot(
     snapshot = ClanSectionSnapshot(
         in_memory=entry.snapshot.in_memory,
         disk=disk,
+        revision=entry.snapshot.revision + 1,
     )
     cache[agent.identity] = _ClanSnapshotCacheEntry(
         snapshot=snapshot,
