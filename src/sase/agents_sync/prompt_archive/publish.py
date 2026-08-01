@@ -399,12 +399,7 @@ class _ArtifactTargetResolver:
         if kind == "bug" and locator:
             project, separator, raw_number = locator.rpartition("#")
             if separator and raw_number.isdigit():
-                try:
-                    from sase.ace.tui.artifacts_bugs import issue_url_for_number
-
-                    return issue_url_for_number(project, int(raw_number))
-                except Exception:
-                    return None
+                return _issue_url_for_number(project, int(raw_number))
         if kind == "agent" and self.hosted is not None:
             agent_name = locator.rsplit("/", 1)[-1] if locator else None
             return self.hosted.agent_url(agent_name or record.get("label") or "")
@@ -450,6 +445,49 @@ def _publish_linked_artifacts(
         _copy_content_addressed(source, destination, expected)
         copied.append(destination)
     return tuple(copied)
+
+
+def _issue_url_for_number(project: str, number: int) -> str | None:
+    """Resolve a tracker URL without importing the ACE UI layer."""
+    try:
+        from sase.core.paths import sase_projects_dir
+        from sase.core.project_lifecycle_facade import list_project_records
+        from sase.core.project_lifecycle_wire import effective_project_name
+        from sase.vcs_provider import get_vcs_provider, supports_issues
+
+        records = list_project_records(
+            sase_projects_dir(),
+            "all",
+            include_home=False,
+            projects_only=True,
+        )
+        project_folded = project.casefold()
+        record = next(
+            (
+                candidate
+                for candidate in records
+                if candidate.is_project
+                and not candidate.system_managed
+                and project_folded
+                in {
+                    candidate.project_name.casefold(),
+                    effective_project_name(candidate).casefold(),
+                    *(alias.casefold() for alias in candidate.aliases),
+                }
+            ),
+            None,
+        )
+        if record is None:
+            return None
+        cwd = (record.workspace_dir or "").strip()
+        if not cwd:
+            return None
+        if not supports_issues(cwd):
+            return None
+        provider = get_vcs_provider(cwd)
+        return provider.get_issue_url(number, cwd)
+    except Exception:
+        return None
 
 
 def _commit_prompt_archive_if_dirty(

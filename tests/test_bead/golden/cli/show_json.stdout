@@ -17,6 +17,8 @@
     "description": "Parent description",
     "notes": "",
     "design": "plans/alpha.md",
+    "plus_one_count": 0,
+    "plus_one_evidence": [],
     "model": "",
     "is_ready_to_work": false,
     "changespec_name": "alpha_changespec",

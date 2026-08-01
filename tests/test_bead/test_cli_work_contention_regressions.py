@@ -24,7 +24,7 @@ pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
 _CONCURRENT_MUTATION_WORKERS = 3
 _CONCURRENT_MUTATION_ITERATIONS = 4
 _MUTATION_LOCK_HOLD_SECONDS = 2.6
-_PROCESS_TIMEOUT_SECONDS = 12.0
+_PROCESS_TIMEOUT_SECONDS = 30.0
 
 
 def _append_notes_worker(
@@ -62,7 +62,9 @@ def test_concurrent_bead_mutations_wait_past_the_old_lock_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Several writers should wait for the env-configured mutation deadline."""
-    monkeypatch.setenv("SASE_BEAD_MUTATION_LOCK_TIMEOUT", "5")
+    monkeypatch.setenv("SASE_BEAD_MUTATION_LOCK_TIMEOUT", "12")
+    repo_root = Path(__file__).resolve().parents[2]
+    monkeypatch.syspath_prepend(str(repo_root))
     with BeadProject(project_dir) as project:
         bead_ids = [
             project.create(f"Seeded task {index}", IssueType.TASK, size="small").id

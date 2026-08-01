@@ -35,7 +35,11 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
 from tests.ace.tui.modals.test_project_inventory_subtabs import (
     _patch_inventory_data,
 )
-from tests.ace.tui.test_tasks_pane import _patch_store_loader, _queue, _task
+from tests.ace.tui._tasks_pane_helpers import (
+    patch_store_loader as _patch_store_loader,
+    queue as _queue,
+    task as _task,
+)
 from tests.ace.tui.test_xprompt_browser_load_keymap import _md_xprompt
 
 

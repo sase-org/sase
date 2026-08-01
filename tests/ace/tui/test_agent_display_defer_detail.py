@@ -117,6 +117,7 @@ class _FakeApp(AgentDisplayMixin):
         self._panel_group = AgentPanelGroup.from_agents(self._agents)
         self._pending_callback = None
         self.unread_completed_available = False
+        self.bulk_read_undo_available = False
         self.stopped_available = False
 
         list_widget = _ListWidget()
@@ -155,6 +156,9 @@ class _FakeApp(AgentDisplayMixin):
 
     def _has_unread_completed_agent(self) -> bool:
         return self.unread_completed_available
+
+    def _has_bulk_read_undo_available(self) -> bool:
+        return self.bulk_read_undo_available
 
     def _has_stopped_agent(self) -> bool:
         return self.stopped_available
