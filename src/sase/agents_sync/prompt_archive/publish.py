@@ -67,7 +67,7 @@ class PromptArchivePublicationOutcome:
 
 
 @dataclass(frozen=True, slots=True)
-class PreparedPromptArchive:
+class _PreparedPromptArchive:
     """Files prepared inside an already locked agents checkout."""
 
     prompt_path: Path
@@ -82,6 +82,10 @@ def publish_prompt_archive(
     project: str | None = None,
     commit_cwd: Path | str,
     agent_artifacts_dir: Path | str | None = None,
+    prompt_content: str | None = None,
+    plan_ref: str | None = None,
+    prompt_name: str | None = None,
+    yyyymm: str | None = None,
     git_runner: GitRunner = run_git,
     lock_timeout_seconds: float | None = None,
 ) -> PromptArchivePublicationOutcome:
@@ -94,6 +98,10 @@ def publish_prompt_archive(
             project=project,
             commit_cwd=Path(commit_cwd).resolve(strict=False),
             agent_artifacts_dir=agent_artifacts_dir,
+            prompt_content=prompt_content,
+            plan_ref=plan_ref,
+            prompt_name=prompt_name,
+            yyyymm=yyyymm,
             git_runner=git_runner,
             lock_timeout_seconds=lock_timeout_seconds,
         )
@@ -108,6 +116,10 @@ def _publish_prompt_archive(
     project: str | None,
     commit_cwd: Path,
     agent_artifacts_dir: Path | str | None,
+    prompt_content: str | None,
+    plan_ref: str | None,
+    prompt_name: str | None,
+    yyyymm: str | None,
     git_runner: GitRunner,
     lock_timeout_seconds: float | None,
 ) -> PromptArchivePublicationOutcome:
@@ -178,7 +190,7 @@ def _publish_prompt_archive(
                 queued=True,
                 error="agents sync lock is busy",
             )
-        cleanup_error = clean_prompt_archive_worktree(target.sidecar_path, git_runner)
+        cleanup_error = _clean_prompt_archive_worktree(target.sidecar_path, git_runner)
         if cleanup_error is not None:
             return PromptArchivePublicationOutcome(queued=True, error=cleanup_error)
         pulled = git_sync.pull_agents_rebase(
@@ -203,9 +215,13 @@ def _publish_prompt_archive(
                 primary_revision=primary_revision,
                 commit_cwd=commit_cwd,
                 agent_artifacts_dir=artifacts_dir,
+                prompt_content=prompt_content,
+                plan_ref=plan_ref,
+                prompt_name=prompt_name,
+                yyyymm=yyyymm,
                 git_runner=git_runner,
             )
-            commit_result = commit_prompt_archive_if_dirty(
+            commit_result = _commit_prompt_archive_if_dirty(
                 target.sidecar_path,
                 global_agent,
                 git_runner,
@@ -242,7 +258,7 @@ def _publish_prompt_archive(
             )
         finally:
             # A failed attempt is regenerated from the immutable local pool.
-            clean_prompt_archive_worktree(target.sidecar_path, git_runner)
+            _clean_prompt_archive_worktree(target.sidecar_path, git_runner)
 
 
 def prepare_prompt_archive(
@@ -254,34 +270,41 @@ def prepare_prompt_archive(
     primary_revision: str,
     commit_cwd: Path,
     agent_artifacts_dir: Path,
+    prompt_content: str | None = None,
+    plan_ref: str | None = None,
+    prompt_name: str | None = None,
+    yyyymm: str | None = None,
     git_runner: GitRunner = run_git,
-) -> PreparedPromptArchive:
+) -> _PreparedPromptArchive:
     """Prepare one archive inside a checkout whose write lock is already held."""
 
     meta = _read_json(agent_artifacts_dir / "agent_meta.json")
-    yyyymm = _archive_month(agent_artifacts_dir)
-    plan_ref = _plan_ref(meta)
-    plan_label = _plan_label(plan_ref)
+    workspace_root = _workspace_root(meta, commit_cwd)
+    archive_month = yyyymm or _archive_month(agent_artifacts_dir)
+    resolved_plan_ref = _canonical_plan_ref(
+        plan_ref or _plan_ref(meta),
+        workspace_root,
+    )
+    plan_label = _plan_label(resolved_plan_ref)
     plan_slug = Path(plan_label).stem if plan_label else None
-    month_dir = prompts_month_dir(repo, yyyymm)
+    month_dir = prompts_month_dir(repo, archive_month)
     month_dir.mkdir(parents=True, exist_ok=True)
 
     reusable = _prompt_names_for_agent(month_dir, global_agent)
-    prompt_name = resolve_prompt_name(
-        plan_slug,
+    resolved_prompt_name = resolve_prompt_name(
+        prompt_name or plan_slug,
         lane_name(global_agent),
         month_dir.glob("*.md"),
         reusable_names=reusable,
     )
-    prompt_path = prompt_document_path(repo, yyyymm, prompt_name)
-    workspace_root = _workspace_root(meta, commit_cwd)
+    prompt_path = prompt_document_path(repo, archive_month, resolved_prompt_name)
     manifest_path = (
         workspace_root / ".sase" / "artifacts" / PROMPT_ARTIFACT_MANIFEST_NAME
     )
     records = load_manifest_records(manifest_path, agent_artifacts_dir)
     hosted = _hosted_resolver(workspace_root, target, git_runner)
     target_resolver = _ArtifactTargetResolver(
-        yyyymm=yyyymm,
+        yyyymm=archive_month,
         repo=repo,
         workspace_root=workspace_root,
         primary_root=commit_cwd,
@@ -289,7 +312,11 @@ def prepare_prompt_archive(
         hosted=hosted,
         git_runner=git_runner,
     )
-    prompt = (agent_artifacts_dir / "raw_xprompt.md").read_text(encoding="utf-8")
+    prompt = (
+        prompt_content
+        if prompt_content is not None
+        else (agent_artifacts_dir / "raw_xprompt.md").read_text(encoding="utf-8")
+    )
     rendered = render_prompt_document(
         prompt,
         records,
@@ -298,8 +325,8 @@ def prepare_prompt_archive(
         agent_target=hosted.agent_url(global_agent) if hosted is not None else None,
         plan_label=plan_label,
         plan_target=(
-            hosted.plan_url(plan_ref)
-            if hosted is not None and plan_ref is not None
+            hosted.plan_url(resolved_plan_ref)
+            if hosted is not None and resolved_plan_ref is not None
             else None
         ),
     )
@@ -310,7 +337,7 @@ def prepare_prompt_archive(
     _atomic_write_text(prompt_path, rendered.document)
     index_path = month_dir / "README.md"
     _atomic_write_text(index_path, render_prompt_month_index(month_dir))
-    return PreparedPromptArchive(prompt_path, rendered, copied)
+    return _PreparedPromptArchive(prompt_path, rendered, copied)
 
 
 class _ArtifactTargetResolver:
@@ -425,7 +452,7 @@ def _publish_linked_artifacts(
     return tuple(copied)
 
 
-def commit_prompt_archive_if_dirty(
+def _commit_prompt_archive_if_dirty(
     repo: Path,
     global_agent: str,
     git_runner: GitRunner,
@@ -484,7 +511,7 @@ def _tracked_archive_path(repo: Path, path: str, git_runner: GitRunner) -> bool:
     return result.returncode == 0 and bool(result.stdout.strip())
 
 
-def clean_prompt_archive_worktree(repo: Path, git_runner: GitRunner) -> str | None:
+def _clean_prompt_archive_worktree(repo: Path, git_runner: GitRunner) -> str | None:
     """Restore the regenerable prompt archive paths to ``HEAD``."""
 
     reset = git_runner(
@@ -600,6 +627,33 @@ def _plan_label(plan_ref: str | None) -> str | None:
     return plan_ref.removeprefix("plans:").removeprefix("./")
 
 
+def _canonical_plan_ref(plan_ref: str | None, workspace_root: Path) -> str | None:
+    if plan_ref is None:
+        return None
+    try:
+        from sase.sdd.plan_refs import (
+            canonicalize_plan_reference_from_roots,
+            resolve_plan_reference_from_roots,
+            workspace_context_for_plan_resolution,
+        )
+        from sase.sdd.store import resolve_sdd_store
+
+        workspace, number = workspace_context_for_plan_resolution(workspace_root)
+        store = resolve_sdd_store(workspace, number)
+        root = store.kind_root("plans")
+        resolution = resolve_plan_reference_from_roots(plan_ref, roots=(root,))
+        if resolution.resolved_path is not None:
+            canonical = canonicalize_plan_reference_from_roots(
+                resolution.resolved_path,
+                roots=(root,),
+            )
+            if canonical is not None:
+                return canonical
+    except Exception:
+        pass
+    return plan_ref
+
+
 def _workspace_root(meta: dict[str, Any], fallback: Path) -> Path:
     value = meta.get("workspace_dir")
     if isinstance(value, str) and value.strip():
@@ -681,10 +735,7 @@ def _git_error(
 
 
 __all__ = [
-    "PreparedPromptArchive",
     "PromptArchivePublicationOutcome",
-    "clean_prompt_archive_worktree",
-    "commit_prompt_archive_if_dirty",
     "prepare_prompt_archive",
     "publish_prompt_archive",
 ]

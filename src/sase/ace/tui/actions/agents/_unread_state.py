@@ -23,7 +23,7 @@ class BulkUnreadToggleOutcome(Enum):
 
 
 @dataclass(frozen=True)
-class BulkUnreadToggleResult:
+class _BulkUnreadToggleResult:
     """Result of the session-local bulk unread/read toggle."""
 
     outcome: BulkUnreadToggleOutcome
@@ -72,7 +72,7 @@ class AgentUnreadStateMixin:
         if getattr(self, "_pending_bulk_read_agent_ids", None) is not None:
             self._pending_bulk_read_agent_ids = None
 
-    def _toggle_all_unread_done_agents_read(self) -> BulkUnreadToggleResult:
+    def _toggle_all_unread_done_agents_read(self) -> _BulkUnreadToggleResult:
         """Mark the current terminal unread batch read, or restore the last batch."""
         unread_ids = getattr(self, "_unread_completed_agent_ids", None)
         roster = getattr(self, "_agents_with_children", None) or self._agents
@@ -91,20 +91,20 @@ class AgentUnreadStateMixin:
         if pending_ids is not None:
             return self._restore_bulk_read_undo(pending_ids)
 
-        return BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
+        return _BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
 
-    def _mark_all_unread_done_agents_read(self) -> BulkUnreadToggleResult:
+    def _mark_all_unread_done_agents_read(self) -> _BulkUnreadToggleResult:
         """Compatibility wrapper for the configured bulk-read action."""
         return self._toggle_all_unread_done_agents_read()
 
     def _mark_current_unread_done_agents_read(
         self,
         target_agents: list[Agent],
-    ) -> BulkUnreadToggleResult:
+    ) -> _BulkUnreadToggleResult:
         """Acknowledge a selected batch of currently loaded terminal rows."""
         unread_ids = getattr(self, "_unread_completed_agent_ids", None)
         if unread_ids is None:
-            return BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
+            return _BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
 
         before_unread = set(unread_ids)
         target_identities = {agent.identity for agent in target_agents}
@@ -133,7 +133,7 @@ class AgentUnreadStateMixin:
                 refresh_count()
 
         self._repaint_changed_unread_rows(before_unread)
-        return BulkUnreadToggleResult(
+        return _BulkUnreadToggleResult(
             BulkUnreadToggleOutcome.MARKED_READ,
             len(target_agents),
         )
@@ -141,12 +141,12 @@ class AgentUnreadStateMixin:
     def _restore_bulk_read_undo(
         self,
         pending_ids: set[tuple[AgentType, str, str | None]],
-    ) -> BulkUnreadToggleResult:
+    ) -> _BulkUnreadToggleResult:
         """Restore still-loaded terminal identities from a bulk-read snapshot."""
         restore_ids = set(pending_ids)
         self._pending_bulk_read_agent_ids = None
         if not restore_ids:
-            return BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
+            return _BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
 
         roster = getattr(self, "_agents_with_children", None) or self._agents
         target_agents = [
@@ -157,7 +157,7 @@ class AgentUnreadStateMixin:
             and is_unread_completed_status(agent.status)
         ]
         if not target_agents:
-            return BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
+            return _BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
 
         unread_ids = getattr(self, "_unread_completed_agent_ids", None)
         if unread_ids is None:
@@ -171,7 +171,7 @@ class AgentUnreadStateMixin:
             self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
         self._repaint_changed_unread_rows(before_unread)
-        return BulkUnreadToggleResult(
+        return _BulkUnreadToggleResult(
             BulkUnreadToggleOutcome.RESTORED_UNREAD,
             len(target_agents),
         )

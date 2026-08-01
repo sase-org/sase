@@ -6,7 +6,7 @@ import asyncio
 
 from sase.ace.tui.actions.agents._unread_state import (
     BulkUnreadToggleOutcome,
-    BulkUnreadToggleResult,
+    _BulkUnreadToggleResult,
 )
 from tests.ace.tui._leader_keymap_helpers import _FakeApp, _make_cs
 
@@ -427,7 +427,7 @@ def test_leader_u_marks_all_unread_done_agents_read_on_agents_tab() -> None:
 
 def test_leader_u_notifies_when_no_unread_done_agents() -> None:
     app = _FakeApp(current_tab="agents")
-    app.mark_all_unread_result = BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
+    app.mark_all_unread_result = _BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
 
     handled = app._handle_leader_key("u")
 
@@ -439,7 +439,7 @@ def test_leader_u_notifies_when_no_unread_done_agents() -> None:
 
 def test_leader_u_notifies_when_bulk_read_is_restored() -> None:
     app = _FakeApp(current_tab="agents")
-    app.mark_all_unread_result = BulkUnreadToggleResult(
+    app.mark_all_unread_result = _BulkUnreadToggleResult(
         BulkUnreadToggleOutcome.RESTORED_UNREAD,
         2,
     )
@@ -456,7 +456,7 @@ def test_leader_u_records_and_repeat_invokes_bulk_toggle_again() -> None:
     app = _FakeApp(current_tab="agents")
 
     handled = app._handle_leader_key("u")
-    app.mark_all_unread_result = BulkUnreadToggleResult(
+    app.mark_all_unread_result = _BulkUnreadToggleResult(
         BulkUnreadToggleOutcome.RESTORED_UNREAD,
         2,
     )

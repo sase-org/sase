@@ -150,6 +150,23 @@ def test_plan_file_mode_archives_prompt_link_per_expect_prompt_snapshot(
 ) -> None:
     from sase.sdd.artifact_links import parse_sdd_artifact_link
 
+    prompt_url = (
+        "https://github.com/sase-org/sase--agents/blob/main/prompts/202608/rollout.md"
+    )
+
+    class Resolver:
+        def prompt_url(self, prompt_ref: str) -> str | None:
+            assert prompt_ref == "prompts/202608/rollout.md"
+            return prompt_url
+
+        def bead_url(self, _bead_id: str) -> None:
+            return None
+
+    monkeypatch.setattr(
+        "sase.sdd.hosted_links.hosted_link_resolver",
+        lambda *_args, **_kwargs: Resolver(),
+    )
+
     _sidecar_context(project_dir, tmp_path, monkeypatch)
     source = project_dir / "rollout.md"
     source.write_text(EPIC_PLAN, encoding="utf-8")
@@ -180,7 +197,8 @@ def test_plan_file_mode_archives_prompt_link_per_expect_prompt_snapshot(
     )
     month = result.archived_plan_path.parent.name
     if expect_prompt_snapshot:
-        assert link.reference == f"{month}/prompts/rollout.md"
+        assert link.reference == f"prompts/{month}/rollout.md"
+        assert link.target == prompt_url
     else:
         assert link.reference is None
 

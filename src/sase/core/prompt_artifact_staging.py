@@ -137,14 +137,14 @@ def stage_prompt_artifact(
             record=record,
         )
         if created and _pool_exceeds_budget(staging_root):
-            prune_prompt_artifact_pool(workspace)
+            _prune_prompt_artifact_pool(workspace)
         return record
     except Exception as exc:  # noqa: BLE001 - staging is launch auxiliary work.
         log.debug("Could not stage prompt artifact %s: %s", raw_ref, exc, exc_info=True)
         return None
 
 
-def prune_prompt_artifact_pool(workspace_root: Path | str) -> int:
+def _prune_prompt_artifact_pool(workspace_root: Path | str) -> int:
     """Remove published terminal-run pool files until the budget is met.
 
     A pooled file is eligible only when every manifest row that names it
@@ -438,6 +438,5 @@ __all__ = [
     "PROMPT_ARTIFACT_MANIFEST_NAME",
     "PROMPT_ARTIFACT_POOL_DIR",
     "PromptArtifactRecord",
-    "prune_prompt_artifact_pool",
     "stage_prompt_artifact",
 ]

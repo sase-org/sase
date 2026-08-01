@@ -5,4 +5,7 @@ from sase.agents_sync.prompt_archive.publish import (
     publish_prompt_archive,
 )
 
-__all__ = ["PromptArchivePublicationOutcome", "publish_prompt_archive"]
+__all__ = [
+    "PromptArchivePublicationOutcome",
+    "publish_prompt_archive",
+]

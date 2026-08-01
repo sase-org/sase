@@ -190,10 +190,6 @@ class TestPlanFollowupApprovalPlanRefs:
                     sdd_plan,
                 ),
             ),
-            patch(
-                "sase.axe.run_agent_exec_plan_accept._commit_sdd_spec",
-                return_value=False,
-            ),
         ):
             outcome = handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
 

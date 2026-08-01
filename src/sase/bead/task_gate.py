@@ -311,7 +311,7 @@ def _resolve_task_triage_project_cwd(project: str) -> Path:
         ) from exc
 
 
-def find_pending_task_triage(project: str, bead_id: str) -> str | None:
+def _find_pending_task_triage(project: str, bead_id: str) -> str | None:
     """Return the pending TaskTriage request matching trusted payload fields."""
     from sase.notification_gates.durability import read_json_object
     from sase.notification_gates.paths import interaction_requests_dir
@@ -355,7 +355,7 @@ def cancel_task_triage(
     source: str = "ace",
 ) -> bool:
     """Cancel a pending task triage and settle its notification."""
-    request_id = find_pending_task_triage(project, bead_id)
+    request_id = _find_pending_task_triage(project, bead_id)
     if request_id is None:
         return False
     from sase.notification_gates.executor import cancel_gate
@@ -479,7 +479,6 @@ __all__ = [
     "close_task_triage",
     "create_task_triage_gate",
     "execute_task_triage_gate_command",
-    "find_pending_task_triage",
     "launch_task_triage",
     "render_task_triage_preview",
     "task_triage_gate_command_script",

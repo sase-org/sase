@@ -177,6 +177,31 @@ def test_plan_url_degrades_when_no_branch_resolves(tmp_path: Path) -> None:
     assert resolver.plan_url("plans:202607/plan.md") is None
 
 
+def test_prompt_url_resolves_agents_sidecar_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    sidecar = tmp_path / "agents"
+    target = _agents_target(primary, sidecar, _GITHUB_AGENTS_REMOTE)
+    monkeypatch.setattr(
+        "sase.agents_sync.targets.resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    resolver = HostedLinkResolver(
+        _plans_store(tmp_path / "plans"),
+        project="sase",
+        primary_root=primary,
+        git_runner=_FakeGit(branches={sidecar: "main"}),
+    )
+
+    assert resolver.prompt_url("prompts/202608/approved.md") == (
+        "https://github.com/sase-org/sase--agents/blob/main/prompts/202608/approved.md"
+    )
+    assert resolver.prompt_url("202608/prompts/approved.md") is None
+
+
 def test_agent_url_links_family_member_anchor(tmp_path: Path, monkeypatch) -> None:
     primary = tmp_path / "primary"
     primary.mkdir()

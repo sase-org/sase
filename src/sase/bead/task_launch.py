@@ -43,7 +43,7 @@ def _build_task_launch_argv(
     return argv
 
 
-def resolve_task_launch_cwd(
+def _resolve_task_launch_cwd(
     project_dir: str | Path | None,
     *,
     agent_project_file: str | Path | None = None,
@@ -66,7 +66,7 @@ def resolve_task_launch_cwd_for_project(project: str) -> Path:
     project_file = Path(preferred_project_spec_path(str(project_dir), project))
     if not project_file.is_file():
         raise FileNotFoundError(f"project file is missing for {project}")
-    return resolve_task_launch_cwd(None, agent_project_file=project_file)
+    return _resolve_task_launch_cwd(None, agent_project_file=project_file)
 
 
 def submit_task_launch_task(
@@ -136,7 +136,6 @@ def _active_task_launch(task_id: str) -> BackgroundTask | None:
 
 __all__ = [
     "TaskLaunchOrigin",
-    "resolve_task_launch_cwd",
     "resolve_task_launch_cwd_for_project",
     "submit_task_launch_for_project",
     "submit_task_launch_task",

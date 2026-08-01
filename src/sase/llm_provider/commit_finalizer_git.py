@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 _AUTO_COMMIT_GIT_TIMEOUT_SECONDS = 5
 _SDD_PLAN_DIR_PREFIXES = ("sdd/plans/",)
-_EXTERNAL_SDD_PROMPT_PATTERN = re.compile(r"\d{6}/prompts/[^/]+\.md")
+_EXTERNAL_SDD_PROMPT_PATTERN = re.compile(r"prompts/\d{6}/[^/]+\.md")
 _QA_HEADER = "### Questions and Answers"
 _SASE_RESERVED_PATH_PARTS = (
     (".sase",),
@@ -30,6 +30,12 @@ _SASE_RESERVED_PATH_PARTS = (
     LINKED_REPO_CLONES_SUBDIR,
     EXTERNAL_REPO_CLONES_SUBDIR,
 )
+
+
+def is_prompt_archive_path(path: str) -> bool:
+    """Return whether *path* names a canonical archived prompt."""
+
+    return _EXTERNAL_SDD_PROMPT_PATTERN.fullmatch(path) is not None
 
 
 @dataclass(frozen=True)
@@ -113,10 +119,7 @@ def sdd_prompt_qa_auto_commit_candidates(
             continue
         if any(record.xy != " M" for record in status_records):
             continue
-        if any(
-            _EXTERNAL_SDD_PROMPT_PATTERN.fullmatch(record.path) is None
-            for record in status_records
-        ):
+        if any(not is_prompt_archive_path(record.path) for record in status_records):
             continue
         if any(
             not _has_only_sdd_prompt_qa_diff(repo_dir, record.path)
@@ -131,6 +134,43 @@ def sdd_prompt_qa_auto_commit_candidates(
             )
         )
     return tuple(candidates)
+
+
+def auto_commit_sdd_prompt_qa_candidate(
+    candidate: _SddPromptQaAutoCommitCandidate,
+) -> bool:
+    """Commit one proven Q&A-only agents-sidecar prompt change set."""
+
+    from sase.workflows.commit.runtime_tags import apply_auto_commit_tags_with_runtime
+
+    if not candidate.paths:
+        return False
+    from sase.agents_sync import git_sync
+    from sase.agents_sync.git import run_git
+
+    repo = Path(candidate.repo_dir)
+    lock_path = git_sync.agents_git_dir(repo, run_git) / "sase-agents-sync.lock"
+    with git_sync.bounded_agents_lock(
+        lock_path,
+        git_sync.configured_agents_lock_timeout(),
+    ) as acquired:
+        if not acquired:
+            return False
+        for path in candidate.paths:
+            added = _run_git(candidate.repo_dir, ["add", "--", path])
+            if added is None or added.returncode != 0:
+                return False
+        stem = Path(candidate.paths[0]).stem
+        message = apply_auto_commit_tags_with_runtime(
+            f"Add Q&A to {stem} prompt",
+            "sdd",
+        )
+        committed = _run_git(
+            candidate.repo_dir,
+            ["commit", "--no-verify", "-m", message, "--", *candidate.paths],
+            timeout=10,
+        )
+        return committed is not None and committed.returncode == 0
 
 
 def _done_sdd_plan_status_auto_commit_candidate(

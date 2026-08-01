@@ -152,7 +152,7 @@ class TestPlanFollowupApprovals:
         assert all(kwargs["push_after_commit"] is True for kwargs in commit_kwargs)
 
     def test_epic_commits_only_spec_even_with_stale_false_flags(self, tmp_path) -> None:
-        """Epic approvals commit the prompt snapshot, never the plan file."""
+        """Epic approvals publish the prompt archive, never a plans snapshot."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
@@ -174,12 +174,11 @@ class TestPlanFollowupApprovals:
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
             ),
             patch("sase.sdd.files.write_sdd_files") as write_plan,
-            patch("sase.axe.run_agent_exec_plan_accept._commit_sdd_spec") as commit,
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        commit.assert_called_once_with(str(tmp_path), "plan")
         write_plan.assert_not_called()
+        accept_mod._publish_planner_prompt_archive.assert_called_once()
 
     def test_epic_without_owner_marker_still_has_no_agent_side_launch(
         self, tmp_path

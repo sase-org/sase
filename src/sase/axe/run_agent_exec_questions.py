@@ -95,10 +95,21 @@ def _update_sdd_prompt_snapshot_qa(
     if state.sdd_spec_path is None:
         return
 
+    prompt_path = Path(state.sdd_spec_path)
+    parts = prompt_path.parts
+    if len(parts) >= 3 and parts[-3] == "prompts" and parts[-2].isdigit():
+        from sase.sdd.files import set_prompt_qa
+
+        # The commit finalizer recognizes Q&A-only edits at this canonical
+        # agents-sidecar path and commits them without prompting the agent.
+        set_prompt_qa(prompt_path, merged_qa_text)
+        return
+
+    # Compatibility for an interrupted run that still points at the legacy
+    # plans-sidecar prompt location during the cutover.
     from sase.sdd.files import commit_sdd_store_files, set_prompt_qa
     from sase.sdd.store import resolve_sdd_store
 
-    prompt_path = Path(state.sdd_spec_path)
     set_prompt_qa(prompt_path, merged_qa_text)
 
     store = resolve_sdd_store(ctx.workspace_dir, ctx.workspace_num or 1)

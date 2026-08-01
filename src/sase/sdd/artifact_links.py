@@ -157,7 +157,7 @@ def _update_sdd_artifact_link(
     document: str,
     link_type: SddArtifactLinkType,
     label: str,
-    target: str,
+    target: str | None,
     *,
     remove_legacy: bool = True,
     allow_resolved_mixed: bool = False,
@@ -205,13 +205,22 @@ def update_source_aware_artifact_link(
     document: str,
     sdd_dir: Path,
     source: Path,
-    target: Path,
+    target: Path | None,
     link_type: SddArtifactLinkType,
     *,
     label_prefix: str = "",
+    target_label: str | None = None,
+    target_href: str | None = None,
     remove_legacy: bool = True,
 ) -> str:
-    """Compute a file-relative link and install it in one document."""
+    """Install a source-aware local or cross-repository artifact link.
+
+    Local links pass *target* and derive both the stable label and relative
+    href from its path. Cross-repository links pass ``target=None`` together
+    with an explicit *target_label* and hosted *target_href*. Keeping both
+    forms behind this updater preserves one parser, conflict check, and
+    legacy-removal path for reciprocal plan/prompt links.
+    """
     parsed = parse_sdd_artifact_link(document)
     allow_resolved_mixed = False
     if parsed.kind is SddArtifactLinkKind.MIXED:
@@ -220,13 +229,26 @@ def update_source_aware_artifact_link(
                 "canonical and legacy artifact links resolve to different targets"
             )
         allow_resolved_mixed = True
-    label, href, _ = canonical_sdd_artifact_link(
-        sdd_dir,
-        source,
-        target,
-        link_type,
-        label_prefix=label_prefix,
-    )
+    cross_repository = target_label is not None or target_href is not None
+    if cross_repository:
+        if target is not None:
+            raise ValueError(
+                "cross-repository artifact links cannot also name a local target"
+            )
+        if not target_label:
+            raise ValueError("cross-repository artifact links require a label")
+        label = target_label
+        href = target_href
+    else:
+        if target is None:
+            raise ValueError("local artifact links require a target path")
+        label, href, _ = canonical_sdd_artifact_link(
+            sdd_dir,
+            source,
+            target,
+            link_type,
+            label_prefix=label_prefix,
+        )
     return _update_sdd_artifact_link(
         document,
         link_type,
@@ -234,6 +256,28 @@ def update_source_aware_artifact_link(
         href,
         remove_legacy=remove_legacy,
         allow_resolved_mixed=allow_resolved_mixed,
+    )
+
+
+def update_cross_repository_artifact_link(
+    document: str,
+    link_type: SddArtifactLinkType,
+    *,
+    label: str,
+    href: str,
+    remove_legacy: bool = True,
+) -> str:
+    """Install a hosted counterpart through the source-aware updater."""
+
+    return update_source_aware_artifact_link(
+        document,
+        Path("."),
+        Path("prompt.md"),
+        None,
+        link_type,
+        target_label=label,
+        target_href=href,
+        remove_legacy=remove_legacy,
     )
 
 
@@ -271,5 +315,6 @@ __all__ = [
     "canonical_sdd_artifact_link",
     "parse_sdd_artifact_link",
     "stable_sdd_reference",
+    "update_cross_repository_artifact_link",
     "update_source_aware_artifact_link",
 ]

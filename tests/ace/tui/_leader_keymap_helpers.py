@@ -9,7 +9,7 @@ from sase.ace.tui.actions.agent_workflow._entry_points import EntryPointsMixin
 from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
 from sase.ace.tui.actions.agents._unread_state import (
     BulkUnreadToggleOutcome,
-    BulkUnreadToggleResult,
+    _BulkUnreadToggleResult,
 )
 from sase.ace.tui.actions.changespec._core import ChangeSpecMixin
 from sase.ace.tui.keymaps import load_keymap_registry
@@ -51,7 +51,7 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.jump_stopped_result = True
         self.full_history_refresh_count = 0
         self.mark_all_unread_count = 0
-        self.mark_all_unread_result = BulkUnreadToggleResult(
+        self.mark_all_unread_result = _BulkUnreadToggleResult(
             BulkUnreadToggleOutcome.MARKED_READ,
             2,
         )
@@ -108,7 +108,7 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
     def action_refresh_agents_full_history(self) -> None:
         self.full_history_refresh_count += 1
 
-    def _toggle_all_unread_done_agents_read(self) -> BulkUnreadToggleResult:
+    def _toggle_all_unread_done_agents_read(self) -> _BulkUnreadToggleResult:
         self.mark_all_unread_count += 1
         return self.mark_all_unread_result
 

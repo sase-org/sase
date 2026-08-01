@@ -62,9 +62,9 @@ def _commit_all(repo: Path, message: str = "initial") -> None:
 def _create_prompt_repo(
     tmp_path: Path, head_text: str = _BASE_PROMPT
 ) -> tuple[Path, Path]:
-    repo = tmp_path / "plans"
+    repo = tmp_path / "agents"
     _init_git_repo(repo)
-    prompt = repo / "202607" / "prompts" / "test_plan.md"
+    prompt = repo / "prompts" / "202607" / "test_plan.md"
     prompt.parent.mkdir(parents=True)
     prompt.write_text(head_text, encoding="utf-8")
     _commit_all(repo)
@@ -127,7 +127,7 @@ def test_qa_only_prover_accepts_append_with_or_without_trailing_newline(
     set_prompt_qa(prompt, _QA)
 
     assert finalizer_git._has_only_sdd_prompt_qa_diff(
-        str(repo), "202607/prompts/test_plan.md"
+        str(repo), "prompts/202607/test_plan.md"
     )
 
 
@@ -138,7 +138,7 @@ def test_qa_only_prover_accepts_multi_round_replacement(tmp_path: Path) -> None:
     set_prompt_qa(prompt, _UPDATED_QA)
 
     assert finalizer_git._has_only_sdd_prompt_qa_diff(
-        str(repo), "202607/prompts/test_plan.md"
+        str(repo), "prompts/202607/test_plan.md"
     )
 
 
@@ -153,7 +153,7 @@ def test_qa_only_prover_rejects_frontmatter_edit(tmp_path: Path) -> None:
     )
 
     assert not finalizer_git._has_only_sdd_prompt_qa_diff(
-        str(repo), "202607/prompts/test_plan.md"
+        str(repo), "prompts/202607/test_plan.md"
     )
 
 
@@ -209,7 +209,7 @@ def test_unsafe_external_sdd_changes_use_normal_finalizer_prompting(
             encoding="utf-8",
         )
     elif unsafe_change == "untracked":
-        dirty_path = plans / "202607" / "prompts" / "new_prompt.md"
+        dirty_path = plans / "prompts" / "202607" / "new_prompt.md"
         dirty_path.write_text(_BASE_PROMPT + "\n" + _QA + "\n", encoding="utf-8")
     else:
         dirty_path = plans / "202607" / "archive" / "test_plan.md"

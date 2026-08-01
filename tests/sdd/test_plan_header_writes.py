@@ -19,12 +19,19 @@ from sase.sdd.store import SddStore
 _BEAD_URL = (
     "https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/sase-ai.8.md"
 )
+_PROMPT_URL = (
+    "https://github.com/sase-org/sase--agents/blob/main/prompts/202607/child.md"
+)
 
 
 class _Resolver:
     def bead_url(self, bead_id: str) -> str | None:
         assert bead_id == "sase-ai.8"
         return _BEAD_URL
+
+    def prompt_url(self, prompt_ref: str) -> str | None:
+        assert prompt_ref == "prompts/202607/child.md"
+        return _PROMPT_URL
 
 
 def _document(frontmatter: str, header: str = "") -> str:
@@ -207,10 +214,16 @@ def test_project_plan_header_sections_skips_absent_prompt_path(
 
 def test_project_plan_header_sections_installs_supplied_prompt_path(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plans_root = tmp_path / "repo--plans"
     plan_path = plans_root / "202607" / "child.md"
     prompt_path = plans_root / "202607" / "prompts" / "child.md"
+    store = SddStore("sidecar_repos", plans_root, plans_root)
+    monkeypatch.setattr(
+        "sase.sdd.hosted_links.hosted_link_resolver",
+        lambda *_args, **_kwargs: _Resolver(),
+    )
 
     updated = project_plan_header_sections(
         "# Plan\n",
@@ -218,9 +231,11 @@ def test_project_plan_header_sections_installs_supplied_prompt_path(
         plan_path=plan_path,
         plans_root=plans_root,
         prompt_path=prompt_path,
+        store=store,
+        primary_root=tmp_path,
     )
 
     link = parse_plan_header_block(updated).sections[0]
     assert link.kind is PlanHeaderSectionKind.PROMPT
-    assert link.label == "202607/prompts/child.md"
-    assert link.target == "prompts/child.md"
+    assert link.label == "prompts/202607/child.md"
+    assert link.target == _PROMPT_URL

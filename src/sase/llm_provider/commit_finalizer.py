@@ -23,6 +23,7 @@ from .commit_finalizer_config import (
     resolve_finalizer_project_dir,
 )
 from .commit_finalizer_git import (
+    auto_commit_sdd_prompt_qa_candidate,
     auto_commit_done_sdd_plan_status,
     git_changed_files,
     sdd_prompt_qa_auto_commit_candidates,
@@ -341,39 +342,18 @@ def _auto_commit_external_sdd_prompt_qa_if_possible(
     if not candidates:
         return dirty_state, False
 
-    try:
-        from sase.sdd.files import commit_sdd_store_files
-        from sase.sdd.store import resolve_sdd_store
-
-        store = resolve_sdd_store(project_dir, _finalizer_workspace_num(project_dir))
-    except Exception:
-        _logger.warning(
-            "Failed to resolve external SDD store for Q&A auto-commit",
-            exc_info=True,
-        )
-        return dirty_state, False
-
     committed_any = False
     for candidate in candidates:
-        for relative_path in candidate.paths:
-            prompt_path = Path(candidate.repo_dir) / relative_path
-            try:
-                committed_any = (
-                    commit_sdd_store_files(
-                        store,
-                        f"Add Q&A to {prompt_path.stem} prompt",
-                        auto_commit_type="sdd",
-                        paths=[prompt_path],
-                        artifacts_dir=artifact_root,
-                    )
-                    or committed_any
-                )
-            except Exception:
-                _logger.warning(
-                    "Failed to auto-commit external SDD prompt Q&A: %s",
-                    prompt_path,
-                    exc_info=True,
-                )
+        try:
+            committed_any = (
+                auto_commit_sdd_prompt_qa_candidate(candidate) or committed_any
+            )
+        except Exception:
+            _logger.warning(
+                "Failed to auto-commit agents-sidecar prompt Q&A in %s",
+                candidate.repo_dir,
+                exc_info=True,
+            )
 
     if not committed_any:
         return dirty_state, False

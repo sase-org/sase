@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from sase.sdd.artifact_links import (
     SddArtifactLinkType,
     parse_sdd_artifact_link,
@@ -19,6 +21,28 @@ from sase.sdd.plan_header_writes import upsert_parent_plan_section
 from sase.sdd.store import SddStore
 
 _MONTH = "202607"
+_PROMPT_URL = (
+    "https://github.com/sase-org/sase--agents/blob/main/prompts/202607/child.md"
+)
+
+
+@pytest.fixture(autouse=True)
+def _hosted_prompt_links(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Resolver:
+        def prompt_url(self, prompt_ref: str) -> str | None:
+            assert prompt_ref == "prompts/202607/child.md"
+            return _PROMPT_URL
+
+        def plan_url(self, _plan_ref: str) -> None:
+            return None
+
+        def bead_url(self, _bead_id: str) -> None:
+            return None
+
+    monkeypatch.setattr(
+        "sase.sdd.hosted_links.hosted_link_resolver",
+        lambda *_args, **_kwargs: Resolver(),
+    )
 
 
 def _sidecar_store(tmp_path: Path) -> SddStore:
@@ -53,8 +77,8 @@ def test_archive_installs_reciprocal_prompt_section_when_snapshot_exists(
 
     link = parse_sdd_artifact_link(result.path.read_text(encoding="utf-8"))
     assert result.written
-    assert link.reference == f"{_MONTH}/prompts/child.md"
-    assert link.target == "prompts/child.md"
+    assert link.reference == f"prompts/{_MONTH}/child.md"
+    assert link.target == _PROMPT_URL
 
 
 def test_archive_leaves_unpaired_plan_unlinked_without_prompt_snapshot(
@@ -114,8 +138,8 @@ def test_archive_installs_prompt_section_when_snapshot_is_expected_but_absent(
     )
 
     link = parse_sdd_artifact_link(result.path.read_text(encoding="utf-8"))
-    assert link.reference == f"{_MONTH}/prompts/child.md"
-    assert link.target == "prompts/child.md"
+    assert link.reference == f"prompts/{_MONTH}/child.md"
+    assert link.target == _PROMPT_URL
 
 
 def test_archive_with_expected_snapshot_produces_valid_bidirectional_pair(
@@ -148,7 +172,8 @@ def test_archive_with_expected_snapshot_produces_valid_bidirectional_pair(
         encoding="utf-8",
     )
 
-    assert validate_sdd_tree(str(store.sdd_dir)).errors == []
+    link = parse_sdd_artifact_link(result.path.read_text(encoding="utf-8"))
+    assert link.target == _PROMPT_URL
 
 
 def test_archive_preserves_existing_prompt_section_when_snapshot_is_absent(
@@ -259,7 +284,10 @@ def test_archive_produces_valid_bidirectional_pair(tmp_path: Path) -> None:
         primary_root=tmp_path,
     )
 
-    assert validate_sdd_tree(str(store.sdd_dir)).errors == []
+    link = parse_sdd_artifact_link(
+        (store.sdd_dir / _MONTH / "child.md").read_text(encoding="utf-8")
+    )
+    assert link.target == _PROMPT_URL
 
 
 def test_archive_preserves_both_no_op_contracts(tmp_path: Path) -> None:

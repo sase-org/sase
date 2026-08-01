@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import sase_core_rs
 
 from sase.core.prompt_artifact_staging import (
-    prune_prompt_artifact_pool,
+    _prune_prompt_artifact_pool,
     stage_prompt_artifact,
 )
 
@@ -192,7 +192,7 @@ def test_pool_gc_only_removes_terminal_published_runs(
         lambda: 1,
     )
 
-    assert prune_prompt_artifact_pool(tmp_path) == 1
+    assert _prune_prompt_artifact_pool(tmp_path) == 1
     assert not pool_path.exists()
     assert len(_rows(tmp_path)) == 1
 

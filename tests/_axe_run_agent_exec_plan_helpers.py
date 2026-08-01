@@ -59,10 +59,12 @@ def _fake_write_sdd_spec(
     _prompt_content: str,
     *,
     plans_root: Path | None = None,
-) -> tuple[Path, Path]:
+    prompt_path: Path | None = None,
+    yyyymm: str | None = None,
+) -> tuple[Path | None, Path]:
     root = plans_root or sdd_dir / "plans"
-    plan_dir = root / "202603"
-    return plan_dir / "prompts" / f"{plan_name}.md", plan_dir / f"{plan_name}.md"
+    plan_dir = root / (yyyymm or "202603")
+    return prompt_path, plan_dir / f"{plan_name}.md"
 
 
 PLAN_PATCHES = {
@@ -84,8 +86,10 @@ PLAN_PATCHES = {
     ),
     "sase.axe.run_agent_exec_plan_accept.promote_to_workflow": None,
     "sase.axe.run_agent_exec_plan_accept._store_followup_prompt_artifact": None,
+    "sase.axe.run_agent_exec_plan_accept._publish_planner_prompt_archive": (
+        lambda *_args, **_kwargs: Path("/tmp/prompt-archive.md")
+    ),
     "sase.axe.run_agent_exec_plan_accept._commit_sdd_files": None,
-    "sase.axe.run_agent_exec_plan_accept._commit_sdd_spec": None,
     "sase.axe.run_agent_exec_questions.normalize_handoff_interruption_state": None,
     "sase.axe.run_agent_exec_questions.update_meta_suffix": None,
     "sase.axe.run_agent_exec_questions.update_meta_field": None,

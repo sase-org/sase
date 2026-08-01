@@ -50,6 +50,50 @@ logger = logging.getLogger(__name__)
 _store_followup_prompt_artifact = store_followup_prompt_artifact
 
 
+def _publish_planner_prompt_archive(
+    ctx: AgentExecContext,
+    state: LoopState,
+    *,
+    agent_name: str,
+    prompt_content: str,
+    plan_name: str,
+    yyyymm: str,
+) -> Path | None:
+    """Publish the approved planner prompt to the canonical agents sidecar."""
+
+    from sase.agents_sync.git import run_git
+    from sase.agents_sync.prompt_archive import publish_prompt_archive
+
+    revision_result = run_git(
+        Path(ctx.workspace_dir),
+        ["rev-parse", "HEAD"],
+        op="prompt_archive.planner_revision",
+    )
+    primary_revision = revision_result.stdout.strip()
+    if revision_result.returncode != 0 or not primary_revision:
+        logger.warning(
+            "Planner prompt archive publication skipped: primary revision unavailable"
+        )
+        return None
+    outcome = publish_prompt_archive(
+        agent_name,
+        primary_revision,
+        project=ctx.project_name,
+        commit_cwd=ctx.workspace_dir,
+        agent_artifacts_dir=state.current_artifacts_dir,
+        prompt_content=prompt_content,
+        plan_ref=f"plans:{yyyymm}/{plan_name}.md",
+        prompt_name=plan_name,
+        yyyymm=yyyymm,
+    )
+    if outcome.error or outcome.skip_reason:
+        logger.warning(
+            "Planner prompt archive publication deferred: %s",
+            outcome.error or outcome.skip_reason,
+        )
+    return outcome.prompt_path
+
+
 def _accepted_plan_action_for_meta(plan_result: Any) -> str:
     if plan_result.action == "approve" and not plan_result.run_coder:
         return "commit"
@@ -69,18 +113,6 @@ def _commit_sdd_files(
         workspace_dir,
         plan_name,
         plan_tier=plan_tier,
-        logger=logger,
-        subprocess_run=subprocess.run,
-    )
-
-
-def _commit_sdd_spec(workspace_dir: str, plan_name: str) -> bool:
-    """Commit only the planner-owned prompt snapshot for an epic."""
-    return commit_sdd_files_for_exec_plan(
-        workspace_dir,
-        plan_name,
-        plan_tier="epic",
-        include_plan=False,
         logger=logger,
         subprocess_run=subprocess.run,
     )
@@ -296,6 +328,7 @@ def handle_accepted_plan(
         commit_sdd_store_files,
         ensure_bare_git_sdd_initialized,
         expand_prompt_for_spec,
+        get_yyyymm,
         write_sdd_files,
         write_sdd_spec,
     )
@@ -324,6 +357,7 @@ def handle_accepted_plan(
                 push=False,
             )
         sdd_plan_name = os.path.splitext(os.path.basename(plan_result.plan_file))[0]
+        archive_month = get_yyyymm()
         try:
             expanded = expand_prompt_for_spec(state.current_prompt)
         except Exception:
@@ -331,14 +365,28 @@ def handle_accepted_plan(
                 "Spec prompt expansion failed, using raw prompt", exc_info=True
             )
             expanded = state.current_prompt
+        if source_plan_agent_name is not None:
+            sdd_prompt_path_obj = _publish_planner_prompt_archive(
+                ctx,
+                state,
+                agent_name=source_plan_agent_name,
+                prompt_content=expanded,
+                plan_name=sdd_plan_name,
+                yyyymm=archive_month,
+            )
+        else:
+            logger.warning(
+                "Planner prompt archive publication skipped: agent name unavailable"
+            )
         if is_epic:
             sdd_prompt_path_obj, sdd_plan_path = write_sdd_spec(
                 sdd_dir,
                 sdd_plan_name,
                 expanded,
                 plans_root=sdd_store.kind_root("plans"),
+                prompt_path=sdd_prompt_path_obj,
+                yyyymm=archive_month,
             )
-            sdd_commit_paths = [sdd_prompt_path_obj]
         else:
             plan_tier = plan_tier_for_action(plan_result.action)
             sdd_prompt_path_obj, sdd_plan_path = write_sdd_files(
@@ -349,13 +397,21 @@ def handle_accepted_plan(
                 plan_tier=plan_tier,
                 plans_root=sdd_store.kind_root("plans"),
                 store=sdd_store,
+                prompt_path=sdd_prompt_path_obj,
+                yyyymm=archive_month,
             )
-            sdd_commit_paths = [sdd_prompt_path_obj, sdd_plan_path]
-        state.sdd_spec_path = str(sdd_prompt_path_obj)
+            sdd_commit_paths = [sdd_plan_path]
+        state.sdd_spec_path = (
+            str(sdd_prompt_path_obj) if sdd_prompt_path_obj is not None else None
+        )
         record_workflow_metadata(
             state.current_artifacts_dir,
             {
-                "sdd_prompt_path": str(sdd_prompt_path_obj),
+                "sdd_prompt_path": (
+                    str(sdd_prompt_path_obj)
+                    if sdd_prompt_path_obj is not None
+                    else None
+                ),
                 "sdd_plan_path": str(sdd_plan_path),
             },
         )
@@ -384,21 +440,16 @@ def handle_accepted_plan(
         )
         return "epic_launch_failed"
 
-    # Epic prompt snapshots are committed independently so they cannot race
-    # the host command's plan archive/link commits.
+    # Planner prompts are committed by the agents-sidecar archive publisher.
     should_commit = plan_result.commit_plan if not is_epic else True
     required_sdd_commit_succeeded = True
     try:
-        if should_commit and sdd_plan_name and sdd_prompt_path_obj is not None:
+        if should_commit and sdd_plan_name and not is_epic:
             if sdd_in_tree:
-                required_sdd_commit_succeeded = (
-                    _commit_sdd_spec(ctx.workspace_dir, sdd_plan_name)
-                    if is_epic
-                    else _commit_sdd_files(
-                        ctx.workspace_dir,
-                        sdd_plan_name,
-                        plan_tier=plan_tier_for_action(plan_result.action),
-                    )
+                required_sdd_commit_succeeded = _commit_sdd_files(
+                    ctx.workspace_dir,
+                    sdd_plan_name,
+                    plan_tier=plan_tier_for_action(plan_result.action),
                 )
             elif sdd_store is not None:
                 required_sdd_commit_succeeded = commit_sdd_store_files(
@@ -413,7 +464,7 @@ def handle_accepted_plan(
                 )
             else:
                 required_sdd_commit_succeeded = False
-        elif should_commit:
+        elif should_commit and not is_epic:
             required_sdd_commit_succeeded = False
     except Exception as exc:
         from sase.sdd._repository_transaction import SddRepositoryHealthError

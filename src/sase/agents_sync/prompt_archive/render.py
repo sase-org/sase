@@ -76,13 +76,16 @@ def render_prompt_document(
     )
     document = str(payload.get("prompt") or "")
     if plan_label is not None and plan_target is not None:
-        document = upsert_plan_header_section(
+        from sase.sdd.artifact_links import (
+            SddArtifactLinkType,
+            update_cross_repository_artifact_link,
+        )
+
+        document = update_cross_repository_artifact_link(
             document,
-            PlanHeaderSection(
-                kind=PlanHeaderSectionKind.PLAN,
-                label=plan_label,
-                target=plan_target,
-            ),
+            SddArtifactLinkType.PLAN,
+            label=plan_label,
+            href=plan_target,
         )
     document = upsert_plan_header_section(
         document,

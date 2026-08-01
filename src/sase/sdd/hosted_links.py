@@ -131,6 +131,22 @@ class HostedLinkResolver:
             path=path,
         )
 
+    def prompt_url(self, prompt_ref: str) -> str | None:
+        """Return the agents-sidecar blob URL for one archived prompt."""
+
+        path = _prompt_repo_relative_path(prompt_ref)
+        if path is None:
+            return None
+        coordinates = self._agents_remote()
+        if coordinates is None or coordinates.branch is None:
+            return None
+        return github_blob_url(
+            coordinates.remote_url,
+            provider=coordinates.provider,
+            branch=coordinates.branch,
+            path=path,
+        )
+
     def agent_url(self, agent_name: str) -> str | None:
         """Return the agents sidecar page URL for *agent_name*."""
 
@@ -402,6 +418,23 @@ def _plan_repo_relative_path(store: SddStore, plan_ref: str) -> str | None:
     if not resolved.is_relative_to(repo_root):
         return None
     return resolved.relative_to(repo_root).as_posix()
+
+
+def _prompt_repo_relative_path(prompt_ref: str) -> str | None:
+    """Normalize one canonical ``prompts/<YYYYMM>/<name>.md`` reference."""
+
+    from sase.agents_sync.prompt_archive.paths import prompt_document_path
+
+    raw = prompt_ref.strip().removeprefix("agents:").removeprefix("./")
+    parts = Path(raw).parts
+    if len(parts) != 3 or parts[0] != "prompts":
+        return None
+    try:
+        expected = prompt_document_path(Path("."), parts[1], parts[2])
+    except ValueError:
+        return None
+    normalized = expected.relative_to(Path(".")).as_posix()
+    return normalized if normalized == Path(raw).as_posix() else None
 
 
 def _default_git_runner() -> GitRunner:

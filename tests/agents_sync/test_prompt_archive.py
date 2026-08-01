@@ -190,6 +190,57 @@ def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
     assert "| 3 |" in index
 
 
+def test_prepare_prompt_archive_accepts_expanded_planner_prompt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    artifacts_dir = tmp_path / "runs/20260801120000"
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"workspace_dir": str(workspace)}),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "raw_xprompt.md").write_text("Raw prompt.\n", encoding="utf-8")
+    repo = tmp_path / "agents"
+    repo.mkdir()
+    target = ProjectTarget(
+        "proj",
+        "Project",
+        workspace,
+        (workspace,),
+        repo,
+        "git@example.test:project/agents.git",
+    )
+    monkeypatch.setattr(
+        archive_publish,
+        "_hosted_resolver",
+        lambda *_args: _HostedLinks(),
+    )
+    monkeypatch.setattr("sase.file_references.format_with_prettier", lambda text: text)
+
+    prepared = prepare_prompt_archive(
+        target=target,
+        repo=repo,
+        agent_name="planner",
+        global_agent="alice.athena.planner",
+        primary_revision="a" * 40,
+        commit_cwd=workspace,
+        agent_artifacts_dir=artifacts_dir,
+        prompt_content="Expanded planner prompt.\n",
+        plan_ref="plans:202608/approved.md",
+        prompt_name="approved",
+        yyyymm="202608",
+    )
+
+    assert prepared.prompt_path == repo / "prompts/202608/approved.md"
+    document = prepared.prompt_path.read_text(encoding="utf-8")
+    assert "Expanded planner prompt." in document
+    assert "Raw prompt." not in document
+    assert "https://example.test/plans/202608/approved.md" in document
+
+
 def test_prompt_name_reuses_same_run_and_suffixes_another_run() -> None:
     listing = ("plan.md", "plan_1.md")
     assert resolve_prompt_name("plan", "agent", listing) == "plan_2"

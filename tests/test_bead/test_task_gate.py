@@ -294,7 +294,7 @@ def test_task_triage_project_resolution_requires_explicit_project_spec(
     with (
         patch("sase.core.paths.sase_projects_dir", return_value=projects),
         patch(
-            "sase.bead.task_launch.resolve_task_launch_cwd",
+            "sase.bead.task_launch._resolve_task_launch_cwd",
             return_value=primary,
         ) as resolve,
     ):

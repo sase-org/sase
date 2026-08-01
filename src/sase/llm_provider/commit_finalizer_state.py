@@ -17,7 +17,11 @@ from sase.linked_repos import (
 )
 
 from . import commit_finalizer_git as finalizer_git
-from .commit_finalizer_git import filter_sase_reserved_paths, git_changed_files
+from .commit_finalizer_git import (
+    filter_sase_reserved_paths,
+    git_changed_files,
+    is_prompt_archive_path,
+)
 from .commit_finalizer_prompting import build_dirty_details
 from .commit_finalizer_types import (
     DirtyRepo,
@@ -67,7 +71,10 @@ def collect_dirty_state(
     external_repos = tuple(
         _dirty_opened_external_repos(opened_external_repo_records(artifact_root))
     )
-    sdd_repos = tuple(_dirty_sdd_store_repos(project_dir))
+    sdd_repos = (
+        *_dirty_sdd_store_repos(project_dir),
+        *_dirty_agents_prompt_archive_repo(project_dir),
+    )
     repos: list[DirtyRepo] = []
     if main_repo is not None:
         repos.append(main_repo)
@@ -167,6 +174,37 @@ def _dirty_sdd_store_repos(project_dir: str) -> list[DirtyRepo]:
                 )
             )
         return dirty
+    except Exception:
+        return []
+
+
+def _dirty_agents_prompt_archive_repo(project_dir: str) -> list[DirtyRepo]:
+    """Return a dirty agents sidecar only for canonical prompt-file edits."""
+
+    try:
+        from sase.agents_sync.commit_publication import resolve_publication_project_key
+        from sase.agents_sync.targets import resolve_sync_targets
+
+        selector = resolve_publication_project_key(Path(project_dir))
+        selection = resolve_sync_targets((selector,)) if selector else None
+        if selection is None or len(selection.targets) != 1:
+            return []
+        agents_root = selection.targets[0].sidecar_path.expanduser()
+        if not (agents_root / ".git").exists():
+            return []
+        changed_files = git_changed_files(str(agents_root))
+        if not changed_files or not all(
+            is_prompt_archive_path(path) for path in changed_files
+        ):
+            return []
+        return [
+            DirtyRepo(
+                name="agents prompt archive",
+                path=finalizer_git.normalize_path(str(agents_root)),
+                changed_files=tuple(changed_files),
+                kind="sdd",
+            )
+        ]
     except Exception:
         return []
 

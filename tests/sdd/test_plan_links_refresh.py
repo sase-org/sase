@@ -226,3 +226,54 @@ def test_refresh_backfills_bead_section_from_frontmatter(
     assert bead.kind is PlanHeaderSectionKind.BEAD
     assert bead.label == "sase-ai.8"
     assert bead.target == "https://example.test/pages/sase-ai/sase-ai.8.md"
+
+
+def test_refresh_retargets_existing_prompt_section_to_agents_sidecar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "plans"
+    store = _store(root)
+    plan = _write_plan(root, "child")
+    plan.write_text(
+        plan.read_text(encoding="utf-8").replace(
+            "# child\n",
+            "- **PROMPT:** [202607/prompts/child.md](prompts/child.md)\n\n# child\n",
+        ),
+        encoding="utf-8",
+    )
+
+    class Resolver:
+        def prompt_url(self, prompt_ref: str) -> str:
+            assert prompt_ref == "prompts/202607/child.md"
+            return "https://example.test/agents/prompts/202607/child.md"
+
+    monkeypatch.setattr(
+        "sase.sdd.hosted_links.hosted_link_resolver",
+        lambda *_args, **_kwargs: Resolver(),
+    )
+    monkeypatch.setattr(
+        "sase.sdd._git_contention.store_git_write_lock",
+        _acquired_lock,
+    )
+    monkeypatch.setattr(
+        "sase.file_references.format_markdown_files_with_prettier",
+        lambda _paths: True,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.files.commit_sdd_store_files",
+        lambda *_args, **_kwargs: True,
+    )
+
+    report = refresh_plan_links(
+        store,
+        primary_root=tmp_path,
+        association_index=PlanAssociationIndex(MappingProxyType({})),
+        write=True,
+    )
+
+    assert report.ok and report.committed
+    prompt = parse_plan_header_block(plan.read_text(encoding="utf-8")).sections[0]
+    assert prompt.kind is PlanHeaderSectionKind.PROMPT
+    assert prompt.label == "prompts/202607/child.md"
+    assert prompt.target == "https://example.test/agents/prompts/202607/child.md"

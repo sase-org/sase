@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from sase.axe.run_agent_exec_plan_accept import _commit_sdd_files, _commit_sdd_spec
+from sase.axe.run_agent_exec_plan_accept import _commit_sdd_files
 
 
 def test_commit_sdd_files_passes_tempfile_to_m() -> None:
@@ -136,37 +136,6 @@ def test_commit_sdd_files_prompt_only() -> None:
         cmd = captured_cmd[0]
         f_values = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-f"]
         assert len(f_values) == 1
-
-
-def test_commit_sdd_spec_excludes_existing_plan() -> None:
-    """Epic approval commits only the planner-owned prompt snapshot."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        prompts = Path(tmpdir) / "prompts" / "202603"
-        plans = Path(tmpdir) / "plans" / "202603"
-        prompts.mkdir(parents=True)
-        plans.mkdir(parents=True)
-        prompt_file = prompts / "my_epic.md"
-        plan_file = plans / "my_epic.md"
-        prompt_file.write_text("prompt", encoding="utf-8")
-        plan_file.write_text("plan", encoding="utf-8")
-
-        captured_cmd: list[list[str]] = []
-
-        def fake_run(
-            cmd: list[str], **kwargs: object
-        ) -> subprocess.CompletedProcess[str]:
-            captured_cmd.append(list(cmd))
-            return subprocess.CompletedProcess(cmd, 0)
-
-        with patch(
-            "sase.axe.run_agent_exec_plan_accept.subprocess.run", side_effect=fake_run
-        ):
-            assert _commit_sdd_spec(tmpdir, "my_epic") is True
-
-        cmd = captured_cmd[0]
-        f_values = [cmd[i + 1] for i, value in enumerate(cmd) if value == "-f"]
-        assert f_values == [str(prompt_file)]
-        assert str(plan_file) not in cmd
 
 
 def test_commit_sdd_files_noop_no_files() -> None:

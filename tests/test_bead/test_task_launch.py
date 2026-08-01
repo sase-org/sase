@@ -10,7 +10,7 @@ import pytest
 
 from sase.bead.task_launch import (
     _build_task_launch_argv,
-    resolve_task_launch_cwd,
+    _resolve_task_launch_cwd,
     submit_task_launch_task,
     submit_task_launch_for_project,
     task_launch_origin_from_gate_source,
@@ -67,7 +67,7 @@ def test_resolve_task_launch_cwd_reuses_canonical_project_resolution(
         "sase.running_field.get_workspace_directory",
         return_value=str(primary),
     ) as get_workspace_directory:
-        resolved = resolve_task_launch_cwd(
+        resolved = _resolve_task_launch_cwd(
             None,
             agent_project_file=project_file,
         )

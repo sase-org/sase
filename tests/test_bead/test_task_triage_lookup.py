@@ -8,7 +8,7 @@ from unittest.mock import patch
 from sase.bead.task_gate import (
     cancel_task_triage,
     create_task_triage_gate,
-    find_pending_task_triage,
+    _find_pending_task_triage,
 )
 from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
@@ -36,10 +36,10 @@ def test_find_pending_task_triage_matches_payload_and_skips_terminal_bundles(
     _gate("other-project", project="other", bead_id="sase-a1")
     _gate("pending", bead_id="sase-a1")
 
-    assert find_pending_task_triage("sase", "sase-a1") == "pending"
-    assert find_pending_task_triage("sase", "sase-answered") is None
-    assert find_pending_task_triage("sase", "sase-canceled") is None
-    assert find_pending_task_triage("missing", "sase-a1") is None
+    assert _find_pending_task_triage("sase", "sase-a1") == "pending"
+    assert _find_pending_task_triage("sase", "sase-answered") is None
+    assert _find_pending_task_triage("sase", "sase-canceled") is None
+    assert _find_pending_task_triage("missing", "sase-a1") is None
 
 
 def test_cancel_task_triage_settles_gate_and_is_idempotent(gate_home: Path) -> None:
@@ -48,7 +48,7 @@ def test_cancel_task_triage_settles_gate_and_is_idempotent(gate_home: Path) -> N
 
     assert cancel_task_triage("sase", "sase-a1", reason="closed_from_ace", source="ace")
     assert (gate.bundle_path / "cancellation.json").is_file()
-    assert find_pending_task_triage("sase", "sase-a1") is None
+    assert _find_pending_task_triage("sase", "sase-a1") is None
     assert not cancel_task_triage("sase", "sase-a1", reason="closed_from_ace")
 
 

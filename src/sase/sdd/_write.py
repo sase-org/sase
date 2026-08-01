@@ -6,11 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.sdd._paths import get_yyyymm
-from sase.sdd.artifact_links import (
-    SddArtifactLinkType,
-    stable_sdd_reference,
-    update_source_aware_artifact_link,
-)
+from sase.sdd.artifact_links import stable_sdd_reference
 
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
@@ -29,31 +25,18 @@ def write_sdd_spec(
     prompt_content: str,
     *,
     plans_root: Path | None = None,
+    prompt_path: Path | None = None,
     yyyymm: str | None = None,
-) -> tuple[Path, Path]:
-    """Write only the prompt snapshot for a future canonical plan.
+) -> tuple[Path | None, Path]:
+    """Return canonical prompt/plan destinations without writing a prompt.
 
-    Returns ``(prompt_path, plan_path)`` so callers can record the canonical
-    plan destination without taking ownership of writing the plan itself.
+    The prompt is owned by the agents-sidecar archive writer. This helper
+    retains the paired return shape so approval callers can record that
+    destination alongside the future plan path.
     """
     yyyymm = get_yyyymm() if yyyymm is None else yyyymm
     plans_dir = (sdd_dir / "plans" if plans_root is None else plans_root) / yyyymm
-    prompts_dir = plans_dir / "prompts"
-    prompt_path = prompts_dir / f"{plan_name}.md"
     plan_path = plans_dir / f"{plan_name}.md"
-    prompts_dir.mkdir(parents=True, exist_ok=True)
-    prompt_path.write_text(
-        update_source_aware_artifact_link(
-            prompt_content,
-            sdd_dir,
-            prompt_path,
-            plan_path,
-            SddArtifactLinkType.PLAN,
-            label_prefix="../",
-            remove_legacy=True,
-        ),
-        encoding="utf-8",
-    )
     return prompt_path, plan_path
 
 
@@ -66,9 +49,10 @@ def write_sdd_files(
     plan_tier: str = "tale",
     plans_root: Path | None = None,
     store: SddStore | None = None,
+    prompt_path: Path | None = None,
     yyyymm: str | None = None,
-) -> tuple[Path, Path]:
-    """Write plans/<YYYYMM>/prompts/<name>.md and its paired plan.
+) -> tuple[Path | None, Path]:
+    """Write a canonical plan paired with an agents-sidecar prompt.
 
     Returns (prompt_path, plan_path).
     """
@@ -82,7 +66,6 @@ def write_sdd_files(
 
     yyyymm = get_yyyymm() if yyyymm is None else yyyymm
     plans_dir = (sdd_dir / "plans" if plans_root is None else plans_root) / yyyymm
-    prompt_path = plans_dir / "prompts" / f"{plan_name}.md"
     plan_path = plans_dir / f"{plan_name}.md"
     from sase.sdd.frontmatter import set_frontmatter_fields
 
@@ -121,10 +104,12 @@ def write_sdd_files(
         plan_name,
         prompt_content,
         plans_root=plans_root,
+        prompt_path=prompt_path,
         yyyymm=yyyymm,
     )
 
     if plan_content is not None:
+        plan_path.parent.mkdir(parents=True, exist_ok=True)
         plan_path.write_text(plan_content, encoding="utf-8")
 
     return prompt_path, plan_path

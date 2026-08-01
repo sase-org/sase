@@ -142,7 +142,9 @@ def write_sdd_files(
     plan_tier: str = "tale",
     plans_root: Path | None = None,
     store: SddStore | None = None,
-) -> tuple[Path, Path]:
+    prompt_path: Path | None = None,
+    yyyymm: str | None = None,
+) -> tuple[Path | None, Path]:
     """Write a prompt and tiered plan under canonical directories.
 
     Returns (prompt_path, plan_path).
@@ -155,7 +157,8 @@ def write_sdd_files(
         plan_tier=plan_tier,
         plans_root=plans_root,
         store=store,
-        yyyymm=get_yyyymm(),
+        prompt_path=prompt_path,
+        yyyymm=get_yyyymm() if yyyymm is None else yyyymm,
     )
 
 
@@ -165,14 +168,17 @@ def write_sdd_spec(
     prompt_content: str,
     *,
     plans_root: Path | None = None,
-) -> tuple[Path, Path]:
-    """Write only a prompt snapshot and return its expected plan path."""
+    prompt_path: Path | None = None,
+    yyyymm: str | None = None,
+) -> tuple[Path | None, Path]:
+    """Return the canonical prompt archive and expected plan paths."""
     return _write_sdd_spec(
         sdd_dir,
         plan_name,
         prompt_content,
         plans_root=plans_root,
-        yyyymm=get_yyyymm(),
+        prompt_path=prompt_path,
+        yyyymm=get_yyyymm() if yyyymm is None else yyyymm,
     )
 
 

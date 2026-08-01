@@ -30,7 +30,6 @@ def test_handle_plan_marker_leaves_epic_kickoff_metadata_to_host(
         patch("sase.axe.run_agent_exec_plan._write_plan_path_artifact"),
         patch("sase.axe.run_agent_exec_plan.update_step_marker_chat_path"),
         patch("sase.axe.run_agent_exec_plan_accept.promote_to_workflow"),
-        patch("sase.axe.run_agent_exec_plan_accept._commit_sdd_spec"),
         patch(
             "sase.llm_provider._plan_utils.handle_plan_approval",
             return_value=approval,

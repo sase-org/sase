@@ -27,7 +27,12 @@ def test_committed_plan_header_refresh_is_idempotent(
     plans_root = tmp_path / "plans-sidecar"
     plan = plans_root / "202607" / "child.md"
     plan.parent.mkdir(parents=True)
-    plan.write_text("---\ntier: tale\n---\n# Child\n", encoding="utf-8")
+    plan.write_text(
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [202607/prompts/child.md](prompts/child.md)\n\n"
+        "# Child\n",
+        encoding="utf-8",
+    )
     store = SddStore(
         storage="sidecar_repos",
         sdd_dir=plans_root,
@@ -74,6 +79,16 @@ def test_committed_plan_header_refresh_is_idempotent(
         "sase.sdd._git_contention.store_git_write_lock",
         acquired_lock,
     )
+
+    class _Resolver:
+        def prompt_url(self, prompt_ref: str) -> str:
+            assert prompt_ref == "prompts/202607/child.md"
+            return "https://example.test/agents/prompts/202607/child.md"
+
+    monkeypatch.setattr(
+        "sase.sdd.hosted_links.hosted_link_resolver",
+        lambda *_args, **_kwargs: _Resolver(),
+    )
     monkeypatch.setattr(
         "sase.file_references.format_with_prettier",
         lambda content: content,
@@ -97,9 +112,14 @@ def test_committed_plan_header_refresh_is_idempotent(
     assert commits == [plan]
     parsed = parse_plan_header_block(plan.read_text(encoding="utf-8"))
     assert [section.kind for section in parsed.sections] == [
+        PlanHeaderSectionKind.PROMPT,
         PlanHeaderSectionKind.AGENTS,
         PlanHeaderSectionKind.COMMITS,
     ]
+    assert parsed.sections[0].label == "prompts/202607/child.md"
+    assert parsed.sections[0].target == (
+        "https://example.test/agents/prompts/202607/child.md"
+    )
 
 
 def test_committed_plan_header_refresh_swallows_failures(

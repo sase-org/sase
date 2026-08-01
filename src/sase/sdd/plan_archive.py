@@ -140,11 +140,12 @@ def _resolved_prompt_path(
     if prompt_path is not None:
         return prompt_path
 
-    from sase.sdd.plan_header_writes import archived_prompt_path_for_plan
-
-    archived_prompt = archived_prompt_path_for_plan(destination)
+    # Historical prompts remain in the plans tree until the migration phase.
+    # New prompt archives live in the agents sidecar and are indicated by the
+    # caller's explicit expectation rather than a plans-tree existence probe.
+    archived_prompt = destination.parent / "prompts" / destination.name
     if expect_prompt_snapshot:
-        return archived_prompt
+        return prompt_path or destination
     return archived_prompt if archived_prompt.is_file() else None
 
 

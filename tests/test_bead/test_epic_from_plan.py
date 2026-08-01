@@ -51,6 +51,19 @@ phases:
 Execute the rollout.
 """
 
+_PROMPT_URL = (
+    "https://github.com/sase-org/sase--agents/blob/main/prompts/202607/rollout.md"
+)
+
+
+class _Resolver:
+    def prompt_url(self, prompt_ref: str) -> str | None:
+        assert prompt_ref == "prompts/202607/rollout.md"
+        return _PROMPT_URL
+
+    def bead_url(self, _bead_id: str) -> None:
+        return None
+
 
 def _write_plan_update(path: Path, content: str, _message: str) -> bool:
     path.write_text(content, encoding="utf-8")
@@ -207,6 +220,7 @@ def test_epic_and_phases_share_resolved_plan_creator(
 
 def test_bead_link_write_reprojects_prompt_section(
     project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plans_root = project_dir / "repo--plans"
     plan_path = plans_root / "202607" / "rollout.md"
@@ -215,6 +229,10 @@ def test_bead_link_write_reprojects_prompt_section(
     prompt_path.write_text("# Prompt\n", encoding="utf-8")
     plan_path.write_text(EPIC_PLAN, encoding="utf-8")
     store = SddStore("sidecar_repos", plans_root, plans_root)
+    monkeypatch.setattr(
+        "sase.sdd.hosted_links.hosted_link_resolver",
+        lambda *_args, **_kwargs: _Resolver(),
+    )
 
     with BeadProject(project_dir) as proj:
         create_and_launch_epic_from_plan(
@@ -232,18 +250,23 @@ def test_bead_link_write_reprojects_prompt_section(
         PlanHeaderSectionKind.PROMPT,
         PlanHeaderSectionKind.BEAD,
     ]
-    assert sections[0].label == "202607/prompts/rollout.md"
-    assert sections[0].target == "prompts/rollout.md"
+    assert sections[0].label == "prompts/202607/rollout.md"
+    assert sections[0].target == _PROMPT_URL
 
 
 def test_bead_link_write_projects_prompt_section_when_snapshot_is_expected_but_absent(
     project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plans_root = project_dir / "repo--plans"
     plan_path = plans_root / "202607" / "rollout.md"
     plan_path.parent.mkdir(parents=True)
     plan_path.write_text(EPIC_PLAN, encoding="utf-8")
     store = SddStore("sidecar_repos", plans_root, plans_root)
+    monkeypatch.setattr(
+        "sase.sdd.hosted_links.hosted_link_resolver",
+        lambda *_args, **_kwargs: _Resolver(),
+    )
 
     with BeadProject(project_dir) as proj:
         create_and_launch_epic_from_plan(
@@ -262,8 +285,8 @@ def test_bead_link_write_projects_prompt_section_when_snapshot_is_expected_but_a
         PlanHeaderSectionKind.PROMPT,
         PlanHeaderSectionKind.BEAD,
     ]
-    assert sections[0].label == "202607/prompts/rollout.md"
-    assert sections[0].target == "prompts/rollout.md"
+    assert sections[0].label == "prompts/202607/rollout.md"
+    assert sections[0].target == _PROMPT_URL
 
 
 def test_creation_failure_removes_epic_and_restores_plan(

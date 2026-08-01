@@ -100,6 +100,7 @@ def _refresh_committed_plan_header(
         from sase.sdd.plan_header_writes import (
             refresh_association_sections,
             refresh_bead_plan_section,
+            refresh_prompt_plan_section,
         )
 
         index = build_plan_association_index(
@@ -112,6 +113,13 @@ def _refresh_committed_plan_header(
             current,
             store=store,
             primary_root=primary_root,
+        )
+        updated = refresh_prompt_plan_section(
+            updated,
+            source_path=plan_path,
+            store=store,
+            primary_root=primary_root,
+            project=project,
         )
         updated = refresh_association_sections(
             updated,

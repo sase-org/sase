@@ -133,6 +133,7 @@ def _refresh_locked(
             store,
             primary,
             index,
+            project=project,
             known_bead_ids=known_bead_ids,
         )
         if isinstance(result, PlanLinksRefreshIssue):
@@ -198,6 +199,7 @@ def _refresh_one(
     primary: Path,
     index: PlanAssociationIndex,
     *,
+    project: str | None = None,
     known_bead_ids: frozenset[str] | None = None,
 ) -> tuple[PlanLinksRefreshAction | None, str | None] | PlanLinksRefreshIssue:
     from sase.sdd.plan_refs import canonicalize_plan_reference_from_roots
@@ -222,13 +224,23 @@ def _refresh_one(
 
     associations = index.for_plan(plan_ref)
     try:
-        from sase.sdd.plan_header_writes import refresh_bead_plan_section
+        from sase.sdd.plan_header_writes import (
+            refresh_bead_plan_section,
+            refresh_prompt_plan_section,
+        )
 
         updated = refresh_bead_plan_section(
             current,
             store=store,
             primary_root=primary,
             known_bead_ids=known_bead_ids,
+        )
+        updated = refresh_prompt_plan_section(
+            updated,
+            source_path=path,
+            store=store,
+            primary_root=primary,
+            project=project,
         )
         updated, parent_migrated = _refresh_parent(
             updated,

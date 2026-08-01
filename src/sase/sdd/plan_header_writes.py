@@ -27,10 +27,13 @@ _LEGACY_PLAN_MARKERS = (
 )
 
 
-def archived_prompt_path_for_plan(plan_path: Path) -> Path:
-    """Return the canonical prompt snapshot path paired with *plan_path*."""
+def _archived_prompt_reference_for_plan(plan_path: Path) -> str:
+    """Return the agents-sidecar reference paired with *plan_path*."""
 
-    return plan_path.parent / "prompts" / plan_path.name
+    month = plan_path.parent.name
+    if len(month) != 6 or not month.isdigit():
+        raise ValueError(f"plan path is not month-sharded: {plan_path}")
+    return f"prompts/{month}/{plan_path.name}"
 
 
 def project_plan_header_sections(
@@ -47,18 +50,12 @@ def project_plan_header_sections(
 
     updated = document
     if prompt_path is not None:
-        from sase.sdd.artifact_links import (
-            SddArtifactLinkType,
-            update_source_aware_artifact_link,
-        )
-
-        updated = update_source_aware_artifact_link(
+        updated = refresh_prompt_plan_section(
             updated,
-            sdd_dir,
-            plan_path,
-            prompt_path,
-            SddArtifactLinkType.PROMPT,
-            remove_legacy=True,
+            source_path=plan_path,
+            store=store,
+            primary_root=primary_root,
+            install=True,
         )
     updated = refresh_existing_parent_section(
         updated,
@@ -71,6 +68,58 @@ def project_plan_header_sections(
         updated,
         store=store,
         primary_root=primary_root,
+    )
+
+
+def refresh_prompt_plan_section(
+    document: str,
+    *,
+    source_path: Path,
+    store: SddStore | None,
+    primary_root: Path | None,
+    project: str | None = None,
+    install: bool = False,
+) -> str:
+    """Project a plan's existing prompt link into the agents sidecar.
+
+    New plans pass ``install=True``. Tree-wide and post-commit refreshes leave
+    genuinely prompt-less plans alone while repairing every existing PROMPT
+    section to its canonical cross-repository label and hosted target.
+    """
+
+    parsed = parse_plan_header_block(document)
+    exists = any(
+        section.kind is PlanHeaderSectionKind.PROMPT for section in parsed.sections
+    )
+    if not install and not exists:
+        return document
+    label = _archived_prompt_reference_for_plan(source_path)
+    target = None
+    if store is not None:
+        from sase.sdd.hosted_links import hosted_link_resolver
+
+        target = hosted_link_resolver(
+            store,
+            project=project,
+            primary_root=primary_root,
+        ).prompt_url(label)
+    if target is None:
+        return document
+
+    from sase.sdd.artifact_links import (
+        SddArtifactLinkType,
+        update_source_aware_artifact_link,
+    )
+
+    return update_source_aware_artifact_link(
+        document,
+        store.sdd_dir if store is not None else source_path.parent.parent,
+        source_path,
+        None,
+        SddArtifactLinkType.PROMPT,
+        target_label=label,
+        target_href=target,
+        remove_legacy=True,
     )
 
 
@@ -325,10 +374,10 @@ def _relative_parent_target(
 
 
 __all__ = [
-    "archived_prompt_path_for_plan",
     "project_plan_header_sections",
     "refresh_association_sections",
     "refresh_bead_plan_section",
     "refresh_existing_parent_section",
+    "refresh_prompt_plan_section",
     "upsert_parent_plan_section",
 ]
