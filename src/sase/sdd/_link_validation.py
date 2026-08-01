@@ -47,6 +47,18 @@ def validate_sdd_tree(
     issues: list[SddIssue] = []
 
     for file in files:
+        if file.kind == "prompts":
+            issues.append(
+                SddIssue(
+                    severity="warning",
+                    code="prompt-in-plans-store",
+                    path=file.relpath,
+                    message=(
+                        "prompt Markdown remains in the plans store; migrate it "
+                        "to the canonical agents-sidecar archive"
+                    ),
+                )
+            )
         if file.parse_error is not None:
             issues.append(
                 SddIssue(

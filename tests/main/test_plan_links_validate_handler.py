@@ -203,6 +203,42 @@ def test_validate_reports_broken_canonical_href(
     assert "../missing.md" in issue.message
 
 
+def test_validate_accepts_external_prompt_target_and_marks_plan_paired(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "repo--plans"
+    plan = root / "202608" / "external.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [prompts/202608/external.md]"
+        "(https://github.com/example/project--agents/blob/main/"
+        "prompts/202608/external.md)\n\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+
+    validation = validate_sdd_tree(str(root))
+
+    assert validation.ok
+    assert not any(issue.code == "unpaired-file" for issue in validation.issues)
+    assert not any(issue.code == "link-missing-target" for issue in validation.issues)
+
+
+def test_validate_warns_for_prompt_remaining_in_plans_store(tmp_path: Path) -> None:
+    root = tmp_path / "repo--plans"
+    prompt = root / "202608" / "prompts" / "legacy.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text("# Historical prompt\n", encoding="utf-8")
+
+    validation = validate_sdd_tree(str(root))
+
+    assert validation.ok
+    assert (
+        sum(issue.code == "prompt-in-plans-store" for issue in validation.issues) == 1
+    )
+
+
 def test_validate_reports_unresolvable_parent_section(tmp_path: Path) -> None:
     root = tmp_path / "repo--plans"
     prompt = root / "202607" / "prompts" / "child.md"
@@ -368,16 +404,16 @@ def test_validate_downgrades_allowlisted_legacy_error(
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
     assert payload["errors"] == []
-    assert payload["warnings"] == [
-        {
-            "severity": "warning",
-            "code": "link-missing-target-legacy-allowed",
-            "path": "prompts/202605/legacy.md",
-            "message": "'plan' target does not exist: "
-            "sdd/plans/202605/missing.md; "
-            "legacy SDD validation error allowlisted",
-        }
-    ]
+    warnings = {warning["code"]: warning for warning in payload["warnings"]}
+    assert warnings["link-missing-target-legacy-allowed"] == {
+        "severity": "warning",
+        "code": "link-missing-target-legacy-allowed",
+        "path": "prompts/202605/legacy.md",
+        "message": "'plan' target does not exist: "
+        "sdd/plans/202605/missing.md; "
+        "legacy SDD validation error allowlisted",
+    }
+    assert warnings["prompt-in-plans-store"]["path"] == "prompts/202605/legacy.md"
 
 
 @pytest.mark.parametrize(
@@ -406,7 +442,13 @@ def test_validate_quarantines_retired_legend_prompt_links(
     assert excinfo.value.code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["errors"] == []
-    assert payload["warnings"][0]["code"] == ("link-missing-target-legacy-allowed")
+    assert any(
+        warning["code"] == "link-missing-target-legacy-allowed"
+        for warning in payload["warnings"]
+    )
+    assert any(
+        warning["code"] == "prompt-in-plans-store" for warning in payload["warnings"]
+    )
 
 
 def test_validate_does_not_allowlist_other_paths(
@@ -434,7 +476,9 @@ def test_validate_does_not_allowlist_other_paths(
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is False
     assert payload["errors"][0]["code"] == "link-missing-target"
-    assert payload["warnings"] == []
+    assert [warning["code"] for warning in payload["warnings"]] == [
+        "prompt-in-plans-store"
+    ]
 
 
 def test_validate_does_not_resolve_legacy_plan_link_to_canonical_plan(

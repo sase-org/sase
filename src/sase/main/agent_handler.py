@@ -73,8 +73,13 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         handle_agents_names(args)
         sys.exit(0)
 
+    if sub == "prompts":
+        from sase.agents.cli_prompts import handle_agents_prompts
+
+        sys.exit(handle_agents_prompts(args))
+
     print(
         "Usage: sase agent "
-        "{archive,artifacts,index,kill,list,names,retire-v1,show,sync,tribe}"
+        "{archive,artifacts,index,kill,list,names,prompts,retire-v1,show,sync,tribe}"
     )
     sys.exit(1)

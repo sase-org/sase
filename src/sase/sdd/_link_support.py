@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from sase.sdd._link_models import SddFile
 from sase.sdd.artifact_links import (
@@ -30,6 +31,8 @@ def resolve_link_path(
         return None
     if link.kind in {SddArtifactLinkKind.CANONICAL, SddArtifactLinkKind.MIXED}:
         if link.target is None:
+            return None
+        if _is_absolute_url(link.target):
             return None
         return source.parent / Path(link.target)
     if link.kind is SddArtifactLinkKind.LEGACY and link.legacy is not None:
@@ -105,3 +108,8 @@ def relpath(root: Path, path: Path) -> str:
         return path.relative_to(root).as_posix()
     except ValueError:
         return path.as_posix()
+
+
+def _is_absolute_url(target: str) -> bool:
+    parsed = urlsplit(target)
+    return bool(parsed.scheme or parsed.netloc)

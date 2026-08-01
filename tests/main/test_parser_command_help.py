@@ -33,6 +33,7 @@ def test_agents_help_renders_sorted_subcommands() -> None:
         "kill",
         "list",
         "names",
+        "prompts",
         "retire-v1",
         "show",
         "sync",
@@ -43,9 +44,22 @@ def test_agents_help_renders_sorted_subcommands() -> None:
 
     assert help_commands == sorted(expected_commands)
     assert (
-        "{archive,artifacts,index,kill,list,names,retire-v1,show,sync,tribe}"
+        "{archive,artifacts,index,kill,list,names,prompts,retire-v1,show,sync,tribe}"
         in agents_parser.format_help()
     )
+
+
+def test_agent_prompts_help_documents_group_and_validation_flags() -> None:
+    prompts = parser_for(("sase", "agent", "prompts"))
+    validate_help = flat_help(
+        parser_for(("sase", "agent", "prompts", "validate")).format_help()
+    )
+
+    assert "{list,migrate,show,validate}" in prompts.format_help()
+    assert "-j, --json" in validate_help
+    assert "-m, --month" in validate_help
+    assert "-p, --project" in validate_help
+    assert "-s, --show-warnings" in validate_help
 
 
 def test_axe_ensure_help_documents_healing_and_watchdog() -> None:

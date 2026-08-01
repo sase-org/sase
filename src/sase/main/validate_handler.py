@@ -34,6 +34,10 @@ _CHECKS = (
         "plan links validate",
         ("plan", "links", "validate"),
     ),
+    _ValidationCheck(
+        "agent prompts validate",
+        ("agent", "prompts", "validate"),
+    ),
 )
 
 _SUPPORT_HINT = (
