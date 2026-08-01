@@ -12,6 +12,7 @@ import sys
 import time
 from typing import Any
 
+from sase.bead._store_contention import is_bead_store_lock_timeout
 from sase.bead.model import Status
 
 BEAD_CLAIM_MARKER = "bead_claim.json"
@@ -191,7 +192,7 @@ def claim_bead_for_waiting_agent(
                 return held_by_us
             except Exception as exc:
                 is_missing = _is_missing_bead_error(exc)
-                is_lock_timeout = _is_lock_timeout_error(exc)
+                is_lock_timeout = is_bead_store_lock_timeout(exc)
                 if (
                     not (is_missing or is_lock_timeout)
                     or attempt + 1 >= _MAX_CLAIM_ATTEMPTS
@@ -214,10 +215,6 @@ def claim_bead_for_waiting_agent(
 
 def _is_missing_bead_error(exc: Exception) -> bool:
     return isinstance(exc, KeyError) and "Issue not found:" in str(exc)
-
-
-def _is_lock_timeout_error(exc: Exception) -> bool:
-    return "lock_timeout:" in str(exc).lower()
 
 
 def _sleep_before_claim_retry() -> None:

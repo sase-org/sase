@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from sase.bead._store_contention import (
+    BeadStoreContentionError,
+    retry_bead_store_mutation,
+)
 from sase.bead.cli_work_cleanup import (
     ForcedReuseCleanupError,
     prepare_bead_work_force_reuse,
@@ -213,13 +217,20 @@ def launch_task_bead_work(
     prior_status = issue.status
     prior_assignee = issue.assignee
     try:
+        # A contended preclaim never reaches the store, so an exhausted retry
+        # budget leaves the task exactly as it was found — nothing to roll back.
         with timer.stage("preclaim"):
-            proj.update(
-                task_id,
-                status=Status.IN_PROGRESS.value,
-                assignee=task_id,
+            retry_bead_store_mutation(
+                lambda: proj.update(
+                    task_id,
+                    status=Status.IN_PROGRESS.value,
+                    assignee=task_id,
+                ),
+                beads_dir=proj.beads_dir,
+                what=f"preclaim task {task_id}",
+                resume_command=f"sase bead work {task_id}",
             )
-    except (KeyError, ValueError) as exc:
+    except (BeadStoreContentionError, KeyError, ValueError) as exc:
         raise TaskBeadWorkError(str(exc)) from exc
 
     try:

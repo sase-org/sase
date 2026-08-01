@@ -7,6 +7,10 @@ from pathlib import Path
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from sase.bead._store_contention import (
+    BeadStoreContentionError,
+    retry_bead_store_mutation,
+)
 from sase.bead.cli_work_cleanup import (
     CleanupPreview,
     ForcedReuseCleanupError,
@@ -292,20 +296,30 @@ def launch_epic_bead_work(
     if not issue.is_ready_to_work:
         try:
             with timer.stage("mark_ready"):
-                proj.mark_ready_to_work(epic_id)
+                retry_bead_store_mutation(
+                    lambda: proj.mark_ready_to_work(epic_id),
+                    beads_dir=proj.beads_dir,
+                    what=f"mark epic {epic_id} ready to work",
+                    resume_command=f"sase bead work {epic_id}",
+                )
                 marked_ready_this_run = True
         except AlreadyReadyError:
             marked_ready_this_run = False
-        except (KeyError, NotAPlanError, ValueError) as exc:
+        except (BeadStoreContentionError, KeyError, NotAPlanError, ValueError) as exc:
             raise BeadWorkError(str(exc)) from exc
     try:
         with timer.stage("preclaim"):
-            rollback_preclaims = proj.preclaim_epic_work(
-                epic_id,
-                phase_assignments,
-                plan.land_agent_name,
+            rollback_preclaims = retry_bead_store_mutation(
+                lambda: proj.preclaim_epic_work(
+                    epic_id,
+                    phase_assignments,
+                    plan.land_agent_name,
+                ),
+                beads_dir=proj.beads_dir,
+                what=f"preclaim epic {epic_id}",
+                resume_command=f"sase bead work {epic_id}",
             )
-    except (KeyError, NotAPlanError, ValueError) as exc:
+    except (BeadStoreContentionError, KeyError, NotAPlanError, ValueError) as exc:
         rollback_work_launch(
             proj,
             epic_id,
