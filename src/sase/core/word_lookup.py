@@ -14,6 +14,8 @@ _ASPELL_TIMEOUT_SECONDS = 3.0
 _DICT_TIMEOUT_SECONDS = 5.0
 _DICT_NO_MATCH_EXIT_CODE = 20
 _CONNECTORS = frozenset({"'", "-"})
+_ASPELL_PIPE_ARGS = ("aspell", "-a", "--encoding=utf-8", "--lang=en_US")
+_ASPELL_ERROR_PREFIX = "Error: "
 
 # The salmon used for both the spellcheck correction panel and the sticky
 # misspelling underline in the prompt input, so the two visibly match.
@@ -21,6 +23,7 @@ MISSPELLING_COLOR = "#FF8787"
 
 _DefinitionStatus = Literal["ok", "no_match", "unavailable", "error"]
 _SpellCheckStatus = Literal["correct", "misspelled", "unavailable", "error"]
+_AddToDictionaryStatus = Literal["added", "unavailable", "error"]
 _Runner = Callable[..., subprocess.CompletedProcess[str]]
 
 _DEFINITION_HEADER_RE = re.compile(
@@ -45,6 +48,14 @@ class SpellCheckResult:
 
     status: _SpellCheckStatus
     suggestions: tuple[str, ...] = ()
+    detail: str = ""
+
+
+@dataclass(frozen=True)
+class AddToDictionaryResult:
+    """The parsed outcome of one aspell personal-dictionary add."""
+
+    status: _AddToDictionaryStatus
     detail: str = ""
 
 
@@ -163,7 +174,7 @@ def check_spelling(
 
     try:
         completed = runner(
-            ["aspell", "-a", "--encoding=utf-8", "--lang=en_US"],
+            list(_ASPELL_PIPE_ARGS),
             input=f"{word}\n",
             capture_output=True,
             text=True,
@@ -211,6 +222,52 @@ def check_spelling(
     return SpellCheckResult(
         status="error",
         detail=f"aspell returned an unknown response: {_one_line(response)}",
+    )
+
+
+def add_to_personal_dictionary(
+    word: str,
+    *,
+    runner: _Runner = subprocess.run,
+) -> AddToDictionaryResult:
+    """Add *word* to the user's aspell personal dictionary, verifying it stuck."""
+    if shutil.which("aspell") is None:
+        return AddToDictionaryResult(status="unavailable")
+
+    if not word or not word.strip() or "\n" in word or "\r" in word:
+        return AddToDictionaryResult(status="error", detail="word is not addable")
+
+    try:
+        completed = runner(
+            list(_ASPELL_PIPE_ARGS),
+            input=f"*{word}\n#\n",
+            capture_output=True,
+            text=True,
+            timeout=_ASPELL_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return AddToDictionaryResult(
+            status="error",
+            detail="aspell timed out after 3 seconds",
+        )
+    except OSError as exc:
+        return AddToDictionaryResult(status="error", detail=_one_line(str(exc)))
+
+    if completed.returncode != 0:
+        return AddToDictionaryResult(
+            status="error",
+            detail=_command_error_detail("aspell", completed),
+        )
+
+    stderr_detail = _first_aspell_error_line(completed.stderr)
+
+    verified = check_spelling(word, runner=runner)
+    if verified.status == "correct":
+        return AddToDictionaryResult(status="added")
+    return AddToDictionaryResult(
+        status="error",
+        detail=stderr_detail or verified.detail or "aspell did not accept the word",
     )
 
 
@@ -319,16 +376,27 @@ def _first_nonempty_line(text: str) -> str:
     return ""
 
 
+def _first_aspell_error_line(stderr: str) -> str:
+    """Return aspell's first ``Error:`` explanation, or its first stderr line."""
+    for line in stderr.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(_ASPELL_ERROR_PREFIX):
+            return _one_line(stripped[len(_ASPELL_ERROR_PREFIX) :])
+    return _first_nonempty_line(stderr)
+
+
 def _one_line(text: str) -> str:
     return " ".join(text.split())
 
 
 __all__ = [
     "MISSPELLING_COLOR",
+    "AddToDictionaryResult",
     "DefinitionResult",
     "DefinitionSection",
     "SpellCheckResult",
     "WordSpan",
+    "add_to_personal_dictionary",
     "check_spelling",
     "extract_lookup_word",
     "look_up_definitions",

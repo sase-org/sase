@@ -21,7 +21,7 @@ _MAX_SUGGESTIONS = 9
 class SpellcheckChoice:
     """The user's choice from the spelling suggestion panel."""
 
-    action: Literal["apply", "accept"]
+    action: Literal["apply", "accept", "dictionary"]
     suggestion: str = ""
 
 
@@ -31,6 +31,14 @@ class SpellcheckPanelModal(ModalScreen[SpellcheckChoice | None]):
     A word with no suggestions still opens the panel -- with a dim
     ``no suggestions`` row instead of choices -- so ``a`` can accept it. That
     matters most for proper nouns, which ``aspell`` rarely has ideas about.
+
+    Two escape hatches leave a word alone, at different scopes: ``a`` accepts
+    the word for SASE only, recorded in ``prompt_misspellings.json`` and
+    reversible by editing that file; ``aspell`` itself still rejects the word
+    everywhere else. ``d`` adds the word to the user's ``aspell`` personal
+    dictionary, so every ``aspell`` consumer on the machine accepts it from
+    then on; that add is verified in a fresh ``aspell`` process before the
+    squiggle clears, and reversible by editing the personal dictionary file.
     """
 
     BINDINGS = [
@@ -42,6 +50,7 @@ class SpellcheckPanelModal(ModalScreen[SpellcheckChoice | None]):
         ("ctrl+n", "select_next", "Next"),
         ("ctrl+p", "select_previous", "Previous"),
         ("a", "accept", "Accept"),
+        ("d", "add_to_dictionary", "Dictionary"),
     ]
 
     def __init__(self, word: str, suggestions: tuple[str, ...]) -> None:
@@ -72,9 +81,10 @@ class SpellcheckPanelModal(ModalScreen[SpellcheckChoice | None]):
         self._refresh_rows()
 
     def _build_footer(self) -> str:
+        second_line = "a accept | d add to aspell | Esc cancel"
         if not self._suggestions:
-            return "j/k move | a accept | Esc cancel"
-        return "1-9 apply | j/k move | a accept | Enter apply | Esc cancel"
+            return second_line
+        return f"1-9 apply | j/k move | Enter apply\n{second_line}"
 
     def _build_title(self) -> Text:
         title = Text()
@@ -116,6 +126,9 @@ class SpellcheckPanelModal(ModalScreen[SpellcheckChoice | None]):
         elif event.key == "a":
             self._stop_key(event)
             self.action_accept()
+        elif event.key == "d":
+            self._stop_key(event)
+            self.action_add_to_dictionary()
         elif event.key in {"j", "ctrl+n"}:
             self._stop_key(event)
             self.action_select_next()
@@ -144,6 +157,9 @@ class SpellcheckPanelModal(ModalScreen[SpellcheckChoice | None]):
 
     def action_accept(self) -> None:
         self.dismiss(SpellcheckChoice(action="accept"))
+
+    def action_add_to_dictionary(self) -> None:
+        self.dismiss(SpellcheckChoice(action="dictionary"))
 
     def action_apply_selected(self) -> None:
         if not self._suggestions:

@@ -6,9 +6,11 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from sase.core.word_lookup import (
+    AddToDictionaryResult,
     DefinitionResult,
     SpellCheckResult,
     WordSpan,
+    add_to_personal_dictionary,
     check_spelling,
     extract_lookup_word,
     look_up_definitions,
@@ -143,6 +145,9 @@ class PromptWordLookupMixin(_MixinBase):
             self._allow_prompt_misspelling(span.word)
             self.notify(f"'{span.word}' will no longer be flagged as misspelled")
             return
+        if choice.action == "dictionary":
+            self._add_word_to_personal_dictionary(span.word)
+            return
 
         if span.row >= self.document.line_count:
             self._notify_word_changed_before_apply(span.word)
@@ -162,6 +167,37 @@ class PromptWordLookupMixin(_MixinBase):
             f"'{word}' changed before the spelling fix could be applied",
             severity="warning",
         )
+
+    def _add_word_to_personal_dictionary(self, word: str) -> None:
+        """Schedule the off-thread aspell dictionary add for *word*."""
+        self.run_worker(
+            self._add_to_personal_dictionary_async(word),
+            name="prompt-dictionary-add",
+        )
+
+    async def _add_to_personal_dictionary_async(self, word: str) -> None:
+        result = await asyncio.to_thread(add_to_personal_dictionary, word)
+        if not self.is_mounted:
+            return
+        self._notify_dictionary_add_result(word, result)
+
+    def _notify_dictionary_add_result(
+        self,
+        word: str,
+        result: AddToDictionaryResult,
+    ) -> None:
+        if result.status == "added":
+            self._forget_prompt_misspelling(word)
+            self.notify(f"Added '{word}' to your aspell personal dictionary")
+            return
+        if result.status == "unavailable":
+            self.notify(
+                f"aspell is no longer available; '{word}' was not added",
+                severity="warning",
+            )
+            return
+        detail = result.detail or "aspell did not accept the word"
+        self.notify(f"Could not add '{word}' to aspell: {detail}", severity="error")
 
     def _word_lookup_request_is_current(self, request_id: int) -> bool:
         return request_id == self._prompt_preview_request_id and self.is_mounted

@@ -4485,7 +4485,7 @@ SpellcheckPanelModal {
 SpellcheckPanelModal > Container {
     width: 56;
     height: auto;
-    max-height: 18;
+    max-height: 20;
     border: double #FF8787;
     background: $surface;
     padding: 1 2;

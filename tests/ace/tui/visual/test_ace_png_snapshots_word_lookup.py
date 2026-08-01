@@ -87,3 +87,60 @@ async def test_spellcheck_panel_modal_png_snapshot(
             "spellcheck_panel_modal_120x40",
             title="ACE prompt spellcheck panel",
         )
+
+
+async def test_spellcheck_panel_modal_full_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nine suggestions prove the ``max-height: 20`` bump renders the whole footer."""
+    patch_startup_loaders(monkeypatch)
+    suggestions = (
+        "accommodate",
+        "accommodated",
+        "accommodates",
+        "accommodation",
+        "accommodating",
+        "accommodative",
+        "accommodator",
+        "accommodators",
+        "accommodatingly",
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(SpellcheckPanelModal("accomodate", suggestions))
+        await page.expect_modal("SpellcheckPanelModal")
+        await wait_for_svg_contains(page, "add to aspell")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "spellcheck_panel_modal_full_120x40",
+            title="ACE prompt spellcheck panel with nine suggestions",
+        )
+
+
+async def test_spellcheck_panel_modal_no_suggestions_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The single-line footer variant shown when ``aspell`` has no suggestions."""
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(SpellcheckPanelModal("zzzzz", ()))
+        await page.expect_modal("SpellcheckPanelModal")
+        await wait_for_svg_contains(page, "no suggestions")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "spellcheck_panel_modal_no_suggestions_120x40",
+            title="ACE prompt spellcheck panel with no suggestions",
+        )

@@ -3377,10 +3377,17 @@ installation hint.
 
 Every word `K` proves misspelled is remembered durably and gets a red underline in every prompt input from that moment
 on, in every `sase ace` session -- no live spell-checking runs on every keystroke; only what `K` has already checked is
-ever squiggled. Press `a` in the correction panel to accept a word instead of applying a suggestion; accepted words stop
-being flagged and `K` on them no longer opens the panel for that reason. A `K` press on a now-correctly-spelled
-remembered word (for example, after adding it to your `aspell` personal dictionary) clears its squiggle automatically.
-The remembered words are stored at `sase_home()/prompt_misspellings.json`; see
+ever squiggled. The correction panel offers two ways to stop fighting a word, at two different scopes. Press `a` to
+accept a word for SASE only: it is recorded in `prompt_misspellings.json`, `K` on it no longer opens the panel, but
+`aspell` itself -- and every other consumer of it on the machine -- still rejects the word. Press `d` to add the word to
+your `aspell` personal dictionary instead (usually `~/.aspell.en.pws`, though `aspell` configuration can relocate it),
+so it stops being flagged everywhere on the machine, not just in ACE; this is reversible by editing that file directly.
+The add is verified by re-checking the word in a fresh `aspell` process afterwards, so the squiggle clears only once
+`aspell` genuinely accepts it -- a failure leaves the word flagged and reports `aspell`'s own explanation. Case follows
+`aspell`: a word added capitalized (`Bugyi`) stays flagged in lowercase (`bugyi`). Hyphenated words cannot be added with
+`d` -- `aspell` does not permit `-` inside a personal-dictionary entry -- and the panel reports that explicitly rather
+than pretending the add worked. A `K` press on a now-correctly-spelled remembered word clears its squiggle
+automatically. The remembered words are stored at `sase_home()/prompt_misspellings.json`; see
 [`ace.prompt_spellcheck`](configuration.md#aceprompt_spellcheck) to disable the highlight or change how many words are
 retained.
 

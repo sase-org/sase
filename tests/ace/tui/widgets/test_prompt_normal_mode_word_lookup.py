@@ -10,6 +10,7 @@ from sase.ace.testing import PromptPage
 from sase.ace.tui.modals.spellcheck_panel_modal import SpellcheckPanelModal
 from sase.ace.tui.modals.word_definition_modal import WordDefinitionModal
 from sase.core.word_lookup import (
+    AddToDictionaryResult,
     DefinitionResult,
     DefinitionSection,
     SpellCheckResult,
@@ -258,6 +259,127 @@ async def test_spellcheck_accept_clears_the_squiggle(
 
         assert "bugyi" not in page.ta.app.misspelled_words()
         assert notifications == ["'Bugyi' will no longer be flagged as misspelled"]
+
+
+async def test_spellcheck_dictionary_key_dismisses_panel_without_applying(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.check_spelling",
+        lambda _word: SpellCheckResult(
+            status="misspelled", suggestions=("accommodate",)
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.add_to_personal_dictionary",
+        lambda _word: AddToDictionaryResult(status="added"),
+    )
+
+    async with PromptPage("fix accomodate now", cursor=(0, 7), size=(80, 24)) as page:
+        await page.press("K")
+        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.press("d")
+        await _wait_for(page, lambda: not _top_is(page, SpellcheckPanelModal))
+
+        # The dictionary action never applies a suggestion or replaces text.
+        assert page.text == "fix accomodate now"
+
+
+async def test_spellcheck_dictionary_added_clears_squiggle_and_notifies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.check_spelling",
+        lambda _word: SpellCheckResult(status="misspelled", suggestions=()),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.add_to_personal_dictionary",
+        lambda _word: AddToDictionaryResult(status="added"),
+    )
+    notifications: list[str] = []
+
+    async with PromptPage("Bugyi wrote this", cursor=(0, 2), size=(80, 24)) as page:
+        monkeypatch.setattr(
+            page.ta,
+            "notify",
+            lambda message, severity=None: notifications.append(message),
+        )
+        await page.press("K")
+        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.press("d")
+        await _wait_for(page, lambda: not _top_is(page, SpellcheckPanelModal))
+        await _wait_for(page, lambda: "bugyi" not in page.ta.app.misspelled_words())
+
+        assert page.text == "Bugyi wrote this"
+        assert notifications == ["Added 'Bugyi' to your aspell personal dictionary"]
+
+
+async def test_spellcheck_dictionary_error_leaves_word_flagged_and_notifies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    detail = (
+        "The word \"well-formedd\" is invalid. The character '-' "
+        "(U+2D) may not appear in the middle of a word."
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.check_spelling",
+        lambda _word: SpellCheckResult(status="misspelled", suggestions=()),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.add_to_personal_dictionary",
+        lambda _word: AddToDictionaryResult(status="error", detail=detail),
+    )
+    notifications: list[tuple[str, str | None]] = []
+
+    async with PromptPage("well-formedd", cursor=(0, 2), size=(80, 24)) as page:
+        monkeypatch.setattr(
+            page.ta,
+            "notify",
+            lambda message, severity=None: notifications.append((message, severity)),
+        )
+        await page.press("K")
+        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.press("d")
+        await _wait_for(page, lambda: not _top_is(page, SpellcheckPanelModal))
+        await _wait_for(page, lambda: bool(notifications))
+
+        assert "well-formedd" in page.ta.app.misspelled_words()
+        assert page.text == "well-formedd"
+        assert notifications == [
+            (f"Could not add 'well-formedd' to aspell: {detail}", "error")
+        ]
+
+
+async def test_spellcheck_dictionary_unavailable_notifies_warning_and_leaves_flagged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.check_spelling",
+        lambda _word: SpellCheckResult(status="misspelled", suggestions=()),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_word_lookup.add_to_personal_dictionary",
+        lambda _word: AddToDictionaryResult(status="unavailable"),
+    )
+    notifications: list[tuple[str, str | None]] = []
+
+    async with PromptPage("zzzzz word", cursor=(0, 2), size=(80, 24)) as page:
+        monkeypatch.setattr(
+            page.ta,
+            "notify",
+            lambda message, severity=None: notifications.append((message, severity)),
+        )
+        await page.press("K")
+        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.press("d")
+        await _wait_for(page, lambda: not _top_is(page, SpellcheckPanelModal))
+        await _wait_for(page, lambda: bool(notifications))
+
+        assert "zzzzz" in page.ta.app.misspelled_words()
+        assert page.text == "zzzzz word"
+        assert notifications == [
+            ("aspell is no longer available; 'zzzzz' was not added", "warning")
+        ]
 
 
 async def test_k_on_now_correct_remembered_word_forgets_it(

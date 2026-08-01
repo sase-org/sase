@@ -2,21 +2,27 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
 from sase.core.word_lookup import (
+    AddToDictionaryResult,
     DefinitionResult,
     DefinitionSection,
     SpellCheckResult,
     WordSpan,
+    add_to_personal_dictionary,
     check_spelling,
     extract_lookup_word,
     look_up_definitions,
     natural_word_ranges,
 )
+
+_ASPELL_PIPE_ARGS = ["aspell", "-a", "--encoding=utf-8", "--lang=en_US"]
 
 
 @pytest.mark.parametrize(
@@ -140,6 +146,225 @@ def test_check_spelling_reports_nonzero_exit(
         status="error",
         detail="Error: No word lists can be found",
     )
+
+
+class _DictionaryRunner:
+    """A fake runner that distinguishes the add call from the verify call.
+
+    ``add_to_personal_dictionary`` threads the same injected runner through
+    both its own aspell invocation (stdin starting with ``*``) and the nested
+    ``check_spelling`` verify call (plain ``<word>\\n`` stdin), so a single
+    fake must answer both shapes.
+    """
+
+    def __init__(
+        self,
+        *,
+        add_returncode: int = 0,
+        add_stderr: str = "",
+        verify_response: str = "*\n",
+    ) -> None:
+        self.calls: list[tuple[list[str], str]] = []
+        self._add_returncode = add_returncode
+        self._add_stderr = add_stderr
+        self._verify_response = verify_response
+
+    def __call__(
+        self,
+        args: list[str],
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        stdin = str(kwargs.get("input", ""))
+        self.calls.append((args, stdin))
+        if stdin.startswith("*"):
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=self._add_returncode,
+                stdout="",
+                stderr=self._add_stderr,
+            )
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=f"@(#) aspell banner\n{self._verify_response}",
+            stderr="",
+        )
+
+
+def test_add_to_personal_dictionary_writes_and_verifies_with_shared_args(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.core.word_lookup.shutil.which", lambda _cmd: "/aspell")
+    runner = _DictionaryRunner()
+
+    result = add_to_personal_dictionary("Bugyi", runner=runner)
+
+    assert result == AddToDictionaryResult(status="added")
+    assert runner.calls == [
+        (_ASPELL_PIPE_ARGS, "*Bugyi\n#\n"),
+        (_ASPELL_PIPE_ARGS, "Bugyi\n"),
+    ]
+
+
+def test_add_to_personal_dictionary_never_lowercases(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.core.word_lookup.shutil.which", lambda _cmd: "/aspell")
+    runner = _DictionaryRunner()
+
+    add_to_personal_dictionary("BUGYI", runner=runner)
+
+    assert runner.calls[0] == (_ASPELL_PIPE_ARGS, "*BUGYI\n#\n")
+
+
+def test_add_to_personal_dictionary_surfaces_aspell_stderr_on_verify_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.core.word_lookup.shutil.which", lambda _cmd: "/aspell")
+    runner = _DictionaryRunner(
+        add_stderr=(
+            "Error: The word \"well-formedd\" is invalid. The character '-' "
+            "(U+2D) may not appear in the middle of a word."
+        ),
+        verify_response="# well-formedd 0\n",
+    )
+
+    result = add_to_personal_dictionary("well-formedd", runner=runner)
+
+    assert result == AddToDictionaryResult(
+        status="error",
+        detail=(
+            "The word \"well-formedd\" is invalid. The character '-' "
+            "(U+2D) may not appear in the middle of a word."
+        ),
+    )
+
+
+def test_add_to_personal_dictionary_uses_generic_detail_without_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.core.word_lookup.shutil.which", lambda _cmd: "/aspell")
+    runner = _DictionaryRunner(verify_response="# zzqqword 0\n")
+
+    result = add_to_personal_dictionary("zzqqword", runner=runner)
+
+    assert result == AddToDictionaryResult(
+        status="error",
+        detail="aspell did not accept the word",
+    )
+
+
+def test_add_to_personal_dictionary_is_unavailable_without_binary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.core.word_lookup.shutil.which", lambda _cmd: None)
+
+    assert add_to_personal_dictionary(
+        "word", runner=_unexpected_runner
+    ) == AddToDictionaryResult(status="unavailable")
+
+
+def test_add_to_personal_dictionary_reports_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.core.word_lookup.shutil.which", lambda _cmd: "/aspell")
+
+    def timeout_runner(*_args: object, **_kwargs: object) -> object:
+        raise subprocess.TimeoutExpired(["aspell"], 3)
+
+    result = add_to_personal_dictionary("word", runner=timeout_runner)
+
+    assert result.status == "error"
+    assert "timed out" in result.detail
+
+
+def test_add_to_personal_dictionary_reports_oserror(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.core.word_lookup.shutil.which", lambda _cmd: "/aspell")
+
+    def raising_runner(*_args: object, **_kwargs: object) -> object:
+        raise OSError("no such file")
+
+    result = add_to_personal_dictionary("word", runner=raising_runner)
+
+    assert result == AddToDictionaryResult(status="error", detail="no such file")
+
+
+def test_add_to_personal_dictionary_reports_nonzero_exit_without_verifying(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.core.word_lookup.shutil.which", lambda _cmd: "/aspell")
+
+    def failing_runner(
+        args: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=1,
+            stdout="",
+            stderr="Error: The file can not be opened for writing.",
+        )
+
+    result = add_to_personal_dictionary("word", runner=failing_runner)
+
+    assert result == AddToDictionaryResult(
+        status="error",
+        detail="Error: The file can not be opened for writing.",
+    )
+
+
+@pytest.mark.parametrize("word", ["", "   ", "bad\nword", "bad\rword"])
+def test_add_to_personal_dictionary_rejects_unaddable_words_without_spawning(
+    monkeypatch: pytest.MonkeyPatch,
+    word: str,
+) -> None:
+    monkeypatch.setattr("sase.core.word_lookup.shutil.which", lambda _cmd: "/aspell")
+
+    result = add_to_personal_dictionary(word, runner=_unexpected_runner)
+
+    assert result == AddToDictionaryResult(status="error", detail="word is not addable")
+
+
+@pytest.mark.skipif(shutil.which("aspell") is None, reason="requires aspell on PATH")
+def test_add_to_personal_dictionary_end_to_end(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    result = add_to_personal_dictionary("zzqqxword")
+
+    assert result == AddToDictionaryResult(status="added")
+    pws_files = list(tmp_path.glob(".aspell.en*.pws"))
+    assert pws_files
+    assert "zzqqxword" in pws_files[0].read_text()
+    assert check_spelling("zzqqxword") == SpellCheckResult(status="correct")
+
+    # Adding the same word twice is a no-op: still "added", no duplicate entry.
+    second = add_to_personal_dictionary("zzqqxword")
+    assert second == AddToDictionaryResult(status="added")
+    assert pws_files[0].read_text().count("zzqqxword") == 1
+
+
+@pytest.mark.skipif(shutil.which("aspell") is None, reason="requires aspell on PATH")
+def test_add_to_personal_dictionary_end_to_end_rejects_hyphenated_word(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    # aspell's pipe-add command validates the whole string as one word and
+    # rejects the interior hyphen outright, regardless of either half's
+    # spelling -- unlike the plain check protocol used by check_spelling's
+    # verify step, which tokenizes on the hyphen and checks each half
+    # separately. Leading with a bogus segment keeps the verify's own
+    # (first-response-line) reading of that tokenized result at "misspelled"
+    # too, so this test's outcome doesn't depend on that separate quirk.
+    result = add_to_personal_dictionary("zzqqxbogus-word")
+
+    assert result.status == "error"
+    assert "-" in result.detail
 
 
 def test_look_up_definitions_parses_multiple_sections(
