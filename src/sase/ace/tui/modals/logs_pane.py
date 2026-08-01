@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass
-from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 from rich.text import Text
@@ -15,9 +11,6 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 from textual.worker import Worker, WorkerState
-
-from sase.core.paths import sase_home
-from sase.logs import TOAST_HISTORY_LIMIT, current_toast_session, read_recent_toasts
 
 from ..actions.navigation.jump_hints import (
     JumpHintMatchOutcome,
@@ -29,192 +22,17 @@ from ..logs import LogSource, log_sources
 from ..util.selection import ProgrammaticSelectionGuard, restore_selection_by_identity
 from .base import CopyModeForwardingMixin
 from .config_center_session import SelectionBookmark
-from .logs_pane_toasts import render_toast_detail_body
-
-# Palette shared with the other log-style modals (HelpModal / AgentRunLogModal).
-_CYAN = "#87D7FF"
-_GOLD = "#FFD700"
-
-# Tail size read per source. Bounded so the panel stays responsive even on
-# multi-megabyte logs (the read itself is O(tail) via ``read_tail_seek``).
-_MAX_TAIL_LINES = 500
-
-# Leading-timestamp shapes for both log formats:
-#   ``[2026-06-17 14:30:00 UTC] ...``  (launch_failures.log header)
-#   ``2026-06-17 14:30:00,123 WARNING ...`` (tui.log)
-_TIMESTAMP_RE = re.compile(r"^\[?\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}[^\]]*\]?")
-# A trailing exception-summary line, e.g. ``RuntimeError: boom``.
-_EXC_SUMMARY_RE = re.compile(r"^[A-Za-z_][\w.]*(Error|Exception|Interrupt|Warning):")
-# Catch-all logging level tokens (uppercase, as emitted by ``logging``).
-_ERROR_LEVEL_RE = re.compile(r"\b(ERROR|CRITICAL|FATAL)\b")
-_WARNING_LEVEL_RE = re.compile(r"\bWARNING\b")
-
-
-@dataclass(frozen=True)
-class _LogPaneLoadResult:
-    sources: list[LogSource]
-    options: list[tuple[str, Text]]
-    active_count: int
-    selected_index: int
-    detail: Text
-
-
-def _format_size(num_bytes: int) -> str:
-    """Human-readable byte size (``1.2 KB``, ``3 B``, ...)."""
-    size = float(num_bytes)
-    for unit in ("B", "KB", "MB", "GB"):
-        if size < 1024 or unit == "GB":
-            if unit == "B":
-                return f"{int(size)} {unit}"
-            return f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{size:.1f} GB"
-
-
-def _format_mtime(source: LogSource) -> str | None:
-    """Last-modified time of *source* as ``YYYY-MM-DD HH:MM UTC``."""
-    try:
-        ts = source.path.stat().st_mtime
-    except OSError:
-        return None
-    return datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
-
-
-def _source_size(source: LogSource) -> int | None:
-    try:
-        return source.path.stat().st_size
-    except OSError:
-        return None
-
-
-def _display_path(path: Path) -> str:
-    """Return a stable, user-facing path for a log file."""
-    try:
-        resolved_path = path.expanduser().resolve(strict=False)
-        resolved_home = sase_home().expanduser().resolve(strict=False)
-        rel = resolved_path.relative_to(resolved_home)
-    except (OSError, RuntimeError, ValueError):
-        return str(path)
-    return str(Path("~/.sase") / rel)
-
-
-def _empty_message(source: LogSource) -> str:
-    """Friendly empty-state copy for a missing/empty *source*."""
-    if source.id == "launch_failures":
-        return "No launch failures logged."
-    if source.id == "tui_toasts":
-        return "No toasts yet — notifications shown in the TUI will appear here."
-    return f"No {source.title.lower()} yet."
-
-
-def _line_severity_style(line: str) -> str | None:
-    """Return a Rich style for a whole log *line* by severity, or ``None``."""
-    stripped = line.strip()
-    if stripped.startswith("Traceback (most recent call last)") or stripped == (
-        "traceback:"
-    ):
-        return "bold red"
-    if stripped.startswith("error:") or _EXC_SUMMARY_RE.match(stripped):
-        return "red"
-    if _ERROR_LEVEL_RE.search(line):
-        return "red"
-    if _WARNING_LEVEL_RE.search(line):
-        return _GOLD
-    return None
-
-
-def _styled_log_line(line: str) -> Text:
-    """Render one raw log *line* as colorized Rich :class:`Text`."""
-    stripped = line.strip()
-    # Separator rules and stack frames are de-emphasised.
-    if stripped and set(stripped) <= {"=", "-", "─"}:
-        return Text(line, style="dim")
-    if stripped.startswith('File "'):
-        return Text(line, style="dim")
-
-    severity = _line_severity_style(line)
-    if severity is not None:
-        return Text(line, style=severity)
-
-    # No severity: highlight a leading timestamp (header / tui.log) in cyan.
-    match = _TIMESTAMP_RE.match(line)
-    if match:
-        text = Text()
-        text.append(match.group(0), style=_CYAN)
-        text.append(line[match.end() :])
-        return text
-    return Text(line)
-
-
-def _render_log_detail(source: LogSource, max_lines: int = _MAX_TAIL_LINES) -> Text:
-    """Build the full colorized detail body (header + tail) for *source*."""
-    body = "" if source.render == "toasts" else source.read_rendered_tail(max_lines)
-    body_text: Text | None = None
-    toast_count: int | None = None
-    if source.render == "toasts":
-        records = read_recent_toasts(TOAST_HISTORY_LIMIT)
-        toast_count = len(records)
-        if records:
-            body_text = render_toast_detail_body(
-                records,
-                current_toast_session().session_id,
-            )
-            body = body_text.plain
-        else:
-            body = ""
-    text = Text()
-
-    # Header: source title, path, last modified, and shown line count.
-    text.append(source.title, style=f"bold {_GOLD}")
-    text.append("\n")
-    text.append(f"{source.description}\n", style="dim")
-    text.append(_display_path(source.path), style=f"bold {_CYAN}")
-    mtime = _format_mtime(source)
-    if mtime is not None:
-        text.append(f"  ·  {mtime}", style="dim")
-    if body:
-        if toast_count is not None:
-            text.append(f"  ·  {toast_count} toasts", style="dim")
-        else:
-            shown = len(body.splitlines())
-            text.append(f"  ·  {shown} lines", style="dim")
-    text.append("\n")
-    text.append("─" * 48 + "\n", style="dim")
-
-    if not body:
-        text.append(_empty_message(source), style="dim italic")
-        return text
-
-    if body_text is not None:
-        text.append_text(body_text)
-        return text
-
-    for line in body.splitlines():
-        text.append_text(_styled_log_line(line))
-        text.append("\n")
-    return text
-
-
-def _source_label(source: LogSource) -> Text:
-    """Two-line row: ``● Title`` then a dim metadata subtitle."""
-    non_empty = source.exists()
-    text = Text()
-    if non_empty:
-        text.append("● ", style="bold green")
-        text.append(source.title, style=f"bold {_CYAN}")
-    else:
-        text.append("○ ", style="dim")
-        text.append(source.title, style="dim")
-
-    text.append("\n   ")
-    if non_empty:
-        size = _source_size(source)
-        mtime = _format_mtime(source)
-        meta_parts = [p for p in (_format_size(size) if size else None, mtime) if p]
-        text.append(" · ".join(meta_parts) or source.description, style="dim")
-    else:
-        text.append("empty", style="dim italic")
-    return text
+from .logs_pane_models import LogPaneLoadResult as _LogPaneLoadResult
+from .logs_pane_render import (
+    CYAN as _CYAN,
+    GOLD as _GOLD,
+    format_mtime as _format_mtime,
+    format_size as _format_size,
+    render_log_detail as _render_log_detail,
+    source_label as _source_label,
+    styled_log_line as _styled_log_line,
+)
+from .logs_pane_source_list import LogSourceList as _LogSourceList
 
 
 def _build_log_pane_load_result(
@@ -246,61 +64,6 @@ def _build_log_pane_load_result(
         selected_index=selected_index,
         detail=detail,
     )
-
-
-class _LogSourceList(OptionList):
-    """Source list that reserves vim top/bottom keys for the detail pane."""
-
-    BINDINGS = [
-        ("g", "scroll_detail_top", "Top"),
-        ("G", "scroll_detail_bottom", "Bottom"),
-        ("shift+g", "scroll_detail_bottom", "Bottom"),
-        *OptionList.BINDINGS,
-    ]
-
-    async def handle_key(self, event: events.Key) -> bool:
-        if self._handle_detail_scroll_key(event):
-            return True
-        return await super().handle_key(event)
-
-    def on_key(self, event: events.Key) -> None:
-        self._handle_detail_scroll_key(event)
-
-    def _handle_detail_scroll_key(self, event: events.Key) -> bool:
-        character = getattr(event, "character", None)
-        if event.key in ("G", "shift+g") or character == "G":
-            event.prevent_default()
-            event.stop()
-            pane = self._pane()
-            if pane is not None:
-                pane.action_scroll_to_bottom()
-            return True
-        if event.key == "g":
-            event.prevent_default()
-            event.stop()
-            pane = self._pane()
-            if pane is not None:
-                pane.action_scroll_to_top()
-            return True
-        return False
-
-    def action_scroll_detail_top(self) -> None:
-        pane = self._pane()
-        if pane is not None:
-            pane.action_scroll_to_top()
-
-    def action_scroll_detail_bottom(self) -> None:
-        pane = self._pane()
-        if pane is not None:
-            pane.action_scroll_to_bottom()
-
-    def _pane(self) -> LogsPane | None:
-        node: object | None = self.parent
-        while node is not None:
-            if isinstance(node, LogsPane):
-                return node
-            node = getattr(node, "parent", None)
-        return None
 
 
 class LogsPane(CopyModeForwardingMixin, Vertical):
