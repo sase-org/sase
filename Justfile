@@ -259,7 +259,7 @@ _lint-mypy: _setup
 
 # Validate scripts/tools directory structure (private, extracted for per-stage wrapping)
 _lint-pyscripts: _setup
-    {{ venv_bin }}/python tools/pyscripts-260619
+    {{ venv_bin }}/python tools/pyscripts-260801
 
 # Check that CHANGELOG.md contains only release-please sections (private, extracted for per-stage wrapping)
 _lint-changelog: _setup

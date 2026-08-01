@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Vendored from https://github.com/bbugyi200/dotfiles via pyvendor on 2026-06-19
+# Vendored from https://github.com/bbugyi200/dotfiles via pyvendor on 2026-08-01
 """Validate structure of scripts/ and tools/ directories in a repository.
 
 Enforces three rules:
@@ -195,7 +195,7 @@ def _has_closer_target_dir(
     script_dir: Path,
     parent_dir: Path,
     dir_name: str,
-    all_target_dirs: set[Path],
+    placement_target_dirs: set[Path],
 ) -> Path | None:
     """Check if a closer scripts/tools dir exists between ref_file and parent_dir.
 
@@ -204,7 +204,7 @@ def _has_closer_target_dir(
     current = ref_file.parent
     while current != parent_dir and current.is_relative_to(parent_dir):
         candidate = current / dir_name
-        if candidate in all_target_dirs and candidate != script_dir:
+        if candidate in placement_target_dirs and candidate != script_dir:
             return candidate
         current = current.parent
     return None
@@ -214,7 +214,9 @@ def _validate(repo_root: Path, *, verbose: bool = False) -> list[_Violation]:
     """Run all validation checks and return violations."""
     git_root = _get_git_root(repo_root)
     target_dirs = _find_target_dirs(repo_root)
-    all_target_dirs = set(target_dirs)
+    placement_target_dirs = {
+        d for d in target_dirs if not _is_python_package(d)
+    }
     violations: list[_Violation] = []
 
     if verbose:
@@ -277,7 +279,7 @@ def _validate(repo_root: Path, *, verbose: bool = False) -> list[_Violation]:
                     script_dir,
                     parent_dir,
                     dir_name,
-                    all_target_dirs,
+                    placement_target_dirs,
                 )
                 if closer is not None:
                     violations.append(
