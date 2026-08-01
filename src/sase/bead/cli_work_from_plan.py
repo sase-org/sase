@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from contextlib import ExitStack
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 
@@ -49,6 +50,9 @@ from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 from sase.sdd.store import SddStore
 
+if TYPE_CHECKING:
+    from sase.agent.launch_timing import LaunchTimingRecorder
+
 
 def work_from_plan_file(
     target: str,
@@ -60,14 +64,34 @@ def work_from_plan_file(
     parent: str | None = None,
     render: bool = True,
     expect_prompt_snapshot: bool = False,
+    timer: LaunchTimingRecorder | None = None,
 ) -> _PlanFileWorkResult:
     """Validate, archive, materialize, link, and launch one epic plan."""
+    if timer is None:
+        from sase.bead.cli_work_handler import make_bead_work_timer
+
+        owned_timer = make_bead_work_timer(target, dry_run=dry_run)
+        with owned_timer:
+            return work_from_plan_file(
+                target,
+                dry_run=dry_run,
+                yes=yes,
+                no_push=no_push,
+                yes_to_all=yes_to_all,
+                parent=parent,
+                render=render,
+                expect_prompt_snapshot=expect_prompt_snapshot,
+                timer=owned_timer,
+            )
+
     from sase.sdd.plan_archive import plan_archive_destination
     from sase.sdd.plan_validate import validate_plan_file
 
     source_path = Path(target).expanduser().resolve(strict=False)
+    timer.fields["plan_path"] = str(source_path)
     destination_name = _neutral_gate_destination_name(source_path)
-    validation = validate_plan_file(source_path, "epic", mode="launch")
+    with timer.stage("plan_validation"):
+        validation = validate_plan_file(source_path, "epic", mode="launch")
     if not validation.ok or validation.plan is None:
         if render:
             _render_validation_failure(source_path, validation)
@@ -89,14 +113,15 @@ def work_from_plan_file(
         )
 
     try:
-        location, store, workspace_dir = _resolve_context(dry_run=dry_run)
-        if dry_run:
-            _require_plan_store_health(store)
-        archive_destination = plan_archive_destination(
-            source_path,
-            store,
-            destination_name=destination_name,
-        )
+        with timer.stage("store_context"):
+            location, store, workspace_dir = _resolve_context(dry_run=dry_run)
+            if dry_run:
+                _require_plan_store_health(store)
+            archive_destination = plan_archive_destination(
+                source_path,
+                store,
+                destination_name=destination_name,
+            )
     except Exception as exc:
         raise _error_with_resume(
             f"could not resolve the SDD and bead stores: {exc}",
@@ -119,10 +144,14 @@ def work_from_plan_file(
     preview_epic_id: str | None = None
     if dry_run and parent_id is not None:
         try:
-            with BeadProject(
-                location.root,
-                beads_dirname=location.beads_dirname,
-            ) as project:
+            with ExitStack() as stack:
+                with timer.stage("bead_project_open"):
+                    project = stack.enter_context(
+                        BeadProject(
+                            location.root,
+                            beads_dirname=location.beads_dirname,
+                        )
+                    )
                 parent_issue = require_epic_parent(
                     project, parent_id, plan_path=source_path
                 )
@@ -184,7 +213,9 @@ def work_from_plan_file(
             waves=waves,
         )
 
-    with _epic_plan_launch_lock(store.repo_root):
+    with ExitStack() as stack:
+        with timer.stage("plan_launch_lock"):
+            stack.enter_context(_epic_plan_launch_lock(store.repo_root))
         return _work_from_plan_file_locked(
             location=location,
             store=store,
@@ -201,6 +232,7 @@ def work_from_plan_file(
             no_push=no_push,
             render=render,
             expect_prompt_snapshot=expect_prompt_snapshot,
+            timer=timer,
         )
 
 
@@ -221,12 +253,14 @@ def _work_from_plan_file_locked(
     no_push: bool,
     render: bool,
     expect_prompt_snapshot: bool = False,
+    timer: LaunchTimingRecorder,
 ) -> _PlanFileWorkResult:
     """Run one mutation transaction while its store launch lock is held."""
     from sase.sdd.plan_archive import archive_plan_file
 
     try:
-        _require_plan_store_health(store)
+        with timer.stage("plan_store_health_pre_archive"):
+            _require_plan_store_health(store)
     except Exception as exc:
         raise _error_with_resume(
             f"approved epic plans store is not safe to use: {exc}",
@@ -235,14 +269,15 @@ def _work_from_plan_file_locked(
         ) from exc
 
     try:
-        archive_result = archive_plan_file(
-            source_path,
-            store,
-            tier="epic",
-            destination_name=destination_name,
-            preserve_existing=True,
-            expect_prompt_snapshot=expect_prompt_snapshot,
-        )
+        with timer.stage("archive_plan_file"):
+            archive_result = archive_plan_file(
+                source_path,
+                store,
+                tier="epic",
+                destination_name=destination_name,
+                preserve_existing=True,
+                expect_prompt_snapshot=expect_prompt_snapshot,
+            )
     except Exception as exc:
         raise _error_with_resume(
             f"could not archive epic plan {source_path}: {exc}",
@@ -257,12 +292,14 @@ def _work_from_plan_file_locked(
             archived_path=archived_path,
             no_push=no_push,
         )
-    if archive_result.written and not _commit_plan_file(
-        store,
-        workspace_dir=workspace_dir,
-        plan_path=archived_path,
-        message=f"Archive approved plan {archived_path.stem}",
-    ):
+    with timer.stage("archived_plan_commit", written=archive_result.written):
+        archive_committed = not archive_result.written or _commit_plan_file(
+            store,
+            workspace_dir=workspace_dir,
+            plan_path=archived_path,
+            message=f"Archive approved plan {archived_path.stem}",
+        )
+    if not archive_committed:
         raise _error_with_resume(
             f"failed to commit archived epic plan {archived_path}",
             archived_path,
@@ -273,7 +310,8 @@ def _work_from_plan_file_locked(
         Console().print(f"[green]✓[/green] Archived        {archived_path} ({detail})")
 
     try:
-        _require_plan_store_health(store)
+        with timer.stage("plan_store_health_post_archive"):
+            _require_plan_store_health(store)
     except Exception as exc:
         raise _error_with_resume(
             f"approved epic plans store is not safe to use: {exc}",
@@ -286,11 +324,16 @@ def _work_from_plan_file_locked(
         from sase.bead.epic_from_plan import require_epic_parent
 
         linked_issue = _require_linked_epic(location, existing_epic_id, archived_path)
+        timer.fields["bead_id"] = existing_epic_id
         if parent_id is not None:
-            with BeadProject(
-                location.root,
-                beads_dirname=location.beads_dirname,
-            ) as project:
+            with ExitStack() as stack:
+                with timer.stage("bead_project_open"):
+                    project = stack.enter_context(
+                        BeadProject(
+                            location.root,
+                            beads_dirname=location.beads_dirname,
+                        )
+                    )
                 parent_issue = require_epic_parent(
                     project, parent_id, plan_path=archived_path
                 )
@@ -313,6 +356,7 @@ def _work_from_plan_file_locked(
             no_push=no_push,
             render=render,
             waves=waves,
+            timer=timer,
         )
 
     from sase.bead.cli_work_handler import launch_epic_bead_work
@@ -368,13 +412,18 @@ def _work_from_plan_file_locked(
             yes_to_all=yes_to_all,
             defer_push=True,
             before_agent_launch=publish_created_graph,
+            timer=timer,
         )
 
     try:
-        with BeadProject(
-            location.root,
-            beads_dirname=location.beads_dirname,
-        ) as project:
+        with ExitStack() as stack:
+            with timer.stage("bead_project_open"):
+                project = stack.enter_context(
+                    BeadProject(
+                        location.root,
+                        beads_dirname=location.beads_dirname,
+                    )
+                )
             created = create_and_launch_epic_from_plan(
                 project,
                 plan_path=archived_path,
@@ -385,7 +434,9 @@ def _work_from_plan_file_locked(
                 store=store,
                 primary_root=workspace_dir,
                 expect_prompt_snapshot=expect_prompt_snapshot,
+                timer=timer,
             )
+            timer.fields["bead_id"] = created.epic.id
     except Exception as exc:
         retry_requires_push = False
         detail = str(exc)
@@ -440,6 +491,7 @@ def _resume_linked_epic(
     no_push: bool,
     render: bool,
     waves: tuple[tuple[str, ...], ...],
+    timer: LaunchTimingRecorder,
 ) -> _PlanFileWorkResult:
     return _resume_linked_epic_impl(
         location,
@@ -455,6 +507,7 @@ def _resume_linked_epic(
         checkpoint_and_publish_graph=_checkpoint_and_publish_graph,
         publish_epic_rollback=_publish_epic_rollback,
         push_store_after_launch=_push_store_after_launch,
+        timer=timer,
     )
 
 

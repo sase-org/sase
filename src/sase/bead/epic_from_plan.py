@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.bead.cli_work_handler import BeadWorkError
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType
@@ -13,10 +14,24 @@ from sase.bead.phase_description import generated_phase_description
 from sase.bead.project import BeadProject
 
 if TYPE_CHECKING:
+    from sase.agent.launch_timing import LaunchTimingRecorder
     from sase.sdd.store import SddStore
 
 type PlanUpdateCommitter = Callable[[Path, str, str], bool]
 type EpicWorkLauncher = Callable[[BeadProject, str], bool]
+
+
+@contextmanager
+def _timed_stage(
+    timer: LaunchTimingRecorder | None,
+    name: str,
+    **fields: Any,
+) -> Iterator[None]:
+    if timer is None:
+        yield
+        return
+    with timer.stage(name, **fields):
+        yield
 
 
 class EpicFromPlanError(RuntimeError):
@@ -58,6 +73,7 @@ def create_and_launch_epic_from_plan(
     store: SddStore | None = None,
     primary_root: Path | None = None,
     expect_prompt_snapshot: bool = False,
+    timer: LaunchTimingRecorder | None = None,
 ) -> _EpicFromPlanResult:
     """Create an epic DAG, link the plan, and launch ``sase bead work``.
 
@@ -110,49 +126,54 @@ def create_and_launch_epic_from_plan(
     plan_link_update_attempted = False
     plan_link_committed = False
     try:
-        epic = proj.create(
-            title=plan.title,
-            issue_type=IssueType.PLAN,
-            parent_id=parent_id,
-            description=plan.goal,
-            design=plan_ref,
-            tier=BeadTier.EPIC,
-            changespec_name=plan.changespec or "",
-            changespec_bug_id=plan.bug_id or "",
-            model=plan.model or "",
-            created_by=resolve_bead_creator(
+        with _timed_stage(timer, "epic_creation"):
+            epic = proj.create(
+                title=plan.title,
                 issue_type=IssueType.PLAN,
-                plan_proposed_by=plan.proposed_by,
-            ),
-        )
+                parent_id=parent_id,
+                description=plan.goal,
+                design=plan_ref,
+                tier=BeadTier.EPIC,
+                changespec_name=plan.changespec or "",
+                changespec_bug_id=plan.bug_id or "",
+                model=plan.model or "",
+                created_by=resolve_bead_creator(
+                    issue_type=IssueType.PLAN,
+                    plan_proposed_by=plan.proposed_by,
+                ),
+            )
+        if timer is not None:
+            timer.fields["bead_id"] = epic.id
 
         phase_by_frontmatter_id: dict[str, Issue] = {}
         phases: list[Issue] = []
-        for phase_spec in plan.phases:
-            # Core inherits the epic creator for phases, keeping the complete
-            # generated DAG attributed to one plan proposer.
-            phase = proj.create(
-                title=phase_spec.title,
-                issue_type=IssueType.PHASE,
-                parent_id=epic.id,
-                description=phase_spec.description
-                or generated_phase_description(plan_ref, phase_spec.id),
-                model=phase_spec.model or "",
-                size=phase_spec.size,
-            )
-            phases.append(phase)
-            phase_by_frontmatter_id[phase_spec.id] = phase
+        with _timed_stage(timer, "phase_creation", phase_count=len(plan.phases)):
+            for phase_spec in plan.phases:
+                # Core inherits the epic creator for phases, keeping the complete
+                # generated DAG attributed to one plan proposer.
+                phase = proj.create(
+                    title=phase_spec.title,
+                    issue_type=IssueType.PHASE,
+                    parent_id=epic.id,
+                    description=phase_spec.description
+                    or generated_phase_description(plan_ref, phase_spec.id),
+                    model=phase_spec.model or "",
+                    size=phase_spec.size,
+                )
+                phases.append(phase)
+                phase_by_frontmatter_id[phase_spec.id] = phase
 
         dependencies: list[Dependency] = []
-        for phase_spec in plan.phases:
-            phase = phase_by_frontmatter_id[phase_spec.id]
-            for dependency_id in phase_spec.depends_on:
-                dependencies.append(
-                    proj.add_dependency(
-                        phase.id,
-                        phase_by_frontmatter_id[dependency_id].id,
+        with _timed_stage(timer, "dependency_creation"):
+            for phase_spec in plan.phases:
+                phase = phase_by_frontmatter_id[phase_spec.id]
+                for dependency_id in phase_spec.depends_on:
+                    dependencies.append(
+                        proj.add_dependency(
+                            phase.id,
+                            phase_by_frontmatter_id[dependency_id].id,
+                        )
                     )
-                )
 
         result = _EpicFromPlanResult(
             epic=epic,
@@ -170,29 +191,31 @@ def create_and_launch_epic_from_plan(
 
         archived_prompt = archived_prompt_path_for_plan(plan_path)
         plans_root = store.kind_root("plans") if store is not None else plan_path.parent
-        linked_content = project_plan_header_sections(
-            linked_content,
-            sdd_dir=store.sdd_dir if store is not None else plans_root,
-            plan_path=plan_path,
-            plans_root=plans_root,
-            prompt_path=(
-                archived_prompt
-                if expect_prompt_snapshot or archived_prompt.is_file()
-                else None
-            ),
-            store=store,
-            primary_root=primary_root,
-        )
+        with _timed_stage(timer, "header_projection"):
+            linked_content = project_plan_header_sections(
+                linked_content,
+                sdd_dir=store.sdd_dir if store is not None else plans_root,
+                plan_path=plan_path,
+                plans_root=plans_root,
+                prompt_path=(
+                    archived_prompt
+                    if expect_prompt_snapshot or archived_prompt.is_file()
+                    else None
+                ),
+                store=store,
+                primary_root=primary_root,
+            )
         plan_link_update_attempted = True
-        if not commit_plan_update(
-            plan_path,
-            linked_content,
-            f"Link approved epic plan to its bead: {plan_path.stem}",
-        ):
+        with _timed_stage(timer, "plan_link_commit"):
+            plan_link_committed = commit_plan_update(
+                plan_path,
+                linked_content,
+                f"Link approved epic plan to its bead: {plan_path.stem}",
+            )
+        if not plan_link_committed:
             raise EpicFromPlanError(
                 f"failed to commit bead_id {epic.id} to approved plan {plan_path}"
             )
-        plan_link_committed = True
         launched = launch_work(proj, epic.id)
         if not launched:
             raise EpicFromPlanError(

@@ -88,20 +88,24 @@ class BeadWorkError(RuntimeError):
         self.retry_requires_push = retry_requires_push
 
 
-def _make_bead_work_timer(bead_id: str, *, dry_run: bool) -> Any:
+def make_bead_work_timer(target: str, *, dry_run: bool) -> Any:
     """Build a launch timer promoted to info logs by ``SASE_BEAD_WORK_TIMING``."""
     from sase.agent.launch_timing import LaunchTimingRecorder
+    from sase.bead.cli_work_from_plan_helpers import is_plan_file_target
+
+    identity_field = "plan_path" if is_plan_file_target(target) else "bead_id"
 
     return LaunchTimingRecorder(
         "bead_work",
-        {"bead_id": bead_id, "dry_run": dry_run},
+        {identity_field: target, "dry_run": dry_run},
         info_env_vars=(BEAD_WORK_TIMING_ENV,),
+        durable=True,
     )
 
 
 def handle_bead_work(args: argparse.Namespace) -> None:
     """Dispatch CLI work while preserving the original public entry point."""
-    dispatch_bead_work(args, timer_factory=_make_bead_work_timer)
+    dispatch_bead_work(args, timer_factory=make_bead_work_timer)
 
 
 # Compatibility aliases for callers that imported the former private helpers.
@@ -150,7 +154,7 @@ def launch_epic_bead_work(
     process so host-side callers can roll back newly-created epic beads.
     """
     if timer is None:
-        owned_timer = _make_bead_work_timer(epic_id, dry_run=dry_run)
+        owned_timer = make_bead_work_timer(epic_id, dry_run=dry_run)
         with owned_timer:
             return launch_epic_bead_work(
                 proj,

@@ -13,6 +13,7 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 _DEFAULT_TIMING_ENV = "SASE_AGENT_LAUNCH_TIMING"
+_DEFAULT_SLOW_STAGE_THRESHOLD_SECONDS = 30.0
 _TRUTHY = {"1", "true", "yes", "on"}
 
 
@@ -37,6 +38,7 @@ class LaunchTimingRecorder:
     fields: dict[str, Any] = field(default_factory=dict)
     info_env_vars: tuple[str, ...] = (_DEFAULT_TIMING_ENV,)
     durable: bool = False
+    slow_stage_threshold_seconds: float = _DEFAULT_SLOW_STAGE_THRESHOLD_SECONDS
 
     def __post_init__(self) -> None:
         self._start_wall = time.time()
@@ -59,8 +61,12 @@ class LaunchTimingRecorder:
         finally:
             elapsed_ms = (time.perf_counter() - start) * 1000.0
             record = {"stage": name, "elapsed_ms": elapsed_ms, **fields}
+            if elapsed_ms >= self.slow_stage_threshold_seconds * 1000.0:
+                record["slow_stage"] = True
             self._stages.append(record)
             self._log("stage", record)
+            if record.get("slow_stage"):
+                self._warn_slow_stage(record)
 
     def mark(self, name: str, **fields: Any) -> None:
         record = {"stage": name, "elapsed_ms": 0.0, **fields}
@@ -75,6 +81,9 @@ class LaunchTimingRecorder:
         record = {
             "total_ms": total_ms,
             "stage_count": len(self._stages),
+            "slow_stage_count": sum(
+                bool(stage.get("slow_stage")) for stage in self._stages
+            ),
             **self.fields,
             **fields,
         }
@@ -87,6 +96,24 @@ class LaunchTimingRecorder:
         log.debug("agent_launch_timing %s", payload)
         if self._info_enabled:
             log.info("agent_launch_timing %s", payload)
+
+    def _warn_slow_stage(self, record: dict[str, Any]) -> None:
+        try:
+            target = (
+                self.fields.get("bead_id")
+                or self.fields.get("plan_path")
+                or self.fields.get("target")
+                or "unknown"
+            )
+            log.warning(
+                "slow_launch_stage operation=%s stage=%s elapsed_ms=%.1f target=%s",
+                self.operation,
+                record["stage"],
+                record["elapsed_ms"],
+                target,
+            )
+        except Exception:
+            log.debug("slow launch stage warning failed", exc_info=True)
 
     def _write_durable_summary(self, record: dict[str, Any]) -> None:
         try:

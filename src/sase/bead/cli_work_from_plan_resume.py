@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import ExitStack
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from rich.console import Console
 
@@ -19,6 +20,9 @@ from sase.bead.cli_work_from_plan_types import PlanFileWorkError, PlanFileWorkRe
 from sase.bead.model import BeadTier, IssueType
 from sase.bead.project import BeadProject
 from sase.sdd.store import SddStore
+
+if TYPE_CHECKING:
+    from sase.agent.launch_timing import LaunchTimingRecorder
 
 
 class _CheckpointAndPublishGraph(Protocol):
@@ -52,14 +56,19 @@ def resume_linked_epic(
     checkpoint_and_publish_graph: _CheckpointAndPublishGraph,
     publish_epic_rollback: Callable[[SddStore], bool],
     push_store_after_launch: _PushStoreAfterLaunch,
+    timer: LaunchTimingRecorder,
 ) -> PlanFileWorkResult:
     from sase.bead.cli_work_handler import BeadWorkError, launch_epic_bead_work
 
     try:
-        with BeadProject(
-            location.root,
-            beads_dirname=location.beads_dirname,
-        ) as project:
+        with ExitStack() as stack:
+            with timer.stage("bead_project_open"):
+                project = stack.enter_context(
+                    BeadProject(
+                        location.root,
+                        beads_dirname=location.beads_dirname,
+                    )
+                )
             try:
                 issue = project.show(epic_id)
             except KeyError as exc:
@@ -107,6 +116,7 @@ def resume_linked_epic(
                 yes_to_all=yes_to_all,
                 defer_push=True,
                 before_agent_launch=publish_resumed_graph,
+                timer=timer,
             )
     except PlanFileWorkError:
         raise

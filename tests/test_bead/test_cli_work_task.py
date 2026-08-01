@@ -161,6 +161,31 @@ def test_task_work_dry_run_is_read_only(
     assert f"#bd/work_task:{task_id}" in output
 
 
+def test_task_work_persists_durable_stage_timing(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_id = seed_task(project_dir)
+    timing_path = project_dir / "launch_timing.jsonl"
+    monkeypatch.setenv("SASE_TUI_LAUNCH_TIMING_PATH", str(timing_path))
+    monkeypatch.delenv("SASE_BEAD_WORK_TIMING", raising=False)
+
+    bead_cli.handle_bead_work(make_args(task_id, dry_run=True))
+
+    record = json.loads(timing_path.read_text(encoding="utf-8"))
+    stage_names = {stage["stage"] for stage in record["stages"]}
+    assert record["operation"] == "bead_work"
+    assert record["bead_id"] == task_id
+    assert {
+        "project_open",
+        "initial_show",
+        "plan_launch_lock",
+        "xprompt_lookup",
+        "vcs_context",
+        "prompt_render",
+    } <= stage_names
+
+
 def test_in_progress_task_with_live_assignee_is_idempotent_success(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

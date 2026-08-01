@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -98,6 +99,55 @@ def test_plan_file_mode_creates_links_and_launches_in_tree(
             PhaseSize.MEDIUM,
             PhaseSize.LARGE,
         ]
+
+
+def test_plan_file_mode_persists_durable_stage_timing(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = project_dir / "incoming" / "timed.md"
+    source.parent.mkdir()
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+    timing_path = project_dir / "launch_timing.jsonl"
+    monkeypatch.setenv("SASE_TUI_LAUNCH_TIMING_PATH", str(timing_path))
+    monkeypatch.delenv("SASE_BEAD_WORK_TIMING", raising=False)
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._commit_plan_file",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        lambda _project, _epic_id, **_kwargs: True,
+    )
+
+    result = work_from_plan_file(
+        str(source),
+        dry_run=False,
+        yes=True,
+        no_push=False,
+        render=False,
+    )
+
+    record = json.loads(timing_path.read_text(encoding="utf-8"))
+    stage_names = {stage["stage"] for stage in record["stages"]}
+    assert record["operation"] == "bead_work"
+    assert record["bead_id"] == result.epic_id
+    assert {
+        "plan_launch_lock",
+        "plan_store_health_pre_archive",
+        "archive_plan_file",
+        "archived_plan_commit",
+        "bead_project_open",
+        "epic_creation",
+        "phase_creation",
+        "dependency_creation",
+        "header_projection",
+        "plan_link_commit",
+    } <= stage_names
 
 
 def test_plan_file_creates_hierarchical_child_epic_from_managed_parent(

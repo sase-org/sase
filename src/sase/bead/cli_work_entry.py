@@ -68,8 +68,9 @@ def handle_bead_work(
             if json_output
             else contextlib.nullcontext()
         )
+        timer = timer_factory(target, dry_run=dry_run)
         try:
-            with output_context:
+            with timer, output_context:
                 result = work_from_plan_file(
                     target,
                     dry_run=dry_run,
@@ -79,6 +80,7 @@ def handle_bead_work(
                     parent=parent,
                     render=not json_output,
                     expect_prompt_snapshot=expect_prompt_snapshot,
+                    timer=timer,
                 )
         except PlanFileWorkError as exc:
             finish_epic_launch(
@@ -186,7 +188,12 @@ def handle_bead_work(
                     else contextlib.nullcontext()
                 )
                 try:
-                    with epic_plan_launch_lock(proj.root_dir), output_context:
+                    with contextlib.ExitStack() as lock_stack:
+                        with timer.stage("plan_launch_lock"):
+                            lock_stack.enter_context(
+                                epic_plan_launch_lock(proj.root_dir)
+                            )
+                        lock_stack.enter_context(output_context)
                         task_result = cli_work_handler.launch_task_bead_work(
                             proj,
                             target,
@@ -253,7 +260,10 @@ def handle_bead_work(
                 else contextlib.nullcontext()
             )
             try:
-                with epic_plan_launch_lock(proj.root_dir), output_context:
+                with contextlib.ExitStack() as lock_stack:
+                    with timer.stage("plan_launch_lock"):
+                        lock_stack.enter_context(epic_plan_launch_lock(proj.root_dir))
+                    lock_stack.enter_context(output_context)
                     launched = cli_work_handler.launch_epic_bead_work(
                         proj,
                         target,

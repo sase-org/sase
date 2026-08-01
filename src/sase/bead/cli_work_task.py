@@ -75,6 +75,7 @@ def launch_task_bead_work(
             "bead_work",
             {"bead_id": task_id, "dry_run": dry_run},
             info_env_vars=("SASE_BEAD_WORK_TIMING",),
+            durable=True,
         )
         with owned_timer:
             return launch_task_bead_work(
