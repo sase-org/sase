@@ -1141,5 +1141,5 @@ committed plan path into planner metadata.
 There is no planner-side subprocess fallback and no foreground path. If the host cannot resolve the primary workspace,
 finds the approved-epic plans store unusable, or fails to submit the task, approval fails loudly and reports the
 `sase bead work <plan> --yes-to-all` resume command rather than launching invisibly. After a successful handoff, the
-planner writes its prompt snapshot, finishes as `EPIC APPROVED`, and does not race the command for ownership of the epic
-plan file.
+planner publishes its prompt archive entry, finishes as `EPIC APPROVED`, and does not race the command for ownership of
+the epic plan file.

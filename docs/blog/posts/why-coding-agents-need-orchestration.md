@@ -162,7 +162,7 @@ Here is the SASE loop:
 1. You type a prompt, usually with one or more XPrompt references.
 2. SASE expands the prompt, strips directives, resolves workspace references, and launches one or more agents.
 3. Each agent runs in a managed workspace and writes prompt, transcript, status, and artifacts.
-4. If the work needs planning, SASE records it in `sdd/` as a prompt snapshot, tale, epic, or bead graph.
+4. If the work needs planning, SASE records the prompt archive, plan, and bead graph as durable project state.
 5. ACE shows the live state. AXE watches the background state. Plugins translate VCS and notification operations.
 
 The docs that matter most at first are [XPrompts](../../xprompt.md), [SDD](../../sdd.md), [Beads](../../beads.md),
@@ -301,10 +301,12 @@ projects, or split `--plans` and `--research` roots for newly initialized or mig
 
 The core logical roots are:
 
-- `<plans-root>/<YYYYMM>/prompts/`: expanded prompt snapshots. XPrompts are resolved, directives are stripped, and the
-  exact prompt that launched work is saved with metadata.
 - `<plans-root>/<YYYYMM>/`: approved implementation plans, classified by `tier: tale|epic`. Tales are focused plans;
   epics are executable multi-phase plans that can be turned into Beads and driven by `sase bead work`.
+- `<agents-sidecar>/prompts/<YYYYMM>/`: canonical committed run prompts. XPrompts are resolved, directives are stripped,
+  and prompt-linked artifacts are made clickable.
+- `<agents-sidecar>/artifacts/<YYYYMM>/`: copied prompt-linked bytes, named with a SHA-256 prefix; clean tracked files
+  link to hosted source blobs instead of being duplicated.
 - `beads/`: git-portable issue/dependency state under the resolved SDD store, with bead data, events, JSONL
   compatibility output, and the SQLite query cache.
 
@@ -332,7 +334,7 @@ plans, ChangeSpecs, ACE, AXE, and local workspace orchestration.
 ARCHITECTURE DIAGRAM BRIEF 2 - place here after the SDD/Beads section.
 Title: "Durable work state graph"
 Shape: graph/flow diagram, not a stack.
-Nodes: user prompt -> resolved SDD prompt snapshot -> tale OR epic -> phase beads in the resolved SDD store -> agent
+Nodes: user prompt -> agents-sidecar prompt archive -> tale OR epic -> phase beads in the resolved SDD store -> agent
 runs -> commits -> ChangeSpec -> PR provider -> final archive. Add a separate standalone task bead -> one worker branch.
 Side nodes: ACE reads ChangeSpecs/agents/beads; AXE watches waits/hooks/chops; Telegram emits/receives notifications.
 Draw dependencies between phase beads clearly; reserve the `ready` label for standalone task triage.

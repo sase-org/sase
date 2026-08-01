@@ -10,6 +10,7 @@
 
 ### Features
 
+* **docs:** document the agents-sidecar prompt and artifact archive
 * **ace:** add artifact file copy actions ([fec7898](https://github.com/sase-org/sase/commit/fec7898b284d148c7c3ac2ba168ca8b6f24dfa3e))
 * **ace:** add artifact file copy representations ([132bd79](https://github.com/sase-org/sase/commit/132bd79c77d514bc109d3fecf0a6d2a4a0c0bc02))
 * **ace:** add artifact file detail panel ([f0c803a](https://github.com/sase-org/sase/commit/f0c803af859c627c92f2e52e02f7e1628d71c4b4))

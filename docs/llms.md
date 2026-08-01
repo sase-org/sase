@@ -1450,6 +1450,12 @@ examples inside code fences are not executed or rewritten. Artifact references a
 document-role, chat, artifact-file, bead, and agent references become `@path` tokens; commit and bug references become
 local locators. Unknown kinds remain unchanged as prose. Inline-code references also remain literal.
 
+During the same pass, SASE stages prompt references for later archive publication. File references are recorded in the
+workspace-local `.sase/artifacts/prompt-artifacts.jsonl` manifest. Home-directory `@path` references are copied to the
+readable working-copy tree `.sase/artifacts/home/`, external bytes are pooled by digest under `.sase/artifacts/pool/`,
+and clean tracked files in known repositories are recorded as VCS-backed rows instead of copied. The committing agent's
+prompt archive then links those rows from the agents sidecar.
+
 ### Home Mode
 
 When `is_home_mode=True`, file-reference processing skips copy side effects. This is used when the invocation doesn't

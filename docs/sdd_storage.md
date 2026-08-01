@@ -39,8 +39,8 @@ Initialized managed GitHub projects use a store record with `storage: sidecar_re
 contains a role-keyed `sidecars` map and resolved remotes. That record—not clone or remote existence—is the layout
 authority. Legacy records continue to use the single-root layout unchanged.
 
-Three role names are reserved: `plans` is the canonical plan and prompt-snapshot corpus, `beads` is the bead event
-store, and `agents` is hidden machine-level agent data that is never exposed to launched agents. Every other enabled
+Three role names are reserved: `plans` is the canonical plan corpus, `beads` is the bead event store, and `agents` is
+hidden machine-level agent data plus the canonical prompt and prompt-artifact archive. Every other enabled
 `repos.sidecar` role is a document sidecar: a month-sharded Markdown corpus labeled by its role name. A document role
 such as `designs` receives its own clone and store root, `sase repo path` resolution, doctor checks, commit routing,
 agent environment variable, plan-search kind, and ACE Plans kind. `research` is only the document role seeded by
@@ -59,14 +59,16 @@ writing a schema-2 record and resolving bead state inside the plans clone exactl
 below schema version 3, and a schema-3 record is rejected by an older `sase` install with the usual "upgrade sase"
 error—so the new build must be installed on every machine that touches a project before that project is migrated.
 
-The plans sidecar keeps monthly directories at its root (`<YYYYMM>/*.md` and `<YYYYMM>/prompts/*.md`). Every other
-document sidecar likewise keeps `<YYYYMM>/` directories at its root. The beads sidecar keeps bead state at its
-**repository root**—`config.json`, `metadata.json`, `issues.jsonl`, and `events/`—plus generated bead pages under
-`pages/`, so its clone root is itself the bead directory. Kind resolution is therefore:
+The plans sidecar keeps monthly plan directories at its root (`<YYYYMM>/*.md`). Canonical committed prompts are stored
+in the hidden agents sidecar at `prompts/<YYYYMM>/*.md`, with copied prompt-linked bytes beside them at
+`artifacts/<YYYYMM>/`. Every other document sidecar likewise keeps `<YYYYMM>/` directories at its root. The beads
+sidecar keeps bead state at its **repository root**—`config.json`, `metadata.json`, `issues.jsonl`, and `events/`—plus
+generated bead pages under `pages/`, so its clone root is itself the bead directory. Kind resolution is therefore:
 
 | Kind              | Resolved path                                                      |
 | ----------------- | ------------------------------------------------------------------ |
 | `plans`           | `<workspace>/sase/repos/plans`                                     |
+| `agents`          | `~/.sase/projects/<project-key>/repos/agents`                      |
 | `<document-role>` | `<workspace>/sase/repos/<document-role>`                           |
 | `beads`           | `<workspace>/sase/repos/beads` (schema 2: `.../repos/plans/beads`) |
 

@@ -322,7 +322,7 @@ def handle_accepted_plan(
         ctx, state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
     )
 
-    # The planner always owns its prompt snapshot. For epics, the canonical
+    # The planner always owns its prompt archive entry. For epics, the canonical
     # ``sase bead work`` command exclusively owns the plan file itself.
     from sase.sdd.files import (
         commit_sdd_store_files,
@@ -506,7 +506,7 @@ def handle_accepted_plan(
     if plan_result.action == "epic":
         if not required_sdd_commit_succeeded:
             logger.warning(
-                "Approved epic prompt snapshot could not be committed; "
+                "Approved epic prompt archive entry could not be committed; "
                 "the host-owned epic launch continues independently"
             )
         return "epic_approved"

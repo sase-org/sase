@@ -106,10 +106,11 @@ def sdd_kind_roots(base_dir: Path, kind: str) -> list[Path]:
 
 
 def sdd_prompt_roots(base_dir: Path) -> list[Path]:
-    """Return canonical nested and legacy prompt lookup roots.
+    """Return exported/historical nested and legacy prompt lookup roots.
 
-    Canonical prompt snapshots live below each plan month directory. Legacy
-    ``prompts/`` and ``specs/`` roots remain readable during migration.
+    Canonical committed run prompts live in the agents sidecar. Exported and
+    historical SDD prompt snapshots may live below each plan month directory;
+    legacy ``prompts/`` and ``specs/`` roots remain readable during migration.
     """
     roots: list[Path] = []
     seen: set[Path] = set()

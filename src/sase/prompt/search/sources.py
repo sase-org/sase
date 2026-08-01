@@ -1,7 +1,8 @@
 """Load and unify prompt hits from the SDD snapshot and local-history stores.
 
-This is the read layer: it discovers committed ``sdd/plans/*/prompts/**`` snapshots
-(across the canonical, legacy-root, and local ``.sase/sdd`` layouts), adapts the
+This is the read layer: it discovers exported and historical
+``sdd/plans/*/prompts/**`` snapshots (across the nested, legacy-root, and local
+``.sase/sdd`` layouts), adapts the
 machine-wide prompt history into the same :class:`PromptHit` shape, and collapses
 cross-store duplicates by content digest. It is read-only — neither store is
 written and no lock is taken.
@@ -56,7 +57,7 @@ def collect_prompt_hits(
 def load_sdd_prompt_hits(base_dir: Path) -> list[PromptHit]:
     """Discover and parse every SDD prompt snapshot under *base_dir*.
 
-    Discovery covers canonical ``sdd/plans/*/prompts/`` directories, the legacy root
+    Discovery covers nested ``sdd/plans/*/prompts/`` directories, the legacy root
     ``prompts/``, and the project-local ``.sase/sdd`` layout (see
     :func:`_sdd_prompt_roots`), so a normal project-root search surfaces local
     SDD snapshots alongside committed ones. Files are de-duplicated by resolved

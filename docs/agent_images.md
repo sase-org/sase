@@ -83,6 +83,50 @@ loads the row. Downstream notification plugins should continue to use `done.json
 
 Source: `src/sase/core/artifact_file_defaults.py`
 
+## Prompt Artifact Staging and Archive
+
+Launch-time prompt preprocessing also stages every resolvable prompt reference so a later commit can publish a durable
+prompt document. This staging is workspace-local and lives under:
+
+```text
+<workspace>/.sase/artifacts/
+```
+
+The directory has three responsibilities:
+
+- `home/` holds readable working copies for home-directory `@path` references. This replaces the old `.sase/home/`
+  location.
+- `pool/<sha12>-<basename>` holds immutable content-addressed copies of external file bytes. The `sha12` prefix is the
+  first twelve hexadecimal characters of the file's SHA-256 digest, and the basename is sanitized for a single path
+  component.
+- `prompt-artifacts.jsonl` records one manifest row per staged reference; `prompt-artifacts.lock` serializes concurrent
+  writers.
+
+Clean tracked files inside a known repository are recorded as VCS-backed rows instead of copied into `pool/`. External
+files are hashed and pooled unless they exceed `artifacts.capture.max_file_size_bytes`; oversized files are still hashed
+and recorded with a skip reason, but their bytes are not copied. Locator-only references such as `@agent:`, `@bug:`, and
+`@commit:` get manifest rows without file bytes.
+
+When `sase commit` publishes the canonical prompt archive, it reads the manifest rows for that run, copies pooled files
+to the agents sidecar under `artifacts/<YYYYMM>/`, and writes the prompt to `prompts/<YYYYMM>/<name>.md`. The prompt's
+`ARTIFACTS` header section lists exactly the references made clickable in the body. VCS-backed rows link to hosted
+source blobs at the recorded revision, while copied external files link to
+`../../artifacts/<YYYYMM>/<sha12>-<basename>`.
+
+The local pool is a cache for publication, not the permanent archive. `artifacts.capture.pool_max_bytes` controls when
+SASE opportunistically garbage-collects pool files whose manifest rows all belong to terminal runs that have already
+published their prompt archive. Manifest rows are retained so validation can still explain what happened.
+
+If an older workspace still has `.sase/home/`, leave it in place until no live agent can be using it. `sase doctor`
+reports it as `workspace.legacy_artifact_home` and tells you the exact directory to remove after that check.
+
+Sources:
+
+- `src/sase/core/prompt_artifact_staging.py`
+- `src/sase/agents_sync/prompt_archive/publish.py`
+- `src/sase/agents_sync/prompt_archive/validation.py`
+- `src/sase/doctor/checks_workspace.py`
+
 ## VCS-Backed Artifact Files
 
 Automatic capture at agent finalization means _authorship_, and it never copies what version control already stores.

@@ -20,9 +20,9 @@ the state of five concurrent workstreams -- sase replaces that manual overhead w
 - **XPrompts instead of ad-hoc prompts** -- Reusable, composable prompt templates with YAML front matter replace the
   prompt fragments scattered across shell history and scratch files.
 - **True SDD instead of plan mode** -- Plan mode produces ephemeral plans that vanish when the session ends. sase
-  persists prompt snapshots plus ordinary tales and executable epics under `sdd/`. The `sdd/research/` corpus keeps
-  exploratory notes with that same repository-local history. For larger efforts, epic files carry a bead ID in their
-  frontmatter that links them to an epic-tier bead, and each phase of the epic gets its own bead whose ID appears in the
+  persists committed prompts in the agents sidecar, ordinary tales and executable epics in the plans store, and
+  exploratory notes in the `sdd/research/` corpus. For larger efforts, epic files carry a bead ID in their frontmatter
+  that links them to an epic-tier bead, and each phase of the epic gets its own bead whose ID appears in the
   corresponding commit messages -- creating a traceable chain from epic to phase to commit. For smaller tales, commit
   messages include a `SASE_PLAN=<path>` tag pointing back to the plan file. The result is spec-driven development where
   the full history of intent, decomposition, and execution is preserved and queryable, not trapped in a single agent

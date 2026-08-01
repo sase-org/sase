@@ -60,12 +60,16 @@ Run `sase prompt <command> --help` for the full flag list of any subcommand.
 stores at once** and ranks repo-relevant snapshots first, so it answers "I remember a prompt about X — find it, whether
 I snapshotted it into this repo or just ran it once last month."
 
-- **Repo SDD snapshots** — canonical `plans/*/prompts/*.md` snapshots below an SDD root (plus legacy top-level
-  `prompts/` and `specs/` layouts). Search currently discovers SDD files relative to the current directory; it does not
-  resolve a split store automatically. For a split store, change to the plans root first with
+- **Repo SDD snapshots** — exported or historical `plans/*/prompts/*.md` snapshots below an SDD root (plus legacy
+  top-level `prompts/` and `specs/` layouts). Search currently discovers SDD files relative to the current directory; it
+  does not resolve a split store automatically. For a split store, change to the plans root first with
   `cd "$(sase repo path plans)"`, then run `sase prompt search ...`. These curated snapshots always **rank first**.
 - **Local prompt history** — the machine-wide `~/.sase/prompt_history/` shard store: every prompt ever submitted on this
   machine, across all repos.
+
+Committed run prompts now live in the agents sidecar under `prompts/<YYYYMM>/`. Use `sase agent prompts list`,
+`sase agent prompts show <prompt>`, and `sase agent prompts validate` for that canonical archive; `sase prompt search`
+remains focused on local prompt history plus exported or historical SDD snapshots.
 
 Matching is a **case-insensitive substring** test of the literal query (no regex or globbing) against every
 human-readable field — title, body, locator/ID, snapshot path, `plan:` link, and tags — so each hit can report _why_ it

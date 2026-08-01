@@ -37,12 +37,26 @@ def render_root_page(manifests: tuple[V2OwnerManifest, ...]) -> str:
     lines = [
         "# SASE Agent Hoods",
         "",
-        "Deterministic, owner-sharded snapshots published by SASE.",
+        "Deterministic, owner-sharded snapshots and canonical prompt archives "
+        "published by SASE.",
         "",
         _AGENTS_DIRECTORY_MAP_MARKDOWN,
         "",
         f"**Owners:** {len(users)} · **Machines:** {len(manifests)} · "
         f"**Hoods:** {hood_count} · **Runs:** {run_count}",
+        "",
+        "## Prompt And Artifact Archive",
+        "",
+        "`prompts/<YYYYMM>/<name>.md` stores committed run prompts. Prompt "
+        "documents link back to their plan when one exists, link to the "
+        "published agent page, and keep authored `@...` references readable "
+        "while making staged artifacts clickable.",
+        "",
+        "`artifacts/<YYYYMM>/<sha12>-<basename>` stores copied prompt-linked "
+        "artifact bytes. The `sha12` prefix is the first twelve hexadecimal "
+        "characters of the file's SHA-256 digest. Version-control-backed "
+        "references link to hosted repository blobs instead of duplicating "
+        "bytes here.",
         "",
     ]
     if not users:

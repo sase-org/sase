@@ -1,8 +1,8 @@
 # Agent Hood Synchronization
 
-SASE publishes deterministic project-scoped agent-hood snapshots through each managed project's hidden `agents` sidecar.
-The machine-level clone lives under `~/.sase/projects/<project-key>/repos/agents`; it is never exposed to launched
-agents or copied into numbered workspaces.
+SASE publishes deterministic project-scoped agent-hood snapshots and canonical prompt archives through each managed
+project's hidden `agents` sidecar. The machine-level clone lives under `~/.sase/projects/<project-key>/repos/agents`; it
+is never exposed to launched agents or copied into numbered workspaces.
 
 ## Privacy and configuration
 
@@ -45,6 +45,9 @@ agents/<global-name>/
   commits.json
   chat.md                 # only when readable
 families/<global-family>.md
+prompts/<YYYYMM>/<name>.md
+prompts/<YYYYMM>/README.md
+artifacts/<YYYYMM>/<sha12>-<basename>
 ```
 
 An artifact reference such as `@agent:foo` or `@agent:<username>.<machine>.foo` addresses
@@ -61,6 +64,28 @@ publication.
 The allowlist excludes PIDs, workspace numbers, credentials, absolute paths, checkout paths, and other host-local
 execution state. A publication is fully built and validated before rollback-safe atomic writes begin, so malformed input
 cannot leave a half-rendered hood.
+
+## Prompt and artifact archive
+
+The agents sidecar is also the canonical home for committed run prompts. `sase commit` publishes the run's authored
+prompt to `prompts/<YYYYMM>/<name>.md`; plan-backed runs use the plan slug as the filename, and runs without a plan use
+the committing agent's global lane name. Each prompt document has the same header-block grammar as plans:
+
+- `PLAN` links back to the plans sidecar when the run has a plan.
+- `AGENTS` links to the published agent page for the run.
+- `ARTIFACTS` links to the prompt references SASE could make durable.
+
+Launch-time staging records prompt references in the workspace-local `.sase/artifacts/prompt-artifacts.jsonl` manifest.
+When a prompt archive is published, external file bytes are copied from `.sase/artifacts/pool/` into the agents sidecar
+under `artifacts/<YYYYMM>/<sha12>-<basename>`. The prefix is the first twelve hexadecimal characters of the file's
+SHA-256 digest, so identical bytes publish once and differing bytes do not overwrite each other. Clean tracked files
+inside known repositories are not duplicated; their prompt links point to hosted source blobs at the recorded revision.
+Non-file references such as `@agent:`, `@bug:`, and `@commit:` remain links without copied bytes.
+
+Use `sase agent prompts list` to browse the archive, `sase agent prompts show <prompt>` to inspect a prompt, and
+`sase agent prompts validate` to verify prompt headers, artifact links, digest-bearing filenames, local manifests, and
+plan cross-links. `sase agent prompts migrate` reports historical plans-sidecar prompts by default and moves them to
+this archive only with `--write`.
 
 Existing top-level v1 `manifest.json` and `agents/<machine-qualified-name>` bundles are left untouched. Sync can still
 read those records for compatibility, but it no longer creates or refreshes v1 transport data. `sase agent retire-v1` is

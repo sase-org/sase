@@ -8,6 +8,7 @@ import subprocess
 
 import pytest
 
+from sase._linked_repo_config import DEFAULT_AGENTS_DESCRIPTION
 from sase.main.init_onboarding import run_init_onboarding
 from sase.main.init_registry import InitCommandSpec
 from sase.main.repo_init_handler import plan_repo_init, run_repo_init
@@ -49,7 +50,7 @@ def test_repo_init_writes_managed_sidecar_config_local_store_and_gitignore(
         "    - name: research\n"
         "      description: Durable SASE research reports and generated media.\n"
         "    - name: agents\n"
-        "      description: Hidden sidecar that stores commit-associated sase agent data for this project.\n"
+        f"      description: {DEFAULT_AGENTS_DESCRIPTION}\n"
     )
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == "/sase/repos/\n"
     assert (store_root / "README.md").is_file()

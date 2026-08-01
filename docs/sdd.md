@@ -1,24 +1,25 @@
 # Spec-Driven Development (SDD)
 
-SDD is sase's system for persisting the intent behind agent work. When an agent submits a plan for approval, SDD can
-capture both the expanded prompt snapshot and the approved planning artifact, creating a traceable chain from intent to
-execution. In this guide, "plan-like artifact" means a tale or epic.
+SDD is sase's system for persisting the intent behind agent work. When an agent submits a plan for approval, SDD keeps
+the approved planning artifact in the plans store and links it to the canonical prompt archive in the agents sidecar,
+creating a traceable chain from intent to execution. In this guide, "plan-like artifact" means a tale or epic.
 
 ## Why SDD Exists
 
 Agent plans are ephemeral by default -- they live in a single session's context window and vanish when the session ends.
-SDD fixes this by writing prompt snapshots and plans to disk as first-class artifacts:
+SDD fixes this by writing plans and linked prompt archives to disk as first-class artifacts:
 
-- **Prompts** record the full expanded prompt the agent received, so the "why" behind the work is preserved.
+- **Prompts** record the full prompt the agent received in the agents sidecar's `prompts/<YYYYMM>/` archive, so the
+  "why" behind the work is preserved.
 - **Tales** record ordinary approved implementation plans, so decomposition decisions are queryable after the fact.
 - **Epics** record executable multi-phase plans that can be handed to `sase bead work`.
 - **Research** records exploratory findings, prior art, options, critiques, and recommendations that inform later work.
 - **Beads** provide structured issue tracking that links SDD artifacts to execution via plan-like bead tiers and phase
   or epic IDs in `SASE_BEAD=` commit footers.
 
-Together, these create an audit trail from prompt snapshots to planning artifacts and supporting context. Tales and
-epics can link into the bead hierarchy and phase commits; research notes preserve the longer-lived context those plans
-depend on.
+Together, these create an audit trail from prompt archives to planning artifacts and supporting context. Tales and epics
+can link into the bead hierarchy and phase commits; research notes preserve the longer-lived context those plans depend
+on.
 
 ## Provider-Owned Storage
 
@@ -54,9 +55,9 @@ current month directory; SASE does not write research files automatically.
 
 ## How SDD Works
 
-### Prompt Generation
+### Prompt Archive Generation
 
-When a submitted plan is accepted, SDD generates a prompt snapshot by:
+When a submitted plan is accepted, SDD prepares the prompt archive document by:
 
 1. Expanding all `#xprompt` references in the original prompt
 2. Stripping `%directives` (`%model`, `%id`, `%wait`, etc.)
@@ -70,18 +71,18 @@ The approved plan artifact is:
 
 1. Annotated with a `create_time` frontmatter field
 2. Given a required `tier: tale|epic` frontmatter value and written to `<plans-root>/{YYYYMM}/{plan_name}.md`, where
-   `{YYYYMM}` is derived from the current date. Its prompt snapshot is written beside it at
-   `<plans-root>/{YYYYMM}/prompts/{plan_name}.md`.
+   `{YYYYMM}` is derived from the current date. Its `PROMPT` header links to the canonical prompt archive entry in the
+   agents sidecar, `prompts/{YYYYMM}/{plan_name}.md`, when that prompt has been published.
 
-For tales, the agent runner promotes the plan and prompt snapshot together. For epics, the runner writes and commits
-only the prompt snapshot; the canonical `sase bead work <plan-file>` command owns archiving and linking the plan itself.
-This keeps host approval and the finishing planner agent from writing the same plan concurrently.
+For tales, the agent runner promotes the plan and publishes the prompt archive together. For epics, the planner prompt
+is published to the agents sidecar while the canonical `sase bead work <plan-file>` command owns archiving and linking
+the plan itself. This keeps host approval and the finishing planner agent from writing the same plan concurrently.
 
-Prompt snapshots, plans, and research notes are organized into `YYYYMM` subdirectories (for example, `202603/`) based on
-the creation date. Prompt snapshots are nested under each plan month at `<plans-root>/<YYYYMM>/prompts/`. This keeps
-paired artifacts together while plan discovery remains limited to `<plans-root>/<YYYYMM>/*.md`. Resolve the plans root
-with `sase repo path plans` or `SASE_SDD_PLANS_DIR`; historical top-level `prompts/` and `specs/` aliases remain
-readable for compatibility.
+Plans and research notes are organized into `YYYYMM` subdirectories (for example, `202603/`) based on the creation date.
+Canonical prompts are organized in the agents sidecar under `prompts/<YYYYMM>/`, with copied prompt-linked bytes under
+sibling `artifacts/<YYYYMM>/`. Plan discovery remains limited to `<plans-root>/<YYYYMM>/*.md`. Resolve the plans root
+with `sase repo path plans` or `SASE_SDD_PLANS_DIR`; historical plans-sidecar prompt directories, top-level `prompts/`,
+and `specs/` aliases remain readable for compatibility.
 
 Planning artifacts may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to
 the bead issue tracker. For an epic, `sase bead work <plan-file>` writes `bead_id` after it creates the epic and phase
@@ -116,16 +117,17 @@ invisible planner-side subprocess. After a successful handoff, the planner finis
 without launching a coder. `sase plan reject <id-prefix>` writes the same no-feedback rejection response as the TUI,
 then attempts to dismiss and user-kill the matching planner row when it can be found.
 
-To recall prior artifacts, `sase plan search [QUERY]` searches plans, prompt snapshots, and research in the resolved SDD
-store (the `repo` source, surfaced first) plus the machine-local `~/.sase/plans/` archive. The query is optional — omit
-it to browse and filter with `--kind tale|epic|prompt|research`, `--status`, `--source`, and `--since`/`--until` date
-bounds. Results are ranked (relevance with a query, recency without) and render as colored `compact`/`full` output or as
-agent-friendly `json`/`markdown` via `--format`.
+To recall prior planning artifacts, `sase plan search [QUERY]` searches plans, research, and historical prompt snapshots
+in the resolved SDD store (the `repo` source, surfaced first) plus the machine-local `~/.sase/plans/` archive. Use
+`sase agent prompts list` and `sase agent prompts show` for the canonical agents-sidecar prompt archive. The query is
+optional — omit it to browse and filter with `--kind tale|epic|prompt|research`, `--status`, `--source`, and
+`--since`/`--until` date bounds. Results are ranked (relevance with a query, recency without) and render as colored
+`compact`/`full` output or as agent-friendly `json`/`markdown` via `--format`.
 
 ### Q&A Sections
 
 If the agent asks clarifying questions during planning (via the `/sase_questions` skill), the Q&A exchange is appended
-to the prompt snapshot so the full context of planning decisions is preserved.
+to the prompt archive document so the full context of planning decisions is preserved.
 
 Multi-round Q&A is rendered as a single merged `### Questions and Answers` section with monotonic `Q1..QN` numbering
 across all rounds (a second round of questions continues at the next free number rather than restarting at `Q1`). The
@@ -136,9 +138,9 @@ empty later note preserves the earlier value.
 
 ### Artifact Links
 
-Prompt snapshots and plan-like artifacts link to each other through ordinary Markdown bullets, so GitHub renders the
+Archived prompts and plan-like artifacts link to each other through ordinary Markdown bullets, so GitHub renders the
 counterpart as a clickable link. A plan opens with a **header block**: a contiguous run of those bullets, in the fixed
-order `PROMPT`, `PARENT`, `BEAD`, `AGENTS`, `COMMITS`, that carries the plan's full provenance.
+order `PROMPT`, `PARENT`, `BEAD`, `AGENTS`, `ARTIFACTS`, `COMMITS`, that carries the plan's full provenance.
 
 ```markdown
 ---
@@ -147,7 +149,7 @@ title: Example
 goal: Demonstrate the plan-side layout.
 ---
 
-- **PROMPT:** [sdd/plans/202605/prompts/example.md](prompts/example.md)
+- **PROMPT:** [prompts/202605/example.md](https://github.com/sase-org/sase--agents/blob/main/prompts/202605/example.md)
 - **PARENT:** [202605/parent_epic.md](https://github.com/sase-org/sase--plans/blob/main/202605/parent_epic.md)
 - **BEAD:** [sase-ai.8](https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/sase-ai.8.md)
 - **AGENTS:**
@@ -166,38 +168,42 @@ The prompt names its plan:
 create_time: 2026-07-21 12:00:00
 ---
 
-- **PLAN:** [../sdd/plans/202605/example.md](../example.md)
+- **PLAN:** [202605/example.md](https://github.com/sase-org/sase--plans/blob/main/202605/example.md)
+- **AGENTS:**
+  - [bbugyi200.athena.sase-8k.6](https://github.com/sase-org/sase--agents/blob/main/agents/bbugyi200.athena.sase-8k.6/README.md)
+- **ARTIFACTS:**
+  - [diagram.png](../../artifacts/202605/ab12cd34ef56-diagram.png)
 
-Original prompt text.
+Original prompt text with [@~/Downloads/diagram.png](../../artifacts/202605/ab12cd34ef56-diagram.png).
 ```
 
 When YAML frontmatter exists, its opening `---` remains at byte zero. The header block is the first Markdown body
 element after the closing delimiter, followed by exactly one blank line before the authored content (including an H1).
 Without frontmatter, the block starts at the first file line. `PROMPT` and `PLAN` name the linked counterpart.
 
-The text inside `[]` is the storage-layout-aware stable SDD label. For `PROMPT` and `PLAN` the href inside `()` is
-relative to the physical file containing the bullet: prompt-to-plan hrefs ascend from `prompts/`, while plan-to-prompt
-hrefs descend into it. Local `.sase/sdd` labels retain that prefix. In a flat `--plans` sidecar, the equivalent bullets
-are `- **PLAN:** [../202605/example.md](../example.md)` in the prompt and
-`- **PROMPT:** [202605/prompts/example.md](prompts/example.md)` in the plan.
+The text inside `[]` is the storage-layout-aware stable label. For current `PROMPT` and `PLAN` links, the href inside
+`()` is normally a hosted cross-repository URL: plans point at the agents sidecar's `prompts/<YYYYMM>/`, and prompts
+point back at the plans sidecar's `<YYYYMM>/*.md` file. Historical file-relative prompt-to-plan and plan-to-prompt hrefs
+remain valid and readable during migration.
 
 #### Header Block Sections
 
-| Section   | Shape               | Destination                                                           |
-| --------- | ------------------- | --------------------------------------------------------------------- |
-| `PLAN`    | one link (prompts)  | file-relative href inside the plans store                             |
-| `PROMPT`  | one link (plans)    | file-relative href inside the plans store                             |
-| `PARENT`  | one link            | hosted plan URL in the plans sidecar, else a file-relative href       |
-| `BEAD`    | one link or label   | hosted bead page when available and not disproved by a readable store |
-| `AGENTS`  | ordered sub-bullets | hosted agent README URL in the agents sidecar, else an unlinked name  |
-| `COMMITS` | ordered sub-bullets | hosted commit URL in the primary repository, else an unlinked SHA     |
+| Section     | Shape               | Destination                                                              |
+| ----------- | ------------------- | ------------------------------------------------------------------------ |
+| `PLAN`      | one link (prompts)  | hosted plan URL in the plans sidecar, else a historical relative href    |
+| `PROMPT`    | one link (plans)    | hosted prompt URL in the agents sidecar, else a historical relative href |
+| `PARENT`    | one link            | hosted plan URL in the plans sidecar, else a file-relative href          |
+| `BEAD`      | one link or label   | hosted bead page when available and not disproved by a readable store    |
+| `AGENTS`    | ordered sub-bullets | hosted agent README URL in the agents sidecar, else an unlinked name     |
+| `ARTIFACTS` | ordered sub-bullets | hosted repository blobs or agents-sidecar `artifacts/<YYYYMM>/` files    |
+| `COMMITS`   | ordered sub-bullets | hosted commit URL in the primary repository, else an unlinked SHA        |
 
-Sub-bullets are indented exactly two spaces and deterministically ordered: agents by global name, commits by commit time
-then SHA. Commit sub-bullets show the seven-character short SHA as link text and append `— <subject>`. A section with
-nothing to show is omitted entirely — an empty `- **AGENTS:**` header is never rendered — and a list longer than the
-shared render cap ends with a visible `… and N more` sub-bullet instead of being silently truncated. Rendered bullets
-are wrap-tolerant: prettier may fold a long commit sub-bullet onto continuation lines, and parsing joins those lines
-back into one logical bullet.
+Sub-bullets are indented exactly two spaces and deterministically ordered: agents by global name, artifacts by rendered
+prompt order, commits by commit time then SHA. Commit sub-bullets show the seven-character short SHA as link text and
+append `— <subject>`. A section with nothing to show is omitted entirely — an empty `- **AGENTS:**` header is never
+rendered — and a list longer than the shared render cap ends with a visible `… and N more` sub-bullet instead of being
+silently truncated. Rendered bullets are wrap-tolerant: prettier may fold a long commit sub-bullet onto continuation
+lines, and parsing joins those lines back into one logical bullet.
 
 `BEAD`, `AGENTS`, and `COMMITS` are projections of durable state, never accumulators. `BEAD` comes from the plan's
 managed `bead_id` (or historical `bead`) frontmatter. It links when a hosted page URL can be formed and a readable bead
@@ -358,8 +364,8 @@ against the checked-out plans sidecar. The sweep reports diagnostics for every p
 present.
 
 Month directories before `202608` retain the legacy compatibility check: each direct `YYYYMM/*.md` plan must declare a
-valid `tier: tale|epic`, but historical plans do not need `goal` or structured epic phases. Nested prompt snapshots and
-historical root-level scratch files are not part of the committed-plan sweep.
+valid `tier: tale|epic`, but historical plans do not need `goal` or structured epic phases. Exported or historical
+nested prompt snapshots and historical root-level scratch files are not part of the committed-plan sweep.
 
 ## CLI
 

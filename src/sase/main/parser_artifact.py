@@ -26,7 +26,9 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Create, discover, inspect, resolve, open, and repair indexed "
             "artifacts.\n\n"
-            "Bare `sase artifact` defaults to `sase artifact list`."
+            "Bare `sase artifact` defaults to `sase artifact list`. "
+            "Canonical prompt archives live in the agents sidecar and are "
+            "inspected with `sase agent prompts`."
         ),
         epilog=(
             "examples:\n"
@@ -37,6 +39,7 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase artifact show file:explicit:0123456789abcdef01234567\n"
             "  sase artifact trash\n"
             "  sase artifact path plans:202607/example.md\n"
+            "  sase agent prompts validate\n"
             "  sase artifact-file create --path report.md"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,

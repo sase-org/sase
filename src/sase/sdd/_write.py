@@ -1,4 +1,4 @@
-"""SDD prompt, plan, and Q&A file writes."""
+"""SDD plan and prompt Q&A file writes."""
 
 from __future__ import annotations
 
@@ -146,10 +146,10 @@ def strip_qa_block(text: str) -> str:
 
 
 def set_prompt_qa(prompt_path: Path, qa_markdown: str) -> None:
-    """Replace (or insert) the Q&A section in an SDD prompt snapshot.
+    """Replace (or insert) the Q&A section in a recorded prompt file.
 
     Any pre-existing ``### Questions and Answers`` block is stripped first, so
-    the snapshot ends up with exactly one merged block matching the follow-up
+    the prompt file ends up with exactly one merged block matching the follow-up
     agent's prompt.
 
     No-op if the prompt file doesn't exist.
@@ -162,12 +162,12 @@ def set_prompt_qa(prompt_path: Path, qa_markdown: str) -> None:
 
 
 def update_prompt_with_qa(prompt_path: Path, qa_markdown: str) -> None:
-    """Replace the Q&A section in an existing prompt snapshot."""
+    """Replace the Q&A section in an existing prompt file."""
     set_prompt_qa(prompt_path, qa_markdown)
 
 
 def update_spec_with_qa(spec_path: Path, qa_markdown: str) -> None:
-    """Replace Q&A in an SDD prompt snapshot.
+    """Replace Q&A in a recorded prompt file.
 
     Compatibility wrapper for callers still using the old ``spec`` terminology.
     """

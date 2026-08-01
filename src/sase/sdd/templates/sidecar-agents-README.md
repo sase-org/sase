@@ -18,6 +18,13 @@ the `agents` sidecar visibility to `private` before creation to restrict access,
 - `users/<username>/machines/<machine>/hoods/<hood>/snapshot.json` captures a complete hood.
 - `agents/<global-name>/` contains allowlisted metadata, state, commits, prompt, and optional chat.
 - `families/<global-family>.md` and the generated `README.md` pages provide deterministic browsing.
+- `prompts/<YYYYMM>/<name>.md` stores canonical committed run prompts. Each prompt links back to its plan when it has
+  one, links to the published agent page, and rewrites captured `@...` references into clickable inline links.
+- `prompts/<YYYYMM>/README.md` is the generated month index for prompt archive browsing.
+- `artifacts/<YYYYMM>/<sha12>-<basename>` stores copied prompt-linked artifact bytes. The twelve-character prefix is
+  the start of the file's SHA-256 digest; VCS-backed prompt links point to hosted source blobs instead of duplicating
+  bytes here.
 
 Legacy top-level `manifest.json` and v1 agent bundles remain readable but are not rewritten. Run `sase agent sync` to
-reconcile eligible local hoods with the configured sidecar repository.
+reconcile eligible local hoods with the configured sidecar repository, or `sase agent prompts validate` to audit the
+prompt and artifact archive.

@@ -25,12 +25,13 @@ SIBLING_REPOS_CONFIG_KEY = "sibling_repos"
 DEFAULT_LINKED_REPOS_CONFIG_KEY = "default_linked_repos"
 
 DEFAULT_AGENTS_DESCRIPTION = (
-    "Hidden sidecar that stores commit-associated sase agent data for this project."
+    "Hidden sidecar that stores commit-associated sase agent data, prompts, "
+    "and prompt-linked artifacts for this project."
 )
 DEFAULT_BEADS_DESCRIPTION = (
     "Durable SASE bead state: the append-only event store and its projections."
 )
-DEFAULT_PLANS_DESCRIPTION = "Durable SASE plans, prompt snapshots, and bead state."
+DEFAULT_PLANS_DESCRIPTION = "Durable SASE plans and plan-side generated docs."
 DEFAULT_RESEARCH_DESCRIPTION = "Durable SASE research reports and generated media."
 HIDDEN_SIDECAR_ROLES = frozenset({AGENTS_SIDECAR_ROLE})
 

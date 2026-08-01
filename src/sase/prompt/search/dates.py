@@ -141,7 +141,7 @@ def resolve_sdd_date(frontmatter: Mapping[str, Any], path: Path) -> str:
     1. frontmatter ``last_used`` then ``timestamp`` — ``prompt export --sdd``
        records these, so they are the most precise;
     2. the ``YYYYMM`` segment of the file's parent directory — the reliable
-       fallback for the canonical ``sdd/plans/YYYYMM/prompts/`` layout;
+       fallback for the nested ``sdd/plans/YYYYMM/prompts/`` layout;
     3. the file's mtime — last resort.
     """
     for key in ("last_used", "timestamp"):

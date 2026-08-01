@@ -1,4 +1,4 @@
-"""Prompt expansion helpers for SDD prompt snapshots."""
+"""Prompt expansion helpers for durable prompt documents."""
 
 import logging
 

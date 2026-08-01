@@ -140,20 +140,18 @@ def test_builtin_task_prompt_routes_distinct_follow_ups_through_skill() -> None:
     assert "sase bead create -T task" not in body
 
 
-def test_builtin_plan_review_globs_distinguish_prompt_from_plan(
+def test_builtin_plan_review_uses_prompt_archive_and_plan_glob(
     tmp_path: Path,
 ) -> None:
     month = tmp_path / "sdd" / "plans" / "202607"
-    prompt = month / "prompts" / "example.md"
     plan = month / "example.md"
-    prompt.parent.mkdir(parents=True)
-    prompt.write_text("prompt\n", encoding="utf-8")
+    month.mkdir(parents=True)
     plan.write_text("plan\n", encoding="utf-8")
 
     body = get_all_prompts()["bd/review/plan"].steps[0].prompt_part
-    assert "@sdd/plans/*/prompts/{{ file_base }}.md" in body
+    assert "sase agent prompts show {{ file_base }}" in body
+    assert "@sdd/plans/*/prompts/{{ file_base }}.md" not in body
     assert "@sdd/plans/*/{{ file_base }}.md" in body
-    assert list(tmp_path.glob("sdd/plans/*/prompts/example.md")) == [prompt]
     assert list(tmp_path.glob("sdd/plans/*/example.md")) == [plan]
 
 

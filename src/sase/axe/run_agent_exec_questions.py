@@ -86,10 +86,10 @@ def _update_sdd_prompt_snapshot_qa(
     state: LoopState,
     merged_qa_text: str,
 ) -> None:
-    """Update a prompt snapshot and commit machine-made external-store writes.
+    """Update the recorded prompt artifact and commit machine-made store writes.
 
-    In-tree snapshots remain part of the agent's normal workspace commit flow.
-    External SDD stores are committed here so a SASE-authored Q&A update never
+    In-tree prompt files remain part of the agent's normal workspace commit flow.
+    External stores are committed here so a SASE-authored Q&A update never
     becomes unclaimed work for the commit finalizer.
     """
     if state.sdd_spec_path is None:
@@ -304,7 +304,7 @@ def handle_questions_marker(
         label="Full question prompt",
     )
 
-    # Update SDD prompt snapshot with the merged Q&A section so the
+    # Update the recorded prompt artifact with the merged Q&A section so the
     # snapshot mirrors the prompt the follow-up agent will see (one
     # block, continuous numbering — not an appended per-round delta).
     if state.sdd_spec_path is not None:
