@@ -120,6 +120,30 @@ def append_note(
     return _issue_payload(payload), payload
 
 
+def plus_one(
+    beads_dir: Path | str,
+    issue_id: str,
+    *,
+    reporter: str,
+    note: str,
+    refs: list[str] | tuple[str, ...] = (),
+    now: str | None = None,
+) -> tuple[Issue, dict[str, Any]]:
+    """Append one structured, independently attributed task report."""
+    _guard_bead_store_write(beads_dir, "plus_one")
+    binding = require_rust_binding("bead_plus_one")
+    payload = _call_issue_operation(
+        binding,
+        str(beads_dir),
+        issue_id,
+        reporter,
+        note,
+        list(refs),
+        now,
+    )
+    return _issue_payload(payload), payload
+
+
 def claim_for_agent_launch(
     beads_dir: Path | str,
     bead_id: str,

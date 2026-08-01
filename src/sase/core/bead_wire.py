@@ -13,6 +13,7 @@ from sase.bead.model import (
     PhaseSize,
     Resolution,
     Status,
+    TaskPlusOneEvidence,
 )
 
 
@@ -90,6 +91,19 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
             str(reference)
             for reference in data.get("refs") or []
             if reference is not None
+        ],
+        plus_one_evidence=[
+            TaskPlusOneEvidence(
+                timestamp=str(evidence.get("timestamp", "")),
+                reporter=str(evidence.get("reporter", "")),
+                note=str(evidence.get("note", "")),
+                refs=tuple(
+                    str(reference)
+                    for reference in evidence.get("refs") or []
+                    if reference is not None
+                ),
+            )
+            for evidence in data.get("plus_one_evidence") or []
         ],
         model="" if data.get("model") is None else str(data.get("model", "")),
         size=PhaseSize(str(data["size"])) if data.get("size") else None,

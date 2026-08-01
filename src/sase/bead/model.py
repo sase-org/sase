@@ -47,6 +47,28 @@ class Dependency:
     created_by: str = ""
 
 
+@dataclass(frozen=True)
+class TaskPlusOneEvidence:
+    timestamp: str
+    reporter: str
+    note: str
+    refs: tuple[str, ...] = ()
+
+    def validate(self) -> None:
+        if not self.timestamp.strip():
+            raise ValueError("task +1 evidence timestamp cannot be empty or blank")
+        if not self.reporter.strip():
+            raise ValueError("task +1 reporter cannot be empty or blank")
+        if not self.note.strip():
+            raise ValueError("task +1 note cannot be empty or blank")
+        from sase.artifact_ref_lists import normalize_artifact_ref_list
+
+        if normalize_artifact_ref_list(self.refs) != self.refs:
+            raise ValueError(
+                "task +1 evidence refs must be normalized and deduplicated"
+            )
+
+
 @dataclass
 class Issue:
     id: str
@@ -67,12 +89,17 @@ class Issue:
     notes: str = ""
     design: str = ""
     refs: list[str] = field(default_factory=list)
+    plus_one_evidence: list[TaskPlusOneEvidence] = field(default_factory=list)
     model: str = ""
     size: PhaseSize | None = None
     is_ready_to_work: bool = False
     changespec_name: str = ""
     changespec_bug_id: str = ""
     dependencies: list[Dependency] = field(default_factory=list)
+
+    @property
+    def plus_one_count(self) -> int:
+        return len(self.plus_one_evidence)
 
     def validate(self) -> None:
         """Validate issue constraints.
@@ -92,6 +119,14 @@ class Issue:
             raise ValueError("Task issues cannot have a parent_id")
         if self.issue_type == IssueType.TASK and self.tier is not None:
             raise ValueError("Task issues cannot carry plan tier metadata")
+        if self.issue_type != IssueType.TASK and self.plus_one_evidence:
+            raise ValueError("Only task issues can carry +1 evidence")
+        reporters: set[str] = set()
+        for evidence in self.plus_one_evidence:
+            evidence.validate()
+            if evidence.reporter in reporters:
+                raise ValueError(f"duplicate task +1 reporter: {evidence.reporter}")
+            reporters.add(evidence.reporter)
         if self.issue_type != IssueType.PLAN and self.is_ready_to_work:
             raise ValueError("Only plan issues can be marked is_ready_to_work")
         if self.issue_type == IssueType.PLAN and self.size is not None:

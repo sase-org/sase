@@ -244,6 +244,15 @@ def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "changespec_name": issue.changespec_name,
         "changespec_bug_id": issue.changespec_bug_id,
         "dependencies": [_dependency_to_wire_dict(dep) for dep in issue.dependencies],
+        "plus_one_evidence": [
+            {
+                "timestamp": evidence.timestamp,
+                "reporter": evidence.reporter,
+                "note": evidence.note,
+                "refs": evidence.refs,
+            }
+            for evidence in issue.plus_one_evidence
+        ],
     }
 
 

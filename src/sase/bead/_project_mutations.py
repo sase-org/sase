@@ -165,6 +165,29 @@ class BeadProjectMutationMixin:
         self._refresh_db_from_jsonl()
         return issue
 
+    def plus_one(
+        self,
+        issue_id: str,
+        note: str,
+        *,
+        reporter: str,
+        refs: list[str] | tuple[str, ...] = (),
+    ) -> tuple[Issue, bool]:
+        """Record one independently attributed +1 on a task bead."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        issue, outcome = rust_beads.plus_one(
+            self.beads_dir,
+            issue_id,
+            reporter=reporter,
+            note=note,
+            refs=refs,
+            now=self._current_time(),
+        )
+        self._record_mutation_outcome(outcome)
+        self._refresh_db_from_jsonl()
+        return issue, bool(outcome["changed"])
+
     def claim_for_agent_launch(self, bead_id: str, agent_name: str) -> Issue:
         """Atomically claim one non-closed bead for an agent launch."""
         issue, _changed = self.claim_for_agent_launch_outcome(bead_id, agent_name)

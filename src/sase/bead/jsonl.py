@@ -19,6 +19,7 @@ from sase.bead.model import (
     PhaseSize,
     Resolution,
     Status,
+    TaskPlusOneEvidence,
 )
 
 
@@ -30,6 +31,21 @@ def _optional_str_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(entry) for entry in value if entry is not None]
+
+
+def _plus_one_evidence_list(value: object) -> list[TaskPlusOneEvidence]:
+    if not isinstance(value, list):
+        return []
+    return [
+        TaskPlusOneEvidence(
+            timestamp=_optional_str(evidence.get("timestamp", "")),
+            reporter=_optional_str(evidence.get("reporter", "")),
+            note=_optional_str(evidence.get("note", "")),
+            refs=tuple(_optional_str_list(evidence.get("refs"))),
+        )
+        for evidence in value
+        if isinstance(evidence, dict)
+    ]
 
 
 def _issue_to_dict(issue: Issue) -> dict[str, object]:
@@ -52,6 +68,21 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
         "notes": issue.notes,
         "design": issue.design,
         **({"refs": issue.refs} if issue.refs else {}),
+        **(
+            {
+                "plus_one_evidence": [
+                    {
+                        "timestamp": evidence.timestamp,
+                        "reporter": evidence.reporter,
+                        "note": evidence.note,
+                        **({"refs": list(evidence.refs)} if evidence.refs else {}),
+                    }
+                    for evidence in issue.plus_one_evidence
+                ]
+            }
+            if issue.plus_one_evidence
+            else {}
+        ),
         "model": issue.model,
         **({"size": issue.size.value} if issue.size else {}),
         "is_ready_to_work": issue.is_ready_to_work,
@@ -102,6 +133,7 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
         notes=_optional_str(data.get("notes", "")),
         design=_optional_str(data.get("design", "")),
         refs=_optional_str_list(data.get("refs")),
+        plus_one_evidence=_plus_one_evidence_list(data.get("plus_one_evidence")),
         model=_optional_str(data.get("model", "")),
         size=PhaseSize(str(data["size"])) if data.get("size") else None,
         is_ready_to_work=bool(data.get("is_ready_to_work", False)),
@@ -183,6 +215,9 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                     notes=issue.notes,
                     design=issue.design,
                     refs="\n".join(issue.refs),
+                    plus_one_evidence=db_mod.plus_one_evidence_json(
+                        issue.plus_one_evidence
+                    ),
                     model=issue.model,
                     size=issue.size.value if issue.size else None,
                     tier=issue.tier.value if issue.tier else None,

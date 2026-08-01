@@ -5,6 +5,7 @@ Production bead reads and mutations route through ``sase_core_rs`` facades.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from sase.bead.model import (
     PhaseSize,
     Resolution,
     Status,
+    TaskPlusOneEvidence,
 )
 from sase.core.rust import require_rust_binding
 
@@ -44,6 +46,7 @@ CREATE TABLE IF NOT EXISTS issues (
     notes       TEXT,
     design      TEXT,
     refs        TEXT NOT NULL DEFAULT '',
+    plus_one_evidence TEXT NOT NULL DEFAULT '[]',
     model       TEXT NOT NULL DEFAULT '',
     size        TEXT
                   CHECK(
@@ -147,6 +150,55 @@ def _migrate_add_refs(conn: sqlite3.Connection) -> None:
         return
     conn.execute("ALTER TABLE issues ADD COLUMN refs TEXT NOT NULL DEFAULT ''")
     conn.commit()
+
+
+def _migrate_add_plus_one_evidence(conn: sqlite3.Connection) -> None:
+    """Add structured task +1 evidence to the compatibility mirror."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
+    ).fetchone()
+    create_sql = None if row is None else row["sql"]
+    binding = require_rust_binding("bead_needs_plus_one_evidence_migration")
+    if not binding(create_sql):
+        return
+    sql_binding = require_rust_binding("bead_plus_one_evidence_migration_sql")
+    conn.execute(sql_binding())
+    conn.commit()
+
+
+def plus_one_evidence_json(evidence: list[TaskPlusOneEvidence]) -> str:
+    return json.dumps(
+        [
+            {
+                "timestamp": entry.timestamp,
+                "reporter": entry.reporter,
+                "note": entry.note,
+                "refs": list(entry.refs),
+            }
+            for entry in evidence
+        ],
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+
+
+def _plus_one_evidence_from_json(value: object) -> list[TaskPlusOneEvidence]:
+    try:
+        records = json.loads(str(value or "[]"))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return []
+    if not isinstance(records, list):
+        return []
+    return [
+        TaskPlusOneEvidence(
+            timestamp=str(record.get("timestamp", "")),
+            reporter=str(record.get("reporter", "")),
+            note=str(record.get("note", "")),
+            refs=tuple(str(ref) for ref in record.get("refs", [])),
+        )
+        for record in records
+        if isinstance(record, dict)
+    ]
 
 
 def _migrate_add_size(conn: sqlite3.Connection) -> None:
@@ -288,6 +340,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _migrate_add_refs(conn)
     _migrate_add_size(conn)
     _migrate_add_resolution(conn)
+    _migrate_add_plus_one_evidence(conn)
     _migrate_task_ready(conn)
     _migrate_relax_size_check(conn)
     conn.executescript(_SCHEMA)
@@ -314,6 +367,7 @@ def _row_to_issue(row: sqlite3.Row) -> Issue:
         notes=row["notes"] or "",
         design=row["design"] or "",
         refs=(row["refs"] or "").splitlines(),
+        plus_one_evidence=_plus_one_evidence_from_json(row["plus_one_evidence"]),
         model=row["model"] or "",
         size=PhaseSize(row["size"]) if row["size"] else None,
         is_ready_to_work=bool(row["is_ready_to_work"]),
@@ -351,9 +405,9 @@ def create_issue(
         "(id, title, status, issue_type, parent_id, owner, assignee, "
         "tier, created_at, created_by, updated_at, closed_at, close_reason, "
         "resolution, "
-        "description, notes, design, refs, model, size, is_ready_to_work, "
+        "description, notes, design, refs, plus_one_evidence, model, size, is_ready_to_work, "
         "changespec_name, changespec_bug_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -373,6 +427,7 @@ def create_issue(
             issue.notes,
             issue.design,
             "\n".join(issue.refs),
+            plus_one_evidence_json(issue.plus_one_evidence),
             issue.model,
             issue.size.value if issue.size else None,
             int(issue.is_ready_to_work),
@@ -446,6 +501,7 @@ def update_issue(
         "notes",
         "design",
         "refs",
+        "plus_one_evidence",
         "model",
         "size",
         "tier",
@@ -536,7 +592,7 @@ def get_epic_children(conn: sqlite3.Connection, epic_id: str) -> list[Issue]:
 
 
 def stats(conn: sqlite3.Connection) -> dict[str, int]:
-    """Return counts by status and type."""
+    """Return counts by status/type plus derived task +1 evidence."""
     result: dict[str, int] = {}
     for row in conn.execute(
         "SELECT status, COUNT(*) as cnt FROM issues GROUP BY status"
@@ -548,5 +604,9 @@ def stats(conn: sqlite3.Connection) -> dict[str, int]:
         result[row["issue_type"]] = row["cnt"]
     result["total"] = sum(
         r["cnt"] for r in conn.execute("SELECT COUNT(*) as cnt FROM issues").fetchall()
+    )
+    result["plus_one"] = sum(
+        len(_plus_one_evidence_from_json(row["plus_one_evidence"]))
+        for row in conn.execute("SELECT plus_one_evidence FROM issues").fetchall()
     )
     return result
