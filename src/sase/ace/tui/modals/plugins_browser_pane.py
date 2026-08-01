@@ -8,7 +8,7 @@ the same update services used by the CLI.
 from __future__ import annotations
 
 import time
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from textual import on
 from textual.app import ComposeResult
@@ -39,6 +39,7 @@ from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
 from sase.uv_tool.versions import CoreVersions, collect_installed_core_versions
 
 from .plugins_browser_constants import _DETAIL_PLACEHOLDER, _SUBTAB_NAV_HINT
+from .config_center_session import UpdatesSessionState, UpdatesSubTab
 from .plugins_browser_agent_clis import AgentCliBrowserMixin
 from .plugins_browser_comprehensive_update import (
     ComprehensiveUpdateActionsMixin,
@@ -160,8 +161,6 @@ _callable_accepts_keyword = callable_accepts_keyword
 _plan_agent_cli_updates = plan_agent_cli_updates
 _execute_agent_cli_updates = execute_agent_cli_updates
 
-UpdatesSubTab = Literal["core", "plugins", "agent-clis"]
-_DEFAULT_SUBTAB: UpdatesSubTab = "core"
 _SUBTAB_ORDER: tuple[UpdatesSubTab, ...] = ("core", "plugins", "agent-clis")
 _SUBTAB_WIDGET_IDS: dict[UpdatesSubTab, str] = {
     "core": "updates-subtab-core",
@@ -228,9 +227,11 @@ class PluginsBrowserPane(
         auto_load: bool = True,
         auto_update_on_load: bool = False,
         comprehensive_provider_names: tuple[str, ...] | None = None,
+        session_state: UpdatesSessionState | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
+        self._session_state = session_state or UpdatesSessionState()
         self._auto_load = auto_load
         self._auto_update_on_load = auto_update_on_load
         self._comprehensive_update_request = (
@@ -242,7 +243,7 @@ class PluginsBrowserPane(
         # ``_start_sase_update_preview`` hook after the load.  It keeps that
         # compatibility surface while the one-shot request itself is consumed.
         self._starting_comprehensive_request: ComprehensiveUpdateRequest | None = None
-        self._active_subtab: UpdatesSubTab = _DEFAULT_SUBTAB
+        self._active_subtab: UpdatesSubTab = self._session_state.active_subtab
         self._catalog: PluginCatalog | None = None
         self._core_versions: CoreVersions = _collect_installed_core_versions()
         self._error: str | None = None
@@ -262,6 +263,8 @@ class PluginsBrowserPane(
         self._marked_agent_clis: set[str] = set()
         self._agent_cli_results: dict[str, AgentCliUpdateResult] = {}
         self._agent_cli_detail_name: str | None = None
+        self._syncing_plugin_options = False
+        self._syncing_agent_cli_options = False
         self._grouped: list[tuple[str, str, list[PluginCatalogEntry]]] = []
         self._worker: Worker[Any] | None = None
         #: Worker computing an install plan/preview before the confirm modal.
@@ -287,7 +290,7 @@ class PluginsBrowserPane(
         #: Name of the plugin currently shown in the detail panel (dedup guard).
         self._detail_name: str | None = None
         #: Plugin to re-highlight after the next reload (selection preservation).
-        self._restore_name: str | None = None
+        self._restore_name: str | None = self._session_state.plugins.identity
         incoming_config = _load_incoming_commits_config()
         self._incoming_commits_enabled = incoming_config.enabled
         self._incoming_commits_limit = incoming_config.max_per_repo
@@ -408,6 +411,7 @@ class PluginsBrowserPane(
 
     def _switch_to_subtab(self, subtab: UpdatesSubTab) -> None:
         self._active_subtab = subtab
+        self._session_state.active_subtab = subtab
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
         try:
@@ -457,7 +461,9 @@ class PluginsBrowserPane(
         self._fresh_editable_roots_evidence = None
         # Re-highlight whatever is selected now once the reload lands so a
         # refresh / offline toggle doesn't snap the user back to the top.
-        self._restore_name = self._highlighted_name()
+        self._restore_name = (
+            self._highlighted_name() or self._session_state.plugins.identity
+        )
         self._core_incoming_commits = {}
         self._sync_state_visibility()
         self._sync_current_banner()

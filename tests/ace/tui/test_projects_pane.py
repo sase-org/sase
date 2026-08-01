@@ -18,6 +18,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.project_inventory_panes import RepoInventoryPane
 from sase.ace.tui.modals.projects_pane import ProjectsPane
 from sase.ace.tui.modals.projects_pane import ProjectCountsLoadResult
@@ -106,6 +107,26 @@ async def test_admin_center_reaches_projects_tab_from_config(
         await page.wait_for(lambda _s: modal._active_tab == "statistics")
         assert switcher.current == "statistics"
         assert page.app.current_tab == "changespecs"
+
+
+async def test_projects_session_restores_project_by_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_panes(monkeypatch)
+    state = AdminCenterSessionState()
+    state.projects.projects.record("beta", 0)
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="projects", session_state=state)
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: modal._active_tab == "projects")
+
+        pane = modal.query_one("#projects", ProjectsPane)
+        option_list = pane.query_one("#projects-list", OptionList)
+
+        assert option_list.highlighted == 1
+        assert state.projects.projects.identity == "beta"
 
 
 @pytest.mark.parametrize("pending_digit", [None, "1"])

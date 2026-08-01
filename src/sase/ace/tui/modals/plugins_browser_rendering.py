@@ -12,6 +12,7 @@ from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.util.selection import restore_selection_by_identity
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.render import build_community_warning_panel, build_detail_panel
 from sase.plugins.render_common import (
@@ -53,6 +54,8 @@ class PluginsBrowserRenderingMixin:
         _now: float
         _offline: bool
         _restore_name: str | None
+        _session_state: Any
+        _syncing_plugin_options: bool
         _uv_tool: object | None
         _verbose: bool
         _dev_root: str | None
@@ -132,14 +135,59 @@ class PluginsBrowserRenderingMixin:
         option_list = self._option_list()
         if option_list is None:
             return
-        preferred = self._restore_name
+        preferred = self._restore_name or self._session_state.plugins.identity
         self._restore_name = None
-        option_list.clear_options()
-        for opt in self._create_options():
-            option_list.add_option(opt)
-        if preferred is not None and self._highlight_named(option_list, preferred):
+        entries = self._flat_plugin_entries()
+        selected_name: str | None = None
+        self._syncing_plugin_options = True
+        try:
+            option_list.clear_options()
+            for opt in self._create_options():
+                option_list.add_option(opt)
+            if entries:
+                row = restore_selection_by_identity(
+                    entries,
+                    prior_identity=preferred,
+                    prior_visual_row=self._session_state.plugins.row,
+                    identity_fn=lambda entry: entry.name,
+                )
+                selected_name = entries[row].name
+                option_index = self._option_index_for_plugin(option_list, selected_name)
+                if option_index is not None:
+                    option_list.highlighted = option_index
+                else:
+                    self._skip_to_first_item(option_list)
+                    selected_name = self._highlighted_name()
+            else:
+                option_list.highlighted = None
+        finally:
+            self._syncing_plugin_options = False
+        self._record_plugin_bookmark(selected_name)
+
+    def _flat_plugin_entries(self) -> list[PluginCatalogEntry]:
+        return [entry for _, _, entries in self._grouped for entry in entries]
+
+    @staticmethod
+    def _option_index_for_plugin(option_list: OptionList, name: str) -> int | None:
+        target = f"{_ITEM_PREFIX}{name}"
+        for index in range(option_list.option_count):
+            opt = option_list.get_option_at_index(index)
+            if opt.id == target:
+                return index
+        return None
+
+    def _logical_row_for_plugin(self, name: str) -> int | None:
+        for row, entry in enumerate(self._flat_plugin_entries()):
+            if entry.name == name:
+                return row
+        return None
+
+    def _record_plugin_bookmark(self, name: str | None) -> None:
+        if name is None:
+            if self._catalog is not None and not self._filter_text.strip():
+                self._session_state.plugins.record(None, None)
             return
-        self._skip_to_first_item(option_list)
+        self._session_state.plugins.record(name, self._logical_row_for_plugin(name))
 
     def _create_options(self) -> list[Option]:
         """Build OptionList items: disabled section headers + plugin rows."""
@@ -242,6 +290,9 @@ class PluginsBrowserRenderingMixin:
             self._on_agent_cli_highlighted()  # type: ignore[attr-defined]
             return
         if event.option_list.id == "plugins-list":
+            if self._syncing_plugin_options:
+                return
+            self._record_plugin_bookmark(self._highlighted_name())
             self._update_static("#plugins-hints", self._hints())
             self._schedule_detail()
 

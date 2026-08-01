@@ -582,6 +582,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             ConfigCenterModal,
             validated_center_tab,
         )
+        from ..modals.config_center_session import AdminCenterSessionState
 
         registry = getattr(self, "_keymap_registry", None)
         app_keymaps = getattr(registry, "app", None)
@@ -591,6 +592,10 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         alternate_tab = validated_center_tab(
             history.alternate if history is not None else None
         )
+        session_state = getattr(self, "_admin_center_session_state", None)
+        if not isinstance(session_state, AdminCenterSessionState):
+            session_state = AdminCenterSessionState()
+            self._admin_center_session_state = session_state
 
         self.push_screen(  # type: ignore[attr-defined]
             ConfigCenterModal(
@@ -600,6 +605,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                 opener_binding=opener_binding,
                 auto_update=auto_update,
                 comprehensive_provider_names=comprehensive_provider_names,
+                session_state=session_state,
                 on_tab_activated=self._on_admin_center_tab_activated,
             ),
             self._on_config_center_dismissed,

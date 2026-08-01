@@ -11,6 +11,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.actions import update_toast
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.plugins.catalog import PluginCatalog
 from sase.ace.tui.widgets import UpdatesAvailableIndicator
@@ -51,6 +52,26 @@ async def test_plugins_pane_loads_and_groups(
         highlighted = option_list.get_option_at_index(option_list.highlighted)
         assert highlighted.id is not None
         assert not str(highlighted.id).startswith("__header__")
+
+
+async def test_plugins_session_restores_plugin_by_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    state = AdminCenterSessionState()
+    state.updates.active_subtab = "plugins"
+    state.updates.plugins.record("telegram", 0)
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page, session_state=state)
+        option_list = pane.query_one("#plugins-list", OptionList)
+        assert option_list.highlighted is not None
+        highlighted = option_list.get_option_at_index(option_list.highlighted)
+
+        assert highlighted.id == "plugin__telegram"
+        assert state.updates.plugins.identity == "telegram"
+        assert state.updates.active_subtab == "plugins"
 
 
 async def test_plugins_pane_summary_counts(

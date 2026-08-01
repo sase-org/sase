@@ -149,9 +149,11 @@ Each pane is constructed only on first entry and is then reused until the Admin 
 selection, and scroll state while avoiding unrelated config, project, log, statistics, task, update, and xprompt work on
 open. Direct commands such as **Open logs panel**, **Open tasks panel**, **Open statistics**, and update actions still
 open their requested pane immediately and make that successfully mounted section the next resume target. Closing and
-reopening with one `#` still returns to home; only a second press while home is visible resumes. Both the resume target
-and the alternate are persisted machine-locally and survive across ACE processes. Filters, selections, loaded data, and
-pane instances are never carried between modal lifetimes.
+reopening with one `#` still returns to home; only a second press while home is visible resumes. The top-level resume
+target and alternate are persisted machine-locally and survive across ACE processes. Entry bookmarks for Config, Logs,
+Projects, Tasks, Updates, and XPrompts last only for the current ACE process and restore by stable identity, along with
+minimal scope or sub-tab context when needed. Filters, marks, scroll positions, loaded data, pane instances, Statistics
+controls, and other pane-local state are never carried between modal lifetimes.
 
 ### Config tab
 

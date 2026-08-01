@@ -17,6 +17,7 @@ from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals import statistics_pane as sp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.ace.tui.modals.statistics_pane_data import StatisticsViewData
 from sase.stats.views import build_statistics_views
@@ -289,8 +290,12 @@ def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-async def _open_plugins_pane(page: AcePage) -> PluginsBrowserPane:
-    modal = ConfigCenterModal(initial_tab="updates")
+async def _open_plugins_pane(
+    page: AcePage,
+    *,
+    session_state: AdminCenterSessionState | None = None,
+) -> PluginsBrowserPane:
+    modal = ConfigCenterModal(initial_tab="updates", session_state=session_state)
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
     await page.wait_for(lambda _s: bool(modal.query("#updates")))

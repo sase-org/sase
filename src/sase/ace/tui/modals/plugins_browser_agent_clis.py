@@ -12,6 +12,7 @@ from rich.text import Text
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.tui.util.selection import restore_selection_by_identity
 from sase.ace.tui.actions.task_actions import (
     TrackedTaskCompletion,
     TrackedTaskResult,
@@ -60,6 +61,8 @@ class AgentCliBrowserMixin:
         _marked_agent_clis: set[str]
         _marked_install: set[str]
         _offline: bool
+        _session_state: Any
+        _syncing_agent_cli_options: bool
         app: App[Any]
         is_mounted: bool
 
@@ -81,26 +84,49 @@ class AgentCliBrowserMixin:
     def _render_agent_clis(self) -> None:
         """Refresh the Agent CLIs master/detail surface from loaded state."""
         option_list = self._agent_cli_option_list()
-        preferred = self._highlighted_agent_cli_name()
+        preferred = (
+            self._highlighted_agent_cli_name()
+            or self._session_state.agent_clis.identity
+        )
+        selected_index: int | None = None
         if option_list is not None:
-            option_list.clear_options()
-            for status in self._agent_cli_statuses:
-                option_list.add_option(
-                    Option(
-                        self._agent_cli_row(status),
-                        id=f"{_ITEM_PREFIX}{status.name}",
+            self._syncing_agent_cli_options = True
+            try:
+                option_list.clear_options()
+                for status in self._agent_cli_statuses:
+                    option_list.add_option(
+                        Option(
+                            self._agent_cli_row(status),
+                            id=f"{_ITEM_PREFIX}{status.name}",
+                        )
                     )
-                )
-            if preferred is not None:
-                self._highlight_agent_cli(option_list, preferred)
-            if option_list.highlighted is None and option_list.option_count:
-                option_list.highlighted = 0
+                if self._agent_cli_statuses:
+                    selected_index = restore_selection_by_identity(
+                        self._agent_cli_statuses,
+                        prior_identity=preferred,
+                        prior_visual_row=self._session_state.agent_clis.row,
+                        identity_fn=lambda status: status.name,
+                    )
+                    option_list.highlighted = selected_index
+                else:
+                    option_list.highlighted = None
+            finally:
+                self._syncing_agent_cli_options = False
+        self._record_agent_cli_bookmark(selected_index)
         self._prune_agent_cli_marks()
         self._update_static("#agent-clis-summary", self._agent_cli_summary())
         self._update_static("#agent-clis-status", self._agent_cli_status_message())
         self._update_static("#agent-clis-hints", self._agent_cli_hints())
         self._sync_agent_cli_visibility()
         self._render_agent_cli_detail(force=True)
+
+    def _record_agent_cli_bookmark(self, index: int | None) -> None:
+        if index is None or not (0 <= index < len(self._agent_cli_statuses)):
+            if not self._loading and self._agent_cli_error is None:
+                self._session_state.agent_clis.record(None, None)
+            return
+        status = self._agent_cli_statuses[index]
+        self._session_state.agent_clis.record(status.name, index)
 
     def _agent_cli_row(self, status: AgentCliStatus) -> Text:
         text = Text()
@@ -246,6 +272,11 @@ class AgentCliBrowserMixin:
         return False
 
     def _on_agent_cli_highlighted(self) -> None:
+        if self._syncing_agent_cli_options:
+            return
+        option_list = self._agent_cli_option_list()
+        highlighted = option_list.highlighted if option_list is not None else None
+        self._record_agent_cli_bookmark(highlighted)
         self._update_static("#agent-clis-hints", self._agent_cli_hints())
         debouncer = getattr(self, "_detail_debouncer", None)
         if debouncer is None:

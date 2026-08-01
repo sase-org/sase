@@ -26,7 +26,9 @@ from ..actions.navigation.jump_hints import (
     normalize_jump_key,
 )
 from ..logs import LogSource, log_sources
+from ..util.selection import restore_selection_by_identity
 from .base import CopyModeForwardingMixin
+from .config_center_session import SelectionBookmark
 from .logs_pane_toasts import render_toast_detail_body
 
 # Palette shared with the other log-style modals (HelpModal / AgentRunLogModal).
@@ -215,16 +217,22 @@ def _source_label(source: LogSource) -> Text:
     return text
 
 
-def _build_log_pane_load_result(selected_index: int) -> _LogPaneLoadResult:
+def _build_log_pane_load_result(
+    selected_index: int,
+    selected_source_id: str | None = None,
+) -> _LogPaneLoadResult:
     """Read source metadata and the selected detail body off the UI thread."""
     sources = log_sources()
     if sources:
-        selected_index = max(0, min(selected_index, len(sources) - 1))
+        selected_index = restore_selection_by_identity(
+            sources,
+            prior_identity=selected_source_id,
+            prior_visual_row=selected_index,
+            identity_fn=lambda source: source.id,
+        )
     else:
         selected_index = 0
-    options = [
-        (f"log__{idx}", _source_label(source)) for idx, source in enumerate(sources)
-    ]
+    options = [(f"log__{source.id}", _source_label(source)) for source in sources]
     active_count = sum(1 for source in sources if source.exists())
     detail = (
         _render_log_detail(sources[selected_index])
@@ -317,7 +325,13 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         ("apostrophe", "jump_to_entry", "Jump"),
     ]
 
-    def __init__(self, *, auto_load: bool = True, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        auto_load: bool = True,
+        bookmark: SelectionBookmark | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._sources: list[LogSource] = log_sources()
         self._source_options: list[tuple[str, Text]] = []
@@ -326,7 +340,13 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         self._worker: Worker[Any] | None = None
         self._worker_reset_scroll = False
         self._syncing_options = False
-        self._selected_index = 0
+        self._bookmark = bookmark or SelectionBookmark()
+        self._selected_index = restore_selection_by_identity(
+            self._sources,
+            prior_identity=self._bookmark.identity,
+            prior_visual_row=self._bookmark.row,
+            identity_fn=lambda source: source.id,
+        )
         self._last_detail_text: Text = Text("Loading logs...", style="dim")
         self._log_jump_mode_active = False
         self._log_jump_pending_prefix = ""
@@ -348,7 +368,7 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
 
     def on_mount(self) -> None:
         if self._loading:
-            self._start_load(selected_index=0, reset_scroll=True)
+            self._start_load(selected_index=self._selected_index, reset_scroll=True)
 
     def focus_default(self) -> None:
         """Focus the source list (browse-first) when the Logs tab activates."""
@@ -385,9 +405,10 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         self._loading = True
         self._worker_reset_scroll = reset_scroll
         self._update_static("#logs-pane-title", self._title_text())
+        selected_source_id = self._source_id_for_index(selected_index)
 
         def task() -> _LogPaneLoadResult:
-            return _build_log_pane_load_result(selected_index)
+            return _build_log_pane_load_result(selected_index, selected_source_id)
 
         self._worker = self.run_worker(task, thread=True, exclusive=True)
 
@@ -431,6 +452,7 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         self._source_options = result.options
         self._active_count = result.active_count
         self._selected_index = result.selected_index
+        self._record_selection(result.selected_index)
         self._last_detail_text = result.detail
         self._update_static("#logs-pane-title", self._title_text())
         self._update_static("#log-detail", self._last_detail_text)
@@ -478,6 +500,10 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
                 option_list.focus()
         finally:
             self._syncing_options = False
+        if self._source_options:
+            self._record_selection(selected_index)
+        else:
+            self._bookmark.record(None, None)
 
     def _option_list(self) -> OptionList | None:
         try:
@@ -488,13 +514,23 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
     def _source_index_for_option(self, opt_id: str | None) -> int | None:
         if not opt_id or not opt_id.startswith("log__"):
             return None
-        try:
-            idx = int(opt_id.removeprefix("log__"))
-        except ValueError:
-            return None
-        if 0 <= idx < len(self._sources):
-            return idx
+        source_id = opt_id.removeprefix("log__")
+        for idx, source in enumerate(self._sources):
+            if source.id == source_id:
+                return idx
         return None
+
+    def _source_id_for_index(self, index: int | None) -> str | None:
+        if index is None or not 0 <= index < len(self._sources):
+            return None
+        return self._sources[index].id
+
+    def _record_selection(self, index: int | None) -> None:
+        source_id = self._source_id_for_index(index)
+        if source_id is None:
+            self._bookmark.record(None, None)
+        else:
+            self._bookmark.record(source_id, index)
 
     def _highlighted_index(self) -> int:
         option_list = self._option_list()
@@ -518,6 +554,7 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
             if idx is not None:
                 if idx == self._selected_index:
                     return
+                self._record_selection(idx)
                 self._start_load(selected_index=idx, reset_scroll=True)
 
     def action_next_option(self) -> None:

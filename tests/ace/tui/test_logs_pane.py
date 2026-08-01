@@ -187,6 +187,21 @@ def test_render_jsonl_source_is_pretty_not_raw(log_dir: Path) -> None:
     assert "{" not in text  # pretty-rendered, not raw JSON
 
 
+def test_load_result_restores_log_source_by_id_after_reorder(
+    log_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sources = log_sources()
+    assert len(sources) >= 3
+    target = sources[2]
+    reordered = [target, *sources[:2], *sources[3:]]
+    monkeypatch.setattr(lp, "log_sources", lambda: reordered)
+
+    result = lp._build_log_pane_load_result(2, selected_source_id=target.id)
+
+    assert result.sources[result.selected_index].id == target.id
+
+
 def test_render_toasts_groups_sessions_newest_first(log_dir: Path) -> None:
     current_session = toast_log.current_toast_session()
     _write_toast_records(

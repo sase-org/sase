@@ -89,8 +89,10 @@ class StateInitMixin:
         # one bounded read before the event loop starts; panes and their
         # state remain scoped to one modal lifetime.
         from ..modals.config_center_history import AdminCenterTabHistory
+        from ..modals.config_center_session import AdminCenterSessionState
         from ..modals.config_center_state import load_admin_center_tab_history
 
+        self._admin_center_session_state = AdminCenterSessionState()
         self._admin_center_history: AdminCenterTabHistory = (
             load_admin_center_tab_history()
         )

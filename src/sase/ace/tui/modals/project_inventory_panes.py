@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 import time
@@ -19,6 +19,7 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.util.selection import restore_selection_by_identity
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 from sase.repo_inventory import (
     RepoInventoryIssue,
@@ -32,6 +33,7 @@ from sase.workspace_provider.inventory import (
 )
 
 from .base import FilterInput, OptionListNavigationMixin
+from .config_center_session import SelectionBookmark
 from .project_inventory_rendering import (
     repo_column_header_text,
     repo_detail_text,
@@ -113,23 +115,29 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
         *,
         projects_root: Path | None,
         project_records: Sequence[ProjectRecordWire],
+        bookmark: SelectionBookmark | None = None,
+        project_filter: str | None = None,
+        on_project_filter_changed: Callable[[str | None], None] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._projects_root = projects_root
+        self._bookmark = bookmark or SelectionBookmark()
+        self._on_project_filter_changed = on_project_filter_changed
         self._project_states: dict[str, str] = {}
         self._project_names: dict[str, str] = {}
         self._records: list[RecordT] = []
         self._scoped_records: list[RecordT] = []
         self._filtered_records: list[RecordT] = []
         self._issues: list[IssueT] = []
-        self._project_filter: str | None = None
+        self._project_filter: str | None = project_filter
         self._text_filter = ""
         self._loading = False
         self._reload_pending = False
         self._load_error = ""
         self._loaded_at = time.time()
         self._worker: Worker[Any] | None = None
+        self._loaded_once = False
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._syncing_options = False
         self.set_project_records(project_records, refresh=False)
@@ -181,6 +189,7 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
         }
         if self._project_filter not in self._project_states:
             self._project_filter = None
+            self._record_project_filter()
         self._apply_filters()
         if refresh:
             self._refresh_options()
@@ -195,6 +204,7 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
         self._project_filter = (
             project_key if project_key in self._project_states else None
         )
+        self._record_project_filter()
         self._apply_filters()
         self._refresh_options()
 
@@ -229,6 +239,7 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
                 self._records = list(result.records)
                 self._issues = list(result.issues)
                 self._loaded_at = result.loaded_at
+                self._loaded_once = True
                 self._apply_filters()
                 self._refresh_options(preferred_id=selected)
             else:
@@ -299,27 +310,41 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
             return
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
-        current = preferred_id or self._selected_record_id()
+        current = preferred_id or self._selected_record_id() or self._bookmark.identity
         self._syncing_options = True
+        selected_index: int | None = None
         try:
             option_list.clear_options()
             for option in self._create_options():
                 option_list.add_option(option)
             if self._filtered_records:
-                index = 0
-                if current is not None:
-                    for candidate, record in enumerate(self._filtered_records):
-                        if self._record_id(record) == current:
-                            index = candidate
-                            break
+                index = restore_selection_by_identity(
+                    self._filtered_records,
+                    prior_identity=current,
+                    prior_visual_row=self._bookmark.row,
+                    identity_fn=self._record_id,
+                )
                 option_list.highlighted = index
+                selected_index = index
             else:
                 option_list.highlighted = None
         finally:
             self._syncing_options = False
+        self._record_bookmark(selected_index)
         self._update_summary()
         self._update_detail()
         self._update_hints()
+
+    def _record_bookmark(self, index: int | None) -> None:
+        if index is None or not (0 <= index < len(self._filtered_records)):
+            if self._loaded_once and not self._text_filter.strip():
+                self._bookmark.record(None, None)
+            return
+        self._bookmark.record(self._record_id(self._filtered_records[index]), index)
+
+    def _record_project_filter(self) -> None:
+        if self._on_project_filter_changed is not None:
+            self._on_project_filter_changed(self._project_filter)
 
     def _selected_record(self) -> RecordT | None:
         try:
@@ -392,6 +417,13 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
         _event: OptionList.OptionHighlighted,
     ) -> None:
         if not self._syncing_options:
+            try:
+                highlighted = self.query_one(
+                    f"#{self._option_list_id}", OptionList
+                ).highlighted
+            except Exception:
+                highlighted = None
+            self._record_bookmark(highlighted)
             self._schedule_detail_update()
 
     def on_key(self, event: events.Key) -> None:

@@ -18,12 +18,13 @@ from threading import Event
 
 import pytest
 
-from textual.widgets import Static
+from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.xprompt_browser_filter_input import BrowserFilterInput
 from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -77,10 +78,12 @@ async def _open_xprompts_tab(
     page: AcePage,
     monkeypatch: pytest.MonkeyPatch,
     prompts: dict[str, Workflow],
+    *,
+    session_state: AdminCenterSessionState | None = None,
 ) -> tuple[ConfigCenterModal, XPromptBrowserPane]:
     """Open the Admin Center on the XPrompts tab with *prompts* seeded."""
     _patch_panes(monkeypatch, prompts)
-    modal = ConfigCenterModal(initial_tab="xprompts")
+    modal = ConfigCenterModal(initial_tab="xprompts", session_state=session_state)
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
     await page.wait_for(lambda _s: bool(modal.query("#xprompts")))
@@ -97,6 +100,37 @@ def _hint_text(pane: XPromptBrowserPane) -> str:
 def test_xprompt_edit_and_forward_handlers_are_synchronous() -> None:
     assert not inspect.iscoroutinefunction(XPromptBrowserPane.action_edit_xprompt)
     assert not inspect.iscoroutinefunction(BrowserFilterInput.action_forward)
+
+
+async def test_xprompts_session_restores_row_by_name_around_headers(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha = tmp_path / "alpha.md"
+    beta = tmp_path / "beta.md"
+    alpha.write_text("Alpha body.", encoding="utf-8")
+    beta.write_text("Beta body.", encoding="utf-8")
+    prompts = {
+        "alpha": _md_xprompt("alpha", "Alpha body.", source_path=str(alpha)),
+        "beta": _md_xprompt("beta", "Beta body.", source_path=str(beta)),
+    }
+    state = AdminCenterSessionState()
+    state.xprompts.record("beta", 0)
+
+    async with AcePage() as page:
+        _, pane = await _open_xprompts_tab(
+            page,
+            monkeypatch,
+            prompts,
+            session_state=state,
+        )
+        option_list = pane.query_one("#browser-list", OptionList)
+        assert option_list.highlighted is not None
+        highlighted = option_list.get_option_at_index(option_list.highlighted)
+
+        assert highlighted.id == "item__beta"
+        assert pane._get_highlighted_item().name == "beta"
+        assert state.xprompts.identity == "beta"
 
 
 async def test_enter_returns_while_xprompt_file_read_is_blocked(

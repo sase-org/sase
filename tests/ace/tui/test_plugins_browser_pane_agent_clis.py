@@ -11,6 +11,7 @@ from textual.widgets import ContentSwitcher, OptionList
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
 from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.agent_clis.models import (
@@ -57,6 +58,33 @@ async def test_updates_subtabs_cycle_and_gate_plugin_actions(
 
         pane.action_cycle_subtab_reverse()
         assert pane._active_subtab == "agent-clis"
+
+
+async def test_agent_cli_session_restores_subtab_and_row_by_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+    )
+    state = AdminCenterSessionState()
+    state.updates.active_subtab = "agent-clis"
+    state.updates.agent_clis.record("codex", 0)
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="updates", session_state=state)
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#updates")))
+        pane = modal.query_one("#updates", PluginsBrowserPane)
+        await page.wait_for(lambda _s: not pane._loading)
+
+        option_list = pane.query_one("#agent-clis-list", OptionList)
+        assert pane._active_subtab == "agent-clis"
+        assert option_list.highlighted == 1
+        assert state.updates.agent_clis.identity == "codex"
 
 
 async def test_updates_subtabs_handle_brackets_from_core_and_lists(

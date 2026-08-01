@@ -50,6 +50,7 @@ from .config_center_history import (
     AdminCenterTabHistory,
     validated_admin_center_tab_history,
 )
+from .config_center_session import AdminCenterSessionState
 from .config_center_home import (
     _HOME_ID as _HOME_ID,
     _HOME_LEAD as _HOME_LEAD,
@@ -112,12 +113,14 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         opener_binding: str = "number_sign",
         auto_update: bool = False,
         comprehensive_provider_names: tuple[str, ...] | None = None,
+        session_state: AdminCenterSessionState | None = None,
         on_tab_activated: Callable[[CenterTab], None] | None = None,
     ) -> None:
         super().__init__()
         self._project = project
         self._auto_update = auto_update
         self._comprehensive_provider_names = comprehensive_provider_names
+        self._session_state = session_state or AdminCenterSessionState()
         self._initial_tab = validated_center_tab(initial_tab)
         self._resume_tab = validated_center_tab(resume_tab)
         self._history: AdminCenterTabHistory = validated_admin_center_tab_history(

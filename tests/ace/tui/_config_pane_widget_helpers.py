@@ -9,6 +9,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.config_pane import ConfigPane
 from sase.config.inventory import build_config_inventory, config_field_model
 from tests.test_config_pane import _fixture_layers, _fixture_schema
@@ -48,8 +49,12 @@ def _patch_loaders(
     return view
 
 
-async def _open_config_pane(page: AcePage) -> ConfigPane:
-    modal = ConfigCenterModal(initial_tab="config")
+async def _open_config_pane(
+    page: AcePage,
+    *,
+    session_state: AdminCenterSessionState | None = None,
+) -> ConfigPane:
+    modal = ConfigCenterModal(initial_tab="config", session_state=session_state)
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
     await page.wait_for(lambda _s: bool(modal.query("#config")))

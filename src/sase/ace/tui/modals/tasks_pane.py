@@ -25,6 +25,8 @@ from textual.widgets.option_list import Option
 
 from sase.ace.hints import build_editor_args
 
+from ..util.selection import restore_selection_by_identity
+from .config_center_session import TasksSessionState
 from ..actions.clipboard import schedule_copy_delivery
 from ..task_queue import TaskInfo, TaskQueue
 from .tasks_pane_render import (
@@ -127,8 +129,14 @@ class TasksPane(Vertical):
         ("shift+g", "scroll_to_bottom", "Bottom"),
     ]
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        session_state: TasksSessionState | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
+        self._session_state = session_state or TasksSessionState()
         self._tasks: list[TaskInfo] = []
         self._last_statuses: dict[str, tuple[str, str | None, str]] = {}
         self._user_scrolled = False
@@ -136,12 +144,13 @@ class TasksPane(Vertical):
         self._refresh_timer: Any | None = None
         self._spinner_index = 0
         self._body_cache: BodyCache = {}
-        self._all_sessions = False
+        self._all_sessions = self._session_state.all_sessions
         self._session_id: str | None = None
         self._store_rows: list[TaskInfo] = []
         self._store_mtime: float | None = None
         self._store_detail_id: str | None = None
         self._store_load_pending = False
+        self._store_loaded_once = False
         self._tick_count = 0
 
     def compose(self) -> ComposeResult:
@@ -163,7 +172,7 @@ class TasksPane(Vertical):
         if queue is not None:
             queue.prune_old()
         self._session_id = current_tui_session_id()
-        self._refresh_snapshot(highlight_index=0)
+        self._refresh_snapshot()
         self._request_store_reload(force=True)
         self._refresh_timer = self.set_interval(0.25, self._refresh_running_output)
 
@@ -174,7 +183,7 @@ class TasksPane(Vertical):
 
     def focus_default(self) -> None:
         """Focus the task list and paint the latest snapshot on activation."""
-        self._refresh_snapshot(highlight_index=0)
+        self._refresh_snapshot()
         self._request_store_reload(force=True)
         option_list = self._option_list()
         if option_list is not None:
@@ -206,11 +215,19 @@ class TasksPane(Vertical):
         merged.sort(key=lambda task: task.started_at, reverse=True)
         return merged
 
-    def _refresh_snapshot(self, *, highlight_index: int | None = None) -> None:
+    def _refresh_snapshot(
+        self,
+        *,
+        highlight_index: int | None = None,
+        prior_identity: str | None = None,
+    ) -> None:
         self._tasks = self._merged_tasks()
         if not self._tasks:
             highlight_index = None
-        self._rebuild_list(highlight_index=highlight_index)
+        self._rebuild_list(
+            highlight_index=highlight_index,
+            prior_identity=prior_identity,
+        )
 
     def _create_options(self) -> list[Option]:
         """Create option list entries from current tasks."""
@@ -243,6 +260,26 @@ class TasksPane(Vertical):
         if 0 <= idx < len(self._tasks):
             return self._tasks[idx]
         return None
+
+    @staticmethod
+    def _task_identity(task: TaskInfo) -> str:
+        return task.durable_task_id or task.task_id
+
+    def _highlighted_row(self) -> int | None:
+        option_list = self._option_list()
+        return option_list.highlighted if option_list is not None else None
+
+    def _selected_task_identity(self) -> str | None:
+        task = self._get_selected_task()
+        return self._task_identity(task) if task is not None else None
+
+    def _record_bookmark(self, index: int | None) -> None:
+        if index is None or not (0 <= index < len(self._tasks)):
+            if self._store_loaded_once and not self._store_load_pending:
+                self._session_state.task.record(None, None)
+            return
+        task = self._tasks[index]
+        self._session_state.task.record(self._task_identity(task), index)
 
     def _display_output(self, task: TaskInfo | None) -> None:
         """Render task output in the right pane."""
@@ -305,15 +342,16 @@ class TasksPane(Vertical):
         self._tick_count += 1
         if self._tick_count % _STORE_RELOAD_TICKS == 0:
             self._request_store_reload()
+        prior_identity = self._selected_task_identity()
+        highlighted = self._highlighted_row()
         self._tasks = self._merged_tasks()
         new_statuses = self._status_snapshot()
 
         if self._last_statuses != new_statuses:
-            highlighted = None
-            option_list = self._option_list()
-            if option_list is not None:
-                highlighted = option_list.highlighted
-            self._rebuild_list(highlight_index=highlighted)
+            self._rebuild_list(
+                highlight_index=highlighted,
+                prior_identity=prior_identity,
+            )
             return
 
         self._update_title()
@@ -376,14 +414,18 @@ class TasksPane(Vertical):
             return
         self._store_mtime = snapshot.mtime
         self._store_detail_id = snapshot.detail_task_id
+        self._store_loaded_once = True
         if snapshot.unchanged:
             return
+        prior_identity = self._selected_task_identity()
+        highlighted = self._highlighted_row()
         self._store_rows = snapshot.rows
         self._tasks = self._merged_tasks()
         if self._last_statuses != self._status_snapshot():
-            option_list = self._option_list()
-            highlighted = option_list.highlighted if option_list is not None else None
-            self._rebuild_list(highlight_index=highlighted)
+            self._rebuild_list(
+                highlight_index=highlighted,
+                prior_identity=prior_identity,
+            )
             return
         self._update_title()
         task = self._get_selected_task()
@@ -411,6 +453,7 @@ class TasksPane(Vertical):
                 return
             if 0 <= idx < len(self._tasks):
                 task = self._tasks[idx]
+                self._record_bookmark(idx)
                 self._display_output(task)
                 if task.store_backed and not task.output:
                     self._request_store_reload(force=True)
@@ -429,10 +472,17 @@ class TasksPane(Vertical):
 
     def action_toggle_scope(self) -> None:
         """Toggle between this session's tasks and every session's."""
+        prior_identity = self._selected_task_identity()
+        highlighted = self._highlighted_row()
         self._all_sessions = not self._all_sessions
+        self._session_state.all_sessions = self._all_sessions
         self._store_rows = []
+        self._store_loaded_once = False
         self._request_store_reload(force=True)
-        self._refresh_snapshot(highlight_index=0 if self._tasks else None)
+        self._refresh_snapshot(
+            highlight_index=highlighted,
+            prior_identity=prior_identity,
+        )
         scope = "all sessions" if self._all_sessions else "this session"
         self.notify(f"Tasks scope: {scope}")
 
@@ -449,13 +499,9 @@ class TasksPane(Vertical):
             )
             return
         queue.remove(task.task_id)
-        highlighted = 0
-        option_list = self._option_list()
-        if option_list is not None and option_list.highlighted is not None:
-            highlighted = option_list.highlighted
+        highlighted = self._highlighted_row()
         self._tasks = self._merged_tasks()
-        new_idx = min(highlighted, len(self._tasks) - 1) if self._tasks else None
-        self._rebuild_list(highlight_index=new_idx)
+        self._rebuild_list(highlight_index=highlighted)
 
     def action_dismiss_all_done(self) -> None:
         """Remove all completed tasks from the queue."""
@@ -463,8 +509,10 @@ class TasksPane(Vertical):
         if queue is None:
             return
         queue.remove_completed()
+        prior_identity = self._selected_task_identity()
+        highlighted = self._highlighted_row()
         self._tasks = self._merged_tasks()
-        self._rebuild_list(highlight_index=0 if self._tasks else None)
+        self._rebuild_list(highlight_index=highlighted, prior_identity=prior_identity)
 
     def action_kill_task(self) -> None:
         """Kill the selected running task after confirmation."""
@@ -485,15 +533,9 @@ class TasksPane(Vertical):
                 self._kill_store_task(task)
                 return
             if kill_callback is not None and kill_callback(task.task_id):
-                highlighted = 0
-                option_list = self._option_list()
-                if option_list is not None and option_list.highlighted is not None:
-                    highlighted = option_list.highlighted
+                highlighted = self._highlighted_row()
                 self._tasks = self._merged_tasks()
-                new_idx = (
-                    min(highlighted, len(self._tasks) - 1) if self._tasks else None
-                )
-                self._rebuild_list(highlight_index=new_idx)
+                self._rebuild_list(highlight_index=highlighted)
                 self.notify(f"Killed: {task.label}")
 
         self.app.push_screen(
@@ -610,7 +652,12 @@ class TasksPane(Vertical):
             task_name="sase-copy-task-output",
         )
 
-    def _rebuild_list(self, highlight_index: int | None = None) -> None:
+    def _rebuild_list(
+        self,
+        highlight_index: int | None = None,
+        *,
+        prior_identity: str | None = None,
+    ) -> None:
         """Rebuild the option list from current tasks."""
         self._user_scrolled = False
         self._last_statuses = self._status_snapshot()
@@ -619,20 +666,37 @@ class TasksPane(Vertical):
         if option_list is None:
             return
 
+        identity = prior_identity or self._session_state.task.identity
+        selected_index: int | None = None
+        pending_missing_bookmark = (
+            identity is not None
+            and not any(self._task_identity(task) == identity for task in self._tasks)
+            and (self._store_load_pending or not self._store_loaded_once)
+        )
         self._syncing_options = True
         try:
             option_list.clear_options()
             for option in self._create_options():
                 option_list.add_option(option)
             if self._tasks:
-                # Store rows can arrive into an empty list, so fall back to
-                # the first row rather than leaving the pane unselected.
-                index = 0 if highlight_index is None else highlight_index
-                option_list.highlighted = max(0, min(index, len(self._tasks) - 1))
+                index = restore_selection_by_identity(
+                    self._tasks,
+                    prior_identity=identity,
+                    prior_visual_row=(
+                        highlight_index
+                        if highlight_index is not None
+                        else self._session_state.task.row
+                    ),
+                    identity_fn=self._task_identity,
+                )
+                option_list.highlighted = index
+                selected_index = index
             else:
                 option_list.highlighted = None
         finally:
             self._syncing_options = False
+        if not pending_missing_bookmark:
+            self._record_bookmark(selected_index)
 
         self._display_output(self._get_selected_task())
         if self._is_active_tab():

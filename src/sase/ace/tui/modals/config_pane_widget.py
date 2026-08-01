@@ -14,11 +14,13 @@ from textual.worker import Worker, WorkerState
 
 from sase.config import AppliedResult
 
+from ..util.selection import restore_selection_by_identity
 from .config_commit import (
     ConfigCommitOffer,
     push_config_commit_prompt,
     submit_config_commit_task,
 )
+from .config_center_session import SelectionBookmark
 from .config_pane_rendering import (
     render_detail,
     render_row_label,
@@ -84,6 +86,7 @@ class ConfigPane(Vertical):
         local_paths: tuple[str, ...] = (),
         project: str | None = None,
         auto_load: bool = True,
+        bookmark: SelectionBookmark | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
@@ -99,7 +102,10 @@ class ConfigPane(Vertical):
         self._worker: Worker[Any] | None = None
         self._config_commit_offer_worker: Worker[ConfigCommitOffer | None] | None = None
         self._node_by_path: dict[str, TreeNode[str]] = {}
-        self._selected_path: str | None = None
+        self._bookmark = bookmark or SelectionBookmark()
+        self._selected_path: str | None = self._bookmark.identity
+        self._syncing_tree = False
+        self._suppress_post_rebuild_highlight = False
 
     # -- composition --
 
@@ -210,53 +216,92 @@ class ConfigPane(Vertical):
             tree = self.query_one("#config-tree", Tree)
         except Exception:
             return
+        prior_identity = self._bookmark.identity or self._selected_path
+        prior_row = self._bookmark.row if prior_identity is not None else None
+        self._syncing_tree = True
         tree.clear()
         self._node_by_path = {}
         view = self._view
         if view is None:
+            self._syncing_tree = False
             self._update_detail(None)
             return
-        shown = visible_paths(
-            view, filter_text=self._filter_text, modified_only=self._modified_only
-        )
-        first_leaf: str | None = None
-        for field in view.field_model.fields:
-            if field.path not in shown:
-                continue
-            parent_node = (
-                self._node_by_path.get(field.parent)
-                if field.parent is not None
-                else tree.root
+        try:
+            shown = visible_paths(
+                view, filter_text=self._filter_text, modified_only=self._modified_only
             )
-            if parent_node is None:
-                parent_node = tree.root
-            label = render_row_label(view, field.path)
-            if field.leaf:
-                node = parent_node.add_leaf(label, data=field.path)
-                if first_leaf is None:
-                    first_leaf = field.path
+            visible_sequence: list[str] = []
+            first_leaf: str | None = None
+            for field in view.field_model.fields:
+                if field.path not in shown:
+                    continue
+                visible_sequence.append(field.path)
+                parent_node = (
+                    self._node_by_path.get(field.parent)
+                    if field.parent is not None
+                    else tree.root
+                )
+                if parent_node is None:
+                    parent_node = tree.root
+                label = render_row_label(view, field.path)
+                if field.leaf:
+                    node = parent_node.add_leaf(label, data=field.path)
+                    if first_leaf is None:
+                        first_leaf = field.path
+                else:
+                    node = parent_node.add(label, data=field.path, expand=True)
+                self._node_by_path[field.path] = node
+            if not visible_sequence:
+                if not any(field.leaf for field in view.field_model.fields):
+                    self._bookmark.record(None, None)
+                self._update_detail(None)
+                return
+
+            target: str | None
+            if prior_identity is None and prior_row is None:
+                target = first_leaf or visible_sequence[0]
             else:
-                node = parent_node.add(label, data=field.path, expand=True)
-            self._node_by_path[field.path] = node
-        # Restore the prior selection if it is still visible, else first leaf.
-        target = (
-            self._selected_path
-            if self._selected_path in self._node_by_path
-            else first_leaf
-        )
-        if target is not None:
-            target_node = self._node_by_path.get(target)
-            if target_node is not None:
-                tree.move_cursor(target_node)
-            self._update_detail(target)
-        else:
-            self._update_detail(None)
+                target_index = restore_selection_by_identity(
+                    visible_sequence,
+                    prior_identity=prior_identity,
+                    prior_visual_row=prior_row,
+                    identity_fn=lambda path: path,
+                )
+                target = visible_sequence[target_index]
+            if target is not None:
+                target_node = self._node_by_path.get(target)
+                if target_node is not None:
+                    tree.move_cursor(target_node)
+                self._update_detail(target)
+                self._suppress_post_rebuild_highlight = True
+            else:
+                self._update_detail(None)
+        finally:
+            self._syncing_tree = False
 
     def _update_detail(self, path: str | None) -> None:
         self._selected_path = path
+        if path is not None:
+            self._bookmark.record(path, self._logical_row_for_path(path))
         view = self._view
         body = render_detail(view, path) if view is not None else Text("")
         self._update_static("#config-detail-body", body)
+
+    def _logical_row_for_path(self, path: str) -> int | None:
+        view = self._view
+        if view is None:
+            return None
+        shown = visible_paths(
+            view, filter_text=self._filter_text, modified_only=self._modified_only
+        )
+        row = 0
+        for field in view.field_model.fields:
+            if field.path not in shown:
+                continue
+            if field.path == path:
+                return row
+            row += 1
+        return None
 
     def _update_static(self, selector: str, content: Text | str) -> None:
         try:
@@ -322,7 +367,20 @@ class ConfigPane(Vertical):
     # -- tree selection events --
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
+        if self._syncing_tree:
+            return
         data = event.node.data
+        if self._suppress_post_rebuild_highlight:
+            if data != self._selected_path:
+                self._suppress_post_rebuild_highlight = False
+                return
+            return
+        try:
+            tree = self.query_one("#config-tree", Tree)
+        except Exception:
+            tree = None
+        if tree is not None and event.node is not tree.cursor_node:
+            return
         if isinstance(data, str):
             self._update_detail(data)
 
@@ -355,6 +413,7 @@ class ConfigPane(Vertical):
             if first_node is not None:
                 self._move_cursor(tree, first_node)
             return
+        self._suppress_post_rebuild_highlight = False
         tree.action_cursor_down()
 
     def action_cycle_cursor_up(self) -> None:
@@ -367,6 +426,7 @@ class ConfigPane(Vertical):
             if last_node is not None:
                 self._move_cursor(tree, last_node)
             return
+        self._suppress_post_rebuild_highlight = False
         tree.action_cursor_up()
 
     def _tree_action(self, name: str) -> None:
@@ -374,6 +434,7 @@ class ConfigPane(Vertical):
             tree = self.query_one("#config-tree", Tree)
         except Exception:
             return
+        self._suppress_post_rebuild_highlight = False
         getattr(tree, name)()
 
     def action_scroll_to_top(self) -> None:
@@ -441,6 +502,7 @@ class ConfigPane(Vertical):
             self._move_cursor(tree, node.children[0])
 
     def _move_cursor(self, tree: Tree[str], node: TreeNode[str]) -> None:
+        self._suppress_post_rebuild_highlight = False
         tree.move_cursor(node, animate=False)
         if isinstance(node.data, str):
             self._update_detail(node.data)
@@ -499,7 +561,6 @@ class ConfigPane(Vertical):
 
     def action_toggle_modified(self) -> None:
         self._modified_only = not self._modified_only
-        self._selected_path = None
         self._rebuild_tree()
         self._update_static("#config-pane-hints", self._hints())
         self._sync_state_visibility()
@@ -661,6 +722,7 @@ class ConfigPane(Vertical):
         self._filter_text = ""
         self._modified_only = False
         self._selected_path = target
+        self._bookmark.record(target, self._logical_row_for_path(target))
         self._rebuild_tree()
         self._update_static("#config-pane-hints", self._hints())
         self._sync_state_visibility()

@@ -36,19 +36,23 @@ class CenterTabSpec:
 def _config_pane_factory(modal: ConfigCenterModal) -> Widget:
     from .config_pane import ConfigPane
 
-    return ConfigPane(project=modal._project, id="config")
+    return ConfigPane(
+        project=modal._project,
+        bookmark=modal._session_state.config,
+        id="config",
+    )
 
 
 def _logs_pane_factory(_modal: ConfigCenterModal) -> Widget:
     from .logs_pane import LogsPane
 
-    return LogsPane(id="logs")
+    return LogsPane(bookmark=_modal._session_state.logs, id="logs")
 
 
 def _projects_pane_factory(_modal: ConfigCenterModal) -> Widget:
     from .projects_pane import ProjectsPane
 
-    return ProjectsPane(id="projects")
+    return ProjectsPane(session_state=_modal._session_state.projects, id="projects")
 
 
 def _statistics_pane_factory(modal: ConfigCenterModal) -> Widget:
@@ -62,7 +66,7 @@ def _statistics_pane_factory(modal: ConfigCenterModal) -> Widget:
 def _tasks_pane_factory(_modal: ConfigCenterModal) -> Widget:
     from .tasks_pane import TasksPane
 
-    return TasksPane(id="tasks")
+    return TasksPane(session_state=_modal._session_state.tasks, id="tasks")
 
 
 def _updates_pane_factory(modal: ConfigCenterModal) -> Widget:
@@ -72,13 +76,18 @@ def _updates_pane_factory(modal: ConfigCenterModal) -> Widget:
         id="updates",
         auto_update_on_load=modal._auto_update,
         comprehensive_provider_names=modal._comprehensive_provider_names,
+        session_state=modal._session_state.updates,
     )
 
 
 def _xprompts_pane_factory(modal: ConfigCenterModal) -> Widget:
     from .xprompt_browser_pane import XPromptBrowserPane
 
-    return XPromptBrowserPane(modal._project, id="xprompts")
+    return XPromptBrowserPane(
+        modal._project,
+        bookmark=modal._session_state.xprompts,
+        id="xprompts",
+    )
 
 
 _TAB_SPECS: tuple[CenterTabSpec, ...] = (

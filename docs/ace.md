@@ -1800,8 +1800,10 @@ cached while the modal remains open. Command-palette actions such as **Open logs
 **Open statistics**, plus update shortcuts and indicators, enter their requested pane directly and make a successful
 entry the next resume target. Closing from home does not clear an older target.
 
-Both the resume target and the alternate are persisted machine-locally and survive across ACE process restarts; filters,
-selection, scroll position, loaded data, and pane instances still end with the modal. If
+Both the top-level resume target and the alternate are persisted machine-locally and survive across ACE process
+restarts. Within one running ACE process, closing and reopening Admin Center also remembers each selectable pane's last
+logical entry by stable identity, plus the minimal scope or sub-tab needed to show it again. Filters, marks, scroll
+position, loaded data, pane instances, Statistics controls, and other pane-local state still end with the modal. If
 `ace.keymaps.app.open_config_center` is rebound, repeat that configured key instead; the footer and landing page display
 the effective binding and destination.
 

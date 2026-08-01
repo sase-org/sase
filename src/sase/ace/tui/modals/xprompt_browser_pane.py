@@ -18,6 +18,8 @@ from textual.widgets.option_list import Option
 from sase.xprompt import get_all_prompts
 from sase.xprompt.workflow_models import Workflow
 
+from ..util.selection import restore_selection_by_identity
+from .config_center_session import SelectionBookmark
 from ..util.frontmatter_syntax import markdown_document_syntax
 from .xprompt_browser_actions import XPromptBrowserActionsMixin
 from .xprompt_browser_catalog import (
@@ -64,9 +66,17 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         ("E", "external_edit_xprompt", "External editor"),
     ]
 
-    def __init__(self, project: str | None = None, **kwargs: object) -> None:
+    def __init__(
+        self,
+        project: str | None = None,
+        *,
+        bookmark: SelectionBookmark | None = None,
+        **kwargs: object,
+    ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._project = project
+        self._bookmark = bookmark or SelectionBookmark()
+        self._syncing_options = False
         self._all_items: list[BrowserItem] = []
         self._grouped: list[tuple[str, list[BrowserItem]]] = []
         self._load_xprompts()
@@ -129,11 +139,8 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         return create_item_label(item)
 
     def on_mount(self) -> None:
-        flat_items = self._get_flat_items()
-        if flat_items:
-            self._update_preview(flat_items[0])
-            option_list = self.query_one("#browser-list", OptionList)
-            self._skip_to_first_item(option_list)
+        option_list = self.query_one("#browser-list", OptionList)
+        self._restore_highlight_and_preview(option_list, filter_text="")
 
     def focus_default(self) -> None:
         """Focus the filter input when the XPrompts tab activates."""
@@ -153,23 +160,87 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
             except Exception:
                 continue
 
+    @staticmethod
+    def _is_item_option(opt_id: object | None) -> bool:
+        return bool(opt_id) and not str(opt_id).startswith("__header__")
+
+    @staticmethod
+    def _option_id_for_item(name: str) -> str:
+        return f"item__{name}"
+
+    def _option_index_for_item(self, option_list: OptionList, name: str) -> int | None:
+        target = self._option_id_for_item(name)
+        for index in range(option_list.option_count):
+            try:
+                if option_list.get_option_at_index(index).id == target:
+                    return index
+            except Exception:
+                continue
+        return None
+
+    def _logical_row_for_item(self, name: str) -> int | None:
+        for row, item in enumerate(self._get_flat_items()):
+            if item.name == name:
+                return row
+        return None
+
+    def _record_bookmark(self, item: BrowserItem | None, *, filter_text: str) -> None:
+        if item is None:
+            if not filter_text.strip() and not self._all_items:
+                self._bookmark.record(None, None)
+            return
+        self._bookmark.record(item.name, self._logical_row_for_item(item.name))
+
+    def _restore_highlight_and_preview(
+        self,
+        option_list: OptionList,
+        *,
+        filter_text: str,
+        preferred_name: str | None = None,
+    ) -> None:
+        flat_items = self._get_flat_items()
+        selected: BrowserItem | None = None
+        self._syncing_options = True
+        try:
+            if flat_items:
+                row = restore_selection_by_identity(
+                    flat_items,
+                    prior_identity=preferred_name or self._bookmark.identity,
+                    prior_visual_row=self._bookmark.row,
+                    identity_fn=lambda item: item.name,
+                )
+                selected = flat_items[row]
+                option_index = self._option_index_for_item(option_list, selected.name)
+                if option_index is not None:
+                    option_list.highlighted = option_index
+                else:
+                    self._skip_to_first_item(option_list)
+                    selected = self._get_highlighted_item()
+            else:
+                option_list.highlighted = None
+        finally:
+            self._syncing_options = False
+        self._record_bookmark(selected, filter_text=filter_text)
+        if selected is not None:
+            self._update_preview(selected)
+        else:
+            self._clear_preview()
+
     def on_input_changed(self, event: Input.Changed) -> None:
-        self._rebuild_groups(event.value)
+        filter_text = event.value
+        self._rebuild_groups(filter_text)
         option_list = self.query_one("#browser-list", OptionList)
         option_list.clear_options()
         for opt in self._create_options():
             option_list.add_option(opt)
 
-        flat_items = self._get_flat_items()
-        if flat_items:
-            self._skip_to_first_item(option_list)
-            self._update_preview(flat_items[0])
-        else:
-            self._clear_preview()
+        self._restore_highlight_and_preview(option_list, filter_text=filter_text)
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
     ) -> None:
+        if self._syncing_options:
+            return
         if event.option and event.option.id:
             opt_id = str(event.option.id)
             if opt_id.startswith("__header__"):
@@ -177,6 +248,7 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
             name = opt_id.removeprefix("item__")
             for item in self._get_flat_items():
                 if item.name == name:
+                    self._record_bookmark(item, filter_text="")
                     self._update_preview(item)
                     return
 
@@ -286,7 +358,9 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
             filter_text = ""
 
         highlighted_item = self._get_highlighted_item()
-        highlighted_name = highlighted_item.name if highlighted_item else None
+        highlighted_name = (
+            highlighted_item.name if highlighted_item else self._bookmark.identity
+        )
 
         self._load_xprompts()
         self._rebuild_groups(filter_text)
@@ -302,26 +376,11 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         for opt in self._create_options():
             option_list.add_option(opt)
 
-        flat_items = self._get_flat_items()
-        restored = False
-        if highlighted_name:
-            for i in range(option_list.option_count):
-                try:
-                    opt = option_list.get_option_at_index(i)
-                    if opt.id == f"item__{highlighted_name}":
-                        option_list.highlighted = i
-                        for item in flat_items:
-                            if item.name == highlighted_name:
-                                self._update_preview(item)
-                                break
-                        restored = True
-                        break
-                except Exception:
-                    continue
-
-        if not restored and flat_items:
-            self._skip_to_first_item(option_list)
-            self._update_preview(flat_items[0])
+        self._restore_highlight_and_preview(
+            option_list,
+            filter_text=filter_text,
+            preferred_name=highlighted_name,
+        )
 
     def _update_preview(self, item: BrowserItem) -> None:
         """Update the preview panel for an item."""

@@ -7,6 +7,7 @@ from textual.widgets import Input
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
 from tests.ace.tui._config_pane_widget_helpers import (
     _open_config_pane,
@@ -30,6 +31,20 @@ async def test_config_pane_loads_and_populates_tree(
         # The status placeholder is hidden and the tree is visible.
         assert pane.query_one("#config-tree").display is True
         assert pane.query_one("#config-field-status").display is False
+
+
+async def test_config_pane_restores_session_bookmark_by_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch)
+    state = AdminCenterSessionState()
+    state.config.record("timezone", 2)
+
+    async with AcePage() as page:
+        pane = await _open_config_pane(page, session_state=state)
+
+        assert pane._selected_path == "timezone"
+        assert state.config.identity == "timezone"
 
 
 async def test_config_pane_filter_narrows_tree(

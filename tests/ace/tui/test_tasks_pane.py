@@ -21,6 +21,7 @@ from sase.ace.tui.modals import logs_pane as lp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals import tasks_pane as tp
 from sase.ace.tui.modals.tasks_pane import TasksPane
 from sase.ace.tui.modals.tasks_pane_render import _relative_time
@@ -40,7 +41,7 @@ def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         lp,
         "_build_log_pane_load_result",
-        lambda _idx: lp._LogPaneLoadResult([], [], 0, 0, Text("stub")),
+        lambda _idx, _source_id=None: lp._LogPaneLoadResult([], [], 0, 0, Text("stub")),
     )
     monkeypatch.setattr(
         "sase.ace.tui.modals.xprompt_browser_pane.get_all_prompts",
@@ -129,8 +130,10 @@ def _queue(*tasks: TaskInfo) -> TaskQueue:
 
 async def _open_tasks_pane(
     pilot: Any,
+    *,
+    session_state: AdminCenterSessionState | None = None,
 ) -> tuple[ConfigCenterModal, TasksPane]:
-    modal = ConfigCenterModal(initial_tab="tasks")
+    modal = ConfigCenterModal(initial_tab="tasks", session_state=session_state)
     pilot.app.push_screen(modal)
     await pilot.pause()
     pane = modal.query_one("#tasks", TasksPane)
@@ -459,6 +462,77 @@ def _patch_store_loader(
     monkeypatch.setattr(tp, "load_store_task_rows", _fake_load)
     monkeypatch.setattr(tp, "current_tui_session_id", lambda: "session-mine")
     return calls
+
+
+async def test_tasks_session_restores_selected_task_across_modal_instances(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_store_loader(monkeypatch, [])
+    running = _task(
+        "run",
+        label="sync sase-42",
+        status="running",
+        age_seconds=3,
+        live_output="Syncing...\n",
+    )
+    success = _task(
+        "ok",
+        label="mail sase-41",
+        status="success",
+        age_seconds=120,
+        output="Mailed PR\n",
+    )
+    state = AdminCenterSessionState()
+
+    async with _TasksTestApp(_queue(success, running)).run_test() as pilot:
+        first, pane = await _open_tasks_pane(pilot, session_state=state)
+        await pilot.press("j")
+        await pilot.pause()
+
+        assert state.tasks.task.identity == "ok"
+        assert pane.query_one("#tasks-list", OptionList).highlighted == 1
+        assert "Mailed PR" in _output_plain(pane)
+
+        first.action_close()
+        await pilot.pause()
+
+        _, reopened = await _open_tasks_pane(pilot, session_state=state)
+        await pilot.pause()
+
+        assert reopened is not pane
+        assert reopened.query_one("#tasks-list", OptionList).highlighted == 1
+        assert "Mailed PR" in _output_plain(reopened)
+
+
+async def test_tasks_focus_default_does_not_reset_selection_to_first_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_store_loader(monkeypatch, [])
+    running = _task(
+        "run",
+        label="sync sase-42",
+        status="running",
+        age_seconds=3,
+        live_output="Syncing...\n",
+    )
+    success = _task(
+        "ok",
+        label="mail sase-41",
+        status="success",
+        age_seconds=120,
+        output="Mailed PR\n",
+    )
+
+    async with _TasksTestApp(_queue(success, running)).run_test() as pilot:
+        _, pane = await _open_tasks_pane(pilot)
+        await pilot.press("j")
+        await pilot.pause()
+
+        pane.focus_default()
+        await pilot.pause()
+
+        assert pane.query_one("#tasks-list", OptionList).highlighted == 1
+        assert "Mailed PR" in _output_plain(pane)
 
 
 async def test_tasks_tab_merges_store_rows_with_in_memory_tasks(

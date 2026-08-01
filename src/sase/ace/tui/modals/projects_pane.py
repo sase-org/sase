@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from textual import events, on
 from textual.app import ComposeResult
@@ -23,6 +23,7 @@ from sase.main.project_handler import (
 )
 
 from .base import FilterInput, OptionListNavigationMixin
+from .config_center_session import ProjectsSessionState, ProjectsSubTab
 from .inventory_project_picker import (
     InventoryProjectChoice,
     InventoryProjectPicker,
@@ -45,8 +46,6 @@ from .project_inventory_panes import (
 )
 from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
-ProjectsSubTab = Literal["projects", "repos", "workspaces"]
-_DEFAULT_SUBTAB: ProjectsSubTab = "projects"
 _SUBTAB_ORDER: tuple[ProjectsSubTab, ...] = (
     "projects",
     "repos",
@@ -139,12 +138,19 @@ class ProjectsPane(
         }
     )
 
-    def __init__(self, projects_root: Path | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        projects_root: Path | None = None,
+        *,
+        session_state: ProjectsSessionState | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._projects_root = projects_root
+        self._session_state = session_state or ProjectsSessionState()
         self._records: list[ProjectRecordWire] = []
         self._filtered_records: list[ProjectRecordWire] = []
-        self._active_subtab: ProjectsSubTab = _DEFAULT_SUBTAB
+        self._active_subtab: ProjectsSubTab = self._session_state.active_subtab
         self._text_filter = ""
         self._status_message = ""
         self._marked_projects: set[str] = set()
@@ -191,11 +197,17 @@ class ProjectsPane(
             yield RepoInventoryPane(
                 projects_root=self._projects_root,
                 project_records=self._records,
+                bookmark=self._session_state.repos,
+                project_filter=self._session_state.repos_project_filter,
+                on_project_filter_changed=self._set_repos_project_filter,
                 id=_SUBTAB_WIDGET_IDS["repos"],
             )
             yield WorkspaceInventoryPane(
                 projects_root=self._projects_root,
                 project_records=self._records,
+                bookmark=self._session_state.workspaces,
+                project_filter=self._session_state.workspaces_project_filter,
+                on_project_filter_changed=self._set_workspaces_project_filter,
                 id=_SUBTAB_WIDGET_IDS["workspaces"],
             )
 
@@ -393,6 +405,7 @@ class ProjectsPane(
 
     def _switch_to_subtab(self, subtab: ProjectsSubTab) -> None:
         self._active_subtab = subtab
+        self._session_state.active_subtab = subtab
         try:
             self.query_one(
                 "#projects-subtab-switcher", ContentSwitcher
@@ -401,6 +414,12 @@ class ProjectsPane(
         except Exception:
             return
         self.focus_default()
+
+    def _set_repos_project_filter(self, project_key: str | None) -> None:
+        self._session_state.repos_project_filter = project_key
+
+    def _set_workspaces_project_filter(self, project_key: str | None) -> None:
+        self._session_state.workspaces_project_filter = project_key
 
     def _cycle_subtab(self, step: int) -> None:
         index = _SUBTAB_ORDER.index(self._active_subtab)

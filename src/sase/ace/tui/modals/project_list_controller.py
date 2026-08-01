@@ -10,8 +10,10 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.util.selection import restore_selection_by_identity
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 
+from .config_center_session import ProjectsSessionState
 from .project_management_rendering import (
     ProjectInventoryCounts,
     detail_text,
@@ -42,6 +44,7 @@ class ProjectListControllerMixin(_MixinBase):
         _inventory_error: str
         _detail_debouncer: DetailPanelDebouncer | None
         _syncing_options: bool
+        _session_state: ProjectsSessionState
 
         def action_default_project_action(self) -> None: ...
 
@@ -113,27 +116,42 @@ class ProjectListControllerMixin(_MixinBase):
             return
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
-        current = preferred_project or self._selected_project_name()
+        current = (
+            preferred_project
+            or self._session_state.projects.identity
+            or self._selected_project_name()
+        )
         self._syncing_options = True
+        selected_index: int | None = None
         try:
             option_list.clear_options()
             for option in self._create_options(self._filtered_records):
                 option_list.add_option(option)
             if self._filtered_records:
-                index = 0
-                if current is not None:
-                    for i, record in enumerate(self._filtered_records):
-                        if record.project_name == current:
-                            index = i
-                            break
+                index = restore_selection_by_identity(
+                    self._filtered_records,
+                    prior_identity=current,
+                    prior_visual_row=self._session_state.projects.row,
+                    identity_fn=lambda record: record.project_name,
+                )
                 option_list.highlighted = index
+                selected_index = index
             else:
                 option_list.highlighted = None
         finally:
             self._syncing_options = False
+        self._record_project_bookmark(selected_index)
         self._update_summary()
         self._update_detail()
         self._refresh_hints()
+
+    def _record_project_bookmark(self, index: int | None) -> None:
+        if index is None or not (0 <= index < len(self._filtered_records)):
+            if not self._records:
+                self._session_state.projects.record(None, None)
+            return
+        record = self._filtered_records[index]
+        self._session_state.projects.record(record.project_name, index)
 
     def _update_summary(self) -> None:
         try:
@@ -248,6 +266,13 @@ class ProjectListControllerMixin(_MixinBase):
         self, _event: OptionList.OptionHighlighted
     ) -> None:
         if not self._syncing_options:
+            try:
+                highlighted = self.query_one(
+                    f"#{self._option_list_id}", OptionList
+                ).highlighted
+            except Exception:
+                highlighted = None
+            self._record_project_bookmark(highlighted)
             self._schedule_detail_update()
 
     def on_option_list_option_selected(self, _event: OptionList.OptionSelected) -> None:
