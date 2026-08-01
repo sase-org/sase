@@ -23,6 +23,7 @@ from ...models._agent_clan_sections import (
     ClanSlowToolEntry,
     first_meaningful_line,
 )
+from ..file_panel._linked_deltas import LinkedDeltaGroup
 
 
 def aggregate_clan_context_lanes(
@@ -106,13 +107,19 @@ def aggregate_clan_context_lanes(
         for group in summary.linked_delta_groups:
             for delta in group.entries:
                 key = f"{_path_key(group.workspace_dir)}:{delta.path}"
+                delta_group = LinkedDeltaGroup(
+                    repo_name=group.repo_name,
+                    workspace_dir=group.workspace_dir,
+                    entries=(delta,),
+                    kind=group.kind,
+                )
                 _add_context(
                     accumulators,
                     "ARTIFACTS",
                     key,
                     f"{group.repo_name}/{delta.path}",
                     member_label,
-                    delta,
+                    delta_group,
                 )
         for memory_display in summary.memory_reads:
             memory_event = cast(MemoryReadDisplayEvent, memory_display).event

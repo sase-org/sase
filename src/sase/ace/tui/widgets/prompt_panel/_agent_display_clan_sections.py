@@ -25,10 +25,10 @@ from ...models._agent_clan_sections import (
 from ...models.fold_state import FoldLevel
 from ...tools.slow import format_long_duration
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
+from ._agent_display_clan_context import clan_context_entry_hint_target
 from ._agent_display_state import HeaderHintState
 from ._fold_language import append_fold_glyph, fold_count_style
 from ._helpers import append_major_section_divider, append_section_heading
-from ._agent_display_state import HeaderHintState
 from ._container_hint_text import container_text_with_file_hints
 from ._hint_caps import HintContentBudget
 from ._output_variable_rich import append_var_value_lines, var_value_style
@@ -245,6 +245,9 @@ def append_context_section(
     *,
     level: FoldLevel,
     count_known: bool,
+    hint_state: HeaderHintState | None = None,
+    member_workspaces: dict[str, str | None] | None = None,
+    fallback_workspace: str | None = None,
 ) -> None:
     """Render SASE CONTEXT as headings, per-lane digests, or full lane items."""
     count = sum(len(lane.entries) for lane in lanes) if count_known else None
@@ -270,6 +273,21 @@ def append_context_section(
         text.append(f"{lane.label}\n", style="bold #87D7FF")
         for entry in lane.entries:
             text.append("  • ", style="dim #D75FFF")
+            hint_target = (
+                clan_context_entry_hint_target(
+                    lane.label,
+                    entry,
+                    member_workspaces=member_workspaces or {},
+                    fallback_workspace=fallback_workspace,
+                )
+                if hint_state is not None
+                else None
+            )
+            if hint_target is not None and hint_state is not None:
+                hint_number = hint_state.hint_counter
+                text.append(f"[{hint_number}] ", style="bold #FFFF00")
+                hint_state.hint_mappings[hint_number] = hint_target
+                hint_state.hint_counter += 1
             text.append(entry.label, style=_CLAN_BODY_STYLE)
             if entry.count > 1:
                 text.append(f" ×{entry.count}", style="dim")
@@ -540,7 +558,12 @@ def minimal_context_lanes(
             ClanContextLane(
                 label="PLAN",
                 entries=tuple(
-                    ClanContextEntry(key=value, label=value, member_labels=())
+                    ClanContextEntry(
+                        key=value,
+                        label=value,
+                        member_labels=(),
+                        values=(value,),
+                    )
                     for value in in_memory.plan_paths
                 ),
             )

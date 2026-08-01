@@ -313,11 +313,27 @@ def build_clan_detail_text(
         else minimal_context_lanes(snapshot)
     )
     if context_lanes:
+        context_level = _effective_fold_level("context", fold_level, overrides)
+        if (
+            hint_state is not None
+            and context_level == FoldLevel.FULLY_EXPANDED
+            and hint_state.workspace_dir is None
+        ):
+            hint_state.workspace_dir = _clan_hint_workspace(agent)
         append_context_section(
             text,
             context_lanes,
-            level=_effective_fold_level("context", fold_level, overrides),
+            level=context_level,
             count_known=context_loaded,
+            hint_state=hint_state,
+            member_workspaces=(
+                _clan_member_hint_workspaces(agent, snapshot)
+                if hint_state is not None and context_level == FoldLevel.FULLY_EXPANDED
+                else None
+            ),
+            fallback_workspace=(
+                hint_state.workspace_dir if hint_state is not None else None
+            ),
         )
 
     slow_tool_calls = disk.slow_tool_calls if disk is not None else ()
@@ -398,6 +414,23 @@ def _clan_member_hint_workspace_resolver(
         return resolved[identity]
 
     return resolve
+
+
+def _clan_member_hint_workspaces(
+    agent: Agent,
+    snapshot: ClanSectionSnapshot,
+) -> dict[str, str | None]:
+    """Resolve context member labels to their owning primary workspaces."""
+    labels = {member.identity: member.label for member in snapshot.in_memory.members}
+    return {
+        labels[row.identity]: resolve_agent_workspace_dir(
+            row.effective_workspace_num,
+            row.project_file,
+            row.workspace_dir,
+        )
+        for row in clan_section_member_rows(agent)
+        if row.identity in labels
+    }
 
 
 __all__ = [
