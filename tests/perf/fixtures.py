@@ -24,6 +24,11 @@ LARGE_REPLY_SIZES_MB: tuple[int, ...] = (1, 5, 20)
 # ``live_reply.md`` files, and five members is a plausible family width.
 HINT_REPLY_SIZE_KB: int = 100
 HINT_FAMILY_MEMBER_COUNT: int = 5
+# Clan scenario sizing. Clan summaries are opaque script output, so 8 KB models
+# a verbose epic summary, and five members matches the family width above.
+HINT_CLAN_MEMBER_COUNT: int = 5
+HINT_CLAN_SUMMARY_KB: int = 8
+HINT_CLAN_GENERATION: str = "20260727120000"
 
 
 def make_changespec(name: str, file_path: Path, *, status: str = "WIP") -> ChangeSpec:
@@ -201,6 +206,60 @@ def make_hint_family_container(
         for i in range(members)
     ]
     return root
+
+
+def make_hint_clan_summary(kb: int = 0) -> str:
+    """Return a bounded Rich-markup clan summary dense with hintable paths.
+
+    Clan summaries are opaque script output, so the harness models the worst
+    realistic shape: markup spans wrapped around path-bearing prose, which is
+    exactly what the span-preserving annotator has to rebuild.
+    """
+    kb = kb or HINT_CLAN_SUMMARY_KB
+    block = (
+        "[bold]Plan:[/bold] plans:202608/clan_summary_view_hints.md\n"
+        "[dim]Prompt:[/dim] prompts/clan_summary_view_hints.md\n"
+        "Phase worker touched src/sase/ace/tui/widgets/prompt_panel/"
+        "_agent_display_clan.py\n"
+        "and tests/ace/tui/widgets/test_agent_display_clan_hints.py this run.\n"
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit sed do.\n"
+    )
+    target_bytes = kb * 1024
+    repeats = (target_bytes // len(block)) + 1
+    return (block * repeats)[:target_bytes]
+
+
+def make_hint_clan_container(
+    *,
+    artifacts_root: Path,
+    project_file: str,
+    members: int = HINT_CLAN_MEMBER_COUNT,
+    reply_kb: int = HINT_REPLY_SIZE_KB,
+    summary_kb: int = HINT_CLAN_SUMMARY_KB,
+) -> Agent:
+    """Return a synthetic clan-container row over ``members`` on-disk members.
+
+    The clan hint path annotates the summary plus every visible member body,
+    so this row is the scenario that exposes cost scaling with clan width.
+    """
+    from sase.ace.tui.models._agent_tree import project_clan_tree
+
+    member_rows: list[Agent] = []
+    for index in range(members):
+        member = make_hint_agent(
+            950 + index,
+            artifacts_root=artifacts_root,
+            project_file=project_file,
+            reply_kb=reply_kb,
+        )
+        member.agent_clan = "hintclan"
+        member.agent_clan_generation = HINT_CLAN_GENERATION
+        member.agent_name = f"hintclan.m{index}"
+        member.workspace_dir = str(artifacts_root)
+        member_rows.append(member)
+    container = project_clan_tree(member_rows)[0]
+    container.clan_summary = make_hint_clan_summary(summary_kb)
+    return container
 
 
 @dataclass(frozen=True)

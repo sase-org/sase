@@ -711,7 +711,7 @@ somewhere stale.
 | `f`                 | Prepare a fork of the selected agent/family, clan container, or focused named tribe panel                  |
 | `n`                 | Name agent                                                                                                 |
 | `r`                 | Edit prompt and relaunch agent (retry without killing)                                                     |
-| `v`                 | View files (hint mode)                                                                                     |
+| `v`                 | View files (hint mode; annotates clan/family containers in place)                                          |
 | `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                          |
 | `V`                 | Open the Agent Run Log modal for the focused agent                                                         |
 | `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                            |
@@ -788,6 +788,17 @@ rosters and their numeric jumps likewise remain available at both effective leve
 are omitted when absent, while an unfinished reply remains visible as pending rather than disappearing as empty.
 `AGENT XPROMPT`, `AGENT PROMPT`, and the consolidated `AGENT REPLY` are plain navigation anchors whose available
 conversation bodies stay fully visible at both family levels.
+
+`v` annotates a clan document in place rather than replacing it: the panel keeps its current sections and fold level and
+gains inline `[N]` markers. Clan hints come from the clan summary, member-attributed `ERRORS`, variable, `REPLIES`, and
+`PROMPTS` bodies, per-entry `SASE CONTEXT` rows, `SLOW TOOL CALLS` rows, and the `COMMITS` lane; each path resolves
+against the workspace of the member that produced it, and summary paths that name a plan, artifact, or delta resolve
+through an index computed during clan enrichment rather than a blind workspace join. Hints exist only where text is
+actually visible, so availability follows the active fold level — level 1 hints the clan summary only, level 2 adds the
+bounded triage lines, and level 3 adds full bodies and per-entry context, tool-call, and commit rows. Markers are
+numbered in document order and are distinct from the roster's fixed 0-9 member jump gutter, which never carries a marker
+and never renumbers in hint mode. While clan enrichment is still in flight the hint bar stays open and the document is
+re-annotated when the deferred sections land.
 
 The default fold chords are:
 

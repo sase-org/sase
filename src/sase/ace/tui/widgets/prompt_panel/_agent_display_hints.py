@@ -349,6 +349,7 @@ class AgentHintsDisplayMixin:
             tui_trace(
                 "widget.prompt_panel.update_display_with_hints",
                 family_container=agent.is_family_container_row,
+                clan_container=agent.is_clan_container,
             ) as extra,
             annotated_char_scope() as annotated_chars,
         ):

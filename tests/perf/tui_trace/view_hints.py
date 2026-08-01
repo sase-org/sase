@@ -13,9 +13,12 @@ from sase.ace.tui.app import AceApp
 from sase.ace.tui.models.fold_state import FoldLevel
 
 from ..fixtures import (
+    HINT_CLAN_MEMBER_COUNT,
+    HINT_CLAN_SUMMARY_KB,
     HINT_FAMILY_MEMBER_COUNT,
     HINT_REPLY_SIZE_KB,
     make_hint_agent,
+    make_hint_clan_container,
     make_hint_family_container,
 )
 from .common import _read_jsonl, _summarize_spans, _wait_for_startup
@@ -27,6 +30,7 @@ VIEW_HINTS_STEPS: tuple[str, ...] = (
     "large_reply_repeat_press",
     "family_container_press",
     "family_container_unfolded_press",
+    "clan_container_press",
     "hint_mode_auto_refresh",
 )
 VIEW_HINTS_BASELINE_PATH = (
@@ -55,6 +59,7 @@ def _summarize_hint_counters(records: Iterable[dict[str, Any]]) -> dict[str, Any
         "family_container": sorted(
             {bool(r.get("family_container")) for r in hint_records}
         ),
+        "clan_container": sorted({bool(r.get("clan_container")) for r in hint_records}),
     }
 
 
@@ -71,6 +76,10 @@ async def _run_view_hints_scenario(
         project_file=str(gp_file),
     )
     family_agent = make_hint_family_container(
+        artifacts_root=artifacts_root,
+        project_file=str(gp_file),
+    )
+    clan_agent = make_hint_clan_container(
         artifacts_root=artifacts_root,
         project_file=str(gp_file),
     )
@@ -141,9 +150,21 @@ async def _run_view_hints_scenario(
             await _timed("family_container_unfolded_press", _press_v)
             await _teardown_bar()
 
+            # The clan press is measured at the default collapsed level, which
+            # is the level a user actually reports: the summary is the only
+            # hint source, so the step isolates clan-container overhead (cache
+            # key, snapshot plumbing, summary annotation) from member bodies.
+            app.panel_fold_level = FoldLevel.COLLAPSED  # type: ignore[assignment]
+            await pilot.pause()
+            await _select(clan_agent)
+            await _timed("clan_container_press", _press_v)
+            await _teardown_bar()
+
     return {
         "reply_kb": HINT_REPLY_SIZE_KB,
         "family_members": HINT_FAMILY_MEMBER_COUNT,
+        "clan_members": HINT_CLAN_MEMBER_COUNT,
+        "clan_summary_kb": HINT_CLAN_SUMMARY_KB,
         "steps": steps,
     }
 
@@ -201,6 +222,8 @@ async def run_view_hints_baseline(
         "runs": runs,
         "reply_kb": HINT_REPLY_SIZE_KB,
         "family_members": HINT_FAMILY_MEMBER_COUNT,
+        "clan_members": HINT_CLAN_MEMBER_COUNT,
+        "clan_summary_kb": HINT_CLAN_SUMMARY_KB,
         "steps": VIEW_HINTS_STEPS,
         "median": aggregate,
         "raw_runs": raw_runs,

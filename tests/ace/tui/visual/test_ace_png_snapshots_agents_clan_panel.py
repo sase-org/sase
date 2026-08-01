@@ -186,6 +186,39 @@ async def test_epic_clan_panel_png_snapshots(
         )
 
 
+async def test_epic_clan_panel_hint_mode_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``v`` must annotate the clan document in place, not replace it."""
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 12, 15, 0))
+    patch_startup_loaders(
+        monkeypatch,
+        agents=decorate_clan_panel_sections(
+            epic_clan_agents(clan_summary=_EPIC_CLAN_SUMMARY)
+        ),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        await page.press("v")
+        await page.wait_for(lambda _state: bool(page.app._hint_mappings))
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "CLAN")
+        assert_page_svg_contains(page, "[1]")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_panel_epic_hints_120x40",
+            title="ACE epic clan panel in hint mode",
+        )
+
+
 async def test_swarm_clan_panel_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

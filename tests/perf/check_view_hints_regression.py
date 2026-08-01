@@ -146,6 +146,26 @@ _DEFAULT_SPAN_GATES = (
         rationale="unchanged refreshes should validate cache currency, not rebuild hints",
     ),
     SpanGate(
+        "clan container press reaches the hint bar quickly",
+        step="clan_container_press",
+        span="agents.view_files",
+        max_ms=30.0,
+        rationale=(
+            "clan step postdates the frozen baseline, so gate it absolutely: "
+            "clan width must not scale the keypress-to-bar path"
+        ),
+    ),
+    SpanGate(
+        "clan container render stays bounded",
+        step="clan_container_press",
+        span="widget.prompt_panel.update_display_with_hints",
+        max_ms=65.0,
+        rationale=(
+            "clan step postdates the frozen baseline, so gate it absolutely: "
+            "bounded cache key and capped summary keep the render bounded"
+        ),
+    ),
+    SpanGate(
         "unfolded family render stays bounded",
         step="family_container_unfolded_press",
         span="widget.prompt_panel.update_display_with_hints",
@@ -171,6 +191,16 @@ _DEFAULT_COUNTER_GATES = (
         max_value=0.0,
         missing_is_zero=True,
         rationale="unchanged refreshes should not enter the hint scanner",
+    ),
+    CounterGate(
+        "clan container hint scan is capped",
+        step="clan_container_press",
+        counter="annotated_chars",
+        max_value=40_000.0,
+        rationale=(
+            "the clan summary shares one hint budget, so a verbose summary "
+            "cannot grow the scan without bound"
+        ),
     ),
     CounterGate(
         "unfolded family hint scan is capped",

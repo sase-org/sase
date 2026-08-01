@@ -207,6 +207,53 @@ def test_clan_hint_render_preserves_folded_snapshot_structure(tmp_path: Path) ->
         assert heading in actual
 
 
+def _roster_block(plain: str) -> list[str]:
+    """Return the CLAN MEMBERS heading plus its contiguous roster rows."""
+    lines = plain.splitlines()
+    start = next(index for index, line in enumerate(lines) if "CLAN MEMBERS" in line)
+    end = next(
+        (index for index in range(start + 1, len(lines)) if not lines[index].strip()),
+        len(lines),
+    )
+    return lines[start:end]
+
+
+def test_clan_member_jump_gutter_is_untouched_by_double_digit_hints(
+    tmp_path: Path,
+) -> None:
+    """More than ten hints must not renumber or annotate the jump gutter."""
+    members = [
+        make_clan_agent(
+            f"research.m{index}",
+            status="DONE",
+            start=datetime(2026, 7, 17, 12, 0, 0) + timedelta(minutes=index),
+            stop=datetime(2026, 7, 17, 12, 30, 0),
+        )
+        for index in range(12)
+    ]
+    for member in members:
+        member.workspace_dir = str(tmp_path)
+    container = project_clan_tree(members)[0]
+    container.clan_summary = " ".join(f"docs/note{index}.md" for index in range(12))
+    state = HeaderHintState(1, {}, None, {})
+
+    plain_render = build_clan_detail_text(
+        container,
+        fold_level=FoldLevel.FULLY_EXPANDED,
+    ).plain
+    hinted = build_clan_detail_text(
+        container,
+        fold_level=FoldLevel.FULLY_EXPANDED,
+        hint_state=state,
+    ).plain
+
+    assert len(state.hint_mappings) == 12
+    assert "[12] docs/note11.md" in hinted
+    hinted_roster = _roster_block(hinted)
+    assert hinted_roster == _roster_block(plain_render)
+    assert not [line for line in hinted_roster if re.search(r"\[\d+\]", line)]
+
+
 def test_clan_summary_styles_survive_hint_insertion(tmp_path: Path) -> None:
     container, _snapshot = rich_clan_snapshot()
     member = clan_section_member_rows(container)[0]
