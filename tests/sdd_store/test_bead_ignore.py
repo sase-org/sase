@@ -13,11 +13,13 @@ def test_bead_store_gitignore_patterns_support_both_layouts() -> None:
         "beads/beads.db",
         "beads/beads.db-shm",
         "beads/beads.db-wal",
+        "beads/.bead-mutation-lock.holder",
     )
     assert bead_store_gitignore_patterns("") == (
         "beads.db",
         "beads.db-shm",
         "beads.db-wal",
+        ".bead-mutation-lock.holder",
     )
 
 
@@ -28,5 +30,6 @@ def test_root_store_gitignore_preserves_existing_entries(tmp_path: Path) -> None
     assert ensure_bead_store_gitignore(tmp_path, prefix="") == gitignore
     assert gitignore.read_text(encoding="utf-8") == (
         "assets/cache/\nbeads.db\nbeads.db-shm\nbeads.db-wal\n"
+        ".bead-mutation-lock.holder\n"
     )
     assert ensure_bead_store_gitignore(tmp_path, prefix="") is None

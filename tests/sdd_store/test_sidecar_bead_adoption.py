@@ -136,6 +136,7 @@ def test_fresh_init_records_and_seeds_root_beads_sidecar(
         "beads.db",
         "beads.db-shm",
         "beads.db-wal",
+        ".bead-mutation-lock.holder",
     ]
     assert not (clones["plans"] / "beads").exists()
     assert not (clones["plans"] / ".gitignore").exists()

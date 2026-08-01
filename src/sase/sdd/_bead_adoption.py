@@ -16,7 +16,14 @@ from sase.sdd._commit import commit_sdd_files, run_sdd_git
 from sase.sdd._sidecar_git import push_sidecar
 from sase.sdd._store_types import SddMaterializationError
 
-_BEAD_CACHE_FILENAMES = frozenset({"beads.db", "beads.db-shm", "beads.db-wal"})
+_BEAD_CACHE_FILENAMES = frozenset(
+    {
+        "beads.db",
+        "beads.db-shm",
+        "beads.db-wal",
+        ".bead-mutation-lock.holder",
+    }
+)
 _logger = logging.getLogger(__name__)
 
 

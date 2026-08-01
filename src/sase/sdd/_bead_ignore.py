@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def bead_store_gitignore_patterns(prefix: str) -> tuple[str, ...]:
-    """Return SQLite-cache ignore patterns below *prefix*."""
+    """Return runtime-only bead-store ignore patterns below *prefix*."""
 
     normalized = prefix.strip("/")
     stem = f"{normalized}/" if normalized else ""
@@ -14,6 +14,7 @@ def bead_store_gitignore_patterns(prefix: str) -> tuple[str, ...]:
         f"{stem}beads.db",
         f"{stem}beads.db-shm",
         f"{stem}beads.db-wal",
+        f"{stem}.bead-mutation-lock.holder",
     )
 
 

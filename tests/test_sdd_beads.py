@@ -84,7 +84,7 @@ def test_cli_init_beads_supports_repository_root_store(tmp_path: Path) -> None:
 
     git_init.assert_called_once()
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == (
-        "beads.db\nbeads.db-shm\nbeads.db-wal\n"
+        "beads.db\nbeads.db-shm\nbeads.db-wal\n.bead-mutation-lock.holder\n"
     )
     bead_init.assert_called_once_with(
         tmp_path,

@@ -126,6 +126,7 @@ def test_split_init_creates_both_repos_before_writing_record(
         "beads/beads.db",
         "beads/beads.db-shm",
         "beads/beads.db-wal",
+        "beads/.bead-mutation-lock.holder",
     ]
     assert (clones["research"] / "README.md").is_file()
 
