@@ -303,31 +303,20 @@ def test_reference_resolver_renders_every_artifacts_identity(
         project="alpha",
         kind="proposal",
         proposal=proposal,
+        active=None,
         archive=None,
-        issue=None,
+        bead_link=None,
     )
-    epic_row = SimpleNamespace(
-        row_id="epic",
+    active_row = SimpleNamespace(
+        row_id="active",
         project="alpha",
-        kind="epic",
+        kind="active",
         proposal=None,
+        active=SimpleNamespace(document=SimpleNamespace(path=str(plan_path))),
         archive=None,
-        issue=SimpleNamespace(
-            id="sase-b2",
-            title="Artifact references",
-            design="plans:202607/artifact.md",
-        ),
-    )
-    phase_row = SimpleNamespace(
-        row_id="phase",
-        project="alpha",
-        kind="phase",
-        proposal=None,
-        archive=None,
-        issue=SimpleNamespace(
-            id="sase-b2.7",
-            title="ACE copy mode",
-            design="plans:202607/artifact.md",
+        bead_link=SimpleNamespace(
+            bead_id="sase-b2",
+            reference="plans:202607/artifact.md",
         ),
     )
     cases = (
@@ -356,24 +345,13 @@ def test_reference_resolver_renders_every_artifacts_identity(
         (
             "plans",
             _artifacts._ArtifactReferenceItem(
-                "epic",
-                ("plan", "alpha", "epic", "sase-b2"),
-                epic_row,
+                "active plan",
+                ("plan", "alpha", "active", str(plan_path)),
+                active_row,
                 "alpha",
                 str(tmp_path),
             ),
-            "@bead:sase-b2",
-        ),
-        (
-            "plans",
-            _artifacts._ArtifactReferenceItem(
-                "phase",
-                ("plan", "alpha", "phase", "sase-b2.7"),
-                phase_row,
-                "alpha",
-                str(tmp_path),
-            ),
-            "@bead:sase-b2.7",
+            "@plans:202607/artifact.md",
         ),
         (
             "chats",

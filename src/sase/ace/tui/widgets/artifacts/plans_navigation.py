@@ -1,4 +1,4 @@
-"""Selection, entry navigation, and detail behavior for the plans pane."""
+"""Selection, entry navigation, and document detail behavior for Plans."""
 
 from __future__ import annotations
 
@@ -8,23 +8,18 @@ from typing import TYPE_CHECKING, Any
 from textual.widgets import Markdown, OptionList, Static
 from textual.widgets.option_list import Option
 
-from sase.artifact_refs import parse_artifact_ref
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 
 from .._prompt_preview_target import PreviewPayload
 from .entry_navigation import ArtifactEntryTarget
 from .plans_data import PlansSnapshot
 from .plans_detail import (
+    active_plan_properties_header,
     archive_preview_markdown,
     archive_properties_header,
-    bead_body_markdown,
-    bead_preview_markdown,
-    bead_properties_header,
-    linked_plan_for_issue,
     proposal_properties_header,
-    resolved_plan_path,
 )
-from .plans_list import PlanRow, plan_row_target, row_option_id
+from .plans_list import PlanRow, plan_row_target
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
@@ -49,7 +44,6 @@ class PlansOptionList(OptionList):
     def replace_options(
         self, options: list[Option], *, highlighted: int | None
     ) -> None:
-        """Replace rows and selection under one synchronous echo guard."""
         self._programmatic_update = True
         try:
             self.clear_options()
@@ -69,12 +63,11 @@ class PlansOptionList(OptionList):
 
 
 class PlansNavigationMixin(_MixinBase):
-    """Own plan selection, jump targets, expansion, and detail content."""
+    """Own plan selection, targets, previews, and detail content."""
 
     project_scope: str | None
     _snapshot: PlansSnapshot | None
     _rows: dict[str, PlanRow]
-    _expanded_epics: set[tuple[str, str]]
     _detail_debouncer: DetailPanelDebouncer | None
     _syncing_options: bool
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
@@ -93,7 +86,6 @@ class PlansNavigationMixin(_MixinBase):
 
     def _init_plans_navigation(self) -> None:
         self._rows = {}
-        self._expanded_epics = set()
         self._detail_debouncer = None
         self._syncing_options = False
         self._entry_jump_hints = {}
@@ -110,8 +102,7 @@ class PlansNavigationMixin(_MixinBase):
         return self._rows.get(option.id or "")
 
     def focus_list(self) -> None:
-        option_list = self._option_list()
-        if option_list is not None:
+        if (option_list := self._option_list()) is not None:
             option_list.focus()
 
     def move_selection(self, step: int) -> None:
@@ -131,8 +122,7 @@ class PlansNavigationMixin(_MixinBase):
         targets: list[ArtifactEntryTarget] = []
         for index in range(option_list.option_count):
             option_id = option_list.get_option_at_index(index).id or ""
-            row = self._rows.get(option_id)
-            if row is not None:
+            if (row := self._rows.get(option_id)) is not None:
                 targets.append(plan_row_target(row))
         return tuple(targets)
 
@@ -167,10 +157,9 @@ class PlansNavigationMixin(_MixinBase):
         self._refresh_options(update_detail=False)
 
     def clear_entry_jump_hints(self) -> None:
-        if not self._entry_jump_hints:
-            return
-        self._entry_jump_hints = {}
-        self._refresh_options(update_detail=False)
+        if self._entry_jump_hints:
+            self._entry_jump_hints = {}
+            self._refresh_options(update_detail=False)
 
     def apply_entry_marks(self, marks: set[ArtifactEntryTarget]) -> None:
         self._entry_marks = set(marks)
@@ -187,37 +176,7 @@ class PlansNavigationMixin(_MixinBase):
                 return index
         return None
 
-    def set_selected_epic_expanded(self, expanded: bool) -> None:
-        row = self.selected_row()
-        if row is None or row.issue is None:
-            return
-        epic_id = row.issue.id if row.kind == "epic" else row.issue.parent_id
-        if epic_id is None:
-            return
-        cancel_jump = getattr(
-            self.app, "_cancel_artifacts_jump_mode_for_model_change", None
-        )
-        if callable(cancel_jump):
-            cancel_jump("plans")
-        epic_key = (row.project, epic_id)
-        if expanded:
-            if epic_key in self._expanded_epics:
-                return
-            self._expanded_epics.add(epic_key)
-        else:
-            if epic_key not in self._expanded_epics:
-                return
-            self._expanded_epics.discard(epic_key)
-        snapshot = self._snapshot
-        preferred_id = (
-            None
-            if snapshot is None
-            else row_option_id(snapshot, "epic", row.project, epic_id)
-        )
-        self._refresh_options(preferred_id=preferred_id)
-
     def preview_for_row(self, row: PlanRow) -> PreviewPayload | None:
-        """Build the same preview payload used by selection-based actions."""
         if row.proposal is not None:
             return PreviewPayload(
                 content=row.proposal.content,
@@ -228,41 +187,29 @@ class PlansNavigationMixin(_MixinBase):
                 source_path=row.proposal.plan_path,
                 default_view="rendered",
             )
+        if row.active is not None:
+            document = row.active.document
+            return PreviewPayload(
+                content=document.content,
+                lexer="markdown",
+                title=document.frontmatter.get("title") or row.bead_link.bead_title,  # type: ignore[union-attr]
+                kind_label="active plan",
+                icon="▤",
+                source_path=document.path,
+                reference=row.active.owner.reference,
+                default_view="rendered",
+            )
         if row.archive is not None:
             plan = row.archive.plan
             role = row.archive_role or "plans"
             return PreviewPayload(
-                content=archive_preview_markdown(
-                    row.archive,
-                    role=role,
-                ),
+                content=archive_preview_markdown(row.archive, role=role),
                 lexer="markdown",
                 title=plan.title or plan.name,
                 kind_label=f"{plan.kind} plan",
                 icon="▤",
                 source_path=plan.path,
                 reference=f"{role}:{plan.relpath}",
-                default_view="rendered",
-            )
-        if row.issue is not None:
-            return PreviewPayload(
-                content=bead_preview_markdown(
-                    row.issue,
-                    self._snapshot,
-                    project=row.project,
-                ),
-                lexer="markdown",
-                title=f"{row.issue.id} · {row.issue.title}",
-                kind_label="bead",
-                icon="◈",
-                # A logical reference is not openable; hand external tools the
-                # path the reference currently resolves to, or nothing.
-                source_path=resolved_plan_path(
-                    row.issue,
-                    self._snapshot,
-                    project=row.project,
-                ),
-                reference=_document_reference(row.issue.design),
                 default_view="rendered",
             )
         return None
@@ -291,20 +238,15 @@ class PlansNavigationMixin(_MixinBase):
                 )
             )
             body.update(row.proposal.body or "_No plan body._")
-        elif row.issue is not None:
+        elif row.active is not None:
             properties.display = True
             properties.update(
-                bead_properties_header(
-                    row.issue,
-                    self._snapshot,
-                    project=row.project,
+                active_plan_properties_header(
+                    row.active,
                     project_name=self._project_name(row.project),
                 )
             )
-            linked_plan = linked_plan_for_issue(
-                row.issue, self._snapshot, project=row.project
-            )
-            body.update(bead_body_markdown(row.issue, linked_plan))
+            body.update(row.active.document.body or "_No plan body._")
         elif row.archive is not None:
             properties.display = True
             properties.update(
@@ -312,15 +254,18 @@ class PlansNavigationMixin(_MixinBase):
                     row.archive,
                     project_name=self._project_name(row.project),
                     role=row.archive_role or "plans",
+                    owner=row.bead_link,
                 )
             )
             body.update(row.archive.plan.body or "_No plan body._")
 
     def _project_name(self, project: str) -> str:
         snapshot = self._snapshot
-        if snapshot is None:
-            return project
-        return snapshot.display_names.get(project, project)
+        return (
+            project
+            if snapshot is None
+            else snapshot.display_names.get(project, project)
+        )
 
     def _option_list(self) -> PlansOptionList | None:
         try:
@@ -338,31 +283,11 @@ class PlansNavigationMixin(_MixinBase):
             return None
 
     def _option_index(self, option_id: str | None) -> int | None:
-        if option_id is None:
-            return None
-        option_list = self._option_list()
-        if option_list is None:
+        if option_id is None or (option_list := self._option_list()) is None:
             return None
         for index in range(option_list.option_count):
             if option_list.get_option_at_index(index).id == option_id:
                 return index
-        if option_id.startswith("phase:"):
-            row = self._rows.get(option_id)
-            snapshot = self._snapshot
-            if (
-                row is not None
-                and row.issue is not None
-                and row.issue.parent_id
-                and snapshot is not None
-            ):
-                return self._option_index(
-                    row_option_id(
-                        snapshot,
-                        "epic",
-                        row.project,
-                        row.issue.parent_id,
-                    )
-                )
         return None
 
     def _first_selectable_index(self) -> int | None:
@@ -373,17 +298,6 @@ class PlansNavigationMixin(_MixinBase):
             if not option_list.get_option_at_index(index).disabled:
                 return index
         return None
-
-
-def _document_reference(value: str | None) -> str | None:
-    """Return a normalized document reference when *value* parses as one."""
-    if not value:
-        return None
-    try:
-        parsed = parse_artifact_ref(value)
-    except (RuntimeError, ValueError):
-        return None
-    return parsed.rendered if parsed.kind_type == "document" else None
 
 
 __all__ = ["PlansNavigationMixin"]

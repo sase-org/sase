@@ -7,7 +7,6 @@ from collections.abc import Iterable
 from textual.message import Message
 
 from sase.ace.tui.widgets.filter_bar import FilterBar
-from sase.bead_status_presentation import bead_status_display_order
 from sase.plan_search.filter_query import plan_completion_context
 
 from .types import ARTIFACTS_ACCENTS
@@ -36,23 +35,17 @@ class PlanFilterBar(FilterBar):
     STATUS_ID = "plan-filter-status"
     COMPLETION_ID = "plan-filter-completion"
     CANDIDATE_ID_PREFIX = "plan-filter-candidate"
-    _BEAD_STATUS_COMPLETIONS = bead_status_display_order()
     KEY_COMPLETIONS = (
-        ("kind", "proposal, task, epic, phase, archive"),
-        ("status", "open, claimed, in_progress, closed, ready, blocked"),
+        ("kind", "proposal, active, archive, plans, research"),
+        ("status", "proposed or plan frontmatter status"),
         ("tier", "tale, epic, plan"),
         ("project", "project key or display name"),
         ("since", "Nh/Nd/Nw, today, YYYY-MM-DD"),
         ("until", "Nh/Nd/Nw, today, YYYY-MM-DD"),
     )
     STATIC_VALUE_COMPLETIONS = {
-        "kind": ("proposal", "task", "epic", "phase", "archive"),
-        "status": (
-            "proposed",
-            *_BEAD_STATUS_COMPLETIONS,
-            "blocked",
-            "launched",
-        ),
+        "kind": ("proposal", "active", "archive", "plans", "research"),
+        "status": ("proposed",),
         "tier": ("tale", "epic", "plan"),
         "since": _DATE_COMPLETIONS,
         "until": _DATE_COMPLETIONS,
@@ -67,7 +60,7 @@ class PlanFilterBar(FilterBar):
     }
     REPEATABLE_VALUE_KINDS = frozenset(("kind", "status", "tier", "project"))
     NEGATABLE_KEYS = REPEATABLE_VALUE_KINDS
-    FREE_TEXT_HINT = "title, body, id (AND)"
+    FREE_TEXT_HINT = "title, body, path (AND)"
 
     class QueryChanged(Message):
         """The user changed the query text."""

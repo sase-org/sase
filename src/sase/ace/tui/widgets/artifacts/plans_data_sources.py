@@ -1,4 +1,4 @@
-"""Project, proposal, bead, and archive sources for Plans snapshots."""
+"""Project, proposal, bead-link, and document sources for Plans snapshots."""
 
 from __future__ import annotations
 
@@ -174,12 +174,9 @@ def yaml_value_to_string(value: object) -> str:
 
 def load_project_beads(
     beads_dir: Path,
-) -> tuple[list[Issue], frozenset[str], frozenset[str]]:
+) -> list[Issue]:
     with BeadProject(beads_dir.parent, beads_dirname=beads_dir.name) as bead_project:
-        issues = bead_project.list_issues()
-        ready_ids = frozenset(issue.id for issue in bead_project.ready())
-        blocked_ids = frozenset(issue.id for issue in bead_project.blocked())
-    return issues, ready_ids, blocked_ids
+        return bead_project.list_issues()
 
 
 def load_project_archive(

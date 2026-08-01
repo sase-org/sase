@@ -190,6 +190,15 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
     ),
     _target(
         "artifacts_plans",
+        "bead_id",
+        "bead id",
+        "Copy owning bead id",
+        "Identity",
+        "owning bead ids",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_plans",
         "reference",
         "@ref",
         "Copy artifact reference",

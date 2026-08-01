@@ -76,6 +76,7 @@ class CopyModeKeymaps(ModeKeymaps):
                 "snapshot": "s",
             },
             "artifacts_plans": {
+                "bead_id": "percent_sign",
                 "reference": "at",
                 "handoff": "exclamation_mark",
                 "design": "d",

@@ -242,7 +242,7 @@ def _missing_reference_message(subtab: str, label: str) -> str:
     if subtab == "chats":
         reason = "it is an imported transcript outside the chats root"
     elif subtab == "plans":
-        reason = "it has no canonical bead or document reference"
+        reason = "it has no canonical document reference"
     elif subtab == "other":
         reason = "it has no durable file id"
     else:
@@ -253,11 +253,11 @@ def _missing_reference_message(subtab: str, label: str) -> str:
 def _plan_markdown_label(row: Any) -> str:
     if row.proposal is not None:
         return str(row.proposal.title or row.row_id)
+    if row.active is not None:
+        return str(row.active.document.frontmatter.get("title") or row.row_id)
     if row.archive is not None:
         plan = row.archive.plan
         return str(plan.title or plan.name or row.row_id)
-    if row.issue is not None:
-        return str(row.issue.title or row.row_id)
     return str(row.row_id)
 
 

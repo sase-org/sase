@@ -45,6 +45,7 @@ _DISPATCH_ORDER: dict[str, tuple[str, ...]] = {
         "handoff",
         "link",
         "json",
+        "bead_id",
         "design",
         "path",
         "title",

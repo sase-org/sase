@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import partial
+from pathlib import Path
 from typing import Any
 
 from sase.core.agent_identity_facade import present_agent_name
@@ -77,17 +78,22 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
             self.notify("No plan entry selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        if target == "design":
-            value = design_reference_for_plan_row(row)
+        if target in {"bead_id", "design"}:
+            if target == "bead_id":
+                value = None if row.bead_link is None else row.bead_link.bead_id
+                label = "owning bead id"
+            else:
+                value = design_reference_for_plan_row(row)
+                label = "owning bead design reference"
             if value is None:
                 self.notify(  # type: ignore[attr-defined]
-                    "The selected bead has no design plan reference",
+                    f"The selected plan has no {label}",
                     severity="warning",
                 )
                 return
             self._schedule_artifacts_copy(
                 value,
-                copied_message="Copied bead design plan reference",
+                copied_message=f"Copied {label}",
             )
             return
 
@@ -97,6 +103,13 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
                 "title": row.proposal.title,
                 "body": row.proposal.body,
             }
+        elif row.active is not None:
+            document = row.active.document
+            values = {
+                "path": document.path,
+                "title": document.frontmatter.get("title") or Path(document.path).stem,
+                "body": document.body,
+            }
         elif row.archive is not None:
             plan = row.archive.plan
             values = {
@@ -104,14 +117,8 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
                 "title": plan.title or plan.name,
                 "body": plan.body,
             }
-        else:
-            preview = pane.selected_preview()
-            issue = row.issue
-            values = {
-                "path": None if preview is None else preview.source_path,
-                "title": None if issue is None else issue.title,
-                "body": None if preview is None else preview.content,
-            }
+        else:  # pragma: no cover - PlanRow always has a document payload.
+            values = {"path": None, "title": None, "body": None}
 
         value = values[target]
         if not value:
@@ -350,7 +357,9 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
                 for row in rows
             ],
             plural_label=(
-                "bead design plan references"
+                "owning bead ids"
+                if target == "bead_id"
+                else "owning bead design references"
                 if target == "design"
                 else f"plan {_plural(target)}"
             ),
@@ -630,6 +639,11 @@ def _bug_prompt(pane: Any, issue: Any, project: str) -> str:
 
 
 def _plan_copy_value(pane: Any, row: Any, target: str) -> str:
+    if target == "bead_id":
+        value = None if row.bead_link is None else row.bead_link.bead_id
+        if value is None:
+            raise ValueError(f"{row.row_id} has no owning bead id")
+        return value
     if target == "design":
         value = design_reference_for_plan_row(row)
         if value is None:
@@ -641,6 +655,13 @@ def _plan_copy_value(pane: Any, row: Any, target: str) -> str:
             "title": row.proposal.title,
             "body": row.proposal.body,
         }
+    elif row.active is not None:
+        document = row.active.document
+        values = {
+            "path": document.path,
+            "title": document.frontmatter.get("title") or Path(document.path).stem,
+            "body": document.body,
+        }
     elif row.archive is not None:
         plan = row.archive.plan
         values = {
@@ -648,14 +669,8 @@ def _plan_copy_value(pane: Any, row: Any, target: str) -> str:
             "title": plan.title or plan.name,
             "body": plan.body,
         }
-    else:
-        preview = pane.preview_for_row(row)
-        issue = row.issue
-        values = {
-            "path": None if preview is None else preview.source_path,
-            "title": None if issue is None else issue.title,
-            "body": None if preview is None else preview.content,
-        }
+    else:  # pragma: no cover - PlanRow always has a document payload.
+        values = {"path": None, "title": None, "body": None}
     value = values[target]
     if not value:
         raise ValueError(f"{row.row_id} has no {target}")

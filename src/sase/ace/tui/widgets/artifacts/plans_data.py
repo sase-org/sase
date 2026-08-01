@@ -1,4 +1,4 @@
-"""Off-thread data collection for the Artifacts Plans pane."""
+"""Off-thread data collection for the document-only Artifacts Plans pane."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from pathlib import Path
 from sase.bead.model import Issue
 
 from . import plans_data_documents as _documents
+from .bead_plan_links import BeadPlanLink, build_bead_plan_links, plan_owner
 from .plans_data_documents import (
     LinkedPlanPayload as _LinkedPlanPayload,
     current_linked_plan_key as _current_linked_plan_key,
@@ -15,20 +16,19 @@ from .plans_data_documents import (
     read_linked_plan_text as _read_linked_plan_text,
 )
 from .plans_data_models import (
+    ActivePlanDocument,
     DeepArchiveFetch as _DeepArchiveFetch,
     LinkedPlanDocument,
     PlanProposal,
     PlansProject as _PlansProject,
     PlansSnapshot,
     ProjectArchive,
-    ProjectIssue,
 )
 from .plans_data_sources import (
     DEEP_ARCHIVE_PER_PROJECT_LIMIT,
     _ARCHIVE_MERGED_LIMIT,
     _ARCHIVE_PER_PROJECT_LIMIT,
     archive_recency_key as _archive_recency_key,
-    hierarchical_id_key as _hierarchical_id_key,
     load_project_archive as _load_project_archive,
     load_project_beads as _load_project_beads,
     load_proposals as _load_proposals,
@@ -45,8 +45,7 @@ from .plans_data_sources import (
     yaml_value_to_string as _yaml_value_to_string,
 )
 
-# Keep these private names available here for tests and existing integrations that
-# patch the original module boundary.
+# Preserve loader seams patched by focused tests and external integrations.
 _linked_plan_signature = _documents._linked_plan_signature
 _resolve_linked_plan_path = _documents._resolve_linked_plan_path
 _unavailable_linked_plan_payload = _documents._unavailable_linked_plan_payload
@@ -58,11 +57,10 @@ def load_plans_snapshot(
     previous: PlansSnapshot | None = None,
     force: bool = False,
 ) -> PlansSnapshot:
-    """Collect one or all enabled projects through existing core facades.
+    """Collect proposals, active linked documents, and committed archive rows.
 
-    This function performs disk access and must run on a worker thread. Its
-    source key covers bead events, committed plan files, and pending proposal
-    identities so normal re-activation can reuse the mounted pane's cache.
+    This function performs disk access and must run on a worker thread. Beads
+    contribute only their plan-link projection; no bead becomes a Plans row.
     """
     resolved = _resolve_projects(project)
     project_names = tuple(item.project for item in resolved)
@@ -106,14 +104,9 @@ def load_plans_snapshot(
     if not force and previous is not None and previous.source_key == source_key:
         return previous
 
-    from sase.bead.model import BeadTier, IssueType
-
-    tasks: list[ProjectIssue] = []
-    epics: list[ProjectIssue] = []
-    phases_by_epic: dict[tuple[str, str], tuple[ProjectIssue, ...]] = {}
-    ready_ids: set[tuple[str, str]] = set()
-    blocked_ids: set[tuple[str, str]] = set()
-    archive: list[ProjectArchive] = []
+    active_by_path: dict[str, ActivePlanDocument] = {}
+    archive_candidates: list[ProjectArchive] = []
+    bead_plan_links: dict[tuple[str, str], BeadPlanLink] = {}
     linked_plan_documents: dict[tuple[str, str], LinkedPlanDocument] = {}
     archive_truncated = False
     errors: dict[str, str] = {}
@@ -123,57 +116,56 @@ def load_plans_snapshot(
         beads_dir = beads_by_project[project_name]
         plans_roots = plans_by_project[project_name]
         plans_root = plans_roots.get("plans")
+        issues: tuple[Issue, ...] = ()
         if beads_dir is None:
             if project is not None:
                 errors[project_name] = "No bead store is available for this project."
         else:
             try:
-                issues, project_ready_ids, project_blocked_ids = _load_project_beads(
-                    beads_dir
-                )
+                issues = tuple(_load_project_beads(beads_dir))
             except Exception as exc:
                 _add_project_error(errors, project_name, f"Unable to read beads: {exc}")
-            else:
-                project_tasks = tuple(
-                    issue for issue in issues if issue.issue_type == IssueType.TASK
+
+        if plans_root is not None and issues:
+            project_links = build_bead_plan_links(
+                project_name,
+                issues,
+                workspace_dir=item.workspace_dir,
+                plans_root=plans_root,
+            )
+            bead_plan_links.update(project_links)
+            read_cache: dict[Path, _LinkedPlanPayload] = {}
+            for key, link in project_links.items():
+                if not link.live:
+                    continue
+                document = _load_linked_plan_document(
+                    link.reference,
+                    workspace_dir=item.workspace_dir,
+                    plans_root=plans_root,
+                    read_cache=read_cache,
                 )
-                tasks.extend(
-                    ProjectIssue(project_name, issue) for issue in project_tasks
+                linked_plan_documents[key] = document
+            for link in project_links.values():
+                active_document = linked_plan_documents.get(
+                    (project_name, link.bead_id)
                 )
-                project_epics = tuple(
-                    issue
-                    for issue in issues
-                    if issue.issue_type == IssueType.PLAN
-                    and issue.tier == BeadTier.EPIC
+                if (
+                    active_document is None
+                    or not active_document.available
+                    or not active_document.path
+                ):
+                    continue
+                owner = plan_owner(
+                    project_links,
+                    project=project_name,
+                    path=active_document.path,
+                    live_only=True,
                 )
-                epics.extend(
-                    ProjectIssue(project_name, issue) for issue in project_epics
-                )
-                for epic in project_epics:
-                    phases = tuple(
-                        ProjectIssue(project_name, issue)
-                        for issue in sorted(
-                            (issue for issue in issues if issue.parent_id == epic.id),
-                            key=lambda issue: _hierarchical_id_key(issue.id),
-                        )
+                if owner is not None:
+                    active_by_path.setdefault(
+                        active_document.path,
+                        ActivePlanDocument(project_name, active_document, owner),
                     )
-                    phases_by_epic[(project_name, epic.id)] = phases
-                    if plans_root is not None:
-                        linked_plan_documents.update(
-                            _load_epic_linked_plan_documents(
-                                project_name,
-                                epic,
-                                phases,
-                                workspace_dir=item.workspace_dir,
-                                plans_root=plans_root,
-                            )
-                        )
-                ready_ids.update(
-                    (project_name, issue_id) for issue_id in project_ready_ids
-                )
-                blocked_ids.update(
-                    (project_name, issue_id) for issue_id in project_blocked_ids
-                )
 
         if not plans_roots:
             if project is not None:
@@ -210,28 +202,28 @@ def load_plans_snapshot(
             archive_truncated
             or len(ordered_project_archive) > _ARCHIVE_PER_PROJECT_LIMIT
         )
-        archive.extend(ordered_project_archive[:_ARCHIVE_PER_PROJECT_LIMIT])
+        archive_candidates.extend(ordered_project_archive[:_ARCHIVE_PER_PROJECT_LIMIT])
 
-    def issue_order(item: ProjectIssue) -> tuple[object, ...]:
-        return (
-            _timestamp_recency_key(item.issue.created_at),
-            _hierarchical_id_key(item.issue.id),
-            item.project,
-        )
-
-    tasks.sort(key=issue_order)
-    epics.sort(key=issue_order)
+    active = sorted(
+        active_by_path.values(),
+        key=lambda entry: (
+            _timestamp_recency_key(_active_timestamp(entry)),
+            entry.document.path,
+            entry.project,
+        ),
+    )
+    archive = [
+        entry
+        for entry in archive_candidates
+        if entry.match.plan.path not in active_by_path
+    ]
     archive.sort(key=_archive_recency_key, reverse=True)
     merged_archive_truncated = len(archive) > _ARCHIVE_MERGED_LIMIT
     archive_truncated = archive_truncated or merged_archive_truncated
     if merged_archive_truncated:
         del archive[_ARCHIVE_MERGED_LIMIT:]
 
-    source_key = (
-        *base_source_key,
-        _loaded_linked_plan_key(linked_plan_documents),
-    )
-
+    source_key = (*base_source_key, _loaded_linked_plan_key(linked_plan_documents))
     return PlansSnapshot(
         project=project,
         projects=project_names,
@@ -246,12 +238,9 @@ def load_plans_snapshot(
         },
         workspace_dirs={item.project: item.workspace_dir for item in resolved},
         proposals=proposals,
-        tasks=tuple(tasks),
-        epics=tuple(epics),
-        phases_by_epic=phases_by_epic,
-        ready_ids=frozenset(ready_ids),
-        blocked_ids=frozenset(blocked_ids),
+        active=tuple(active),
         archive=tuple(archive),
+        bead_plan_links=bead_plan_links,
         linked_plan_documents=linked_plan_documents,
         source_key=source_key,
         errors=errors,
@@ -259,44 +248,17 @@ def load_plans_snapshot(
     )
 
 
-def _add_project_error(
-    errors: dict[str, str],
-    project: str,
-    message: str,
-) -> None:
+def _active_timestamp(entry: ActivePlanDocument) -> str:
+    return (
+        entry.document.frontmatter.get("create_time", "")
+        or entry.document.frontmatter.get("created_at", "")
+        or entry.owner.bead_created_at
+    )
+
+
+def _add_project_error(errors: dict[str, str], project: str, message: str) -> None:
     previous = errors.get(project)
     errors[project] = message if previous is None else f"{previous}; {message}"
-
-
-def _load_epic_linked_plan_documents(
-    project: str,
-    epic: Issue,
-    phases: tuple[ProjectIssue, ...],
-    *,
-    workspace_dir: str | None,
-    plans_root: Path,
-) -> dict[tuple[str, str], LinkedPlanDocument]:
-    """Resolve linked documents once per path for one epic phase tree."""
-    documents: dict[tuple[str, str], LinkedPlanDocument] = {}
-    read_cache: dict[Path, _LinkedPlanPayload] = {}
-    if reference := epic.design.strip():
-        documents[(project, epic.id)] = _load_linked_plan_document(
-            reference,
-            workspace_dir=workspace_dir,
-            plans_root=plans_root,
-            read_cache=read_cache,
-        )
-    for phase in phases:
-        reference = phase.issue.design.strip()
-        if not reference:
-            continue
-        documents[(project, phase.issue.id)] = _load_linked_plan_document(
-            reference,
-            workspace_dir=workspace_dir,
-            plans_root=plans_root,
-            read_cache=read_cache,
-        )
-    return documents
 
 
 def _load_linked_plan_document(
@@ -316,19 +278,17 @@ def _load_linked_plan_document(
 
 
 def _read_linked_plan_payload(path: Path) -> _LinkedPlanPayload:
-    return _documents._read_linked_plan_payload(
-        path,
-        read_text=_read_linked_plan_text,
-    )
+    return _documents._read_linked_plan_payload(path, read_text=_read_linked_plan_text)
 
 
 __all__ = [
+    "ActivePlanDocument",
+    "BeadPlanLink",
     "DEEP_ARCHIVE_PER_PROJECT_LIMIT",
     "LinkedPlanDocument",
     "PlanProposal",
     "PlansSnapshot",
     "ProjectArchive",
-    "ProjectIssue",
     "load_deep_plan_archive",
     "load_plans_snapshot",
 ]

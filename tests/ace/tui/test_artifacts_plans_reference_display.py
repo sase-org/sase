@@ -1,304 +1,57 @@
-"""The Plans pane shows a plan reference and where it currently resolves."""
+"""Stable reference coverage for plan document rows."""
 
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
-from rich.console import Console
-
-from sase.ace.tui.widgets.artifacts import plans_detail, plans_filtering
-from sase.ace.tui.widgets.artifacts.plans_data import (
-    LinkedPlanDocument,
-    PlansSnapshot,
-    ProjectIssue,
-)
-from sase.ace.tui.widgets.artifacts.plans_list import PlanRow
-from sase.ace.tui.widgets.artifacts.plans_navigation import PlansNavigationMixin
+from sase import artifact_ref_entries
+from sase.ace.tui.widgets.artifacts.plans_list import build_plan_options
 from tests.ace.tui._artifacts_plans_helpers import _snapshot
 
 
-def _render_detail(renderable: object) -> str:
-    console = Console(width=120, color_system=None)
-    with console.capture() as capture:
-        console.print(renderable)
-    return capture.get()
-
-
-def _snapshot_with_design(
-    tmp_path: Path,
-    *,
-    reference: str,
-    resolved_path: str,
-    error: str | None = None,
-) -> tuple[PlansSnapshot, ProjectIssue]:
+def test_active_row_preserves_owning_bead_design_reference(tmp_path: Path) -> None:
     snapshot = _snapshot(tmp_path)
-    epic = replace(snapshot.epics[0].issue, design=reference)
-    document = LinkedPlanDocument(
-        reference=reference,
-        path=resolved_path,
-        content="",
-        frontmatter={},
-        body="",
-        error=error,
-        signature=None if error else (1, 1, 1, 1),
-    )
-    snapshot = replace(
+    _options, rows = build_plan_options(
         snapshot,
-        epics=(ProjectIssue("alpha", epic),),
-        phases_by_epic={
-            ("alpha", epic.id): snapshot.phases_by_epic[("alpha", epic.id)]
-        },
-        linked_plan_documents={("alpha", epic.id): document},
+        project_scope="alpha",
+        loading=False,
     )
-    return snapshot, ProjectIssue("alpha", epic)
-
-
-def test_properties_show_the_reference_above_its_resolved_path(
-    tmp_path: Path,
-) -> None:
-    resolved = "/plans/202607/durable.md"
-    snapshot, epic = _snapshot_with_design(
-        tmp_path,
-        reference="plans:202607/durable.md",
-        resolved_path=resolved,
-    )
-
-    detail = _render_detail(
-        plans_detail.bead_properties_header(
-            epic.issue,
-            snapshot,
-            project="alpha",
-            project_name="Alpha",
-        )
-    )
-
-    assert "Plan reference plans:202607/durable.md" in " ".join(detail.split())
-    assert f"Resolved plan {resolved}" in " ".join(detail.split())
-
-
-def test_properties_render_an_unresolved_link_as_such(tmp_path: Path) -> None:
-    snapshot, epic = _snapshot_with_design(
-        tmp_path,
-        reference="plans:202607/gone.md",
-        resolved_path="/plans/202607/gone.md",
-        error="Linked plan unavailable: file not found.",
-    )
-
-    detail = " ".join(
-        _render_detail(
-            plans_detail.bead_properties_header(
-                epic.issue,
-                snapshot,
-                project="alpha",
-                project_name="Alpha",
-            )
-        ).split()
-    )
-
-    assert "Plan reference plans:202607/gone.md" in detail
-    assert "Resolved plan (unresolved: no plan file found)" in detail
-    assert "gone.md (unresolved" not in detail
-
-
-def test_preview_markdown_reports_the_reference_and_resolution(
-    tmp_path: Path,
-) -> None:
-    resolved = "/plans/202607/durable.md"
-    snapshot, epic = _snapshot_with_design(
-        tmp_path,
-        reference="plans:202607/durable.md",
-        resolved_path=resolved,
-    )
-
-    preview = plans_detail.bead_preview_markdown(
-        epic.issue,
-        snapshot,
-        project="alpha",
-    )
-
-    assert "**Plan reference:** plans:202607/durable.md" in preview
-    assert f"**Resolved plan:** → {resolved}" in preview
-
-
-def test_preview_markdown_marks_a_missing_plan(tmp_path: Path) -> None:
-    snapshot, epic = _snapshot_with_design(
-        tmp_path,
-        reference="plans:202607/gone.md",
-        resolved_path="",
-        error="Linked plan unavailable: file not found.",
-    )
-
-    preview = plans_detail.bead_preview_markdown(
-        epic.issue,
-        snapshot,
-        project="alpha",
-    )
-
-    assert "**Resolved plan:** → (unresolved: no plan file found)" in preview
-
-
-def test_bead_preview_payload_carries_its_document_reference(
-    tmp_path: Path,
-) -> None:
-    snapshot, epic = _snapshot_with_design(
-        tmp_path,
-        reference="plans:202607/durable.md",
-        resolved_path="/plans/202607/durable.md",
-    )
-    harness = PlansNavigationMixin()
-    harness._snapshot = snapshot
-
-    payload = harness.preview_for_row(
-        PlanRow(
-            kind="epic",
-            row_id="epic:alpha-1",
-            project="alpha",
-            issue=epic.issue,
-        )
-    )
-
-    assert payload is not None
-    assert payload.reference == "plans:202607/durable.md"
-
-
-def test_archive_preview_payload_builds_a_role_reference(tmp_path: Path) -> None:
-    snapshot = _snapshot(tmp_path)
-    harness = PlansNavigationMixin()
-    harness._snapshot = snapshot
-
-    payload = harness.preview_for_row(
-        PlanRow(
-            kind="archive",
-            row_id="archive:rollout",
-            project="alpha",
-            archive=snapshot.archive[0].match,
-            archive_role="research",
-        )
-    )
-
-    assert payload is not None
-    assert payload.reference == "research:202607/archive.md"
-
-
-def test_resolved_plan_path_is_none_when_the_link_is_broken(
-    tmp_path: Path,
-) -> None:
-    resolved = "/plans/202607/durable.md"
-    snapshot, epic = _snapshot_with_design(
-        tmp_path,
-        reference="plans:202607/durable.md",
-        resolved_path=resolved,
-    )
-    broken, broken_epic = _snapshot_with_design(
-        tmp_path,
-        reference="plans:202607/gone.md",
-        resolved_path="/plans/202607/gone.md",
-        error="Linked plan unavailable: file not found.",
-    )
+    active = next(row for row in rows.values() if row.kind == "active")
+    archived = next(row for row in rows.values() if row.kind == "archive")
 
     assert (
-        plans_detail.resolved_plan_path(epic.issue, snapshot, project="alpha")
-        == resolved
+        artifact_ref_entries.design_reference_for_plan_row(active)
+        == "plans:202607/active.md"
     )
     assert (
-        plans_detail.resolved_plan_path(
-            broken_epic.issue,
-            broken,
-            project="alpha",
-        )
-        is None
+        artifact_ref_entries.design_reference_for_plan_row(archived)
+        == "plans:202607/archive.md"
     )
 
 
-def _snapshot_with_refs(
+def test_active_row_reference_is_canonicalized_from_document_path(
     tmp_path: Path,
-    refs: list[str],
-) -> tuple[PlansSnapshot, ProjectIssue]:
-    snapshot = _snapshot(tmp_path)
-    epic = replace(snapshot.epics[0].issue, refs=refs)
-    snapshot = replace(
-        snapshot,
-        epics=(ProjectIssue("alpha", epic),),
-        phases_by_epic={
-            ("alpha", epic.id): snapshot.phases_by_epic[("alpha", epic.id)]
-        },
-    )
-    return snapshot, ProjectIssue("alpha", epic)
-
-
-def test_properties_list_every_stored_reference_verbatim(tmp_path: Path) -> None:
-    snapshot, epic = _snapshot_with_refs(
-        tmp_path,
-        ["research:202607/capture.md", "file:explicit:4df639418219c5fa2b50bc24"],
-    )
-
-    detail = _render_detail(
-        plans_detail.bead_properties_header(
-            epic.issue,
-            snapshot,
-            project="alpha",
-            project_name="Alpha",
-        )
-    )
-    collapsed = " ".join(detail.split())
-
-    assert "References research:202607/capture.md" in collapsed
-    assert "file:explicit:4df639418219c5fa2b50bc24" in collapsed
-
-
-def test_properties_render_an_empty_reference_list_as_a_dash(tmp_path: Path) -> None:
-    snapshot, epic = _snapshot_with_refs(tmp_path, [])
-
-    detail = _render_detail(
-        plans_detail.bead_properties_header(
-            epic.issue,
-            snapshot,
-            project="alpha",
-            project_name="Alpha",
-        )
-    )
-
-    assert "References —" in " ".join(detail.split())
-
-
-def test_preview_markdown_lists_stored_references(tmp_path: Path) -> None:
-    snapshot, epic = _snapshot_with_refs(
-        tmp_path,
-        ["research:202607/capture.md", "bead:sase-bb"],
-    )
-
-    preview = plans_detail.bead_preview_markdown(
-        epic.issue,
-        snapshot,
-        project="alpha",
-    )
-
-    assert "**References:** research:202607/capture.md  " in preview
-    assert "bead:sase-bb  " in preview
-
-
-def test_filter_matches_a_stored_reference(tmp_path: Path) -> None:
-    snapshot, epic = _snapshot_with_refs(tmp_path, ["research:202607/capture.md"])
-
-    index = plans_filtering.build_plan_filter_index(snapshot)
-    record = next(item for item in index.records if item.identity == epic.issue.id)
-
-    assert any("research:202607/capture.md" in value for value in record.haystack)
-
-
-def test_filter_matches_both_the_reference_and_the_resolved_path(
-    tmp_path: Path,
+    monkeypatch,
 ) -> None:
-    resolved = "/plans/202607/durable.md"
-    snapshot, epic = _snapshot_with_design(
-        tmp_path,
-        reference="plans:202607/durable.md",
-        resolved_path=resolved,
+    snapshot = _snapshot(tmp_path)
+    _options, rows = build_plan_options(
+        snapshot,
+        project_scope="alpha",
+        loading=False,
+    )
+    active = next(row for row in rows.values() if row.kind == "active")
+    monkeypatch.setattr(
+        artifact_ref_entries,
+        "canonicalize_artifact_ref",
+        lambda path, *, context: "plans:202607/active.md",
     )
 
-    index = plans_filtering.build_plan_filter_index(snapshot)
-    record = next(item for item in index.records if item.identity == epic.issue.id)
+    reference = artifact_ref_entries.reference_for_entry_target(
+        "plans",
+        ("plan", "alpha", "active", active.active.document.path),  # type: ignore[union-attr]
+        context=SimpleNamespace(),
+        row=active,
+    )
 
-    assert any("plans:202607/durable.md" in value for value in record.haystack)
-    assert any(resolved.casefold() in value for value in record.haystack)
+    assert reference == "plans:202607/active.md"

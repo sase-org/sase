@@ -47,7 +47,6 @@ class PlansOptionsMixin(_MixinBase):
     _snapshot: PlansSnapshot | None
     _filter_session_open: bool
     _filter_query_error: PlanFilterQueryError | None
-    _expanded_epics: set[tuple[str, str]]
     _loading: bool
     _load_error: str | None
     _rows: dict[str, PlanRow]
@@ -170,9 +169,7 @@ class PlansOptionsMixin(_MixinBase):
                         )
                         for item in archive_entries
                     )
-                    matched_counts = dict.fromkeys(
-                        ("proposal", "task", "epic", "phase", "archive"), 0
-                    )
+                    matched_counts = dict.fromkeys(("proposal", "active", "archive"), 0)
                     for record in non_archive_records:
                         matched_counts[record.kind] += 1
                     matched_counts["archive"] = len(archive_entries)
@@ -183,9 +180,7 @@ class PlansOptionsMixin(_MixinBase):
                 matched_option_ids = frozenset(
                     record.option_id for record in matching_records
                 )
-                matched_counts = dict.fromkeys(
-                    ("proposal", "task", "epic", "phase", "archive"), 0
-                )
+                matched_counts = dict.fromkeys(("proposal", "active", "archive"), 0)
                 for record in matching_records:
                     matched_counts[record.kind] += 1
                 self._display_matched_counts = matched_counts
@@ -193,7 +188,6 @@ class PlansOptionsMixin(_MixinBase):
             self._snapshot,
             project_scope=self.project_scope,
             loading=self._loading,
-            expanded_epics=self._expanded_epics,
             jump_hints=self._entry_jump_hints,
             marks=self._entry_marks,
             matched_option_ids=matched_option_ids,

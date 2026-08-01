@@ -217,8 +217,11 @@ def _artifact_identity(subtab: str, value: Any | None) -> str:
     if subtab == "plans":
         if getattr(value, "proposal", None) is not None:
             return str(value.proposal.title)
-        if getattr(value, "issue", None) is not None:
-            return f"{value.issue.id} · {value.issue.title}"
+        if getattr(value, "active", None) is not None:
+            document = value.active.document
+            return str(
+                document.frontmatter.get("title") or getattr(value, "row_id", "")
+            )
         if getattr(value, "archive", None) is not None:
             plan = value.archive.plan
             return str(plan.title or plan.name)

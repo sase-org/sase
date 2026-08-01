@@ -31,12 +31,10 @@ async def test_artifacts_plans_empty_png_snapshot(
     snapshot = replace(
         _snapshot(tmp_path),
         proposals=(),
-        tasks=(),
-        epics=(),
-        phases_by_epic={},
-        ready_ids=frozenset(),
-        blocked_ids=frozenset(),
+        active=(),
         archive=(),
+        bead_plan_links={},
+        linked_plan_documents={},
     )
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sase.bead.model import Issue
 from sase.notifications.models import Notification
 from sase.plan_search.model import PlanSearchMatch
+
+from .bead_plan_links import BeadPlanLink
 
 
 @dataclass(frozen=True)
@@ -28,14 +29,6 @@ class PlanProposal:
 
 
 @dataclass(frozen=True)
-class ProjectIssue:
-    """A bead issue together with the project that owns its store."""
-
-    project: str
-    issue: Issue
-
-
-@dataclass(frozen=True)
 class ProjectArchive:
     """An archived plan together with the project that owns its SDD root."""
 
@@ -46,7 +39,7 @@ class ProjectArchive:
 
 @dataclass(frozen=True)
 class LinkedPlanDocument:
-    """Worker-loaded committed plan linked from an epic or phase bead."""
+    """Worker-loaded committed plan linked from a live bead."""
 
     reference: str
     path: str
@@ -63,6 +56,16 @@ class LinkedPlanDocument:
 
 
 @dataclass(frozen=True)
+class ActivePlanDocument:
+    """A committed plan document linked from a live bead."""
+
+    project: str
+    document: LinkedPlanDocument
+    owner: BeadPlanLink
+    role: str = "plans"
+
+
+@dataclass(frozen=True)
 class PlansSnapshot:
     """Immutable result applied to the Plans pane on the UI thread."""
 
@@ -73,12 +76,9 @@ class PlansSnapshot:
     plans_roots: dict[str, dict[str, str]]
     workspace_dirs: dict[str, str | None]
     proposals: tuple[PlanProposal, ...]
-    tasks: tuple[ProjectIssue, ...]
-    epics: tuple[ProjectIssue, ...]
-    phases_by_epic: dict[tuple[str, str], tuple[ProjectIssue, ...]]
-    ready_ids: frozenset[tuple[str, str]]
-    blocked_ids: frozenset[tuple[str, str]]
+    active: tuple[ActivePlanDocument, ...]
     archive: tuple[ProjectArchive, ...]
+    bead_plan_links: dict[tuple[str, str], BeadPlanLink]
     linked_plan_documents: dict[tuple[str, str], LinkedPlanDocument]
     source_key: tuple[object, ...]
     errors: dict[str, str]
@@ -105,9 +105,9 @@ class PlansProject:
 
 
 __all__ = [
+    "ActivePlanDocument",
     "LinkedPlanDocument",
     "PlanProposal",
     "PlansSnapshot",
     "ProjectArchive",
-    "ProjectIssue",
 ]

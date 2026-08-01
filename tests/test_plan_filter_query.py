@@ -9,17 +9,19 @@ import pytest
 from hypothesis import given, strategies as st
 
 from sase.ace.tui.widgets.artifacts.plans_data import (
+    ActivePlanDocument,
+    LinkedPlanDocument,
     PlanProposal,
     PlansSnapshot,
     ProjectArchive,
-    ProjectIssue,
 )
+from sase.ace.tui.widgets.artifacts.bead_plan_links import BeadPlanLink
 from sase.ace.tui.widgets.artifacts.plans_filtering import (
     _PlanFilterRecord,
     build_plan_filter_index,
     compile_plan_matcher,
 )
-from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.bead.model import BeadTier, IssueType, Status
 from sase.core.time import get_timezone
 from sase.notifications.models import Notification
 from sase.plan_search.filter_query import (
@@ -74,43 +76,31 @@ def _snapshot() -> PlansSnapshot:
         agent="sase-6t.plan",
         provider_model="codex/gpt-5",
     )
-    epic = Issue(
-        id="sase-6t",
-        title="Plans filter bar",
-        status=Status.IN_PROGRESS,
-        issue_type=IssueType.PLAN,
-        tier=BeadTier.EPIC,
-        description="Add live plan filtering.",
-        notes="Keep the keystroke path read-only.",
-        assignee="bryan",
-        created_at="2026-07-02T09:00:00Z",
-        is_ready_to_work=True,
+    link = BeadPlanLink(
+        project="sase",
+        bead_id="sase-6t",
+        bead_type=IssueType.PLAN,
+        bead_status=Status.IN_PROGRESS,
+        bead_tier=BeadTier.EPIC,
+        bead_title="Plans filter bar",
+        bead_created_at="2026-07-02T09:00:00Z",
+        reference="plans:202607/active.md",
+        path="/plans/202607/active.md",
     )
-    phase = Issue(
-        id="sase-6t.1",
-        title="Build the search index",
-        status=Status.OPEN,
-        issue_type=IssueType.PHASE,
-        parent_id=epic.id,
-        description="Prefold every markdown body once.",
-        created_at="not-a-timestamp",
-    )
-    launched = Issue(
-        id="sase-7x",
-        title="Already launched epic",
-        status=Status.OPEN,
-        issue_type=IssueType.PLAN,
-        tier=BeadTier.PLAN,
-        created_at="2026-07-03T09:00:00Z",
-        is_ready_to_work=True,
-    )
-    task = Issue(
-        id="sase-task",
-        title="Ready task surface",
-        status=Status.READY,
-        issue_type=IssueType.TASK,
-        description="Expose tasks to the in-memory index.",
-        created_at="2026-07-03T10:00:00Z",
+    document = LinkedPlanDocument(
+        reference=link.reference,
+        path=link.path,
+        content="# Plans filter bar\n\nSearch index.",
+        frontmatter={
+            "title": "Plans filter bar",
+            "tier": "epic",
+            "status": "wip",
+            "create_time": "2026-07-02T09:00:00Z",
+            "goal": "Make plan filtering instant",
+        },
+        body="# Plans filter bar\n\nSearch index.",
+        error=None,
+        signature=(1, 2, 3, 4),
     )
     archive_match = PlanSearchMatch(
         plan=Plan(
@@ -139,19 +129,13 @@ def _snapshot() -> PlansSnapshot:
         projects=("sase",),
         display_names={"sase": "Structured Agentic Software Engineering"},
         beads_dirs={"sase": "/plans/beads"},
-        plans_roots={"sase": "/plans"},
+        plans_roots={"sase": {"plans": "/plans"}},
         workspace_dirs={"sase": "/workspace"},
         proposals=(proposal,),
-        tasks=(ProjectIssue("sase", task),),
-        epics=(ProjectIssue("sase", epic), ProjectIssue("sase", launched)),
-        phases_by_epic={
-            ("sase", epic.id): (ProjectIssue("sase", phase),),
-            ("sase", launched.id): (),
-        },
-        ready_ids=frozenset({("sase", epic.id)}),
-        blocked_ids=frozenset({("sase", phase.id)}),
+        active=(ActivePlanDocument("sase", document, link),),
         archive=(ProjectArchive("sase", archive_match),),
-        linked_plan_documents={},
+        bead_plan_links={("sase", link.bead_id): link},
+        linked_plan_documents={("sase", link.bead_id): document},
         source_key=("snapshot", 1),
         errors={},
         archive_truncated=True,
@@ -531,21 +515,15 @@ def test_build_index_covers_every_row_with_stable_option_ids() -> None:
     index = build_plan_filter_index(snapshot)
 
     assert index.source_key == snapshot.source_key
-    assert len(index) == 6
+    assert len(index) == 3
     assert tuple(record.kind for record in index) == (
         "proposal",
-        "task",
-        "epic",
-        "phase",
-        "epic",
+        "active",
         "archive",
     )
     assert set(index.by_option_id) == {
         "proposal:sase:proposal-1",
-        "task:sase:sase-task",
-        "epic:sase:sase-6t",
-        "phase:sase:sase-6t.1",
-        "epic:sase:sase-7x",
+        "active:sase:/plans/202607/active.md",
         "archive:sase:/plans/202607/archive.md",
     }
 
@@ -565,32 +543,27 @@ def test_build_index_prefolds_search_fields_and_project_aliases() -> None:
     )(proposal)
 
 
-def test_build_index_uses_the_same_derived_state_priority_as_rows() -> None:
+def test_build_index_uses_plan_frontmatter_not_bead_workflow_state() -> None:
     index = build_plan_filter_index(_snapshot())
 
-    ready = index.by_option_id["epic:sase:sase-6t"]
-    blocked = index.by_option_id["phase:sase:sase-6t.1"]
-    launched = index.by_option_id["epic:sase:sase-7x"]
-    task = index.by_option_id["task:sase:sase-task"]
-    assert ready.status_labels == frozenset(("in_progress", "ready"))
-    assert "launched" not in ready.status_labels
-    assert blocked.status_labels == frozenset(("open", "blocked"))
-    assert launched.status_labels == frozenset(("open", "launched"))
-    assert task.status_labels == frozenset(("ready",))
-    assert task.kind_labels == frozenset(("task",))
-    assert launched.tier_labels == frozenset(("plan",))
+    active = index.by_option_id["active:sase:/plans/202607/active.md"]
+    assert active.status_labels == frozenset(("wip",))
+    assert active.tier_labels == frozenset(("epic",))
+    assert active.kind_labels == frozenset(("active", "plans"))
+    assert "in_progress" not in active.status_labels
 
 
 def test_build_index_normalizes_timestamps_and_excludes_invalid_values() -> None:
     index = build_plan_filter_index(_snapshot())
 
     proposal = index.by_option_id["proposal:sase:proposal-1"]
-    phase = index.by_option_id["phase:sase:sase-6t.1"]
+    active = index.by_option_id["active:sase:/plans/202607/active.md"]
     assert proposal.timestamp == int(
         datetime.fromisoformat("2026-07-01T12:00:00+00:00").timestamp()
     )
-    assert phase.timestamp is None
-    assert compile_plan_matcher(PlanFilterValues(since=0))(phase) is False
+    assert active.timestamp == int(
+        datetime.fromisoformat("2026-07-02T09:00:00+00:00").timestamp()
+    )
 
 
 def test_archive_index_includes_status_tier_and_full_body() -> None:
@@ -615,5 +588,5 @@ def test_single_project_option_ids_match_the_existing_row_contract() -> None:
     snapshot = replace(_snapshot(), project="sase")
     index = build_plan_filter_index(snapshot)
 
-    assert "epic:sase-6t" in index.by_option_id
-    assert "epic:sase:sase-6t" not in index.by_option_id
+    assert "active:/plans/202607/active.md" in index.by_option_id
+    assert "active:sase:/plans/202607/active.md" not in index.by_option_id

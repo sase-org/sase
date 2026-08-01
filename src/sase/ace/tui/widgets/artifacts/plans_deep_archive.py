@@ -49,7 +49,7 @@ class DeepArchiveResult:
 def _query_can_reach_archive(values: PlanFilterValues) -> bool:
     """Return whether *values* permits archive rows."""
     includes_archive = not values.kinds or any(
-        kind.casefold() not in {"proposal", "phase"} for kind in values.kinds
+        kind.casefold() not in {"proposal", "active"} for kind in values.kinds
     )
     excludes_archive = any(
         kind.casefold() == "archive" for kind in values.excluded_kinds
@@ -94,12 +94,14 @@ def load_deep_archive_result(
 ) -> DeepArchiveResult:
     """Browse and match one deep archive request on a worker thread."""
     fetched = load_deep_plan_archive(request.project_roots)
-    records = build_plan_archive_filter_records(snapshot, fetched.archive)
+    active_paths = frozenset(item.document.path for item in snapshot.active)
+    archive = tuple(
+        item for item in fetched.archive if item.match.plan.path not in active_paths
+    )
+    records = build_plan_archive_filter_records(snapshot, archive)
     matcher = compile_plan_matcher(request.values)
     matching_archive = tuple(
-        item
-        for item, record in zip(fetched.archive, records, strict=True)
-        if matcher(record)
+        item for item, record in zip(archive, records, strict=True) if matcher(record)
     )
     return DeepArchiveResult(
         request=request,

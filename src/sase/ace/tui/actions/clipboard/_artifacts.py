@@ -75,6 +75,7 @@ class ClipboardArtifactsMixin(
             }
         elif subtab == "plans":
             handlers = {
+                str(subtab_keys["bead_id"]): lambda: self._copy_plan_target("bead_id"),
                 str(subtab_keys["design"]): lambda: self._copy_plan_target("design"),
                 str(subtab_keys["path"]): lambda: self._copy_plan_target("path"),
                 str(subtab_keys["title"]): lambda: self._copy_plan_target("title"),

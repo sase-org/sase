@@ -22,12 +22,10 @@ from .plans_list import PlanRow, build_plan_options
 from .plans_navigation import PlansNavigationMixin, PlansOptionList
 from .plans_options import PlansOptionsMixin
 from .plans_rendering import (
+    active_plan_text,
     archive_text,
-    epic_text,
-    phase_text,
     project_badge,
     proposal_text,
-    task_text,
 )
 
 if TYPE_CHECKING:
@@ -36,9 +34,7 @@ if TYPE_CHECKING:
 
 # Preserve the rendering seams exposed by the original plans_pane module.
 _proposal_text = proposal_text
-_task_text = task_text
-_epic_text = epic_text
-_phase_text = phase_text
+_active_plan_text = active_plan_text
 _archive_text = archive_text
 _project_badge = project_badge
 
@@ -50,7 +46,7 @@ class ArtifactsPlansPane(
     ArtifactsPaneLifecycle,
     Vertical,
 ):
-    """Browse proposals, epic phase trees, and committed plan markdown."""
+    """Browse proposal, active, and archived plan documents."""
 
     can_focus = False
 

@@ -83,6 +83,18 @@ def _reference_for_plan_row(
             if reference is not None and reference.startswith("plans:")
             else None
         )
+    if row_kind == "active":
+        active = getattr(row, "active", None)
+        document = getattr(active, "document", None)
+        plan_path = getattr(document, "path", None)
+        if not isinstance(plan_path, str) or not plan_path:
+            return None
+        reference = canonicalize_artifact_ref(plan_path, context=context)
+        return (
+            reference
+            if reference is not None and reference.startswith("plans:")
+            else None
+        )
     if row_kind == "archive":
         archive = getattr(row, "archive", None)
         match = getattr(row, "match", None)
@@ -106,10 +118,14 @@ def _reference_for_plan_row(
 
 
 def design_reference_for_plan_row(row: object | None) -> str | None:
-    """Return the design reference attached to an ACE epic or phase row."""
+    """Return the owning bead's design reference for a plan document row."""
 
-    issue = getattr(row, "issue", None)
-    design = getattr(issue, "design", None)
+    bead_link = getattr(row, "bead_link", None)
+    design = getattr(bead_link, "reference", None)
+    if not isinstance(design, str) or not design:
+        # Preserve compatibility for callers holding a Beads-era row model.
+        issue = getattr(row, "issue", None)
+        design = getattr(issue, "design", None)
     if not isinstance(design, str) or not design:
         return None
     try:

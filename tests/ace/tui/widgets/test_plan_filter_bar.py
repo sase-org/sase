@@ -46,7 +46,7 @@ async def test_cursor_movement_switches_plan_completion_context() -> None:
             statuses=("approved",),
             projects=("SASE Core", "tools"),
         )
-        query = "kind:ph status:app project:SA"
+        query = "kind:ac status:app project:SA"
         bar.open(query)
         await pilot.pause()
 
@@ -54,11 +54,11 @@ async def test_cursor_movement_switches_plan_completion_context() -> None:
         completion = app.query_one("#plan-filter-completion", OptionList)
         assert _option_labels(completion)[0].startswith("SASE Core")
 
-        editor.cursor_position = len("kind:ph")
+        editor.cursor_position = len("kind:ac")
         await pilot.pause()
-        assert _option_labels(completion)[0].startswith("phase")
+        assert _option_labels(completion)[0].startswith("active")
 
-        editor.cursor_position = len("kind:ph status:app")
+        editor.cursor_position = len("kind:ac status:app")
         await pilot.pause()
         assert _option_labels(completion)[0].startswith("approved")
 
@@ -87,17 +87,17 @@ async def test_tab_accepts_filtered_repeatable_status_candidate() -> None:
         assert app.messages == [("changed", editor.text)]
 
 
-async def test_status_completion_includes_claimed_bead_status() -> None:
+async def test_status_completion_keeps_proposed_document_status() -> None:
     app = _PlanFilterBarApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PlanFilterBar)
-        bar.open("status:cl")
+        bar.open("status:pr")
         await pilot.pause()
 
         completion = app.query_one("#plan-filter-completion", OptionList)
         labels = _option_labels(completion)
-        assert labels[0].startswith("claimed")
-        assert any(label.startswith("closed") for label in labels)
+        assert labels[0].startswith("proposed")
+        assert not any(label.startswith("claimed") for label in labels)
 
 
 async def test_tab_quotes_project_display_name() -> None:
@@ -175,8 +175,8 @@ async def test_completion_sources_are_trimmed_sorted_and_deduplicated() -> None:
         completion = app.query_one("#plan-filter-completion", OptionList)
         labels = _option_labels(completion)
         assert sum(label.startswith("open") for label in labels) == 1
-        assert labels[-2].startswith("alpha")
-        assert labels[-1].startswith("Zeta")
+        assert sum(label.startswith("alpha") for label in labels) == 1
+        assert sum(label.startswith("Zeta") for label in labels) == 1
 
         editor = app.query_one("#plan-filter-input", SingleLineVimTextArea)
         editor.load_text("project:")

@@ -6,19 +6,13 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from textual.containers import VerticalScroll
 from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.plan_filter_bar import PlanFilterBar
-from sase.ace.tui.widgets.artifacts.plans_data import (
-    LinkedPlanDocument,
-    PlansSnapshot,
-    ProjectIssue,
-)
+from sase.ace.tui.widgets.artifacts.plans_data import PlansSnapshot
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from sase.bead.model import PhaseSize, Status
 from sase.plan_search.filter_query import parse_plan_filter_query
 from tests.ace.tui._artifacts_plans_helpers import _choices, _snapshot
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
@@ -38,37 +32,6 @@ pytestmark = pytest.mark.visual
 
 def _visual_snapshot(tmp_path: Path) -> PlansSnapshot:
     snapshot = _snapshot(tmp_path)
-    epic = snapshot.epics[0].issue
-    phases = snapshot.phases_by_epic[("alpha", epic.id)]
-    large_phase = replace(
-        phases[1].issue,
-        id="alpha-1.3",
-        title="Polish visual states",
-        size=PhaseSize.LARGE,
-        dependencies=[],
-    )
-    xsmall_phase = replace(
-        phases[0].issue,
-        id="alpha-1.0",
-        title="Sketch the smallest state",
-        size=PhaseSize.XSMALL,
-        dependencies=[],
-    )
-    xlarge_phase = replace(
-        phases[1].issue,
-        id="alpha-1.5",
-        title="Reframe the largest state",
-        size=PhaseSize.XLARGE,
-        dependencies=[],
-    )
-    claimed_phase = replace(
-        phases[0].issue,
-        id="alpha-1.4",
-        title="Reserve claimed visual state",
-        status=Status.CLAIMED,
-        assignee="alpha-1.4",
-        dependencies=[],
-    )
     return replace(
         snapshot,
         proposals=(
@@ -77,35 +40,11 @@ def _visual_snapshot(tmp_path: Path) -> PlansSnapshot:
                 plan_path="/workspace/alpha--plans/202607/ship_plan_browser.md",
             ),
         ),
-        phases_by_epic={
-            ("alpha", epic.id): (
-                ProjectIssue("alpha", xsmall_phase),
-                *phases,
-                ProjectIssue("alpha", large_phase),
-                ProjectIssue("alpha", claimed_phase),
-                ProjectIssue("alpha", xlarge_phase),
-            )
-        },
     )
 
 
 def _linked_visual_snapshot(tmp_path: Path) -> PlansSnapshot:
-    snapshot = _visual_snapshot(tmp_path)
-    epic = replace(snapshot.epics[0].issue, design="202607/ship_plan_browser.md")
-    document = LinkedPlanDocument(
-        reference=epic.design,
-        path="/workspace/alpha--plans/202607/ship_plan_browser.md",
-        content="# Ship the plan browser\n\nLinked plan content.\n",
-        frontmatter={},
-        body="# Ship the plan browser\n\nLinked plan content.\n",
-        error=None,
-        signature=(1, 1, 1, 1),
-    )
-    return replace(
-        snapshot,
-        epics=(replace(snapshot.epics[0], issue=epic),),
-        linked_plan_documents={("alpha", epic.id): document},
-    )
+    return _visual_snapshot(tmp_path)
 
 
 async def _open_plans(
@@ -163,11 +102,10 @@ async def test_artifacts_plans_populated_png_snapshot(
         await page.expect_state("files_subtab", "plans")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
-        await page.press("j", "j", "j", "l", "j")
+        await page.press("j")
         await page.wait_for(
             lambda _state: (
-                (row := pane.selected_row()) is not None
-                and row.row_id == "phase:alpha-1.0"
+                (row := pane.selected_row()) is not None and row.kind == "active"
             )
         )
         await page.wait_for(
@@ -176,23 +114,10 @@ async def test_artifacts_plans_populated_png_snapshot(
             )
         )
         pane._update_detail()
-        detail_scroll = pane.query_one("#plans-detail-scroll", VerticalScroll)
-        await page.wait_for(lambda _state: detail_scroll.max_scroll_y > 0)
-        detail_scroll.scroll_to(
-            y=detail_scroll.max_scroll_y,
-            animate=False,
-            immediate=True,
-        )
-        page.app.refresh(layout=True)
-        await page.app.wait_for_refresh()
-        await wait_for_svg_contains(page, "Linked plan content.")
+        await wait_for_svg_contains(page, "Active body.")
         await wait_for_visual_idle(page)
-        for label in ("xsmall", "small", "medium", "large", "xlarge"):
-            assert_page_svg_contains(page, label)
-        # At the bottom of the detail scroll the property grid starts at the
-        # References row; "Size" sits just above the viewport.
-        assert_page_svg_contains(page, "References")
-        assert_page_svg_contains(page, "Reserve claimed visual state")
+        assert_page_svg_contains(page, "Owning bead")
+        assert_page_svg_contains(page, "Design reference")
 
         ace_png_visual.assert_page_png(
             page,
@@ -219,7 +144,7 @@ async def test_plans_filter_bar_prefilled_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         pane, bar = await _open_plans(page, snapshot)
-        query = "kind:phase load"
+        query = "kind:active Active"
         await _commit_plan_filter_query(page, pane, bar, query)
         await page.press("slash")
         editor = bar.query_one("#plan-filter-input", SingleLineVimTextArea)
@@ -256,15 +181,15 @@ async def test_plans_filter_completion_png_snapshot(
         bar.open("status:")
         completion = bar.query_one("#plan-filter-completion", OptionList)
         await page.wait_for(
-            lambda _state: completion.display and completion.option_count == 9
+            lambda _state: completion.display and completion.option_count >= 3
         )
         completion_labels = [
             completion.get_option_at_index(index).prompt.plain
             for index in range(completion.option_count)
         ]
-        assert sum(label.startswith("ready") for label in completion_labels) == 1
-        await wait_for_svg_contains(page, "in_progress")
-        await wait_for_svg_contains(page, "claimed")
+        assert sum(label.startswith("proposed") for label in completion_labels) == 1
+        await wait_for_svg_contains(page, "wip")
+        await wait_for_svg_contains(page, "done")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -292,7 +217,7 @@ async def test_plans_narrowed_filter_chips_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         pane, bar = await _open_plans(page, snapshot)
-        await _commit_plan_filter_query(page, pane, bar, "load")
+        await _commit_plan_filter_query(page, pane, bar, "Active")
         options = pane.query_one("#plans-list", OptionList)
 
         def option_ids() -> set[str]:
@@ -303,20 +228,19 @@ async def test_plans_narrowed_filter_chips_png_snapshot(
 
         await page.wait_for(
             lambda _state: (
-                "epic:alpha-1" in option_ids()
-                and "phase:alpha-1.1" in option_ids()
-                and "phase:alpha-1.2" not in option_ids()
+                any(value.startswith("active:") for value in option_ids())
+                and not any(value.startswith("archive:") for value in option_ids())
             )
         )
         status = pane.query_one("#plans-status", Static)
         await page.wait_for(
             lambda _state: (
                 "0/1 proposals" in status.content.plain
-                and "1/6 phases" in status.content.plain
-                and "load" in pane.query_one("#plans-info", Static).content.plain
+                and "1/1 active" in status.content.plain
+                and "Active" in pane.query_one("#plans-info", Static).content.plain
             )
         )
-        await wait_for_svg_contains(page, "Load plans")
+        await wait_for_svg_contains(page, "Active rollout")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

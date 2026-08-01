@@ -269,7 +269,12 @@ def test_plans_copy_targets_use_the_selected_plan_payload() -> None:
         title="Copy all artifacts",
         body="# Copy all artifacts\n\nBody.",
     )
-    row = SimpleNamespace(proposal=proposal, archive=None, issue=None)
+    row = SimpleNamespace(
+        proposal=proposal,
+        active=None,
+        archive=None,
+        bead_link=None,
+    )
     app.plans_pane = SimpleNamespace(
         selected_row=lambda: row,
         selected_preview=lambda: None,
@@ -285,27 +290,39 @@ def test_plans_copy_targets_use_the_selected_plan_payload() -> None:
     ]
 
 
-def test_plans_design_copy_preserves_the_bead_design_reference() -> None:
+def test_plans_owner_copy_targets_preserve_the_bead_link() -> None:
     app = CopyHarness()
     app.current_artifacts_subtab = "plans"
-    issue = SimpleNamespace(
-        id="sase-b2",
-        title="Artifact references",
-        design="plans:202607/bead_and_agent_artifact_refs.md",
+    bead_link = SimpleNamespace(
+        bead_id="sase-b2",
+        reference="plans:202607/bead_and_agent_artifact_refs.md",
     )
-    row = SimpleNamespace(proposal=None, archive=None, issue=issue)
+    row = SimpleNamespace(
+        proposal=None,
+        active=SimpleNamespace(
+            document=SimpleNamespace(
+                path="/tmp/plan.md",
+                frontmatter={"title": "Artifact references"},
+                body="Body",
+            )
+        ),
+        archive=None,
+        bead_link=bead_link,
+    )
     app.plans_pane = SimpleNamespace(
         selected_row=lambda: row,
         selected_preview=lambda: None,
     )
 
+    assert app._handle_copy_key("percent_sign") is True
     assert app._handle_copy_key("d") is True
 
     assert app.copies == [
+        ("sase-b2", "Copied owning bead id"),
         (
-            issue.design,
-            "Copied bead design plan reference",
-        )
+            bead_link.reference,
+            "Copied owning bead design reference",
+        ),
     ]
 
 
@@ -318,8 +335,9 @@ def test_plans_design_copy_warns_when_selected_row_has_no_bead_design() -> None:
             title="Proposal",
             body="Body",
         ),
+        active=None,
         archive=None,
-        issue=None,
+        bead_link=None,
     )
     app.plans_pane = SimpleNamespace(
         selected_row=lambda: row,
@@ -330,7 +348,7 @@ def test_plans_design_copy_warns_when_selected_row_has_no_bead_design() -> None:
 
     assert app.copies == []
     assert app.notifications[-1] == (
-        "The selected bead has no design plan reference",
+        "The selected plan has no owning bead design reference",
         "warning",
     )
 
@@ -416,6 +434,7 @@ def test_bugs_copy_targets_include_an_agent_ready_prompt(
         (
             "plans",
             [
+                ("%", "bead id"),
                 ("@", "@ref"),
                 ("l", "link"),
                 ("d", "design"),

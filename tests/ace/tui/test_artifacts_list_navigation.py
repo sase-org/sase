@@ -56,27 +56,25 @@ def _commits_result(count: int = 50) -> VcsLogResult:
     )
 
 
-def _expanded_plans_snapshot(tmp_path: Path, phase_count: int = 47) -> PlansSnapshot:
+def _expanded_plans_snapshot(tmp_path: Path, phase_count: int = 50) -> PlansSnapshot:
     snapshot = _plans_snapshot(tmp_path)
-    epic = snapshot.epics[0].issue
-    phase = snapshot.phases_by_epic[("alpha", epic.id)][0].issue
-    phases = tuple(
+    active = snapshot.active[0]
+    documents = tuple(
         replace(
-            snapshot.phases_by_epic[("alpha", epic.id)][0],
-            issue=replace(
-                phase,
-                id=f"alpha-1.{index}",
-                title=f"Phase {index}",
+            active,
+            document=replace(
+                active.document,
+                path=str(tmp_path / "202607" / f"active-{index}.md"),
+                frontmatter={
+                    **active.document.frontmatter,
+                    "title": f"Active plan {index}",
+                },
             ),
+            owner=replace(active.owner, bead_id=f"alpha-{index}"),
         )
         for index in range(1, phase_count + 1)
     )
-    return replace(
-        snapshot,
-        phases_by_epic={("alpha", epic.id): phases},
-        ready_ids=frozenset(),
-        blocked_ids=frozenset(),
-    )
+    return replace(snapshot, active=documents)
 
 
 class _DetailScheduleRecorder:
@@ -318,7 +316,7 @@ async def test_bugs_two_character_jump_waits_for_complete_hint(
         assert page.app._artifacts_jump_pending_prefix == ""
 
 
-async def test_plans_fast_navigation_skips_headings_and_includes_expanded_phases(
+async def test_plans_fast_navigation_skips_document_section_headings(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -336,12 +334,10 @@ async def test_plans_fast_navigation_skips_headings_and_includes_expanded_phases
         await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
-        pane._expanded_epics.add(("alpha", "alpha-1"))
-        pane._refresh_options()
         await _assert_distance_navigation(page, pane, expected_count=52)
         option_list = pane.query_one("#plans-list", OptionList)
         assert page.app.focused is option_list
-        assert option_list.option_count == 56
+        assert option_list.option_count == 55
 
         await page.press("g", "apostrophe")
         selectable_prompts = [
@@ -359,7 +355,7 @@ async def test_plans_fast_navigation_skips_headings_and_includes_expanded_phases
         assert all(not prompt.startswith("[") for prompt in disabled_prompts)
         await page.press("1")
         assert pane.selected_row() is not None
-        assert pane.selected_row().kind == "task"  # type: ignore[union-attr]
+        assert pane.selected_row().kind == "active"  # type: ignore[union-attr]
         assert page.state["modal"] is None
 
         first_target = pane.entry_targets()[0]
@@ -370,7 +366,7 @@ async def test_plans_fast_navigation_skips_headings_and_includes_expanded_phases
             if not option_list.get_option_at_index(index).disabled
         ).startswith("[A] ")
         assert pane.selected_row() is not None
-        assert pane.selected_row().kind == "task"  # type: ignore[union-attr]
+        assert pane.selected_row().kind == "active"  # type: ignore[union-attr]
         pane.clear_entry_jump_hints()
 
 

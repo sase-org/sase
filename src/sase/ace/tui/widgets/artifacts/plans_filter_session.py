@@ -41,12 +41,10 @@ class PlansFilterSessionMixin(_MixinBase):
     project_scope: str | None
     filters: PlanFilterValues
     _snapshot: PlansSnapshot | None
-    _expanded_epics: set[tuple[str, str]]
     _filter_index: PlanFilterIndex | None
     _filter_index_snapshot: PlansSnapshot | None
     _filter_session_open: bool
     _filter_restore_values: PlanFilterValues | None
-    _filter_restore_expanded: set[tuple[str, str]] | None
     _filter_restore_selection: str | None
     _live_filter_values: PlanFilterValues | None
     _filter_query_error: PlanFilterQueryError | None
@@ -78,7 +76,6 @@ class PlansFilterSessionMixin(_MixinBase):
         self._filter_index_snapshot = None
         self._filter_session_open = False
         self._filter_restore_values = None
-        self._filter_restore_expanded = None
         self._filter_restore_selection = None
         self._live_filter_values = None
         self._filter_query_error = None
@@ -97,7 +94,6 @@ class PlansFilterSessionMixin(_MixinBase):
             return
         self._filter_session_open = True
         self._filter_restore_values = self.filters
-        self._filter_restore_expanded = set(self._expanded_epics)
         self._filter_restore_selection = self._selected_option_id()
         self._live_filter_values = self.filters
         self._filter_query_error = None
@@ -163,12 +159,9 @@ class PlansFilterSessionMixin(_MixinBase):
     ) -> None:
         event.stop()
         restore_values = self._filter_restore_values
-        restore_expanded = self._filter_restore_expanded
         restore_selection = self._filter_restore_selection
         if restore_values is not None:
             self.filters = restore_values
-        if restore_expanded is not None:
-            self._expanded_epics = set(restore_expanded)
         self._invalidate_deep_archive_request()
         self._close_filter_session()
         self._cancel_jump_mode_for_filter_change()
@@ -180,7 +173,6 @@ class PlansFilterSessionMixin(_MixinBase):
         self.query_one(PlanFilterBar).close()
         self._filter_session_open = False
         self._filter_restore_values = None
-        self._filter_restore_expanded = None
         self._filter_restore_selection = None
         self._live_filter_values = None
         self._filter_query_error = None
@@ -205,16 +197,13 @@ class PlansFilterSessionMixin(_MixinBase):
         if snapshot is None or index is None:
             self.query_one(PlanFilterBar).set_completion_sources((), (), ())
             return
-        archive_statuses = tuple(
-            status
-            for record in index
-            if record.kind == "archive"
-            for status in record.status_labels
+        plan_statuses = tuple(
+            status for record in index for status in record.status_labels
         )
         deep_result = self._deep_archive_result_for(self._display_filter_values())
         if deep_result is not None:
-            archive_statuses = (
-                *archive_statuses,
+            plan_statuses = (
+                *plan_statuses,
                 *(
                     status
                     for item in deep_result.archive
@@ -241,7 +230,7 @@ class PlansFilterSessionMixin(_MixinBase):
                 *(item.role for item in deep_result.archive),
             )
         self.query_one(PlanFilterBar).set_completion_sources(
-            archive_statuses,
+            plan_statuses,
             projects,
             document_kinds,
         )

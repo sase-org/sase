@@ -1,33 +1,20 @@
-"""Rich properties and Markdown bodies for the Artifacts Plans detail pane."""
+"""Rich properties and Markdown bodies for document rows in Plans."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
 from sase.artifact_refs import parse_artifact_ref
-from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
 from sase.bead_status_presentation import bead_status_presentation
-from sase.bead_type_presentation import bead_type_chip
-from sase.phase_size_presentation import (
-    PHASE_SIZE_STYLES,
-    PHASE_SIZE_VALUES,
-    normalize_phase_size,
-    phase_size_chip,
-)
 from sase.plan_search.model import PlanSearchMatch
-from sase.sdd.plan_properties import (
-    ordered_plan_property_items,
-    plan_property_label,
-)
-from sase.sdd.plan_ref_display import (
-    PLAN_REFERENCE_ARROW,
-    PLAN_REFERENCE_MISSING_LABEL,
-)
+from sase.sdd.plan_properties import ordered_plan_property_items, plan_property_label
 
-from .plans_data import LinkedPlanDocument, PlanProposal, PlansSnapshot
-
+from .bead_plan_links import BeadPlanLink
+from .plans_data import ActivePlanDocument, PlanProposal
 
 DetailProperty = tuple[str, str | Text]
 
@@ -56,68 +43,26 @@ def proposal_properties_header(
     return _properties_header(title, properties)
 
 
-def bead_properties_header(
-    issue: Issue,
-    snapshot: PlansSnapshot | None,
+def active_plan_properties_header(
+    active: ActivePlanDocument,
     *,
-    project: str,
     project_name: str,
 ) -> RenderableType:
-    """Build a bead title and complete property grid."""
-    title = Text(f"{_status_glyph(issue.status)} ", style=_status_style(issue.status))
-    title.append(issue.id, style="bold #FFD700")
-    title.append(f" · {issue.title}", style="bold white")
-    properties: list[DetailProperty] = [
-        ("Status", _status_chip(issue.status)),
-        ("Readiness", _readiness_chip(issue, snapshot, project=project)),
-        ("Type", bead_type_chip(issue.issue_type)),
-    ]
-    if issue.issue_type in (IssueType.PHASE, IssueType.TASK):
-        properties.append(("Size", phase_size_chip(issue.size or PhaseSize.SMALL)))
-    if issue.tier is not None:
-        properties.append(("Tier", issue.tier.value))
-    if (
-        issue.issue_type is IssueType.PLAN
-        and issue.tier is BeadTier.EPIC
-        and (phase_sizes := _epic_phase_sizes(issue, snapshot, project=project))
-        is not None
-    ):
-        properties.append(("Phase sizes", phase_sizes))
-    properties.extend(
-        [
-            ("Model", issue.model),
-            ("Assignee", issue.assignee),
-            ("ChangeSpec", issue.changespec_name),
-            (
-                "External bug",
-                f"#{issue.changespec_bug_id}" if issue.changespec_bug_id else "",
-            ),
-        ]
+    """Build properties for one plan linked from a live bead."""
+    document = active.document
+    title = Text("▤ ", style="bold #AF87FF")
+    title.append(
+        _document_title(document.path, document.frontmatter), style="bold white"
     )
-    properties.extend(_plan_reference_properties(issue, snapshot, project=project))
-    properties.append(("References", _references_text(issue)))
+    properties = list(_frontmatter_properties(document.frontmatter))
     properties.extend(
         [
+            ("Owning bead", active.owner.bead_id),
+            ("Bead status", _status_chip(active.owner)),
+            ("Design reference", active.owner.reference),
             ("Project", project_name),
-            ("Created", issue.created_at),
-            ("Updated", issue.updated_at),
-            ("Closed", issue.closed_at or ""),
+            ("Path", document.path),
         ]
-    )
-    if issue.status is Status.CLOSED:
-        properties.append(
-            (
-                "Resolution",
-                issue.resolution.value if issue.resolution else "(unrecorded)",
-            )
-        )
-    if issue.close_reason:
-        properties.append(("Close reason", issue.close_reason))
-    properties.append(
-        (
-            "Dependencies",
-            _dependencies_text(issue, snapshot, project=project),
-        )
     )
     return _properties_header(title, properties)
 
@@ -127,12 +72,21 @@ def archive_properties_header(
     *,
     project_name: str,
     role: str = "plans",
+    owner: BeadPlanLink | None = None,
 ) -> RenderableType:
     """Build an archived-plan title and complete property grid."""
     plan = match.plan
     title = Text("▤ ", style="bold #00D7AF")
     title.append(plan.title or plan.name, style="bold white")
     properties = list(_frontmatter_properties(plan.frontmatter))
+    if owner is not None:
+        properties.extend(
+            [
+                ("Owning bead", owner.bead_id),
+                ("Bead status", _status_chip(owner)),
+                ("Design reference", owner.reference),
+            ]
+        )
     properties.extend(
         [
             ("Source", plan.source),
@@ -144,125 +98,8 @@ def archive_properties_header(
     return _properties_header(title, properties)
 
 
-def _ordered_frontmatter_items(
-    frontmatter: dict[str, str],
-) -> tuple[tuple[str, str], ...]:
-    """Order known plan properties first, then remaining keys alphabetically."""
-    return tuple(ordered_plan_property_items(frontmatter))
-
-
-def bead_body_markdown(
-    issue: Issue,
-    linked_plan: LinkedPlanDocument | None = None,
-) -> str:
-    """Render a bead's description, notes, and worker-loaded linked plan."""
-    lines = ["## Description", "", issue.description or "_No description._"]
-    if issue.notes:
-        lines.extend(["", "## Notes", "", issue.notes])
-    if linked_plan is not None:
-        lines.extend(["", "---", "", "## Plan", ""])
-        if linked_plan.error is not None:
-            lines.append(f"_{linked_plan.error}_")
-        else:
-            for key, value in _ordered_frontmatter_items(linked_plan.frontmatter):
-                label = plan_property_label(key)
-                lines.append(f"**{label}:** {value.replace(chr(10), ' ')}  ")
-            if linked_plan.frontmatter:
-                lines.append("")
-            lines.append(linked_plan.body or "_The linked plan is empty._")
-    return "\n".join(lines)
-
-
-def _issue_plan_document(
-    issue: Issue,
-    snapshot: PlansSnapshot | None,
-    *,
-    project: str,
-) -> LinkedPlanDocument | None:
-    """Return the document loaded for this bead's own plan link, if any."""
-    if snapshot is None:
-        return None
-    return snapshot.linked_plan_documents.get((project, issue.id))
-
-
-def resolved_plan_path(
-    issue: Issue,
-    snapshot: PlansSnapshot | None,
-    *,
-    project: str,
-) -> str | None:
-    """Return the path this bead's plan reference currently resolves to."""
-    document = _issue_plan_document(issue, snapshot, project=project)
-    if document is None or not document.available or not document.path:
-        return None
-    return document.path
-
-
-def _plan_reference_properties(
-    issue: Issue,
-    snapshot: PlansSnapshot | None,
-    *,
-    project: str,
-) -> tuple[DetailProperty, ...]:
-    """Render the stable reference first and where it resolves second."""
-    reference = issue.design.strip()
-    if not reference:
-        return (("Plan reference", ""),)
-    document = _issue_plan_document(issue, snapshot, project=project)
-    if document is None:
-        return (("Plan reference", reference),)
-    resolved = resolved_plan_path(issue, snapshot, project=project)
-    if resolved is None:
-        return (
-            ("Plan reference", reference),
-            ("Resolved plan", Text(PLAN_REFERENCE_MISSING_LABEL, style="#FF8787")),
-        )
-    return (
-        ("Plan reference", reference),
-        ("Resolved plan", resolved),
-    )
-
-
-def _references_text(issue: Issue) -> Text:
-    """Render the stored references verbatim, one per line.
-
-    A canonical reference is already the stable, human-legible form, and
-    resolving one walks the repo inventory, which a render path must never
-    do. Resolution, if it is ever wanted here, belongs in ``PlansSnapshot``.
-    """
-    if not issue.refs:
-        return Text("—", style="dim")
-    text = Text()
-    for index, reference in enumerate(issue.refs):
-        if index:
-            text.append("\n")
-        text.append(reference, style="white")
-    return text
-
-
-def linked_plan_for_issue(
-    issue: Issue,
-    snapshot: PlansSnapshot | None,
-    *,
-    project: str,
-) -> LinkedPlanDocument | None:
-    """Return a phase override or its owning epic's linked document."""
-    if snapshot is None:
-        return None
-    direct = snapshot.linked_plan_documents.get((project, issue.id))
-    if direct is not None:
-        return direct
-    if issue.parent_id:
-        return snapshot.linked_plan_documents.get((project, issue.parent_id))
-    return None
-
-
-def archive_preview_markdown(
-    match: PlanSearchMatch,
-    *,
-    role: str = "plans",
-) -> str:
-    """Preserve the full-screen archive preview content."""
+def archive_preview_markdown(match: PlanSearchMatch, *, role: str = "plans") -> str:
+    """Build the full-screen archive preview content."""
     plan = match.plan
     lines = [
         f"# {plan.title or plan.name}",
@@ -280,82 +117,15 @@ def archive_preview_markdown(
     return "\n".join(lines)
 
 
-def _archive_reference(match: PlanSearchMatch, *, role: str) -> str:
-    """Render the logical document reference for an archive search row."""
-
-    return parse_artifact_ref(f"{role}:{match.plan.relpath}").rendered
-
-
-def bead_preview_markdown(
-    issue: Issue,
-    snapshot: PlansSnapshot | None,
-    *,
-    project: str,
-) -> str:
-    """Preserve the full-screen bead preview content."""
-    lines = [
-        f"# {issue.id} · {issue.title}",
-        "",
-        f"**Status:** {issue.status.value}  ",
-        f"**Readiness:** {_readiness_label(issue, snapshot, project=project)}  ",
-        f"**Type:** {issue.issue_type.value}  ",
-    ]
-    if issue.issue_type in (IssueType.PHASE, IssueType.TASK):
-        size = normalize_phase_size(issue.size or PhaseSize.SMALL)
-        lines.append(f"**Size:** {size or 'unavailable'}  ")
-    elif (
-        issue.tier is BeadTier.EPIC
-        and (phase_sizes := _epic_phase_sizes(issue, snapshot, project=project))
-        is not None
-    ):
-        lines.append(f"**Phase sizes:** {phase_sizes.plain}  ")
-    if issue.model:
-        lines.append(f"**Model:** {issue.model}  ")
-    if issue.assignee:
-        lines.append(f"**Assignee:** {issue.assignee}  ")
-    if issue.changespec_name:
-        lines.append(f"**ChangeSpec:** {issue.changespec_name}  ")
-    if issue.changespec_bug_id:
-        lines.append(f"**External bug:** #{issue.changespec_bug_id}  ")
-    if reference := issue.design.strip():
-        lines.append(f"**Plan reference:** {reference}  ")
-        document = _issue_plan_document(issue, snapshot, project=project)
-        if document is not None:
-            resolved = resolved_plan_path(issue, snapshot, project=project)
-            detail = resolved or PLAN_REFERENCE_MISSING_LABEL
-            lines.append(f"**Resolved plan:** {PLAN_REFERENCE_ARROW} {detail}  ")
-    for index, reference in enumerate(issue.refs):
-        label = "**References:**" if index == 0 else " " * len("**References:**")
-        lines.append(f"{label} {reference}  ")
-    lines.extend(["", bead_body_markdown(issue)])
-    if issue.dependencies:
-        lines.extend(["", "## Dependencies", ""])
-        for dependency in issue.dependencies:
-            state = _dependency_state(
-                snapshot,
-                dependency.depends_on_id,
-                project=project,
-            )
-            lines.append(f"- {dependency.depends_on_id} — {state}")
-    lines.extend(
-        [
-            "",
-            "## History",
-            "",
-            f"- Created: {issue.created_at or '—'}",
-            f"- Updated: {issue.updated_at or '—'}",
-        ]
+def _document_title(path: str, frontmatter: dict[str, str]) -> str:
+    return (
+        frontmatter.get("title")
+        or Path(path).stem.replace("_", " ").replace("-", " ").title()
     )
-    if issue.closed_at:
-        lines.append(f"- Closed: {issue.closed_at}")
-    if issue.status is Status.CLOSED:
-        lines.append(
-            "- Resolution: "
-            f"{issue.resolution.value if issue.resolution else '(unrecorded)'}"
-        )
-    if issue.close_reason:
-        lines.append(f"- Close reason: {issue.close_reason}")
-    return "\n".join(lines)
+
+
+def _archive_reference(match: PlanSearchMatch, *, role: str) -> str:
+    return parse_artifact_ref(f"{role}:{match.plan.relpath}").rendered
 
 
 def _properties_header(
@@ -384,178 +154,30 @@ def _frontmatter_properties(
 ) -> tuple[DetailProperty, ...]:
     return tuple(
         (plan_property_label(key), value)
-        for key, value in _ordered_frontmatter_items(frontmatter)
+        for key, value in ordered_plan_property_items(frontmatter)
     )
-
-
-def _dependencies_text(
-    issue: Issue,
-    snapshot: PlansSnapshot | None,
-    *,
-    project: str,
-) -> Text:
-    if not issue.dependencies:
-        return Text("—", style="dim")
-    text = Text()
-    statuses = {status.value: status for status in Status}
-    for index, dependency in enumerate(issue.dependencies):
-        if index:
-            text.append("\n")
-        state = _dependency_state(
-            snapshot,
-            dependency.depends_on_id,
-            project=project,
-        )
-        status = statuses.get(state)
-        glyph = "?" if status is None else _status_glyph(status)
-        style = "dim" if status is None else _status_style(status)
-        text.append(glyph, style=style)
-        text.append(f" {dependency.depends_on_id}", style="white")
-        text.append(f"  {state.replace('_', ' ')}", style=style)
-    return text
-
-
-def _epic_phase_sizes(
-    issue: Issue,
-    snapshot: PlansSnapshot | None,
-    *,
-    project: str,
-) -> Text | None:
-    """Summarize persisted direct phase sizes without consulting authored plans."""
-    if snapshot is None:
-        return None
-    phases = snapshot.phases_by_epic.get((project, issue.id))
-    if not phases:
-        return None
-
-    counts = dict.fromkeys(PHASE_SIZE_VALUES, 0)
-    for phase in phases:
-        size = normalize_phase_size(phase.issue.size or PhaseSize.SMALL)
-        if size is None:
-            return None
-        counts[size] += 1
-
-    text = Text()
-    for size in PHASE_SIZE_VALUES:
-        count = counts[size]
-        if not count:
-            continue
-        if text:
-            text.append(" · ", style="dim")
-        text.append(f"{count} ", style="white")
-        text.append(size, style=PHASE_SIZE_STYLES[size])
-    return text or None
-
-
-def _dependency_state(
-    snapshot: PlansSnapshot | None,
-    issue_id: str,
-    *,
-    project: str,
-) -> str:
-    if snapshot is None:
-        return "unknown"
-    for (owner, _epic_id), phases in snapshot.phases_by_epic.items():
-        if owner != project:
-            continue
-        for phase in phases:
-            if phase.issue.id == issue_id:
-                return phase.issue.status.value
-    for epic in snapshot.epics:
-        if epic.project == project and epic.issue.id == issue_id:
-            return epic.issue.status.value
-    for task in snapshot.tasks:
-        if task.project == project and task.issue.id == issue_id:
-            return task.issue.status.value
-    return "unknown"
 
 
 def _chip(label: str, color: str, *, glyph: str = "") -> Text:
     prefix = f"{glyph} " if glyph else ""
     text = Text()
     text.append(f" {prefix}{label} ", style=f"bold #1a1a1a on {color}")
-    # End on an unstyled cell so Rich doesn't extend the chip background to
-    # the table column's full width while padding the row.
     text.append(" ")
     return text
 
 
-def _status_chip(status: Status) -> Text:
-    presentation = bead_status_presentation(status)
+def _status_chip(owner: BeadPlanLink) -> Text:
+    presentation = bead_status_presentation(owner.bead_status)
     return _chip(
-        status.value.replace("_", " "),
+        owner.bead_status.value.replace("_", " "),
         presentation.rich_color,
-        glyph=_status_glyph(status),
+        glyph=presentation.tui_glyph,
     )
 
 
-def _readiness_chip(
-    issue: Issue,
-    snapshot: PlansSnapshot | None,
-    *,
-    project: str,
-) -> Text:
-    label = _readiness_label(issue, snapshot, project=project)
-    if issue.status in (
-        Status.CLOSED,
-        Status.CLAIMED,
-        Status.READY,
-        Status.IN_PROGRESS,
-    ):
-        presentation = bead_status_presentation(issue.status)
-        return _chip(
-            label,
-            presentation.rich_color,
-            glyph=presentation.tui_glyph,
-        )
-    color, glyph = {
-        "blocked": ("#FF5F5F", "×"),
-        "ready": ("#5FD787", "✓"),
-        "waiting": ("#87D7FF", "○"),
-        "unknown": ("#878787", "?"),
-    }[label]
-    return _chip(label, color, glyph=glyph)
-
-
-def _readiness_label(
-    issue: Issue,
-    snapshot: PlansSnapshot | None,
-    *,
-    project: str,
-) -> str:
-    if issue.status == Status.CLOSED:
-        return "closed"
-    if issue.status == Status.CLAIMED:
-        return "claimed"
-    if issue.status == Status.READY:
-        return "ready"
-    if issue.status == Status.IN_PROGRESS:
-        return "in progress"
-    if snapshot is None:
-        return "unknown"
-    issue_key = (project, issue.id)
-    if issue_key in snapshot.blocked_ids:
-        return "blocked"
-    if issue_key in snapshot.ready_ids:
-        return "ready"
-    return "waiting"
-
-
-def _status_glyph(status: Status) -> str:
-    return bead_status_presentation(status).tui_glyph
-
-
-def _status_style(status: Status) -> str:
-    return bead_status_presentation(status).rich_style
-
-
 __all__ = [
+    "active_plan_properties_header",
     "archive_preview_markdown",
     "archive_properties_header",
-    "bead_body_markdown",
-    "bead_preview_markdown",
-    "bead_properties_header",
-    "linked_plan_for_issue",
     "proposal_properties_header",
-    "resolved_plan_path",
 ]
