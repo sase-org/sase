@@ -73,27 +73,48 @@ def test_builtin_xprompts_loaded_from_config() -> None:
     assert XPromptTag.work_task_bead in prompts["bd/work_task"].tags
 
 
+def _builtin_prompt_body(name: str) -> str:
+    body = get_all_prompts()[name].steps[0].prompt_part
+    assert body is not None
+    return body
+
+
+def _assert_no_wait_directives(name: str, task_instruction: str) -> None:
+    cleaned, directives = extract_prompt_directives(_builtin_prompt_body(name))
+
+    assert directives.wait_priority is None
+    assert directives.wait == []
+    assert directives.wait_beads == []
+    assert directives.wait_duration is None
+    assert directives.wait_until is None
+    assert directives.wait_runners is None
+    assert task_instruction in cleaned
+
+
 @pytest.mark.parametrize(
     ("name", "task_instruction"),
     [
         (
+            "bd/work_phase_bead",
+            "Can you complete the work for bead {{ bead_id }}",
+        ),
+        (
             "bd/land_epic",
             "You are the land agent for epic bead {{ bead_id }}",
         ),
-        (
-            "bd/work_task",
-            "Can you complete the work for task bead {{ bead_id }}",
-        ),
     ],
 )
-def test_bead_builtin_xprompts_use_priority_only_wait(
+def test_epic_builtin_xprompts_do_not_author_wait_directives(
     name: str,
     task_instruction: str,
 ) -> None:
-    body = get_all_prompts()[name].steps[0].prompt_part
-    assert body is not None
+    _assert_no_wait_directives(name, task_instruction)
 
-    cleaned, directives = extract_prompt_directives(body)
+
+def test_builtin_work_task_xprompt_uses_priority_only_wait() -> None:
+    cleaned, directives = extract_prompt_directives(
+        _builtin_prompt_body("bd/work_task")
+    )
 
     assert directives.wait_priority == 15
     assert directives.wait == []
@@ -101,7 +122,7 @@ def test_bead_builtin_xprompts_use_priority_only_wait(
     assert directives.wait_duration is None
     assert directives.wait_until is None
     assert directives.wait_runners is None
-    assert task_instruction in cleaned
+    assert "Can you complete the work for task bead {{ bead_id }}" in cleaned
     assert "%wait" not in cleaned
 
 

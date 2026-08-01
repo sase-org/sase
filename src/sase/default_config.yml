@@ -915,7 +915,6 @@ xprompts:
     input:
       bead_id: word
     content: |
-      %wait(priority=15)
       You are the land agent for epic bead {{ bead_id }}: verify the epic is truly complete, integrate it with changes
       that landed since it started, then close it out.
 
