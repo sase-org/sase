@@ -19,7 +19,10 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
-from sase.ace.tui.util.selection import restore_selection_by_identity
+from sase.ace.tui.util.selection import (
+    ProgrammaticSelectionGuard,
+    restore_selection_by_identity,
+)
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 from sase.repo_inventory import (
     RepoInventoryIssue,
@@ -139,7 +142,7 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
         self._worker: Worker[Any] | None = None
         self._loaded_once = False
         self._detail_debouncer: DetailPanelDebouncer | None = None
-        self._syncing_options = False
+        self._selection_guard = ProgrammaticSelectionGuard()
         self.set_project_records(project_records, refresh=False)
 
     def compose(self) -> ComposeResult:
@@ -311,36 +314,43 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
         current = preferred_id or self._selected_record_id() or self._bookmark.identity
-        self._syncing_options = True
+        self._selection_guard.clear()
         selected_index: int | None = None
-        try:
-            option_list.clear_options()
-            for option in self._create_options():
-                option_list.add_option(option)
-            if self._filtered_records:
-                index = restore_selection_by_identity(
-                    self._filtered_records,
-                    prior_identity=current,
-                    prior_visual_row=self._bookmark.row,
-                    identity_fn=self._record_id,
-                )
-                option_list.highlighted = index
-                selected_index = index
-            else:
-                option_list.highlighted = None
-        finally:
-            self._syncing_options = False
-        self._record_bookmark(selected_index)
+        option_list.clear_options()
+        for option in self._create_options():
+            option_list.add_option(option)
+        if self._filtered_records:
+            index = restore_selection_by_identity(
+                self._filtered_records,
+                prior_identity=current,
+                prior_visual_row=self._bookmark.row,
+                identity_fn=self._record_id,
+            )
+            identity = self._record_id(self._filtered_records[index])
+            self._selection_guard.prepare(identity, index)
+            option_list.highlighted = index
+            selected_index = index
+        else:
+            option_list.highlighted = None
+        self._record_bookmark(selected_index, authoritative=self._loaded_once)
         self._update_summary()
         self._update_detail()
         self._update_hints()
 
-    def _record_bookmark(self, index: int | None) -> None:
+    def _record_bookmark(
+        self, index: int | None, *, authoritative: bool = True
+    ) -> None:
         if index is None or not (0 <= index < len(self._filtered_records)):
-            if self._loaded_once and not self._text_filter.strip():
+            if authoritative and not self._text_filter.strip():
                 self._bookmark.record(None, None)
+            elif not authoritative:
+                self._bookmark.display(None, None)
             return
-        self._bookmark.record(self._record_id(self._filtered_records[index]), index)
+        identity = self._record_id(self._filtered_records[index])
+        if authoritative:
+            self._bookmark.record(identity, index)
+        else:
+            self._bookmark.display(identity, index)
 
     def _record_project_filter(self) -> None:
         if self._on_project_filter_changed is not None:
@@ -414,17 +424,29 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
 
     def on_option_list_option_highlighted(
         self,
-        _event: OptionList.OptionHighlighted,
+        event: OptionList.OptionHighlighted,
     ) -> None:
-        if not self._syncing_options:
-            try:
-                highlighted = self.query_one(
-                    f"#{self._option_list_id}", OptionList
-                ).highlighted
-            except Exception:
-                highlighted = None
-            self._record_bookmark(highlighted)
-            self._schedule_detail_update()
+        if event.option is None or event.option.id is None:
+            return
+        identity = str(event.option.id)
+        try:
+            highlighted = self.query_one(
+                f"#{self._option_list_id}", OptionList
+            ).highlighted
+        except Exception:
+            return
+        if highlighted is None or not (0 <= highlighted < len(self._filtered_records)):
+            return
+        current_identity = self._record_id(self._filtered_records[highlighted])
+        if identity != current_identity or self._selection_guard.should_ignore(
+            identity,
+            highlighted,
+            current_identity=current_identity,
+            current_row=highlighted,
+        ):
+            return
+        self._record_bookmark(highlighted)
+        self._schedule_detail_update()
 
     def on_key(self, event: events.Key) -> None:
         if event.key == "escape" and self._project_filter is not None:

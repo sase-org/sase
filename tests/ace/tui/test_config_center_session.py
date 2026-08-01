@@ -5,6 +5,20 @@ from __future__ import annotations
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
+from sase.ace.tui.modals.config_center_session import SelectionBookmark
+
+
+def test_provisional_display_does_not_replace_requested_selection() -> None:
+    bookmark = SelectionBookmark()
+    bookmark.record("requested", 3)
+
+    bookmark.display("placeholder-neighbor", 1)
+
+    assert (bookmark.identity, bookmark.row) == ("requested", 3)
+    assert (bookmark.displayed_identity, bookmark.displayed_row) == (
+        "placeholder-neighbor",
+        1,
+    )
 
 
 def test_direct_config_center_modals_get_independent_session_state() -> None:

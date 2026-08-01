@@ -18,7 +18,7 @@ from textual.widgets.option_list import Option
 from sase.xprompt import get_all_prompts
 from sase.xprompt.workflow_models import Workflow
 
-from ..util.selection import restore_selection_by_identity
+from ..util.selection import ProgrammaticSelectionGuard, restore_selection_by_identity
 from .config_center_session import SelectionBookmark
 from ..util.frontmatter_syntax import markdown_document_syntax
 from .xprompt_browser_actions import XPromptBrowserActionsMixin
@@ -76,7 +76,7 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._project = project
         self._bookmark = bookmark or SelectionBookmark()
-        self._syncing_options = False
+        self._selection_guard = ProgrammaticSelectionGuard()
         self._all_items: list[BrowserItem] = []
         self._grouped: list[tuple[str, list[BrowserItem]]] = []
         self._load_xprompts()
@@ -200,26 +200,27 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
     ) -> None:
         flat_items = self._get_flat_items()
         selected: BrowserItem | None = None
-        self._syncing_options = True
-        try:
-            if flat_items:
-                row = restore_selection_by_identity(
-                    flat_items,
-                    prior_identity=preferred_name or self._bookmark.identity,
-                    prior_visual_row=self._bookmark.row,
-                    identity_fn=lambda item: item.name,
-                )
-                selected = flat_items[row]
+        self._selection_guard.clear()
+        if flat_items:
+            row = restore_selection_by_identity(
+                flat_items,
+                prior_identity=preferred_name or self._bookmark.identity,
+                prior_visual_row=self._bookmark.row,
+                identity_fn=lambda item: item.name,
+            )
+            selected = flat_items[row]
+            option_index = self._option_index_for_item(option_list, selected.name)
+            if option_index is not None:
+                self._selection_guard.prepare(selected.name, row)
+                option_list.highlighted = option_index
+            else:
+                selected = flat_items[0]
                 option_index = self._option_index_for_item(option_list, selected.name)
                 if option_index is not None:
+                    self._selection_guard.prepare(selected.name, 0)
                     option_list.highlighted = option_index
-                else:
-                    self._skip_to_first_item(option_list)
-                    selected = self._get_highlighted_item()
-            else:
-                option_list.highlighted = None
-        finally:
-            self._syncing_options = False
+        else:
+            option_list.highlighted = None
         self._record_bookmark(selected, filter_text=filter_text)
         if selected is not None:
             self._update_preview(selected)
@@ -239,14 +240,31 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
     ) -> None:
-        if self._syncing_options:
-            return
         if event.option and event.option.id:
             opt_id = str(event.option.id)
             if opt_id.startswith("__header__"):
                 return
             name = opt_id.removeprefix("item__")
-            for item in self._get_flat_items():
+            flat_items = self._get_flat_items()
+            current = self._get_highlighted_item()
+            current_row = (
+                self._logical_row_for_item(current.name)
+                if current is not None
+                else None
+            )
+            if (
+                current is None
+                or current_row is None
+                or name != current.name
+                or self._selection_guard.should_ignore(
+                    name,
+                    current_row,
+                    current_identity=current.name,
+                    current_row=current_row,
+                )
+            ):
+                return
+            for item in flat_items:
                 if item.name == name:
                     self._record_bookmark(item, filter_text="")
                     self._update_preview(item)

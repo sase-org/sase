@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from textual.widgets import Input
+from textual.widgets import Input, Tree
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
@@ -42,9 +42,20 @@ async def test_config_pane_restores_session_bookmark_by_path(
 
     async with AcePage() as page:
         pane = await _open_config_pane(page, session_state=state)
+        tree = pane.query_one("#config-tree", Tree)
 
         assert pane._selected_path == "timezone"
         assert state.config.identity == "timezone"
+        assert tree.cursor_line == pane._logical_row_for_path("timezone")
+        assert tree.cursor_node is not None
+        assert tree.cursor_node.data == "timezone"
+
+        await page.press("j")
+        await page.wait_for(lambda _s: pane._selected_path == "use_chezmoi")
+
+        assert tree.cursor_line == pane._logical_row_for_path("use_chezmoi")
+        assert tree.cursor_node is not None
+        assert tree.cursor_node.data == "use_chezmoi"
 
 
 async def test_config_pane_filter_narrows_tree(

@@ -12,7 +12,10 @@ from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
-from sase.ace.tui.util.selection import restore_selection_by_identity
+from sase.ace.tui.util.selection import (
+    ProgrammaticSelectionGuard,
+    restore_selection_by_identity,
+)
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.render import build_community_warning_panel, build_detail_panel
 from sase.plugins.render_common import (
@@ -55,7 +58,7 @@ class PluginsBrowserRenderingMixin:
         _offline: bool
         _restore_name: str | None
         _session_state: Any
-        _syncing_plugin_options: bool
+        _plugin_selection_guard: ProgrammaticSelectionGuard
         _uv_tool: object | None
         _verbose: bool
         _dev_root: str | None
@@ -139,30 +142,35 @@ class PluginsBrowserRenderingMixin:
         self._restore_name = None
         entries = self._flat_plugin_entries()
         selected_name: str | None = None
-        self._syncing_plugin_options = True
-        try:
-            option_list.clear_options()
-            for opt in self._create_options():
-                option_list.add_option(opt)
-            if entries:
-                row = restore_selection_by_identity(
-                    entries,
-                    prior_identity=preferred,
-                    prior_visual_row=self._session_state.plugins.row,
-                    identity_fn=lambda entry: entry.name,
-                )
-                selected_name = entries[row].name
+        self._plugin_selection_guard.clear()
+        option_list.clear_options()
+        for opt in self._create_options():
+            option_list.add_option(opt)
+        if entries:
+            row = restore_selection_by_identity(
+                entries,
+                prior_identity=preferred,
+                prior_visual_row=self._session_state.plugins.row,
+                identity_fn=lambda entry: entry.name,
+            )
+            selected_name = entries[row].name
+            option_index = self._option_index_for_plugin(option_list, selected_name)
+            if option_index is not None:
+                self._plugin_selection_guard.prepare(selected_name, row)
+                option_list.highlighted = option_index
+            else:
+                selected_name = entries[0].name
                 option_index = self._option_index_for_plugin(option_list, selected_name)
                 if option_index is not None:
+                    self._plugin_selection_guard.prepare(selected_name, 0)
                     option_list.highlighted = option_index
-                else:
-                    self._skip_to_first_item(option_list)
-                    selected_name = self._highlighted_name()
-            else:
-                option_list.highlighted = None
-        finally:
-            self._syncing_plugin_options = False
+        else:
+            option_list.highlighted = None
         self._record_plugin_bookmark(selected_name)
+        # Hints gate actions on the selected plugin, so refresh them from the
+        # resolved highlight instead of relying on OptionHighlighted's queued
+        # programmatic echo to do it later.
+        self._update_static("#plugins-hints", self._hints())
 
     def _flat_plugin_entries(self) -> list[PluginCatalogEntry]:
         return [entry for _, _, entries in self._grouped for entry in entries]
@@ -287,12 +295,31 @@ class PluginsBrowserRenderingMixin:
         so it refreshes immediately.
         """
         if event.option_list.id == "agent-clis-list":
-            self._on_agent_cli_highlighted()  # type: ignore[attr-defined]
+            self._on_agent_cli_highlighted(event)  # type: ignore[attr-defined]
             return
         if event.option_list.id == "plugins-list":
-            if self._syncing_plugin_options:
+            if event.option is None or event.option.id is None:
                 return
-            self._record_plugin_bookmark(self._highlighted_name())
+            identity = str(event.option.id).removeprefix(_ITEM_PREFIX)
+            current_identity = self._highlighted_name()
+            current_row = (
+                self._logical_row_for_plugin(current_identity)
+                if current_identity is not None
+                else None
+            )
+            if (
+                current_identity is None
+                or current_row is None
+                or identity != current_identity
+                or self._plugin_selection_guard.should_ignore(
+                    identity,
+                    current_row,
+                    current_identity=current_identity,
+                    current_row=current_row,
+                )
+            ):
+                return
+            self._record_plugin_bookmark(current_identity)
             self._update_static("#plugins-hints", self._hints())
             self._schedule_detail()
 

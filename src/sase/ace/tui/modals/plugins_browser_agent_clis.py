@@ -12,7 +12,10 @@ from rich.text import Text
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
-from sase.ace.tui.util.selection import restore_selection_by_identity
+from sase.ace.tui.util.selection import (
+    ProgrammaticSelectionGuard,
+    restore_selection_by_identity,
+)
 from sase.ace.tui.actions.task_actions import (
     TrackedTaskCompletion,
     TrackedTaskResult,
@@ -62,7 +65,8 @@ class AgentCliBrowserMixin:
         _marked_install: set[str]
         _offline: bool
         _session_state: Any
-        _syncing_agent_cli_options: bool
+        _agent_cli_selection_guard: ProgrammaticSelectionGuard
+        _updates_loaded_once: bool
         app: App[Any]
         is_mounted: bool
 
@@ -90,29 +94,31 @@ class AgentCliBrowserMixin:
         )
         selected_index: int | None = None
         if option_list is not None:
-            self._syncing_agent_cli_options = True
-            try:
-                option_list.clear_options()
-                for status in self._agent_cli_statuses:
-                    option_list.add_option(
-                        Option(
-                            self._agent_cli_row(status),
-                            id=f"{_ITEM_PREFIX}{status.name}",
-                        )
+            self._agent_cli_selection_guard.clear()
+            option_list.clear_options()
+            for status in self._agent_cli_statuses:
+                option_list.add_option(
+                    Option(
+                        self._agent_cli_row(status),
+                        id=f"{_ITEM_PREFIX}{status.name}",
                     )
-                if self._agent_cli_statuses:
-                    selected_index = restore_selection_by_identity(
-                        self._agent_cli_statuses,
-                        prior_identity=preferred,
-                        prior_visual_row=self._session_state.agent_clis.row,
-                        identity_fn=lambda status: status.name,
-                    )
-                    option_list.highlighted = selected_index
-                else:
-                    option_list.highlighted = None
-            finally:
-                self._syncing_agent_cli_options = False
-        self._record_agent_cli_bookmark(selected_index)
+                )
+            if self._agent_cli_statuses:
+                selected_index = restore_selection_by_identity(
+                    self._agent_cli_statuses,
+                    prior_identity=preferred,
+                    prior_visual_row=self._session_state.agent_clis.row,
+                    identity_fn=lambda status: status.name,
+                )
+                identity = self._agent_cli_statuses[selected_index].name
+                self._agent_cli_selection_guard.prepare(identity, selected_index)
+                option_list.highlighted = selected_index
+            else:
+                option_list.highlighted = None
+        self._record_agent_cli_bookmark(
+            selected_index,
+            authoritative=(self._updates_loaded_once and self._agent_cli_error is None),
+        )
         self._prune_agent_cli_marks()
         self._update_static("#agent-clis-summary", self._agent_cli_summary())
         self._update_static("#agent-clis-status", self._agent_cli_status_message())
@@ -120,13 +126,20 @@ class AgentCliBrowserMixin:
         self._sync_agent_cli_visibility()
         self._render_agent_cli_detail(force=True)
 
-    def _record_agent_cli_bookmark(self, index: int | None) -> None:
+    def _record_agent_cli_bookmark(
+        self, index: int | None, *, authoritative: bool = True
+    ) -> None:
         if index is None or not (0 <= index < len(self._agent_cli_statuses)):
-            if not self._loading and self._agent_cli_error is None:
+            if authoritative and self._agent_cli_error is None:
                 self._session_state.agent_clis.record(None, None)
+            elif not authoritative:
+                self._session_state.agent_clis.display(None, None)
             return
         status = self._agent_cli_statuses[index]
-        self._session_state.agent_clis.record(status.name, index)
+        if authoritative:
+            self._session_state.agent_clis.record(status.name, index)
+        else:
+            self._session_state.agent_clis.display(status.name, index)
 
     def _agent_cli_row(self, status: AgentCliStatus) -> Text:
         text = Text()
@@ -271,11 +284,27 @@ class AgentCliBrowserMixin:
                 return True
         return False
 
-    def _on_agent_cli_highlighted(self) -> None:
-        if self._syncing_agent_cli_options:
+    def _on_agent_cli_highlighted(self, event: OptionList.OptionHighlighted) -> None:
+        if event.option is None or event.option.id is None:
             return
         option_list = self._agent_cli_option_list()
         highlighted = option_list.highlighted if option_list is not None else None
+        if highlighted is None or not (
+            0 <= highlighted < len(self._agent_cli_statuses)
+        ):
+            return
+        identity = str(event.option.id).removeprefix(_ITEM_PREFIX)
+        current_identity = self._agent_cli_statuses[highlighted].name
+        if (
+            identity != current_identity
+            or self._agent_cli_selection_guard.should_ignore(
+                identity,
+                highlighted,
+                current_identity=current_identity,
+                current_row=highlighted,
+            )
+        ):
+            return
         self._record_agent_cli_bookmark(highlighted)
         self._update_static("#agent-clis-hints", self._agent_cli_hints())
         debouncer = getattr(self, "_detail_debouncer", None)

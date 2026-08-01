@@ -25,6 +25,50 @@ themselves.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass(slots=True)
+class ProgrammaticSelectionGuard:
+    """Discard queued selection echoes from programmatic list rebuilds.
+
+    Textual posts ``OptionHighlighted`` after assigning ``highlighted``, so a
+    synchronous boolean guard is already clear when the message is handled.
+    This guard instead remembers the identity and logical row that a rebuild
+    selected.  It also rejects older messages that no longer describe the
+    widget's current highlight.
+    """
+
+    _intended: tuple[Any, int] | None = None
+
+    def prepare(self, identity: Any, row: int) -> None:
+        """Remember the selection immediately before assigning it."""
+        self._intended = (identity, row)
+
+    def clear(self) -> None:
+        """Forget any echo expected from an earlier rebuild."""
+        self._intended = None
+
+    def should_ignore(
+        self,
+        identity: Any,
+        row: int,
+        *,
+        current_identity: Any,
+        current_row: int,
+    ) -> bool:
+        """Return whether a highlight message must not update pane state."""
+        event_selection = (identity, row)
+        if event_selection != (current_identity, current_row):
+            return True
+        if event_selection == self._intended:
+            self.clear()
+            return True
+        # A current event different from the intended selection is a real user
+        # move (or newer state), so no older echo may be consumed afterwards.
+        self.clear()
+        return False
 
 
 def restore_selection_by_identity[T, K](

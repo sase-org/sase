@@ -25,7 +25,7 @@ from textual.widgets.option_list import Option
 
 from sase.ace.hints import build_editor_args
 
-from ..util.selection import restore_selection_by_identity
+from ..util.selection import ProgrammaticSelectionGuard, restore_selection_by_identity
 from .config_center_session import TasksSessionState
 from ..actions.clipboard import schedule_copy_delivery
 from ..task_queue import TaskInfo, TaskQueue
@@ -48,6 +48,7 @@ from .tasks_store_rows import (
 # Every fourth 0.25s tick, so the spinner keeps its cadence while the store
 # is revalidated about once a second.
 _STORE_RELOAD_TICKS = 4
+_TASK_OPTION_PREFIX = "task__"
 
 
 class _TaskList(OptionList):
@@ -140,7 +141,7 @@ class TasksPane(Vertical):
         self._tasks: list[TaskInfo] = []
         self._last_statuses: dict[str, tuple[str, str | None, str]] = {}
         self._user_scrolled = False
-        self._syncing_options = False
+        self._selection_guard = ProgrammaticSelectionGuard()
         self._refresh_timer: Any | None = None
         self._spinner_index = 0
         self._body_cache: BodyCache = {}
@@ -232,8 +233,8 @@ class TasksPane(Vertical):
     def _create_options(self) -> list[Option]:
         """Create option list entries from current tasks."""
         return [
-            Option(task_row_label(task), id=str(i))
-            for i, task in enumerate(self._tasks)
+            Option(task_row_label(task), id=self._option_id_for_task(task))
+            for task in self._tasks
         ]
 
     def _option_list(self) -> OptionList | None:
@@ -253,9 +254,17 @@ class TasksPane(Vertical):
             return None
         if option.id is None:
             return None
-        try:
-            idx = int(option.id)
-        except ValueError:
+        option_id = str(option.id)
+        highlighted = option_list.highlighted
+        if highlighted is not None and 0 <= highlighted < len(self._tasks):
+            candidate = self._tasks[highlighted]
+            if option_id in {
+                self._option_id_for_task(candidate),
+                f"{_TASK_OPTION_PREFIX}{candidate.task_id}",
+            }:
+                return candidate
+        idx = self._task_index_for_option_id(option_id)
+        if idx is None:
             return None
         if 0 <= idx < len(self._tasks):
             return self._tasks[idx]
@@ -265,6 +274,29 @@ class TasksPane(Vertical):
     def _task_identity(task: TaskInfo) -> str:
         return task.durable_task_id or task.task_id
 
+    def _option_id_for_task(self, task: TaskInfo) -> str:
+        return f"{_TASK_OPTION_PREFIX}{self._task_identity(task)}"
+
+    def _task_index_for_option_id(self, option_id: str) -> int | None:
+        if not option_id.startswith(_TASK_OPTION_PREFIX):
+            return None
+        identity = option_id.removeprefix(_TASK_OPTION_PREFIX)
+        for index, task in enumerate(self._tasks):
+            # ``task_id`` remains a safe alias during the one rebuild where a
+            # task has just gained its durable id.
+            if self._task_identity(task) == identity or task.task_id == identity:
+                return index
+        return None
+
+    def _rekey_task_identity(self, identity: str | None) -> str | None:
+        if identity is None:
+            return None
+        for task in self._tasks:
+            if task.task_id == identity and task.durable_task_id:
+                self._session_state.task.rekey(identity, task.durable_task_id)
+                return task.durable_task_id
+        return identity
+
     def _highlighted_row(self) -> int | None:
         option_list = self._option_list()
         return option_list.highlighted if option_list is not None else None
@@ -273,13 +305,21 @@ class TasksPane(Vertical):
         task = self._get_selected_task()
         return self._task_identity(task) if task is not None else None
 
-    def _record_bookmark(self, index: int | None) -> None:
+    def _record_bookmark(
+        self, index: int | None, *, authoritative: bool = True
+    ) -> None:
         if index is None or not (0 <= index < len(self._tasks)):
-            if self._store_loaded_once and not self._store_load_pending:
+            if authoritative:
                 self._session_state.task.record(None, None)
+            else:
+                self._session_state.task.display(None, None)
             return
         task = self._tasks[index]
-        self._session_state.task.record(self._task_identity(task), index)
+        identity = self._task_identity(task)
+        if authoritative:
+            self._session_state.task.record(identity, index)
+        else:
+            self._session_state.task.display(identity, index)
 
     def _display_output(self, task: TaskInfo | None) -> None:
         """Render task output in the right pane."""
@@ -416,12 +456,26 @@ class TasksPane(Vertical):
         self._store_detail_id = snapshot.detail_task_id
         self._store_loaded_once = True
         if snapshot.unchanged:
+            identity = self._session_state.task.identity
+            if identity is not None and not any(
+                self._task_identity(task) == identity for task in self._tasks
+            ):
+                self._rebuild_list(
+                    highlight_index=self._highlighted_row(),
+                    prior_identity=identity,
+                )
             return
         prior_identity = self._selected_task_identity()
         highlighted = self._highlighted_row()
         self._store_rows = snapshot.rows
         self._tasks = self._merged_tasks()
-        if self._last_statuses != self._status_snapshot():
+        requested_identity = self._rekey_task_identity(
+            self._session_state.task.identity
+        )
+        requested_missing = requested_identity is not None and not any(
+            self._task_identity(task) == requested_identity for task in self._tasks
+        )
+        if self._last_statuses != self._status_snapshot() or requested_missing:
             self._rebuild_list(
                 highlight_index=highlighted,
                 prior_identity=prior_identity,
@@ -443,17 +497,29 @@ class TasksPane(Vertical):
         self, event: OptionList.OptionHighlighted
     ) -> None:
         """Update the output pane when a different task is highlighted."""
-        if self._syncing_options:
-            return
-        self._user_scrolled = False
         if event.option and event.option.id is not None:
-            try:
-                idx = int(event.option.id)
-            except ValueError:
+            current = self._get_selected_task()
+            current_row = self._highlighted_row()
+            if current is None or current_row is None:
                 return
-            if 0 <= idx < len(self._tasks):
-                task = self._tasks[idx]
-                self._record_bookmark(idx)
+            event_option_id = str(event.option.id)
+            if event_option_id not in {
+                self._option_id_for_task(current),
+                f"{_TASK_OPTION_PREFIX}{current.task_id}",
+            }:
+                return
+            identity = self._task_identity(current)
+            if self._selection_guard.should_ignore(
+                identity,
+                current_row,
+                current_identity=identity,
+                current_row=current_row,
+            ):
+                return
+            if 0 <= current_row < len(self._tasks):
+                self._user_scrolled = False
+                task = self._tasks[current_row]
+                self._record_bookmark(current_row)
                 self._display_output(task)
                 if task.store_backed and not task.output:
                     self._request_store_reload(force=True)
@@ -666,37 +732,40 @@ class TasksPane(Vertical):
         if option_list is None:
             return
 
-        identity = prior_identity or self._session_state.task.identity
+        self._selection_guard.clear()
+        identity = self._rekey_task_identity(
+            prior_identity or self._session_state.task.identity
+        )
         selected_index: int | None = None
         pending_missing_bookmark = (
             identity is not None
             and not any(self._task_identity(task) == identity for task in self._tasks)
             and (self._store_load_pending or not self._store_loaded_once)
         )
-        self._syncing_options = True
-        try:
-            option_list.clear_options()
-            for option in self._create_options():
-                option_list.add_option(option)
-            if self._tasks:
-                index = restore_selection_by_identity(
-                    self._tasks,
-                    prior_identity=identity,
-                    prior_visual_row=(
-                        highlight_index
-                        if highlight_index is not None
-                        else self._session_state.task.row
-                    ),
-                    identity_fn=self._task_identity,
-                )
-                option_list.highlighted = index
-                selected_index = index
-            else:
-                option_list.highlighted = None
-        finally:
-            self._syncing_options = False
-        if not pending_missing_bookmark:
-            self._record_bookmark(selected_index)
+        option_list.clear_options()
+        for option in self._create_options():
+            option_list.add_option(option)
+        if self._tasks:
+            index = restore_selection_by_identity(
+                self._tasks,
+                prior_identity=identity,
+                prior_visual_row=(
+                    highlight_index
+                    if highlight_index is not None
+                    else self._session_state.task.row
+                ),
+                identity_fn=self._task_identity,
+            )
+            selected_identity = self._task_identity(self._tasks[index])
+            self._selection_guard.prepare(selected_identity, index)
+            option_list.highlighted = index
+            selected_index = index
+        else:
+            option_list.highlighted = None
+        self._record_bookmark(
+            selected_index,
+            authoritative=not pending_missing_bookmark,
+        )
 
         self._display_output(self._get_selected_task())
         if self._is_active_tab():
@@ -704,7 +773,7 @@ class TasksPane(Vertical):
 
     def _status_snapshot(self) -> dict[str, tuple[str, str | None, str]]:
         return {
-            task.task_id: (task.status, task.phase, task.message)
+            self._task_identity(task): (task.status, task.phase, task.message)
             for task in self._tasks
         }
 

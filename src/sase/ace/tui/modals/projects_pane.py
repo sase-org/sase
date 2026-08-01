@@ -12,6 +12,7 @@ from textual.worker import Worker, WorkerState
 from textual.widgets import ContentSwitcher, OptionList, Static
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.util.selection import ProgrammaticSelectionGuard
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
@@ -160,7 +161,7 @@ class ProjectsPane(
         self._inventory_error = ""
         self._inventory_worker: Worker[Any] | None = None
         self._detail_debouncer: DetailPanelDebouncer | None = None
-        self._syncing_options = False
+        self._project_selection_guard = ProgrammaticSelectionGuard()
         self._load_records()
         self._inventory_loading = bool(self._records)
 

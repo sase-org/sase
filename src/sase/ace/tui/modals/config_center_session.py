@@ -11,15 +11,31 @@ UpdatesSubTab = Literal["core", "plugins", "agent-clis"]
 
 @dataclass
 class SelectionBookmark:
-    """Stable selected-entry identity plus its logical selectable row."""
+    """Requested selection plus the row a staged rebuild currently displays."""
 
     identity: str | None = None
     row: int | None = None
+    displayed_identity: str | None = None
+    displayed_row: int | None = None
 
     def record(self, identity: str | None, row: int | None) -> None:
-        """Store the resolved selection, or clear when no real row exists."""
+        """Store a user selection or an authoritative rebuild result."""
         self.identity = identity
         self.row = row
+        self.displayed_identity = identity
+        self.displayed_row = row
+
+    def display(self, identity: str | None, row: int | None) -> None:
+        """Track a provisional row without replacing the requested selection."""
+        self.displayed_identity = identity
+        self.displayed_row = row
+
+    def rekey(self, old_identity: str, new_identity: str) -> None:
+        """Replace a requested/displayed identity after its stable key is minted."""
+        if self.identity == old_identity:
+            self.identity = new_identity
+        if self.displayed_identity == old_identity:
+            self.displayed_identity = new_identity
 
 
 @dataclass

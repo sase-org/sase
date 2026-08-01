@@ -11,7 +11,10 @@ Covers the contract documented in
 
 from __future__ import annotations
 
-from sase.ace.tui.util.selection import restore_selection_by_identity
+from sase.ace.tui.util.selection import (
+    ProgrammaticSelectionGuard,
+    restore_selection_by_identity,
+)
 
 
 def test_identity_present_returns_its_index() -> None:
@@ -143,4 +146,46 @@ def test_identity_fn_can_extract_tuple_keys() -> None:
             identity_fn=lambda t: t,
         )
         == 2
+    )
+
+
+def test_programmatic_selection_guard_consumes_matching_queued_echo() -> None:
+    guard = ProgrammaticSelectionGuard()
+    guard.prepare("beta", 1)
+
+    assert guard.should_ignore(
+        "beta",
+        1,
+        current_identity="beta",
+        current_row=1,
+    )
+    assert not guard.should_ignore(
+        "beta",
+        1,
+        current_identity="beta",
+        current_row=1,
+    )
+
+
+def test_programmatic_selection_guard_rejects_stale_event() -> None:
+    guard = ProgrammaticSelectionGuard()
+    guard.prepare("gamma", 1)
+
+    assert guard.should_ignore(
+        "beta",
+        0,
+        current_identity="gamma",
+        current_row=1,
+    )
+
+
+def test_programmatic_selection_guard_allows_new_current_selection() -> None:
+    guard = ProgrammaticSelectionGuard()
+    guard.prepare("beta", 1)
+
+    assert not guard.should_ignore(
+        "gamma",
+        2,
+        current_identity="gamma",
+        current_row=2,
     )

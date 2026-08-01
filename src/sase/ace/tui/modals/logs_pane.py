@@ -26,7 +26,7 @@ from ..actions.navigation.jump_hints import (
     normalize_jump_key,
 )
 from ..logs import LogSource, log_sources
-from ..util.selection import restore_selection_by_identity
+from ..util.selection import ProgrammaticSelectionGuard, restore_selection_by_identity
 from .base import CopyModeForwardingMixin
 from .config_center_session import SelectionBookmark
 from .logs_pane_toasts import render_toast_detail_body
@@ -339,7 +339,7 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         self._loading = auto_load
         self._worker: Worker[Any] | None = None
         self._worker_reset_scroll = False
-        self._syncing_options = False
+        self._selection_guard = ProgrammaticSelectionGuard()
         self._bookmark = bookmark or SelectionBookmark()
         self._selected_index = restore_selection_by_identity(
             self._sources,
@@ -490,16 +490,16 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
             selected_index = self._highlighted_index()
         if self._source_options:
             selected_index = max(0, min(selected_index, len(self._source_options) - 1))
-        self._syncing_options = True
-        try:
-            option_list.clear_options()
-            option_list.add_options(self._render_source_options())
-            if self._source_options:
-                option_list.highlighted = selected_index
-            if self._is_active_tab():
-                option_list.focus()
-        finally:
-            self._syncing_options = False
+        self._selection_guard.clear()
+        option_list.clear_options()
+        option_list.add_options(self._render_source_options())
+        if self._source_options:
+            source_id = self._source_id_for_index(selected_index)
+            if source_id is not None:
+                self._selection_guard.prepare(source_id, selected_index)
+            option_list.highlighted = selected_index
+        if self._is_active_tab():
+            option_list.focus()
         if self._source_options:
             self._record_selection(selected_index)
         else:
@@ -547,11 +547,21 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
     ) -> None:
-        if self._syncing_options:
-            return
         if event.option and event.option.id:
             idx = self._source_index_for_option(str(event.option.id))
             if idx is not None:
+                current_idx = self._highlighted_index()
+                source_id = self._source_id_for_index(idx)
+                current_id = self._source_id_for_index(current_idx)
+                if source_id is None or current_id is None:
+                    return
+                if self._selection_guard.should_ignore(
+                    source_id,
+                    idx,
+                    current_identity=current_id,
+                    current_row=current_idx,
+                ):
+                    return
                 if idx == self._selected_index:
                     return
                 self._record_selection(idx)

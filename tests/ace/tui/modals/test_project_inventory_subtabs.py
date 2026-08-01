@@ -241,6 +241,41 @@ async def test_repo_and_workspace_subtabs_render_cached_inventory(
         assert "registry warning" in detail
 
 
+async def test_inventory_loading_echo_preserves_requested_bookmark(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repos, _workspaces = _patch_inventory_data(monkeypatch)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+
+    async with app.run_test() as pilot:
+        pane = app.query_one(ProjectsPane)
+        await _wait_for_inventory(pilot, pane)
+        repo_pane = pane.query_one(RepoInventoryPane)
+        requested = repo_pane._record_id(repos[2])
+        repo_pane._bookmark.record(requested, 2)
+        repo_pane._loaded_once = False
+        repo_pane._loading = True
+        repo_pane._records = []
+        repo_pane._apply_filters()
+
+        repo_pane._refresh_options()
+        await pilot.pause()
+
+        assert repo_pane._bookmark.identity == requested
+        assert repo_pane._bookmark.displayed_identity is None
+
+        repo_pane._records = list(repos)
+        repo_pane._loaded_once = True
+        repo_pane._loading = False
+        repo_pane._apply_filters()
+        repo_pane._refresh_options()
+        await pilot.pause()
+
+        assert repo_pane._selected_record_id() == requested
+        assert repo_pane._bookmark.identity == requested
+
+
 async def test_cross_navigation_and_escape_surface_disabled_workspaces(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

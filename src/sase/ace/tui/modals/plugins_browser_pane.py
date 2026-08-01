@@ -22,6 +22,7 @@ from sase.agent_clis.operations import (
     plan_agent_cli_updates,
 )
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.util.selection import ProgrammaticSelectionGuard
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.operations import (
     execute_install as execute_install,
@@ -263,8 +264,9 @@ class PluginsBrowserPane(
         self._marked_agent_clis: set[str] = set()
         self._agent_cli_results: dict[str, AgentCliUpdateResult] = {}
         self._agent_cli_detail_name: str | None = None
-        self._syncing_plugin_options = False
-        self._syncing_agent_cli_options = False
+        self._plugin_selection_guard = ProgrammaticSelectionGuard()
+        self._agent_cli_selection_guard = ProgrammaticSelectionGuard()
+        self._updates_loaded_once = False
         self._grouped: list[tuple[str, str, list[PluginCatalogEntry]]] = []
         self._worker: Worker[Any] | None = None
         #: Worker computing an install plan/preview before the confirm modal.
@@ -577,6 +579,7 @@ class PluginsBrowserPane(
         if event.state == WorkerState.SUCCESS:
             result = event.worker.result
             self._loading = False
+            self._updates_loaded_once = True
             self._catalog = getattr(result, "catalog", None)
             self._error = getattr(result, "error", None)
             self._now = getattr(result, "now", self._now)

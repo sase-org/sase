@@ -105,7 +105,6 @@ class ConfigPane(Vertical):
         self._bookmark = bookmark or SelectionBookmark()
         self._selected_path: str | None = self._bookmark.identity
         self._syncing_tree = False
-        self._suppress_post_rebuild_highlight = False
 
     # -- composition --
 
@@ -217,7 +216,7 @@ class ConfigPane(Vertical):
         except Exception:
             return
         prior_identity = self._bookmark.identity or self._selected_path
-        prior_row = self._bookmark.row if prior_identity is not None else None
+        prior_row = self._bookmark.row
         self._syncing_tree = True
         tree.clear()
         self._node_by_path = {}
@@ -271,9 +270,12 @@ class ConfigPane(Vertical):
             if target is not None:
                 target_node = self._node_by_path.get(target)
                 if target_node is not None:
+                    # TreeNode line numbers are assigned lazily.  Building the
+                    # public line cache first prevents move_cursor() from
+                    # validating the target's initial -1 line back to row 0.
+                    _ = tree.last_line
                     tree.move_cursor(target_node)
                 self._update_detail(target)
-                self._suppress_post_rebuild_highlight = True
             else:
                 self._update_detail(None)
         finally:
@@ -370,11 +372,6 @@ class ConfigPane(Vertical):
         if self._syncing_tree:
             return
         data = event.node.data
-        if self._suppress_post_rebuild_highlight:
-            if data != self._selected_path:
-                self._suppress_post_rebuild_highlight = False
-                return
-            return
         try:
             tree = self.query_one("#config-tree", Tree)
         except Exception:
@@ -413,7 +410,6 @@ class ConfigPane(Vertical):
             if first_node is not None:
                 self._move_cursor(tree, first_node)
             return
-        self._suppress_post_rebuild_highlight = False
         tree.action_cursor_down()
 
     def action_cycle_cursor_up(self) -> None:
@@ -426,7 +422,6 @@ class ConfigPane(Vertical):
             if last_node is not None:
                 self._move_cursor(tree, last_node)
             return
-        self._suppress_post_rebuild_highlight = False
         tree.action_cursor_up()
 
     def _tree_action(self, name: str) -> None:
@@ -434,7 +429,6 @@ class ConfigPane(Vertical):
             tree = self.query_one("#config-tree", Tree)
         except Exception:
             return
-        self._suppress_post_rebuild_highlight = False
         getattr(tree, name)()
 
     def action_scroll_to_top(self) -> None:
@@ -502,7 +496,6 @@ class ConfigPane(Vertical):
             self._move_cursor(tree, node.children[0])
 
     def _move_cursor(self, tree: Tree[str], node: TreeNode[str]) -> None:
-        self._suppress_post_rebuild_highlight = False
         tree.move_cursor(node, animate=False)
         if isinstance(node.data, str):
             self._update_detail(node.data)
