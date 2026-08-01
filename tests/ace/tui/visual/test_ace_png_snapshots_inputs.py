@@ -58,7 +58,7 @@ async def test_input_collection_modal_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         modal = _push_modal(page)
@@ -87,7 +87,7 @@ async def test_input_collection_modal_error_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         modal = _push_modal(page)

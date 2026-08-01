@@ -12,7 +12,9 @@ from textual.widgets import Static
 from ..artifact_tabs import (
     ARTIFACTS_ACCENTS,
     ARTIFACTS_SUBTAB_ORDER,
+    FILES_SUBTAB_ORDER,
     ArtifactsSubTab,
+    FilesSubTab,
 )
 from ...display_helpers import get_status_color
 from ..keymaps import (
@@ -39,6 +41,11 @@ _ARTIFACT_DESCRIPTIONS: dict[ArtifactsSubTab, str] = {
     "prs": "Inspect ChangeSpecs and move PRs through review.",
     "files": "Browse Plans, Chats, and Other artifact files.",
 }
+_FILES_DESCRIPTIONS: dict[FilesSubTab, str] = {
+    "plans": "Plan proposals, active plans, and the archive.",
+    "chats": "Agent chat transcripts and their sync state.",
+    "other": "Every other artifact file agents have produced.",
+}
 
 
 class ChangeSpecOnboarding(VerticalScroll):
@@ -61,7 +68,7 @@ class ChangeSpecOnboarding(VerticalScroll):
             id="changespec-onboarding-tabs",
             classes="changespec-onboarding-card",
         )
-        tabs.border_title = "The six views"
+        tabs.border_title = "The five views"
         yield tabs
 
         what = Static(
@@ -149,7 +156,7 @@ class ChangeSpecOnboarding(VerticalScroll):
         )
         text.append("  *\n", style="bold #FFD700")
         text.append(
-            "Browse commits, beads, bugs, PRs, plans, chats & files in Artifacts",
+            "Browse commits, beads, bugs, PRs, and nested files in Artifacts",
             style=f"dim {_ACCENT}",
         )
         return text
@@ -157,6 +164,10 @@ class ChangeSpecOnboarding(VerticalScroll):
     @staticmethod
     def _artifact_label(subtab: ArtifactsSubTab) -> str:
         return subtab.upper() if subtab == "prs" else subtab.title()
+
+    @staticmethod
+    def _files_label(subtab: FilesSubTab) -> str:
+        return subtab.title()
 
     @classmethod
     def _append_artifact_row(
@@ -173,12 +184,26 @@ class ChangeSpecOnboarding(VerticalScroll):
         text.append("\n")
 
     @classmethod
+    def _append_files_row(cls, text: Text, subtab: FilesSubTab) -> None:
+        text.append("    ", style="dim")
+        text.append(
+            f" {cls._files_label(subtab)} ",
+            style=f"bold {ARTIFACTS_ACCENTS[subtab]}",
+        )
+        text.append("  ")
+        text.append(_FILES_DESCRIPTIONS[subtab])
+        text.append("\n")
+
+    @classmethod
     def _build_tabs_card(cls, registry: KeymapRegistry) -> Text:
         app = registry.app
         text = Text()
         append_section_heading(text, "Know what each view shows", accent=_ACCENT)
         for subtab in ARTIFACTS_SUBTAB_ORDER:
             cls._append_artifact_row(text, subtab)
+            if subtab == "files":
+                for files_subtab in FILES_SUBTAB_ORDER:
+                    cls._append_files_row(text, files_subtab)
         text.append("Jump directly:")
         for index, subtab in enumerate(ARTIFACTS_SUBTAB_ORDER, start=1):
             append_keycap(text, str(index))
@@ -190,7 +215,11 @@ class ChangeSpecOnboarding(VerticalScroll):
         )
         text.append("/")
         append_keycap(text, key_display_name(app.cycle_artifacts_subtab))
-        text.append("cycle views.")
+        text.append("cycle top-level views.")
+        append_keycap(text, key_display_name(app.cycle_files_subtab_reverse))
+        text.append("/")
+        append_keycap(text, key_display_name(app.cycle_files_subtab))
+        text.append("cycle Plans, Chats, and Other inside Files.")
         append_keycap(text, key_display_name(app.pick_artifacts_project))
         text.append("pick project scope.")
         return text

@@ -42,7 +42,7 @@ async def test_config_center_statistics_overview_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         assert pane._last_result is not None
@@ -64,7 +64,7 @@ async def test_config_center_statistics_runtime_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("runtime")
@@ -86,7 +86,7 @@ async def test_config_center_statistics_xprompts_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("xprompts")
@@ -108,7 +108,7 @@ async def test_config_center_statistics_xprompts_model_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("xprompts")
@@ -131,7 +131,7 @@ async def test_config_center_statistics_xprompts_focus_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("xprompts")
@@ -166,7 +166,7 @@ async def test_config_center_statistics_xprompts_narrow_png_snapshot(
         size=(90, 30),
     ) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("xprompts")
@@ -189,7 +189,7 @@ async def test_config_center_statistics_runs_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("runs")
@@ -215,7 +215,7 @@ async def test_config_center_statistics_runners_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("runners")
@@ -244,7 +244,7 @@ async def test_config_center_statistics_runners_narrow_png_snapshot(
         size=(90, 30),
     ) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("runners")
@@ -267,7 +267,7 @@ async def test_config_center_statistics_help_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await _open_statistics_modal(page)
         await page.press("question_mark")
@@ -294,7 +294,7 @@ async def test_config_center_statistics_narrow_png_snapshot(
         size=(90, 30),
     ) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         assert pane._compact_scope is True
@@ -315,7 +315,7 @@ async def test_config_center_statistics_projects_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("projects")
@@ -337,7 +337,7 @@ async def test_config_center_statistics_projects_drilldown_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         pane._set_view("projects")
@@ -361,7 +361,7 @@ async def test_config_center_statistics_empty_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page)
         assert pane._last_result is not None
@@ -383,7 +383,7 @@ async def test_config_center_statistics_loading_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_statistics_modal(page, wait_for_load=False)
         assert pane._loading is True

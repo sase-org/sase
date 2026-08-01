@@ -68,7 +68,7 @@ async def test_prompt_todo_restored_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         page.app.theme = theme
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await mount_prompt_bar(page, TODO_RESTORED_PROMPT)
@@ -86,7 +86,7 @@ async def test_prompt_todo_stack_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await mount_prompt_bar(page, TODO_HIGHLIGHT_STACK)
@@ -131,7 +131,7 @@ async def test_prompt_bullet_highlight_solo_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         page.app.theme = theme
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await mount_prompt_bar(page, BULLET_HIGHLIGHT_SOLO)
@@ -147,7 +147,7 @@ async def test_prompt_search_highlight_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await mount_prompt_bar(page, SEARCH_PROMPT)
@@ -180,7 +180,7 @@ async def test_prompt_placeholder_raw_only_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await mount_prompt_bar(page, PLACEHOLDER_RAW_ONLY_PROMPT)
@@ -202,7 +202,7 @@ async def test_prompt_xprompt_highlight_solo_light_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         page.app.theme = "textual-light"
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await mount_prompt_bar(page, XPROMPT_HIGHLIGHT_SOLO)
@@ -223,7 +223,7 @@ async def test_prompt_xprompt_highlight_stack_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await mount_prompt_bar(page, XPROMPT_HIGHLIGHT_STACK)
@@ -244,7 +244,7 @@ async def test_prompt_artifact_ref_highlight_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await mount_prompt_bar(page, ARTIFACT_REF_HIGHLIGHT)
@@ -289,7 +289,7 @@ async def test_prompt_misspelling_highlight_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         page.app.theme = theme
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await mount_prompt_bar(page, MISSPELLING_HIGHLIGHT_PROMPT)
@@ -324,7 +324,7 @@ async def test_prompt_codeblock_highlight_solo_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         page.app.theme = theme
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await mount_prompt_bar(page, CODEBLOCK_HIGHLIGHT_SOLO)
@@ -363,7 +363,7 @@ async def test_prompt_codeblock_highlight_stack_png_snapshot(
     ) as page:
         page.app.theme = theme
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await mount_prompt_bar(page, CODEBLOCK_HIGHLIGHT_STACK)

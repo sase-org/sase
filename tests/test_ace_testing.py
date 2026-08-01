@@ -25,7 +25,7 @@ async def test_ace_page_press() -> None:
     """Pressing 'j' changes the current index."""
     async with AcePage() as page:
         assert page.state["idx"] == 0
-        await page.press("5")
+        await page.press("4")
         await page.press("j")
         assert page.state["idx"] == 1
 
@@ -83,7 +83,7 @@ async def test_expect_state_nested_key() -> None:
 async def test_expect_modal() -> None:
     """expect_modal succeeds after opening the query modal."""
     async with AcePage() as page:
-        await page.press("5")
+        await page.press("4")
         await page.press("slash")
         await page.expect_modal("QueryEditModal")
 

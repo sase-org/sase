@@ -56,7 +56,7 @@ async def test_prompt_history_modal_redesign_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         modal = PromptHistoryModal(show_cancelled=True)
         page.app.push_screen(modal)

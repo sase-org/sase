@@ -131,7 +131,7 @@ TAB_DISPLAY_NAMES = {
 
 # Column split indices for each tab (left column gets indices < split, right gets >= split)
 COLUMN_SPLITS = {
-    "changespecs": 2,  # Left: Artifact Sub-tabs, Navigation; Right: PR Actions + rest
+    "changespecs": 11,  # Balance artifact panes + PR actions against modes/copy help.
     "agents": 3,  # Left: Navigation, Agent Actions, Workflow Folding; Right: rest
     "axe": 3,  # Left: Navigation, BgCmds, Leader Mode; Right: rest
 }

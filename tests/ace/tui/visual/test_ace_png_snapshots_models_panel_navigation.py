@@ -30,7 +30,7 @@ pytestmark = pytest.mark.visual
 
 async def _open_alias_edit_picker(page: AcePage) -> None:
     await wait_for_startup(page)
-    await page.press("5")
+    await page.press("4")
     await page.expect_state("artifacts_subtab", "prs")
     page.app.push_screen(ModelsPanel())
     await page.expect_modal("ModelsPanel")
@@ -43,7 +43,7 @@ async def _open_alias_edit_picker(page: AcePage) -> None:
 
 async def _open_override_picker(page: AcePage) -> None:
     await wait_for_startup(page)
-    await page.press("5")
+    await page.press("4")
     await page.expect_state("artifacts_subtab", "prs")
     page.app.push_screen(ModelsPanel())
     await page.expect_modal("ModelsPanel")
@@ -219,7 +219,7 @@ async def test_models_panel_coders_drilled_in_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -243,7 +243,7 @@ async def test_models_panel_phase_worker_drilled_in_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -273,7 +273,7 @@ async def test_models_panel_bucket_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -303,7 +303,7 @@ async def test_models_panel_bucket_drilled_in_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -329,7 +329,7 @@ async def test_models_panel_mixed_builtin_bucket_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")

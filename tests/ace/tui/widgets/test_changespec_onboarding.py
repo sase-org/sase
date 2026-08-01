@@ -17,9 +17,9 @@ def test_changespec_onboarding_content_includes_docs_lifecycle_and_storage() -> 
     rendered = "\n".join(text.plain for text in sections.values())
 
     assert "Everything your agents produce, in one place" in rendered
-    assert "Browse commits, plans, chats, bugs, PRs & files" in rendered
-    assert "Browse agent chat transcripts and their sync state." in rendered
-    assert "Browse every artifact file agents have produced." in rendered
+    assert "Browse commits, beads, bugs, PRs, and nested files" in rendered
+    assert "Agent chat transcripts and their sync state." in rendered
+    assert "Every other artifact file agents have produced." in rendered
     assert "https://sase.sh/change_spec/" in rendered
     assert "https://sase.sh/vcs/" in rendered
     assert "https://sase.sh/plugins/" in rendered
@@ -37,6 +37,8 @@ def test_changespec_onboarding_uses_active_keymap_registry() -> None:
                     "cycle_artifacts_subtab_reverse": "f3",
                     "cycle_artifacts_subtab": "f4",
                     "pick_artifacts_project": "f5",
+                    "cycle_files_subtab_reverse": "f6",
+                    "cycle_files_subtab": "f7",
                 },
                 "modes": {"leader_mode": {"keys": {"show_help": "f1"}}},
             }
@@ -50,19 +52,31 @@ def test_changespec_onboarding_uses_active_keymap_registry() -> None:
 
     positions = {
         label: tabs_text.index(label)
-        for label in ("Commits", "Plans", "Chats", "Bugs", "PRs", "Files")
+        for label in (
+            "Commits",
+            "Beads",
+            "Bugs",
+            "PRs",
+            "Files",
+            "Plans",
+            "Chats",
+            "Other",
+        )
     }
     assert (
         positions["Commits"]
-        < positions["Plans"]
-        < positions["Chats"]
+        < positions["Beads"]
         < positions["Bugs"]
         < positions["PRs"]
         < positions["Files"]
+        < positions["Plans"]
+        < positions["Chats"]
+        < positions["Other"]
     )
-    for key in ("f3", "f4", "f5"):
+    for key in ("f3", "f4", "f5", "f6", "f7"):
         assert key in tabs_text
-    assert "cycle views" in tabs_text
+    assert "cycle top-level views" in tabs_text
+    assert "cycle Plans, Chats, and Other inside Files" in tabs_text
     assert "pick project scope" in tabs_text
     assert "f2" in how_text
     assert "shift+tab" not in how_text

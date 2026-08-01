@@ -75,7 +75,7 @@ def test_plans_filter_command_is_available_only_on_plans() -> None:
 
 def test_artifacts_copy_commands_follow_the_active_subtab() -> None:
     catalog = _catalog_by_id()
-    groups = ("commits", "plans", "chats", "bugs", "files")
+    groups = ("commits", "beads", "plans", "chats", "bugs", "other")
 
     for active in groups:
         ctx = CommandContext(tab="changespecs", artifacts_subtab=active)

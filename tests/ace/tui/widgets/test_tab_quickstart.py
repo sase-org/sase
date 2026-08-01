@@ -54,11 +54,9 @@ def test_artifacts_quickstart_advertises_every_subtab() -> None:
     agents_card = _section_plain(agents, "#agent-quickstart-card")
     artifacts_card = _section_plain(changespecs, "#changespec-quickstart-card")
 
-    assert "Jump: Commits · Plans · Chats · Bugs · PRs · Files" in artifacts_card
-    assert (
-        "Cycle Artifacts: Commits · Plans · Chats · Bugs · PRs · Files"
-        in artifacts_card
-    )
+    assert "Jump: Commits · Beads · Bugs · PRs · Files" in artifacts_card
+    assert "Cycle Artifacts: Commits · Beads · Bugs · PRs · Files" in artifacts_card
+    assert "Inside Files: Plans · Chats · Other" in artifacts_card
     assert "Cycle Artifacts" not in agents_card
     assert _section_plain(agents, "#agent-quickstart-hero") != _section_plain(
         changespecs, "#changespec-quickstart-hero"
@@ -76,6 +74,8 @@ def test_artifacts_quickstart_uses_configured_subtab_keys() -> None:
                     "cycle_artifacts_subtab_reverse": "f8",
                     "cycle_artifacts_subtab": "f9",
                     "edit_query": "f10",
+                    "cycle_files_subtab_reverse": "f11",
+                    "cycle_files_subtab": "f12",
                 }
             }
         }
@@ -87,6 +87,8 @@ def test_artifacts_quickstart_uses_configured_subtab_keys() -> None:
     assert "f8" in card
     assert "f9" in card
     assert "f10" in card
+    assert "f11" in card
+    assert "f12" in card
 
 
 def test_tab_quickstart_no_match_callout_is_prs_only() -> None:

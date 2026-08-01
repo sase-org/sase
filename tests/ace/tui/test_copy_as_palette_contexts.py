@@ -10,6 +10,7 @@ from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.models.artifact_file_clipboard import artifact_file_clipboard_path
 from tests.ace.tui._copy_as_palette_helpers import (
     PaletteHarness,
+    bead_pane,
     commit_entry,
     commit_pane,
     commit_target,
@@ -47,6 +48,56 @@ def test_commit_rows_join_registry_keys_availability_and_warm_previews() -> None
     assert previews["sha"] == "a" * 40
     assert previews["message"] == "Add the Copy as palette"
     assert previews["plan"] == "plans:202607/copy_as_palette.md"
+
+
+def test_bead_rows_cover_every_default_target_with_warm_previews() -> None:
+    app = PaletteHarness()
+    app.current_artifacts_subtab = "beads"
+    app.beads_pane = bead_pane()
+
+    context = build_copy_as_context(app)
+
+    assert context is not None
+    assert context.group == "artifacts_beads"
+    assert context.subtitle == "SASE · sase-copy.1 · Complete bead copy mode"
+    assert [(row.target, row.key_display) for row in context.rows] == [
+        ("id", "%"),
+        ("reference", "@"),
+        ("link", "l"),
+        ("title", "t"),
+        ("body", "b"),
+        ("design", "d"),
+        ("json", "J"),
+        ("handoff", "!"),
+        ("snapshot", "s"),
+    ]
+    previews = {row.target: row.preview for row in context.rows}
+    assert previews["id"] == "sase-copy.1"
+    assert previews["title"] == "Complete bead copy mode"
+    assert previews["body"] == "Polish the copy palette. Keep previews warm."
+    assert previews["design"] == "plans:202608/copy_palette.md"
+
+
+def test_bead_rows_hide_empty_optional_body_and_design_targets() -> None:
+    app = PaletteHarness()
+    app.current_artifacts_subtab = "beads"
+    app.beads_pane = bead_pane(description="", notes="", design="")
+
+    context = build_copy_as_context(app)
+
+    assert context is not None
+    targets = {row.target for row in context.rows}
+    assert "body" not in targets
+    assert "design" not in targets
+    assert {
+        "id",
+        "title",
+        "reference",
+        "link",
+        "json",
+        "handoff",
+        "snapshot",
+    } <= targets
 
 
 def test_files_rows_cover_every_default_target_with_warm_previews() -> None:
@@ -367,6 +418,7 @@ def test_duplicate_and_rebound_accelerators_follow_dispatch_precedence() -> None
     ("tab", "warning"),
     [
         ("commits", "No commits entry to copy"),
+        ("beads", "No beads entry to copy"),
         ("plans", "No plans entry to copy"),
         ("chats", "No chats entry to copy"),
         ("bugs", "No bugs entry to copy"),

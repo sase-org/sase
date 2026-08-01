@@ -27,7 +27,7 @@ def _search_query_plain(page: AcePage) -> str:
 
 
 async def _open_prs(page: AcePage) -> None:
-    await page.press("5")
+    await page.press("4")
     await page.expect_state("artifacts_subtab", "prs")
 
 

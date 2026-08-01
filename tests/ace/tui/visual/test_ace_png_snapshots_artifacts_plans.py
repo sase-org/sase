@@ -32,6 +32,23 @@ pytestmark = pytest.mark.visual
 
 def _visual_snapshot(tmp_path: Path) -> PlansSnapshot:
     snapshot = _snapshot(tmp_path)
+    active_path = "/workspace/alpha--plans/202607/active.md"
+    archive_path = "/workspace/alpha--plans/202607/archive.md"
+    active = snapshot.active[0]
+    active_document = replace(active.document, path=active_path)
+    active_owner = replace(active.owner, path=active_path)
+    archive = snapshot.archive[0]
+    archive_match = replace(
+        archive.match,
+        plan=replace(archive.match.plan, path=archive_path),
+    )
+    bead_plan_links = {
+        key: replace(
+            link,
+            path=archive_path if "archive" in link.reference else active_path,
+        )
+        for key, link in snapshot.bead_plan_links.items()
+    }
     return replace(
         snapshot,
         proposals=(
@@ -39,6 +56,12 @@ def _visual_snapshot(tmp_path: Path) -> PlansSnapshot:
                 snapshot.proposals[0],
                 plan_path="/workspace/alpha--plans/202607/ship_plan_browser.md",
             ),
+        ),
+        active=(replace(active, document=active_document, owner=active_owner),),
+        archive=(replace(archive, match=archive_match),),
+        bead_plan_links=bead_plan_links,
+        linked_plan_documents=dict.fromkeys(
+            snapshot.linked_plan_documents, active_document
         ),
     )
 

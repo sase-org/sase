@@ -11,6 +11,8 @@ from textual.app import App
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.copy_as_modal import CopyAsModal
 from sase.ace.tui.modals.copy_as_types import CopyAsContext, CopyAsRow
+from sase.ace.tui.widgets.artifacts.beads_list import BeadRow, bead_row_target
+from sase.bead.model import Issue, IssueType
 
 
 class PaletteHarness:
@@ -25,6 +27,7 @@ class PaletteHarness:
         self._keymap_registry = load_keymap_registry({})
         self.notifications: list[tuple[str, str]] = []
         self.commits_pane: Any = None
+        self.beads_pane: Any = None
         self.plans_pane: Any = None
         self.chats_pane: Any = None
         self.files_pane: Any = None
@@ -51,6 +54,9 @@ class PaletteHarness:
 
     def _plans_pane(self) -> Any:
         return self.plans_pane
+
+    def _beads_pane(self) -> Any:
+        return self.beads_pane
 
     def _chats_pane(self) -> Any:
         return self.chats_pane
@@ -166,6 +172,33 @@ def file_pane(
     )
 
 
+def bead_pane(
+    *,
+    description: str = "Polish the copy palette.",
+    notes: str = "Keep previews warm.",
+    design: str = "plans:202608/copy_palette.md",
+) -> Any:
+    issue = Issue(
+        id="sase-copy.1",
+        title="Complete bead copy mode",
+        issue_type=IssueType.PHASE,
+        parent_id="sase-copy",
+        description=description,
+        notes=notes,
+        design=design,
+    )
+    row = BeadRow("phase", "phase:sase-copy.1", "sase", issue)
+    target = bead_row_target(row)
+    return SimpleNamespace(
+        _rows={row.row_id: row},
+        snapshot=SimpleNamespace(display_names={"sase": "SASE"}),
+        entry_targets=lambda: (target,),
+        selected_entry_target=lambda: target,
+        selected_row=lambda: row,
+        project_scope="sase",
+    )
+
+
 class CopyAsModalApp(App[None]):
     def __init__(self, context: CopyAsContext) -> None:
         super().__init__()
@@ -214,6 +247,8 @@ def copy_as_row(
 def controlled_artifact_pane(subtab: str) -> Any:
     if subtab == "commits":
         return commit_pane((commit_entry("a", subject="Live commit"),))
+    if subtab == "beads":
+        return bead_pane()
     if subtab == "plans":
         proposal = SimpleNamespace(
             notification=SimpleNamespace(id="plan-notice"),
@@ -254,7 +289,7 @@ def controlled_artifact_pane(subtab: str) -> Any:
             selected_entry_target=lambda: chat_target,
             selected_entry=entry,
         )
-    if subtab == "files":
+    if subtab == "other":
         entry = SimpleNamespace(
             id="artifact-file",
             label="copy.png",

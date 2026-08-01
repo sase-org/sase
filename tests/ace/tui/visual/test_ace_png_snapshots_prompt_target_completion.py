@@ -125,7 +125,7 @@ async def test_wait_target_completion_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, "%wait:")
@@ -160,7 +160,7 @@ async def test_fork_target_completion_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, "#fork:")

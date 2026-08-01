@@ -33,7 +33,7 @@ async def test_prompt_vim_cursor_insert_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await mount_prompt_bar(page, CURSOR_PROMPT)
@@ -65,7 +65,7 @@ async def test_prompt_vim_cursor_normal_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await mount_prompt_bar(page, CURSOR_PROMPT)
@@ -98,7 +98,7 @@ async def test_prompt_vim_cursor_visual_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await mount_prompt_bar(page, CURSOR_PROMPT)
@@ -132,7 +132,7 @@ async def test_prompt_jinja_valid_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await mount_prompt_bar(page, JINJA_VALID_PROMPT)
@@ -155,7 +155,7 @@ async def test_prompt_jinja_invalid_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await mount_prompt_bar(page, JINJA_INVALID_PROMPT)

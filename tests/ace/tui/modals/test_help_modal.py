@@ -20,22 +20,28 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
 
     left = modal._build_left_column().plain
     right = modal._build_right_column().plain
-    assert "Artifact Sub-tabs" in left
+    combined = left + right
+    assert "Artifact Views" in left
     assert "Commits Pane" in left
-    assert "Bugs Pane" in right
-    assert "Plans Pane" in right
-    assert "Chats Pane" in right
-    assert "Files Pane" in right
-    assert "Filter kind, status, or tier" in right
-    assert "Filter project or creation date" in right
-    assert "Title/body/id/metadata (AND)" in right
-    assert "PR Actions" in right
+    assert "Beads Pane" in left
+    assert "Bugs Pane" in combined
+    assert "Plans Pane" in combined
+    assert "Chats Pane" in combined
+    assert "Other Pane" in combined
+    assert "Filter kind, status, or tier" in combined
+    assert "Filter project or creation date" in combined
+    assert "Title/body/id/metadata (AND)" in combined
+    assert "PR Actions" in combined
+    assert "Create task bead" in combined
+    assert "Close / reopen bead" in combined
+    assert "Copy Mode · Beads" in combined
+    assert "Copy Mode · Other" in combined
     assert "[*1]" in left
     assert "*1-9 / *0" in right
-    assert "1 / 2 / 3 / 4 / 5 / 6" in left
-    assert "Jump all six artifact panes" in left
-    assert "Cycle all six artifact panes" in left
-    combined = left + right
+    assert "1 / 2 / 3 / 4 / 5" in left
+    assert "Jump five top-level views" in left
+    assert "Cycle top-level views" in left
+    assert "Cycle Plans / Chats / Other" in left
     assert "Select first / last entry" in combined
     assert "Scroll right detail down / up" in combined
     assert "Move down / up 10 entries" in combined
@@ -44,6 +50,7 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "omitted/all unlimited" in combined
     assert "PR Navigation" in combined
     assert "Indent / dedent bullet marker" in combined
+    assert abs(len(left.splitlines()) - len(right.splitlines())) < 45
 
     modal.refresh_for_tab("agents", active_query=None)
 

@@ -57,37 +57,39 @@ works, ACE opens the generated text in a read-only fallback view so it can still
 
 ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
-| Tab           | Description                                                                |
-| ------------- | -------------------------------------------------------------------------- |
-| **Agents**    | View running and completed agents, their files and prompts                 |
-| **Artifacts** | Browse commits, plans, chats, bugs, PRs, and files in six focused sub-tabs |
-| **Axe**       | Monitor the Axe daemon and background commands                             |
+| Tab           | Description                                                                    |
+| ------------- | ------------------------------------------------------------------------------ |
+| **Agents**    | View running and completed agents, their files and prompts                     |
+| **Artifacts** | Browse five top-level views, with Plans, Chats, and Other nested beneath Files |
+| **Axe**       | Monitor the Axe daemon and background commands                                 |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press `,?` (leader mode) to open the Help
 modal on its **Keymaps** view, then `]` to switch to the tab's **Guide** view. While Help is open, the configured
 tab-switch keys still switch ACE tabs and refresh both views in place. By default those keys are `Tab` and `Shift+Tab`;
 if you remap them, the modal follows the configured keys.
 
-On first use, empty tabs render onboarding states instead of blank panels: the PRs sub-tab shows a getting-started card
+On first use, empty tabs render onboarding states instead of blank panels: the PRs view shows a getting-started card
 when no ChangeSpecs or saved queries exist yet, and the Agents tab walks through launching a first agent — the
 project/ChangeSpec launch hint appears only when a launchable target exists — and can recommend installing plugins from
 the Admin Center when no third-party plugins are installed. Onboarding cards carry "learn more" links into the published
-docs.
+docs. An empty Beads pane points to `sase bead create -T task` and explains how ready tasks enter TaskTriage.
 
-Within Artifacts, the strip is numbered **1 Commits · 2 Plans · 3 Chats · 4 Bugs · 5 PRs · 6 Files**. Press `1`–`6` to
-jump directly to a sub-tab, or use `[` / `]` to cycle. These digits act only while Artifacts is visible. Press `p` in
-Commits, Plans, Chats, Bugs, or Files to change the shared project scope, or use the command palette to jump directly to
-any sub-tab. PRs remains query-scoped and retains the existing ChangeSpec workflow.
+Within Artifacts, the top-level strip is numbered **1 Commits · 2 Beads · 3 Bugs · 4 PRs · 5 Files**. Press `1`–`5` to
+jump directly to a view, or use `[` / `]` to cycle. Files contains a second strip — **Plans · Chats · Other** — cycled
+with `(` / `)`. The nested selection is remembered when you leave Files. These keys act only while Artifacts is visible.
+Press `p` in Commits, Beads, Bugs, Plans, Chats, or Other to change the shared project scope, or use the command palette
+to jump directly to a top-level view. PRs remains query-scoped and retains the existing ChangeSpec workflow.
 
-### Navigation in Commits, Plans, Chats, Files, and Bugs
+### Navigation in Commits, Beads, Plans, Chats, Other, and Bugs
 
-The five non-PR panes share fast navigation over their selectable left-panel entries. Commits, Chats, and Files skip day
-headings, Plans skip section and empty-state rows, and Bugs always targets the issue list rather than its separately
-focusable Linked work list. Movement clamps at the first or last entry and silently does nothing when a list is empty.
+The six non-PR panes share fast navigation over their selectable left-panel entries. Commits, Chats, and Other skip day
+headings; Beads and Plans skip section and empty-state rows; Bugs always targets the issue list rather than its
+separately focusable Linked work list. Movement clamps at the first or last entry and silently does nothing when a list
+is empty.
 
 | Key                       | Action                                                                                  |
 | ------------------------- | --------------------------------------------------------------------------------------- |
-| `g` / `G`                 | Select the first / last commit, issue, proposal, bead, phase, or archived plan          |
+| `g` / `G`                 | Select the first / last commit, issue, bead, proposal, plan, chat, or other file        |
 | `Enter`                   | Open the selected commit, plan, bead, or chat in its full-screen reader                 |
 | `Ctrl+F` / `Ctrl+B`       | Move down / up 10 selectable entries                                                    |
 | `Ctrl+D` / `Ctrl+U`       | Scroll the active right-hand detail pane down / up (half page)                          |
@@ -95,7 +97,7 @@ focusable Linked work list. Movement clamps at the first or last entry and silen
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the pane's jump stack; back falls through to first hint |
 
 Hint keys select an entry without activating it. Jump-back history is kept separately for each non-PR pane, and stale
-origins disappear automatically after filtering, changing project scope, refreshing data, or collapsing an expanded plan
+origins disappear automatically after filtering, changing project scope, refreshing data, or collapsing an expanded bead
 tree. Escape or an invalid hint exits jump mode. These actions use the configured keymap values; the keys above are the
 defaults.
 
@@ -104,24 +106,25 @@ Shared entry-jump surfaces allocate hints from the zero-based alphabet `0`–`9`
 `01`, …, `0Z`, `10` and ending at the fixed `ZZ` capacity. The first character of a two-character hint keeps jump mode
 open; the second completes the jump. Hints remain case-sensitive.
 
-### Copy Mode in Commits, Plans, Chats, Files, and Bugs
+### Copy Mode in Commits, Beads, Plans, Chats, Other, and Bugs
 
-Press `%` on any non-PR Artifacts sub-tab to open the context-aware **Copy as…** palette for the visible entry. Rows are
+Press `%` on any non-PR Artifacts pane to open the context-aware **Copy as…** palette for the visible entry. Rows are
 grouped by representation, show their configured accelerator and a warm preview, and can be selected with the mouse,
 arrow keys or `j`/`k` plus `Enter`, or the accelerator directly. `q`/`Esc` cancels. If an accelerator is configured as
 `j`, `k`, or `q`, the configured copy target wins over navigation or cancellation.
 
-| Sub-tab | Keys                                                                                                                                                      |
-| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Commits | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan       |
-| Plans   | `%@` artifact ref · `%d` bead design ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%t` title · `%b` body        |
-| Chats   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript                         |
-| Files   | `%%` contents · `%@` artifact ref · `%L` Markdown link · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON · `%!` ref in agent prompt |
-| Bugs    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%b` `#N` · `%u` URL · `%t` title · `%p` agent prompt            |
+| Pane    | Keys                                                                                                                                                              |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Commits | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan               |
+| Beads   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` id · `%t` title · `%b` description and notes · `%d` design          |
+| Plans   | `%@` artifact ref · `%d` bead design ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` bead id · `%p` path · `%t` title · `%b` body |
+| Chats   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript                                 |
+| Other   | `%%` contents · `%@` artifact ref · `%L` Markdown link · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON · `%!` ref in agent prompt         |
+| Bugs    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%b` `#N` · `%u` URL · `%t` title · `%p` agent prompt                    |
 
-`%s` captures the current `sase ace` tmux pane on every sub-tab.
+`%s` captures the current `sase ace` tmux pane on every view.
 
-The palette and copied value follow the active sub-tab, even though Artifacts uses the internal `changespecs` tab id.
+The palette and copied value follow the active leaf pane, even though Artifacts uses the internal `changespecs` tab id.
 Thus, for example, `%n` on Chats reports the Chats key set instead of copying the hidden PR's name. After selection or
 cancellation, the footer returns to the active pane's normal bindings. An unknown printable key warns but leaves the
 palette open so another choice can be made.
@@ -135,9 +138,9 @@ The same `%` prefix opens the palette above copy-forwarding readers and modals, 
 the palette returns to the underlying modal. Snapshot choices dismiss the palette before capture, so the palette itself
 is not included in the copied pane.
 
-### Marks in Commits, Plans, Chats, Files, and Bugs
+### Marks in Commits, Beads, Plans, Chats, Other, and Bugs
 
-Press `m` to mark or unmark the selected entry and `u` to clear the active pane's marks. Each non-PR sub-tab keeps an
+Press `m` to mark or unmark the selected entry and `u` to clear the active pane's marks. Each non-PR pane keeps an
 independent stable-target mark set, so marks survive refreshes and switching panes without affecting marked PRs.
 Changing the shared Artifacts project scope clears the non-PR marks.
 
@@ -146,14 +149,15 @@ entry. Identity, location, and data representations use paste-ready forms; conte
 Content-shaped targets are capped at 512,000 bytes per item and per assembled payload, with an explicit truncation
 banner and toast. The footer shows the active pane's mark count only while that count is nonzero.
 
-### Filtering Commits and Plans
+### Filtering Commits, Beads, and Plans
 
 Commits keeps its effective canonical query visible above the timeline. Press `/` or the local `f` shortcut to focus
 that row for live editing; `Enter` commits the query and returns focus to the timeline, while `Escape` restores the last
-committed query and result. The row remains visible in either case. Plans uses the same live editor interaction but
-shows its row only during an edit session. Tokens from different facets combine with AND semantics; comma-separated and
-repeated values within one facet combine with OR semantics. Free-text terms must all match. Press `Tab` to accept the
-highlighted key or value completion.
+committed query and result. The row remains visible in either case. Beads and Plans use the same live editor
+interaction, but show the input row only during an edit session. The Beads info line always shows its committed query,
+including the visible `-status:closed` startup default. Tokens from different facets combine with AND semantics;
+comma-separated and repeated values within one facet combine with OR semantics. Free-text terms must all match. Press
+`Tab` to accept the highlighted key or value completion.
 
 Commits accepts singular `project:` plus `repo:`, `author:`, `since:`, `until:`, `sidecar:`, and `limit:` and free text
 matched against the commit subject. `project:` is not repeatable, comma-listable, or negatable because it selects the
@@ -186,15 +190,18 @@ the filter row says `capped`, and `limit:40` remains visible in the persistent f
 remains an accepted synonym for the unlimited state, but canonical query text omits it. Provider or aggregate truncation
 metadata can still mark a count as capped without inventing an active query limit.
 
-Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, and `until:` plus free text matched across plan and
-bead metadata. The pane browses every configured document sidecar, and each archived row shows its document kind. Kinds
-include the row categories `proposal`, `task`, `epic`, `phase`, and `archive` plus the document-sidecar roles present in
-the current scope, such as `plans`, `research`, or `designs`. `kind:archive` matches every committed document, while
-`kind:designs` narrows archives to that sidecar. For example, `kind:task status:ready project:sase filter` shows ready
-SASE task beads containing `filter`.
+Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, and `until:` plus free text matched across
+plan-document metadata and content. `kind:` accepts `proposal`, `active`, `archive`, and the document-sidecar roles
+present in the current scope, such as `plans`, `research`, or `designs`. `kind:archive` matches committed documents that
+are not linked from a live bead, while `kind:designs` narrows documents to that sidecar.
 
-A leading unquoted `-` excludes a match. Commits can exclude repositories, authors, and subject text; Plans can exclude
-kinds, statuses, tiers, projects, and text. Exclusion wins when positive and negative constraints overlap:
+Beads accepts repeatable `type:`, `tier:`, `status:`, `size:`, `project:`, `assignee:`, `owner:`, `model:`, `has:`,
+`since:`, and `until:` terms. Status values include the five stored states plus the derived `blocked`, `launched`, and
+`triage` states. `has:` accepts `plan`, `bug`, `deps`, `notes`, and `triage`; free text matches the bead id, title,
+description, notes, design, references, and ownership metadata.
+
+A leading unquoted `-` excludes a match. Commits can exclude repositories, authors, and subject text; Beads and Plans
+can exclude their filter facets and free text. Exclusion wins when positive and negative constraints overlap:
 `repo:sase,plans -repo:plans`, `author:Ada -author:bot`, and `status:open -status:blocked` are all valid. A comma list
 negates the whole token, so `-repo:plans,research` excludes either repository. Date bounds and `limit:` cannot be
 negated. `sidecar:` is singular and accepts only `true` or `false`; canonical queries always render its explicit value.
@@ -202,15 +209,36 @@ Quote the whole token to search for a literal leading minus (`"-repo:plans"`); q
 negation active (`-"generated rollout"`). Matching remains case-insensitive, and repository/project aliases work for
 both inclusion and exclusion.
 
-### Standalone Tasks in the Plans Pane
+### Beads Pane
 
-The Plans pane keeps standalone task beads in a dedicated **Tasks** section between proposals and epics. The section
-header reports its total and identifies `◇` as the task-ready status; the pane summary includes task counts, and
-`kind:task` narrows directly to these rows. Compact rows use the orchid `◆` task marker and show status, ID, title, and
-age. The preview and detail views add the task's assignee, description, notes, references, timestamps, and stored
-dependencies with their current statuses. Tasks have no parent epic, and the task detail does not show a reverse blocker
-list. If generic bead update added design metadata, ACE displays its plan reference but does not load the linked
-document into that detail.
+The top-level Beads view (`2`) is the work-item home for standalone tasks, epic plan beads, and their phase beads. Every
+bead appears once: tasks occupy their own section, while epics expand with `l` and collapse with `h` to reveal phases.
+Rows show stored status and ownership metadata, `✦` when a task has a pending TaskTriage decision, and `▤` when the bead
+links a plan document. Closed beads are loaded but hidden by the visible `-status:closed` default; press `f` to edit or
+clear that query. Section headings report matched and total counts while a filter is active.
+
+The pane supports the full bead workflow:
+
+| Key       | Action                                                                                |
+| --------- | ------------------------------------------------------------------------------------- |
+| `j` / `k` | Select the next / previous bead                                                       |
+| `Enter`   | Open the complete bead detail in the preview reader                                   |
+| `f`       | Edit the bead filter query                                                            |
+| `l` / `h` | Expand / collapse the selected epic                                                   |
+| `s`       | Cycle the selected bead's status using the type-aware sequence below                  |
+| `e`       | Edit the bead's valid fields                                                          |
+| `N`       | Append a note without replacing prior notes                                           |
+| `n`       | Create a task bead in the selected project                                            |
+| `c`       | Close with a required reason and optional note, or reopen a closed bead               |
+| `w`       | Launch an epic or launchable task; phase work launches with its epic                  |
+| `o`       | Open the linked external bug                                                          |
+| `L`       | Jump to the linked plan document; the same key in Plans jumps back to the owning bead |
+| `R`       | Refresh beads                                                                         |
+
+Closing offers `done`, `canceled`, and `superseded` resolutions. A bead with unfinished descendants is rejected unless
+the close modal's force option is enabled with a non-`done` resolution; the modal previews those descendants first.
+Closing or launching a task with a pending TaskTriage request settles that gate so the notification does not outlive the
+decision. Mutation work runs in the tracked task system and refreshes the pane after completion.
 
 The default `s` status action is type-aware:
 
@@ -220,13 +248,19 @@ task: open → ready → in_progress → closed → open
 other beads: open → in_progress → closed → open
 ```
 
-Use `e` to edit a selected task's title and description. Status edits commit the owning sidecar store when necessary.
-The `s` action changes bead status only: moving a task from `ready` to `in_progress` does not launch a worker. The
-pane's `w` action still launches only a selected ready epic; it does not launch task workers. Launch a task from its
-`TaskTriage` notification or with `sase bead work <task-id>`.
+The `s` action changes persisted status only; moving a task from `ready` to `in_progress` does not itself launch a
+worker. Use `w`, the matching TaskTriage notification, or `sase bead work <task-id>` to launch the work. The editor
+shows only fields valid for the selected bead type, while dependencies remain read-only in the detail panel.
 
 When that worker appears on the Agents tab, its bead badge points directly to the task, and its **SASE CONTEXT / BEAD**
 lane shows the task title and description, plus size when one is stored, without trying to resolve an epic plan.
+
+### Plans Pane
+
+Files → Plans is a document-only view with three sections: pending proposals, active plans linked from non-closed beads,
+and the archive. A document appears in exactly one section. `A` and `X` approve or reject proposals, and `L` appears
+only when the selected document has an owning bead. That key jumps to Beads; pressing `L` on the linked bead returns to
+the document. If a destination filter hides the counterpart, ACE clears that filter before landing on the row.
 
 ### Commit Detail and Linked Plans
 
@@ -243,9 +277,9 @@ Moving to another commit always returns the modal to commit mode.
 
 ### Preview Reader
 
-Press `Enter` on a Plans proposal, bead, phase, or archived document—or on a Chats transcript—to open its full contents
-in the preview reader. Prompt-normal-mode `K` opens the same reader for a previewable xprompt, skill, or file. When ACE
-knows a canonical artifact reference, the title shows that logical reference beside the resolved local path.
+Press `Enter` on a Beads entry, Plans document, or Chats transcript to open its full contents in the preview reader.
+Prompt-normal-mode `K` opens the same reader for a previewable xprompt, skill, or file. When ACE knows a canonical
+artifact reference, the title shows that logical reference beside the resolved local path.
 
 | Key                 | Action                                                     |
 | ------------------- | ---------------------------------------------------------- |
@@ -276,9 +310,9 @@ matches and only closes the reader on the next press.
 
 ### Chats Pane
 
-The Chats sub-tab (`3`) lists agent chat transcripts newest first, grouped under day headings, from the same catalog
-that backs [`sase chat list`](cli.md). Each row carries a **sync provenance** badge describing how the transcript
-reached this machine:
+Files → Chats lists agent chat transcripts newest first, grouped under day headings, from the same catalog that backs
+[`sase chat list`](cli.md). Each row carries a **sync provenance** badge describing how the transcript reached this
+machine:
 
 | Badge | Provenance | Meaning                                              |
 | ----- | ---------- | ---------------------------------------------------- |
@@ -310,7 +344,7 @@ These are the default keymap values; the nine Chats actions are remappable under
 [`ace.keymaps.app`](configuration.md#acekeymaps) as `chats_next`, `chats_prev`, `chats_view_selected`, `chats_filters`,
 `chats_cycle_provenance`, `chats_open_agent`, `chats_open_external`, `chats_copy_path`, and `chats_refresh`. The pane
 also shares the navigation and jump keys described in
-[Navigation in Commits, Plans, Chats, Files, and Bugs](#navigation-in-commits-plans-chats-files-and-bugs).
+[Navigation in Commits, Beads, Plans, Chats, Other, and Bugs](#navigation-in-commits-beads-plans-chats-other-and-bugs).
 
 `a` matches a transcript to an agent by artifact directory, then by raw name suffix, then by recorded local agent name,
 always within the transcript's own project. When nothing matches, ACE warns rather than guessing — a transcript imported
@@ -335,12 +369,12 @@ closes an open edit session and sets `provenance:` to the next single value, and
 value. `s` steps through the cycle only when exactly one provenance is selected; a query listing several is treated like
 `All`, so the next press selects `local`.
 
-### Files Pane
+### Other Pane
 
-The Files sub-tab (`6`) browses the whole artifact-file store — the same index that backs [`sase artifact list`](cli.md)
-— instead of reaching one agent run at a time through the Agents tab's artifact panel. Rows are newest first under day
-headings, and each row shows a view-mode glyph, the local time, the project, the producing agent, an origin badge for
-explicitly registered files, the label, and the indexed size.
+Files → Other browses the whole artifact-file store — the same index that backs [`sase artifact list`](cli.md) — instead
+of reaching one agent run at a time through the Agents tab's artifact panel. Rows are newest first under day headings,
+and each row shows a view-mode glyph, the local time, the project, the producing agent, an origin badge for explicitly
+registered files, the label, and the indexed size.
 
 | Glyph | View mode  | Opens with                                                 |
 | ----- | ---------- | ---------------------------------------------------------- |
@@ -377,28 +411,29 @@ run `sase artifact doctor --fix` instead of guessing.
 | `y`       | Copy the row's durable `file:<id>` reference                                    |
 | `Y`       | Copy the row's anchored stored path                                             |
 | `m` / `u` | Mark / unmark the selected file · clear this pane's marks                       |
-| `%`       | Open the Files **Copy as…** palette                                             |
+| `%`       | Open the Other **Copy as…** palette                                             |
 | `R`       | Refresh the index                                                               |
 | `p`       | Change the shared Artifacts project scope                                       |
 
-These are the default keymap values; the eleven Files actions are remappable under
-[`ace.keymaps.app`](configuration.md#acekeymaps) as `files_next`, `files_prev`, `files_view_selected`,
+These are the default keymap values; the eleven Other-pane actions retain their `files_*` configuration names and are
+remappable under [`ace.keymaps.app`](configuration.md#acekeymaps) as `files_next`, `files_prev`, `files_view_selected`,
 `files_open_viewer`, `files_open_external`, `files_open_agent`, `files_filters`, `files_cycle_kind`,
 `files_copy_reference`, `files_copy_path`, and `files_refresh`. The pane also shares the navigation and jump keys
-described in [Navigation in Commits, Plans, Chats, Files, and Bugs](#navigation-in-commits-plans-chats-files-and-bugs).
+described in
+[Navigation in Commits, Beads, Plans, Chats, Other, and Bugs](#navigation-in-commits-beads-plans-chats-other-and-bugs).
 
 `Y` copies the anchored stored path, except that PDF rows deliberately yield the live Markdown source they were rendered
 from when the index recorded one. Relative index paths are anchored to the producing workspace, so a copied path is
 always usable outside the workspace that created it, and the completion toast says when the copied path no longer
 exists. The palette previews that same preferred path, so what a PDF row shows is what `%p` copies. `%` adds the rest of
-the Files copy targets: contents, Markdown link, source path, label, and metadata JSON, each of which also operates on
-the marked set.
+the Other-pane copy targets: contents, Markdown link, source path, label, and metadata JSON, each of which also operates
+on the marked set.
 
 `a` resolves the producing agent from already-loaded live and dismissed agents by artifact directory, then by raw name
 suffix, then by recorded agent name, always within the row's own project. A file whose source workspace was recycled
 still opens and still copies — only its `Source` path reports `missing`.
 
-#### Filtering Files
+#### Filtering Other Files
 
 `f` opens the same live filter row Plans and Chats use, visible only during an edit session, and `/` opens it too.
 Filtering is purely in-memory over the loaded snapshot, so a query narrows ~4,000 rows without a re-query. Files accepts
@@ -409,7 +444,7 @@ stored kinds `chat`, `plan`, `image`, `markdown`, `pdf`, and `file`; `origin:` a
 `since:` and `until:` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or a relative `Nd` / `Nw` / `Nm` offset and may each
 appear once.
 
-Like Chats, **Files filters do not support negation**; a leading `-` is rejected with an explicit error rather than
+Like Chats, **Other-pane filters do not support negation**; a leading `-` is rejected with an explicit error rather than
 excluding a match. `s` and the `kind:` token drive the same filter state: cycling with `s` closes an open edit session
 and sets `kind:` to the next stored kind actually present in the snapshot, wrapping back to All. A query listing several
 kinds is treated like All, so the next press selects the first present kind. When a filter hides every row, the pane
@@ -427,7 +462,7 @@ sizeless task uses `@task_worker`, not `@small_phase_worker`.
 | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Agents author and lander                                                 | Shows every normalized authored size in roadmap order.                                                                                                                                                                                                                                                                       |
 | Agents phase worker                                                      | Shows only that worker's normalized authored size, preserving phase isolation.                                                                                                                                                                                                                                               |
-| Artifacts / Plans epic, phase, and task beads                            | Shows current persisted bead sizes in rows and details; the epic detail summarizes direct children in `xsmall`, `small`, `medium`, `large`, `xlarge` order. Standalone tasks appear in their own section. A task with no stored size displays the shared `small` fallback, although its launch route remains `@task_worker`. |
+| Artifacts / Beads epic, phase, and task beads                            | Shows current persisted bead sizes in rows and details; the epic detail summarizes direct children in `xsmall`, `small`, `medium`, `large`, `xlarge` order. Standalone tasks appear in their own section. A task with no stored size displays the shared `small` fallback, although its launch route remains `@task_worker`. |
 | Artifacts proposals, linked plans, and archives                          | Retains the authored `phases` property exactly once instead of adding a competing roadmap.                                                                                                                                                                                                                                   |
 | Telegram epic review                                                     | Adds a validated textual size breakdown while retaining the detailed Properties card and source/PDF attachment.                                                                                                                                                                                                              |
 | Epic clan summary, `sase bead show`, and epic work preview               | Continues using persisted bead sizes, which these execution surfaces already exposed.                                                                                                                                                                                                                                        |
@@ -997,14 +1032,14 @@ paths, `P` source paths, `J` metadata JSON, and `s` snapshots. Stored and source
 an absent source is labeled “not recorded,” and copying a stale source keeps the “no longer exists” warning. With marks,
 the palette copies rows in visible order: references and paths are newline-separated, links form a Markdown list,
 metadata is a JSON array, and Markdown contents use bounded fenced sections. Unavailable rows are skipped with an
-explicit count. These modal-local `l`/`J` accelerators are distinct from the Artifacts Files sub-tab's
+explicit count. These modal-local `l`/`J` accelerators are distinct from the Artifacts Files → Other pane's
 compatibility-preserving `%L`/`%j` keys. The legacy `y` and `Y` accelerators remain available and apply to the same
 marked set.
 
-`Y` shares one helper with the [Files sub-tab](#files-pane), so both copy the same anchored path: the stored path,
-except that PDF rows yield the live Markdown source they were rendered from when the index recorded one. Relative index
-paths are anchored to the producing workspace — including legacy rows whose workspace is discoverable only through the
-agent's artifact metadata — and the completion toast says when the copied path no longer exists.
+`Y` shares one helper with the [Other pane](#other-pane), so both copy the same anchored path: the stored path, except
+that PDF rows yield the live Markdown source they were rendered from when the index recorded one. Relative index paths
+are anchored to the producing workspace — including legacy rows whose workspace is discoverable only through the agent's
+artifact metadata — and the completion toast says when the copied path no longer exists.
 
 When ACE is running inside tmux, artifact viewing opens in a right-side tmux pane so the TUI remains visible. The Agents
 list collapses while the tracked pane is live, row-changing navigation shows a warning instead of moving to a different

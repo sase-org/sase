@@ -24,11 +24,13 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
     cs_copy = cm.keys["changespecs"]
     assert isinstance(cs_copy, dict)
     commits_copy = cm.keys["artifacts_commits"]
+    beads_copy = cm.keys["artifacts_beads"]
     plans_copy = cm.keys["artifacts_plans"]
     chats_copy = cm.keys["artifacts_chats"]
     files_copy = cm.keys["artifacts_other"]
     bugs_copy = cm.keys["artifacts_bugs"]
     assert isinstance(commits_copy, dict)
+    assert isinstance(beads_copy, dict)
     assert isinstance(plans_copy, dict)
     assert isinstance(chats_copy, dict)
     assert isinstance(files_copy, dict)
@@ -57,15 +59,19 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
 
     sections: Sections = [
         (
-            "Artifact Sub-tabs",
+            "Artifact Views",
             [
                 (
-                    "1 / 2 / 3 / 4 / 5 / 6",
-                    "Jump all six artifact panes",
+                    "1 / 2 / 3 / 4 / 5",
+                    "Jump five top-level views",
                 ),
                 (
                     f"{d(a.cycle_artifacts_subtab_reverse)} / {d(a.cycle_artifacts_subtab)}",
-                    "Cycle all six artifact panes",
+                    "Cycle top-level views",
+                ),
+                (
+                    f"{d(a.cycle_files_subtab_reverse)} / {d(a.cycle_files_subtab)}",
+                    "Cycle Plans / Chats / Other",
                 ),
                 (
                     d(a.pick_artifacts_project),
@@ -117,6 +123,41 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            "Beads Pane",
+            [
+                (
+                    f"{d(a.beads_next)} / {d(a.beads_prev)}",
+                    "Next / previous bead",
+                ),
+                (d(a.beads_view_selected), "Open selected bead"),
+                (d(a.beads_filters), "Open bead filter bar"),
+                (
+                    "type: / tier: / status:",
+                    "Filter bead kind or state",
+                ),
+                ("size: / project: / has:", "Filter scope or metadata"),
+                (
+                    "assignee: / owner: / model:",
+                    "Filter people or runtime",
+                ),
+                ("since: / until: / bare text", "Filter recency or words"),
+                (
+                    f"{d(a.beads_expand)} / {d(a.beads_collapse)}",
+                    "Expand / collapse epic",
+                ),
+                (d(a.beads_cycle_status), "Cycle selected bead status"),
+                (d(a.beads_edit), "Edit selected bead"),
+                (d(a.beads_add_note), "Append a bead note"),
+                (d(a.beads_create), "Create task bead"),
+                (d(a.beads_close), "Close / reopen bead"),
+                (d(a.beads_launch_work), "Launch bead work"),
+                (d(a.beads_open_bug), "Open linked bug"),
+                (d(a.beads_open_plan), "Go to linked plan"),
+                (d(a.beads_refresh), "Refresh beads"),
+                *artifact_list_navigation,
+            ],
+        ),
+        (
             "Bugs Pane",
             [
                 (f"{d(a.next_bug)} / {d(a.prev_bug)}", "Next / previous issue"),
@@ -137,7 +178,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             "Plans Pane",
             [
                 (f"{d(a.plans_next)} / {d(a.plans_prev)}", "Next / previous row"),
-                (d(a.plans_view_selected), "Open selected plan or bead"),
+                (d(a.plans_view_selected), "Open selected plan"),
                 (
                     f"{d(a.edit_query)} / {d(a.plans_filters)}",
                     "Open inline plans filter bar",
@@ -149,7 +190,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.plans_approve), "Approve selected proposal"),
                 (d(a.plans_reject), "Reject selected proposal"),
                 (d(a.plans_open_bead), "Go to linked bead"),
-                (d(a.plans_refresh), "Refresh plans and beads"),
+                (d(a.plans_refresh), "Refresh plans"),
                 *artifact_list_navigation,
             ],
         ),
@@ -168,7 +209,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Files Pane",
+            "Other Pane",
             [
                 (f"{d(a.files_next)} / {d(a.files_prev)}", "Next / previous row"),
                 (d(a.files_view_selected), "View selected artifact file"),
@@ -476,6 +517,48 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            f"Copy Mode · Beads ({d(cm.prefix)})",
+            [
+                (d(cm.prefix), "Open Copy as… palette"),
+                (
+                    key_sequence_display(cm.prefix, beads_copy["id"]),
+                    "Copy bead id",
+                ),
+                (
+                    key_sequence_display(cm.prefix, beads_copy["reference"]),
+                    "Copy @bead reference",
+                ),
+                (
+                    key_sequence_display(cm.prefix, beads_copy["link"]),
+                    "Copy Markdown link",
+                ),
+                (
+                    key_sequence_display(cm.prefix, beads_copy["handoff"]),
+                    "Reference in new agent prompt",
+                ),
+                (
+                    key_sequence_display(cm.prefix, beads_copy["title"]),
+                    "Copy bead title",
+                ),
+                (
+                    key_sequence_display(cm.prefix, beads_copy["body"]),
+                    "Copy description and notes",
+                ),
+                (
+                    key_sequence_display(cm.prefix, beads_copy["design"]),
+                    "Copy design reference",
+                ),
+                (
+                    key_sequence_display(cm.prefix, beads_copy["json"]),
+                    "Copy metadata JSON",
+                ),
+                (
+                    key_sequence_display(cm.prefix, beads_copy["snapshot"]),
+                    "Copy sase ace snapshot",
+                ),
+            ],
+        ),
+        (
             f"Copy Mode · Plans ({d(cm.prefix)})",
             [
                 (d(cm.prefix), "Open Copy as… palette"),
@@ -560,7 +643,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            f"Copy Mode · Files ({d(cm.prefix)})",
+            f"Copy Mode · Other ({d(cm.prefix)})",
             [
                 (d(cm.prefix), "Open Copy as… palette"),
                 (

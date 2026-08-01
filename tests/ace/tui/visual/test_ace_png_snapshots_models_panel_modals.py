@@ -43,7 +43,7 @@ async def test_models_panel_default_effort_action_png_snapshot(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(
             DefaultEffortActionModal(
@@ -85,7 +85,7 @@ async def test_models_panel_default_effort_level_png_snapshots(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(
             DefaultEffortLevelModal(  # type: ignore[arg-type]
@@ -105,7 +105,7 @@ async def test_models_panel_runner_limit_action_png_snapshot(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(
             RunnerLimitActionModal(
@@ -150,7 +150,7 @@ async def test_models_panel_runner_limit_value_png_snapshots(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(
             RunnerLimitValueModal(mode, initial=initial)  # type: ignore[arg-type]
@@ -169,7 +169,7 @@ async def test_models_panel_duration_picker_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(DurationPickerModal())
         await page.expect_modal("DurationPickerModal")
@@ -205,7 +205,7 @@ async def test_models_panel_override_until_png_snapshots(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         modal = OverrideUntilModal(timezone=EASTERN, clock=time_modal_clock)
         page.app.push_screen(modal)

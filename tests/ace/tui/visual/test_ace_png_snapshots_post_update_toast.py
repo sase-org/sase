@@ -131,7 +131,7 @@ async def test_post_update_toast_png_snapshot(
         changespecs=changespecs(),
         notifications=True,
     ) as page:
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         maybe_show_toast(page.app)
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
@@ -177,7 +177,7 @@ async def test_post_update_toast_diffstat_png_snapshot(
         changespecs=changespecs(),
         notifications=True,
     ) as page:
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         maybe_show_toast(page.app)
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))

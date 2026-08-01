@@ -149,6 +149,13 @@ def build_empty_bead_detail(
         return "# Beads\n\nLoading task, epic, and phase beads…"
     if load_error:
         return f"# Beads unavailable\n\n{load_error}"
+    if snapshot is not None and not snapshot.tasks and not snapshot.epics:
+        return (
+            "# No beads yet\n\n"
+            "Create a draft task with `sase bead create -T task`, then mark it "
+            "ready for TaskTriage when it is ready to launch.\n\n"
+            "TaskTriage decisions can launch or close the task here in the Beads pane."
+        )
     message = (
         "Select a bead from all enabled projects."
         if project_scope is None

@@ -65,6 +65,11 @@ def artifact_target_state(
         for target in ("design", "path", "title", "body"):
             if not values.get(target) and not marked:
                 available.discard(target)
+    elif subtab == "beads":
+        values = _bead_values(first)
+        for target in ("id", "title", "body", "design"):
+            if not values.get(target) and not marked:
+                available.discard(target)
     elif subtab == "chats":
         agent = getattr(first, "agent_local_name", None) or getattr(
             first, "agent", None
@@ -150,6 +155,21 @@ def _plan_values(row: Any | None) -> dict[str, str]:
         "path": path or "",
         "title": getattr(issue, "title", "") if issue is not None else "",
         "body": body or "",
+    }
+
+
+def _bead_values(row: Any | None) -> dict[str, str]:
+    issue = getattr(row, "issue", None)
+    if issue is None:
+        return {"id": "", "title": "", "body": "", "design": ""}
+    description = str(getattr(issue, "description", "") or "")
+    notes = str(getattr(issue, "notes", "") or "")
+    body = "\n\n".join(part for part in (description, notes) if part)
+    return {
+        "id": str(getattr(issue, "id", "") or ""),
+        "title": str(getattr(issue, "title", "") or ""),
+        "body": body,
+        "design": str(getattr(issue, "design", "") or ""),
     }
 
 

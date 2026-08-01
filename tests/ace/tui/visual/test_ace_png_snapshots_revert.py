@@ -146,7 +146,7 @@ async def test_revert_confirm_single_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
 
         page.app.push_screen(ConfirmRevertAgentModal(_single_preview()))
@@ -168,7 +168,7 @@ async def test_revert_confirm_bulk_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
 
         page.app.push_screen(ConfirmRevertAgentModal(_bulk_preview()))

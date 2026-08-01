@@ -50,7 +50,7 @@ async def test_config_center_projects_tab_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_projects_modal(page)
         await page.wait_for(lambda _s: pane._selected_project_name() == "sase")
@@ -71,7 +71,7 @@ async def test_config_center_projects_marked_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_projects_modal(page)
         # Mark auto-advances, so two marks claim the first two enabled rows.
@@ -96,7 +96,7 @@ async def test_config_center_projects_disabled_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_projects_modal(page)
         await page.wait_for(
@@ -136,7 +136,7 @@ async def test_config_center_projects_detail_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_projects_modal(page)
         # ``old-prototype`` carries two warnings; step down to it.

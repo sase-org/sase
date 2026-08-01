@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from rich.console import Console
@@ -11,6 +12,7 @@ from sase.ace.tui.widgets.artifacts.beads_detail import (
     bead_properties_header,
 )
 from sase.ace.tui.widgets.artifacts.beads_list import build_bead_options
+from sase.ace.tui.widgets.artifacts.beads_rendering import build_empty_bead_detail
 from tests.ace.tui._artifacts_beads_helpers import snapshot
 
 
@@ -90,3 +92,18 @@ def test_detail_uses_shared_metadata_and_triage_callout(tmp_path: Path) -> None:
     assert "Status" in properties
     assert body.startswith(f"> [!IMPORTANT] {issue.id} is awaiting task triage.")
     assert body.index("## Description") < len(body)
+
+
+def test_first_run_empty_detail_points_to_create_and_triage(tmp_path: Path) -> None:
+    value = replace(snapshot(tmp_path), tasks=(), epics=(), phases_by_epic={})
+
+    detail = build_empty_bead_detail(
+        value,
+        project_scope="alpha",
+        loading=False,
+        load_error=None,
+    )
+
+    assert detail.startswith("# No beads yet")
+    assert "sase bead create -T task" in detail
+    assert "TaskTriage" in detail
