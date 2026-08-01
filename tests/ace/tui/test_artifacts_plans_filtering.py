@@ -130,7 +130,7 @@ async def test_plans_filter_bar_live_filters_tree_commits_and_survives_refresh(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         baseline_loads = len(load_calls)
@@ -211,7 +211,7 @@ async def test_plans_filter_bar_live_filters_tree_commits_and_survives_refresh(
         await page.press("escape")
 
         # Slash is still intentionally inert on Bugs.
-        await page.press("4", "slash")
+        await page.press("3", "slash")
         await page.expect_state("artifacts_subtab", "bugs")
         await page.pause()
         assert bar.display is False
@@ -233,10 +233,12 @@ async def test_plans_filter_escape_restores_expansion_and_selection(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
-        await page.press("j", "j", "j", "l", "j")
+        await page.press("j", "j", "j")
+        page.app.action_plans_expand()
+        await page.press("j")
         assert pane.selected_row() is not None
         assert pane.selected_row().row_id == "phase:alpha-1.1"  # type: ignore[union-attr]
         expanded = set(pane._expanded_epics)
@@ -278,7 +280,7 @@ async def test_plans_filter_rejects_invalid_submit(
         initial_tab="changespecs",
         notifications=True,
     ) as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         bar = pane.query_one(PlanFilterBar)
@@ -316,7 +318,7 @@ async def test_plans_negative_filters_preserve_tree_counts_and_submit(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         await page.press("slash")
@@ -473,7 +475,7 @@ async def test_deep_archive_typing_burst_fetches_final_query_once_and_becomes_ex
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         bar = pane.query_one(PlanFilterBar)
@@ -545,7 +547,7 @@ async def test_escape_discards_in_flight_deep_archive_result(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         bar = pane.query_one(PlanFilterBar)

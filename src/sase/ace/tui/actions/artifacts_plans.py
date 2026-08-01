@@ -20,14 +20,9 @@ PLANS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "plans_prev",
         "plans_view_selected",
         "plans_filters",
-        "plans_expand",
-        "plans_collapse",
-        "plans_cycle_status",
-        "plans_edit_bead",
-        "plans_launch_epic",
         "plans_approve",
         "plans_reject",
-        "plans_open_bug",
+        "plans_open_bead",
         "plans_refresh",
     }
 )
@@ -88,6 +83,11 @@ class ArtifactsPlansActionsMixin:
         pane = self._plans_pane()
         if pane is not None:
             pane.request_refresh()
+
+    def action_plans_open_bead(self) -> None:
+        """Declared cross-link action; the crosslinks phase fills the body."""
+
+        self._plans_pane()
 
     def action_plans_approve(self) -> None:
         self._open_selected_plan_approval(intent="approve")

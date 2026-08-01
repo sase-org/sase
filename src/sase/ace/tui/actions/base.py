@@ -453,7 +453,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
         if (
             self.current_tab == "changespecs"
-            and getattr(self, "current_artifacts_subtab", "prs") == "commits"
+            and getattr(self, "current_artifacts_pane_key", "prs") == "commits"
         ):
             pane = self._commits_pane()  # type: ignore[attr-defined]
             if pane is not None:
@@ -461,7 +461,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
         if (
             self.current_tab == "changespecs"
-            and getattr(self, "current_artifacts_subtab", "prs") == "plans"
+            and getattr(self, "current_artifacts_pane_key", "prs") == "plans"
         ):
             pane = self._plans_pane()  # type: ignore[attr-defined]
             if pane is not None:
@@ -469,7 +469,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
         if (
             self.current_tab == "changespecs"
-            and getattr(self, "current_artifacts_subtab", "prs") == "chats"
+            and getattr(self, "current_artifacts_pane_key", "prs") == "chats"
         ):
             pane = self._chats_pane()  # type: ignore[attr-defined]
             if pane is not None:
@@ -477,7 +477,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
         if (
             self.current_tab == "changespecs"
-            and getattr(self, "current_artifacts_subtab", "prs") == "files"
+            and getattr(self, "current_artifacts_pane_key", "prs") == "other"
         ):
             pane = self._files_pane()  # type: ignore[attr-defined]
             if pane is not None:

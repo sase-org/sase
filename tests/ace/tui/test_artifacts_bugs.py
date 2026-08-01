@@ -145,7 +145,7 @@ async def test_bugs_load_lazily_navigate_filter_and_jump_links(
         await page.press("l")
         page.query_one_widget("#bugs-links", BugLinkList).highlighted = 0
         await page.press("enter")
-        await page.expect_state("artifacts_subtab", "plans")
+        await page.expect_state("artifacts_subtab", "beads")
         assert page.app.artifacts_plan_target_bead_id == "sase-42"
 
         page.app.current_artifacts_subtab = "bugs"

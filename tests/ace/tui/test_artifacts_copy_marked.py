@@ -158,7 +158,8 @@ def test_marked_files_contents_report_pre_filtered_binary_rows(
     by_target = dict(zip(targets, (text, image), strict=True))
     app = CopyHarness()
     app.current_artifacts_subtab = "files"
-    app._artifacts_marked_targets = {"files": set(targets)}
+    app.current_files_subtab = "other"
+    app._artifacts_marked_targets = {"other": set(targets)}
     app.files_pane = SimpleNamespace(
         entry_targets=lambda: targets,
         entries_for_targets=lambda requested: tuple(

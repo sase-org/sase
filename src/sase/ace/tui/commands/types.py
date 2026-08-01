@@ -195,9 +195,9 @@ class CommandContext:
     """
 
     tab: CommandTab = "changespecs"
-    artifacts_subtab: Literal["prs", "commits", "bugs", "plans", "chats", "files"] = (
-        "prs"
-    )
+    artifacts_subtab: Literal[
+        "prs", "commits", "bugs", "beads", "plans", "chats", "other"
+    ] = "prs"
     changespec: ChangeSpec | None = None
     agent: Agent | None = None
     axe_item: AxeItem | None = None

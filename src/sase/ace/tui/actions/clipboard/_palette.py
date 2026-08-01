@@ -25,14 +25,14 @@ if TYPE_CHECKING:
     from ...modals.copy_as_types import CopyAsContext
 
 
-_ARTIFACT_SUBTABS = frozenset({"commits", "plans", "chats", "bugs", "files"})
+_ARTIFACT_SUBTABS = frozenset({"commits", "beads", "plans", "chats", "bugs", "other"})
 
 
 def build_copy_as_context(app: Any) -> CopyAsContext | None:
     """Capture a palette context without filesystem or subprocess work."""
 
     tab = app.current_tab
-    subtab = getattr(app, "current_artifacts_subtab", "prs")
+    subtab = getattr(app, "current_artifacts_pane_key", "prs")
     if tab == "changespecs" and subtab in _ARTIFACT_SUBTABS:
         return build_artifacts_context(app, subtab)
     if tab == "changespecs":

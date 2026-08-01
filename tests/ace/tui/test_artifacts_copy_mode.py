@@ -33,13 +33,15 @@ def test_copy_mode_rejects_empty_artifacts_without_using_hidden_pr_state() -> No
     assert app.tab_footer_restores == 0
 
 
-@pytest.mark.parametrize("subtab", ["chats", "files"])
+@pytest.mark.parametrize("subtab", ["chats", "other"])
 async def test_percent_rejects_empty_real_artifacts_panes(
     subtab: str,
 ) -> None:
     async with AcePage() as page:
-        page.app.current_artifacts_subtab = subtab
-        await page.expect_state("artifacts_subtab", subtab)
+        page.app.current_artifacts_subtab = "files"
+        page.app.current_files_subtab = subtab  # type: ignore[assignment]
+        await page.expect_state("artifacts_subtab", "files")
+        await page.expect_state("files_subtab", subtab)
         footer = page.query_one_widget("#keybinding-footer", KeybindingFooter)
 
         await page.press("%")
@@ -49,7 +51,7 @@ async def test_percent_rejects_empty_real_artifacts_panes(
         assert footer._last_layout_inputs[1] is None
 
 
-@pytest.mark.parametrize("subtab", ["commits", "plans", "chats", "bugs", "files"])
+@pytest.mark.parametrize("subtab", ["commits", "plans", "chats", "bugs", "other"])
 def test_each_artifacts_copy_menu_supports_snapshot_and_names_unknown_keys(
     subtab: str,
 ) -> None:
@@ -86,7 +88,7 @@ def test_files_percent_unknown_key_never_reaches_changespec_dispatch() -> None:
     assert app._handle_copy_key("n") is False
 
     app._copy_cl_name.assert_not_called()
-    assert "Files:" in app.notifications[-1][0]
+    assert "Other:" in app.notifications[-1][0]
 
 
 def _artifact_file(
@@ -162,7 +164,7 @@ def test_files_marked_paths_preserve_visible_order(tmp_path: Path) -> None:
     app = CopyHarness()
     app.current_artifacts_subtab = "files"
     app.files_pane = _files_pane(first, second)
-    app._artifacts_marked_targets = {"files": {("file", first.id), ("file", second.id)}}
+    app._artifacts_marked_targets = {"other": {("file", first.id), ("file", second.id)}}
 
     assert app._handle_copy_key("p") is True
 
@@ -231,7 +233,7 @@ def test_files_generic_reference_keys_degrade_safely_on_empty_scaffold(
 
     assert app._handle_copy_key(key) is True
 
-    assert app.notifications[-1] == ("No files entry selected", "warning")
+    assert app.notifications[-1] == ("No other entry selected", "warning")
 
 
 def test_commits_copy_targets_use_the_visible_commit_and_terminal_plan_tag() -> None:
@@ -453,7 +455,7 @@ def test_bugs_copy_targets_include_an_agent_ready_prompt(
             ],
         ),
         (
-            "files",
+            "other",
             [
                 ("%", "contents"),
                 ("@", "@ref"),
@@ -476,7 +478,7 @@ def test_copy_footer_uses_the_active_artifacts_subtab(
     footer.set_keymap_registry(load_keymap_registry({}))
     footer._update_display = MagicMock()  # type: ignore[method-assign]
 
-    footer.update_copy_bindings("changespecs", artifacts_subtab=subtab)
+    footer.update_copy_bindings("changespecs", artifacts_pane_key=subtab)
 
     footer._update_display.assert_called_once_with(expected, mode_label="COPY")
 
@@ -505,7 +507,7 @@ def test_reference_keys_dispatch_uniformly_across_artifacts_subtabs(
         ("plans", "l", "J"),
         ("chats", "l", "J"),
         ("bugs", "l", "J"),
-        ("files", "L", "j"),
+        ("other", "L", "j"),
     ],
 )
 def test_link_and_json_keys_dispatch_uniformly_across_artifacts_subtabs(

@@ -109,7 +109,7 @@ def reference_items_for_targets(
                     kind_label="chat",
                 )
             )
-    elif subtab == "files":
+    elif subtab in {"other", "files"}:
         entries = pane.entries_for_targets(targets)
         entries_by_target: dict[tuple[str, ...], Any] = {
             ("file", entry.id): entry for entry in entries
@@ -175,9 +175,9 @@ def resolve_artifact_selection(
     resolved_items: list[ResolvedArtifactItem] = []
     failures: list[str] = []
     for item in selection.items:
-        if selection.subtab == "files":
+        if selection.subtab in {"other", "files"}:
             reference = reference_for_entry_target(
-                selection.subtab,
+                "files",
                 item.target,
                 context=None,
                 row=item.row,
@@ -243,7 +243,7 @@ def _missing_reference_message(subtab: str, label: str) -> str:
         reason = "it is an imported transcript outside the chats root"
     elif subtab == "plans":
         reason = "it has no canonical bead or document reference"
-    elif subtab == "files":
+    elif subtab == "other":
         reason = "it has no durable file id"
     else:
         reason = "its artifact identity is incomplete"

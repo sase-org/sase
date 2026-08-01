@@ -21,7 +21,17 @@ log = logging.getLogger(__name__)
 
 # Retired app-level action ids. Drop stale user overrides quietly so configs
 # from before the leader-chord remap continue to load without warnings.
-_RETIRED_APP_KEYS: frozenset[str] = frozenset({"show_help"})
+_RETIRED_APP_KEYS: frozenset[str] = frozenset(
+    {
+        "show_help",
+        "plans_expand",
+        "plans_collapse",
+        "plans_cycle_status",
+        "plans_edit_bead",
+        "plans_launch_epic",
+        "plans_open_bug",
+    }
+)
 
 
 # These app actions intentionally share a key because their tab applicability
@@ -32,6 +42,7 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         frozenset({"edit_query", "search_forward"}),
         frozenset({"add_axe_item", "open_artifact_files"}),
         frozenset({"show_diff", "toggle_axe_description"}),
+        frozenset({"beads_open_plan", "plans_open_bead"}),
     }
 )
 

@@ -68,7 +68,7 @@ def test_files_rows_cover_every_default_target_with_warm_previews() -> None:
     context = build_copy_as_context(app)
 
     assert context is not None
-    assert context.group == "artifacts_files"
+    assert context.group == "artifacts_other"
     assert context.subtitle == "SASE · Copy notes"
     assert [(row.target, row.key_display) for row in context.rows] == [
         ("contents", "%"),
@@ -198,7 +198,7 @@ def test_marked_files_keep_partially_representable_targets_with_warm_counts() ->
         view_modes={text.id: "text", image.id: "image"},
         target_order=visible_order,
     )
-    app._artifacts_marked_targets = {"files": set(visible_order)}
+    app._artifacts_marked_targets = {"other": set(visible_order)}
 
     context = build_copy_as_context(app)
 
@@ -261,7 +261,7 @@ def test_files_collision_winners_match_dispatch_precedence(
                 "modes": {
                     "copy_mode": {
                         "keys": {
-                            "artifacts_files": {
+                            "artifacts_other": {
                                 winner: "x",
                                 loser: "x",
                             }
@@ -370,7 +370,7 @@ def test_duplicate_and_rebound_accelerators_follow_dispatch_precedence() -> None
         ("plans", "No plans entry to copy"),
         ("chats", "No chats entry to copy"),
         ("bugs", "No bugs entry to copy"),
-        ("files", "No files entry to copy"),
+        ("other", "No other entry to copy"),
     ],
 )
 def test_empty_artifacts_context_warns(tab: str, warning: str) -> None:

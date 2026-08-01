@@ -247,7 +247,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
 
     return CommandContext(
         tab=tab,
-        artifacts_subtab=getattr(app, "current_artifacts_subtab", "prs"),
+        artifacts_subtab=getattr(app, "current_artifacts_pane_key", "prs"),
         changespec=cs,
         agent=agent,
         axe_item=axe_item,

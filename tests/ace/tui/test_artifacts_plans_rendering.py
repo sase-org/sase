@@ -205,7 +205,7 @@ async def test_plan_list_options_stay_single_line_when_narrow(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         option_list = pane.query_one("#plans-list", OptionList)
@@ -655,7 +655,7 @@ async def test_proposal_detail_markdown_excludes_frontmatter(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         detail = pane.query_one("#plans-detail", Markdown)

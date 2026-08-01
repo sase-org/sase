@@ -28,7 +28,7 @@ class MarkingMixin:
         """Toggle mark on the current ChangeSpec or agent."""
         if (
             self.current_tab == ARTIFACTS_TAB
-            and getattr(self, "current_artifacts_subtab", "prs") != "prs"
+            and getattr(self, "current_artifacts_pane_key", "prs") != "prs"
         ):
             self._toggle_artifacts_entry_mark()  # type: ignore[attr-defined]
             return
@@ -77,7 +77,7 @@ class MarkingMixin:
         """Clear all marks on the active tab."""
         if (
             self.current_tab == ARTIFACTS_TAB
-            and getattr(self, "current_artifacts_subtab", "prs") != "prs"
+            and getattr(self, "current_artifacts_pane_key", "prs") != "prs"
         ):
             self._clear_artifacts_marks()  # type: ignore[attr-defined]
             return

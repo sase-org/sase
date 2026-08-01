@@ -86,6 +86,17 @@ class CopyModeKeymaps(ModeKeymaps):
                 "json": "J",
                 "snapshot": "s",
             },
+            "artifacts_beads": {
+                "id": "percent_sign",
+                "reference": "at",
+                "handoff": "exclamation_mark",
+                "title": "t",
+                "body": "b",
+                "design": "d",
+                "link": "l",
+                "json": "J",
+                "snapshot": "s",
+            },
             "artifacts_chats": {
                 "reference": "at",
                 "handoff": "exclamation_mark",
@@ -96,7 +107,7 @@ class CopyModeKeymaps(ModeKeymaps):
                 "json": "J",
                 "snapshot": "s",
             },
-            "artifacts_files": {
+            "artifacts_other": {
                 "contents": "percent_sign",
                 "reference": "at",
                 "link": "L",

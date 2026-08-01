@@ -143,14 +143,9 @@ def build_plans_hints(registry: KeymapRegistry) -> Text:
         (key_display_name(keymap.plans_prev), "prev"),
         (key_display_name(keymap.plans_view_selected), "view"),
         (key_display_name(keymap.edit_query), "filter"),
-        (key_display_name(keymap.plans_expand), "expand"),
-        (key_display_name(keymap.plans_collapse), "collapse"),
-        (key_display_name(keymap.plans_cycle_status), "status"),
-        (key_display_name(keymap.plans_edit_bead), "edit"),
-        (key_display_name(keymap.plans_launch_epic), "work"),
         (key_display_name(keymap.plans_approve), "approve"),
         (key_display_name(keymap.plans_reject), "reject"),
-        (key_display_name(keymap.plans_open_bug), "bug"),
+        (key_display_name(keymap.plans_open_bead), "bead"),
         (key_display_name(keymap.plans_refresh), "refresh"),
     )
     text = Text(justify="center")

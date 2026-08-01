@@ -363,8 +363,9 @@ async def test_preview_modal_forwards_percent_to_app_copy_mode() -> None:
 
 async def test_preview_modal_search_input_accepts_percent_as_query_text() -> None:
     async with AcePage() as page:
-        page.app.current_artifacts_subtab = "chats"
-        await page.expect_state("artifacts_subtab", "chats")
+        page.app.current_artifacts_subtab = "files"
+        page.app.current_files_subtab = "chats"
+        await page.expect_state("files_subtab", "chats")
         modal = PreviewPanelModal(_payload())
         page.app.push_screen(modal)
         await page.expect_modal("PreviewPanelModal")

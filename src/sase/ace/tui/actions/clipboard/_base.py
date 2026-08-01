@@ -25,3 +25,14 @@ class ClipboardBase:
     _axe_current_view: AxeViewType
     _axe_output: str
     _keymap_registry: KeymapRegistry
+
+    @property
+    def current_artifacts_pane_key(self) -> Any:
+        """Resolve nested Files identity for standalone clipboard harnesses."""
+
+        from ...artifact_tabs import artifacts_pane_key
+
+        return artifacts_pane_key(
+            self.current_artifacts_subtab,
+            getattr(self, "current_files_subtab", "other"),
+        )

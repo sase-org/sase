@@ -15,14 +15,17 @@ class ClipboardArtifactReferencesMixin(ClipboardBase):
     def _capture_artifact_reference_selection(
         self,
     ) -> ArtifactReferenceSelection | None:
-        subtab = self.current_artifacts_subtab
-        pane = {
-            "commits": self._commits_pane,  # type: ignore[attr-defined]
-            "plans": self._plans_pane,  # type: ignore[attr-defined]
-            "chats": self._chats_pane,  # type: ignore[attr-defined]
-            "bugs": self._bugs_pane,  # type: ignore[attr-defined]
-            "files": self._files_pane,  # type: ignore[attr-defined]
-        }[subtab]()
+        subtab = self.current_artifacts_pane_key
+        resolver_name = {
+            "commits": "_commits_pane",
+            "beads": "_beads_pane",
+            "plans": "_plans_pane",
+            "chats": "_chats_pane",
+            "bugs": "_bugs_pane",
+            "other": "_files_pane",
+        }[subtab]
+        resolver = getattr(self, resolver_name, None)
+        pane = resolver() if callable(resolver) else None
         if pane is None:
             self.notify(f"No {subtab} entry selected", severity="warning")  # type: ignore[attr-defined]
             return None

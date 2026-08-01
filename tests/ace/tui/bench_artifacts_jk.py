@@ -133,8 +133,9 @@ async def test_artifacts_subtabs_jk_p95(
         await _press_burst(page, "k")
         await _press_fast_navigation_bursts(page)
 
-        page.app.current_artifacts_subtab = "plans"
-        await page.expect_state("artifacts_subtab", "plans")
+        page.app.current_artifacts_subtab = "files"
+        page.app.current_files_subtab = "plans"
+        await page.expect_state("files_subtab", "plans")
         plans_pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: plans_pane.snapshot is plans)
         plans_pane.filters = parse_plan_filter_query("phase")

@@ -50,6 +50,17 @@ _DISPATCH_ORDER: dict[str, tuple[str, ...]] = {
         "title",
         "body",
     ),
+    "artifacts_beads": (
+        "snapshot",
+        "reference",
+        "handoff",
+        "link",
+        "json",
+        "id",
+        "title",
+        "body",
+        "design",
+    ),
     "artifacts_chats": (
         "snapshot",
         "reference",
@@ -60,7 +71,7 @@ _DISPATCH_ORDER: dict[str, tuple[str, ...]] = {
         "agent",
         "transcript",
     ),
-    "artifacts_files": (
+    "artifacts_other": (
         "snapshot",
         "reference",
         "handoff",

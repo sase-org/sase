@@ -389,7 +389,7 @@ async def test_bead_details_append_current_plan_after_description_and_notes(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         detail = pane.query_one("#plans-detail", Markdown)
@@ -407,7 +407,8 @@ async def test_bead_details_append_current_plan_after_description_and_notes(
         assert epic_source.count("small: small · medium: medium · large: large") == 1
         assert "# Linked plan body" in epic_source
 
-        await page.press("l", "j")
+        page.app.action_plans_expand()
+        await page.press("j")
         pane._update_detail()
         phase_source = detail.source
         assert phase_source.index("Phase description") < phase_source.index(

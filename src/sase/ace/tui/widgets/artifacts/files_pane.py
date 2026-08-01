@@ -273,7 +273,7 @@ class ArtifactsFilesPane(
                     None,
                 )
                 if callable(cancel_jump):
-                    cancel_jump("files")
+                    cancel_jump("other")
                 self._snapshot = result
                 self._load_error = result.load_error
                 self._detail_generation += 1

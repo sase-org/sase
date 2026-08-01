@@ -159,7 +159,7 @@ async def _assert_distance_navigation(
         selected = pane.selected_entry_target()
         view = page.app._artifacts_view()
         assert view is not None
-        scroll = view.detail_scroll(page.app.current_artifacts_subtab)
+        scroll = view.detail_scroll(page.app.current_artifacts_pane_key)
         await scroll.mount(Static("\n".join(f"detail line {i}" for i in range(100))))
         await page.wait_for(lambda _state: scroll.max_scroll_y > 0)
         visible_height = scroll.scrollable_content_region.height
@@ -333,7 +333,7 @@ async def test_plans_fast_navigation_skips_headings_and_includes_expanded_phases
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         pane._expanded_epics.add(("alpha", "alpha-1"))
@@ -396,7 +396,7 @@ async def test_files_implements_shared_stable_target_navigation(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("6")
+        await page.press("5", "(")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         targets = pane.entry_targets()

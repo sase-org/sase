@@ -26,7 +26,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
     commits_copy = cm.keys["artifacts_commits"]
     plans_copy = cm.keys["artifacts_plans"]
     chats_copy = cm.keys["artifacts_chats"]
-    files_copy = cm.keys["artifacts_files"]
+    files_copy = cm.keys["artifacts_other"]
     bugs_copy = cm.keys["artifacts_bugs"]
     assert isinstance(commits_copy, dict)
     assert isinstance(plans_copy, dict)
@@ -146,16 +146,9 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ("kind:<sidecar role>", "Filter archived document kind"),
                 ("project: / since: / until:", "Filter project or creation date"),
                 ("bare text", "Title/body/id/metadata (AND)"),
-                (
-                    f"{d(a.plans_expand)} / {d(a.plans_collapse)}",
-                    "Expand / collapse epic phases",
-                ),
-                (d(a.plans_cycle_status), "Cycle selected bead status"),
-                (d(a.plans_edit_bead), "Edit selected bead"),
-                (d(a.plans_launch_epic), "Launch ready epic work"),
                 (d(a.plans_approve), "Approve selected proposal"),
                 (d(a.plans_reject), "Reject selected proposal"),
-                (d(a.plans_open_bug), "Open linked external bug"),
+                (d(a.plans_open_bead), "Go to linked bead"),
                 (d(a.plans_refresh), "Refresh plans and beads"),
                 *artifact_list_navigation,
             ],

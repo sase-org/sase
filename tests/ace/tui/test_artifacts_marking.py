@@ -24,16 +24,22 @@ class _Navigator:
 
 
 class _MarkHarness(MarkingMixin, ArtifactsMixin):
-    def __init__(self, subtab: str, target: ArtifactEntryTarget) -> None:
+    def __init__(self, pane_key: str, target: ArtifactEntryTarget) -> None:
         self.current_tab = "changespecs"
-        self.current_artifacts_subtab = subtab
+        self.current_artifacts_subtab = (
+            "files" if pane_key in {"plans", "chats", "other"} else pane_key
+        )
+        self.current_files_subtab = (
+            pane_key if pane_key in {"plans", "chats", "other"} else "plans"
+        )
         self.marked_indices = {7}
         self._artifacts_marked_targets = {
             "commits": set(),
             "bugs": set(),
+            "beads": set(),
             "plans": set(),
             "chats": set(),
-            "files": set(),
+            "other": set(),
         }
         self.navigator = _Navigator(target)
         self.footer_syncs = 0
@@ -63,7 +69,7 @@ class _MarkHarness(MarkingMixin, ArtifactsMixin):
         ("plans", ("plan", "alpha", "epic", "alpha-1")),
         ("chats", ("chat", "/tmp/chat.md")),
         ("bugs", ("bug", "alpha", "42")),
-        ("files", ("file", "default:" + "a" * 24)),
+        ("other", ("file", "default:" + "a" * 24)),
     ],
 )
 def test_non_pr_artifact_mark_toggles_stable_target_without_touching_pr_marks(
@@ -87,13 +93,15 @@ def test_non_pr_artifact_mark_toggles_stable_target_without_touching_pr_marks(
     assert app.footer_syncs == 2
 
 
-@pytest.mark.parametrize("subtab", ["commits", "plans", "chats", "bugs", "files"])
+@pytest.mark.parametrize(
+    "subtab", ["commits", "beads", "plans", "chats", "bugs", "other"]
+)
 def test_clear_marks_is_scoped_to_the_active_artifacts_subtab(subtab: str) -> None:
     target = ("entry", subtab)
     app = _MarkHarness(subtab, target)
     app._artifacts_marked_targets = {
         name: {("entry", name)}
-        for name in ("commits", "bugs", "plans", "chats", "files")
+        for name in ("commits", "bugs", "beads", "plans", "chats", "other")
     }
 
     app.action_clear_marks()
@@ -101,7 +109,7 @@ def test_clear_marks_is_scoped_to_the_active_artifacts_subtab(subtab: str) -> No
     assert app._artifacts_marked_targets[subtab] == set()
     assert all(
         app._artifacts_marked_targets[name] == {("entry", name)}
-        for name in ("commits", "bugs", "plans", "chats", "files")
+        for name in ("commits", "bugs", "beads", "plans", "chats", "other")
         if name != subtab
     )
     assert app.navigator.applied_marks[-1] == set()
@@ -112,10 +120,10 @@ def test_project_scope_change_clears_every_non_pr_mark_set() -> None:
     app = _MarkHarness("plans", ("entry", "plans"))
     app._artifacts_marked_targets = {
         name: {("entry", name)}
-        for name in ("commits", "bugs", "plans", "chats", "files")
+        for name in ("commits", "bugs", "beads", "plans", "chats", "other")
     }
 
     app._clear_all_artifacts_marks()
 
     assert all(not marks for marks in app._artifacts_marked_targets.values())
-    assert len(app.navigator.applied_marks) == 5
+    assert len(app.navigator.applied_marks) == 6

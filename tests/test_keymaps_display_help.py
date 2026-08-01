@@ -407,6 +407,8 @@ def test_key_display_special_keys() -> None:
     assert key_display_name("comma") == ","
     assert key_display_name("right_square_bracket") == "]"
     assert key_display_name("left_square_bracket") == "["
+    assert key_display_name("right_parenthesis") == ")"
+    assert key_display_name("left_parenthesis") == "("
     assert key_display_name("question_mark") == "?"
     assert key_display_name("slash") == "/"
     assert key_display_name("minus") == "-"

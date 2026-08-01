@@ -179,6 +179,7 @@ async def test_files_markdown_link_dispatch_preserves_visible_order(
     by_target = dict(zip(targets, entries, strict=True))
     app = CopyHarness()
     app.current_artifacts_subtab = "files"
+    app.current_files_subtab = "other"
     app.files_pane = SimpleNamespace(
         selected_entry_target=lambda: targets[0],
         entry_targets=lambda: targets,
@@ -189,7 +190,7 @@ async def test_files_markdown_link_dispatch_preserves_visible_order(
         project_file="/workspace/sase.sase",
     )
     if marked:
-        app._artifacts_marked_targets = {"files": set(targets)}
+        app._artifacts_marked_targets = {"other": set(targets)}
 
     copied: list[str] = []
     monkeypatch.setattr(

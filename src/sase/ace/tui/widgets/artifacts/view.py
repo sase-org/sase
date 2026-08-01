@@ -13,9 +13,8 @@ from ...keymaps import KeymapRegistry
 from ...tab_order import ARTIFACTS_TAB
 from ..panel_tab_strip import PanelTab, PanelTabStrip
 from .bugs import ArtifactsBugsPane
-from .chats_pane import ArtifactsChatsPane
 from .commits import CommitsPane
-from .files_pane import ArtifactsFilesPane
+from .files_view import ArtifactsFilesView
 from sase.vcs_log.filter_query import CommitLogFilterValues
 from .entry_navigation import ArtifactEntryNavigator
 from .lifecycle import ArtifactsPaneLifecycle
@@ -23,11 +22,12 @@ from .panes import (
     ArtifactPlaceholderPane,
     ArtifactsPrsPane,
 )
-from .plans_pane import ArtifactsPlansPane
 from .types import (
     ARTIFACTS_ACCENTS,
     ARTIFACTS_PANE_IDS,
     ARTIFACTS_SUBTAB_ORDER,
+    FILES_SUBTAB_ORDER,
+    ArtifactsPaneKey,
     DEFAULT_ARTIFACTS_SUBTAB,
     ArtifactsSubTab,
 )
@@ -41,20 +41,16 @@ _ARTIFACT_LABELS: dict[ArtifactsSubTab, str] = {
     "prs": "PRs",
     "commits": "Commits",
     "bugs": "Bugs",
-    "plans": "Plans",
-    "chats": "Chats",
+    "beads": "Beads",
     "files": "Files",
 }
 _ARTIFACT_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(tab, _ARTIFACT_LABELS[tab], ARTIFACTS_ACCENTS[tab])
     for tab in ARTIFACTS_SUBTAB_ORDER
 )
-_DETAIL_SCROLL_IDS: dict[ArtifactsSubTab, str] = {
+_DETAIL_SCROLL_IDS: dict[ArtifactsPaneKey, str] = {
     "commits": "commits-detail-scroll",
     "bugs": "bugs-body-scroll",
-    "plans": "plans-detail-scroll",
-    "chats": "chats-detail-scroll",
-    "files": "files-detail-scroll",
 }
 
 
@@ -89,9 +85,8 @@ class ArtifactsView(Vertical):
                 id=ARTIFACTS_PANE_IDS["commits"],
             )
             yield ArtifactsBugsPane(id=ARTIFACTS_PANE_IDS["bugs"])
-            yield ArtifactsPlansPane(id=ARTIFACTS_PANE_IDS["plans"])
-            yield ArtifactsChatsPane(id=ARTIFACTS_PANE_IDS["chats"])
-            yield ArtifactsFilesPane(id=ARTIFACTS_PANE_IDS["files"])
+            yield ArtifactPlaceholderPane("beads", id=ARTIFACTS_PANE_IDS["beads"])
+            yield ArtifactsFilesView(id=ARTIFACTS_PANE_IDS["files"])
 
     def on_mount(self) -> None:
         # Pane work stays lazy while Artifacts is hidden. Direct-on-Artifacts
@@ -107,18 +102,25 @@ class ArtifactsView(Vertical):
         pane = self.query_one(f"#{ARTIFACTS_PANE_IDS[subtab]}")
         return cast(ArtifactsPaneLifecycle, pane)
 
-    def entry_navigator(self, subtab: ArtifactsSubTab) -> ArtifactEntryNavigator:
+    def entry_navigator(self, pane_key: ArtifactsPaneKey) -> ArtifactEntryNavigator:
         """Return the stable-target navigator for a non-PR pane."""
-        if subtab == "prs":
+        if pane_key == "prs":
             raise ValueError("PRs use the existing ChangeSpec navigation model")
-        return cast(ArtifactEntryNavigator, self._pane(subtab))
+        if pane_key in FILES_SUBTAB_ORDER:
+            return self.query_one(ArtifactsFilesView).entry_navigator(pane_key)
+        return cast(
+            ArtifactEntryNavigator,
+            self._pane(cast(ArtifactsSubTab, pane_key)),
+        )
 
-    def detail_scroll(self, subtab: ArtifactsSubTab) -> VerticalScroll:
+    def detail_scroll(self, pane_key: ArtifactsPaneKey) -> VerticalScroll:
         """Return the right-hand detail viewport for a non-PR pane."""
+        if pane_key in FILES_SUBTAB_ORDER:
+            return self.query_one(ArtifactsFilesView).detail_scroll(pane_key)
         try:
-            scroll_id = _DETAIL_SCROLL_IDS[subtab]
+            scroll_id = _DETAIL_SCROLL_IDS[pane_key]
         except KeyError as exc:
-            raise ValueError("PRs use the existing ChangeSpec detail viewport") from exc
+            raise ValueError("This pane has no Artifacts detail viewport") from exc
         return self.query_one(f"#{scroll_id}", VerticalScroll)
 
     def switch_to(self, subtab: ArtifactsSubTab) -> None:
@@ -153,12 +155,7 @@ class ArtifactsView(Vertical):
         """Forward configured key display to project-backed panes."""
         for pane in self.query(ArtifactPlaceholderPane):
             pane.set_keymap_registry(registry)
-        for plans_pane in self.query(ArtifactsPlansPane):
-            plans_pane.set_keymap_registry(registry)
-        for chats_pane in self.query(ArtifactsChatsPane):
-            chats_pane.set_keymap_registry(registry)
-        for files_pane in self.query(ArtifactsFilesPane):
-            files_pane.set_keymap_registry(registry)
+        self.query_one(ArtifactsFilesView).set_keymap_registry(registry)
         self.query_one(CommitsPane).set_keymap_registry(registry)
         self.query_one(ArtifactsBugsPane).set_keymap_registry(registry)
 
@@ -179,12 +176,10 @@ class ArtifactsView(Vertical):
             )
         for pane in self.query(ArtifactPlaceholderPane):
             pane.set_project_scope(project, display_name=display_name)
-        for plans_pane in self.query(ArtifactsPlansPane):
-            plans_pane.set_project_scope(project, display_name=display_name)
-        for chats_pane in self.query(ArtifactsChatsPane):
-            chats_pane.set_project_scope(project, display_name=display_name)
-        for files_pane in self.query(ArtifactsFilesPane):
-            files_pane.set_project_scope(project, display_name=display_name)
+        self.query_one(ArtifactsFilesView).set_project_scope(
+            project,
+            display_name=display_name,
+        )
         self.query_one(ArtifactsBugsPane).set_project_scope(
             project,
             display_name=display_name,
@@ -203,7 +198,7 @@ class ArtifactsView(Vertical):
             project_files=project_files,
             project_ref_display=project_ref_display,
         )
-        self.query_one(ArtifactsFilesPane).set_project_ref_display(project_ref_display)
+        self.query_one(ArtifactsFilesView).set_project_ref_display(project_ref_display)
 
     @on(PanelTabStrip.TabClicked)
     def _on_subtab_clicked(self, event: PanelTabStrip.TabClicked) -> None:

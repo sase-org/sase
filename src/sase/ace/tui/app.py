@@ -53,7 +53,13 @@ from .actions import (
     WorkspaceActionsMixin,
 )
 from .bindings import DEFAULT_BINDINGS
-from .artifact_tabs import DEFAULT_ARTIFACTS_SUBTAB
+from .artifact_tabs import (
+    DEFAULT_ARTIFACTS_SUBTAB,
+    DEFAULT_FILES_SUBTAB,
+    ArtifactsPaneKey,
+    FilesSubTab,
+    artifacts_pane_key,
+)
 from .exit_action import AceExitAction
 from .util.perf import JKPerfTimer, is_enabled as _perf_enabled
 from .widgets import (
@@ -161,6 +167,9 @@ class AceApp(
     current_tab: reactive[TabName] = reactive("changespecs", recompose=False)
     current_artifacts_subtab: reactive[ArtifactsSubTab] = reactive(
         DEFAULT_ARTIFACTS_SUBTAB, recompose=False
+    )
+    current_files_subtab: reactive[FilesSubTab] = reactive(
+        DEFAULT_FILES_SUBTAB, recompose=False
     )
     axe_running: reactive[bool] = reactive(False, recompose=False)
     axe_description_expanded: reactive[bool] = reactive(True, recompose=False)
@@ -288,6 +297,15 @@ class AceApp(
         """
         return to_canonical_string(self.parsed_query)
 
+    @property
+    def current_artifacts_pane_key(self) -> ArtifactsPaneKey:
+        """Return the visible leaf pane that owns Artifacts state."""
+
+        return artifacts_pane_key(
+            self.current_artifacts_subtab,
+            self.current_files_subtab,
+        )
+
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         """Disable tab switching when a modal screen is active or prompt is focused.
 
@@ -363,6 +381,7 @@ class AceApp(
             return False
         from .actions.artifact_bugs import BUG_ARTIFACT_ACTIONS
         from .actions.artifacts import (
+            BEADS_ARTIFACT_ACTIONS,
             CHATS_ARTIFACT_ACTIONS,
             COMMITS_ARTIFACT_ACTIONS,
             FILES_ARTIFACT_ACTIONS,
@@ -372,26 +391,26 @@ class AceApp(
 
         if (
             self.current_tab == ARTIFACTS_TAB
-            and self.current_artifacts_subtab != "prs"
+            and self.current_artifacts_pane_key != "prs"
             and action not in NON_PRS_ARTIFACT_ACTIONS
         ):
             return False
         if action in BUG_ARTIFACT_ACTIONS:
             return (
                 self.current_tab == ARTIFACTS_TAB
-                and self.current_artifacts_subtab == "bugs"
+                and self.current_artifacts_pane_key == "bugs"
             )
         if action in COMMITS_ARTIFACT_ACTIONS:
             return (
                 self.current_tab == ARTIFACTS_TAB
-                and self.current_artifacts_subtab == "commits"
+                and self.current_artifacts_pane_key == "commits"
             )
         if (
             action == "refresh"
             and self.current_tab == ARTIFACTS_TAB
-            and self.current_artifacts_subtab in {"bugs", "commits", "files"}
+            and self.current_artifacts_pane_key in {"bugs", "commits", "other", "chats"}
         ):
-            # ``y`` copies the selected Bugs/Commits/Files artifact; explicit
+            # ``y`` copies the selected pane entry; explicit
             # pane refresh is registry-backed and defaults to ``R``.
             return False
         if action in {
@@ -400,12 +419,17 @@ class AceApp(
         }:
             if self.current_tab != ARTIFACTS_TAB:
                 return False
+        if action in {"cycle_files_subtab", "cycle_files_subtab_reverse"}:
+            if (
+                self.current_tab != ARTIFACTS_TAB
+                or self.current_artifacts_subtab != "files"
+            ):
+                return False
         if action in {
             "show_artifacts_prs",
             "show_artifacts_commits",
             "show_artifacts_bugs",
-            "show_artifacts_plans",
-            "show_artifacts_chats",
+            "show_artifacts_beads",
             "show_artifacts_files",
         }:
             if self.current_tab != ARTIFACTS_TAB:
@@ -419,25 +443,31 @@ class AceApp(
         if action in PLANS_ARTIFACT_ACTIONS:
             if (
                 self.current_tab != ARTIFACTS_TAB
-                or self.current_artifacts_subtab != "plans"
+                or self.current_artifacts_pane_key != "plans"
+            ):
+                return False
+        if action in BEADS_ARTIFACT_ACTIONS:
+            if (
+                self.current_tab != ARTIFACTS_TAB
+                or self.current_artifacts_pane_key != "beads"
             ):
                 return False
         if action in CHATS_ARTIFACT_ACTIONS:
             if (
                 self.current_tab != ARTIFACTS_TAB
-                or self.current_artifacts_subtab != "chats"
+                or self.current_artifacts_pane_key != "chats"
             ):
                 return False
         if action in FILES_ARTIFACT_ACTIONS:
             if (
                 self.current_tab != ARTIFACTS_TAB
-                or self.current_artifacts_subtab != "files"
+                or self.current_artifacts_pane_key != "other"
             ):
                 return False
         if action == "pick_artifacts_project":
             if (
                 self.current_tab != ARTIFACTS_TAB
-                or self.current_artifacts_subtab == "prs"
+                or self.current_artifacts_pane_key == "prs"
             ):
                 return False
         if action in {"toggle_thinking", "toggle_thinking_reverse", "toggle_layout"}:
@@ -461,7 +491,7 @@ class AceApp(
             self.current_tab == "axe"
             or (
                 self.current_tab == ARTIFACTS_TAB
-                and self.current_artifacts_subtab != "prs"
+                and self.current_artifacts_pane_key != "prs"
             )
         ):
             return False
@@ -671,3 +701,29 @@ class AceApp(
         if self.current_tab != ARTIFACTS_TAB:
             return
         self._sync_active_artifacts_entry_state()
+
+    def watch_current_files_subtab(
+        self,
+        old_subtab: FilesSubTab,
+        new_subtab: FilesSubTab,
+    ) -> None:
+        """Switch nested Files panes while preserving top-level Files state."""
+
+        if old_subtab == new_subtab:
+            return
+        if self._entry_jump_mode_active:
+            self._exit_entry_jump_mode()
+        else:
+            self._cancel_non_pr_artifacts_jump_mode()
+        try:
+            from .widgets.artifacts import ArtifactsFilesView
+
+            view = self.query_one(ArtifactsFilesView)
+        except Exception:
+            return
+        view.switch_to(new_subtab)
+        if (
+            self.current_tab == ARTIFACTS_TAB
+            and self.current_artifacts_subtab == "files"
+        ):
+            self._sync_active_artifacts_entry_state()

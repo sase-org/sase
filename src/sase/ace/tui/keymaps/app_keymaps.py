@@ -32,6 +32,8 @@ class AppKeymaps:
     prev_tab: str
     cycle_artifacts_subtab: str
     cycle_artifacts_subtab_reverse: str
+    cycle_files_subtab: str
+    cycle_files_subtab_reverse: str
     pick_artifacts_project: str
     # Commits sub-tab
     commits_next: str
@@ -48,15 +50,26 @@ class AppKeymaps:
     plans_prev: str
     plans_view_selected: str
     plans_filters: str
-    plans_expand: str
-    plans_collapse: str
-    plans_cycle_status: str
-    plans_edit_bead: str
-    plans_launch_epic: str
     plans_approve: str
     plans_reject: str
-    plans_open_bug: str
+    plans_open_bead: str
     plans_refresh: str
+    # Beads sub-tab
+    beads_next: str
+    beads_prev: str
+    beads_view_selected: str
+    beads_filters: str
+    beads_expand: str
+    beads_collapse: str
+    beads_cycle_status: str
+    beads_edit: str
+    beads_add_note: str
+    beads_create: str
+    beads_close: str
+    beads_launch_work: str
+    beads_open_bug: str
+    beads_open_plan: str
+    beads_refresh: str
     # Chats sub-tab
     chats_next: str
     chats_prev: str

@@ -86,15 +86,15 @@ async def test_plans_pane_renders_groups_and_expands_phase_tree(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
-        await page.expect_state("artifacts_subtab", "plans")
+        await page.press("5")
+        await page.expect_state("files_subtab", "plans")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
 
         assert pane.selected_row() is not None
         assert pane.selected_row().kind == "proposal"  # type: ignore[union-attr]
         assert page.app.check_action("change_status", ()) is False
-        assert page.app.check_action("plans_cycle_status", ()) is True
+        assert page.app.check_action("plans_cycle_status", ()) is False
 
         await page.press("j")
         assert pane.selected_row() is not None
@@ -107,7 +107,7 @@ async def test_plans_pane_renders_groups_and_expands_phase_tree(
         await page.press("j", "j")
         assert pane.selected_row() is not None
         assert pane.selected_row().kind == "epic"  # type: ignore[union-attr]
-        await page.press("l")
+        page.app.action_plans_expand()
         option_ids = {
             pane.query_one("#plans-list", OptionList).get_option_at_index(index).id
             for index in range(pane.query_one("#plans-list", OptionList).option_count)
@@ -142,7 +142,7 @@ async def test_proposal_keys_reuse_approval_flow(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
 
@@ -178,10 +178,11 @@ async def test_status_change_runs_as_tracked_task(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
-        await page.press("j", "s")
+        await page.press("j")
+        page.app.action_plans_cycle_status()
         await page.wait_for(lambda _state: page.app._task_queue.running_count == 0)
 
         tasks = page.app._task_queue.get_all()
@@ -206,7 +207,7 @@ async def test_task_edit_modal_uses_shared_type_title(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         await page.press("j")
@@ -248,10 +249,11 @@ async def test_status_cycle_from_claimed_takes_bead_over(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
-        await page.press("j", "j", "j", "s")
+        await page.press("j", "j", "j")
+        page.app.action_plans_cycle_status()
         await page.wait_for(lambda _state: page.app._task_queue.running_count == 0)
 
     assert updates == [("alpha", "alpha-1", {"status": "in_progress"})]
@@ -278,7 +280,7 @@ async def test_default_scope_loads_all_projects_and_namespaces_rows(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
 
@@ -321,7 +323,7 @@ async def test_picker_round_trip_back_to_all_projects(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(
             lambda _state: (
@@ -361,7 +363,7 @@ async def test_all_project_bead_actions_route_to_selected_row_project(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("2")
+        await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         await page.press("j", "j", "j")

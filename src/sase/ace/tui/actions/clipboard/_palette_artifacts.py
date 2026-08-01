@@ -85,7 +85,8 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
 
 
 def _artifact_pane(app: Any, subtab: str) -> Any | None:
-    resolver = getattr(app, f"_{subtab}_pane", None)
+    resolver_name = "_files_pane" if subtab == "other" else f"_{subtab}_pane"
+    resolver = getattr(app, resolver_name, None)
     if not callable(resolver):
         return getattr(app, f"{subtab}_pane", None)
     try:
@@ -121,8 +122,10 @@ def _selected_artifact_object(pane: Any, subtab: str) -> Any | None:
     if subtab == "plans":
         resolver = getattr(pane, "selected_row", None)
         return resolver() if callable(resolver) else None
-    if subtab in {"chats", "files"}:
+    if subtab in {"chats", "other"}:
         return getattr(pane, "selected_entry", None)
+    if subtab == "beads":
+        return None
     return getattr(pane, "selected_issue", None)
 
 
@@ -145,7 +148,7 @@ def _artifact_objects(
             for target in ordered_targets
             if target in commit_by_target
         )
-    if subtab in {"plans", "chats", "files"}:
+    if subtab in {"plans", "chats", "other"}:
         rows = getattr(pane, "_rows", {}).values()
         row_by_target: dict[tuple[str, ...], Any] = {}
         for row in rows:
@@ -220,6 +223,8 @@ def _artifact_identity(subtab: str, value: Any | None) -> str:
             plan = value.archive.plan
             return str(plan.title or plan.name)
         return str(getattr(value, "row_id", ""))
+    if subtab == "beads":
+        return str(getattr(value, "id", ""))
     if subtab == "chats":
         return str(getattr(value, "basename", ""))
     if subtab == "bugs":

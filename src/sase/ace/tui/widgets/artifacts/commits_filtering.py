@@ -362,7 +362,7 @@ class CommitsFilteringMixin(_MixinBase):
         if values.project != old_project:
             clear_marks = getattr(
                 self.app,
-                "_clear_artifacts_marks_for_subtab",
+                "_clear_artifacts_marks_for_pane",
                 None,
             )
             if callable(clear_marks):

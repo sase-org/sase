@@ -96,8 +96,14 @@ class KeybindingModesMixin:
         bindings.append((self._kd("edit_query"), "edit query"))
         self._update_display(bindings)
 
-    def show_artifacts_pane(self, *, mark_count: int = 0) -> None:
+    def show_artifacts_pane(
+        self,
+        pane_key: str = "commits",
+        *,
+        mark_count: int = 0,
+    ) -> None:
         """Clear PR-only conditional bindings on non-PR Artifacts panes."""
+        del pane_key
         bindings: list[tuple[str, str]] = []
         if mark_count:
             bindings.append((self._kd("clear_marks"), f"unmark ({mark_count})"))
@@ -394,21 +400,22 @@ class KeybindingModesMixin:
         self,
         tab: str,
         *,
-        artifacts_subtab: str | None = None,
+        artifacts_pane_key: str | None = None,
         file_visible: bool = False,
     ) -> None:
         """Update bindings to show copy mode options for the current tab.
 
         Args:
             tab: Current tab name ("changespecs", "agents", or "axe").
-            artifacts_subtab: Visible Artifacts pane when ``tab`` is changespecs.
+            artifacts_pane_key: Visible leaf pane when ``tab`` is changespecs.
             file_visible: Whether the file panel is visible (agents tab only).
         """
         d = footer_key_display
         key_group = (
-            f"artifacts_{artifacts_subtab}"
+            f"artifacts_{artifacts_pane_key}"
             if tab == "changespecs"
-            and artifacts_subtab in {"commits", "plans", "chats", "bugs", "files"}
+            and artifacts_pane_key
+            in {"commits", "beads", "plans", "chats", "bugs", "other"}
             else tab
         )
         tab_keys = self._kr().copy_mode.keys.get(key_group, {})

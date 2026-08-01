@@ -83,6 +83,15 @@ def test_app_query_override_is_honored_while_retired_help_is_dropped(
     assert "Unknown keymap action" not in caplog.text
 
 
+def test_retired_plans_bead_action_overrides_are_dropped() -> None:
+    reg = load_keymap_registry(
+        {"keymaps": {"app": {"plans_expand": "f6", "plans_open_bug": "f7"}}}
+    )
+
+    assert not hasattr(reg.app, "plans_expand")
+    assert not hasattr(reg.app, "plans_open_bug")
+
+
 def test_statistics_pane_keys_can_be_overridden_independently() -> None:
     reg = load_keymap_registry(
         {

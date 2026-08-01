@@ -78,9 +78,20 @@
 #artifacts-prs-pane,
 #artifacts-commits-pane,
 #artifacts-bugs-pane,
-#artifacts-plans-pane {
+#artifacts-beads-pane,
+#artifacts-files-view,
+#artifacts-files-content-switcher {
     width: 100%;
     height: 1fr;
+}
+
+#artifacts-files-subtabs {
+    width: 100%;
+    height: 1;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: clip;
+    background: $surface;
 }
 
 FilterBar {
@@ -349,10 +360,11 @@ FileFilterBar .filter-bar-completion > .option-list--option-highlighted {
     border-title-color: #FF5F5F;
 }
 
-#artifacts-plans-pane .artifacts-placeholder-card {
-    border-title-color: #AF87FF;
+#artifacts-beads-pane .artifacts-placeholder-card {
+    border-title-color: #D787FF;
 }
 
+#artifacts-plans-pane,
 #artifacts-chats-pane {
     width: 100%;
     height: 100%;

@@ -34,11 +34,10 @@ _PLUGINS_DOCS_URL = "https://sase.sh/plugins/"
 _LIFECYCLE: tuple[str, ...] = ("WIP", "Draft", "Ready", "Mailed", "Submitted")
 _ARTIFACT_DESCRIPTIONS: dict[ArtifactsSubTab, str] = {
     "commits": "Trace committed work across projects.",
-    "plans": "Review plans, proposals, epics, and beads.",
+    "beads": "Review task, epic, and phase work items.",
     "bugs": "Track issues and launch fixes.",
     "prs": "Inspect ChangeSpecs and move PRs through review.",
-    "chats": "Browse agent chat transcripts and their sync state.",
-    "files": "Browse every artifact file agents have produced.",
+    "files": "Browse Plans, Chats, and Other artifact files.",
 }
 
 
@@ -150,7 +149,7 @@ class ChangeSpecOnboarding(VerticalScroll):
         )
         text.append("  *\n", style="bold #FFD700")
         text.append(
-            "Browse commits, plans, chats, bugs, PRs & files without leaving Artifacts",
+            "Browse commits, beads, bugs, PRs, plans, chats & files in Artifacts",
             style=f"dim {_ACCENT}",
         )
         return text

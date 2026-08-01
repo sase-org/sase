@@ -15,10 +15,14 @@ from sase.project_display_names import (
 from ..tab_order import ARTIFACTS_TAB
 from ..widgets.artifacts import (
     ARTIFACTS_SUBTAB_ORDER,
+    FILES_SUBTAB_ORDER,
     ArtifactEntryNavigator,
     ArtifactEntryTarget,
+    ArtifactsPaneKey,
     ArtifactsSubTab,
     ArtifactsView,
+    FilesSubTab,
+    artifacts_pane_key,
 )
 from .artifact_bugs import BUG_ARTIFACT_ACTIONS
 from .artifacts_commits import (
@@ -26,6 +30,7 @@ from .artifacts_commits import (
     ArtifactsCommitsActionsMixin,
 )
 from .artifacts_chats import ArtifactsChatsActionsMixin, CHATS_ARTIFACT_ACTIONS
+from .artifacts_beads import ArtifactsBeadsActionsMixin, BEADS_ARTIFACT_ACTIONS
 from .artifacts_files import ArtifactsFilesActionsMixin, FILES_ARTIFACT_ACTIONS
 from .artifacts_plans import ArtifactsPlansActionsMixin, PLANS_ARTIFACT_ACTIONS
 
@@ -41,6 +46,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
     {
         *BUG_ARTIFACT_ACTIONS,
         *COMMITS_ARTIFACT_ACTIONS,
+        *BEADS_ARTIFACT_ACTIONS,
         *PLANS_ARTIFACT_ACTIONS,
         *CHATS_ARTIFACT_ACTIONS,
         *FILES_ARTIFACT_ACTIONS,
@@ -49,6 +55,8 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "clear_marks",
         "cycle_artifacts_subtab",
         "cycle_artifacts_subtab_reverse",
+        "cycle_files_subtab",
+        "cycle_files_subtab_reverse",
         *{f"show_artifacts_{subtab}" for subtab in ARTIFACTS_SUBTAB_ORDER},
         "pick_artifacts_project",
         "scroll_to_top",
@@ -173,6 +181,7 @@ def _collect_artifacts_project_choices() -> _ArtifactsProjectChoices:
 
 class ArtifactsMixin(
     ArtifactsCommitsActionsMixin,
+    ArtifactsBeadsActionsMixin,
     ArtifactsPlansActionsMixin,
     ArtifactsChatsActionsMixin,
     ArtifactsFilesActionsMixin,
@@ -181,18 +190,29 @@ class ArtifactsMixin(
 
     current_tab: Any
     current_artifacts_subtab: ArtifactsSubTab
+    current_files_subtab: FilesSubTab
     parsed_query: Any
     artifacts_project_scope: str | None
     _artifacts_project_choices: _ArtifactsProjectChoices | None
     _artifacts_project_choices_loading: bool
     _artifacts_project_picker_pending: bool
     _artifacts_scope_was_picked: bool
-    _artifacts_jump_mode_subtab: ArtifactsSubTab | None
+    _artifacts_jump_mode_subtab: ArtifactsPaneKey | None
     _artifacts_jump_pending_prefix: str
     _artifacts_jump_hint_to_target: dict[str, ArtifactEntryTarget]
     _artifacts_jump_target_to_hint: dict[ArtifactEntryTarget, str]
-    _artifacts_jump_history: dict[ArtifactsSubTab, ArtifactEntryTarget]
-    _artifacts_marked_targets: dict[ArtifactsSubTab, set[ArtifactEntryTarget]]
+    _artifacts_jump_history: dict[ArtifactsPaneKey, ArtifactEntryTarget]
+    _artifacts_marked_targets: dict[ArtifactsPaneKey, set[ArtifactEntryTarget]]
+
+    @property
+    def current_artifacts_pane_key(self) -> ArtifactsPaneKey:
+        """Resolve the visible leaf for lightweight mixin test harnesses."""
+
+        files_subtab = getattr(self, "current_files_subtab", "other")
+        return artifacts_pane_key(
+            cast(ArtifactsSubTab, self.current_artifacts_subtab),
+            cast(FilesSubTab, files_subtab),
+        )
 
     def _artifacts_view(self) -> ArtifactsView | None:
         try:
@@ -201,19 +221,16 @@ class ArtifactsMixin(
             return None
 
     def _non_pr_artifacts_active(self) -> bool:
-        return self.current_tab == ARTIFACTS_TAB and self.current_artifacts_subtab in {
-            "commits",
-            "bugs",
-            "plans",
-            "chats",
-            "files",
-        }
+        return (
+            self.current_tab == ARTIFACTS_TAB
+            and self.current_artifacts_pane_key != "prs"
+        )
 
     def _sync_active_artifacts_entry_state(self) -> None:
         """Align footer and lazy scope setup with the visible Artifacts pane."""
         if self.current_tab != ARTIFACTS_TAB:
             return
-        if self.current_artifacts_subtab == "prs":
+        if self.current_artifacts_pane_key == "prs":
             self._refresh_display()  # type: ignore[attr-defined]
             return
 
@@ -222,20 +239,23 @@ class ArtifactsMixin(
 
         self.query_one(  # type: ignore[attr-defined]
             "#keybinding-footer", KeybindingFooter
-        ).show_artifacts_pane(mark_count=len(self._active_artifacts_marks()))
+        ).show_artifacts_pane(
+            self.current_artifacts_pane_key,
+            mark_count=len(self._active_artifacts_marks()),
+        )
 
     def _artifacts_entry_navigator(
         self,
-        subtab: ArtifactsSubTab | None = None,
+        pane_key: ArtifactsPaneKey | None = None,
     ) -> ArtifactEntryNavigator | None:
-        target_subtab = subtab or self.current_artifacts_subtab
-        if target_subtab not in {"commits", "bugs", "plans", "chats", "files"}:
+        target_pane = pane_key or self.current_artifacts_pane_key
+        if target_pane == "prs":
             return None
         view = self._artifacts_view()
         if view is None:
             return None
         try:
-            pane = view.entry_navigator(target_subtab)
+            pane = view.entry_navigator(target_pane)
         except Exception:
             return None
         return cast(ArtifactEntryNavigator, pane)
@@ -243,7 +263,7 @@ class ArtifactsMixin(
     def _active_artifacts_marks(self) -> set[ArtifactEntryTarget]:
         """Return the app-owned mark set for the visible non-PR pane."""
         return self._artifacts_marked_targets.setdefault(
-            self.current_artifacts_subtab,
+            self.current_artifacts_pane_key,
             set(),
         )
 
@@ -253,7 +273,7 @@ class ArtifactsMixin(
         target = pane.selected_entry_target() if pane is not None else None
         if pane is None or target is None:
             self.notify(  # type: ignore[attr-defined]
-                f"No {self.current_artifacts_subtab.title()} entry to mark",
+                f"No {self.current_artifacts_pane_key.title()} entry to mark",
                 severity="warning",
             )
             return
@@ -262,7 +282,7 @@ class ArtifactsMixin(
             marks.remove(target)
         else:
             marks.add(target)
-        self._artifacts_marked_targets[self.current_artifacts_subtab] = marks
+        self._artifacts_marked_targets[self.current_artifacts_pane_key] = marks
         pane.apply_entry_marks(marks)
         self._sync_active_artifacts_entry_state()
 
@@ -273,7 +293,7 @@ class ArtifactsMixin(
             self.notify("No marks to clear", severity="warning")  # type: ignore[attr-defined]
             return
         count = len(marks)
-        self._artifacts_marked_targets[self.current_artifacts_subtab] = set()
+        self._artifacts_marked_targets[self.current_artifacts_pane_key] = set()
         pane = self._artifacts_entry_navigator()
         if pane is not None:
             pane.apply_entry_marks(set())
@@ -282,21 +302,21 @@ class ArtifactsMixin(
 
     def _clear_all_artifacts_marks(self) -> None:
         """Drop every pane's marks after the shared project scope changes."""
-        for subtab in ("commits", "bugs", "plans", "chats", "files"):
-            self._clear_artifacts_marks_for_subtab(subtab)
+        for pane_key in ("commits", "bugs", "beads", "plans", "chats", "other"):
+            self._clear_artifacts_marks_for_pane(pane_key)
 
-    def _clear_artifacts_marks_for_subtab(self, subtab: ArtifactsSubTab) -> None:
+    def _clear_artifacts_marks_for_pane(self, pane_key: ArtifactsPaneKey) -> None:
         """Clear one pane's marks when its effective project scope changes."""
-        had_marks = bool(self._artifacts_marked_targets.get(subtab))
-        self._artifacts_marked_targets[subtab] = set()
+        had_marks = bool(self._artifacts_marked_targets.get(pane_key))
+        self._artifacts_marked_targets[pane_key] = set()
         if not had_marks:
             return
-        pane = self._artifacts_entry_navigator(subtab)
+        pane = self._artifacts_entry_navigator(pane_key)
         if pane is not None:
             pane.apply_entry_marks(set())
         if (
             self.current_tab == ARTIFACTS_TAB
-            and self.current_artifacts_subtab == subtab
+            and self.current_artifacts_pane_key == pane_key
         ):
             self._sync_active_artifacts_entry_state()
 
@@ -330,7 +350,7 @@ class ArtifactsMixin(
         if view is None:
             return True
         try:
-            scroll = view.detail_scroll(self.current_artifacts_subtab)
+            scroll = view.detail_scroll(self.current_artifacts_pane_key)
         except Exception:
             return True
         height = scroll.scrollable_content_region.height
@@ -353,7 +373,7 @@ class ArtifactsMixin(
         self._artifacts_jump_hint_to_target = hint_to_target
         self._artifacts_jump_target_to_hint = target_to_hint
         self._artifacts_jump_pending_prefix = ""
-        self._artifacts_jump_mode_subtab = self.current_artifacts_subtab
+        self._artifacts_jump_mode_subtab = self.current_artifacts_pane_key
         self._entry_jump_mode_active = True  # type: ignore[attr-defined]
         pane.apply_entry_jump_hints(target_to_hint)
         self._update_jump_footer()  # type: ignore[attr-defined]
@@ -361,28 +381,28 @@ class ArtifactsMixin(
 
     def _valid_artifacts_jump_history(
         self,
-        subtab: ArtifactsSubTab,
+        pane_key: ArtifactsPaneKey,
         pane: ArtifactEntryNavigator,
     ) -> ArtifactEntryTarget | None:
-        target = self._artifacts_jump_history.get(subtab)
+        target = self._artifacts_jump_history.get(pane_key)
         if target is not None and target not in pane.entry_targets():
-            self._artifacts_jump_history.pop(subtab, None)
+            self._artifacts_jump_history.pop(pane_key, None)
             return None
         return target
 
     def _artifacts_jump_has_back(self) -> bool:
-        subtab = self.current_artifacts_subtab
-        pane = self._artifacts_entry_navigator(subtab)
+        pane_key = self.current_artifacts_pane_key
+        pane = self._artifacts_entry_navigator(pane_key)
         if pane is None:
             return False
-        return self._valid_artifacts_jump_history(subtab, pane) is not None
+        return self._valid_artifacts_jump_history(pane_key, pane) is not None
 
     def _handle_non_pr_artifacts_jump_key(self, key: str) -> bool:
         """Dispatch one hint/back key without activating the selected entry."""
-        subtab = self._artifacts_jump_mode_subtab
-        if subtab is None:
+        pane_key = self._artifacts_jump_mode_subtab
+        if pane_key is None:
             return False
-        pane = self._artifacts_entry_navigator(subtab)
+        pane = self._artifacts_entry_navigator(pane_key)
         if pane is None:
             self._cancel_non_pr_artifacts_jump_mode()
             return True
@@ -391,7 +411,7 @@ class ArtifactsMixin(
             return True
 
         if key == "apostrophe":
-            target = self._valid_artifacts_jump_history(subtab, pane)
+            target = self._valid_artifacts_jump_history(pane_key, pane)
             if target is None:
                 target = next(iter(self._artifacts_jump_hint_to_target.values()), None)
         else:
@@ -419,7 +439,7 @@ class ArtifactsMixin(
             return True
         origin = pane.selected_entry_target()
         if origin is not None and origin != target:
-            self._artifacts_jump_history[subtab] = origin
+            self._artifacts_jump_history[pane_key] = origin
         pane.select_entry_target(target)
         self._cancel_non_pr_artifacts_jump_mode()
         return True
@@ -443,15 +463,18 @@ class ArtifactsMixin(
             try:
                 self.query_one(  # type: ignore[attr-defined]
                     "#keybinding-footer", KeybindingFooter
-                ).show_artifacts_pane(mark_count=len(self._active_artifacts_marks()))
+                ).show_artifacts_pane(
+                    self.current_artifacts_pane_key,
+                    mark_count=len(self._active_artifacts_marks()),
+                )
             except Exception:
                 pass
 
     def _cancel_artifacts_jump_mode_for_model_change(
-        self, subtab: ArtifactsSubTab
+        self, pane_key: ArtifactsPaneKey
     ) -> None:
         """Cancel transient hints when their loaded row model is replaced."""
-        if self._artifacts_jump_mode_subtab == subtab:
+        if self._artifacts_jump_mode_subtab == pane_key:
             self._cancel_non_pr_artifacts_jump_mode()
 
     def _switch_artifacts_subtab(self, subtab: ArtifactsSubTab) -> None:
@@ -471,11 +494,22 @@ class ArtifactsMixin(
             (index + step) % len(ARTIFACTS_SUBTAB_ORDER)
         ]
 
+    def _cycle_files_subtab(self, step: int) -> None:
+        if (
+            self.current_tab != ARTIFACTS_TAB
+            or self.current_artifacts_subtab != "files"
+        ):
+            return
+        index = FILES_SUBTAB_ORDER.index(self.current_files_subtab)
+        self.current_files_subtab = FILES_SUBTAB_ORDER[
+            (index + step) % len(FILES_SUBTAB_ORDER)
+        ]
+
     def _begin_artifacts_navigation(self, direction: str) -> None:
         """Start activity-gate and key-to-paint tracking for a pane cursor."""
         perf_begin = getattr(self, "_jk_perf_begin", None)
         if callable(perf_begin):
-            perf_begin(f"{self.current_artifacts_subtab}.{direction}")
+            perf_begin(f"{self.current_artifacts_pane_key}.{direction}")
         record_navigation = getattr(self, "_record_jk_navigation", None)
         if callable(record_navigation):
             record_navigation()
@@ -496,6 +530,16 @@ class ArtifactsMixin(
         """Move to the previous Artifacts sub-tab with wraparound."""
         self._cycle_artifacts_subtab(-1)
 
+    def action_cycle_files_subtab(self) -> None:
+        """Move to the next nested Files pane with wraparound."""
+
+        self._cycle_files_subtab(1)
+
+    def action_cycle_files_subtab_reverse(self) -> None:
+        """Move to the previous nested Files pane with wraparound."""
+
+        self._cycle_files_subtab(-1)
+
     def action_show_artifacts_prs(self) -> None:
         self._switch_artifacts_subtab("prs")
 
@@ -505,11 +549,8 @@ class ArtifactsMixin(
     def action_show_artifacts_bugs(self) -> None:
         self._switch_artifacts_subtab("bugs")
 
-    def action_show_artifacts_plans(self) -> None:
-        self._switch_artifacts_subtab("plans")
-
-    def action_show_artifacts_chats(self) -> None:
-        self._switch_artifacts_subtab("chats")
+    def action_show_artifacts_beads(self) -> None:
+        self._switch_artifacts_subtab("beads")
 
     def action_show_artifacts_files(self) -> None:
         self._switch_artifacts_subtab("files")
@@ -627,7 +668,7 @@ class ArtifactsMixin(
             self._set_artifacts_project_scope(result.project_key, picked=True)
 
         current_project = self.artifacts_project_scope
-        if self.current_artifacts_subtab == "commits":
+        if self.current_artifacts_pane_key == "commits":
             pane = self._commits_pane()
             if pane is not None:
                 current_project = choices.project_ref_display.project_key_for_ref(
@@ -643,7 +684,10 @@ class ArtifactsMixin(
 
     def action_pick_artifacts_project(self) -> None:
         """Open the shared project-scope picker for project-backed panes."""
-        if self.current_tab != ARTIFACTS_TAB or self.current_artifacts_subtab == "prs":
+        if (
+            self.current_tab != ARTIFACTS_TAB
+            or self.current_artifacts_pane_key == "prs"
+        ):
             return
         if self._artifacts_project_choices is None:
             self._artifacts_project_picker_pending = True
@@ -658,6 +702,7 @@ class ArtifactsMixin(
 
 __all__ = [
     "ArtifactsMixin",
+    "BEADS_ARTIFACT_ACTIONS",
     "CHATS_ARTIFACT_ACTIONS",
     "COMMITS_ARTIFACT_ACTIONS",
     "NON_PRS_ARTIFACT_ACTIONS",

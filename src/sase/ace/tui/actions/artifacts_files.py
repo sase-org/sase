@@ -156,7 +156,7 @@ class ArtifactsFilesActionsMixin:
             self._notify_no_file_selected()
             return
 
-        marks = getattr(self, "_artifacts_marked_targets", {}).get("files", set())
+        marks = getattr(self, "_artifacts_marked_targets", {}).get("other", set())
         if marks:
             targets = tuple(
                 target for target in pane.entry_targets() if target in marks

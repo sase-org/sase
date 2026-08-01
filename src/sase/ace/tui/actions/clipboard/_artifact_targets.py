@@ -26,6 +26,12 @@ from ._helpers import cap_copy_content, format_multi_copy_content_capped
 class ClipboardArtifactTargetsMixin(ClipboardBase):
     """Copy individual fields from visible or marked Artifacts entries."""
 
+    def _copy_bead_target(self, target: str) -> None:
+        """Keep placeholder Beads copy keys inert until rows are implemented."""
+
+        del target
+        self.notify("No bead selected", severity="warning")  # type: ignore[attr-defined]
+
     def _copy_commit_target(self, target: str) -> None:
         pane = self._commits_pane()  # type: ignore[attr-defined]
         marked = self._visible_marked_targets(pane)
@@ -264,7 +270,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
     ) -> tuple[tuple[str, ...], ...] | None:
         """Return marked targets in visible row order, or None when unmarked."""
         all_marks = getattr(self, "_artifacts_marked_targets", {})
-        marks = all_marks.get(self.current_artifacts_subtab, set())
+        marks = all_marks.get(self.current_artifacts_pane_key, set())
         if not marks:
             return None
         if pane is None:
@@ -272,7 +278,7 @@ class ClipboardArtifactTargetsMixin(ClipboardBase):
         targets = tuple(target for target in pane.entry_targets() if target in marks)
         if not targets:
             self.notify(  # type: ignore[attr-defined]
-                f"No marked {self.current_artifacts_subtab} entries are visible",
+                f"No marked {self.current_artifacts_pane_key} entries are visible",
                 severity="warning",
             )
         return targets

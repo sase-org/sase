@@ -443,7 +443,7 @@ class ArtifactBugsMixin:
     def _open_bug_link(self, kind: BugLinkKind, target: str) -> None:
         if kind == "epic":
             self.artifacts_plan_target_bead_id = target
-            self._switch_artifacts_subtab("plans")  # type: ignore[attr-defined]
+            self._switch_artifacts_subtab("beads")  # type: ignore[attr-defined]
             return
         index = next(
             (

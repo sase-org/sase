@@ -84,6 +84,8 @@ _NON_PRS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     {
         "app.cycle_artifacts_subtab",
         "app.cycle_artifacts_subtab_reverse",
+        "app.cycle_files_subtab",
+        "app.cycle_files_subtab_reverse",
         "app.pick_artifacts_project",
         "app.next_tab",
         "app.prev_tab",
@@ -111,15 +113,30 @@ _PLANS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.plans_prev",
         "app.plans_view_selected",
         "app.plans_filters",
-        "app.plans_expand",
-        "app.plans_collapse",
-        "app.plans_cycle_status",
-        "app.plans_edit_bead",
-        "app.plans_launch_epic",
         "app.plans_approve",
         "app.plans_reject",
-        "app.plans_open_bug",
+        "app.plans_open_bead",
         "app.plans_refresh",
+    }
+)
+
+_BEADS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
+    {
+        "app.beads_next",
+        "app.beads_prev",
+        "app.beads_view_selected",
+        "app.beads_filters",
+        "app.beads_expand",
+        "app.beads_collapse",
+        "app.beads_cycle_status",
+        "app.beads_edit",
+        "app.beads_add_note",
+        "app.beads_create",
+        "app.beads_close",
+        "app.beads_launch_work",
+        "app.beads_open_bug",
+        "app.beads_open_plan",
+        "app.beads_refresh",
     }
 )
 
@@ -246,16 +263,20 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return True
     if spec.id == "app.edit_query":
         return ctx.artifacts_subtab in {"prs", "commits", "plans"}
+    if spec.id in {"app.cycle_files_subtab", "app.cycle_files_subtab_reverse"}:
+        return ctx.artifacts_subtab in {"plans", "chats", "other"}
     if spec.id in _BUG_COMMANDS:
         return ctx.artifacts_subtab == "bugs"
     if spec.id in _COMMITS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "commits"
     if spec.id in _PLANS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "plans"
+    if spec.id in _BEADS_ARTIFACT_COMMANDS:
+        return ctx.artifacts_subtab == "beads"
     if spec.id in _CHATS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "chats"
     if spec.id in _FILES_ARTIFACT_COMMANDS:
-        return ctx.artifacts_subtab == "files"
+        return ctx.artifacts_subtab == "other"
     if ctx.artifacts_subtab != "prs":
         return spec.id.startswith("artifacts.") or spec.id in _NON_PRS_ARTIFACT_COMMANDS
     if spec.id == "app.pick_artifacts_project":

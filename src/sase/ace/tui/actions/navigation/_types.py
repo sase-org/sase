@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from ...models.fold_state import FoldLevel
     from ...models.fold_state import SectionFoldStateManager
     from ...widgets.bgcmd_list import AxeItem
-    from ...widgets.artifacts import ArtifactEntryTarget, ArtifactsSubTab
+    from ...widgets.artifacts import ArtifactEntryTarget, ArtifactsPaneKey
     from ...widgets.prompt_panel._member_roster import MemberJumpMap
     from ..axe_display._loaders import AxeItemKey
 
@@ -93,11 +93,11 @@ class NavigationMixinBase:
     # group banners, and stable-key collapsed whole-panel headers.
     _entry_jump_agents_anchor_stack: list[AgentJumpAnchor]
     _entry_jump_agents_forward_anchor_stack: list[AgentJumpAnchor]
-    _artifacts_jump_mode_subtab: ArtifactsSubTab | None
+    _artifacts_jump_mode_subtab: ArtifactsPaneKey | None
     _artifacts_jump_pending_prefix: str
     _artifacts_jump_hint_to_target: dict[str, ArtifactEntryTarget]
     _artifacts_jump_target_to_hint: dict[ArtifactEntryTarget, str]
-    _artifacts_jump_history: dict[ArtifactsSubTab, ArtifactEntryTarget]
+    _artifacts_jump_history: dict[ArtifactsPaneKey, ArtifactEntryTarget]
     _jump_all_last_position: JumpAllResult | None
     _child_key_buffer: str
     _ancestor_keys: dict[str, str]

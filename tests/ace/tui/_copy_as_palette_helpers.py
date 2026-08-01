@@ -17,6 +17,7 @@ class PaletteHarness:
     def __init__(self) -> None:
         self.current_tab = "changespecs"
         self.current_artifacts_subtab = "commits"
+        self.current_files_subtab = "plans"
         self.current_idx = 0
         self.changespecs: list[Any] = []
         self._axe_items: list[Any] = []
@@ -29,6 +30,18 @@ class PaletteHarness:
         self.files_pane: Any = None
         self.bugs_pane: Any = None
         self.agent: Any = None
+
+    @property
+    def current_artifacts_pane_key(self) -> str:
+        """Expose the active leaf pane like ``AceApp`` does."""
+
+        # A few unit cases assign a leaf directly because this harness predates
+        # the nested Files shell. Keep that shorthand local to the harness.
+        if self.current_artifacts_subtab in {"plans", "chats", "other"}:
+            return self.current_artifacts_subtab
+        if self.current_artifacts_subtab == "files":
+            return "other"
+        return self.current_artifacts_subtab
 
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.notifications.append((message, severity))

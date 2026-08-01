@@ -34,16 +34,13 @@ class ClipboardArtifactsMixin(
     """Dispatch copy-mode keys using the visible Artifacts entry."""
 
     def _non_pr_artifacts_copy_active(self) -> bool:
-        return self.current_tab == ARTIFACTS_TAB and self.current_artifacts_subtab in {
-            "commits",
-            "plans",
-            "chats",
-            "bugs",
-            "files",
-        }
+        return (
+            self.current_tab == ARTIFACTS_TAB
+            and self.current_artifacts_pane_key != "prs"
+        )
 
     def _handle_artifacts_copy_key(self, key: str) -> bool:
-        subtab = self.current_artifacts_subtab
+        subtab = self.current_artifacts_pane_key
         group_name = f"artifacts_{subtab}"
         subtab_keys = self._keymap_registry.copy_mode.keys.get(group_name, {})
         assert isinstance(subtab_keys, dict)
@@ -91,7 +88,14 @@ class ClipboardArtifactsMixin(
                     "transcript"
                 ),
             }
-        elif subtab == "files":
+        elif subtab == "beads":
+            handlers = {
+                str(subtab_keys["id"]): lambda: self._copy_bead_target("id"),
+                str(subtab_keys["title"]): lambda: self._copy_bead_target("title"),
+                str(subtab_keys["body"]): lambda: self._copy_bead_target("body"),
+                str(subtab_keys["design"]): lambda: self._copy_bead_target("design"),
+            }
+        elif subtab == "other":
             handlers = {
                 str(subtab_keys["contents"]): lambda: self._copy_file_target(
                     "contents"

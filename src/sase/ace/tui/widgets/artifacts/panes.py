@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from rich.text import Text
@@ -16,6 +17,7 @@ from ..changespec_info_panel import ChangeSpecInfoPanel
 from ..changespec_list import ChangeSpecList
 from ..tab_quickstart import TabQuickStart
 from .lifecycle import ArtifactsPaneLifecycle
+from .entry_navigation import ArtifactEntryTarget
 from .types import ARTIFACTS_ACCENTS, ArtifactsSubTab
 
 
@@ -58,10 +60,10 @@ _PLACEHOLDER_COPY: dict[ArtifactsSubTab, tuple[str, str, str]] = {
         "Tracker-backed issue triage and links to epics and PRs will live here.",
         "Pick a project to establish the tracker scope for this pane.",
     ),
-    "plans": (
-        "Plans",
-        "Plan proposals, epic progress, and committed plans across enabled projects.",
-        "All enabled projects are included by default; pick one to narrow the scope.",
+    "beads": (
+        "Beads",
+        "Task, epic, and phase bead work items will live here.",
+        "The Beads pane will load only when you open it.",
     ),
     "files": (
         "Files",
@@ -171,6 +173,28 @@ class ArtifactPlaceholderPane(ArtifactsPaneLifecycle, Vertical):
     def _footer_text(self) -> Text:
         _title, _summary, footer = _PLACEHOLDER_COPY[self.subtab]
         return Text(footer, style="dim italic", justify="center")
+
+    def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
+        return ()
+
+    def selected_entry_target(self) -> ArtifactEntryTarget | None:
+        return None
+
+    def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        del target
+        return False
+
+    def apply_entry_jump_hints(
+        self,
+        hints: Mapping[ArtifactEntryTarget, str],
+    ) -> None:
+        del hints
+
+    def clear_entry_jump_hints(self) -> None:
+        pass
+
+    def apply_entry_marks(self, marks: set[ArtifactEntryTarget]) -> None:
+        del marks
 
 
 __all__ = [
