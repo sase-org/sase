@@ -13,6 +13,7 @@ from textual.worker import Worker, WorkerState
 
 from sase.artifact_refs import (
     BUILTIN_ARTIFACT_REF_KINDS,
+    ArtifactRefContext,
     ArtifactRefPromptCandidate,
     ArtifactRefSpan,
     artifact_ref_context,
@@ -47,6 +48,7 @@ class _KnownKindsResult:
     project: str | None
     kinds: frozenset[str]
     catalog: ArtifactRefCompletionCatalog | None = None
+    context: ArtifactRefContext | None = None
 
 
 def _load_known_artifact_ref_kinds(
@@ -90,6 +92,7 @@ def _load_known_artifact_ref_kinds(
         project,
         frozenset(context.known_kinds),
         load_artifact_ref_completion_catalog(project, context),
+        context,
     )
 
 
@@ -103,6 +106,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
         ]
         _artifact_ref_kind_worker_projects: dict[str, str | None]
         _artifact_ref_kinds_warming: set[str | None]
+        _artifact_ref_contexts_by_project: dict[str | None, ArtifactRefContext]
 
         def _append_highlight_span(
             self,
@@ -118,6 +122,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
         # this cache must exist before delegating to the base widget.
         self._artifact_ref_known_kinds_by_project = {}
         self._artifact_ref_completion_catalogs_by_project = {}
+        self._artifact_ref_contexts_by_project = {}
         self._artifact_ref_kinds_warming = set()
         self._artifact_ref_kind_worker_projects = {}
         super().__init__(*args, **kwargs)
@@ -224,6 +229,14 @@ class ArtifactRefHighlightMixin(_MixinBase):
             project = None
         return self._artifact_ref_completion_catalogs_by_project.get(project)
 
+    def _get_warm_artifact_ref_context(self) -> ArtifactRefContext | None:
+        """Return the current target project's already-built local context."""
+        try:
+            project = self._xprompt_arg_assist_project_from_text()
+        except Exception:
+            project = None
+        return self._artifact_ref_contexts_by_project.get(project)
+
     def _warm_current_artifact_ref_known_kinds(self) -> None:
         """Warm project kinds and payloads for disk-free prompt interaction."""
         if not callable(getattr(self.app, "get_prompt_completion_settings", None)):
@@ -283,6 +296,10 @@ class ArtifactRefHighlightMixin(_MixinBase):
                     self._artifact_ref_completion_catalogs_by_project[
                         result.project
                     ] = result.catalog
+                if result.context is not None:
+                    self._artifact_ref_contexts_by_project[result.project] = (
+                        result.context
+                    )
                 self._artifact_ref_kinds_warming.discard(result.project)
                 self._artifact_ref_kind_worker_projects.pop(event.worker.name, None)
                 self._build_highlight_map()

@@ -44,6 +44,7 @@ from sase.ace.tui.widgets.file_completion import (
 )
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.prompt_path_inventory import PromptPathSnapshot
+from sase.ace.tui.widgets.prompt_commit_inventory import PromptCommitSnapshot
 from sase.xprompt.vcs_repo_completion import VcsRepoFetchResult
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
@@ -140,6 +141,9 @@ class PromptTextArea(
         self._prompt_path_snapshots: dict[str, PromptPathSnapshot] = {}
         self._prompt_path_inflight: set[str] = set()
         self._prompt_path_completion_directory_key: str | None = None
+        self._prompt_commit_snapshots: dict[str | None, PromptCommitSnapshot] = {}
+        self._prompt_commit_inflight: set[str | None] = set()
+        self._prompt_commit_worker_projects: dict[str, str | None] = {}
         self._active_xprompt_arg_hint: ActiveXPromptArgHint | None = None
         self._pending_xprompt_completion_spacer: (
             PendingXPromptCompletionSpacer | None

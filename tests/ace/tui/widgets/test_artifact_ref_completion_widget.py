@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from time import monotonic
 from unittest.mock import patch
 
 import pytest
 from textual.widgets import Static
 
+from sase.artifact_refs import parse_artifact_ref
 from sase.ace.tui.widgets._file_completion_base import (
+    _PromptCommitInventoryWorkerResult,
     _PromptPathInventoryWorkerResult,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
@@ -21,6 +24,7 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     _ArtifactRefDocumentCandidate,
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_commit_inventory import PromptCommitSnapshot
 from sase.ace.tui.widgets.prompt_path_inventory import (
     PromptPathRow,
     PromptPathSnapshot,
@@ -205,6 +209,96 @@ async def test_cold_path_snapshot_refreshes_the_open_menu() -> None:
         ]
 
 
+async def test_cold_commit_snapshot_loads_without_the_commits_pane() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        text_area = app.query_one(PromptTextArea)
+        seed_catalog(text_area, CATALOG)
+        text_area.load_text("@commit:")
+        text_area.cursor_location = (0, len(text_area.text))
+        text_area._prompt_commit_inflight.add(None)
+
+        assert text_area._try_artifact_ref_completion() is True
+        loading = text_area._file_completion_candidates[0]
+        assert loading.display == "loading commits…"
+        assert loading.insertion == ""
+        assert isinstance(
+            loading.metadata,
+            AtReferenceLoadingCompletionMetadata,
+        )
+
+        text_area._prompt_commit_inflight.discard(None)
+        text_area._apply_prompt_commit_inventory_result(
+            _PromptCommitInventoryWorkerResult(
+                PromptCommitSnapshot(
+                    None,
+                    (
+                        ArtifactRefCommitCandidate(
+                            "sase@" + "a" * 12,
+                            "Pane-independent subject",
+                            age="now",
+                            scope="sase",
+                            rank=0,
+                        ),
+                    ),
+                    monotonic(),
+                ),
+                changed=True,
+            )
+        )
+
+        candidate = text_area._file_completion_candidates[0]
+        assert candidate.insertion == "@commit:sase@" + "a" * 12
+        assert candidate.display == "sase@" + "a" * 12
+        parsed = parse_artifact_ref(candidate.insertion.removeprefix("@"))
+        assert parsed.payload.repo == "sase"
+        assert parsed.payload.sha == "a" * 12
+        metadata = candidate.metadata
+        assert isinstance(metadata, ArtifactRefPayloadCompletionMetadata)
+        assert metadata.label == "Pane-independent subject"
+        assert metadata.detail == ""
+        assert metadata.age == "now"
+        assert metadata.scope == "sase"
+        assert metadata.rank == 0
+
+
+async def test_commit_snapshot_scopes_to_the_prompt_target_project(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._xprompt_arg_hints.canonical_xprompt_project",
+        lambda project: project,
+    )
+    app = CompletionTestApp()
+    async with app.run_test():
+        text_area = app.query_one(PromptTextArea)
+        seed_catalog(text_area, replace(CATALOG, project="proj"), project="proj")
+        text_area._prompt_commit_snapshots[None] = PromptCommitSnapshot(
+            None,
+            (ArtifactRefCommitCandidate("wrong@" + "b" * 12, "Wrong"),),
+            monotonic(),
+        )
+        text_area._prompt_commit_snapshots["proj"] = PromptCommitSnapshot(
+            "proj",
+            (
+                ArtifactRefCommitCandidate(
+                    "right@" + "c" * 12,
+                    "Right",
+                    scope="right",
+                    rank=0,
+                ),
+            ),
+            monotonic(),
+        )
+        text_area.load_text("#git:proj @commit:")
+        text_area.cursor_location = (0, len(text_area.text))
+
+        assert text_area._try_artifact_ref_completion() is True
+        assert [row.insertion for row in text_area._file_completion_candidates] == [
+            "@commit:right@" + "c" * 12
+        ]
+
+
 async def test_vcs_tag_uses_target_project_catalog_for_dynamic_kind(
     monkeypatch,
 ) -> None:
@@ -281,7 +375,7 @@ async def test_accept_kind_reopens_payload_then_accepts_document() -> None:
         ("@plans:", "plans: documents", "@plans:202607/alpha.md"),
         ("@file:", "file: artifacts", "@file:explicit:abc123"),
         ("@chat:", "chat: chats", "@chat:202607/agent.md"),
-        ("@commit:", "commit: commits", "@commit:sase@" + "a" * 40),
+        ("@commit:", "commit: commits", "@commit:sase@" + "a" * 12),
         ("@bug:", "bug: bugs", "@bug:sase#42"),
         ("@bead:", "bead: beads", "@bead:sase-9z"),
         ("@agent:", "agent: agents", "@agent:bbugyi200.athena.9w"),
@@ -297,22 +391,25 @@ async def test_all_payload_sources_render_stage_title_and_canonical_insertion(
         text_area = app.query_one(PromptTextArea)
         panel = app.query_one("#prompt-completion", Static)
         seed_catalog(text_area, CATALOG)
+        text_area._prompt_commit_snapshots[None] = PromptCommitSnapshot(
+            None,
+            (
+                ArtifactRefCommitCandidate(
+                    "sase@" + "a" * 12,
+                    "Subject",
+                    scope="sase",
+                    rank=0,
+                ),
+            ),
+            monotonic(),
+        )
         text_area.load_text(token)
         text_area.cursor_location = (0, len(token))
 
-        with (
-            patch.object(
-                type(text_area),
-                "_snapshot_artifact_ref_commit_candidates",
-                return_value=(
-                    ArtifactRefCommitCandidate("sase", "a" * 40, "Subject", 1),
-                ),
-            ),
-            patch.object(
-                type(text_area),
-                "_snapshot_artifact_ref_bug_candidates",
-                return_value=(ArtifactRefBugCandidate("sase", 42, "Issue"),),
-            ),
+        with patch.object(
+            type(text_area),
+            "_snapshot_artifact_ref_bug_candidates",
+            return_value=(ArtifactRefBugCandidate("sase", 42, "Issue"),),
         ):
             assert text_area._try_artifact_ref_completion() is True
 

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker, WorkerState
 
+from sase.artifact_refs import ArtifactRefContext
 from sase.ace.tui.widgets._file_completion_context import FileCompletionContextMixin
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
@@ -31,6 +32,12 @@ from sase.ace.tui.widgets.prompt_path_inventory import (
     load_prompt_path_snapshot,
     prompt_path_directory_key,
     revalidate_prompt_path_snapshot,
+)
+from sase.ace.tui.widgets.prompt_commit_inventory import (
+    PromptCommitSnapshot,
+    load_prompt_commit_snapshot,
+    prompt_commit_snapshot_expired,
+    revalidate_prompt_commit_snapshot,
 )
 from sase.ace.tui.widgets.vcs_ref_completion import (
     VCS_REF_COMPLETION_KIND,
@@ -83,6 +90,14 @@ class _PromptPathInventoryWorkerResult:
     changed: bool
 
 
+@dataclass(frozen=True)
+class _PromptCommitInventoryWorkerResult:
+    """Result returned by a prompt commit inventory worker."""
+
+    snapshot: PromptCommitSnapshot
+    changed: bool
+
+
 class FileCompletionBaseMixin(FileCompletionContextMixin):
     """Mixin providing shared completion state helpers."""
 
@@ -109,9 +124,9 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         _prompt_path_snapshots: dict[str, PromptPathSnapshot]
         _prompt_path_inflight: set[str]
         _prompt_path_completion_directory_key: str | None
-        _artifact_ref_commit_projection: (
-            tuple[object, tuple[ArtifactRefCommitCandidate, ...]] | None
-        )
+        _prompt_commit_snapshots: dict[str | None, PromptCommitSnapshot]
+        _prompt_commit_inflight: set[str | None]
+        _prompt_commit_worker_projects: dict[str, str | None]
         _artifact_ref_bug_projection: (
             tuple[object, str | None, tuple[ArtifactRefBugCandidate, ...]] | None
         )
@@ -159,6 +174,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             self,
         ) -> ArtifactRefCompletionCatalog | None: ...
         def _get_warm_artifact_ref_known_kinds(self) -> frozenset[str] | None: ...
+        def _get_warm_artifact_ref_context(self) -> ArtifactRefContext | None: ...
         def _warm_current_artifact_ref_completion_catalog(self) -> None: ...
         def _expand_snippet_template_at_range(
             self,
@@ -366,6 +382,62 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             return
         self._refresh_file_completion_from_cursor()
 
+    def _schedule_prompt_commit_inventory_load(
+        self,
+        project: str | None,
+        context: ArtifactRefContext,
+        previous: PromptCommitSnapshot | None = None,
+    ) -> None:
+        """Coalesce one target-project commit revalidation off the UI thread."""
+        if project in self._prompt_commit_inflight:
+            return
+        if previous is not None and not prompt_commit_snapshot_expired(previous):
+            return
+        self._prompt_commit_inflight.add(project)
+        worker_name = (
+            f"prompt-commit-inventory:{len(self._prompt_commit_worker_projects)}"
+        )
+        self._prompt_commit_worker_projects[worker_name] = project
+
+        def task() -> _PromptCommitInventoryWorkerResult:
+            snapshot = (
+                load_prompt_commit_snapshot(project, context)
+                if previous is None
+                else revalidate_prompt_commit_snapshot(previous, project, context)
+            )
+            return _PromptCommitInventoryWorkerResult(
+                snapshot=snapshot,
+                changed=snapshot is not previous,
+            )
+
+        self.run_worker(
+            task,
+            name=worker_name,
+            group="prompt-commit-inventory",
+            thread=True,
+        )
+
+    def _apply_prompt_commit_inventory_result(
+        self,
+        result: _PromptCommitInventoryWorkerResult,
+    ) -> None:
+        """Store a commit snapshot and refresh only its matching open menu."""
+        snapshot = result.snapshot
+        self._prompt_commit_snapshots[snapshot.project] = snapshot
+        if not result.changed:
+            return
+        context = self._get_artifact_ref_completion_context()
+        if (
+            not self._file_completion_active
+            or self._completion_kind != ARTIFACT_REF_COMPLETION_KIND
+            or context is None
+            or context.stage != "payload"
+            or (context.kind or "").casefold() != "commit"
+            or self._xprompt_arg_assist_project_from_text() != snapshot.project
+        ):
+            return
+        self._refresh_file_completion_from_cursor()
+
     def _apply_vcs_repo_completion_result(
         self,
         worker_result: _VcsRepoCompletionWorkerResult,
@@ -410,6 +482,23 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle repository-completion fetch worker results."""
+        if event.worker.group == "prompt-commit-inventory":
+            project = self._prompt_commit_worker_projects.pop(
+                event.worker.name,
+                None,
+            )
+            self._prompt_commit_inflight.discard(project)
+            if event.state == WorkerState.SUCCESS:
+                result = event.worker.result
+                if isinstance(result, _PromptCommitInventoryWorkerResult):
+                    self._apply_prompt_commit_inventory_result(result)
+                    return
+
+            handler = getattr(super(), "on_worker_state_changed", None)
+            if callable(handler):
+                handler(event)
+            return
+
         if event.worker.group == "prompt-path-inventory":
             if event.state == WorkerState.SUCCESS:
                 result = event.worker.result
@@ -486,50 +575,34 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         if context.stage == "kind" and context.path_directory is not None:
             directory_key = self._prompt_path_directory_key(context.path_directory)
             path_snapshot = self._get_warm_prompt_path_snapshot(directory_key)
+        commit_rows: tuple[ArtifactRefCommitCandidate, ...] = ()
+        commits_loading = False
+        commits_truncated_payloads = 0
+        if context.stage == "payload" and (context.kind or "").casefold() == "commit":
+            project = self._xprompt_arg_assist_project_from_text()
+            commit_snapshot = self._prompt_commit_snapshots.get(project)
+            artifact_context = self._get_warm_artifact_ref_context()
+            if artifact_context is not None:
+                self._schedule_prompt_commit_inventory_load(
+                    project,
+                    artifact_context,
+                    commit_snapshot,
+                )
+            commits_loading = project in self._prompt_commit_inflight
+            if commit_snapshot is not None:
+                commit_rows = commit_snapshot.rows
+                commits_truncated_payloads = commit_snapshot.truncated_payloads
         return build_artifact_ref_completion_result(
             context,
             catalog,
             include_files=self._artifact_ref_files_revealed,
-            commits=self._snapshot_artifact_ref_commit_candidates(),
+            commits=commit_rows,
+            commits_loading=commits_loading,
+            commits_truncated_payloads=commits_truncated_payloads,
             bugs=self._snapshot_artifact_ref_bug_candidates(),
             paths=() if path_snapshot is None else path_snapshot.rows,
             paths_loading=context.stage == "kind" and path_snapshot is None,
         )
-
-    def _snapshot_artifact_ref_commit_candidates(
-        self,
-    ) -> tuple[ArtifactRefCommitCandidate, ...]:
-        """Project the mounted Commits pane's current in-memory result."""
-        try:
-            pane = self.app.query_one("#artifacts-commits-pane")
-        except Exception:
-            return ()
-        result = getattr(pane, "result", None)
-        if result is None:
-            preview = getattr(pane, "_preview_base", None)
-            result = getattr(preview, "result", None)
-        cached = getattr(self, "_artifact_ref_commit_projection", None)
-        if cached is not None and cached[0] is result:
-            return cached[1]
-        commits = getattr(result, "commits", ())
-        rows: list[ArtifactRefCommitCandidate] = []
-        for entry in commits:
-            commit = getattr(entry, "commit", None)
-            repo = getattr(entry, "repo", None)
-            sha = getattr(commit, "full_id", None)
-            if not isinstance(repo, str) or not isinstance(sha, str):
-                continue
-            rows.append(
-                ArtifactRefCommitCandidate(
-                    repo=repo,
-                    sha=sha,
-                    subject=str(getattr(commit, "subject", "") or ""),
-                    timestamp=int(getattr(commit, "timestamp", 0) or 0),
-                )
-            )
-        projected = tuple(rows)
-        self._artifact_ref_commit_projection = (result, projected)
-        return projected
 
     def _snapshot_artifact_ref_bug_candidates(
         self,

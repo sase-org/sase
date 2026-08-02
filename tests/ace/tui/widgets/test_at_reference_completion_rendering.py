@@ -196,6 +196,41 @@ def test_payload_row_is_path_first_with_highlighted_path_and_title() -> None:
     )
 
 
+def test_commit_row_dims_repo_segment_and_omits_duplicate_detail() -> None:
+    candidate = CompletionCandidate(
+        display="sase-core@5143cb981f0a",
+        insertion="@commit:sase-core@5143cb981f0a",
+        is_dir=False,
+        name="sase-core@5143cb981f0a",
+        metadata=ArtifactRefPayloadCompletionMetadata(
+            kind="commit",
+            payload="sase-core@5143cb981f0a",
+            source="commit",
+            label="fix(stats): expose payload inventory",
+            detail="",
+            age="3h",
+            scope="sase-core",
+            rank=0,
+        ),
+    )
+
+    rendered = _render_row(candidate)
+
+    assert rendered.plain == (
+        "[G] sase-core@5143cb981f0a  fix(stats): expose payload inventory  ·  3h"
+    )
+    assert any(
+        rendered.plain[span.start : span.end] == "sase-core@"
+        and str(span.style) == "dim"
+        for span in rendered.spans
+    )
+    assert any(
+        rendered.plain[span.start : span.end] == "5143cb981f0a"
+        and str(span.style) == "bold"
+        for span in rendered.spans
+    )
+
+
 def test_payload_tail_truncates_without_eliding_the_reference_path() -> None:
     path = "202607/bundle/important.md"
     candidate = CompletionCandidate(

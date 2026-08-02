@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.ace.tui.widgets.prompt_commit_inventory import ArtifactRefCommitRow
 
 
 ArtifactRefCompletionStage = Literal["kind", "payload"]
@@ -68,6 +69,9 @@ class ArtifactRefPayloadCompletionMetadata:
     label: str = ""
     detail: str = ""
     age: str = ""
+    scope: str = ""
+    rank: int | None = None
+    body: str = ""
     label_match: tuple[tuple[int, int], ...] = ()
     title_match: tuple[tuple[int, int], ...] = ()
     match_tier: int = 0
@@ -110,16 +114,7 @@ class ArtifactRefChatCandidate:
     modified_at: float
 
 
-@dataclass(frozen=True, slots=True)
-class ArtifactRefCommitCandidate:
-    repo: str
-    sha: str
-    subject: str = ""
-    timestamp: int = 0
-
-    @property
-    def payload(self) -> str:
-        return f"{self.repo}@{self.sha}"
+ArtifactRefCommitCandidate = ArtifactRefCommitRow
 
 
 @dataclass(frozen=True, slots=True)

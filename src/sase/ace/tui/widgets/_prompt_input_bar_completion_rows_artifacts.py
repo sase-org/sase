@@ -87,7 +87,11 @@ def append_artifact_ref_completion_row(
         candidate.display,
         metadata.label_match,
         base_style=FILE_BASENAME_STYLE,
-        segment_split=_basename_start(candidate.display),
+        segment_split=(
+            candidate.display.find("@") + 1
+            if metadata.source == "commit" and "@" in candidate.display
+            else _basename_start(candidate.display)
+        ),
     )
     details = [
         (value, metadata.title_match if index == 0 else ())

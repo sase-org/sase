@@ -95,6 +95,8 @@ def build_artifact_ref_completion_result(
     *,
     include_files: bool = False,
     commits: Sequence[ArtifactRefCommitCandidate] = (),
+    commits_loading: bool = False,
+    commits_truncated_payloads: int = 0,
     bugs: Sequence[ArtifactRefBugCandidate] = (),
     paths: Sequence[PromptPathRow] = (),
     paths_loading: bool = False,
@@ -105,6 +107,8 @@ def build_artifact_ref_completion_result(
         catalog,
         include_files=include_files,
         commits=commits,
+        commits_loading=commits_loading,
+        commits_truncated_payloads=commits_truncated_payloads,
         bugs=bugs,
         paths=paths,
         paths_loading=paths_loading,
@@ -173,6 +177,7 @@ def _payload_inventory(
     catalog: ArtifactRefCompletionCatalog,
     *,
     commits: Sequence[ArtifactRefCommitCandidate],
+    commits_truncated_payloads: int = 0,
     bugs: Sequence[ArtifactRefBugCandidate],
 ) -> tuple[
     list[dict[str, object]],
@@ -184,6 +189,7 @@ def _payload_inventory(
         context,
         catalog,
         commits=commits,
+        commits_truncated_payloads=commits_truncated_payloads,
         bugs=bugs,
         inventory_builder=at_reference_inventory,
     )

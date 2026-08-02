@@ -175,8 +175,19 @@ def test_payload_counts_and_truncation_are_propagated_from_catalog() -> None:
 
 def test_dynamic_payload_index_is_memoized_by_snapshot_identity() -> None:
     commits = (
-        ArtifactRefCommitCandidate("sase", "a" * 40, "Alpha commit", 1),
-        ArtifactRefCommitCandidate("sase", "b" * 40, "Beta commit", 2),
+        ArtifactRefCommitCandidate(
+            "sase@" + "a" * 12,
+            "Alpha commit",
+            scope="sase",
+            rank=0,
+            body="Alpha body",
+        ),
+        ArtifactRefCommitCandidate(
+            "sase@" + "b" * 12,
+            "Beta commit",
+            scope="sase",
+            rank=1,
+        ),
     )
     first_context = detect_artifact_ref_completion_context(
         "@commit:alpha",
@@ -208,3 +219,12 @@ def test_dynamic_payload_index_is_memoized_by_snapshot_identity() -> None:
         )
 
     inventory.assert_called_once()
+    assert inventory.call_args.args[0][0] == {
+        "payload": "sase@" + "a" * 12,
+        "label": "Alpha commit",
+        "detail": "",
+        "age": "",
+        "scope": "sase",
+        "rank": 0,
+        "body": "Alpha body",
+    }

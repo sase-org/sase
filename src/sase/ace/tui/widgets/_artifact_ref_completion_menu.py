@@ -113,6 +113,8 @@ def build_artifact_ref_completion_result(
     *,
     include_files: bool = False,
     commits: Sequence[ArtifactRefCommitCandidate] = (),
+    commits_loading: bool = False,
+    commits_truncated_payloads: int = 0,
     bugs: Sequence[ArtifactRefBugCandidate] = (),
     paths: Sequence[PromptPathRow] = (),
     paths_loading: bool = False,
@@ -130,6 +132,7 @@ def build_artifact_ref_completion_result(
             context,
             catalog,
             commits=commits,
+            commits_truncated_payloads=commits_truncated_payloads,
             bugs=bugs,
             inventory_builder=_inventory_builder,
         )
@@ -138,6 +141,7 @@ def build_artifact_ref_completion_result(
             context,
             catalog,
             commits=commits,
+            commits_truncated_payloads=commits_truncated_payloads,
             bugs=bugs,
         )
     payloads, payload_index, payload_metadata, truncated_payloads = inventory_result
@@ -196,10 +200,20 @@ def build_artifact_ref_completion_result(
                 metadata=metadata,
             )
         )
+    loading_text = ""
     if context.stage == "kind" and paths_loading and not candidates:
+        loading_text = "loading files…"
+    elif (
+        context.stage == "payload"
+        and (context.kind or "").casefold() == "commit"
+        and commits_loading
+        and not candidates
+    ):
+        loading_text = "loading commits…"
+    if loading_text:
         candidates.append(
             CompletionCandidate(
-                display="loading files…",
+                display=loading_text,
                 insertion="",
                 is_dir=False,
                 name="",
@@ -257,6 +271,7 @@ def payload_inventory(
     catalog: ArtifactRefCompletionCatalog,
     *,
     commits: Sequence[ArtifactRefCommitCandidate],
+    commits_truncated_payloads: int = 0,
     bugs: Sequence[ArtifactRefBugCandidate],
     inventory_builder: _AtReferenceInventoryBuilder = at_reference_inventory,
 ) -> tuple[
@@ -281,7 +296,8 @@ def payload_inventory(
             return [], None, MappingProxyType({}), 0
         truncated = catalog.payload_truncation.get(folded, 0)
         return [], index, metadata, truncated
-    return [], memo.index, memo.metadata_by_payload, 0
+    truncated = commits_truncated_payloads if folded == "commit" else 0
+    return [], memo.index, memo.metadata_by_payload, truncated
 
 
 def build_catalog_payload_memos(
@@ -363,6 +379,9 @@ def index_payload_rows(
             "label": metadata.label,
             "detail": metadata.detail,
             "age": metadata.age,
+            "scope": metadata.scope,
+            "rank": metadata.rank,
+            "body": metadata.body,
         }
         for payload, metadata in rows
     ]
@@ -417,9 +436,12 @@ def payload_rows(
                     kind=kind,
                     payload=row.payload,
                     source="commit",
-                    label=row.subject,
-                    detail=row.repo,
-                    age=age_label(row.timestamp),
+                    label=row.label,
+                    detail=row.detail,
+                    age=row.age,
+                    scope=row.scope,
+                    rank=row.rank,
+                    body=row.body,
                 ),
             )
             for row in commits
