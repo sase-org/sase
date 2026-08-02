@@ -6,9 +6,10 @@ pdf: false
 
 !!! warning "Historical generation record"
 
-    This prompt produced the retired pre-Artifacts ACE diagram. Current ACE navigation is **Agents · Artifacts · Axe**,
-    with **Commits · Plans · Chats · Bugs · PRs** inside Artifacts. The PNG is no longer embedded in active
-    documentation; do not reuse it without regenerating the composition and labels for the current tab model.
+    This prompt produced the retired pre-Artifacts ACE diagram. Current ACE navigation is **Agents · Artifacts · Axe**.
+    Artifacts has **Commits · Beads · Bugs · PRs · Files** as its top-level views, with **Plans · Chats · Other** nested
+    under Files. The PNG is no longer embedded in active documentation; do not reuse it without regenerating the
+    composition and labels for the current tab model.
 
 ## Target
 

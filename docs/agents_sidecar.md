@@ -75,6 +75,12 @@ the committing agent's global lane name. Each prompt document has the same heade
 - `AGENTS` links to the published agent page for the run.
 - `ARTIFACTS` links to the prompt references SASE could make durable.
 
+The main body is the launch-normalized **XPrompt prompt**, before xprompt expansion, so its reusable `#...` references
+remain visible. When launch-captured provenance can be resolved, those references link to their hosted definitions. If
+the run has a final provider prompt artifact, the document also carries that **rendered prompt** in a separate
+collapsed, verbatim section. The rendered section is the exact execution view (subject to the configured byte cap); the
+XPrompt body is the authored-structure view and remains complete. Older archive entries may not have a rendered section.
+
 Launch-time staging records prompt references in the workspace-local `.sase/artifacts/prompt-artifacts.jsonl` manifest.
 When a prompt archive is published, external file bytes are copied from `.sase/artifacts/pool/` into the agents sidecar
 under `artifacts/<YYYYMM>/<sha12>-<basename>`. The prefix is the first twelve hexadecimal characters of the file's
@@ -82,10 +88,11 @@ SHA-256 digest, so identical bytes publish once and differing bytes do not overw
 inside known repositories are not duplicated; their prompt links point to hosted source blobs at the recorded revision.
 Non-file references such as `@agent:`, `@bug:`, and `@commit:` remain links without copied bytes.
 
-Use `sase agent prompts list` to browse the archive, `sase agent prompts show <prompt>` to inspect a prompt, and
-`sase agent prompts validate` to verify prompt headers, artifact links, digest-bearing filenames, local manifests, and
-plan cross-links. `sase agent prompts migrate` reports historical plans-sidecar prompts by default and moves them to
-this archive only with `--write`.
+Use `sase agent prompts list` to browse the archive. `sase agent prompts show <prompt>` prints the XPrompt body;
+`sase agent prompts show --rendered <prompt>` prints the stored rendered prompt instead. `sase agent prompts validate`
+verifies prompt sections, headers, artifact links, digest-bearing filenames, local manifests, and plan cross-links.
+`sase agent prompts migrate` reports historical plans-sidecar prompts by default and moves them to this archive only
+with `--write`.
 
 Existing top-level v1 `manifest.json` and `agents/<machine-qualified-name>` bundles are left untouched. Sync can still
 read those records for compatibility, but it no longer creates or refreshes v1 transport data. `sase agent retire-v1` is

@@ -9,8 +9,9 @@ creating a traceable chain from intent to execution. In this guide, "plan-like a
 Agent plans are ephemeral by default -- they live in a single session's context window and vanish when the session ends.
 SDD fixes this by writing plans and linked prompt archives to disk as first-class artifacts:
 
-- **Prompts** record the full prompt the agent received in the agents sidecar's `prompts/<YYYYMM>/` archive, so the
-  "why" behind the work is preserved.
+- **Prompts** preserve both the launch-normalized XPrompt text and, when available, the final rendered prompt sent to
+  the model in the agents sidecar's `prompts/<YYYYMM>/` archive, so the "why" and exact execution input remain
+  inspectable.
 - **Tales** record ordinary approved implementation plans, so decomposition decisions are queryable after the fact.
 - **Epics** record executable multi-phase plans that can be handed to `sase bead work`.
 - **Research** records exploratory findings, prior art, options, critiques, and recommendations that inform later work.
@@ -55,15 +56,24 @@ current month directory; SASE does not write research files automatically.
 
 ## How SDD Works
 
-### Prompt Archive Generation
+### Prompt Archive Publication
 
-When a submitted plan is accepted, SDD prepares the prompt archive document by:
+Committed runs publish a canonical prompt document to the agents sidecar. A plan-backed run uses the plan slug for the
+archive filename; an unplanned run uses the committing agent's global lane name. Each current archive can preserve two
+different views of the launch prompt:
 
-1. Expanding all `#xprompt` references in the original prompt
-2. Stripping `%directives` (`%model`, `%id`, `%wait`, etc.)
-3. Dry-expanding embedded workflow `prompt_part` content (renders templates without executing pre/post steps)
+1. The **XPrompt prompt** is the `raw_xprompt.md` launch artifact after alias and launch-boundary normalization but
+   before xprompt expansion. SASE keeps `#...` references visible and rewrites the ones with captured, resolvable
+   provenance as hosted links to their definitions. It similarly turns staged `@...` references into durable links when
+   possible.
+2. The **rendered prompt** is the final provider prompt selected from the run's artifacts—the text actually sent to the
+   model. When available, it is appended in a separate collapsed, verbatim section. It is explicitly truncated when it
+   exceeds [`chat_history.rendered_prompt_max_bytes`](configuration.md#chat_history); the XPrompt prompt remains
+   complete.
 
-The result is a clean, self-contained document showing exactly what the agent was asked to do.
+This distinction is intentional: the XPrompt view preserves the authored structure and reusable references, while the
+rendered view records the fully expanded execution input. `sase agent prompts show <prompt>` prints the XPrompt body by
+default; add `--rendered` to print the stored rendered prompt. Legacy archives may have only the first view.
 
 ### Artifact Persistence
 
