@@ -5,11 +5,16 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
 from sase.xprompt._literal_zones import literal_zone_ranges
-from sase.xprompt._parsing import iter_xprompt_references, normalize_vcs_underscore_refs
+from sase.xprompt._parsing import (
+    XPromptReference,
+    iter_xprompt_references,
+    normalize_vcs_underscore_refs,
+)
 from sase.xprompt.loader import get_all_workflows, get_all_xprompts
 from sase.xprompt.models import XPrompt
 from sase.xprompt.processor import resolve_xprompt_aliases
@@ -29,9 +34,90 @@ class _UsedXPromptRecord(TypedDict):
     tags: list[str]
 
 
+@dataclass(frozen=True)
+class _ScannedXPromptReference:
+    """One launch reference produced by the shared xprompt scan."""
+
+    raw_ref: str
+    name: str
+    kind: Literal["workflow", "part", "swarm"] | None
+    item: XPrompt | Workflow | None
+    reference: XPromptReference | None
+
+
 def encode_launch_swarm_xprompts(names: Sequence[str]) -> str:
     """Encode launch-boundary swarm provenance for a child process."""
     return json.dumps(list(names), separators=(",", ":"))
+
+
+def scan_xprompt_references(
+    raw_prompt: str,
+    *,
+    extra_xprompts: dict[str, XPrompt] | None = None,
+    swarm_xprompts: Sequence[str] | None = None,
+) -> list[_ScannedXPromptReference]:
+    """Return known and unknown references using the launch lexical contract.
+
+    This is the single scan shared by usage metadata and definition provenance.
+    ``raw_ref`` is sliced from the alias-resolved prompt that survives as
+    ``raw_xprompt.md``; VCS underscore normalization is applied only to the
+    parsing copy so tokens such as ``#gh_sase`` retain their exact spelling.
+    """
+    swarm_names = tuple(dict.fromkeys(swarm_xprompts or ()))
+    if "#" not in raw_prompt and not swarm_names:
+        return []
+
+    prompt = resolve_xprompt_aliases(raw_prompt)
+    if "#" not in prompt and not swarm_names:
+        return []
+
+    normalized_prompt = normalize_vcs_underscore_refs(prompt)
+    ignored_ranges = literal_zone_ranges(normalized_prompt)
+
+    workflows = get_all_workflows()
+    xprompts = get_all_xprompts()
+    if extra_xprompts:
+        xprompts = {**xprompts, **extra_xprompts}
+
+    scanned: list[_ScannedXPromptReference] = []
+    for ref in iter_xprompt_references(normalized_prompt):
+        if _in_ignored_range(ref.start, ignored_ranges):
+            continue
+        resolved = _resolve_reference(ref.name, workflows, xprompts)
+        kind, item = resolved if resolved is not None else (None, None)
+        raw_ref = prompt[ref.start : ref.end]
+        if len(raw_ref) != len(ref.raw):
+            # Alias resolution precedes both strings and VCS normalization is
+            # length-preserving, but retain a safe fallback if that contract
+            # ever changes.
+            raw_ref = ref.raw
+        scanned.append(
+            _ScannedXPromptReference(
+                raw_ref=raw_ref,
+                name=ref.name,
+                kind=kind,
+                item=item,
+                reference=ref,
+            )
+        )
+
+    swarm_records = [
+        _ScannedXPromptReference(
+            raw_ref=f"#{name}",
+            name=name,
+            kind="swarm",
+            item=xprompts.get(name),
+            reference=None,
+        )
+        for name in swarm_names
+    ]
+    if not swarm_records:
+        return scanned
+
+    swarm_name_set = set(swarm_names)
+    return swarm_records + [
+        record for record in scanned if record.name not in swarm_name_set
+    ]
 
 
 def collect_used_xprompts(
@@ -48,40 +134,28 @@ def collect_used_xprompts(
     Launch-boundary swarm provenance is prepended and supersedes any lexical
     records with the same name.
     """
-    swarm_names = tuple(dict.fromkeys(swarm_xprompts or ()))
-    if "#" not in raw_prompt and not swarm_names:
-        return []
-
-    prompt = resolve_xprompt_aliases(raw_prompt)
-    if "#" not in prompt and not swarm_names:
-        return []
-
-    prompt = normalize_vcs_underscore_refs(prompt)
-    ignored_ranges = literal_zone_ranges(prompt)
-
-    workflows = get_all_workflows()
-    xprompts = get_all_xprompts()
-    if extra_xprompts:
-        xprompts = {**xprompts, **extra_xprompts}
-
     records: list[_UsedXPromptRecord] = []
     seen: set[tuple[str, str, tuple[str, ...], tuple[tuple[str, str], ...]]] = set()
-
-    for ref in iter_xprompt_references(prompt):
-        if _in_ignored_range(ref.start, ignored_ranges):
+    for scanned in scan_xprompt_references(
+        raw_prompt,
+        extra_xprompts=extra_xprompts,
+        swarm_xprompts=swarm_xprompts,
+    ):
+        if scanned.kind is None or (scanned.item is None and scanned.kind != "swarm"):
             continue
-        resolved = _resolve_reference(ref.name, workflows, xprompts)
-        if resolved is None:
-            continue
-        kind, item = resolved
-        if kind == "workflow":
-            positional, named = parse_workflow_reference_args(ref)
+        if scanned.kind == "swarm":
+            positional: list[str] = []
+            named: dict[str, str] = {}
+        elif scanned.kind == "workflow":
+            assert scanned.reference is not None
+            positional, named = parse_workflow_reference_args(scanned.reference)
         else:
-            positional, named = ref.parse_arguments()
+            assert scanned.reference is not None
+            positional, named = scanned.reference.parse_arguments()
 
         key = (
-            ref.name,
-            kind,
+            scanned.name,
+            scanned.kind,
             tuple(positional),
             tuple(sorted(named.items())),
         )
@@ -91,38 +165,18 @@ def collect_used_xprompts(
 
         records.append(
             {
-                "name": ref.name,
-                "kind": kind,
+                "name": scanned.name,
+                "kind": scanned.kind,
                 "positional": positional,
                 "named": named,
-                "tags": sorted(tag.value for tag in item.tags),
-            }
-        )
-
-    if not swarm_names:
-        return records
-
-    swarm_records: list[_UsedXPromptRecord] = []
-    for name in swarm_names:
-        swarm_xprompt = xprompts.get(name)
-        swarm_records.append(
-            {
-                "name": name,
-                "kind": "swarm",
-                "positional": [],
-                "named": {},
                 "tags": (
-                    sorted(tag.value for tag in swarm_xprompt.tags)
-                    if swarm_xprompt is not None
+                    sorted(tag.value for tag in scanned.item.tags)
+                    if scanned.item is not None
                     else []
                 ),
             }
         )
-
-    swarm_name_set = set(swarm_names)
-    return swarm_records + [
-        record for record in records if record["name"] not in swarm_name_set
-    ]
+    return records
 
 
 def write_used_xprompts(

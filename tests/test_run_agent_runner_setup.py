@@ -101,6 +101,13 @@ def test_preprocess_prompt_xprompts_captures_launch_boundary_usage(
     # the root (non-step) agent row reads.
     data = json.loads((tmp_path / "xprompts.json").read_text(encoding="utf-8"))
     assert [(r["name"], r["kind"]) for r in data] == [("plan", "part")]
+    sources = json.loads(
+        (tmp_path / "xprompt_sources.json").read_text(encoding="utf-8")
+    )
+    assert [(record["raw_ref"], record["name"]) for record in sources] == [
+        ("#plan", "plan")
+    ]
+    assert set(data[0]) == {"name", "kind", "positional", "named", "tags"}
     # raw_xprompt.md and the captured metadata derive from the same text.
     assert (tmp_path / "raw_xprompt.md").read_text(
         encoding="utf-8"
@@ -171,6 +178,50 @@ def test_preprocess_prompt_xprompts_captures_launch_swarm(
             "tags": [],
         },
     ]
+
+
+def test_preprocess_prompt_xprompts_survives_provenance_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import sase.xprompt.used_xprompts as used_xprompts
+    import sase.xprompt.xprompt_sources as xprompt_sources
+    from sase.xprompt.models import XPrompt
+
+    definition = tmp_path / "known.md"
+    definition.write_text("Known.\n", encoding="utf-8")
+    monkeypatch.setattr(
+        used_xprompts,
+        "get_all_xprompts",
+        lambda: {
+            "known": XPrompt(
+                name="known",
+                content="Known.",
+                source_path=str(definition),
+            )
+        },
+    )
+    monkeypatch.setattr(used_xprompts, "get_all_workflows", lambda: {})
+    monkeypatch.setattr(used_xprompts, "resolve_xprompt_aliases", lambda value: value)
+    monkeypatch.setattr(
+        xprompt_sources,
+        "_resolve_definition_repo",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    with (
+        patch("sase.xprompt.resolve_xprompt_aliases", side_effect=lambda value: value),
+        patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
+        patch(
+            "sase.xprompt.processor.process_xprompt_references",
+            return_value="expanded",
+        ),
+    ):
+        expanded, _, _ = preprocess_prompt_xprompts("Run #known", str(tmp_path))
+
+    assert expanded == "expanded"
+    assert "Warning: Failed to write xprompt metadata: boom" in capsys.readouterr().err
 
 
 def test_runner_setup_artifacts_keep_project_alias_canonical(
