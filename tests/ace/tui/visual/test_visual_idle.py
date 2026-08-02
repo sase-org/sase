@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import pytest
 
+from sase.ace.testing import AcePage
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     _pending_visual_work,
     assert_visual_frame_converged,
@@ -29,10 +30,12 @@ class _App:
         self,
         workers: tuple[_Worker, ...] = (),
         timers: tuple[Any, ...] = (),
+        animator: Any = None,
     ) -> None:
         self.workers = workers
         self.screen_stack: tuple[Any, ...] = ()
         self._timers = timers
+        self.animator = animator
 
 
 class _Task:
@@ -47,6 +50,17 @@ class _Timer:
         self.name = name
         self._interval = interval
         self._task = _Task()
+
+
+class _Animator:
+    def __init__(
+        self,
+        *,
+        animations: dict[tuple[int, str], object] | None = None,
+        scheduled: dict[tuple[int, str], object] | None = None,
+    ) -> None:
+        self._animations = animations or {}
+        self._scheduled = scheduled or {}
 
 
 class _DelayedPaintPage:
@@ -109,6 +123,20 @@ class _StarvedPaintPage(_ChangingPage):
         return self.frame
 
 
+class _AnimatingPage(_ChangingPage):
+    def __init__(self) -> None:
+        super().__init__()
+        self.animator = _Animator(animations={(17, "scroll_y"): object()})
+        self.app = _App(animator=self.animator)
+        self.exports_before_animation_finished: int | None = None
+
+    async def pause(self, delay: float | None = None) -> None:
+        await super().pause(delay)
+        if self.pause_count == 4:
+            self.exports_before_animation_finished = self.export_count
+            self.animator._animations.clear()
+
+
 class _NeverStablePage(_ChangingPage):
     def export_svg(self, title: str | None = None, simplify: bool = True) -> str:
         del title, simplify
@@ -144,6 +172,12 @@ async def test_visual_idle_waits_for_worker_and_five_converged_frames() -> None:
 
 
 @pytest.mark.asyncio
+async def test_visual_snapshots_disable_animations_on_running_app() -> None:
+    async with AcePage() as page:
+        assert page.app.animation_level == "none"
+
+
+@pytest.mark.asyncio
 async def test_visual_idle_observes_delayed_paint_before_converging() -> None:
     page = _ChangingPage()
 
@@ -163,6 +197,17 @@ async def test_visual_idle_requires_scheduler_progress_under_starvation() -> Non
     assert page.frame == "complete"
     assert page.export_count >= 7
     assert set(page.pause_delays) == {None}
+
+
+@pytest.mark.asyncio
+async def test_visual_idle_waits_for_in_flight_animation() -> None:
+    page = _AnimatingPage()
+
+    await wait_for_visual_idle(cast(Any, page), timeout=0.5)
+
+    assert page.pause_count >= 8
+    assert page.exports_before_animation_finished == 0
+    assert page.export_count == 7
 
 
 @pytest.mark.asyncio
@@ -244,6 +289,22 @@ def test_visual_idle_waits_for_short_timers_but_not_surface_lifetimes() -> None:
         )
     )
 
-    _debouncers, _workers, timers = _pending_visual_work(cast(Any, page))
+    _debouncers, _workers, timers, _animations = _pending_visual_work(cast(Any, page))
 
     assert timers == ["input-validation"]
+
+
+def test_pending_visual_work_reports_running_and_scheduled_animations() -> None:
+    animator = _Animator(
+        animations={(17, "scroll_y"): object()},
+        scheduled={(23, "opacity"): object()},
+    )
+    page = _ChangingPage()
+    page.app = _App(animator=animator)
+
+    _debouncers, _workers, _timers, animations = _pending_visual_work(cast(Any, page))
+
+    assert animations == [
+        "running:(17, 'scroll_y')",
+        "scheduled:(23, 'opacity')",
+    ]

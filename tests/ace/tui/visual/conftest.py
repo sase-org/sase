@@ -37,6 +37,13 @@ def _force_color_for_visual_snapshots(
             visual_env.delenv("FORCE_COLOR", raising=False)
             visual_env.delenv("NO_COLOR", raising=False)
 
+            # Snapshot captures target the resting state, never an animated
+            # intermediate. Textual evaluates this environment variable into
+            # a module-level constant at import time, before fixtures run, so
+            # pin both forms before each AceApp is constructed.
+            visual_env.setenv("TEXTUAL_ANIMATIONS", "none")
+            visual_env.setattr("textual.constants.TEXTUAL_ANIMATIONS", "none")
+
             # Pin the process timezone as well as application-level clocks.
             # ``tzset`` updates libc's cached timezone after both setup and the
             # environment restoration performed when this context exits.

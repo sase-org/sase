@@ -31,6 +31,7 @@ from tests.fakey.harness import (
 pytestmark = pytest.mark.visual
 
 _VISUAL_NOW = datetime(2026, 7, 6, 12, 0, 0)
+_CONTENTION_STATE_TIMEOUT = 60
 
 
 def _patch_sentinel_pid_liveness(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -85,8 +86,11 @@ async def test_real_fakey_retry_countdown_png_snapshot(
 
     handle = harness.run_in_background()
     try:
-        harness.wait_for_retry_state("retrying")
-        retry_wait.wait_until_started()
+        # The contention harness starts 26 pytest workers on two CPUs. Match
+        # the retry barrier's load-tolerant budget so process startup cannot
+        # exhaust the helper's otherwise useful five-second unit-test default.
+        harness.wait_for_retry_state("retrying", timeout=_CONTENTION_STATE_TIMEOUT)
+        retry_wait.wait_until_started(timeout=_CONTENTION_STATE_TIMEOUT)
         harness.normalize_visual_timestamps(_VISUAL_NOW, countdown_seconds=9)
         _patch_sentinel_pid_liveness(monkeypatch)
         monkeypatch.setattr(time, "time", lambda: _VISUAL_NOW.timestamp())
@@ -195,7 +199,9 @@ async def test_real_fakey_running_fallback_png_snapshot(
     handle = harness.run_in_background()
     try:
         fallback.wait_until_started(timeout=60)
-        state = harness.wait_for_retry_state("running_fallback")
+        state = harness.wait_for_retry_state(
+            "running_fallback", timeout=_CONTENTION_STATE_TIMEOUT
+        )
         assert state.fallback_model == "fakey-small"
         harness.normalize_visual_timestamps(_VISUAL_NOW)
         _patch_sentinel_pid_liveness(monkeypatch)

@@ -142,7 +142,9 @@ def _disable_cursor_blink(page: AcePage) -> bool:
     return focused_cursor_refreshed
 
 
-def _pending_visual_work(page: AcePage) -> tuple[list[str], list[str], list[str]]:
+def _pending_visual_work(
+    page: AcePage,
+) -> tuple[list[str], list[str], list[str], list[str]]:
     """Describe finite work that can still change an ACE screenshot."""
     debouncers = [
         name
@@ -154,6 +156,16 @@ def _pending_visual_work(page: AcePage) -> tuple[list[str], list[str], list[str]
         for worker in page.app.workers
         if bool(getattr(worker, "is_running", False))
     ]
+
+    # Animator state is deliberately checked even though visual tests disable
+    # animations by default. This keeps convergence safe if an individual test
+    # re-enables them: a starved animator can otherwise present several
+    # byte-identical frames while a smooth scroll remains unfinished.
+    animator = getattr(page.app, "animator", None)
+    animations = [f"running:{key!r}" for key in getattr(animator, "_animations", {})]
+    animations.extend(
+        f"scheduled:{key!r}" for key in getattr(animator, "_scheduled", {})
+    )
 
     # Textual does not expose a public timer registry. In this test helper it
     # is safe to inspect the message pumps' weak timer sets. Wait for one-shot
@@ -178,7 +190,7 @@ def _pending_visual_work(page: AcePage) -> tuple[list[str], list[str], list[str]
                 and not task.done()
             ):
                 timers.append(str(getattr(timer, "name", timer)))
-    return debouncers, workers, timers
+    return debouncers, workers, timers, animations
 
 
 async def wait_for_visual_idle(page: AcePage, *, timeout: float = 30.0) -> None:
@@ -189,7 +201,7 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 30.0) -> None:
     previous_svg: str | None = None
     stable_frames = 0
     frame_digests: list[str] = []
-    pending: tuple[list[str], list[str], list[str]] = ([], [], [])
+    pending: tuple[list[str], list[str], list[str], list[str]] = ([], [], [], [])
 
     while True:
         # A zero-delay queue drain may return the same frame repeatedly simply
@@ -231,11 +243,12 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 30.0) -> None:
                 return
 
         if loop.time() >= deadline:
-            debouncers, workers, timers = pending
+            debouncers, workers, timers, animations = pending
             raise AssertionError(
                 "Timed out waiting for ACE visual render convergence "
                 f"after {timeout:.2f}s; stable_frames={stable_frames}/"
                 f"{_VISUAL_STABLE_FRAME_COUNT}; frame_digests={frame_digests}; "
                 f"pending_debouncers={debouncers}; pending_workers={workers}; "
-                f"pending_one_shot_timers={timers}"
+                f"pending_one_shot_timers={timers}; "
+                f"pending_animations={animations}"
             )
