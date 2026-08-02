@@ -20,7 +20,6 @@ def test_every_ordered_statistics_view_has_a_description() -> None:
     assert all(VIEW_DESCRIPTIONS[view].strip() for view in VIEW_ORDER)
     assert {view for view in VIEW_ORDER if statistics_view_supports_grouping(view)} == {
         "projects",
-        "runtime",
         "xprompts",
     }
 
@@ -43,8 +42,6 @@ def test_scope_renderables_cover_range_group_project_and_status(
     )
 
     assert pane._group_scope_text().plain == " g  Group —"
-    pane._view = "runtime"
-    assert pane._group_scope_text().plain == " g  Group Runtime · Tribe"
     pane._view = "projects"
     assert pane._group_scope_text().plain == " g  Group Projects · By Project"
     pane._view = "xprompts"

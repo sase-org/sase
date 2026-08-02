@@ -19,7 +19,6 @@ from sase.ace.tui.keymaps import (
     statistics_help_bindings,
 )
 from sase.ace.tui.keymaps.metadata import _STATISTICS_BINDING_META
-from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import StatsRange
 
 from .statistics_pane_data import (
@@ -58,7 +57,6 @@ class StatisticsHelpModal(ModalScreen[None]):
         *,
         current_view: StatisticsView,
         selected_range: StatsRange,
-        runtime_group_by: RuntimeGroupBy,
         projects_group_by: ProjectsGroupBy,
         xprompts_group_by: XPromptsGroupBy,
         project_label: str,
@@ -69,7 +67,6 @@ class StatisticsHelpModal(ModalScreen[None]):
         super().__init__()
         self._current_view = current_view
         self._selected_range = selected_range
-        self._runtime_group_by = runtime_group_by
         self._projects_group_by = projects_group_by
         self._xprompts_group_by = xprompts_group_by
         self._project_label = project_label
@@ -170,7 +167,8 @@ class StatisticsHelpModal(ModalScreen[None]):
         if action == "select_view":
             key = key_display_name(self._keymaps.select_view)
             return (
-                f"press {key} then 1-9; current view: {VIEW_LABELS[self._current_view]}"
+                f"press {key} then 1-{len(VIEW_ORDER)}; "
+                f"current view: {VIEW_LABELS[self._current_view]}"
             )
         if action in {"cycle_range", "cycle_range_reverse"}:
             return (
@@ -179,8 +177,6 @@ class StatisticsHelpModal(ModalScreen[None]):
         if action == "custom_range":
             return "enter a relative, calendar, or exact date range"
         if action == "cycle_group":
-            if self._current_view == "runtime":
-                return f"Runtime · {self._runtime_group_by.title()}"
             if self._current_view == "xprompts":
                 return f"XPrompts · {self._xprompts_group_label()}"
             return f"Projects · {self._projects_group_label()}"

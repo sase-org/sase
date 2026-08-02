@@ -222,10 +222,10 @@ def _xprompts_payload(
 def _populated_statistics_view(
     view: str = "overview",
     selected_range: StatsRange = _STATISTICS_RANGE,
-    runtime_group_by: str = "tribe",
     project_filter: str | None = None,
     xprompt_focus: str | None = None,
 ) -> StatisticsViewData:
+    runtime_group_by = "tribe"
     run_payload = {
         "start_ts": selected_range.start_ts,
         "end_ts": selected_range.end_ts,
@@ -525,7 +525,6 @@ def _populated_statistics_view(
     return StatisticsViewData(
         view=view,  # type: ignore[arg-type]
         selected_range=selected_range,
-        runtime_group_by=runtime_group_by,  # type: ignore[arg-type]
         generated_at=_STATISTICS_NOW,
         views=build_statistics_views(
             run_payload,
@@ -545,11 +544,10 @@ def _patch_statistics_populated(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sp,
         "load_statistics_view",
-        lambda view, selected_range, runtime_group_by, project_filter=None, xprompt_focus=None: (
+        lambda view, selected_range, project_filter=None, xprompt_focus=None: (
             _populated_statistics_view(
                 view,
                 selected_range,
-                runtime_group_by,
                 project_filter,
                 xprompt_focus,
             )
@@ -562,11 +560,10 @@ def _patch_statistics_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sp,
         "load_statistics_view",
-        lambda view, selected_range, runtime_group_by, project_filter=None, xprompt_focus=None: (
+        lambda view, selected_range, project_filter=None, xprompt_focus=None: (
             StatisticsViewData(
                 view=view,
                 selected_range=selected_range,
-                runtime_group_by=runtime_group_by,
                 generated_at=_STATISTICS_NOW,
                 views=build_statistics_views({}, {}),
                 project_filter=project_filter,

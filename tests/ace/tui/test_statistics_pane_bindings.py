@@ -11,7 +11,6 @@ from sase.ace.tui.keymaps import load_keymap_registry, statistics_help_bindings
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.statistics_help_modal import StatisticsHelpModal
 from sase.ace.tui.modals.statistics_pane_data import StatisticsView
-from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import StatsRange
 
 from tests.ace.tui._statistics_pane_helpers import (
@@ -24,7 +23,7 @@ from tests.ace.tui._statistics_pane_helpers import (
 async def test_configured_bindings_dispatch_and_render_effective_help(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(monkeypatch, calls)
     registry = load_keymap_registry(
         {
@@ -84,18 +83,18 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         await page.press("f1")
         await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
         assert pane._project_filter == "core"
-        assert calls[-1][3] == "core"
+        assert calls[-1][2] == "core"
 
         await page.press("f6")
         await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
         assert pane._project_filter is None
-        assert calls[-1][3] is None
+        assert calls[-1][2] is None
 
         await page.press("f9")
         await page.wait_for(lambda _state: len(calls) == 4 and not pane._loading)
         assert pane._preset_key == "24h"
 
-        await page.press("f11", "f11", "f11", "f7")
+        await page.press("f11", "f11", "f7")
         await page.wait_for(
             lambda _state: (
                 pane._view == "projects" and pane._projects_group_by == "changespec"
@@ -120,7 +119,7 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
 async def test_default_half_page_scroll_does_not_reload_or_capture_range_input(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
@@ -153,7 +152,7 @@ async def test_default_half_page_scroll_does_not_reload_or_capture_range_input(
 async def test_statistics_help_opens_and_closes_from_configured_binding(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(monkeypatch, calls)
     registry = load_keymap_registry({"keymaps": {"statistics": {"help": "f5"}}})
 
@@ -175,7 +174,7 @@ async def test_statistics_help_opens_and_closes_from_configured_binding(
 async def test_statistics_bindings_are_inactive_on_other_admin_center_tabs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(monkeypatch, calls)
     registry = load_keymap_registry(
         {

@@ -1953,12 +1953,12 @@ markers. It does not delete workspace checkouts, and system-managed projects suc
 
 ## Statistics Tab
 
-Open the SASE Admin Center with `#`, then press `4` or switch to **Statistics**. Its nine sub-tabs summarize runs,
-runners, projects, providers, runtime, agent activity, xprompt usage, and plan/question activity for the selected time
-range and optional project filter. The strip is numbered **1 Overview · 2 Runs · 3 Runners · 4 Projects · 5 Providers ·
-6 Runtime · 7 Activity · 8 XPrompts · 9 Plans & Questions**; press `0` and then that digit to jump straight to a view.
-Use `[` / `]` to move between views, `t` / `T` to cycle time ranges, `p` / `P` to cycle project scope, and `r` to
-refresh.
+Open the SASE Admin Center with `#`, then press `4` or switch to **Statistics**. Its seven sub-tabs summarize overview,
+runners, projects, providers, agent activity, xprompt usage, and plan/question activity for the selected time range and
+optional project filter. The strip is numbered **1 Overview · 2 Runners · 3 Projects · 4 Providers · 5 Activity · 6
+XPrompts · 7 Plans & Questions**; press `0` and then that digit to jump straight to a view. Use `[` / `]` to move
+between views, `t` / `T` to cycle time ranges, `p` / `P` to cycle project scope, and `r` to refresh. On Overview, Agents
+Run, Success Rate, and Commits open Projects; Plans Proposed and Questions open Plans & Questions.
 
 The Statistics **XPrompts** sub-tab reports xprompts referenced by agent launch prompts:
 
@@ -3032,12 +3032,12 @@ ace:
 
 These keys dispatch only while the Admin Center Statistics pane is focused. They may overlap app-level bindings without
 creating a global conflict, and the pane's hint bar always shows the effective keys. Press the configured `select_view`
-prefix and then `1`–`9` to select the matching numbered view; bare digits continue to switch the Admin Center's
-top-level tabs. The group control is visible and active only in Projects, Runtime, and XPrompts. On the XPrompts view,
-the focus key opens a filterable picker and the clear-focus key restores **All xprompts**. Project filtering cycles
-through **All projects** and the latest cached unfiltered ranking: the configured forward key moves toward the first
-ranked project, the reverse key moves toward the last, and both wrap. Either key clears an active project filter
-directly when its loaded result is empty.
+prefix and then `1`–`7` to select the matching numbered view; bare digits continue to switch the Admin Center's
+top-level tabs. The group control is visible and active only in Projects and XPrompts. On the XPrompts view, the focus
+key opens a filterable picker and the clear-focus key restores **All xprompts**. Project filtering cycles through **All
+projects** and the latest cached unfiltered ranking: the configured forward key moves toward the first ranked project,
+the reverse key moves toward the last, and both wrap. Either key clears an active project filter directly when its
+loaded result is empty.
 
 ### Remapping Gate Modal Keys
 

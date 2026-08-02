@@ -13,7 +13,6 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 
 from sase.ace.tui.keymaps import StatisticsPaneKeymaps, key_display_name
-from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import PresetKey, StatsRange
 from sase.telemetry.render import categorical_color, render_stat_tile
 
@@ -24,6 +23,7 @@ from .statistics_pane_data import (
     XPromptsGroupBy,
     VIEW_DESCRIPTIONS,
     VIEW_LABELS,
+    VIEW_ORDER,
     statistics_view_supports_grouping,
 )
 from .statistics_pane_views import StatisticsViewsRenderingMixin
@@ -53,7 +53,6 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
 
     _keymaps: StatisticsPaneKeymaps
     _view: StatisticsView
-    _runtime_group_by: RuntimeGroupBy
     _projects_group_by: ProjectsGroupBy
     _xprompts_group_by: XPromptsGroupBy
     _project_filter: str | None
@@ -314,12 +313,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     def _group_scope_text(self) -> Text:
         key = self._effective_key("cycle_group")
         scope = self._scope_text(key, "Group", accent=_GREEN)
-        if self._view == "runtime":
-            scope.append(
-                f"Runtime · {self._runtime_group_by.title()}",
-                style=f"bold {_GREEN}",
-            )
-        elif self._view == "projects":
+        if self._view == "projects":
             scope.append(
                 f"Projects · {_PROJECTS_GROUP_LABELS[self._projects_group_by]}",
                 style=f"bold {_GREEN}",
@@ -366,7 +360,8 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         hints = Text(justify="center")
         if self._pending_view_select:
             hints.append(
-                f"{self._effective_key('select_view')}… press 1-9 to select a view",
+                f"{self._effective_key('select_view')}… "
+                f"press {self._view_selection_range_text()} to select a view",
                 style=f"bold {_ACCENT}",
             )
             return hints
@@ -397,6 +392,11 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             )
             hints.append(" focus")
         return hints
+
+    @staticmethod
+    def _view_selection_range_text() -> str:
+        """Return the valid one-digit Statistics view selection range."""
+        return f"1-{len(VIEW_ORDER)}"
 
     def _effective_scroll_keys(self) -> str:
         """Combine the effective half-page keys without wasting footer width."""

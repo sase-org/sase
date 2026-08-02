@@ -123,7 +123,7 @@ _TAB_SPECS: tuple[CenterTabSpec, ...] = (
         4,
         "Statistics",
         "#FF87D7",
-        "Explore agent activity, runtime, outcomes, and trends over time.",
+        "Explore runners, projects, activity, and trends over time.",
         "StatisticsPane",
         _statistics_pane_factory,
     ),

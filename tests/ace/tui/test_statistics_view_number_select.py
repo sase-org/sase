@@ -12,7 +12,6 @@ from sase.ace.tui.modals.statistics_pane_data import (
     StatisticsView,
     VIEW_LABELS,
 )
-from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import StatsRange
 
 from tests.ace.tui._statistics_pane_helpers import (
@@ -21,10 +20,10 @@ from tests.ace.tui._statistics_pane_helpers import (
 )
 
 
-async def test_number_prefix_selects_third_and_ninth_views(
+async def test_number_prefix_selects_second_and_seventh_views(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
@@ -34,23 +33,40 @@ async def test_number_prefix_selects_third_and_ninth_views(
         assert pane._pending_view_select is True
         assert (
             pane.query_one("#statistics-hints", Static).render().plain
-            == "0… press 1-9 to select a view"
+            == "0… press 1-7 to select a view"
         )
-        await page.press("3")
+        await page.press("2")
         await page.wait_for(lambda _state: pane._view == "runners")
         assert modal._active_tab == "statistics"
         assert pane._pending_view_select is False
 
-        await page.press("0", "9")
+        await page.press("0", "7")
         await page.wait_for(lambda _state: pane._view == "plans_questions")
         assert modal._active_tab == "statistics"
+        assert pane._pending_view_select is False
+
+
+async def test_number_prefix_ignores_out_of_range_digit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
+    _patch_center(monkeypatch, calls)
+
+    async with AcePage() as page:
+        modal, pane = await _open_statistics(page)
+
+        await page.press("0", "8")
+        await page.pause()
+
+        assert modal._active_tab == "statistics"
+        assert pane._view == "overview"
         assert pane._pending_view_select is False
 
 
 async def test_bare_digit_keeps_switching_admin_center_tabs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
@@ -66,14 +82,14 @@ async def test_bare_digit_keeps_switching_admin_center_tabs(
 async def test_repeated_prefix_rearms_before_view_selection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
         modal, pane = await _open_statistics(page)
 
         await page.press("0", "0", "2")
-        await page.wait_for(lambda _state: pane._view == "runs")
+        await page.wait_for(lambda _state: pane._view == "runners")
 
         assert modal._active_tab == "statistics"
         assert pane._pending_view_select is False
@@ -84,7 +100,7 @@ async def test_non_digit_cancels_prefix_and_continues_to_modal(
     monkeypatch: pytest.MonkeyPatch,
     close_key: str,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
@@ -100,7 +116,7 @@ async def test_non_digit_cancels_prefix_and_continues_to_modal(
 async def test_range_input_keeps_prefix_digit_as_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
@@ -118,7 +134,7 @@ async def test_range_input_keeps_prefix_digit_as_text(
 async def test_configured_prefix_arms_the_same_number_selection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(monkeypatch, calls)
     registry = load_keymap_registry({"keymaps": {"statistics": {"select_view": "f4"}}})
 
@@ -128,10 +144,10 @@ async def test_configured_prefix_arms_the_same_number_selection(
 
         await page.press("f4")
         hints = pane.query_one("#statistics-hints", Static).render().plain
-        assert hints == "f4… press 1-9 to select a view"
+        assert hints == "f4… press 1-7 to select a view"
         await page.press("2")
-        await page.wait_for(lambda _state: pane._view == "runs")
+        await page.wait_for(lambda _state: pane._view == "runners")
 
         assert modal._active_tab == "statistics"
-        assert VIEW_LABELS[pane._view] == "Runs"
+        assert VIEW_LABELS[pane._view] == "Runners"
         assert pane._pending_view_select is False

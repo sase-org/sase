@@ -23,7 +23,6 @@ _ACCENT = "#FF87D7"
 _CYAN = "#87D7FF"
 _GOLD = "#FFD700"
 _GREEN = "#5FD75F"
-_RED = "#FF5F5F"
 
 
 class StatisticsViewsRenderingMixin(
@@ -42,16 +41,12 @@ class StatisticsViewsRenderingMixin(
         renderable: Any
         if self._view == "overview":
             renderable = self._overview_renderable(views.overview)
-        elif self._view == "runs":
-            renderable = self._runs_renderable(views.runs)
         elif self._view == "runners":
             renderable = self._runners_renderable(result)
         elif self._view == "projects":
             return self._projects_renderable(views.projects)
         elif self._view == "providers":
             renderable = self._providers_renderable(views.providers)
-        elif self._view == "runtime":
-            renderable = self._runtime_renderable(views.runtime)
         elif self._view == "activity":
             renderable = self._activity_renderable(views.activity)
         elif self._view == "xprompts":
@@ -109,40 +104,6 @@ class StatisticsViewsRenderingMixin(
             ),
         )
 
-    def _runs_renderable(self, runs: Any) -> Group:
-        outcomes = self._count_table("Outcome", runs.outcomes, include_share=True)
-        lifecycle = Text()
-        lifecycle.append(f"In progress  {runs.in_progress}", style=_CYAN)
-        lifecycle.append("    ")
-        lifecycle.append(f"Waiting  {runs.waiting}", style=_GOLD)
-        lifecycle.append("    ")
-        lifecycle.append(f"Retry chains  {runs.retry_chains}")
-        lifecycle.append(f"  ·  attempts  {runs.retry_attempts}")
-        lifecycle.append(f"  ·  kills  {runs.retry_kills}", style=_RED)
-        commit_summary = Text(
-            f"{runs.commits} commits  ·  {runs.committing_agents} committing agents  ·  "
-            f"{runs.average_commits_per_committing_agent:.2f} average per committing agent"
-        )
-        distribution = self._distribution_table("Commits", runs.commit_distribution)
-        repos = self._count_table("Repository", runs.top_repos)
-        return Group(
-            Panel(outcomes, title="Outcomes", border_style=_ACCENT),
-            Panel(lifecycle, title="Run state & retries", border_style=_CYAN),
-            Panel(commit_summary, title="Commit attribution", border_style=_GREEN),
-            Columns(
-                (
-                    Panel(
-                        distribution,
-                        title="Commits per agent",
-                        border_style=_GOLD,
-                    ),
-                    Panel(repos, title="Top target repos", border_style=_CYAN),
-                ),
-                equal=True,
-                expand=True,
-            ),
-        )
-
     def _providers_renderable(self, providers: Any) -> Panel:
         table = Table(box=box.SIMPLE, expand=True)
         table.add_column("Provider", style="bold")
@@ -165,37 +126,6 @@ class StatisticsViewsRenderingMixin(
                 else format_duration(row.mean_runtime_seconds),
             )
         return Panel(table, title="Provider → model → effort", border_style=_ACCENT)
-
-    def _runtime_renderable(self, runtime: Any) -> Group:
-        table = Table(box=box.SIMPLE, expand=True)
-        table.add_column(runtime.group_by.title(), style="bold", ratio=1)
-        table.add_column("Runs", justify="right", style=_CYAN)
-        table.add_column("Total", justify="right")
-        table.add_column("Mean", justify="right")
-        table.add_column("p50", justify="right")
-        table.add_column("p95", justify="right")
-        table.add_column("Max", justify="right")
-        table.add_column("Share", justify="right")
-        table.add_column("Scale")
-        for row in runtime.rows:
-            table.add_row(
-                row.group_label,
-                str(row.runs),
-                format_duration(row.total_seconds),
-                format_duration(row.mean_seconds),
-                format_duration(row.p50_seconds),
-                format_duration(row.p95_seconds),
-                format_duration(row.max_seconds),
-                self._percent(row.share),
-                self._share_bar(row.share, 1.0, width=10),
-            )
-        return Group(
-            Panel(
-                table,
-                title=f"Runtime grouped by {runtime.group_by}",
-                border_style=_ACCENT,
-            ),
-        )
 
     def _activity_renderable(self, activity: Any) -> Columns:
         skills = self._activity_table("Skill", activity.skills)

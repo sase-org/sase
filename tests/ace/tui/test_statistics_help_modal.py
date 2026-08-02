@@ -19,7 +19,6 @@ def _modal(current_view: StatisticsView = "overview") -> StatisticsHelpModal:
     return StatisticsHelpModal(
         current_view=current_view,
         selected_range=StatsRange(100, 200, "exact range", "Last 7 days"),
-        runtime_group_by="tribe",
         projects_group_by="project",
         xprompts_group_by="usage",
         project_label="All projects",
@@ -53,7 +52,7 @@ def test_help_documents_every_statistics_binding_and_current_scope() -> None:
         else:
             assert description in controls
     assert "Last 7 days · exact range" in controls
-    assert "0  Select View by Number — press 0 then 1-9" in controls
+    assert "0  Select View by Number — press 0 then 1-7" in controls
     assert "next ranked project; current: All projects" in controls
     assert "previous ranked project; current: All projects" in controls
 
@@ -63,8 +62,6 @@ def test_help_group_control_is_visible_only_for_grouping_views() -> None:
         controls = _modal(view)._controls_text().plain
         if view == "projects":
             assert "Group By — Projects · By Project" in controls
-        elif view == "runtime":
-            assert "Group By — Runtime · Tribe" in controls
         elif view == "xprompts":
             assert "Group By — XPrompts · By Usage" in controls
         else:

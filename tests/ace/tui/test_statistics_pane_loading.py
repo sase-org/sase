@@ -16,7 +16,6 @@ from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.statistics_pane import StatisticsPane
 from sase.ace.tui.modals.statistics_pane_data import StatisticsView
 from sase.project_display_names import ProjectDisplaySnapshot
-from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import StatsRange
 
 from tests.ace.tui._statistics_pane_helpers import (
@@ -34,7 +33,7 @@ from tests._project_display_case import ProjectDisplayCase
 async def test_statistics_loads_only_after_its_tab_becomes_active(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
@@ -54,7 +53,6 @@ async def test_statistics_loads_only_after_its_tab_becomes_active(
 
         assert len(calls) == 1
         assert calls[0][0] == "overview"
-        assert calls[0][2] == "tribe"
         _assert_range_scope_matches_selection(pane)
         assert pane._range.display_label == "Last 7 days"
         title = pane.query_one("#statistics-title", Static).render().plain
@@ -72,7 +70,6 @@ def test_stale_project_filter_result_is_discarded_and_rescheduled(
     result = _result(
         pane._view,
         pane._range,
-        pane._runtime_group_by,
         project_filter="sase",
     )
     worker = SimpleNamespace(result=result, error=None)
@@ -97,7 +94,6 @@ def test_stale_xprompt_focus_result_is_discarded_and_rescheduled(
     result = _result(
         pane._view,
         pane._range,
-        pane._runtime_group_by,
         xprompt_focus="gh",
     )
     worker = SimpleNamespace(result=result, error=None)
@@ -116,24 +112,24 @@ def test_stale_xprompt_focus_result_is_discarded_and_rescheduled(
 async def test_refresh_preserves_selection_and_hidden_tick_is_inert(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
         modal, pane = await _open_statistics(page)
-        pane._set_view("runtime")
+        pane._set_view("projects")
         pane.action_cycle_group()
-        await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
+        await page.pause()
         await page.press("r")
-        await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
+        await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
 
-        assert calls[-1][0] == "runtime"
-        assert calls[-1][2] == "clan"
+        assert calls[-1][0] == "projects"
+        assert pane._projects_group_by == "changespec"
         _assert_range_scope_matches_selection(pane)
         await modal._switch_to("config")
         pane._on_refresh_tick()
         await page.pause()
-        assert len(calls) == 3
+        assert len(calls) == 2
         assert pane._load_debouncer is not None
         assert not pane._load_debouncer.is_pending
 
@@ -153,7 +149,7 @@ async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(
     monkeypatch.setenv("SASE_TUI_PUMP_STALL_POLL_INTERVAL", "0.02")
     monkeypatch.setattr(sp, "_REFRESH_INTERVAL_SECONDS", 0.2)
 
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(
         monkeypatch,
         calls,
@@ -186,7 +182,7 @@ async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(
 def test_loader_queries_current_activity_and_previous_equal_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[str, int, int, str | None, str | None]] = []
+    calls: list[tuple[str, int, int, str | None, str | None, str | None]] = []
     selected_range = StatsRange(10, 20, "absolute", "Last 10 seconds")
     display_snapshot = ProjectDisplaySnapshot({"sase": "SASE Display"})
     snapshot_loads = 0
@@ -202,6 +198,7 @@ def test_loader_queries_current_activity_and_previous_equal_window(
                 "runs",
                 int(kwargs["start_ts"]),  # type: ignore[arg-type]
                 int(kwargs["end_ts"]),  # type: ignore[arg-type]
+                kwargs.get("runtime_group_by"),  # type: ignore[arg-type]
                 kwargs.get("project"),  # type: ignore[arg-type]
                 kwargs.get("xprompt_focus"),  # type: ignore[arg-type]
             )
@@ -214,6 +211,7 @@ def test_loader_queries_current_activity_and_previous_equal_window(
                 "activity",
                 int(kwargs["start_ts"]),  # type: ignore[arg-type]
                 int(kwargs["end_ts"]),  # type: ignore[arg-type]
+                kwargs.get("runtime_group_by"),  # type: ignore[arg-type]
                 kwargs.get("project"),  # type: ignore[arg-type]
                 kwargs.get("xprompt_focus"),  # type: ignore[arg-type]
             )
@@ -236,15 +234,14 @@ def test_loader_queries_current_activity_and_previous_equal_window(
     result = sp.load_statistics_view(
         "overview",
         selected_range,
-        "tribe",
         "sase",
         "split_file",
     )
 
     assert calls == [
-        ("runs", 10, 20, "sase", "split_file"),
-        ("activity", 10, 20, "sase", None),
-        ("runs", 0, 10, "sase", None),
+        ("runs", 10, 20, "tribe", "sase", "split_file"),
+        ("activity", 10, 20, None, "sase", None),
+        ("runs", 0, 10, "tribe", "sase", None),
     ]
     assert result.views.overview.agents_run == 6
     assert result.project_filter == "sase"

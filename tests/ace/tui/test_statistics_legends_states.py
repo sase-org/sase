@@ -17,7 +17,6 @@ from sase.ace.tui.modals.statistics_pane_data import (
 )
 from sase.ace.tui.modals.statistics_pane_legends import VIEW_LEGENDS
 from sase.project_display_names import ProjectDisplaySnapshot
-from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import StatsRange
 
 from tests.ace.tui._statistics_pane_helpers import (
@@ -49,15 +48,13 @@ def test_legends_exhaustively_cover_views_with_single_line_copy() -> None:
 
 def test_view_renderables_include_verified_metric_definitions() -> None:
     pane = StatisticsPane(auto_load=False)
-    result = _result(pane._view, pane._range, pane._runtime_group_by)
+    result = _result(pane._view, pane._range)
 
     expected = {
         "overview": "Success = completed ÷ finished runs",
-        "runs": "Outcome share = share of finished runs",
         "runners": "Average = runner-seconds ÷ analyzed wall time",
         "projects": "Success = completed ÷ all runs",
         "providers": "Avg runtime = mean among runs with a valid finish/stop duration",
-        "runtime": "In progress = excluded from duration math",
         "activity": "Agents = distinct agent names that used the skill or memory",
         "xprompts": (
             "Scope = launch-boundary references only; workflow step templates excluded"
@@ -80,7 +77,6 @@ def test_empty_state_names_range_and_omits_irrelevant_filter_action() -> None:
     result = _result(
         pane._view,
         pane._range,
-        pane._runtime_group_by,
         empty=True,
     )
 
@@ -103,7 +99,6 @@ def test_empty_state_names_filtered_project_and_effective_clear_key() -> None:
     result = _result(
         pane._view,
         pane._range,
-        pane._runtime_group_by,
         empty=True,
         project_filter=project_key,
         project_display_snapshot=ProjectDisplaySnapshot({project_key: "widgets"}),
@@ -129,9 +124,9 @@ def test_error_state_uses_effective_refresh_key() -> None:
 
 def test_overview_tile_mapping_is_complete() -> None:
     assert OVERVIEW_TILE_TARGETS == (
-        ("Agents Run", "runs"),
-        ("Success Rate", "runs"),
-        ("Commits", "runs"),
+        ("Agents Run", "projects"),
+        ("Success Rate", "projects"),
+        ("Commits", "projects"),
         ("Plans Proposed", "plans_questions"),
         ("Questions", "plans_questions"),
     )
@@ -140,13 +135,13 @@ def test_overview_tile_mapping_is_complete() -> None:
 async def test_overview_tile_click_uses_set_view_without_loading_again(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
         _, pane = await _open_statistics(page)
 
         await page.click("#statistics-tile-0")
-        await page.wait_for(lambda _state: pane._view == "runs")
+        await page.wait_for(lambda _state: pane._view == "projects")
 
         assert len(calls) == 1

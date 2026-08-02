@@ -21,17 +21,6 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
         _MetricLegend("Delta", "run change vs the preceding equal-length window"),
         _MetricLegend("Tiles", "click to open their detail view"),
     ),
-    "runs": (
-        _MetricLegend("Outcome share", "share of finished runs"),
-        _MetricLegend("Waiting", "paused for prerequisites"),
-        _MetricLegend("Retry chains", "linked retry groups"),
-        _MetricLegend("Attempts", "retry launches"),
-        _MetricLegend("Kills", "terminal retry attempts"),
-        _MetricLegend(
-            "Committing agents",
-            "run records with ≥1 commit",
-        ),
-    ),
     "runners": (
         _MetricLegend(
             "Runner",
@@ -69,12 +58,6 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
             "Avg runtime",
             "mean among runs with a valid finish/stop duration",
         ),
-    ),
-    "runtime": (
-        _MetricLegend("Runs", "records with a valid finish/stop duration"),
-        _MetricLegend("p50/p95", "median / 95th-percentile runtime"),
-        _MetricLegend("Share", "share of total runtime"),
-        _MetricLegend("In progress", "excluded from duration math"),
     ),
     "activity": (
         _MetricLegend(

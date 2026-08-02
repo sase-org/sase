@@ -20,7 +20,7 @@ from tests.ace.tui._statistics_pane_helpers import (
 
 
 async def test_picker_filters_cached_rows_highlights_focus_and_selects() -> None:
-    result = _result("xprompts", resolve_preset("7d"), "tribe")
+    result = _result("xprompts", resolve_preset("7d"))
     choices: list[XPromptFocusChoice | None] = []
 
     async with AcePage() as page:
@@ -48,7 +48,7 @@ async def test_picker_filters_cached_rows_highlights_focus_and_selects() -> None
 
 
 async def test_picker_cancel_is_distinct_from_all_xprompts() -> None:
-    result = _result("xprompts", resolve_preset("7d"), "tribe")
+    result = _result("xprompts", resolve_preset("7d"))
     choices: list[XPromptFocusChoice | None] = []
 
     async with AcePage() as page:

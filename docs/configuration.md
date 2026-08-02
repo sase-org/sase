@@ -215,26 +215,27 @@ On Repos and Workspaces, `p` opens a shared project picker. Choosing a disabled 
 
 ### Statistics tab
 
-The Statistics tab aggregates durable agent run and activity records over a selectable time range. Its nine numbered
-views are **1 Overview**, **2 Runs**, **3 Runners**, **4 Projects**, **5 Providers**, **6 Runtime**, **7 Activity**, **8
-XPrompts**, and **9 Plans & Questions**. The Runners view uses today's effective global limit—including a temporary
-override—as present-day context, never as historical configuration. The Projects view can group by project, by
-ChangeSpec, or as a project-to-ChangeSpec drilldown. A pane-wide project filter lets you apply the same scope to the
-other views.
+The Statistics tab aggregates durable agent run and activity records over a selectable time range. Its seven numbered
+views are **1 Overview**, **2 Runners**, **3 Projects**, **4 Providers**, **5 Activity**, **6 XPrompts**, and **7 Plans
+& Questions**. The Runners view uses today's effective global limit—including a temporary override—as present-day
+context, never as historical configuration. The Projects view can group by project, by ChangeSpec, or as a
+project-to-ChangeSpec drilldown. XPrompts can group by usage, model, project, or co-usage. A pane-wide project filter
+lets you apply the same scope to the other views.
 
 The pane loads only while visible, refreshes every 30 seconds, and performs its queries off the UI thread. Use `[` / `]`
-to change views or press `0` followed by `1`–`9` to select one directly. Use `t`/`T` or `c` to choose a preset or custom
-range, `g` to change the Projects, Runtime, or XPrompts grouping, `p`/`P` to cycle the project filter forward or
-backward, and `r` to refresh immediately. Keyed scope chips keep the effective range, grouping, and project visible; the
-**Group** chip appears only in Projects, Runtime, and XPrompts and names the selected dimension there. Project scopes
-use configured display names while retaining canonical keys internally. The filter order is **All projects**, followed
-by projects ranked by run count in the most recently loaded unfiltered result, and then wraps: `p` moves forward and `P`
-backward. Return to **All** after changing the range to rebuild that list for the new range. If a selected project
-produces an empty result, either project-cycle key clears directly to **All projects**. Every populated view includes a
-compact metric legend, `?` opens the complete glossary and current scope, and empty/error states show the effective keys
-for widening, clearing, or retrying. The Overview plan and question tiles remain all-project values even when a project
-is selected; see [Telemetry: Admin Center Statistics tab](telemetry.md#admin-center-statistics-tab) for the view
-contents, range syntax, and project-filter caveats.
+to change views or press `0` followed by `1`–`7` to select one directly. Use `t`/`T` or `c` to choose a preset or custom
+range, `g` to change the Projects or XPrompts grouping, `p`/`P` to cycle the project filter forward or backward, and `r`
+to refresh immediately. Keyed scope chips keep the effective range, grouping, and project visible; the **Group** chip
+appears only in Projects and XPrompts and names the selected dimension there. Project scopes use configured display
+names while retaining canonical keys internally. The filter order is **All projects**, followed by projects ranked by
+run count in the most recently loaded unfiltered result, and then wraps: `p` moves forward and `P` backward. Return to
+**All** after changing the range to rebuild that list for the new range. If a selected project produces an empty result,
+either project-cycle key clears directly to **All projects**. Every populated view includes a compact metric legend, `?`
+opens the complete glossary and current scope, and empty/error states show the effective keys for widening, clearing, or
+retrying. The Overview Agents Run, Success Rate, and Commits tiles open Projects, while Plans Proposed and Questions
+open Plans & Questions. The plan and question tiles remain all-project values even when a project is selected; see
+[Telemetry: Admin Center Statistics tab](telemetry.md#admin-center-statistics-tab) for the view contents, range syntax,
+and project-filter caveats.
 
 ### Updates tab
 
@@ -702,11 +703,11 @@ deprecated alias for `submit_primary`.
 | ------------------------------ | ---------------------- | --------------------------------------------------------------------- |
 | `prev_view`                    | `left_square_bracket`  | Select the previous Statistics view.                                  |
 | `next_view`                    | `right_square_bracket` | Select the next Statistics view.                                      |
-| `select_view`                  | `0`                    | Arm `1`–`9` selection for a numbered Statistics view.                 |
+| `select_view`                  | `0`                    | Arm `1`–`7` selection for a numbered Statistics view.                 |
 | `cycle_range`                  | `t`                    | Cycle to the next statistics time range.                              |
 | `cycle_range_reverse`          | `T`                    | Cycle to the previous statistics time range.                          |
 | `custom_range`                 | `c`                    | Enter a custom statistics time range.                                 |
-| `cycle_group`                  | `g`                    | Cycle grouping in the Projects, Runtime, or XPrompts view.            |
+| `cycle_group`                  | `g`                    | Cycle grouping in the Projects or XPrompts view.                      |
 | `cycle_project_filter`         | `p`                    | Cycle forward through All and the latest unfiltered project ranking.  |
 | `cycle_project_filter_reverse` | `P`                    | Cycle backward through All and the latest unfiltered project ranking. |
 | `scroll_down`                  | `ctrl+d`               | Scroll the Statistics body down by half a page.                       |

@@ -269,15 +269,15 @@ def _activity_payload() -> dict:
 def _result(
     view: StatisticsView,
     selected_range: StatsRange,
-    group_by: RuntimeGroupBy,
     *,
     empty: bool = False,
     project_filter: str | None = None,
     project_display_snapshot: ProjectDisplaySnapshot | None = None,
     project_display_case: ProjectDisplayCase | None = None,
     xprompt_focus: str | None = None,
+    runtime_group_by: RuntimeGroupBy = "tribe",
 ) -> StatisticsViewData:
-    run_payload = {} if empty else _run_payload(selected_range, group_by)
+    run_payload = {} if empty else _run_payload(selected_range, runtime_group_by)
     if run_payload and xprompt_focus is not None:
         found = xprompt_focus == "split_file"
         run_payload["xprompts"]["focus"] = {
@@ -314,9 +314,9 @@ def _result(
                 "name": project_display_case.changespec_key,
             }
         )
-        if group_by == "project":
+        if runtime_group_by == "project":
             run_payload["runtime_groups"][0]["group"] = project_display_case.project_key
-        elif group_by == "changespec":
+        elif runtime_group_by == "changespec":
             run_payload["runtime_groups"][0]["group"] = (
                 project_display_case.changespec_key
             )
@@ -333,7 +333,6 @@ def _result(
     return StatisticsViewData(
         view=view,
         selected_range=selected_range,
-        runtime_group_by=group_by,
         generated_at=_NOW,
         views=build_statistics_views(
             run_payload,
@@ -359,15 +358,13 @@ def _patch_center(
     def load(
         view: StatisticsView,
         selected_range: StatsRange,
-        group_by: RuntimeGroupBy,
         project_filter: str | None = None,
         xprompt_focus: str | None = None,
     ) -> StatisticsViewData:
-        calls.append((view, selected_range, group_by, project_filter, xprompt_focus))
+        calls.append((view, selected_range, project_filter, xprompt_focus))
         return _result(
             view,
             selected_range,
-            group_by,
             project_filter=project_filter,
             project_display_case=project_display_case,
             xprompt_focus=xprompt_focus,

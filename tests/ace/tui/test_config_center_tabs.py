@@ -55,7 +55,7 @@ def test_catalog_is_the_single_numbered_alphabetical_source() -> None:
         "Review and edit layered SASE settings with provenance and live previews.",
         "Inspect TUI activity, launch failures, and notification history.",
         "Manage projects and inspect their repositories and workspaces.",
-        "Explore agent activity, runtime, outcomes, and trends over time.",
+        "Explore runners, projects, activity, and trends over time.",
         "Follow background work, inspect live output, and manage running jobs.",
         "Update SASE, plugins, and supported agent CLIs from one place.",
         "Find, preview, and load reusable prompts and workflows.",

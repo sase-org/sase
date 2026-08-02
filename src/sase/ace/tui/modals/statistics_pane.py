@@ -21,7 +21,6 @@ from sase.ace.tui.keymaps import (
 )
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.widgets.panel_tab_strip import PanelTab, PanelTabStrip
-from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import (
     DEFAULT_PRESET,
     PRESET_ORDER,
@@ -33,7 +32,6 @@ from sase.stats.ranges import (
 
 from .statistics_pane_data import (
     PROJECTS_GROUP_ORDER,
-    RUNTIME_GROUP_ORDER,
     XPROMPTS_GROUP_ORDER,
     VIEW_COMPACT_LABELS,
     VIEW_LABELS,
@@ -50,8 +48,8 @@ from .statistics_pane_rendering import StatisticsPanePresentationBase
 
 _ACCENT = "#FF87D7"
 _REFRESH_INTERVAL_SECONDS = 30.0
-_VIEWS_COMPACT_BELOW_WIDTH = 136
-_VIEWS_MICRO_BELOW_WIDTH = 92
+_VIEWS_COMPACT_BELOW_WIDTH = 111
+_VIEWS_MICRO_BELOW_WIDTH = 75
 _VIEW_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(
         view,
@@ -63,9 +61,9 @@ _VIEW_TABS: tuple[PanelTab, ...] = tuple(
     for view in VIEW_ORDER
 )
 OVERVIEW_TILE_TARGETS: tuple[tuple[str, StatisticsView], ...] = (
-    ("Agents Run", "runs"),
-    ("Success Rate", "runs"),
-    ("Commits", "runs"),
+    ("Agents Run", "projects"),
+    ("Success Rate", "projects"),
+    ("Commits", "projects"),
     ("Plans Proposed", "plans_questions"),
     ("Questions", "plans_questions"),
 )
@@ -118,7 +116,7 @@ class _CustomRangeInput(Input):
 
 
 class StatisticsPane(StatisticsPanePresentationBase):
-    """Nine numeric Statistics views backed by durable agent activity."""
+    """Seven numeric Statistics views backed by durable agent activity."""
 
     can_focus = True
     BINDINGS = []
@@ -137,7 +135,6 @@ class StatisticsPane(StatisticsPanePresentationBase):
         self._preset_key: PresetKey | None = DEFAULT_PRESET
         self._custom_range_value: str | None = None
         self._range = resolve_preset(DEFAULT_PRESET)
-        self._runtime_group_by: RuntimeGroupBy = "tribe"
         self._projects_group_by: ProjectsGroupBy = "project"
         self._xprompts_group_by: XPromptsGroupBy = "usage"
         self._project_filter: str | None = None
@@ -292,17 +289,17 @@ class StatisticsPane(StatisticsPanePresentationBase):
             return
 
         character = getattr(event, "character", None)
-        digit = (
+        selected_digit = (
             character
-            if isinstance(character, str) and character in "123456789"
+            if isinstance(character, str) and character.isdecimal()
             else event.key
         )
-        if digit in "123456789":
+        if isinstance(selected_digit, str) and selected_digit.isdecimal():
             event.prevent_default()
             event.stop()
             self._pending_view_select = False
-            view_index = int(digit) - 1
-            if view_index < len(VIEW_ORDER):
+            view_index = int(selected_digit) - 1
+            if 0 <= view_index < len(VIEW_ORDER):
                 self._set_view(VIEW_ORDER[view_index])
             self._update_hints()
             return
@@ -355,13 +352,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
         """Cycle the active view's grouping strategy when it supports one."""
         if not statistics_view_supports_grouping(self._view):
             return
-        if self._view == "runtime":
-            index = RUNTIME_GROUP_ORDER.index(self._runtime_group_by)
-            self._runtime_group_by = RUNTIME_GROUP_ORDER[
-                (index + 1) % len(RUNTIME_GROUP_ORDER)
-            ]
-            self._selection_changed(reload=True)
-        elif self._view == "projects":
+        if self._view == "projects":
             index = PROJECTS_GROUP_ORDER.index(self._projects_group_by)
             self._projects_group_by = PROJECTS_GROUP_ORDER[
                 (index + 1) % len(PROJECTS_GROUP_ORDER)
@@ -485,7 +476,6 @@ class StatisticsPane(StatisticsPanePresentationBase):
             StatisticsHelpModal(
                 current_view=self._view,
                 selected_range=self._range,
-                runtime_group_by=self._runtime_group_by,
                 projects_group_by=self._projects_group_by,
                 xprompts_group_by=self._xprompts_group_by,
                 project_label=project_label,
@@ -582,7 +572,6 @@ class StatisticsPane(StatisticsPanePresentationBase):
         self._range = self._resolve_current_range()
         view = self._view
         selected_range = self._range
-        runtime_group_by = self._runtime_group_by
         project_filter = self._project_filter
         xprompt_focus = self._xprompt_focus
         self._loading = True
@@ -595,7 +584,6 @@ class StatisticsPane(StatisticsPanePresentationBase):
             return load_statistics_view(
                 view,
                 selected_range,
-                runtime_group_by,
                 project_filter,
                 xprompt_focus,
             )
@@ -620,7 +608,6 @@ class StatisticsPane(StatisticsPanePresentationBase):
             if (
                 result.view != self._view
                 or result.selected_range != self._range
-                or result.runtime_group_by != self._runtime_group_by
                 or result.project_filter != self._project_filter
                 or result.xprompt_focus != self._xprompt_focus
             ):

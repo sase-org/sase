@@ -53,7 +53,6 @@ def test_renderers_use_projected_labels_and_canonical_project_colors(
 
     overview = _render_plain(pane._overview_renderable(views.overview))
     activity = _render_plain(pane._activity_renderable(views.activity))
-    runtime = _render_plain(pane._runtime_renderable(views.runtime))
     project_surfaces: list[str] = []
     for group_by in ("project", "changespec", "drilldown"):
         pane._projects_group_by = group_by  # type: ignore[assignment]
@@ -63,20 +62,18 @@ def test_renderers_use_projected_labels_and_canonical_project_colors(
 
     assert project_display_case.project_label in overview
     assert f"{project_display_case.project_label} · 15" in activity
-    assert project_display_case.project_label in runtime
+    assert views.runtime.rows[0].group_label == project_display_case.project_label
     assert all(
         project_display_case.project_label in rendered for rendered in project_surfaces
     )
     assert changespec_label in "\n".join(project_surfaces)
-    assert widgets_key not in "\n".join(
-        (overview, activity, runtime, *project_surfaces)
-    )
+    assert widgets_key not in "\n".join((overview, activity, *project_surfaces))
     assert widgets_key in color_keys
 
 
 def test_all_project_plan_and_question_values_need_no_scope_markers() -> None:
     pane = StatisticsPane(auto_load=False)
-    view = _result(pane._view, pane._range, pane._runtime_group_by).views
+    view = _result(pane._view, pane._range).views
 
     group = pane._plans_questions_renderable(
         view.plans_questions, requested_start_ts=pane._range.start_ts
@@ -95,7 +92,7 @@ def test_all_project_plan_and_question_values_need_no_scope_markers() -> None:
 def test_project_filtered_plan_and_question_values_need_no_scope_markers() -> None:
     pane = StatisticsPane(auto_load=False)
     pane._project_filter = "sase"
-    view = _result(pane._view, pane._range, pane._runtime_group_by).views
+    view = _result(pane._view, pane._range).views
 
     group = pane._plans_questions_renderable(
         view.plans_questions, requested_start_ts=pane._range.start_ts
@@ -132,7 +129,6 @@ def test_xprompts_grouping_modes_render_distinctive_columns_and_rows(
     result = _result(
         "xprompts",
         pane._range,
-        pane._runtime_group_by,
         project_display_snapshot=ProjectDisplaySnapshot(
             {"sase": "SASE", "core": "Core"}
         ),
@@ -150,7 +146,7 @@ def test_xprompts_grouping_modes_render_distinctive_columns_and_rows(
 
 def test_swarm_rows_and_focus_header_label_the_swarm_kind() -> None:
     pane = StatisticsPane(auto_load=False)
-    payload = _run_payload(pane._range, pane._runtime_group_by)
+    payload = _run_payload(pane._range, "tribe")
     payload["xprompts"]["rows"][0].update(
         {"name": "research_swarm", "kind": "swarm", "tags": []}
     )
@@ -165,9 +161,7 @@ def test_plans_questions_render_feedback_and_coverage_floor() -> None:
     pane = StatisticsPane(auto_load=False)
     payload = _activity_payload()
     payload["coverage_start_ts"] = pane._range.start_ts + 60
-    views = build_statistics_views(
-        _run_payload(pane._range, pane._runtime_group_by), payload
-    )
+    views = build_statistics_views(_run_payload(pane._range, "tribe"), payload)
 
     rendered = _render_plain(
         pane._plans_questions_renderable(
@@ -182,7 +176,7 @@ def test_plans_questions_render_feedback_and_coverage_floor() -> None:
 
 def test_xprompt_focus_header_labels_the_swarm_kind() -> None:
     pane = StatisticsPane(auto_load=False)
-    payload = _run_payload(pane._range, pane._runtime_group_by)
+    payload = _run_payload(pane._range, "tribe")
     payload["xprompts"]["focus"] = {
         "name": "research_swarm",
         "found": True,
@@ -216,7 +210,7 @@ def test_xprompt_focus_header_labels_the_swarm_kind() -> None:
 
 def test_xprompts_truncation_is_explicit() -> None:
     pane = StatisticsPane(auto_load=False)
-    payload = _run_payload(pane._range, pane._runtime_group_by)
+    payload = _run_payload(pane._range, "tribe")
     payload["xprompts"]["truncated_rows"] = 7
     views = build_statistics_views(payload, _activity_payload())
 
@@ -227,17 +221,15 @@ def test_xprompts_truncation_is_explicit() -> None:
 
 def test_xprompts_unavailable_and_no_reference_states_use_effective_keys() -> None:
     pane = StatisticsPane(auto_load=False)
-    unavailable = _run_payload(pane._range, pane._runtime_group_by)
+    unavailable = _run_payload(pane._range, "tribe")
     unavailable.pop("xprompts")
     unavailable_result = _result(
         "xprompts",
         pane._range,
-        pane._runtime_group_by,
     )
     unavailable_result = unavailable_result.__class__(
         view="xprompts",
         selected_range=pane._range,
-        runtime_group_by=pane._runtime_group_by,
         generated_at=unavailable_result.generated_at,
         views=build_statistics_views(unavailable, _activity_payload()),
     )
@@ -247,7 +239,7 @@ def test_xprompts_unavailable_and_no_reference_states_use_effective_keys() -> No
     assert "XPrompt statistics unavailable" in rendered
     assert "Press r to refresh" in rendered
 
-    empty_payload = _run_payload(pane._range, pane._runtime_group_by)
+    empty_payload = _run_payload(pane._range, "tribe")
     empty_payload["xprompts"].update(
         {
             "runs_with_xprompts": 0,
@@ -260,7 +252,6 @@ def test_xprompts_unavailable_and_no_reference_states_use_effective_keys() -> No
     empty_result = unavailable_result.__class__(
         view="xprompts",
         selected_range=pane._range,
-        runtime_group_by=pane._runtime_group_by,
         generated_at=unavailable_result.generated_at,
         views=build_statistics_views(empty_payload, _activity_payload()),
     )

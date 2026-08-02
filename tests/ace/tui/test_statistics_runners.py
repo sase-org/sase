@@ -135,7 +135,6 @@ def _runner_result(
     return StatisticsViewData(
         view="runners",
         selected_range=selected_range,
-        runtime_group_by="tribe",
         generated_at=10_800.0,
         views=build_statistics_views(
             run_payload,

@@ -16,36 +16,31 @@ from sase.stats.views import StatisticsViews, build_statistics_views
 
 StatisticsView = Literal[
     "overview",
-    "runs",
     "runners",
     "projects",
     "providers",
-    "runtime",
     "activity",
     "xprompts",
     "plans_questions",
 ]
 ProjectsGroupBy = Literal["project", "changespec", "drilldown"]
 XPromptsGroupBy = Literal["usage", "model", "project", "pairing"]
+_FIXED_RUNTIME_GROUP_BY: RuntimeGroupBy = "tribe"
 
 VIEW_ORDER: tuple[StatisticsView, ...] = (
     "overview",
-    "runs",
     "runners",
     "projects",
     "providers",
-    "runtime",
     "activity",
     "xprompts",
     "plans_questions",
 )
 VIEW_LABELS: dict[StatisticsView, str] = {
     "overview": "Overview",
-    "runs": "Runs",
     "runners": "Runners",
     "projects": "Projects",
     "providers": "Providers",
-    "runtime": "Runtime",
     "activity": "Activity",
     "xprompts": "XPrompts",
     "plans_questions": "Plans & Questions",
@@ -56,22 +51,18 @@ VIEW_COMPACT_LABELS: dict[StatisticsView, str] = {
 }
 VIEW_MICRO_LABELS: dict[StatisticsView, str] = {
     "overview": "Ovr",
-    "runs": "Runs",
     "runners": "Rnrs",
     "projects": "Proj",
     "providers": "Prov",
-    "runtime": "Rtm",
     "activity": "Act",
     "xprompts": "XP",
     "plans_questions": "P&Q",
 }
 VIEW_DESCRIPTIONS: dict[StatisticsView, str] = {
     "overview": "Totals and trends across runs, commits, plans, and questions.",
-    "runs": "Run outcomes, retries, workspace usage, and activity over time.",
     "runners": "Runner occupancy, concurrency trends, and current-limit context.",
     "projects": "Run, ChangeSpec, commit, and runtime activity by project.",
     "providers": "Provider, model, and effort usage with success and runtime measures.",
-    "runtime": "Runtime distribution and share grouped by the selected dimension.",
     "activity": "Skill and memory usage across agents in the selected scope.",
     "xprompts": (
         "XPrompt usage across prompts, with model, project, and co-usage breakdowns."
@@ -91,22 +82,10 @@ XPROMPTS_GROUP_ORDER: tuple[XPromptsGroupBy, ...] = (
     "pairing",
 )
 
-RUNTIME_GROUP_ORDER: tuple[RuntimeGroupBy, ...] = (
-    "tribe",
-    "clan",
-    "family",
-    "agent",
-    "provider",
-    "model",
-    "workflow",
-    "project",
-    "changespec",
-)
-
 
 def statistics_view_supports_grouping(view: StatisticsView) -> bool:
     """Return whether ``view`` exposes a configurable grouping strategy."""
-    return view in ("projects", "runtime", "xprompts")
+    return view in ("projects", "xprompts")
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,7 +94,6 @@ class StatisticsViewData:
 
     view: StatisticsView
     selected_range: StatsRange
-    runtime_group_by: RuntimeGroupBy
     generated_at: float
     views: StatisticsViews
     project_filter: str | None = None
@@ -128,7 +106,6 @@ class StatisticsViewData:
 def load_statistics_view(
     view: StatisticsView,
     selected_range: StatsRange,
-    runtime_group_by: RuntimeGroupBy,
     project_filter: str | None = None,
     xprompt_focus: str | None = None,
 ) -> StatisticsViewData:
@@ -140,7 +117,7 @@ def load_statistics_view(
     run_payload = query_run_stats(
         start_ts=selected_range.start_ts,
         end_ts=selected_range.end_ts,
-        runtime_group_by=runtime_group_by,
+        runtime_group_by=_FIXED_RUNTIME_GROUP_BY,
         project=project_filter,
         xprompt_focus=xprompt_focus,
     )
@@ -155,14 +132,13 @@ def load_statistics_view(
         previous_run_payload = query_run_stats(
             start_ts=selected_range.start_ts - window_seconds,
             end_ts=selected_range.start_ts,
-            runtime_group_by=runtime_group_by,
+            runtime_group_by=_FIXED_RUNTIME_GROUP_BY,
             top_n=1,
             project=project_filter,
         )
     return StatisticsViewData(
         view=view,
         selected_range=selected_range,
-        runtime_group_by=runtime_group_by,
         generated_at=time.time(),
         views=build_statistics_views(
             run_payload,
@@ -179,7 +155,6 @@ def load_statistics_view(
 
 __all__ = [
     "PROJECTS_GROUP_ORDER",
-    "RUNTIME_GROUP_ORDER",
     "XPROMPTS_GROUP_ORDER",
     "VIEW_DESCRIPTIONS",
     "VIEW_COMPACT_LABELS",

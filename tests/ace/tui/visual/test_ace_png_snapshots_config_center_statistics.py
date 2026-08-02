@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from textual.containers import VerticalScroll
 
 from sase.ace.testing import AcePage
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
@@ -52,28 +51,6 @@ async def test_config_center_statistics_overview_png_snapshot(
             page,
             "config_center_statistics_overview_120x40",
             title="ACE SASE Admin Center — Statistics overview",
-        )
-
-
-async def test_config_center_statistics_runtime_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_siblings(monkeypatch)
-    _patch_statistics_populated(monkeypatch)
-
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
-        await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
-        _, pane = await _open_statistics_modal(page)
-        pane._set_view("runtime")
-        await wait_for_visual_idle(page)
-
-        ace_png_visual.assert_page_png(
-            page,
-            "config_center_statistics_runtime_120x40",
-            title="ACE SASE Admin Center — Statistics runtime",
         )
 
 
@@ -177,32 +154,6 @@ async def test_config_center_statistics_xprompts_narrow_png_snapshot(
             page,
             "config_center_statistics_xprompts_narrow_90x30",
             title="ACE SASE Admin Center — Statistics XPrompts narrow",
-        )
-
-
-async def test_config_center_statistics_runs_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_siblings(monkeypatch)
-    _patch_statistics_populated(monkeypatch)
-
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
-        await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
-        _, pane = await _open_statistics_modal(page)
-        pane._set_view("runs")
-        await page.pause()
-        pane.query_one("#statistics-body-scroll", VerticalScroll).scroll_end(
-            animate=False
-        )
-        await wait_for_visual_idle(page)
-
-        ace_png_visual.assert_page_png(
-            page,
-            "config_center_statistics_runs_120x40",
-            title="ACE SASE Admin Center — Statistics runs",
         )
 
 
