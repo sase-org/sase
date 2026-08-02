@@ -357,7 +357,11 @@ def test_exhausted_work_budget_defers_remaining_projects(
         [_record(tmp_path, project_name="one"), _record(tmp_path, project_name="two")],
     )
     clock = iter([0.0, 0.0, store_refresh._WORK_BUDGET_SECONDS + 1.0])
-    monkeypatch.setattr(store_refresh.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(
+        store_refresh,
+        "time",
+        SimpleNamespace(monotonic=lambda: next(clock)),
+    )
     refresh = MagicMock()
     monkeypatch.setattr(store_refresh, "refresh_bead_store", refresh)
 

@@ -57,8 +57,8 @@ def test_agent_prompts_help_documents_group_and_validation_flags() -> None:
 
     assert "{list,migrate,show,validate}" in prompts.format_help()
     assert "-j, --json" in validate_help
-    assert "-m, --month" in validate_help
-    assert "-p, --project" in validate_help
+    _assert_metavar_option_documented(validate_help, "-m", "--month", "YYYYMM")
+    _assert_metavar_option_documented(validate_help, "-p", "--project", "PROJECT")
     assert "-s, --show-warnings" in validate_help
 
 
