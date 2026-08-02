@@ -14,6 +14,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_dev_update as pbdu
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
+from sase.dev_update.code_swap_lock import code_swap_reader_lock
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
 from sase.updates.incoming_commits import (
     CommitSummary,
@@ -150,6 +151,19 @@ requirements = [
     assert "plugin 'sase-acme'" in preview.error
     assert str(missing) in preview.error
     assert "sase plugin uninstall sase-acme" in preview.error
+
+
+def test_dev_update_blocking_reason_reports_active_bead_work() -> None:
+    with code_swap_reader_lock(
+        op="bead.work",
+        command=("sase", "bead", "work", "plan.md"),
+    ) as reader:
+        assert reader.acquired is True
+        reason = pbdu.dev_update_blocking_reason(_dev_plan())
+
+    assert reason is not None
+    assert "sase bead work is running" in reason
+    assert "plan.md" in reason
 
 
 async def test_updates_pane_manual_update_reuses_load_fetches(

@@ -266,7 +266,10 @@ def _work_from_plan_file_locked(
     timer: LaunchTimingRecorder,
 ) -> _PlanFileWorkResult:
     """Run one mutation transaction while its store launch lock is held."""
+    from sase.bead.cli_work_handler import preload_launch_imports
     from sase.sdd.plan_archive import archive_plan_file
+
+    preload_launch_imports(timer)
 
     try:
         with timer.stage("plan_store_health_pre_archive"):

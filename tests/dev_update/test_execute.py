@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from sase.dev_update.execute import execute_dev_update
+from sase.dev_update.code_swap_lock import code_swap_reader_lock
 from sase.dev_update.models import (
     DevCommandResult,
     DevReconcileStep,
@@ -310,6 +311,25 @@ def test_execute_dev_update_dirty_preflight_aborts_before_merge() -> None:
     assert result.changed is False
     assert result.outcomes[0].status == "failed"
     assert "local changes" in result.outcomes[0].reason
+    assert ("git", "-C", "/repo", "merge", "--ff-only", "origin/main") not in [
+        call[0] for call in runner.calls
+    ]
+
+
+def test_execute_dev_update_defers_before_merge_when_reader_is_active() -> None:
+    runner = FakeRunner()
+
+    with code_swap_reader_lock(
+        op="bead.work",
+        command=("sase", "bead", "work", "plan.md"),
+    ) as reader:
+        assert reader.acquired is True
+        result = execute_dev_update(plan(), run=runner)
+
+    assert result.changed is False
+    assert result.outcomes[0].status == "failed"
+    assert "deferred:" in result.outcomes[0].reason
+    assert "sase bead work" in result.outcomes[0].reason
     assert ("git", "-C", "/repo", "merge", "--ff-only", "origin/main") not in [
         call[0] for call in runner.calls
     ]

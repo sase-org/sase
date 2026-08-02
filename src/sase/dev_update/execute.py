@@ -7,6 +7,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from sase.dev_update.diffstat import parse_git_numstat
+from sase.dev_update.code_swap_lock import code_swap_writer_lock
 from sase.dev_update.models import (
     DevCommandResult,
     DevCommandRunner,
@@ -58,22 +59,45 @@ def execute_dev_update(
     if preflight_failure is not None:
         return _failed_result(plan, preflight_failure, commands, changed=False)
 
-    merge_failure, merged_any, root_diffstats, root_commits = _merge_actionable_roots(
-        plan.actionable_roots, run, commands
-    )
-    if merge_failure is not None:
-        return _failed_result(plan, merge_failure, commands, changed=merged_any)
+    with code_swap_writer_lock() as lock:
+        if not lock.acquired:
+            return _failed_result(
+                plan,
+                _code_swap_deferred_reason(lock.blocked_by),
+                commands,
+                changed=False,
+            )
 
-    reconcile_failure = _run_reconcile_steps(plan.reconcile_steps, run, commands)
-    if reconcile_failure is not None:
-        return _failed_result(
-            plan, reconcile_failure, commands, changed=merged_any or bool(commands)
+        (
+            merge_failure,
+            merged_any,
+            root_diffstats,
+            root_commits,
+        ) = _merge_actionable_roots(plan.actionable_roots, run, commands)
+        if merge_failure is not None:
+            return _failed_result(plan, merge_failure, commands, changed=merged_any)
+
+        reconcile_failure = _run_reconcile_steps(plan.reconcile_steps, run, commands)
+        if reconcile_failure is not None:
+            return _failed_result(
+                plan,
+                reconcile_failure,
+                commands,
+                changed=merged_any or bool(commands),
+            )
+
+        return DevUpdateResult(
+            changed=True,
+            outcomes=_success_outcomes(plan, root_diffstats, root_commits),
+            commands=tuple(commands),
         )
 
-    return DevUpdateResult(
-        changed=True,
-        outcomes=_success_outcomes(plan, root_diffstats, root_commits),
-        commands=tuple(commands),
+
+def _code_swap_deferred_reason(blocked_by: str | None) -> str:
+    detail = blocked_by or "a running sase process"
+    return (
+        f"deferred: {detail} is running against this checkout; "
+        "re-run `sase update` when it finishes"
     )
 
 

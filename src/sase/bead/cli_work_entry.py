@@ -20,17 +20,41 @@ def handle_bead_work(
     timer_factory: Callable[..., Any],
 ) -> None:
     """Dispatch a plan-file or bead-id work target."""
+    json_output = bool(getattr(args, "json", False))
+    target = str(getattr(args, "target", getattr(args, "id", "")))
+    from sase.dev_update.code_swap_lock import code_swap_reader_lock
+
+    with code_swap_reader_lock(op="bead.work", command=sys.argv) as lock:
+        if not lock.acquired:
+            _exit_code_swap_lock_error(
+                _code_swap_lock_error(lock.blocked_by),
+                target=target,
+                json_output=json_output,
+            )
+        _handle_bead_work_locked(
+            args,
+            timer_factory=timer_factory,
+            json_output=json_output,
+            target=target,
+        )
+
+
+def _handle_bead_work_locked(
+    args: argparse.Namespace,
+    *,
+    timer_factory: Callable[..., Any],
+    json_output: bool,
+    target: str,
+) -> None:
     artifacts_dir = getattr(args, "artifacts_dir", None)
     cl_name = getattr(args, "cl_name", None)
     dry_run = bool(getattr(args, "dry_run", False))
     yes = bool(getattr(args, "yes", False))
     no_push = bool(getattr(args, "no_push", False))
-    json_output = bool(getattr(args, "json", False))
     yes_to_all = bool(getattr(args, "yes_to_all", False)) or json_output
     parent = getattr(args, "parent", None)
     launch_feedback = getattr(args, "launch_feedback", None)
     expect_prompt_snapshot = bool(getattr(args, "expect_prompt_snapshot", False))
-    target = str(getattr(args, "target", getattr(args, "id", "")))
 
     from sase.bead.cli_work_from_plan import (
         PlanFileWorkError,
@@ -316,6 +340,38 @@ def handle_bead_work(
             target=target,
             json_output=json_output,
         )
+
+
+def _code_swap_lock_error(blocked_by: str | None) -> str:
+    detail = f" ({blocked_by})" if blocked_by else ""
+    return (
+        "sase dev update is swapping the installed source tree"
+        f"{detail}. No work was started. Re-run this command once the update "
+        "finishes."
+    )
+
+
+def _exit_code_swap_lock_error(
+    message: str,
+    *,
+    target: str,
+    json_output: bool,
+) -> NoReturn:
+    if json_output:
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "mode": "bead_work",
+                    "target": target,
+                    "error": message,
+                },
+                sort_keys=True,
+            )
+        )
+    else:
+        print(f"Error: {message}", file=sys.stderr)
+    raise SystemExit(1)
 
 
 def _exit_bead_id_error(

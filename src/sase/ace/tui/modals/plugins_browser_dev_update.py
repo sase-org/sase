@@ -6,6 +6,7 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.dev_update.code_swap_lock import code_swap_readers_active
 from sase.dev_update.execute import execute_dev_update, run_dev_update_command
 from sase.dev_update.models import DevCommandRunner, DevUpdatePlan, DevUpdateResult
 from sase.dev_update.plan import plan_dev_update
@@ -174,6 +175,11 @@ def dev_update_blocking_reason(plan: DevUpdatePlan) -> str | None:
     for step in plan.reconcile_steps:
         if not step.available:
             return step.reason or f"{step.label} unavailable"
+    if active_reader := code_swap_readers_active():
+        return (
+            "A sase bead work is running against this checkout "
+            f"({active_reader}). Re-run the update after it finishes."
+        )
     return None
 
 

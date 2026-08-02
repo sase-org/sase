@@ -172,6 +172,9 @@ def launch_epic_bead_work(
                 timer=owned_timer,
             )
 
+    if not dry_run:
+        preload_launch_imports(timer)
+
     from sase.bead.work import (
         EpicPlanError,
         build_epic_work_plan_from_beads_dir,
@@ -408,6 +411,16 @@ def launch_epic_bead_work(
         f"(workspace {results[0].workspace_num})"
     )
     return True
+
+
+def preload_launch_imports(timer: LaunchTimingRecorder) -> None:
+    """Eagerly import the deferred launch chain once code-swap lock is held."""
+    if getattr(timer, "_sase_preloaded_launch_imports", False):
+        return
+    timer._sase_preloaded_launch_imports = True  # type: ignore[attr-defined]
+    with timer.stage("preload_launch_imports"):
+        import sase.ace.tui.actions.agent_workflow._ref_resolution  # noqa: F401
+        import sase.agent.launcher  # noqa: F401
 
 
 # Compatibility alias for callers/tests that imported the former private helper.
