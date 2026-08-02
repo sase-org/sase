@@ -271,6 +271,9 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-e6(XpromptSourceRecord)' \
+        --epic-symbol 'sase-eb(ShowLookupMiss)' \
+        --epic-symbol 'sase-eb(normalize_show_name)' \
+        --epic-symbol 'sase-eb(resolve_show_record)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

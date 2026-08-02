@@ -188,6 +188,34 @@ def _parse_entry_blocks(
     return blocks
 
 
+def config_entry_line_span(path: Path | str, name: str) -> tuple[int, int] | None:
+    """Return the 1-based inclusive line span for one config xprompt entry."""
+    source = Path(path).expanduser()
+    try:
+        text = source.read_bytes().decode("utf-8")
+    except (OSError, UnicodeError):
+        return None
+
+    lines = text.splitlines()
+    section = _find_xprompts_section(lines)
+    if section is None:
+        return None
+
+    candidates = (name, name.rsplit("/", 1)[-1])
+    for candidate in dict.fromkeys(candidates):
+        matches = [
+            block
+            for block in _parse_entry_blocks(lines, section.start, section.end)
+            if block.name == candidate
+        ]
+        if len(matches) == 1:
+            block = matches[0]
+            return block.start + 1, block.end
+        if matches:
+            return None
+    return None
+
+
 def _entry_sort_key(name: str) -> str:
     return f"{name}:"
 
@@ -326,6 +354,7 @@ def insert_xprompt_into_config(
 
 
 __all__ = [
+    "config_entry_line_span",
     "generate_xprompt_yaml",
     "insert_xprompt_into_config",
 ]

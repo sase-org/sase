@@ -73,7 +73,7 @@ def _collect_xprompt_sources(
         seen_raw_refs.add(scanned.raw_ref)
 
         source_id = scanned.item.source_path if scanned.item is not None else None
-        source_path = _definition_file_for_source(source_id)
+        source_path = definition_file_for_source(source_id)
         source_kind = _source_kind(source_id, source_path)
         definition_repo = (
             _resolve_definition_repo(source_path)
@@ -81,7 +81,7 @@ def _collect_xprompt_sources(
             else _DefinitionRepo(None, None, None, False)
         )
         definition_line = (
-            _resolve_definition_line(source_path, scanned.name)
+            definition_line_for(source_path, scanned.name)
             if source_kind == "yaml" and source_path is not None
             else None
         )
@@ -138,7 +138,7 @@ def _resolve_definition_repo(path: Path | str) -> _DefinitionRepo:
     return _DefinitionRepo(repo, str(root), relpath, remapped != source)
 
 
-def _resolve_definition_line(path: Path | str, name: str) -> int | None:
+def definition_line_for(path: Path | str, name: str) -> int | None:
     """Return a unique YAML definition-key line, or ``None`` when uncertain."""
     source = Path(path).expanduser()
     if source.suffix.lower() not in _YAML_SUFFIXES:
@@ -158,6 +158,9 @@ def _resolve_definition_line(path: Path | str, name: str) -> int | None:
         if matches:
             return None
     return None
+
+
+_resolve_definition_line = definition_line_for
 
 
 def write_xprompt_sources(
@@ -183,7 +186,7 @@ def write_xprompt_sources(
     return records
 
 
-def _definition_file_for_source(source_id: str | None) -> Path | None:
+def definition_file_for_source(source_id: str | None) -> Path | None:
     if not source_id:
         return None
     resolved: Path | None
@@ -224,6 +227,9 @@ def _definition_file_for_source(source_id: str | None) -> Path | None:
             resolved = Path.cwd() / resolved
 
     return resolved.expanduser().resolve(strict=False) if resolved is not None else None
+
+
+_definition_file_for_source = definition_file_for_source
 
 
 def _resource_path(package: str, relative: str) -> Path | None:
@@ -361,3 +367,10 @@ def _is_relative_to(path: Path, root: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+__all__ = [
+    "definition_file_for_source",
+    "definition_line_for",
+    "write_xprompt_sources",
+]

@@ -5,6 +5,7 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.xprompt.models import UNSET, InputArg
+from sase.xprompt.workflow_step_display import workflow_step_type_label
 from sase.xprompt.workflow_models import Workflow
 
 from .xprompt_browser_helpers import BrowserItem
@@ -48,21 +49,7 @@ def create_workflow_preview(workflow: Workflow) -> str:
         lines.append("")
     lines.append("## Steps")
     for i, step in enumerate(workflow.steps, 1):
-        if step.agent:
-            step_type = "agent"
-            step_label = step.agent.split("\n")[0][:50]
-        elif step.bash:
-            step_type = "bash"
-            step_label = step.bash
-        elif step.python:
-            step_type = "python"
-            step_label = step.python
-        elif step.prompt_part:
-            step_type = "prompt_part"
-            step_label = step.prompt_part.split("\n")[0][:50]
-        else:
-            step_type = "unknown"
-            step_label = "?"
+        step_type, step_label = workflow_step_type_label(step)
         lines.append(f"{i}. [{step_type}] {step.name}: {step_label}")
     return "\n".join(lines)
 

@@ -6,6 +6,7 @@ from sase.agent.xprompt_swarm import (
     _extract_top_level_xprompt_reference,
     xprompt_has_segment_separators,
 )
+from sase.xprompt.segment_separators import xprompt_segment_count
 
 from tests._xprompt_swarm_helpers import patch_vcs_patterns, xp
 
@@ -23,6 +24,11 @@ def test_has_separators_none() -> None:
 def test_has_separators_inside_fence_ignored() -> None:
     body = "before\n```\ncode\n---\nmore\n```\nafter"
     assert xprompt_has_segment_separators(xp("x", body)) is False
+
+
+def test_segment_count_ignores_fenced_separator() -> None:
+    body = "one\n---\ntwo\n```md\n---\n```\n---\nthree"
+    assert xprompt_segment_count(xp("x", body)) == 3
 
 
 # --- extract_top_level_xprompt_reference ---

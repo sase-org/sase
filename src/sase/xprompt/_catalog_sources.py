@@ -154,11 +154,11 @@ def classify(xp: XPrompt, project: str | None) -> CatalogEntry:
     if source.startswith(("plugin:", "plugin_config:")):
         return CatalogEntry(xp, bucket="plugin", project=None)
 
-    if source == "config" or source.startswith("config:"):
+    if source == "default_config":
         return CatalogEntry(xp, bucket="config", project=None)
 
-    if project is not None:
-        return CatalogEntry(xp, bucket="project", project=project)
+    if source == "config" or source.startswith(("config:", "config_overlay:")):
+        return CatalogEntry(xp, bucket="config", project=None)
 
     source_path = Path(source)
 
@@ -169,6 +169,9 @@ def classify(xp: XPrompt, project: str | None) -> CatalogEntry:
                 return CatalogEntry(xp, bucket="built-in", project=None)
             except (ValueError, OSError):
                 pass
+
+        if project is not None:
+            return CatalogEntry(xp, bucket="project", project=project)
 
         workspaces = known_project_namespaces()
         for project_name, ws in workspaces.items():
@@ -184,6 +187,9 @@ def classify(xp: XPrompt, project: str | None) -> CatalogEntry:
             return CatalogEntry(xp, bucket="config", project=None)
         except (ValueError, OSError):
             pass
+
+    if project is not None:
+        return CatalogEntry(xp, bucket="project", project=project)
 
     # Unknown source: treat as user-scoped config-like content.
     return CatalogEntry(xp, bucket="config", project=None)
@@ -201,9 +207,15 @@ def source_path_display(
     source = entry_source_path(entry)
     if not source:
         return None
-    if source == "config" or source.startswith(
-        ("config:", "plugin:", "plugin_config:")
-    ):
+    if source == "default_config":
+        return "sase default_config.yml"
+    if source == "config":
+        return "~/.config/sase/sase.yml"
+    if source.startswith("config_overlay:"):
+        return f"~/.config/sase/{source.removeprefix('config_overlay:')}"
+    if source == "local_config" or source.startswith("project_local_config:"):
+        return "sase/sase.yml"
+    if source.startswith(("config:", "plugin:", "plugin_config:")):
         return source
 
     path = Path(source)

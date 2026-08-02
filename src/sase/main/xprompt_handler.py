@@ -84,6 +84,7 @@ def _handle_list() -> None:
         workflow_reference_insertion,
         workflow_reference_prefix,
     )
+    from sase.xprompt.workflow_step_display import workflow_step_type_label
 
     with collect_xprompt_load_issues() as load_issues:
         prompts = get_all_prompts()
@@ -128,19 +129,7 @@ def _handle_list() -> None:
                 lines.append("")
             lines.append("## Steps")
             for i, step in enumerate(wf.steps, 1):
-                if step.agent:
-                    stype, label = "agent", step.agent.split("\n")[0][:50]
-                elif step.bash:
-                    stype, label = "bash", step.bash
-                elif step.python:
-                    stype, label = "python", step.python
-                elif step.prompt_part:
-                    stype, label = (
-                        "prompt_part",
-                        step.prompt_part.split("\n")[0][:50],
-                    )
-                else:
-                    stype, label = "unknown", "?"
+                stype, label = workflow_step_type_label(step)
                 lines.append(f"{i}. [{stype}] {step.name}: {label}")
             preview = "\n".join(lines)
         items.append(
