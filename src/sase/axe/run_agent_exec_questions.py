@@ -200,6 +200,7 @@ def handle_questions_marker(
     # Save a chat file for the questions step
     from sase.history.chat import save_chat_history
     from sase.history.chat_extras import format_extra_sections
+    from sase.history.chat_storage import read_xprompt_prompt
 
     _q_suffix = interrupted_suffix
     _q_agent = agent_name_for_suffix(ctx, _q_suffix)
@@ -220,6 +221,8 @@ def handle_questions_marker(
         branch_or_workspace=ctx.cl_name,
         metadata_agent=_q_agent,
         metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
+        xprompt_prompt=read_xprompt_prompt(state.current_artifacts_dir),
+        rendered_prompt=state.current_prompt,
     )
     state.saved_chat_paths.append((_q_suffix, _q_chat))
     update_meta_field(state.current_artifacts_dir, "chat_path", _q_chat)

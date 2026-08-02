@@ -1361,6 +1361,19 @@
         }
       }
     },
+    "chat_history": {
+      "type": "object",
+      "description": "Configuration for durable chat-history Markdown.",
+      "additionalProperties": false,
+      "properties": {
+        "rendered_prompt_max_bytes": {
+          "type": "integer",
+          "description": "Maximum rendered-prompt bytes stored per chat before explicit truncation.",
+          "default": 1048576,
+          "minimum": 1
+        }
+      }
+    },
     "metahooks": {
       "type": "array",
       "description": "Metahooks intercept failing hooks before the summarize agent runs",

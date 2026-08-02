@@ -192,7 +192,14 @@ def create_changespec_for_workflow(
     # the agent finishes), but the COMMITS entry only stores the path string.
     chat_path = os.environ.get("SASE_AGENT_CHAT_PATH")
     if not chat_path:
-        chat_path = save_chat_history(prompt, response, workflow_name, timestamp=ts)
+        chat_path = save_chat_history(
+            prompt,
+            response,
+            workflow_name,
+            timestamp=ts,
+            xprompt_prompt=None,
+            rendered_prompt=prompt,
+        )
     diff_path = _save_committed_diff(cl_name, checkout_target, branch_name, ts)
     hooks = get_initial_hooks_for_changespec(verbose=False)
 

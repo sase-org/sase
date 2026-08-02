@@ -97,6 +97,8 @@ def save_chat_history(
     metadata_llm_provider: str | None = None,
     metadata_agent: str | None = None,
     metadata_multi_agent_prompt: str | None = None,
+    xprompt_prompt: str | None = None,
+    rendered_prompt: str | None = None,
 ) -> str:
     """Save a chat history and return its home-relative path."""
     basename = generate_chat_filename(
@@ -117,6 +119,8 @@ def save_chat_history(
         metadata_llm_provider=metadata_llm_provider,
         metadata_agent=metadata_agent,
         metadata_multi_agent_prompt=metadata_multi_agent_prompt,
+        xprompt_prompt=xprompt_prompt,
+        rendered_prompt=rendered_prompt,
     )
 
 

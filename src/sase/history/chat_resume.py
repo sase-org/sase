@@ -10,6 +10,7 @@ from sase.history.chat_storage import (
     load_chat_history,
     resolve_chat_file_path,
 )
+from sase.history.chat_prompt_sections import strip_prompt_sections
 
 ResolveResumeReference = Callable[[str, str], str | None]
 
@@ -144,6 +145,7 @@ def parse_flat_turns(text: str) -> list[tuple[str, str]]:
 
 def extract_previous_conversation_turns(content: str) -> list[tuple[str, str]]:
     """Extract turns from singular or merged previous-conversation regions."""
+    content = strip_prompt_sections(content)
     pattern = re.compile(r"^#{1,6}\s+Previous Conversations?\s*$", re.MULTILINE)
     matches = list(pattern.finditer(content))
     if not matches:
@@ -166,6 +168,7 @@ def extract_previous_conversation_turns(content: str) -> list[tuple[str, str]]:
 
 def parse_chat_turns(content: str) -> list[tuple[str, str]]:
     """Parse chat markdown into chronological prompt/response turns."""
+    content = strip_prompt_sections(content)
     heading_pattern = re.compile(r"^(#{1,6})\s+(Prompt|Response)\s*$", re.MULTILINE)
     matches = list(heading_pattern.finditer(content))
     turns: list[tuple[int, str, str]] = []

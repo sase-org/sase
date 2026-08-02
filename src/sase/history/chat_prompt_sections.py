@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import re
+from typing import Any, cast
 
+from sase.config import get_chat_rendered_prompt_max_bytes
+from sase.core.rust import require_rust_binding
 from sase.prompt.render import format_size
 
 XPROMPT_SECTION_START = "<!-- sase:section:xprompt -->"
@@ -18,6 +21,11 @@ _SECTION_SENTINELS = (
     RENDERED_SECTION_START,
     RENDERED_SECTION_END,
 )
+_SECTION_RE = re.compile(
+    r"<!-- sase:section:(?P<name>xprompt|rendered) -->.*?"
+    r"<!-- /sase:section:(?P=name) -->",
+    re.DOTALL,
+)
 _BACKTICK_RUN_RE = re.compile(r"`+")
 
 
@@ -27,82 +35,71 @@ def render_prompt_sections(
     *,
     xprompt_links: Mapping[str, str] | None = None,
 ) -> str:
-    """Render the optional XPrompt and rendered-prompt storage sections.
+    """Return sentinel-delimited XPrompt and rendered-prompt sections.
 
-    ``xprompt_links`` is accepted for the chat writer's linkification boundary.
-    Callers that use the Rust rewriter pass already-linked XPrompt text and leave
-    it unset; accepting the mapping here keeps the shared format independent of
-    a specific provenance-record type.
+    ``xprompt_links`` is primarily useful to focused callers and tests. Normal
+    agent finalization resolves the same links from launch-captured provenance
+    before passing the XPrompt prompt to chat storage.
     """
 
-    del xprompt_links
+    if xprompt_prompt is None and rendered_prompt is None:
+        return ""
+
     sections: list[str] = []
     if xprompt_prompt is not None:
-        escaped = _escape_section_sentinels(xprompt_prompt)
+        linked_xprompt = _rewrite_xprompt_links(xprompt_prompt, xprompt_links)
         sections.append(
-            "\n".join(
-                (
-                    XPROMPT_SECTION_START,
-                    "",
-                    "## Agent XPrompt",
-                    "",
-                    escaped,
-                    "",
-                    XPROMPT_SECTION_END,
-                )
+            _sentinel_section(
+                XPROMPT_SECTION_START,
+                XPROMPT_SECTION_END,
+                f"## Agent XPrompt\n\n{_escape_sentinels(linked_xprompt)}",
             )
         )
+
     if rendered_prompt is not None:
-        sections.append(_render_rendered_prompt(rendered_prompt))
-    return "\n".join(sections) + ("\n" if sections else "")
+        if xprompt_prompt is not None and rendered_prompt == xprompt_prompt:
+            rendered_body = "- **RENDERED:** identical to the XPrompt"
+        else:
+            truncated, omitted = _truncate_utf8(
+                rendered_prompt,
+                get_chat_rendered_prompt_max_bytes(),
+            )
+            if omitted:
+                truncated += f"\n\n… truncated ({omitted} bytes omitted)"
+            rendered_body = _render_details(
+                _escape_sentinels(truncated),
+                size_bytes=len(rendered_prompt.encode("utf-8")),
+            )
+        sections.append(
+            _sentinel_section(
+                RENDERED_SECTION_START,
+                RENDERED_SECTION_END,
+                rendered_body,
+            )
+        )
+
+    return "\n".join(sections)
 
 
 def strip_prompt_sections(content: str) -> str:
-    """Remove complete sentinel-delimited prompt sections from ``content``."""
+    """Replace stored prompt-rendering sections with same-length whitespace."""
 
-    stripped = content
-    for start, end in (
-        (XPROMPT_SECTION_START, XPROMPT_SECTION_END),
-        (RENDERED_SECTION_START, RENDERED_SECTION_END),
-    ):
-        while True:
-            start_at = stripped.find(start)
-            if start_at < 0:
-                break
-            end_at = stripped.find(end, start_at + len(start))
-            if end_at < 0:
-                break
-            stripped = stripped[:start_at] + stripped[end_at + len(end) :]
-    return stripped
+    if "<!-- sase:section:" not in content:
+        return content
+
+    def blank(match: re.Match[str]) -> str:
+        return "".join("\n" if char == "\n" else " " for char in match.group(0))
+
+    return _SECTION_RE.sub(blank, content)
 
 
-def _render_rendered_prompt(prompt: str) -> str:
-    escaped = _escape_section_sentinels(prompt)
-    longest = max(
-        (len(match.group(0)) for match in _BACKTICK_RUN_RE.finditer(escaped)),
-        default=0,
-    )
-    fence = "`" * max(3, longest + 1)
-    size = format_size(len(prompt.encode("utf-8")))
-    separator = "" if escaped.endswith("\n") else "\n"
-    fenced = f"{fence}markdown\n{escaped}{separator}{fence}"
-    return "\n".join(
-        (
-            RENDERED_SECTION_START,
-            "",
-            "<details>",
-            f"<summary><b>Agent Prompt</b> — rendered, {size}</summary>",
-            "",
-            fenced,
-            "",
-            "</details>",
-            "",
-            RENDERED_SECTION_END,
-        )
-    )
+def _sentinel_section(start: str, end: str, body: str) -> str:
+    return f"{start}\n\n{body}\n\n{end}\n"
 
 
-def _escape_section_sentinels(content: str) -> str:
+def _escape_sentinels(content: str) -> str:
+    """Keep a prompt's literal sentinel comments from closing our regions."""
+
     escaped = content
     for sentinel in _SECTION_SENTINELS:
         escaped = escaped.replace(
@@ -110,6 +107,64 @@ def _escape_section_sentinels(content: str) -> str:
             sentinel.replace("<!--", "&lt;!--").replace("-->", "--&gt;"),
         )
     return escaped
+
+
+def _truncate_utf8(content: str, max_bytes: int) -> tuple[str, int]:
+    encoded = content.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return content, 0
+    prefix = encoded[:max_bytes].decode("utf-8", errors="ignore")
+    retained = len(prefix.encode("utf-8"))
+    return prefix, len(encoded) - retained
+
+
+def _render_details(content: str, *, size_bytes: int) -> str:
+    longest_run = max(
+        (len(match.group(0)) for match in _BACKTICK_RUN_RE.finditer(content)),
+        default=0,
+    )
+    fence = "`" * max(3, longest_run + 1)
+    size = format_size(size_bytes)
+    content_suffix = "" if not content or content.endswith("\n") else "\n"
+    return (
+        "<details>\n"
+        f"<summary><b>Agent Prompt</b> — rendered, {size}</summary>\n\n"
+        f"{fence}markdown\n"
+        f"{content}{content_suffix}"
+        f"{fence}\n\n"
+        "</details>"
+    )
+
+
+def _rewrite_xprompt_links(
+    prompt: str,
+    links: Mapping[str, str] | None,
+) -> str:
+    if not links:
+        return prompt
+    records = [
+        {
+            "schema_version": 1,
+            "raw_ref": raw_ref,
+            "name": raw_ref.removeprefix("#"),
+            "kind": "xprompt",
+            "source_kind": None,
+            "source_path": None,
+            "definition_line": None,
+            "repo": None,
+            "repo_root": None,
+            "repo_relpath": None,
+            "chezmoi": False,
+            "skipped_reason": None,
+        }
+        for raw_ref in links
+    ]
+    rewrite = require_rust_binding("prompt_xprompt_rewrite_links")
+    payload = cast(
+        Mapping[str, Any],
+        rewrite(prompt, records, lambda record: links.get(record["raw_ref"])),
+    )
+    return str(payload.get("prompt") or "")
 
 
 __all__ = [

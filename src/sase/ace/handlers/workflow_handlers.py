@@ -329,6 +329,8 @@ def handle_run_fix_hook_workflow(
             response=response_content,
             workflow="fix-hook",
             timestamp=start_timestamp,
+            xprompt_prompt=None,
+            rendered_prompt=prompt,
         )
 
         # Build workflow name with hook command and COMMITS entry reference

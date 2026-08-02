@@ -134,6 +134,117 @@ def _read_plan_path(artifacts_dir: str) -> str | None:
         return None
 
 
+def _read_text(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+def _prompt_renderings(
+    ctx: AgentExecContext,
+    state: LoopState,
+) -> tuple[str | None, str | None]:
+    """Load the panel's XPrompt and rendered prompt for chat persistence."""
+
+    current_dir = Path(state.current_artifacts_dir or ctx.artifacts_dir)
+    fallback_dir = Path(ctx.artifacts_dir)
+    candidates = (
+        (current_dir,)
+        if current_dir == fallback_dir
+        else (
+            current_dir,
+            fallback_dir,
+        )
+    )
+
+    xprompt_prompt: str | None = None
+    xprompt_dir = current_dir
+    for directory in candidates:
+        content = _read_text(directory / "raw_xprompt.md")
+        if content is not None:
+            xprompt_prompt = content
+            xprompt_dir = directory
+            break
+
+    from sase.agent.artifact_files_cache import ArtifactFileCache
+
+    cache = ArtifactFileCache()
+    rendered_prompt: str | None = None
+    for directory in candidates:
+        selected = cache.select_prompt_file(
+            str(directory),
+            is_workflow_child=False,
+            step_name=None,
+        )
+        if selected is not None:
+            rendered_prompt = cache.read_text(selected)
+            break
+
+    if xprompt_prompt is not None:
+        xprompt_prompt = _link_xprompt_prompt(
+            xprompt_prompt,
+            artifacts_dir=xprompt_dir,
+            workspace_dir=Path(ctx.workspace_dir),
+            project_name=ctx.project_name,
+        )
+    return xprompt_prompt, rendered_prompt
+
+
+def _link_xprompt_prompt(
+    prompt: str,
+    *,
+    artifacts_dir: Path,
+    workspace_dir: Path,
+    project_name: str,
+) -> str:
+    """Best-effort hosted link rewriting for one stored XPrompt prompt."""
+
+    try:
+        from sase.agents_sync.git import run_git
+        from sase.agents_sync.prompt_archive.preparation import repository_roots
+        from sase.sdd.hosted_links import HostedLinkResolver
+        from sase.sdd.plan_refs import workspace_context_for_plan_resolution
+        from sase.sdd.store import resolve_sdd_store
+        from sase.xprompt_links import (
+            XpromptTargetResolver,
+            load_xprompt_source_records,
+            rewrite_xprompt_source_links,
+        )
+
+        records = load_xprompt_source_records(artifacts_dir)
+        if not records:
+            return prompt
+        primary_root, workspace_num = workspace_context_for_plan_resolution(
+            workspace_dir
+        )
+        revision_result = run_git(
+            primary_root,
+            ["rev-parse", "HEAD"],
+            op="chat_history.xprompt_revision",
+        )
+        primary_revision = revision_result.stdout.strip()
+        if revision_result.returncode != 0 or not primary_revision:
+            return prompt
+        store = resolve_sdd_store(primary_root, workspace_num)
+        hosted = HostedLinkResolver(
+            store,
+            project=project_name,
+            primary_root=primary_root,
+            git_runner=run_git,
+        )
+        resolver = XpromptTargetResolver(
+            primary_root=primary_root,
+            primary_revision=primary_revision,
+            hosted=hosted,
+            git_runner=run_git,
+            repository_roots=repository_roots(),
+        )
+        return rewrite_xprompt_source_links(prompt, records, resolver)
+    except Exception:
+        return prompt
+
+
 def _render_markdown_pdfs(
     ctx: AgentExecContext,
     state: LoopState,
@@ -558,6 +669,7 @@ def finalize_loop(
         response_content = ""
 
     extra = _format_extra_sections(state.current_artifacts_dir)
+    xprompt_prompt, rendered_prompt = _prompt_renderings(ctx, state)
     saved_path = _save_chat_history(
         prompt=state.current_prompt,
         response=response_content,
@@ -570,6 +682,8 @@ def finalize_loop(
         metadata_model=metadata_model,
         metadata_llm_provider=metadata_llm_provider,
         metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
+        xprompt_prompt=xprompt_prompt,
+        rendered_prompt=rendered_prompt,
     )
     print(f"\nChat history saved to: {saved_path}")
 

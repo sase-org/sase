@@ -255,6 +255,7 @@ DEFAULT_MAX_RUNNING_AGENTS = 10
 DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP = 3
 DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS = 60
 DEFAULT_TASK_HISTORY_LIMIT = 100
+DEFAULT_CHAT_RENDERED_PROMPT_MAX_BYTES = 1024 * 1024
 DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT = 50
 DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN = 20
 DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024
@@ -334,6 +335,22 @@ def get_task_history_limit() -> int:
     if type(value) is int and value >= 1:
         return value
     return DEFAULT_TASK_HISTORY_LIMIT
+
+
+def get_chat_rendered_prompt_max_bytes() -> int:
+    """Return the byte cap for rendered prompts stored in chat Markdown."""
+    chat_history = load_merged_config().get("chat_history", {})
+    value = (
+        chat_history.get(
+            "rendered_prompt_max_bytes",
+            DEFAULT_CHAT_RENDERED_PROMPT_MAX_BYTES,
+        )
+        if isinstance(chat_history, dict)
+        else DEFAULT_CHAT_RENDERED_PROMPT_MAX_BYTES
+    )
+    if type(value) is int and value >= 1:
+        return value
+    return DEFAULT_CHAT_RENDERED_PROMPT_MAX_BYTES
 
 
 def get_artifact_capture_max_stored_per_agent() -> int:
