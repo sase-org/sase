@@ -18,10 +18,12 @@ def handle_xprompt_command(args: argparse.Namespace) -> None:
         _handle_graph(args)
     elif subcommand == "list":
         _handle_list()
+    elif subcommand == "show":
+        _handle_show(args)
     elif subcommand == "catalog":
         _handle_catalog(args)
     else:
-        print("Usage: sase xprompt {expand,explain,graph,list,catalog}")
+        print("Usage: sase xprompt {catalog,expand,explain,graph,list,show}")
         sys.exit(1)
 
 
@@ -228,6 +230,13 @@ def _handle_catalog(args: argparse.Namespace) -> None:
     print(str(artifact.pdf_path))
     print(json.dumps(stats_blob), file=sys.stderr)
     sys.exit(0)
+
+
+def _handle_show(args: argparse.Namespace) -> None:
+    """Handle 'sase xprompt show'."""
+    from sase.xprompt.cli_show import handle_show
+
+    sys.exit(handle_show(args))
 
 
 def _handle_explain(args: argparse.Namespace) -> None:

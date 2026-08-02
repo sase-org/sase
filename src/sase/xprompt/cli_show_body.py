@@ -11,7 +11,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from sase.xprompt._fenced_blocks import fenced_block_details
-from sase.xprompt.highlight import highlight_spans
+from sase.xprompt.highlight import HighlightSpan, highlight_spans
 from sase.xprompt.highlight_theme import highlight_theme
 
 _SYNTAX_THEME = "ansi_dark"
@@ -84,7 +84,11 @@ def highlighted_body(
         if block.closing_fence is not None:
             rendered.stylize(fence_style, *block.closing_fence)
 
-    for semantic_span in highlight_spans(text, known_skills=known_skills):
+    semantic_spans: list[HighlightSpan] = highlight_spans(
+        text,
+        known_skills=known_skills,
+    )
+    for semantic_span in semantic_spans:
         if semantic_span.role == "code.fence":
             continue
         rendered.stylize(

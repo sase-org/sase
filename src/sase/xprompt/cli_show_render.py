@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
 
 from rich.console import Console, Group, RenderableType
@@ -19,7 +20,7 @@ from sase.xprompt.cli_show_model import (
     XPromptShowRecord,
 )
 from sase.xprompt.highlight import XPromptHighlightRole
-from sase.xprompt.highlight_theme import highlight_theme
+from sase.xprompt.highlight_theme import HighlightStyle, highlight_theme
 
 _LABEL_WIDTH = 12
 _STEP_BODY_LIMIT = 20
@@ -359,7 +360,7 @@ def _references(
     *,
     styles_enabled: bool,
 ) -> RenderableType:
-    styles = highlight_theme()
+    styles = _theme()
     success = styles["xprompt.invocation"].color
     error = styles["alt.error"].color
     table = Table.grid(padding=(0, 2))
@@ -476,11 +477,15 @@ def _role_style(
     *,
     styles_enabled: bool,
 ) -> str:
-    return highlight_theme()[role].rich_style if styles_enabled else ""
+    return _theme()[role].rich_style if styles_enabled else ""
 
 
 def _style(style: str, *, styles_enabled: bool) -> str:
     return style if styles_enabled else ""
+
+
+def _theme() -> Mapping[XPromptHighlightRole, HighlightStyle]:
+    return highlight_theme()
 
 
 __all__ = ["render_show"]

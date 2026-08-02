@@ -36,6 +36,12 @@ version of this model; the text model above is the authoritative current referen
 ## Table of Contents
 
 - [CLI Subcommands](#cli-subcommands)
+  - [sase xprompt expand](#sase-xprompt-expand)
+  - [sase xprompt explain](#sase-xprompt-explain)
+  - [sase xprompt list](#sase-xprompt-list)
+  - [sase xprompt show](#sase-xprompt-show)
+  - [sase xprompt graph](#sase-xprompt-graph)
+  - [sase xprompt catalog](#sase-xprompt-catalog)
 - [Editor LSP](#editor-lsp)
 - [Discovery Order](#discovery-order)
 - [File Format](#file-format)
@@ -66,7 +72,7 @@ version of this model; the text model above is the authoritative current referen
 
 ## CLI Subcommands
 
-The `sase xprompt` command provides five subcommands for working with xprompts. With no subcommand, it defaults to
+The `sase xprompt` command provides six subcommands for working with xprompts. With no subcommand, it defaults to
 `sase xprompt list`. Flags belong to the explicit subcommand, so use forms like `sase xprompt expand --trace '#plan'`
 rather than putting `--trace` on bare `sase xprompt`.
 
@@ -109,6 +115,24 @@ are omitted from the JSON `inputs` array because they are supplied by workflow e
 sase xprompt list                   # JSON array to stdout
 sase xprompt list | jq '.[].name'  # Extract just names
 ```
+
+### `sase xprompt show`
+
+Shows one xprompt or workflow definition with its properties, typed inputs, local helper xprompts, provenance,
+references, and highlighted body. The `NAME` argument accepts a bare name or a copied reference such as `#name`,
+`#!name`, or `/name`; copied arguments like `#name(a, b)`, `#name:arg`, and `#name+` are ignored with a warning.
+
+```bash
+sase xprompt show sase/reads                  # Render a readable definition view
+sase xprompt show '#!sync'                    # Show a standalone workflow
+sase xprompt show plan --format json | jq .inputs
+sase xprompt show coder --format raw > coder.md
+sase xprompt show t --color always | less -R
+```
+
+`--format full` is the default Rich detail view. `--format json` emits the stable schema-versioned show record, while
+`--format raw` writes the exact source definition bytes without adding a trailing newline. `--color auto|always|never`
+controls ANSI output for the rendered view, and `--project PROJECT` resolves within a specific project namespace.
 
 ### `sase xprompt graph`
 

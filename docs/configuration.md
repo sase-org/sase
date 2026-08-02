@@ -2850,6 +2850,15 @@ Clients that insert references should prefer `kind`/`insertion` metadata when pr
 inserted as `#!name` and inline-capable entries, including markdown xprompt swarms, are inserted as `#name`. Slash skill
 completion clients should filter to entries where `is_skill` is `true`.
 
+### `sase xprompt show`
+
+| Flag            | Values                  | Default    | Description                                                                   |
+| --------------- | ----------------------- | ---------- | ----------------------------------------------------------------------------- |
+| `NAME`          | string                  | (required) | XPrompt or workflow name; copied markers and argument suffixes are tolerated. |
+| `-c, --color`   | `auto`,`always`,`never` | `auto`     | Color mode for rendered output.                                               |
+| `-f, --format`  | `full`,`json`,`raw`     | `full`     | Rendered detail view, stable JSON record, or exact definition source bytes.   |
+| `-p, --project` | string                  | auto       | Resolve within a specific project namespace instead of the detected project.  |
+
 ### `sase xprompt graph`
 
 | Flag              | Values           | Default   | Description                                             |
