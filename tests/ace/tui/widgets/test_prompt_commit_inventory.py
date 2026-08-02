@@ -165,7 +165,8 @@ def test_fresh_snapshot_does_not_schedule_revalidation() -> None:
 
     with (
         patch(
-            "sase.ace.tui.widgets._file_completion_base.prompt_commit_snapshot_expired",
+            "sase.ace.tui.widgets._file_completion_workers."
+            "prompt_commit_snapshot_expired",
             return_value=False,
         ),
         patch.object(type(text_area), "run_worker") as run_worker,

@@ -89,7 +89,7 @@ def test_cold_snapshot_schedules_one_threaded_worker(tmp_path: Path) -> None:
 
     with (
         patch(
-            "sase.ace.tui.widgets._file_completion_base.prompt_path_directory_key",
+            "sase.ace.tui.widgets._file_completion_workers.prompt_path_directory_key",
             return_value=str(tmp_path),
         ),
         patch.object(type(text_area), "run_worker") as run_worker,

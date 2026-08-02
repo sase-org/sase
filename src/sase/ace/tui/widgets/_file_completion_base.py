@@ -1,14 +1,10 @@
-"""Shared state and panel helpers for manual prompt completion."""
+"""Shared state, panel, and candidate helpers for prompt completion."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from textual.worker import Worker, WorkerState
-
-from sase.artifact_refs import ArtifactRefContext
-from sase.ace.tui.widgets._file_completion_context import FileCompletionContextMixin
+from sase.ace.tui.widgets._file_completion_workers import FileCompletionWorkerMixin
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
     AtReferenceFileCompletionMetadata,
@@ -27,37 +23,22 @@ from sase.ace.tui.widgets.prompt_word_completion import (
     WordCompletionResult,
     build_prompt_word_completion_result,
 )
-from sase.ace.tui.widgets.prompt_path_inventory import (
-    PromptPathSnapshot,
-    load_prompt_path_snapshot,
-    prompt_path_directory_key,
-    revalidate_prompt_path_snapshot,
-)
-from sase.ace.tui.widgets.prompt_commit_inventory import (
-    PromptCommitSnapshot,
-    load_prompt_commit_snapshot,
-    prompt_commit_snapshot_expired,
-    revalidate_prompt_commit_snapshot,
-)
 from sase.ace.tui.widgets.vcs_ref_completion import (
     VCS_REF_COMPLETION_KIND,
     vcs_ref_completion_title,
 )
 from sase.ace.tui.widgets.vcs_repo_completion import (
     VCS_REPO_COMPLETION_KIND,
-    vcs_repo_completion_candidates,
     vcs_repo_completion_title,
 )
 from sase.xprompt.model_completion import build_model_completion_catalog
 from sase.xprompt.vcs_project_completion import build_vcs_project_completion_entries
-from sase.xprompt.vcs_repo_completion import (
-    VcsRepoFetchResult,
-    VcsRepoTrigger,
-    fetch_repo_candidates,
-)
 
 if TYPE_CHECKING:
+    from sase.artifact_refs import ArtifactRefContext
     from sase.ace.tui.agent_completion import AgentCompletionCandidate
+    from sase.ace.tui.widgets.prompt_commit_inventory import PromptCommitSnapshot
+    from sase.ace.tui.widgets.prompt_path_inventory import PromptPathSnapshot
     from sase.ace.tui.widgets.xprompt_arg_assist import (
         ActiveXPromptArgHint,
         XPromptAssistEntry,
@@ -67,38 +48,10 @@ if TYPE_CHECKING:
     )
     from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
     from sase.xprompt.vcs_ref_completion import VcsRefTrigger
+    from sase.xprompt.vcs_repo_completion import VcsRepoFetchResult, VcsRepoTrigger
 
 
-@dataclass(frozen=True)
-class _VcsRepoCompletionWorkerResult:
-    """Result returned by a repository completion fetch worker."""
-
-    workflow: str
-    namespace: str
-    result: VcsRepoFetchResult
-
-    @property
-    def key(self) -> tuple[str, str]:
-        return (self.workflow, self.namespace)
-
-
-@dataclass(frozen=True)
-class _PromptPathInventoryWorkerResult:
-    """Result returned by a prompt path inventory worker."""
-
-    snapshot: PromptPathSnapshot
-    changed: bool
-
-
-@dataclass(frozen=True)
-class _PromptCommitInventoryWorkerResult:
-    """Result returned by a prompt commit inventory worker."""
-
-    snapshot: PromptCommitSnapshot
-    changed: bool
-
-
-class FileCompletionBaseMixin(FileCompletionContextMixin):
+class FileCompletionBaseMixin(FileCompletionWorkerMixin):
     """Mixin providing shared completion state helpers."""
 
     if TYPE_CHECKING:
@@ -293,259 +246,6 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         self._update_file_completion_panel("")
         if clear_xprompt_arg_hint:
             self._clear_xprompt_arg_hint()
-
-    def _schedule_vcs_repo_completion_fetch(self, trigger: VcsRepoTrigger) -> None:
-        """Fetch repo candidates in a background worker with key dedupe."""
-        key = (trigger.workflow, trigger.namespace)
-        if key in self._vcs_repo_completion_inflight:
-            return
-        self._vcs_repo_completion_inflight.add(key)
-
-        def task() -> _VcsRepoCompletionWorkerResult:
-            return _VcsRepoCompletionWorkerResult(
-                workflow=trigger.workflow,
-                namespace=trigger.namespace,
-                result=fetch_repo_candidates(trigger.workflow, trigger.namespace),
-            )
-
-        self.run_worker(
-            task,
-            name=f"prompt-vcs-repo:{trigger.workflow}:{trigger.namespace}",
-            group="prompt-vcs-repo",
-            thread=True,
-        )
-
-    def _prompt_path_directory_key(self, directory: str = "") -> str:
-        """Resolve a caller-visible prompt directory to its cache key."""
-        return prompt_path_directory_key(self.text, directory)
-
-    def _get_warm_prompt_path_snapshot(
-        self,
-        directory_key: str,
-    ) -> PromptPathSnapshot | None:
-        """Return a snapshot using a pure in-memory lookup."""
-        return self._prompt_path_snapshots.get(directory_key)
-
-    def _open_prompt_path_directory(
-        self,
-        directory: str,
-    ) -> PromptPathSnapshot | None:
-        """Mark a menu directory active and revalidate it off-thread."""
-        directory_key = self._prompt_path_directory_key(directory)
-        self._prompt_path_completion_directory_key = directory_key
-        snapshot = self._get_warm_prompt_path_snapshot(directory_key)
-        self._schedule_prompt_path_inventory_load(directory_key, snapshot)
-        return snapshot
-
-    def _schedule_prompt_path_inventory_load(
-        self,
-        directory_key: str,
-        previous: PromptPathSnapshot | None = None,
-    ) -> None:
-        """Coalesce one directory revalidation on a background worker."""
-        if directory_key in self._prompt_path_inflight:
-            return
-        self._prompt_path_inflight.add(directory_key)
-
-        def task() -> _PromptPathInventoryWorkerResult:
-            snapshot = (
-                load_prompt_path_snapshot(directory_key)
-                if previous is None
-                else revalidate_prompt_path_snapshot(directory_key, previous)
-            )
-            return _PromptPathInventoryWorkerResult(
-                snapshot=snapshot,
-                changed=snapshot is not previous,
-            )
-
-        self.run_worker(
-            task,
-            name=f"prompt-path-inventory:{directory_key}",
-            group="prompt-path-inventory",
-            thread=True,
-        )
-
-    def _apply_prompt_path_inventory_result(
-        self,
-        result: _PromptPathInventoryWorkerResult,
-    ) -> None:
-        """Store a worker result and refresh the matching open menu."""
-        snapshot = result.snapshot
-        self._prompt_path_snapshots[snapshot.directory_key] = snapshot
-        if not result.changed:
-            return
-        if (
-            not self._file_completion_active
-            or self._completion_kind != ARTIFACT_REF_COMPLETION_KIND
-            or self._prompt_path_completion_directory_key != snapshot.directory_key
-        ):
-            return
-        self._refresh_file_completion_from_cursor()
-
-    def _schedule_prompt_commit_inventory_load(
-        self,
-        project: str | None,
-        context: ArtifactRefContext,
-        previous: PromptCommitSnapshot | None = None,
-    ) -> None:
-        """Coalesce one target-project commit revalidation off the UI thread."""
-        if project in self._prompt_commit_inflight:
-            return
-        if previous is not None and not prompt_commit_snapshot_expired(previous):
-            return
-        self._prompt_commit_inflight.add(project)
-        # One worker per project is in flight at a time, so the project keys the
-        # name uniquely and a finished worker can never retire a live one.
-        worker_name = f"prompt-commit-inventory:{'' if project is None else project}"
-        self._prompt_commit_worker_projects[worker_name] = project
-
-        def task() -> _PromptCommitInventoryWorkerResult:
-            snapshot = (
-                load_prompt_commit_snapshot(project, context)
-                if previous is None
-                else revalidate_prompt_commit_snapshot(previous, project, context)
-            )
-            return _PromptCommitInventoryWorkerResult(
-                snapshot=snapshot,
-                changed=snapshot is not previous,
-            )
-
-        self.run_worker(
-            task,
-            name=worker_name,
-            group="prompt-commit-inventory",
-            thread=True,
-        )
-
-    def _apply_prompt_commit_inventory_result(
-        self,
-        result: _PromptCommitInventoryWorkerResult,
-    ) -> None:
-        """Store a commit snapshot and refresh only its matching open menu."""
-        snapshot = result.snapshot
-        self._prompt_commit_snapshots[snapshot.project] = snapshot
-        if not result.changed:
-            return
-        context = self._get_artifact_ref_completion_context()
-        if (
-            not self._file_completion_active
-            or self._completion_kind != ARTIFACT_REF_COMPLETION_KIND
-            or context is None
-            or context.stage != "payload"
-            or (context.kind or "").casefold() != "commit"
-            or self._xprompt_arg_assist_project_from_text() != snapshot.project
-        ):
-            return
-        self._refresh_file_completion_from_cursor()
-
-    def _apply_vcs_repo_completion_result(
-        self,
-        worker_result: _VcsRepoCompletionWorkerResult,
-    ) -> None:
-        """Refresh an active repo menu from a completed worker result."""
-        trigger = self._get_vcs_repo_trigger()
-        if (
-            trigger is None
-            or (trigger.workflow, trigger.namespace) != worker_result.key
-        ):
-            return
-        if (
-            not self._file_completion_active
-            or self._completion_kind != VCS_REPO_COMPLETION_KIND
-        ):
-            return
-
-        candidates, used_placeholder = vcs_repo_completion_candidates(
-            worker_result.result,
-            trigger.query,
-            trigger.namespace,
-        )
-        if not candidates and not used_placeholder:
-            self._clear_file_completion()
-            return
-
-        previous = None
-        if self._file_completion_candidates:
-            previous = self._file_completion_candidates[
-                self._file_completion_index
-            ].name
-        self._vcs_repo_completion_key = worker_result.key
-        self._vcs_repo_completion_result = worker_result.result
-        self._file_completion_candidates = candidates
-        self._file_completion_index = 0
-        if previous is not None:
-            for i, candidate in enumerate(candidates):
-                if candidate.name == previous:
-                    self._file_completion_index = i
-                    break
-        self._update_file_completion_panel(trigger.query)
-
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        """Handle repository-completion fetch worker results."""
-        if event.worker.group == "prompt-commit-inventory":
-            # Pending and running transitions must leave the inflight marker in
-            # place, or the loading row vanishes and every keystroke spawns
-            # another git scan for the same project.
-            if event.state in (
-                WorkerState.SUCCESS,
-                WorkerState.ERROR,
-                WorkerState.CANCELLED,
-            ):
-                project = self._prompt_commit_worker_projects.pop(
-                    event.worker.name,
-                    None,
-                )
-                self._prompt_commit_inflight.discard(project)
-            if event.state == WorkerState.SUCCESS:
-                result = event.worker.result
-                if isinstance(result, _PromptCommitInventoryWorkerResult):
-                    self._apply_prompt_commit_inventory_result(result)
-                    return
-
-            handler = getattr(super(), "on_worker_state_changed", None)
-            if callable(handler):
-                handler(event)
-            return
-
-        if event.worker.group == "prompt-path-inventory":
-            if event.state == WorkerState.SUCCESS:
-                result = event.worker.result
-                if isinstance(result, _PromptPathInventoryWorkerResult):
-                    directory_key = result.snapshot.directory_key
-                    self._prompt_path_inflight.discard(directory_key)
-                    self._apply_prompt_path_inventory_result(result)
-                    return
-            elif event.state in (WorkerState.ERROR, WorkerState.CANCELLED):
-                directory_key = event.worker.name.removeprefix("prompt-path-inventory:")
-                self._prompt_path_inflight.discard(directory_key)
-
-            handler = getattr(super(), "on_worker_state_changed", None)
-            if callable(handler):
-                handler(event)
-            return
-
-        if event.worker.group != "prompt-vcs-repo":
-            handler = getattr(super(), "on_worker_state_changed", None)
-            if callable(handler):
-                handler(event)
-            return
-
-        if event.state == WorkerState.SUCCESS:
-            result = event.worker.result
-            if isinstance(result, _VcsRepoCompletionWorkerResult):
-                self._vcs_repo_completion_inflight.discard(result.key)
-                self._apply_vcs_repo_completion_result(result)
-                return
-        elif event.state in (WorkerState.ERROR, WorkerState.CANCELLED):
-            # The key is encoded in the worker name after the first prefix.
-            suffix = event.worker.name.removeprefix("prompt-vcs-repo:")
-            workflow, sep, namespace = suffix.partition(":")
-            if sep:
-                self._vcs_repo_completion_inflight.discard((workflow, namespace))
-
-        handler = getattr(super(), "on_worker_state_changed", None)
-        if callable(handler):
-            handler(event)
 
     def _snapshot_agent_completion_candidates(self) -> list[AgentCompletionCandidate]:
         """Return the per-menu visible-agent completion snapshot."""

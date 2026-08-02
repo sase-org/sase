@@ -21,7 +21,7 @@ from ._completion_helpers import CompletionTestApp
 
 _WORKFLOW_NAMES_PATH = "sase.workspace_provider.get_workflow_names"
 _PEEK_PATH = "sase.ace.tui.widgets._file_completion_open.peek_cached_repo_candidates"
-_FETCH_PATH = "sase.ace.tui.widgets._file_completion_base.fetch_repo_candidates"
+_FETCH_PATH = "sase.ace.tui.widgets._file_completion_workers.fetch_repo_candidates"
 
 
 def _entry(

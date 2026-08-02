@@ -10,7 +10,7 @@ import pytest
 from textual.widgets import Static
 
 from sase.artifact_refs import parse_artifact_ref
-from sase.ace.tui.widgets._file_completion_base import (
+from sase.ace.tui.widgets._file_completion_workers import (
     _PromptCommitInventoryWorkerResult,
     _PromptPathInventoryWorkerResult,
 )
