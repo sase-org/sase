@@ -62,15 +62,6 @@ def test_concurrent_plan_file_launches_serialize_through_terminal_push(
         encoding="utf-8",
     )
 
-    original_resolve = plan_module._resolve_context
-    ready_to_launch = threading.Barrier(2)
-
-    def resolve_together(*, dry_run: bool) -> tuple[object, SddStore, Path]:
-        resolved = original_resolve(dry_run=dry_run)
-        ready_to_launch.wait(timeout=_CONCURRENCY_TIMEOUT_SECONDS)
-        return resolved
-
-    monkeypatch.setattr(plan_module, "_resolve_context", resolve_together)
     monkeypatch.setattr(
         plan_module,
         "_commit_plan_file",

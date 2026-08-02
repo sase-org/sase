@@ -33,6 +33,7 @@ from sase.bead.cli_work_from_plan_resume import (
 )
 from sase.bead.cli_work_from_plan_store import (
     commit_plan_file as _commit_plan_file,
+    epic_launch_lock_anchor as _epic_launch_lock_anchor,
     epic_plan_launch_lock as _epic_plan_launch_lock,
     publish_epic_graph_before_launch as _publish_epic_graph_before_launch,
     publish_epic_rollback as _publish_epic_rollback,
@@ -100,124 +101,131 @@ def work_from_plan_file(
             validation=validation,
         )
 
-    plan = validation.plan
-    phase_ids = tuple(phase.id for phase in plan.phases)
-    waves = _preview_waves(plan)
-    dependency_count = sum(len(phase.depends_on) for phase in plan.phases)
-    if render:
-        Console().print(f"[bold]Epic plan[/bold]  {source_path}")
-        Console().print(
-            "[green]✓[/green] Validated       "
-            f"tier: epic · {len(plan.phases)} phases · "
-            f"{dependency_count} dependency edges"
-        )
-
-    try:
-        with timer.stage("store_context"):
-            location, store, workspace_dir = _resolve_context(dry_run=dry_run)
-            if dry_run:
-                _require_plan_store_health(store)
-            archive_destination = plan_archive_destination(
-                source_path,
-                store,
-                destination_name=destination_name,
-            )
-    except Exception as exc:
-        raise _error_with_resume(
-            f"could not resolve the SDD and bead stores: {exc}",
-            source_path,
-            no_push=no_push,
-        ) from exc
-    if render:
-        Console().print(
-            "[green]✓[/green] Store           "
-            f"{store.storage} · beads at {location.beads_dir}"
-        )
-
-    from sase.bead.epic_from_plan import (
-        preview_parented_epic_id,
-        require_epic_parent,
-        selected_epic_parent_id,
-    )
-
-    parent_id = selected_epic_parent_id(plan.parent_bead, parent)
-    preview_epic_id: str | None = None
-    if dry_run and parent_id is not None:
-        try:
-            with ExitStack() as stack:
-                with timer.stage("bead_project_open"):
-                    project = stack.enter_context(
-                        BeadProject(
-                            location.root,
-                            beads_dirname=location.beads_dirname,
-                        )
+    with ExitStack() as stack:
+        if not dry_run:
+            with timer.stage("plan_launch_lock"):
+                stack.enter_context(
+                    _epic_plan_launch_lock(
+                        _epic_launch_lock_anchor(),
+                        plan_file=source_path,
                     )
-                parent_issue = require_epic_parent(
-                    project, parent_id, plan_path=source_path
                 )
-                if parent_issue is not None:
-                    parent_id = parent_issue.id
-                preview_epic_id = preview_parented_epic_id(project, parent_id)
+
+        plan = validation.plan
+        phase_ids = tuple(phase.id for phase in plan.phases)
+        waves = _preview_waves(plan)
+        dependency_count = sum(len(phase.depends_on) for phase in plan.phases)
+        if render:
+            Console().print(f"[bold]Epic plan[/bold]  {source_path}")
+            Console().print(
+                "[green]✓[/green] Validated       "
+                f"tier: epic · {len(plan.phases)} phases · "
+                f"{dependency_count} dependency edges"
+            )
+
+        try:
+            with timer.stage("store_context"):
+                location, store, workspace_dir = _resolve_context(dry_run=dry_run)
+                if dry_run:
+                    _require_plan_store_health(store)
+                archive_destination = plan_archive_destination(
+                    source_path,
+                    store,
+                    destination_name=destination_name,
+                )
         except Exception as exc:
             raise _error_with_resume(
-                str(exc),
+                f"could not resolve the SDD and bead stores: {exc}",
                 source_path,
                 no_push=no_push,
-                parent_override=parent,
             ) from exc
-
-    if dry_run:
-        if archive_destination.is_file() and not _same_path(
-            source_path, archive_destination
-        ):
-            _require_matching_plan_identity(
-                source_path,
-                source_title=plan.title,
-                archived_path=archive_destination,
-                no_push=no_push,
-            )
-        existing_epic_id = _linked_bead_id_if_present(archive_destination)
-        if existing_epic_id is not None:
-            linked_issue = _require_linked_epic(
-                location, existing_epic_id, archive_destination
-            )
-            _require_parent_override_matches_linked(
-                linked_issue,
-                parent_id,
-                parent_override=parent,
-                plan_path=archive_destination,
-            )
-            parent_id = linked_issue.parent_id
-            preview_epic_id = linked_issue.id
         if render:
             Console().print(
-                "[green]✓[/green] Archived        "
-                f"{archive_destination} (preview; no files written)"
+                "[green]✓[/green] Store           "
+                f"{store.storage} · beads at {location.beads_dir}"
             )
-            _render_plan_preview(plan, waves)
-            _render_parent_preview(
-                parent_id,
-                preview_epic_id,
-                overridden=parent is not None,
-            )
-            Console().print("\nDry run complete; no beads or files were changed.")
-            Console().print(f"Epic: {existing_epic_id or preview_epic_id or 'dry-run'}")
-        return _PlanFileWorkResult(
-            archived_plan_path=archive_destination,
-            authored_phase_ids=phase_ids,
-            dry_run=True,
-            epic_id=existing_epic_id,
-            parent_id=parent_id,
-            preview_epic_id=preview_epic_id,
-            resumed=existing_epic_id is not None,
-            waves=waves,
+
+        from sase.bead.epic_from_plan import (
+            preview_parented_epic_id,
+            require_epic_parent,
+            selected_epic_parent_id,
         )
 
-    with ExitStack() as stack:
-        with timer.stage("plan_launch_lock"):
-            stack.enter_context(
-                _epic_plan_launch_lock(store.repo_root, plan_file=source_path)
+        parent_id = selected_epic_parent_id(plan.parent_bead, parent)
+        preview_epic_id: str | None = None
+        if dry_run and parent_id is not None:
+            try:
+                with ExitStack() as preview_stack:
+                    with timer.stage("bead_project_open"):
+                        project = preview_stack.enter_context(
+                            BeadProject(
+                                location.root,
+                                beads_dirname=location.beads_dirname,
+                            )
+                        )
+                    parent_issue = require_epic_parent(
+                        project, parent_id, plan_path=source_path
+                    )
+                    if parent_issue is not None:
+                        parent_id = parent_issue.id
+                    preview_epic_id = preview_parented_epic_id(project, parent_id)
+            except Exception as exc:
+                raise _error_with_resume(
+                    str(exc),
+                    source_path,
+                    no_push=no_push,
+                    parent_override=parent,
+                ) from exc
+
+        if dry_run:
+            if archive_destination.is_file() and not _same_path(
+                source_path, archive_destination
+            ):
+                _require_matching_plan_identity(
+                    source_path,
+                    source_title=plan.title,
+                    archived_path=archive_destination,
+                    no_push=no_push,
+                )
+            existing_epic_id = _linked_bead_id_if_present(archive_destination)
+            if existing_epic_id is not None:
+                linked_issue = _require_linked_epic(
+                    location, existing_epic_id, archive_destination
+                )
+                _require_parent_override_matches_linked(
+                    linked_issue,
+                    parent_id,
+                    parent_override=parent,
+                    plan_path=archive_destination,
+                )
+                parent_id = linked_issue.parent_id
+                preview_epic_id = linked_issue.id
+            if render:
+                Console().print(
+                    "[green]✓[/green] Archived        "
+                    f"{archive_destination} (preview; no files written)"
+                )
+                _render_plan_preview(plan, waves)
+                _render_parent_preview(
+                    parent_id,
+                    preview_epic_id,
+                    overridden=parent is not None,
+                )
+                Console().print("\nDry run complete; no beads or files were changed.")
+                Console().print(
+                    f"Epic: {existing_epic_id or preview_epic_id or 'dry-run'}"
+                )
+            return _PlanFileWorkResult(
+                archived_plan_path=archive_destination,
+                authored_phase_ids=phase_ids,
+                dry_run=True,
+                epic_id=existing_epic_id,
+                parent_id=parent_id,
+                preview_epic_id=preview_epic_id,
+                resumed=existing_epic_id is not None,
+                waves=waves,
             )
+
         return _work_from_plan_file_locked(
             location=location,
             store=store,

@@ -176,6 +176,11 @@ contention as a busy-but-healthy outcome, so it cannot authorize destructive rec
 `SASE_SDD_STORE_WRITE_LOCK_TIMEOUT` sets one non-negative override for both wait bounds, and
 `SASE_SDD_GIT_LOCK_RETRY_DELAYS` supplies comma-separated per-command retry delays.
 
+Epic approvals for one project additionally serialize on a primary-workspace-keyed lock under
+`~/.sase/locks/epic-plan-launches/`. The lock covers sidecar materialization as well as plan archiving and bead writes.
+If a host approval preflight cannot acquire a contended lock within its shorter wait bound, it defers the store health
+check to the detached launch, which repeats that check while holding the lock, instead of failing the approval.
+
 Managed Git commands disable `rerere` and `rerere.autoupdate`, so a user's ambient Git configuration cannot replay a
 cached textual conflict resolution over SASE's semantic bead merge. Ordinary transactional integration restores the
 pre-rebase state after a failed rebase and refuses unsafe or unprovable recovery.

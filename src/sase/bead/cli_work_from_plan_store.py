@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 import fcntl
@@ -14,7 +15,6 @@ import math
 import os
 import random
 import shlex
-import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -24,17 +24,23 @@ from sase.bead.cli_common import (
     init_beads,
     resolve_beads_location,
 )
+from sase.bead.cli_location import resolve_workspace_anchor
 from sase.bead.project import BEADS_DIRNAME
 from sase.sdd.store import SDD_STORAGE_IN_TREE, SddStore
 
 _logger = logging.getLogger(__name__)
 
-EPIC_PLAN_LAUNCH_LOCK_FILENAME = "sase-epic-plan-launch.lock"
 ENV_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT = "SASE_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT"
 DEFAULT_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT_SECONDS = 900.0
+ENV_EPIC_APPROVAL_PREFLIGHT_LOCK_TIMEOUT = "SASE_EPIC_APPROVAL_PREFLIGHT_LOCK_TIMEOUT"
+DEFAULT_EPIC_APPROVAL_PREFLIGHT_LOCK_TIMEOUT_SECONDS = 120.0
 _EPIC_PLAN_LAUNCH_LOCK_INITIAL_BACKOFF_SECONDS = 0.005
 _EPIC_PLAN_LAUNCH_LOCK_MAX_BACKOFF_SECONDS = 0.25
 _EPIC_PLAN_LAUNCH_LOCK_BACKOFF_MULTIPLIER = 1.7
+_held_epic_plan_launch_anchors: ContextVar[frozenset[Path]] = ContextVar(
+    "held_epic_plan_launch_anchors",
+    default=frozenset(),
+)
 
 
 @dataclass(frozen=True)
@@ -119,19 +125,37 @@ def require_plan_store_health(store: SddStore) -> None:
 
 def require_epic_launch_store_health(cwd: Path) -> None:
     """Preflight a host-owned launch before detaching its canonical command."""
-    location = resolve_beads_location(cwd, materialize=True)
-    if location is not None and location.store is not None:
-        require_plan_store_health(location.store)
+    with epic_plan_launch_lock(
+        epic_launch_lock_anchor(cwd),
+        timeout=_epic_approval_preflight_lock_timeout(),
+        op="epic approval preflight",
+        raise_on_timeout=False,
+    ) as acquired:
+        if not acquired:
+            return
+        location = resolve_beads_location(cwd, materialize=True)
+        if location is not None and location.store is not None:
+            require_plan_store_health(location.store)
+
+
+def epic_launch_lock_anchor(cwd: str | Path | None = None) -> Path:
+    """Return the canonical serialization anchor for one project's epic launches."""
+    current = Path.cwd() if cwd is None else Path(cwd)
+    workspace_anchor = resolve_workspace_anchor(current)
+    anchor = workspace_anchor if workspace_anchor is not None else current
+    return anchor.expanduser().resolve(strict=False)
 
 
 @contextmanager
 def epic_plan_launch_lock(
-    repo_root: Path,
+    anchor: Path,
     *,
     plan_file: str | Path | None = None,
     timeout: float | None = None,
-) -> Iterator[None]:
-    """Serialize complete approved-plan launches for one canonical store.
+    op: str = "epic plan launch",
+    raise_on_timeout: bool = True,
+) -> Iterator[bool]:
+    """Serialize complete approved-plan launches for one project anchor.
 
     This lock is deliberately distinct from ``store_git_write_lock``. Lock
     ordering is always launch lock first, then the short-lived store write lock
@@ -142,7 +166,14 @@ def epic_plan_launch_lock(
     """
     from sase.bead.cli_work_from_plan_types import PlanFileWorkError
 
-    lock_path = _epic_plan_launch_lock_path(repo_root)
+    canonical_anchor = anchor.expanduser().resolve(strict=False)
+    held_anchors = _held_epic_plan_launch_anchors.get()
+    if canonical_anchor in held_anchors:
+        raise RuntimeError(
+            f"epic plan launch anchor {canonical_anchor} is already held by "
+            "this context"
+        )
+    lock_path = _epic_plan_launch_lock_path(canonical_anchor)
     timeout_seconds = (
         _epic_plan_launch_lock_timeout() if timeout is None else max(0.0, timeout)
     )
@@ -168,23 +199,37 @@ def epic_plan_launch_lock(
                 if resume_command is not None
                 else " Retry the same `sase bead work` command after the holder finishes."
             )
-            raise PlanFileWorkError(
-                f"Timed out after {waited_seconds:.3f}s waiting for epic plan "
-                f"launch lock {lock_path}; {holder_detail}.{resume_hint}",
-                resume_command=resume_command,
+            if raise_on_timeout:
+                raise PlanFileWorkError(
+                    f"Timed out after {waited_seconds:.3f}s waiting for epic plan "
+                    f"launch lock {lock_path}; {holder_detail}.{resume_hint}",
+                    resume_command=resume_command,
+                )
+            _logger.warning(
+                "Timed out after %.3fs waiting for epic plan launch lock %s "
+                "during %s; deferring to %s",
+                waited_seconds,
+                lock_path,
+                op,
+                holder_detail,
             )
+            yield False
+            return
 
         _write_lock_holder(
             lock_file,
             {
                 "pid": os.getpid(),
+                "op": op,
                 "plan_file": waiting_plan or "<unknown>",
                 "started_at": datetime.now(UTC).isoformat(),
             },
         )
+        token = _held_epic_plan_launch_anchors.set(held_anchors | {canonical_anchor})
         try:
-            yield
+            yield True
         finally:
+            _held_epic_plan_launch_anchors.reset(token)
             try:
                 _clear_lock_holder(lock_file)
             finally:
@@ -192,15 +237,29 @@ def epic_plan_launch_lock(
 
 
 def _epic_plan_launch_lock_timeout() -> float:
-    raw = os.environ.get(ENV_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT)
+    return _positive_timeout_from_env(
+        ENV_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT,
+        DEFAULT_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT_SECONDS,
+    )
+
+
+def _epic_approval_preflight_lock_timeout() -> float:
+    return _positive_timeout_from_env(
+        ENV_EPIC_APPROVAL_PREFLIGHT_LOCK_TIMEOUT,
+        DEFAULT_EPIC_APPROVAL_PREFLIGHT_LOCK_TIMEOUT_SECONDS,
+    )
+
+
+def _positive_timeout_from_env(name: str, default: float) -> float:
+    raw = os.environ.get(name)
     if raw is None:
-        return DEFAULT_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT_SECONDS
+        return default
     try:
         timeout = float(raw)
     except ValueError:
-        return DEFAULT_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT_SECONDS
+        return default
     if not math.isfinite(timeout) or timeout <= 0:
-        return DEFAULT_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT_SECONDS
+        return default
     return timeout
 
 
@@ -258,40 +317,17 @@ def _format_epic_plan_launch_holder(holder: dict[str, Any] | None) -> str:
     if holder is None:
         return "the current holder did not record its identity"
     return (
-        f"holder pid {holder.get('pid', 'unknown')} is launching "
+        f"holder pid {holder.get('pid', 'unknown')} is running "
+        f"{holder.get('op', 'an epic plan launch')} for "
         f"{holder.get('plan_file', '<unknown>')} "
         f"(started {holder.get('started_at', 'at an unknown time')})"
     )
 
 
-def _epic_plan_launch_lock_path(repo_root: Path) -> Path:
-    """Return an untracked lock path keyed by the canonical store root."""
-    canonical_root = repo_root.expanduser().resolve(strict=False)
-    try:
-        from sase.sdd._git import run_sdd_git
-
-        result = run_sdd_git(
-            ["rev-parse", "--git-dir"],
-            cwd=canonical_root,
-            op="sdd.epic_plan_launch_lock.git_dir",
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except (OSError, subprocess.SubprocessError):
-        result = None
-    if result is not None and result.returncode == 0:
-        raw_git_dir = result.stdout.strip()
-        if raw_git_dir:
-            git_dir = Path(raw_git_dir)
-            if not git_dir.is_absolute():
-                git_dir = canonical_root / git_dir
-            return git_dir.resolve(strict=False) / EPIC_PLAN_LAUNCH_LOCK_FILENAME
-
-    # Supported local stores need not be Git repositories. Keep their lock out
-    # of durable plan/bead content while preserving one identity across
-    # processes that resolve the same canonical root.
-    identity = hashlib.sha256(os.fsencode(canonical_root)).hexdigest()
+def _epic_plan_launch_lock_path(anchor: Path) -> Path:
+    """Return an untracked lock path keyed by the canonical project anchor."""
+    canonical_anchor = anchor.expanduser().resolve(strict=False)
+    identity = hashlib.sha256(os.fsencode(canonical_anchor)).hexdigest()
     from sase.core.paths import sase_subdir
 
     return sase_subdir("locks") / "epic-plan-launches" / f"{identity}.lock"

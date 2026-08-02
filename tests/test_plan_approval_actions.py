@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -21,6 +23,24 @@ from sase.plan_approval_actions import (
 from sase.sdd._repository_transaction import SddRepositoryHealthError
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
+
+
+def _hold_epic_approval_lock(
+    anchor: str,
+    acquired: Any,
+    release: Any,
+    plan_file: str,
+) -> None:
+    from sase.bead.cli_work_from_plan_store import epic_plan_launch_lock
+
+    with epic_plan_launch_lock(
+        Path(anchor),
+        plan_file=plan_file,
+        op="test in-flight epic launch",
+    ) as locked:
+        assert locked is True
+        acquired.set()
+        assert release.wait(5.0)
 
 
 @pytest.mark.parametrize(
@@ -345,6 +365,58 @@ def test_headless_epic_approval_claims_host_ownership_before_submitting(
     submit_launch.assert_called_once()
     assert submit_launch.call_args.kwargs["cwd"] == workspace
     assert submit_launch.call_args.kwargs["origin"] == expected_origin
+
+
+def test_headless_epic_approval_submits_while_inflight_launch_holds_anchor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_work_from_plan_store import epic_launch_lock_anchor
+
+    context, _response_dir, workspace = _epic_context(tmp_path)
+    plan = Path(context.host_files[0])
+    anchor = epic_launch_lock_anchor(workspace)
+    monkeypatch.setenv("SASE_EPIC_APPROVAL_PREFLIGHT_LOCK_TIMEOUT", "0.02")
+    process_context = multiprocessing.get_context("fork")
+    holder_acquired = process_context.Event()
+    release_holder = process_context.Event()
+    process = process_context.Process(
+        target=_hold_epic_approval_lock,
+        args=(
+            str(anchor),
+            holder_acquired,
+            release_holder,
+            str(plan),
+        ),
+    )
+    process.start()
+    assert holder_acquired.wait(2.0) is True
+
+    try:
+        with (
+            patch(
+                "sase.bead.epic_launch.resolve_epic_launch_cwd",
+                return_value=workspace,
+            ),
+            patch(
+                "sase.bead.cli_work_from_plan_store.resolve_beads_location",
+                side_effect=AssertionError(
+                    "contended preflight must not materialize the sidecar"
+                ),
+            ),
+            patch(
+                "sase.bead.epic_launch.submit_epic_launch_task",
+                return_value=SimpleNamespace(task_id="task-contended"),
+            ) as submit_launch,
+        ):
+            result = execute_plan_approval_response(context, "epic")
+    finally:
+        release_holder.set()
+        process.join(timeout=2.0)
+
+    assert result.epic_launch_task_id == "task-contended"
+    submit_launch.assert_called_once()
+    assert process.exitcode == 0
 
 
 def test_epic_launch_cwd_resolves_from_project_file_without_project_dir(

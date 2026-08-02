@@ -2458,10 +2458,12 @@ a provider prefix; use `opencode models` to list models in your configured envir
 
 ### SDD Git Operations
 
-| Variable                            | Description                                                                                                                                                    |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_SDD_STORE_WRITE_LOCK_TIMEOUT` | Non-negative seconds to wait for the cooperative SDD store lock. Overrides both the 10-second metadata-write default and 180-second worktree-mutation default. |
-| `SASE_SDD_GIT_LOCK_RETRY_DELAYS`    | Comma-separated non-negative delays, in seconds, for transient Git lock failures. Invalid or empty values use the built-in shared retry schedule.              |
+| Variable                                    | Description                                                                                                                                                    |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_SDD_STORE_WRITE_LOCK_TIMEOUT`         | Non-negative seconds to wait for the cooperative SDD store lock. Overrides both the 10-second metadata-write default and 180-second worktree-mutation default. |
+| `SASE_SDD_GIT_LOCK_RETRY_DELAYS`            | Comma-separated non-negative delays, in seconds, for transient Git lock failures. Invalid or empty values use the built-in shared retry schedule.              |
+| `SASE_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT`        | Positive seconds an epic plan launch waits for another launch in the same project (default: 900).                                                              |
+| `SASE_EPIC_APPROVAL_PREFLIGHT_LOCK_TIMEOUT` | Positive seconds an approval preflight waits for an in-flight epic launch before deferring its health check to the detached launch (default: 120).             |
 
 See [SDD storage concurrency and recovery](sdd_storage.md#concurrency-and-recovery) for the lock, recovery snapshot, and
 failed-integration cooldown behavior.

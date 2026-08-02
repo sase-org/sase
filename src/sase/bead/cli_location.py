@@ -46,6 +46,13 @@ class _WorkspaceContext:
     project_name: str | None = None
 
 
+def resolve_workspace_anchor(cwd: Path | None = None) -> Path | None:
+    """Return the primary workspace that owns this cwd's shared SDD clones."""
+    current = (Path.cwd() if cwd is None else cwd).expanduser().resolve()
+    context = _resolve_workspace_context(current)
+    return context.primary if context is not None else None
+
+
 def find_beads_location(
     cwd: Path | None = None,
     *,
