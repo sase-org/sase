@@ -1,6 +1,6 @@
 """Axe tab keybinding sections for the help modal."""
 
-from ...keymaps import KeymapRegistry, key_display_name, leader_key_display
+from ...keymaps import KeymapRegistry, key_display_name
 from .binding_common import (
     ADMIN_CENTER_TASKS_SECTION,
     ADMIN_CENTER_UPDATES_SECTION,
@@ -69,7 +69,6 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'repeat_last'))}",
                     "Repeat last leader command",
                 ),
-                (leader_key_display(km, "show_help"), "Show this help"),
                 (
                     key_sequence_display(lm.prefix, sk(lm.keys, "agent_home")),
                     "Run agent (home)",
@@ -151,6 +150,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     d(a.open_config_center),
                     "Admin Center: 1-7 jump, # back",
                 ),
+                (d(a.show_help), "Show this help"),
                 (d(a.show_notifications), "Notifications (d debugs row)"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.refresh), "Refresh"),

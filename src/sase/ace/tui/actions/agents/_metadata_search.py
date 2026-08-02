@@ -9,7 +9,7 @@ from textual.containers import VerticalScroll
 from textual.events import Key
 from textual.widgets import Static
 
-from ...keymaps import split_key_alternatives
+from ...keymaps import key_display_name, split_key_alternatives
 from ...widgets.agent_detail import AgentDetail, AgentMetadataIdentityChanged
 from ...widgets.prompt_panel import AgentPromptPanel
 from ...widgets.renderable_text import renderable_to_text
@@ -60,15 +60,22 @@ class AgentMetadataSearchMixin:
             self._agent_metadata_search.start("forward")
 
     def action_search_reverse(self) -> None:
-        """Start reverse incremental search over the Agents metadata panel."""
-        if self._agent_metadata_search_can_start():
-            self._agent_metadata_search.start("reverse")
+        """Reverse the active Agents metadata search order."""
+        if self._agent_metadata_search.is_active:
+            self._agent_metadata_search.toggle_direction()
 
     def _handle_agent_metadata_search_key(self, event: Key) -> bool:
         """Handle one key while inline metadata search owns the panel."""
         search = self._agent_metadata_search
         if not search.is_active:
             return False
+
+        reverse_keys = split_key_alternatives(
+            self._keymap_registry.app.search_reverse  # type: ignore[attr-defined]
+        )
+        if event.key in reverse_keys:
+            search.toggle_direction()
+            return True
 
         if search.mode == "committed":
             if event.key == "q":
@@ -88,6 +95,7 @@ class AgentMetadataSearchMixin:
             event.key,
             event.character,
             passthrough_exit_keys=None,
+            allow_question_mark_reverse=False,
         )
         return disposition == "consumed"
 
@@ -271,10 +279,17 @@ class AgentMetadataSearchMixin:
         """Render the command line and mode-specific inline help."""
         command = self._agent_detail().query_one("#agent-search-command", Static)
         command.border_title = "search"
+        reverse_key = key_display_name(
+            self._keymap_registry.app.search_reverse  # type: ignore[attr-defined]
+        )
         if mode == "typing":
-            command.border_subtitle = "[enter] accept  [esc/^c] cancel"
+            command.border_subtitle = (
+                f"[enter] accept  [{reverse_key}] reverse  [esc/^c] cancel"
+            )
         else:
-            command.border_subtitle = "[n/N] next/prev  [y] yank  [esc/q] close"
+            command.border_subtitle = (
+                f"[n/N] next/prev  [{reverse_key}] reverse  [y] yank  [esc/q] close"
+            )
         command.update(content)
         command.remove_class("hidden")
 

@@ -96,7 +96,7 @@ _NON_PRS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.start_last_vcs_xprompt_in_editor",
         "app.restore_prompt_stash",
         "app.show_notifications",
-        "leader.show_help",
+        "app.show_help",
         "app.open_config_center",
         "app.open_command_palette",
         "app.dismiss_toasts",
@@ -384,6 +384,9 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     # currently disabled.
     if spec.id == "app.open_agent_cleanup_panel":
         return True
+
+    if spec.id == "app.search_reverse":
+        return ctx.agents_metadata_search_active
 
     if spec.id == "app.clear_marks":
         return ctx.mark_count > 0

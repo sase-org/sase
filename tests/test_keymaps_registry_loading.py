@@ -42,9 +42,10 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.app.prev_agent_metadata_section == "ctrl+k"
     assert reg.app.search_forward == "slash"
     assert reg.app.edit_query == "slash"
-    assert reg.app.search_reverse == "question_mark"
+    assert reg.app.search_reverse == "ctrl+r"
+    assert reg.app.show_help == "question_mark"
     assert reg.leader_mode.keys["edit_query"] == "slash"
-    assert reg.leader_mode.keys["show_help"] == "question_mark"
+    assert "show_help" not in reg.leader_mode.keys
     assert isinstance(reg.fold_mode, FoldModeKeymaps)
     assert isinstance(reg.copy_mode, CopyModeKeymaps)
     assert isinstance(reg.leader_mode, LeaderModeKeymaps)
@@ -68,18 +69,24 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.statistics.help == "question_mark"
 
 
-def test_app_query_override_is_honored_while_retired_help_is_dropped(
+def test_app_query_and_help_overrides_are_honored_while_leader_help_is_retired(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.DEBUG, logger="sase.ace.tui.keymaps.registry"):
         reg = load_keymap_registry(
-            {"keymaps": {"app": {"edit_query": "f5", "show_help": "f6"}}}
+            {
+                "keymaps": {
+                    "app": {"edit_query": "f5", "show_help": "f6"},
+                    "modes": {"leader_mode": {"keys": {"show_help": "f7"}}},
+                }
+            }
         )
 
     assert reg.app.edit_query == "f5"
-    assert not hasattr(reg.app, "show_help")
+    assert reg.app.show_help == "f6"
+    assert "show_help" not in reg.leader_mode.keys
     assert "Ignoring retired app keymap action: edit_query" not in caplog.text
-    assert "Ignoring retired app keymap action: show_help" in caplog.text
+    assert "Ignoring retired app keymap action: show_help" not in caplog.text
     assert "Unknown keymap action" not in caplog.text
 
 

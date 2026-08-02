@@ -25,7 +25,7 @@ def test_leader_space_runs_agent_from_current_cl() -> None:
     assert app.refresh_count == 1
 
 
-def test_leader_question_mark_shows_help_on_all_tabs() -> None:
+def test_leader_question_mark_is_retired_on_all_tabs() -> None:
     for tab in ("changespecs", "agents", "axe"):
         app = _FakeApp(current_tab=tab)
 
@@ -33,9 +33,9 @@ def test_leader_question_mark_shows_help_on_all_tabs() -> None:
 
         assert handled is True
         assert app._leader_mode_active is False
-        assert app.show_help_count == 1
+        assert app.show_help_count == 0
         assert app.notifications == []
-        assert app._last_leader_key == "question_mark"
+        assert app._last_leader_key is None
         assert app.refresh_count == 1
 
 

@@ -536,10 +536,10 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "search_reverse",
-        "Search metadata backward",
+        "Reverse metadata search order",
         "Queries",
         AGENTS_ONLY,
-        ("find", "reverse", "?"),
+        ("find", "reverse", "search direction", "ctrl+r"),
     ),
     (
         "open_saved_query_picker",
@@ -576,6 +576,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
             "xprompts",
             "browse xprompts",
         ),
+    ),
+    (
+        "show_help",
+        "Show help",
+        "Display",
+        ALL_TABS,
+        ("help", "keybindings", "?", "guide"),
     ),
     (
         "dismiss_toasts",

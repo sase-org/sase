@@ -34,7 +34,7 @@ def _guide_is(page: AcePage, guide_type: type[object]) -> bool:
 
 async def test_help_modal_tab_switch_keys_change_tab_and_refresh_content() -> None:
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("comma", "question_mark")
+        await page.press("question_mark")
         await page.expect_modal("HelpModal")
         assert "Artifacts Tab" in _help_title(page)
 
@@ -61,7 +61,7 @@ async def test_help_guide_tab_uses_configured_tab_switch_keys(
     async with AcePage(initial_tab="changespecs") as page:
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.press("comma", "question_mark")
+        await page.press("question_mark")
         await page.expect_modal("HelpModal")
         await page.press("]")
         assert _guide_is(page, ChangeSpecOnboarding)

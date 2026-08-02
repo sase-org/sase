@@ -67,6 +67,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "start_last_vcs_xprompt_in_editor",
         "restore_prompt_stash",
         "show_notifications",
+        "show_help",
         "open_config_center",
         "open_models_panel",
         "open_command_palette",

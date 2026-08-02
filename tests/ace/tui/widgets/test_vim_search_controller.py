@@ -166,6 +166,90 @@ def test_controller_repeat_reports_forward_and_reverse_wraps() -> None:
     assert host.notifications[-1] == "search hit TOP, continuing at BOTTOM"
 
 
+def test_controller_toggle_direction_while_typing_preserves_frozen_state() -> None:
+    host = _RecordingHost("alpha\nmiddle\nalpha", origin=(0, 1))
+    controller = VimSearchController(host)
+
+    controller.start("forward")
+    _type_query(controller, "alpha")
+    assert controller.current_selection is not None
+    assert controller.current_selection.index == 1
+    original_corpus = controller.corpus
+    original_spans = controller.match_spans
+
+    assert controller.toggle_direction()
+
+    assert controller.mode == "typing"
+    assert controller.direction == "reverse"
+    assert controller.query == "alpha"
+    assert controller.corpus == original_corpus
+    assert controller.match_spans == original_spans
+    assert controller.current_selection is not None
+    assert controller.current_selection.index == 0
+    assert host.started == 1
+    assert "?alpha" in host.command.plain
+
+
+def test_controller_toggle_direction_after_commit_updates_repeat_order() -> None:
+    host = _RecordingHost("alpha beta alpha")
+    controller = VimSearchController(host)
+
+    controller.start("forward")
+    _type_query(controller, "alpha")
+    controller.handle_key("enter", None)
+    assert controller.current_selection is not None
+    assert controller.current_selection.index == 0
+
+    assert controller.toggle_direction()
+
+    assert controller.mode == "committed"
+    assert controller.direction == "reverse"
+    assert controller.last_search == ("alpha", "reverse")
+    assert controller.current_selection is not None
+    assert controller.current_selection.index == 0
+
+    controller.repeat()
+    assert controller.current_selection is not None
+    assert controller.current_selection.index == 1
+
+
+def test_controller_question_mark_reverse_restart_can_be_disabled() -> None:
+    host = _RecordingHost("alpha beta alpha")
+    controller = VimSearchController(host)
+    controller.start("forward")
+    _type_query(controller, "alpha")
+    controller.handle_key("enter", None)
+
+    disposition = controller.handle_key(
+        "question_mark",
+        "?",
+        passthrough_exit_keys=None,
+        allow_question_mark_reverse=False,
+    )
+
+    assert disposition == "passthrough"
+    assert controller.mode == "off"
+    assert host.exited == [False]
+
+
+def test_controller_question_mark_reverse_restart_stays_enabled_by_default() -> None:
+    host = _RecordingHost("alpha beta alpha")
+    controller = VimSearchController(host)
+    controller.start("forward")
+    _type_query(controller, "alpha")
+    controller.handle_key("enter", None)
+
+    assert (
+        controller.handle_key("question_mark", "?", passthrough_exit_keys=None)
+        == "consumed"
+    )
+
+    assert controller.mode == "typing"
+    assert controller.direction == "reverse"
+    assert controller.query == ""
+    assert host.started == 2
+
+
 def test_controller_scrolls_to_match_with_context_and_horizontal_margin() -> None:
     corpus = "\n".join(["short"] * 8 + ["abcdefghijklmnop needle"])
     host = _RecordingHost(

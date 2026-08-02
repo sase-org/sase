@@ -51,7 +51,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("Y", "sync", "Sync", show=False),
     Binding("slash", "search_forward", "Search Forward", show=False),
     Binding("slash", "edit_query", "Edit Query", show=False),
-    Binding("question_mark", "search_reverse", "Search Reverse", show=False),
+    Binding("ctrl+r", "search_reverse", "Reverse Search Order", show=False),
     Binding("e", "edit_spec", "Edit Spec", show=False),
     Binding("a", "add_axe_item", "Add AXE Item", show=False),
     Binding("d", "toggle_axe_description", "Toggle AXE Description", show=False),
@@ -227,6 +227,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("G", "scroll_to_bottom", "Bottom", show=False),
     # SASE Admin Center (config editor + xprompt browser)
     Binding("number_sign", "open_config_center", "SASE Admin Center", show=False),
+    Binding("question_mark", "show_help", "Help", show=False),
     # Query history navigation
     Binding("circumflex_accent", "prev_query", "Prev Query", show=False),
     Binding("underscore", "next_query", "Next Query", show=False),

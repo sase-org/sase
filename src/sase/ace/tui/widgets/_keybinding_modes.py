@@ -308,7 +308,6 @@ class KeybindingModesMixin:
         bindings.append((k("repeat_last"), "repeat"))
         if current_tab == "agents":
             bindings.append((k("edit_query"), "edit query"))
-        bindings.append((k("show_help"), "help"))
         if current_tab == "changespecs":
             if has_comments:
                 bindings.append((k("clear_comments"), "clear comments"))

@@ -173,6 +173,7 @@ class AppKeymaps:
     prev_query: str
     next_query: str
     # Display / misc
+    show_help: str
     toggle_hide_reverted: str
     toggle_hide_submitted: str
     show_notifications: str

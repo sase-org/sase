@@ -194,11 +194,11 @@ class TabQuickStart(VerticalScroll):
                 "Search and filter this tab.",
             ),
             (
-                (leader_key_display(registry, "show_help"),),
+                (key_display_name(app.show_help),),
                 "Every keymap for the current tab.",
             ),
             (
-                (leader_key_display(registry, "show_help"), "]"),
+                (key_display_name(app.show_help), "]"),
                 "The full tour of this tab: the in-depth guide.",
             ),
             (

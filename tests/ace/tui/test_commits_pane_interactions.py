@@ -251,7 +251,7 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
         await page.press("f2")
         await page.wait_for(lambda _state: len(calls) == baseline + 1)
 
-        await page.press("comma", "question_mark")
+        await page.press("question_mark")
         await page.expect_modal("HelpModal")
         modal = page.app.screen
         assert isinstance(modal, HelpModal)

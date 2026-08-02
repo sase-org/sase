@@ -107,9 +107,26 @@ def test_agent_fold_palette_is_hidden_without_summary_selection() -> None:
     assert not is_command_available(catalog["app.start_fold_mode"], group_ctx)
 
 
-def test_metadata_search_palette_entries_are_available_when_actions_land() -> None:
+def test_metadata_search_palette_entries_follow_transient_search_state() -> None:
     catalog = _catalog_by_id()
     ctx = CommandContext(tab="agents")
 
     assert is_command_available(catalog["app.search_forward"], ctx)
-    assert is_command_available(catalog["app.search_reverse"], ctx)
+    assert not is_command_available(catalog["app.search_reverse"], ctx)
+    assert is_command_available(
+        catalog["app.search_reverse"],
+        CommandContext(tab="agents", agents_metadata_search_active=True),
+    )
+
+
+def test_show_help_palette_entry_is_available_across_tabs_and_artifacts() -> None:
+    catalog = _catalog_by_id()
+    show_help = catalog["app.show_help"]
+
+    assert is_command_available(show_help, CommandContext(tab="agents"))
+    assert is_command_available(show_help, CommandContext(tab="axe"))
+    for subtab in ("prs", "commits", "bugs", "beads", "plans", "chats", "other"):
+        assert is_command_available(
+            show_help,
+            CommandContext(tab="changespecs", artifacts_subtab=subtab),  # type: ignore[arg-type]
+        )

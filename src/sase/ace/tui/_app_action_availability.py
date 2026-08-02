@@ -51,6 +51,10 @@ def check_app_action(
             or (bool(getattr(app, "_screen_stack", ())) and app._prompt_input_active())
         ):
             return False
+        if action == "search_reverse":
+            metadata_search = getattr(app, "_agent_metadata_search", None)
+            if not bool(getattr(metadata_search, "is_active", False)):
+                return False
     # ``Ctrl+Space`` replays the last launch selection by remounting the
     # prompt bar, which tears down whatever the user is currently typing
     # (``_show_prompt_input_bar_for_home`` unmounts first). The printable

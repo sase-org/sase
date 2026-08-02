@@ -28,7 +28,7 @@ def test_contextual_query_and_help_overrides_update_help_displays() -> None:
     reg = load_keymap_registry(
         {
             "keymaps": {
-                "app": {"edit_query": "f5"},
+                "app": {"edit_query": "f5", "show_help": "f6"},
                 "modes": {
                     "leader_mode": {
                         "prefix": "g",
@@ -45,7 +45,8 @@ def test_contextual_query_and_help_overrides_update_help_displays() -> None:
         }
         assert ("f5", "Edit search query") in pairs
         assert not any(key == "gf" and "query" in label.lower() for key, label in pairs)
-        assert ("gh", "Show this help") in pairs
+        assert ("f6", "Show this help") in pairs
+        assert ("gh", "Show this help") not in pairs
 
     agent_pairs = {
         (key, label)
@@ -53,7 +54,8 @@ def test_contextual_query_and_help_overrides_update_help_displays() -> None:
         for key, label in bindings
     }
     assert ("gf", "Filter agents by query") in agent_pairs
-    assert ("gh", "Show this help") in agent_pairs
+    assert ("f6", "Show this help") in agent_pairs
+    assert ("gh", "Show this help") not in agent_pairs
 
 
 def test_agents_help_uses_configured_direct_visible_fold_selector_key() -> None:
@@ -105,7 +107,7 @@ def test_admin_center_help_summary_fits_and_documents_the_opener_toggle() -> Non
 
 
 def test_leader_prefix_override_updates_repeat_last_help_display() -> None:
-    """Leader help displays the configured prefix for repeat_last."""
+    """Leader-mode help displays the configured prefix for repeat_last."""
     reg = load_keymap_registry(
         {"keymaps": {"modes": {"leader_mode": {"prefix": "space"}}}}
     )
@@ -391,7 +393,8 @@ def test_agents_help_documents_inline_metadata_search() -> None:
     sections = dict(agents_bindings(reg))
 
     assert sections["Metadata Search"] == [
-        ("/ / ?", "Search metadata forward / backward"),
+        ("/", "Start metadata search forward"),
+        ("Ctrl+R", "Reverse active search order"),
         ("n / N", "Next / previous match"),
         ("Enter / Esc / Ctrl+C", "Accept / cancel search query"),
         ("Esc / q", "Close committed search"),

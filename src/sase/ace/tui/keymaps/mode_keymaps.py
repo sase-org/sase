@@ -156,7 +156,6 @@ class LeaderModeKeymaps(ModeKeymaps):
         default_factory=lambda: {
             "repeat_last": "comma",
             "edit_query": "slash",
-            "show_help": "question_mark",
             "run_cmd": "exclamation_mark",
             "runners": "R",
             "revert_agent": "r",

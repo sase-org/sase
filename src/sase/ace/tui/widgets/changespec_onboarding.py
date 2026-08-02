@@ -20,7 +20,6 @@ from ...display_helpers import get_status_color
 from ..keymaps import (
     KeymapRegistry,
     key_display_name,
-    leader_key_display,
     load_keymap_registry,
 )
 from ._onboarding_common import (
@@ -316,6 +315,7 @@ class ChangeSpecOnboarding(VerticalScroll):
             "sase-github & other PR integrations.",
             accent=_ACCENT,
         )
-        append_keycap(text, leader_key_display(registry, "show_help"))
+        app = registry.app
+        append_keycap(text, key_display_name(app.show_help))
         text.append("full keybinding reference for this tab.")
         return text

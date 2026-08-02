@@ -152,16 +152,17 @@ def test_leader_mode_includes_agent_run_log() -> None:
 
 
 def test_contextual_query_and_help_defaults_are_split_by_scope() -> None:
-    """Query editing is contextual while help remains a leader chord."""
+    """Query editing is contextual while help is a global app binding."""
     reg = load_keymap_registry({})
     assert "tab_guide" not in LeaderModeKeymaps().keys
     assert "tab_guide" not in reg.leader_mode.keys
     assert reg.leader_mode.keys["edit_query"] == "slash"
-    assert reg.leader_mode.keys["show_help"] == "question_mark"
+    assert "show_help" not in LeaderModeKeymaps().keys
+    assert "show_help" not in reg.leader_mode.keys
     assert reg.app.search_forward == "slash"
     assert reg.app.edit_query == "slash"
-    assert reg.app.search_reverse == "question_mark"
-    assert not hasattr(reg.app, "show_help")
+    assert reg.app.search_reverse == "ctrl+r"
+    assert reg.app.show_help == "question_mark"
 
 
 def test_leader_mode_drops_project_management_key() -> None:

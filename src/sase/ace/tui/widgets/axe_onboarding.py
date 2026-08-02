@@ -12,7 +12,6 @@ from textual.widgets import Static
 from ..keymaps import (
     KeymapRegistry,
     key_display_name,
-    leader_key_display,
     load_keymap_registry,
 )
 from ._axe_dashboard_render import CHOP_NAME_STYLE, LJ_NAME_STYLE
@@ -230,7 +229,8 @@ class AxeOnboarding(VerticalScroll):
             "automated review mentors Axe keeps running.",
             accent=_ACCENT,
         )
-        append_keycap(text, leader_key_display(registry, "show_help"))
+        app = registry.app
+        append_keycap(text, key_display_name(app.show_help))
         text.append("full keybinding reference for this tab.")
         text.append("\n")
         text.append(_DOCS_URL, style=f"bold {_ACCENT} link {_DOCS_URL}")

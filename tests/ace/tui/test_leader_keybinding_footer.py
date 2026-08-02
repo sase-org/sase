@@ -77,7 +77,9 @@ def test_footer_surfaces_configured_prompt_stash_key_on_all_tabs() -> None:
         assert ("P", "prompt stash") in captured[-1][0]
 
 
-def test_footer_surfaces_leader_query_only_on_agents_and_help_on_all_tabs() -> None:
+def test_footer_surfaces_leader_query_only_on_agents_and_retired_help_on_no_tabs() -> (
+    None
+):
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
@@ -87,7 +89,7 @@ def test_footer_surfaces_leader_query_only_on_agents_and_help_on_all_tabs() -> N
             assert ("/", "edit query") in captured[-1][0]
         else:
             assert ("/", "edit query") not in captured[-1][0]
-        assert ("?", "help") in captured[-1][0]
+        assert ("?", "help") not in captured[-1][0]
 
 
 def test_pr_footer_surfaces_configured_app_query_key() -> None:

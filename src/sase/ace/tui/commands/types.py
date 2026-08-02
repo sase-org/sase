@@ -223,6 +223,7 @@ class CommandContext:
     group_focused: bool = False
     file_panel_visible: bool = False
     has_artifact_files: bool = False
+    agents_metadata_search_active: bool = False
     # Axe tab state
     axe_running: bool = False
     selected_axe_slot_done: bool = False

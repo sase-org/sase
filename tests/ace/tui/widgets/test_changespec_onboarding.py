@@ -33,6 +33,7 @@ def test_changespec_onboarding_uses_active_keymap_registry() -> None:
         {
             "keymaps": {
                 "app": {
+                    "show_help": "f1",
                     "prev_tab": "f2",
                     "cycle_artifacts_subtab_reverse": "f3",
                     "cycle_artifacts_subtab": "f4",
@@ -40,7 +41,6 @@ def test_changespec_onboarding_uses_active_keymap_registry() -> None:
                     "cycle_files_subtab_reverse": "f6",
                     "cycle_files_subtab": "f7",
                 },
-                "modes": {"leader_mode": {"keys": {"show_help": "f1"}}},
             }
         }
     )

@@ -23,7 +23,6 @@ log = logging.getLogger(__name__)
 # from before the leader-chord remap continue to load without warnings.
 _RETIRED_APP_KEYS: frozenset[str] = frozenset(
     {
-        "show_help",
         "plans_expand",
         "plans_collapse",
         "plans_cycle_status",
@@ -56,9 +55,11 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
 # with the former user-presence dashboard; ``log_panel`` moved into the
 # Admin Center Logs tab and is opened via command palette or ``#``;
 # ``task_queue`` moved into the Admin Center Tasks tab;
-# ``toggle_selected_agent_panels`` moved to the app-level ``L`` action.
+# ``toggle_selected_agent_panels`` moved to the app-level ``L`` action;
+# ``show_help`` returned to the app-level ``?`` binding.
 _RETIRED_LEADER_KEYS: frozenset[str] = frozenset(
     {
+        "show_help",
         "kill_marked_and_edit",
         "restore_prompt_stash",
         "mark_inactive",

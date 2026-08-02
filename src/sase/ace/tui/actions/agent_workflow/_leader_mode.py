@@ -80,12 +80,6 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == leader_keys["show_help"]:
-            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            self.action_show_help()  # type: ignore[attr-defined]
-            self._refresh_current_tab()  # type: ignore[attr-defined]
-            return True
-
         if key == leader_keys["run_cmd"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab != "changespecs":

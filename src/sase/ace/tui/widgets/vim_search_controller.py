@@ -183,12 +183,15 @@ class VimSearchController:
         character: str | None,
         *,
         passthrough_exit_keys: Collection[str] | None = (),
+        allow_question_mark_reverse: bool = True,
     ) -> SearchKeyDisposition:
         """Interpret one key and report whether its host should also handle it.
 
         ``passthrough_exit_keys=None`` makes every otherwise-unhandled key exit
         committed mode before passing through. A concrete collection limits
         that behavior to the supplied structural keys.
+        ``allow_question_mark_reverse=False`` lets a host reserve ``?`` for a
+        wider binding after committed search exits.
         """
         if self.mode == "typing":
             return self._handle_typing_key(key, character)
@@ -210,7 +213,7 @@ class VimSearchController:
             if key == "slash":
                 self.start("forward")
                 return "consumed"
-            if key == "question_mark":
+            if key == "question_mark" and allow_question_mark_reverse:
                 self.start("reverse")
                 return "consumed"
             if passthrough_exit_keys is None or key in passthrough_exit_keys:
@@ -220,10 +223,28 @@ class VimSearchController:
         if key == "slash":
             self.start("forward")
             return "consumed"
-        if key == "question_mark":
+        if key == "question_mark" and allow_question_mark_reverse:
             self.start("reverse")
             return "consumed"
         return "ignored"
+
+    def toggle_direction(self) -> bool:
+        """Invert search direction without replacing the frozen corpus/query."""
+        if self.mode == "off":
+            return False
+
+        self.direction = invert_search_direction(self.direction)
+        if self.mode == "typing":
+            self._update_preview()
+            return True
+
+        if self.last_search is not None:
+            query, _recorded_direction = self.last_search
+            self.last_search = (query, self.direction)
+        elif self.query:
+            self.last_search = (self.query, self.direction)
+        self._render_command_line()
+        return True
 
     def repeat(self, *, reverse: bool = False) -> None:
         """Move to the next or previous committed match."""

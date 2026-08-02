@@ -22,11 +22,12 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
                     "next_tab": "f4",
                     "open_command_palette": "f7",
                     "edit_query": "f8",
+                    "show_help": "f6",
                 },
                 "modes": {
                     "leader_mode": {
                         "prefix": "g",
-                        "keys": {"edit_query": "f5", "show_help": "f6"},
+                        "keys": {"edit_query": "f5", "show_help": "f9"},
                     }
                 },
             }
@@ -40,6 +41,7 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
     for key in ("f2", "f3", "f4", "f5", "f6", "f7"):
         assert key in card
     assert "f8" not in card
+    assert "f9" not in card
     assert " ] " in card
     assert "Launch your first agent" in card
     assert "The full tour of this tab" in card

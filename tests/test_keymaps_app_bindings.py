@@ -46,8 +46,8 @@ def test_search_and_contextual_app_query_share_slash() -> None:
 
     assert by_action["search_forward"].key == "slash"
     assert by_action["edit_query"].key == "slash"
-    assert by_action["search_reverse"].key == "question_mark"
-    assert "show_help" not in by_action
+    assert by_action["search_reverse"].key == "ctrl+r"
+    assert by_action["show_help"].key == "question_mark"
 
 
 def test_diff_and_axe_description_toggle_share_d_in_resolution_order() -> None:

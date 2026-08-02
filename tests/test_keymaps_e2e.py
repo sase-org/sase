@@ -124,7 +124,7 @@ async def test_custom_app_and_leader_query_remaps_stay_independent() -> None:
             assert edits == [True]
 
 
-async def test_leader_help_chord_opens_help_and_bare_question_is_inert() -> None:
+async def test_bare_question_mark_opens_help_and_leader_chord_is_retired() -> None:
     with _patch_config():
         async with AcePage(initial_tab="changespecs") as page:
             for index, tab in enumerate(("changespecs", "agents", "axe")):
@@ -132,13 +132,12 @@ async def test_leader_help_chord_opens_help_and_bare_question_is_inert() -> None
                     await page.press("shift+tab")
                     await page.expect_state("tab", tab)
                 await page.press("question_mark")
+                await page.expect_modal("HelpModal")
+                await page.press("escape")
                 await page.expect_no_modal()
 
                 await page.press("comma", "question_mark")
-                await page.expect_modal("HelpModal")
-                if tab != "axe":
-                    await page.press("escape")
-                    await page.expect_no_modal()
+                await page.expect_no_modal()
 
 
 async def test_plus_dispatches_custom_agent_and_at_does_not() -> None:

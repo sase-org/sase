@@ -122,6 +122,21 @@ def test_restore_prompt_stash_command_is_all_tab_at_keymap() -> None:
     assert "gP" not in spec.aliases
 
 
+def test_show_help_command_is_global_question_mark_keymap() -> None:
+    """Bare ``?`` opens tab-aware help; the old ``,?`` command is gone."""
+    by_id = {c.id: c for c in build_command_catalog(_registry())}
+    spec = by_id["app.show_help"]
+
+    assert spec.label == "Show help"
+    assert spec.category == "Display"
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.key_sequence == ("question_mark",)
+    assert spec.key_display == "?"
+    assert spec.executor.kind == "app_action"
+    assert spec.executor.action == "show_help"
+    assert "leader.show_help" not in by_id
+
+
 def test_start_agent_from_changespec_command_uses_ctrl_space() -> None:
     """The repeat-last agent command exposes Ctrl+Space, not bare Space."""
     by_id = {c.id: c for c in iter_app_commands(_registry())}

@@ -121,10 +121,8 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         (
             "Metadata Search",
             [
-                (
-                    f"{d(a.search_forward)} / {d(a.search_reverse)}",
-                    "Search metadata forward / backward",
-                ),
+                (d(a.search_forward), "Start metadata search forward"),
+                (d(a.search_reverse), "Reverse active search order"),
                 ("n / N", "Next / previous match"),
                 ("Enter / Esc / Ctrl+C", "Accept / cancel search query"),
                 ("Esc / q", "Close committed search"),
@@ -232,7 +230,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Repeat last leader command",
                 ),
                 (leader_key_display(km, "edit_query"), "Filter agents by query"),
-                (leader_key_display(km, "show_help"), "Show this help"),
                 (
                     key_sequence_display(lm.prefix, sk(lm.keys, "agent_home")),
                     "Run agent (home)",
@@ -446,6 +443,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     d(a.open_config_center),
                     "Admin Center: 1-7 jump, # back",
                 ),
+                (d(a.show_help), "Show this help"),
                 (
                     d(a.show_notifications),
                     "Notifications (Enter opens full report; d debugs row)",
