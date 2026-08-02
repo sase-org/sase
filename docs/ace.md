@@ -2129,9 +2129,9 @@ independent:
 - An override on **`default`** drives the no-`%model` launch default and every alias that resolves through `@default`.
   It renders in a gold top-bar pill as `PROVIDER(model)[@<effort>] <time-left>`.
 - An override on **any other alias** takes effect wherever that alias is resolved. A size-specific phase override
-  affects only that alias. Overrides on `@smartest` suspend its ordered fallback, while overrides on `@cheap`,
-  `@cheaper`, and `@cheapest` suspend their independent load-balanced rotations until the override expires or is
-  cleared. It is surfaced by a distinct, concise violet top-bar pill: a single active override renders as
+  affects only that alias. An override on `@smartest` replaces its concrete maximum-effort target, while overrides on
+  `@cheap`, `@cheaper`, and `@cheapest` suspend their independent load-balanced rotations until the override expires or
+  is cleared. It is surfaced by a distinct, concise violet top-bar pill: a single active override renders as
   `@<alias>[@<effort>] <time-left>`, and several render as `@<alias> +N`, naming the alphabetically first alias and
   counting the rest. In both pills, lane color carries the "override" meaning while the effort suffix and time use a
   recessive tone; `∞` means until cleared. Hover either pill for full target and expiry details, or click it to open the
@@ -2149,8 +2149,8 @@ Delegated launches (plan coder follow-ups and `sase bead work` phase, task, and 
 [role aliases](llms.md#role-aliases-for-delegated-work) configured under `llm_provider.model_aliases.builtin`. The
 size-specific phase/task aliases route through `@cheaper`, `@cheap`, `@default@high`, `@smart`, and `@smartest`; a task
 without size metadata uses the small phase/task route. Nested `@default` references follow a temporary `default`
-override. Selector-backed aliases (`@smartest`, `@cheap`, `@cheaper`, and `@cheapest`) pin concrete targets and
-therefore do not follow it; override the selector-owning or size-specific alias itself to move one of those lanes.
+override. The concrete `@smartest` target and selector-backed `@cheap`, `@cheaper`, and `@cheapest` pools do not follow
+it; override the target/pool-owning or size-specific alias itself to move one of those lanes.
 
 ### Persistent edits
 
@@ -2188,8 +2188,7 @@ preview.
   without an explicit model use that target; other-sized phase routing is unchanged.
 - Highlight `smartest`, `e`, pick `claude/opus`, and confirm — xlarge phases and threshold-selected epic landers reach
   that target through `@xlarge_phase_worker` → `@smartest` and `@big_epic_lander` → `@smartest`.
-- Leave `smartest` implicit — its `claude/claude-fable-5 || codex/gpt-5.6-sol` fallback prefers Claude when installed
-  and otherwise selects Codex without changing load-balancing state.
+- Leave `smartest` implicit — xlarge phases and threshold-selected epic landers use `claude/opus` at `max` effort.
 - Highlight `cheaper`, `e`, choose `Custom...`, enter `claude/sonnet@medium | codex/gpt-5.5@medium`, and confirm —
   xsmall phases round-robin across installed providers while the panel continues to show the next selection without
   consuming it.
@@ -2199,7 +2198,7 @@ preview.
   explicit `@cheapest` launches round-robin across this independent pool without consuming the `cheap` or `cheaper`
   cursor.
 - Highlight `big_epic_lander`, `e`, pick a model, and confirm — only threshold-selected epic landers use that persistent
-  target; leaving it implicit follows provider-aware `@smartest` independently of `@epic_lander`.
+  target; leaving it implicit inherits `claude/opus@max` through `@smartest`, independently of `@epic_lander`.
 - Highlight `big_epic_lander`, `e`, filter for `@coder`, select it, and confirm — the persistent value is the dynamic
   `@coder` reference, not a copied concrete model.
 - Open `phase_worker`, highlight `medium_phase_worker`, press `o`, select `@coder`, then choose `1h` — the override

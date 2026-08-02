@@ -136,7 +136,7 @@ async def test_models_panel_runner_limit_override_png_snapshot(
         )
 
 
-async def test_models_panel_smartest_fallback_png_snapshot(
+async def test_models_panel_smartest_max_effort_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -155,8 +155,8 @@ async def test_models_panel_smartest_fallback_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "models_panel_smartest_fallback_120x40",
-            title="ACE models panel (ordered smartest fallback)",
+            "models_panel_smartest_max_effort_120x40",
+            title="ACE models panel (maximum-effort smartest target)",
         )
 
 

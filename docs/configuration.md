@@ -1011,7 +1011,7 @@ llm_provider:
       cheapest: claude/haiku | codex/gpt-5.3-codex-spark # explicit-use pool
       medium_phase_worker: "@default@high" # follows @default at high effort
       large_phase_worker: "@smart"
-      smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # ordered fallback
+      smartest: claude/opus@max # concrete maximum-effort target
     custom:
       blogger:
         model: claude/opus
@@ -1059,12 +1059,12 @@ On top of any configured aliases, SASE exposes a fixed set of **implicit role al
 `@cheaper`, plus explicit-use `@cheapest`. `@epic_lander` falls back to `@default`, while `@big_epic_lander` falls back
 independently to `@smartest`; xsmall phases and tasks fall back to `@cheaper`, small ones to `@cheap`, medium ones to
 `@default@high`, large ones to `@smart` (which itself falls back to `@default`), and xlarge ones to `@smartest`. The
-implicit `@smartest` value is `claude/claude-fable-5 || codex/gpt-5.6-sol`, preferring Claude when its CLI is installed.
-`@cheaper` owns the automatic xsmall phase/task pool and `@cheap` the small phase/task pool, while `@cheapest` owns an
-independent explicit-use pool. Override only threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`;
-override only large phases and sized tasks with `model_aliases.builtin.large_phase_worker`. `@smartest` is selected
-automatically through the threshold-sized epic and xlarge phase/task fallback chains. See
-[Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
+implicit `@smartest` value is the concrete target `claude/opus@max`; xlarge workers and threshold-sized epic landers
+inherit its `max` effort unless they or `@smartest` are overridden. `@cheaper` owns the automatic xsmall phase/task pool
+and `@cheap` the small phase/task pool, while `@cheapest` owns an independent explicit-use pool. Override only
+threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`; override only large phases and sized tasks
+with `model_aliases.builtin.large_phase_worker`. `@smartest` is selected automatically through the threshold-sized epic
+and xlarge phase/task fallback chains. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
 [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role. New
 tasks require an explicit size after `/sase_new_task` has ruled out a semantic duplicate and a causally related
 in-progress epic. Legacy tasks without size metadata remain launchable through the small phase/task route.
@@ -2282,8 +2282,8 @@ bead:
 | `bead.big_epic_phase_threshold` | int         | `5`     | Minimum total authored phase count that selects `@big_epic_lander` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                                                                              |
 | `bead.push_after_commit`        | bool or str | `true`  | Retained in the accepted configuration shape, but the current `sase bead work` path does not read it. Without `--no-push`, bead-ID launches synchronously run managed sync even for an in-tree Git store; a remote-backed detached store additionally requires an actual pre-spawn push. |
 
-Below the threshold, `@epic_lander` inherits `@default`. At or above it, `@big_epic_lander` instead inherits the
-provider-aware `@smartest` fallback. An explicit land model or a direct alias override remains authoritative.
+Below the threshold, `@epic_lander` inherits `@default`. At or above it, `@big_epic_lander` instead inherits
+`claude/opus@max` through `@smartest`. An explicit land model or a direct alias override remains authoritative.
 
 See [`docs/beads.md`](beads.md#sase-bead-work-target) for the current pre-spawn checkpoint and publication flow.
 

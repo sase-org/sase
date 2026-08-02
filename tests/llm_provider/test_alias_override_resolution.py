@@ -110,9 +110,10 @@ def test_stale_override_on_phase_worker_has_no_builtin_effect(
     )
     assert resolve_model_provider("medium_phase_worker") == ("claude", "opus")
     assert resolve_model_provider("large_phase_worker") == ("claude", "opus")
-    assert resolve_model_provider("xlarge_phase_worker") == (
+    assert resolve_model_provider_with_effort("xlarge_phase_worker") == (
         "claude",
-        "claude-fable-5",
+        "opus",
+        "max",
     )
 
 
@@ -279,7 +280,7 @@ def test_launch_default_override_beats_machine_override_at_nested_hop(
     )
 
 
-def test_default_override_does_not_move_selector_backed_lanes(
+def test_default_override_does_not_move_pinned_or_selector_backed_lanes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
@@ -293,8 +294,12 @@ def test_default_override_does_not_move_selector_backed_lanes(
     )
     set_alias_override("default", "codex/o3", None, source="panel")
 
-    assert resolve_model_alias("@smartest") == "claude/claude-fable-5"
-    assert resolve_model_alias("@xlarge_phase_worker") == "claude/claude-fable-5"
+    smartest = resolve_model_alias_with_effort("@smartest")
+    big_lander = resolve_model_alias_with_effort("@big_epic_lander")
+    xlarge = resolve_model_alias_with_effort("@xlarge_phase_worker")
+    assert (smartest.target, smartest.effort) == ("claude/opus", "max")
+    assert (big_lander.target, big_lander.effort) == ("claude/opus", "max")
+    assert (xlarge.target, xlarge.effort) == ("claude/opus", "max")
     assert resolve_model_alias("@cheapest") == "claude/haiku"
     cheap = resolve_model_alias_with_effort("@cheap")
     small = resolve_model_alias_with_effort("@small_phase_worker")

@@ -997,14 +997,15 @@ Once an epic bead exists, the shared launch path:
    `model`. Without one, it emits `%model:@epic_lander` below `bead.big_epic_phase_threshold` and
    `%model:@big_epic_lander` at or above the threshold (default `5`), using the total authored phase count even when
    resumed work has already-closed phases. Normal landers fall through `@epic_lander` to `@default`, while landers
-   selected by the threshold fall through `@big_epic_lander` to provider-aware `@smartest`. `xsmall` phases fall through
-   `@xsmall_phase_worker` to the load-balanced `@cheaper` pool, `small` phases through `@small_phase_worker` to the
-   `@cheap` pool, `medium` phases through `@medium_phase_worker` to `@default@high`, `large` phases through
-   `@large_phase_worker` to `@smart`, and `xlarge` phases through `@xlarge_phase_worker` to `@smartest`. The independent
-   `@cheapest` load-balanced pool is available for explicit use but has no automatic consumer. Builtin aliases can be
-   configured under `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic segment carries
-   bare `%auto`, so submitted implementation and landing plans are auto-approved. An agent may author a tale or an epic
-   as needed; the plan's authored `tier` selects the corresponding automatic follow-up path.
+   selected by the threshold fall through `@big_epic_lander` to `claude/opus@max` via `@smartest`. `xsmall` phases fall
+   through `@xsmall_phase_worker` to the load-balanced `@cheaper` pool, `small` phases through `@small_phase_worker` to
+   the `@cheap` pool, `medium` phases through `@medium_phase_worker` to `@default@high`, `large` phases through
+   `@large_phase_worker` to `@smart`, and `xlarge` phases through `@xlarge_phase_worker` to `@smartest`, inheriting its
+   `claude/opus@max` target. The independent `@cheapest` load-balanced pool is available for explicit use but has no
+   automatic consumer. Builtin aliases can be configured under `llm_provider.model_aliases.builtin`. Each phase segment
+   and the final land-epic segment carries bare `%auto`, so submitted implementation and landing plans are
+   auto-approved. An agent may author a tale or an epic as needed; the plan's authored `tier` selects the corresponding
+   automatic follow-up path.
 7. Before spawning any runner, batch-preassigns every scheduled phase bead to its rendered worker and the epic bead to
    `<epic_id>.land`, setting all of them to `in_progress`. It commits readiness, assignments, and the complete graph as
    one `chore(beads): checkpoint approved epic graph <id>` checkpoint. A retry whose graph is already committed may have

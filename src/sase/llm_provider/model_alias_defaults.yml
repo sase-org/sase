@@ -50,7 +50,7 @@ aliases:
     fallback: "@default"
     description: "High-capability model used automatically by large phase agents."
   smartest:
-    target: "claude/claude-fable-5 || codex/gpt-5.6-sol"
+    target: "claude/opus@max"
     description: >-
       Highest-capability model used automatically by extra-large phase agents
       and large epic landers.

@@ -48,7 +48,8 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert (
         by_name["big_epic_lander"].provider,
         by_name["big_epic_lander"].model,
-    ) == ("claude", "claude-fable-5")
+        by_name["big_epic_lander"].effort,
+    ) == ("claude", "opus", "max")
     assert "phase_worker" not in by_name
     assert by_name["xsmall_phase_worker"].kind == "role"
     assert by_name["small_phase_worker"].kind == "role"
@@ -58,6 +59,11 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["medium_phase_worker"].reference_effort == "high"
     assert by_name["large_phase_worker"].kind == "role"
     assert by_name["xlarge_phase_worker"].kind == "role"
+    assert (
+        by_name["xlarge_phase_worker"].provider,
+        by_name["xlarge_phase_worker"].model,
+        by_name["xlarge_phase_worker"].effort,
+    ) == ("claude", "opus", "max")
     assert by_name["smart"].kind == "role"
     assert by_name["smart"].implicit_fallback == "default"
     assert by_name["smartest"].kind == "role"
@@ -66,19 +72,14 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["smartest"].implicit_fallback is None
     targets = implicit_alias_targets()
 
-    smartest_selector = parse_model_alias_selector(targets["smartest"])
-    assert smartest_selector is not None
     assert by_name["smartest"].implicit_value == targets["smartest"]
-    # Pins the shape (ordered fallback), not the literal target strings, which
-    # live solely in model_alias_defaults.yml.
-    assert by_name["smartest"].selector_mode == smartest_selector.mode == "fallback"
-    assert [member.value for member in by_name["smartest"].selector_members] == list(
-        smartest_selector.members
-    )
-    assert [member.selected for member in by_name["smartest"].selector_members] == [
-        True,
-        False,
-    ]
+    assert (
+        by_name["smartest"].provider,
+        by_name["smartest"].model,
+        by_name["smartest"].effort,
+    ) == ("claude", "opus", "max")
+    assert by_name["smartest"].selector_mode is None
+    assert by_name["smartest"].selector_members == ()
     assert by_name["cheap"].kind == "role"
     assert by_name["cheaper"].kind == "role"
     cheap_selector = parse_model_alias_selector(targets["cheap"])
@@ -211,7 +212,7 @@ def test_default_is_first_and_groups_are_ordered(
     assert names.index("alpha") < names.index("zeta")
 
 
-def test_smartest_view_selects_codex_when_claude_is_unavailable(
+def test_smartest_view_is_a_direct_target_even_when_claude_is_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
@@ -223,11 +224,13 @@ def test_smartest_view_selects_codex_when_claude_is_unavailable(
 
     smartest = {view.name: view for view in build_alias_views()}["smartest"]
 
-    assert (smartest.provider, smartest.model) == ("codex", "gpt-5.6-sol")
-    assert [member.selected for member in smartest.selector_members] == [
-        False,
-        True,
-    ]
+    assert (smartest.provider, smartest.model, smartest.effort) == (
+        "claude",
+        "opus",
+        "max",
+    )
+    assert smartest.selector_mode is None
+    assert smartest.selector_members == ()
 
 
 def test_configured_value_shadows_role_alias(

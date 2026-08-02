@@ -56,9 +56,7 @@ def test_role_alias_helpers() -> None:
     assert implicit_model_alias_fallback("smart") == "default"
     assert implicit_model_alias_fallback("smartest") is None
     assert implicit_model_alias_value("smartest") == targets["smartest"]
-    smartest_selector = parse_model_alias_selector(targets["smartest"])
-    assert smartest_selector is not None
-    assert smartest_selector.mode == "fallback"
+    assert parse_model_alias_selector(targets["smartest"]) is None
     assert implicit_model_alias_value("cheap") == targets["cheap"]
     cheap_selector = parse_model_alias_selector(targets["cheap"])
     assert cheap_selector is not None
@@ -275,13 +273,9 @@ def test_epic_execution_role_aliases_follow_size_specific_fallbacks(
 
     for role in ("epic_lander", "medium_phase_worker"):
         assert resolve_model_alias(role) == "codex/gpt-5.6-sol"
-    monkeypatch.setattr(
-        "sase.llm_provider.config._resolved_target_is_available",
-        lambda target: target.startswith("claude/"),
-    )
-    assert resolve_model_alias("smartest") == "claude/claude-fable-5"
-    assert resolve_model_alias("big_epic_lander") == "claude/claude-fable-5"
-    assert resolve_model_alias("xlarge_phase_worker") == "claude/claude-fable-5"
+    for alias in ("smartest", "big_epic_lander", "xlarge_phase_worker"):
+        resolved = resolve_model_alias_with_effort(alias)
+        assert (resolved.target, resolved.effort) == ("claude/opus", "max")
     assert resolve_model_alias("large_phase_worker") == "codex/gpt-5.6-sol"
     small = resolve_model_alias_with_effort("small_phase_worker")
     xsmall = resolve_model_alias_with_effort("xsmall_phase_worker")
@@ -294,7 +288,7 @@ def test_epic_execution_role_aliases_follow_size_specific_fallbacks(
     assert resolve_model_alias("cheapest") == "claude/haiku"
 
 
-def test_configured_smartest_alias_shadows_implicit_fallback(
+def test_configured_smartest_alias_shadows_implicit_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -310,33 +304,23 @@ def test_configured_smartest_alias_shadows_implicit_fallback(
         },
     )
 
-    assert resolve_model_alias("smartest") == "codex/gpt-5.6-sol"
-    assert resolve_model_alias("big_epic_lander") == "codex/gpt-5.6-sol"
+    for alias in ("smartest", "big_epic_lander", "xlarge_phase_worker"):
+        resolved = resolve_model_alias_with_effort(alias)
+        assert (resolved.target, resolved.effort) == ("codex/gpt-5.6-sol", None)
 
 
-@pytest.mark.parametrize(
-    ("available_providers", "expected"),
-    [
-        ({"claude"}, "claude/claude-fable-5"),
-        ({"codex"}, "codex/gpt-5.6-sol"),
-        ({"claude", "codex"}, "claude/claude-fable-5"),
-        (set(), "claude/claude-fable-5"),
-    ],
-)
-def test_smartest_provider_availability_matrix(
+def test_smartest_target_and_effort_do_not_depend_on_provider_availability(
     monkeypatch: pytest.MonkeyPatch,
-    available_providers: set[str],
-    expected: str,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
     monkeypatch.setattr(
         "sase.llm_provider.config._resolved_target_is_available",
-        lambda target: target.split("/", 1)[0] in available_providers,
+        lambda _target: False,
     )
 
-    assert resolve_model_alias("smartest", consume=True) == expected
-    assert resolve_model_alias("big_epic_lander", consume=True) == expected
-    assert resolve_model_alias("xlarge_phase_worker", consume=True) == expected
+    for alias in ("@smartest", "@big_epic_lander", "@xlarge_phase_worker"):
+        resolved = resolve_model_alias_with_effort(alias, consume=True)
+        assert (resolved.target, resolved.effort) == ("claude/opus", "max")
 
 
 def test_stale_phase_worker_builtin_does_not_control_medium_phase(
@@ -403,13 +387,9 @@ def test_big_epic_lander_uses_smartest_independently_of_epic_lander(
             },
         },
     )
-    monkeypatch.setattr(
-        "sase.llm_provider.config._resolved_target_is_available",
-        lambda target: target.startswith("codex/"),
-    )
-
     assert resolve_model_alias("epic_lander") == "claude/sonnet"
-    assert resolve_model_alias("big_epic_lander") == "codex/gpt-5.6-sol"
+    big_lander = resolve_model_alias_with_effort("big_epic_lander")
+    assert (big_lander.target, big_lander.effort) == ("claude/opus", "max")
 
 
 def test_configured_big_epic_lander_shadows_implicit_fallback(

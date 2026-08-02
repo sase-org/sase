@@ -575,7 +575,7 @@ llm_provider:
       medium_phase_worker: "@default@high"
       large_phase_worker: "@smart"
       xlarge_phase_worker: "@smartest"
-      smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # ordered fallback
+      smartest: claude/opus@max # concrete maximum-effort target
     custom:
       blogger:
         model: claude/opus
@@ -692,10 +692,10 @@ provider-neutral and read-only.
 #### Implicit role aliases
 
 On top of any aliases you configure, SASE always exposes a fixed set of **implicit role aliases** that resolve even when
-you have not defined them. Most fall back through other aliases to `@default`; `@smartest` owns an ordered provider
-fallback, while `@cheap`, `@cheaper`, and `@cheapest` own independent built-in pools:
+you have not defined them. Most fall back through other aliases to `@default`; `@smartest` owns a concrete
+maximum-effort target, while `@cheap`, `@cheaper`, and `@cheapest` own independent built-in pools:
 
-| Alias                  | Role                                                                                                    | Fallback when not configured                                                            |
+| Alias                  | Role                                                                                                    | Value when not configured                                                               |
 | ---------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `@default`             | Model used when a prompt has no `%model` directive.                                                     | Configured `model_aliases.builtin.default`, else the provider's requested-tier default. |
 | `@coder`               | Coder follow-up launched from an accepted plan.                                                         | `@default`                                                                              |
@@ -708,7 +708,7 @@ fallback, while `@cheap`, `@cheaper`, and `@cheapest` own independent built-in p
 | `@large_phase_worker`  | Large phase/task worker with no explicit per-bead model.                                                | `@smart`                                                                                |
 | `@xlarge_phase_worker` | Extra-large phase/task worker with no explicit per-bead model.                                          | `@smartest`                                                                             |
 | `@smart`               | High-capability model selected automatically for large phases and tasks.                                | `@default`                                                                              |
-| `@smartest`            | Highest-capability model selected for xlarge phases/tasks and threshold-sized epic landers.             | `claude/claude-fable-5 \|\| codex/gpt-5.6-sol`                                          |
+| `@smartest`            | Highest-capability model selected for xlarge phases/tasks and threshold-sized epic landers.             | `claude/opus@max`                                                                       |
 | `@cheap`               | Load-balanced pool selected automatically for small phase/task workers.                                 | `claude/sonnet@xhigh \| codex/gpt-5.5`                                                  |
 | `@cheaper`             | Lower-cost load-balanced pool selected automatically for extra-small phase/task workers.                | `claude/sonnet@medium \| codex/gpt-5.5@medium`                                          |
 | `@cheapest`            | Lowest-cost load-balanced pool available for explicit use.                                              | `claude/haiku \| codex/gpt-5.3-codex-spark`                                             |
@@ -718,9 +718,9 @@ while normal epic landers track `@default`. Threshold-selected epic landers deli
 `@big_epic_lander` → `@smartest`, so an `epic_lander` override affects only below-threshold epics; configure
 `big_epic_lander` directly to replace the large-epic policy. Phase sizes likewise diverge: xsmall uses `@cheaper`, small
 uses `@cheap`, medium uses `@default@high`, large uses `@smart`, and xlarge uses `@smartest`. The implicit `@smartest`
-value prefers Claude Fable 5 whenever the Claude CLI is installed and otherwise selects Codex GPT-5.6 SOL; a configured
-or temporary override bypasses that fallback. The standalone `@cheapest` pool has no automatic consumer and is available
-for explicit launches with its own rotation:
+value pins `claude/opus` at `max` effort, which both dependent roles inherit. A configured alias value or temporary
+override still takes precedence over that target and effort. The standalone `@cheapest` pool has no automatic consumer
+and is available for explicit launches with its own rotation:
 
 ```yaml
 llm_provider:
@@ -738,7 +738,7 @@ llm_provider:
       small_phase_worker: "@cheap"
       large_phase_worker: "@smart"
       xlarge_phase_worker: "@smartest"
-      smartest: claude/claude-fable-5 || codex/gpt-5.6-sol
+      smartest: claude/opus@max
 ```
 
 Source: `src/sase/llm_provider/model_alias_defaults.yml` (shipped defaults — the single edit point),
@@ -953,7 +953,7 @@ Delegated launches do not use a separate "worker lane". Instead, each delegated 
   epic work; the legacy fallback exists only for stored historical records.
 - **Epic land agents** without an explicit land model use `@epic_lander`, or `@big_epic_lander` when their authored
   phase count meets `bead.big_epic_phase_threshold` (default `5`). Normal landers fall back to `@default`; the
-  threshold-selected alias falls back independently to provider-aware `@smartest`.
+  threshold-selected alias independently inherits the concrete `claude/opus@max` target through `@smartest`.
 
 Validated Epic approvals create beads and launch `sase bead work` directly; there is no epic-creator model lane.
 
@@ -972,14 +972,15 @@ llm_provider:
       cheaper: claude/sonnet@medium | codex/gpt-5.5@medium
       cheapest: claude/haiku | codex/gpt-5.3-codex-spark
       medium_phase_worker: codex/gpt-5.6-sol@high # explicitly route medium phases to Codex
-      smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # xlarge phase/epic fallback
+      smartest: claude/opus@max # xlarge phase/epic maximum-effort target
       big_epic_lander: codex/gpt-5.6-sol # threshold-selected epic landers run on Codex
 ```
 
 Normal epic landers and sizeless standalone tasks fall back to `@default`; xsmall phases/tasks use the `@cheaper` pool,
 small phases/tasks the `@cheap` pool, medium phases/tasks `@default@high`, large phases/tasks `@smart`, and xlarge
-phases/tasks plus threshold-selected epic landers `@smartest`. Explicit `%model` directives, approval-picker model
-choices, direct alias overrides, and per-bead/land model metadata always win over role defaults.
+phases/tasks plus threshold-selected epic landers `@smartest`, inheriting its `max` effort. Explicit `%model`
+directives, approval-picker model choices, direct alias overrides, and per-bead/land model metadata always win over role
+defaults.
 
 > The previous `llm_provider.worker_models` map and the `~/.sase/llm_worker_override.json` worker temporary override
 > were removed in epic sase-5d. See the [migration note](#implicit-role-aliases) above.
@@ -1001,11 +1002,11 @@ line.
 
 Overrides are **per-alias** and independent. An override takes effect wherever that alias is resolved, including a
 `default` override at every direct or nested `@default` hop. For example, an override on `@medium_phase_worker` affects
-only that size alias. Active overrides on `@smartest` suspend its ordered fallback, while overrides on `@cheap`,
-`@cheaper`, and `@cheapest` suspend their independent load-balanced rotations for the override's duration. Those
-selectors pin concrete targets rather than referencing `@default`, so a `default` override does not move them or their
-dependent size lanes; override the selector-owning or size alias itself to move one of those lanes. Machine-wide
-temporary overrides do not change:
+only that size alias. An active override on `@smartest` replaces its concrete maximum-effort target, while overrides on
+`@cheap`, `@cheaper`, and `@cheapest` suspend their independent load-balanced rotations for the override's duration. The
+concrete `@smartest` target and those selectors do not reference `@default`, so a `default` override does not move them
+or their dependent size lanes; override the owning or size-specific alias itself to move one of those lanes.
+Machine-wide temporary overrides do not change:
 
 - Already-running agents — they keep whatever provider/model they were launched with.
 - Explicit concrete `%model` prompt targets — they still take precedence. A `%model(...)` alias keyword is a separate,

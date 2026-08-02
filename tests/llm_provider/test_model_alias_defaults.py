@@ -88,8 +88,8 @@ def test_every_target_parses_under_the_selector_grammar() -> None:
             raise AssertionError(
                 f"'{name}' target {target!r} is malformed: {exc}"
             ) from exc
-        # Every current implicit target is a multi-provider selector, not a
-        # bare model; a future single-target entry would also be valid.
+        # Selector-valued defaults must contain members; concrete targets
+        # legitimately return ``None`` from the selector parser.
         if selector is not None:
             assert selector.members
 
@@ -106,15 +106,23 @@ def test_every_fallback_resolves_to_a_declared_alias_name() -> None:
         )
 
 
-def test_smartest_is_fallback_and_cheap_family_are_pools() -> None:
-    """Pin the *shape* of the selector-valued defaults, not their literal targets."""
+def test_smartest_ships_concrete_max_effort_target() -> None:
     targets = implicit_alias_targets()
 
-    smartest = parse_model_alias_selector(targets[SMARTEST_MODEL_ALIAS_NAME])
+    target, effort = split_model_effort(targets[SMARTEST_MODEL_ALIAS_NAME])
+
+    assert (target, effort) == ("claude/opus", "max")
+    assert parse_model_alias_selector(targets[SMARTEST_MODEL_ALIAS_NAME]) is None
+
+
+def test_cheap_family_are_round_robin_pools() -> None:
+    """Keep the selector shape independent from the concrete smartest target."""
+    targets = implicit_alias_targets()
+
     cheap = parse_model_alias_selector(targets[CHEAP_MODEL_ALIAS_NAME])
     cheaper = parse_model_alias_selector(targets[CHEAPER_MODEL_ALIAS_NAME])
     cheapest = parse_model_alias_selector(targets[CHEAPEST_MODEL_ALIAS_NAME])
-    assert smartest is not None and smartest.mode == "fallback"
+
     assert cheap is not None and cheap.mode == "round_robin"
     assert cheaper is not None and cheaper.mode == "round_robin"
     assert cheapest is not None and cheapest.mode == "round_robin"

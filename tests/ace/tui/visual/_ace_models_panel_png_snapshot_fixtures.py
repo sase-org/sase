@@ -112,7 +112,8 @@ def calm_views() -> list[AliasView]:
             "big_epic_lander",
             "role",
             provider="claude",
-            model="claude-fable-5",
+            model="opus",
+            effort="max",
             description=(
                 "Epic land agents selected for plans at or above the configured "
                 "phase-count threshold."
@@ -155,33 +156,17 @@ def calm_views() -> list[AliasView]:
             "xlarge_phase_worker",
             "role",
             provider="claude",
-            model="claude-fable-5",
+            model="opus",
+            effort="max",
             description="Extra-large phases that author an epic plan.",
         ),
         _view(
             "smartest",
             "role",
             provider="claude",
-            model="claude-fable-5",
+            model="opus",
+            effort="max",
             description="Highest-capability alias for explicit use.",
-            selector_mode="fallback",
-            selector_members=(
-                ModelAliasSelectorMember(
-                    value="claude/claude-fable-5",
-                    target="claude/claude-fable-5",
-                    effort=None,
-                    provider="claude",
-                    available=True,
-                    selected=True,
-                ),
-                ModelAliasSelectorMember(
-                    value="codex/gpt-5.6-sol",
-                    target="codex/gpt-5.6-sol",
-                    effort=None,
-                    provider="codex",
-                    available=True,
-                ),
-            ),
         ),
         _view(
             "smart",
