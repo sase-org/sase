@@ -30,6 +30,7 @@ log = logging.getLogger(__name__)
 PROMPT_ARTIFACT_MANIFEST_NAME = "prompt-artifacts.jsonl"
 PROMPT_ARTIFACT_MANIFEST_LOCK_NAME = "prompt-artifacts.lock"
 PROMPT_ARTIFACT_POOL_DIR = "pool"
+PROMPT_ARCHIVE_PUBLICATION_MARKER_NAME = "prompt-archive-published.json"
 _NON_FILE_REF_KINDS = frozenset({"agent", "bug", "commit"})
 _VCS_PROBE = GitVcsProbe()
 
@@ -68,9 +69,10 @@ def stage_prompt_artifact(
 ) -> PromptArtifactRecord | None:
     """Stage one prompt reference without ever breaking prompt launch.
 
-    File references are either recorded as clean tracked VCS content or copied
-    into the workspace-local content-addressed pool. Locator-only references
-    receive a manifest row without touching the pool.
+    File references are copied into the workspace-local content-addressed pool.
+    Clean tracked files also record VCS provenance so publication can prefer a
+    repository link after verifying that it still names the captured bytes.
+    Locator-only references receive a manifest row without touching the pool.
     """
 
     try:
@@ -111,8 +113,6 @@ def stage_prompt_artifact(
         if vcs is not None:
             record["vcs_repo"] = vcs[0]
             record["vcs_relpath"] = vcs[1]
-            _append_manifest_record(manifest_path, lock_path, record)
-            return record
 
         if capture_file_exceeds_size_limit(size_bytes):
             record["skipped_reason"] = "too-large"
@@ -148,8 +148,8 @@ def _prune_prompt_artifact_pool(workspace_root: Path | str) -> int:
     """Remove published terminal-run pool files until the budget is met.
 
     A pooled file is eligible only when every manifest row that names it
-    belongs to a terminal agent run whose commit checkpoint records successful
-    prompt-archive publication. Manifest provenance is intentionally retained.
+    belongs to a terminal agent run with a durable prompt-archive publication
+    marker. Manifest provenance is intentionally retained.
     """
 
     workspace = Path(workspace_root).expanduser().resolve(strict=False)
@@ -422,21 +422,51 @@ def _run_is_terminal_and_published(record: PromptArtifactRecord) -> bool:
     artifacts_dir = Path(raw_dir).expanduser()
     if not (artifacts_dir / "done.json").is_file():
         return False
-    try:
-        checkpoint = json.loads(
-            (artifacts_dir / "commit_state.json").read_text(encoding="utf-8")
-        )
-    except (OSError, json.JSONDecodeError):
-        return False
-    completed = (
-        checkpoint.get("completed_steps") if isinstance(checkpoint, dict) else None
+    return (artifacts_dir / PROMPT_ARCHIVE_PUBLICATION_MARKER_NAME).is_file()
+
+
+def mark_prompt_archive_published(
+    agent_artifacts_dir: Path | str,
+    *,
+    primary_revision: str,
+) -> None:
+    """Record that this run's prompt bytes reached the durable archive."""
+
+    artifacts_dir = Path(agent_artifacts_dir).expanduser().resolve(strict=False)
+    marker = artifacts_dir / PROMPT_ARCHIVE_PUBLICATION_MARKER_NAME
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, raw_tmp = tempfile.mkstemp(
+        prefix=f".{marker.name}.",
+        suffix=".tmp",
+        dir=marker.parent,
     )
-    return isinstance(completed, list) and "publish_prompt_archive" in completed
+    tmp = Path(raw_tmp)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(
+                {
+                    "primary_revision": primary_revision,
+                    "published_at": datetime.now(tz=UTC)
+                    .isoformat(timespec="seconds")
+                    .replace("+00:00", "Z"),
+                },
+                stream,
+                indent=2,
+                sort_keys=True,
+            )
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(tmp, marker)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 __all__ = [
     "PROMPT_ARTIFACT_MANIFEST_NAME",
     "PROMPT_ARTIFACT_POOL_DIR",
+    "PROMPT_ARCHIVE_PUBLICATION_MARKER_NAME",
     "PromptArtifactRecord",
+    "mark_prompt_archive_published",
     "stage_prompt_artifact",
 ]

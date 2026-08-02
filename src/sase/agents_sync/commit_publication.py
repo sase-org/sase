@@ -39,6 +39,7 @@ from sase.core.agent_identity_facade import (
     normalize_agent_archive_name,
     normalize_owned_agent_name,
 )
+from sase.core.prompt_artifact_staging import mark_prompt_archive_published
 from sase.repo_inventory import collect_repo_inventory
 from sase.sdd.plan_header_refresh import (
     PlanHeaderRefreshOutcome,
@@ -357,6 +358,13 @@ def _publish_queued_transaction(
         committed or git_sync.agents_ahead_count(target.sidecar_path, git_runner) > 0
     )
     if not should_push:
+        marker_error = _mark_prompt_archives_published(
+            prepared,
+            inventory,
+            identity,
+        )
+        if marker_error is not None:
+            return _DrainResult(error=marker_error, error_keys=prepared_keys)
         acknowledge_agent_publications(target.project_key, prepared_keys)
         return _DrainResult(drained=len(prepared), item_errors=item_errors)
 
@@ -367,6 +375,17 @@ def _publish_queued_transaction(
         op="agents_sync.commit_publish_push",
     )
     if pushed.returncode == 0:
+        marker_error = _mark_prompt_archives_published(
+            prepared,
+            inventory,
+            identity,
+        )
+        if marker_error is not None:
+            return _DrainResult(
+                item_errors=item_errors,
+                error=marker_error,
+                error_keys=prepared_keys,
+            )
         acknowledge_agent_publications(target.project_key, prepared_keys)
         return _DrainResult(drained=len(prepared), item_errors=item_errors)
     if not git_sync.is_agents_non_fast_forward(pushed):
@@ -446,6 +465,17 @@ def _publish_queued_transaction(
         return _DrainResult(
             item_errors=all_item_errors,
             error=git_sync.agents_git_error("git push retry failed", retry_push),
+            error_keys=retry_keys,
+        )
+    marker_error = _mark_prompt_archives_published(
+        retry_prepared,
+        inventory,
+        identity,
+    )
+    if marker_error is not None:
+        return _DrainResult(
+            item_errors=all_item_errors,
+            error=marker_error,
             error_keys=retry_keys,
         )
     acknowledge_agent_publications(target.project_key, retry_keys)
@@ -588,6 +618,31 @@ def _prepare_prompt_archive_retry(
         agent_artifacts_dir=artifacts_dir,
         git_runner=git_runner,
     )
+
+
+def _mark_prompt_archives_published(
+    requests: tuple[AgentPublicationOutboxItem, ...],
+    inventory: ProjectHoodInventory,
+    identity: AgentIdentitySnapshot,
+) -> str | None:
+    """Mark queued prompt inputs safe to reclaim after archive publication."""
+
+    prompt_runs = _prompt_runs_by_request(inventory, identity)
+    try:
+        for request in requests:
+            matching = prompt_runs.get((request.local_agent, request.primary_revision))
+            if matching is None or matching.source_label is None:
+                continue
+            artifacts_dir = Path(matching.source_label)
+            if not (artifacts_dir / "raw_xprompt.md").is_file():
+                continue
+            mark_prompt_archive_published(
+                artifacts_dir,
+                primary_revision=request.primary_revision,
+            )
+    except Exception as exc:  # noqa: BLE001 - durable retry boundary.
+        return f"could not record prompt archive publication: {exc}"
+    return None
 
 
 def _prompt_runs_by_request(

@@ -198,29 +198,32 @@ class _ArtifactTargetResolver:
         self.git_runner = git_runner
         self.staging_root = workspace_root / ".sase" / "artifacts"
         self._repo_roots = repository_roots
+        self._pooled_records: set[tuple[str, str, str]] = set()
 
     def __call__(self, record: PromptArtifactRecord) -> str | None:
-        pool_relpath = record.get("pool_relpath")
-        digest = record.get("sha256")
-        if pool_relpath and digest:
-            source = self.staging_root / pool_relpath
-            if not source.is_file():
-                return None
-            return relative_artifact_link(self.yyyymm, source.name)
         vcs_repo = record.get("vcs_repo")
         vcs_relpath = record.get("vcs_relpath")
         if vcs_repo and vcs_relpath and self.hosted is not None:
             root = self._record_vcs_root(record) or self._repo_roots.get(vcs_repo)
-            if root is None:
-                return None
-            revision = (
-                self.primary_revision
-                if root == self.primary_root
-                else _git_revision(root, self.git_runner)
-            )
-            if not revision:
-                return None
-            return self.hosted.blob_url_for_repository(root, revision, vcs_relpath)
+            if root is not None:
+                revision = (
+                    self.primary_revision
+                    if root == self.primary_root
+                    else _git_revision(root, self.git_runner)
+                )
+                if revision and _vcs_snapshot_matches_record(
+                    record,
+                    root,
+                    revision,
+                    self.git_runner,
+                ):
+                    return self.hosted.blob_url_for_repository(
+                        root, revision, vcs_relpath
+                    )
+        source = self._pool_source(record)
+        if source is not None and record.get("sha256"):
+            self._pooled_records.add(_record_key(record))
+            return relative_artifact_link(self.yyyymm, source.name)
         locator = record.get("locator")
         if isinstance(locator, str) and locator.startswith(("https://", "http://")):
             return locator
@@ -257,12 +260,46 @@ class _ArtifactTargetResolver:
         return Path(result.stdout.strip()).expanduser().resolve(strict=False)
 
     def source_for(self, record: PromptArtifactRecord) -> Path | None:
+        if _record_key(record) not in self._pooled_records:
+            return None
+        return self._pool_source(record)
+
+    def _pool_source(self, record: PromptArtifactRecord) -> Path | None:
         pool_relpath = record.get("pool_relpath")
         if not pool_relpath:
             return None
         source = (self.staging_root / pool_relpath).resolve(strict=False)
         pool = (self.staging_root / "pool").resolve(strict=False)
         return source if source.is_relative_to(pool) and source.is_file() else None
+
+
+def _record_key(record: PromptArtifactRecord) -> tuple[str, str, str]:
+    return (
+        str(record.get("raw_ref") or ""),
+        str(record.get("sha256") or ""),
+        str(record.get("recorded_at") or ""),
+    )
+
+
+def _vcs_snapshot_matches_record(
+    record: PromptArtifactRecord,
+    root: Path,
+    revision: str,
+    git_runner: GitRunner,
+) -> bool:
+    """Return whether *revision* still names the bytes captured at launch."""
+
+    digest = record.get("sha256")
+    relpath = record.get("vcs_relpath")
+    if not digest or not relpath or _git_revision(root, git_runner) != revision:
+        return False
+    normalized_root = root.expanduser().resolve(strict=False)
+    source = (normalized_root / relpath).resolve(strict=False)
+    return (
+        source.is_relative_to(normalized_root)
+        and source.is_file()
+        and hash_file(source) == digest
+    )
 
 
 def _publish_linked_artifacts(

@@ -247,6 +247,34 @@ def test_runner_reports_success_failure_and_timeout_and_is_idempotent(
     assert is_error(timeout)
 
 
+def test_runner_timeout_kills_hook_descendants(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    target = repo / "report.md"
+    target.write_text("# report\n", encoding="utf-8")
+    late_write = repo / "late-write.txt"
+    child_code = (
+        "import pathlib,time; time.sleep(0.25); "
+        f"pathlib.Path({str(late_write)!r}).write_text('too late')"
+    )
+    parent_code = (
+        "import subprocess,sys,time; "
+        f"subprocess.Popen([sys.executable, '-c', {child_code!r}]); "
+        "time.sleep(5)"
+    )
+    command = f"{shlex.quote(sys.executable)} -c {shlex.quote(parent_code)}"
+    batch_path = emit_file_hook_events(
+        [_event(repo)],
+        hooks=[_hook("timeout-tree", command, timeout_seconds=0.05)],
+        popen=lambda *args, **kwargs: MagicMock(),
+    )
+    assert batch_path is not None
+
+    assert execute_batch(batch_path) == 0
+    time.sleep(0.4)
+
+    assert not late_write.exists()
+
+
 def test_pruning_removes_only_expired_audit_files(tmp_path: Path) -> None:
     root = Path(os.environ["SASE_HOME"]).expanduser() / "file_hooks"
     old = root / "runs" / "old.log"

@@ -8,15 +8,20 @@ import pytest
 import sase_core_rs
 
 from sase.agents_sync.models import ProjectTarget, SyncOutcome, TargetSelection
+from sase.agents_sync.git import run_git
 from sase.agents_sync.prompt_archive import publish as archive_publish
 from sase.agents_sync.prompt_archive.naming import resolve_prompt_name
 from sase.agents_sync.prompt_archive.paths import relative_artifact_link
+from sase.agents_sync.prompt_archive.preparation import _ArtifactTargetResolver
 from sase.agents_sync.prompt_archive.publish import (
     prepare_prompt_archive,
     publish_prompt_archive,
 )
 from sase.agents_sync.prompt_archive.render import render_prompt_document
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.core.prompt_artifact_staging import (
+    PROMPT_ARCHIVE_PUBLICATION_MARKER_NAME,
+)
 from tests.agents_sync.commit_publication_fixtures import git, setup_target
 
 
@@ -50,6 +55,7 @@ def _record(
     vcs_relpath: str | None = None,
     ref_kind: str = "file",
     locator: str | None = None,
+    source_path: Path | None = None,
 ) -> dict[str, object]:
     return {
         "schema_version": 1,
@@ -59,7 +65,7 @@ def _record(
         "expanded_ref": raw_ref,
         "ref_kind": ref_kind,
         "label": label,
-        "source_path": None,
+        "source_path": str(source_path) if source_path is not None else None,
         "sha256": sha256,
         "size_bytes": None,
         "mime_type": None,
@@ -185,6 +191,10 @@ def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
         "_repository_roots",
         lambda: {"primary": workspace.resolve()},
     )
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.preparation._vcs_snapshot_matches_record",
+        lambda *_args: True,
+    )
     monkeypatch.setattr("sase.file_references.format_with_prettier", lambda text: text)
 
     first = prepare_prompt_archive(
@@ -235,6 +245,73 @@ def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
     index = (repo / "prompts/202608/README.md").read_text()
     assert "[example_plan.md](example_plan.md)" in index
     assert "| 4 |" in index
+
+
+def test_vcs_artifact_falls_back_to_staged_bytes_after_revision_changes(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    git(workspace, "init")
+    git(workspace, "config", "user.name", "Tests")
+    git(workspace, "config", "user.email", "tests@example.test")
+    source = workspace / "tracked.txt"
+    original = b"original prompt bytes"
+    source.write_bytes(original)
+    git(workspace, "add", "tracked.txt")
+    git(workspace, "commit", "-m", "original")
+    original_revision = git(workspace, "rev-parse", "HEAD").stdout.strip()
+
+    digest = hashlib.sha256(original).hexdigest()
+    pool_name = sase_core_rs.prompt_artifact_pool_filename(digest, source.name)
+    pool = workspace / ".sase/artifacts/pool" / pool_name
+    pool.parent.mkdir(parents=True)
+    pool.write_bytes(original)
+    record = _record(
+        artifacts_dir=tmp_path / "run",
+        raw_ref="@tracked.txt",
+        label="tracked.txt",
+        sha256=digest,
+        pool_relpath=f"pool/{pool_name}",
+        vcs_repo="primary",
+        vcs_relpath="tracked.txt",
+        source_path=source,
+    )
+    repo = tmp_path / "agents"
+    repo.mkdir()
+
+    unchanged = _ArtifactTargetResolver(
+        yyyymm="202608",
+        repo=repo,
+        workspace_root=workspace,
+        primary_root=workspace,
+        primary_revision=original_revision,
+        hosted=_HostedLinks(),
+        git_runner=run_git,
+        repository_roots={"primary": workspace},
+    )
+    assert unchanged(record) == (
+        f"https://example.test/blob/{original_revision}/tracked.txt"
+    )
+    assert unchanged.source_for(record) is None
+
+    source.write_text("changed after prompt launch", encoding="utf-8")
+    git(workspace, "add", "tracked.txt")
+    git(workspace, "commit", "-m", "changed")
+    changed_revision = git(workspace, "rev-parse", "HEAD").stdout.strip()
+    changed = _ArtifactTargetResolver(
+        yyyymm="202608",
+        repo=repo,
+        workspace_root=workspace,
+        primary_root=workspace,
+        primary_revision=changed_revision,
+        hosted=_HostedLinks(),
+        git_runner=run_git,
+        repository_roots={"primary": workspace},
+    )
+
+    assert changed(record) == relative_artifact_link("202608", pool_name)
+    assert changed.source_for(record) == pool
 
 
 def test_render_prompt_document_prettier_preserves_collapsed_rendered_prompt(
@@ -413,6 +490,7 @@ def test_publish_prompt_archive_without_artifacts_is_git_idempotent(
 
     assert first.published and first.error is None
     assert not second.published and second.error is None
+    assert (artifacts_dir / PROMPT_ARCHIVE_PUBLICATION_MARKER_NAME).is_file()
     verify = tmp_path / "verify-prompt"
     git(tmp_path, "clone", str(remote), str(verify))
     prompt = verify / "prompts/202608/alice.athena.worker.md"

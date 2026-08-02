@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import signal
 import subprocess
 import time
 from typing import Any
@@ -160,7 +161,7 @@ def _execute_run(batch_id: str, run: dict[str, Any]) -> dict[str, Any]:
     failure: str | None = None
     output = ""
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             command_line,
             shell=True,
             cwd=str(run["repo_root"]),
@@ -168,18 +169,21 @@ def _execute_run(batch_id: str, run: dict[str, Any]) -> dict[str, Any]:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            timeout=float(run["timeout_seconds"]),
-            check=False,
+            start_new_session=True,
         )
-        exit_code = completed.returncode
-        output = completed.stdout or ""
+        try:
+            stdout, _stderr = process.communicate(timeout=float(run["timeout_seconds"]))
+        except subprocess.TimeoutExpired:
+            failure = f"timeout after {run['timeout_seconds']}s"
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except OSError:
+                process.kill()
+            stdout, _stderr = process.communicate()
+        output = stdout or ""
+        exit_code = process.returncode
         if exit_code != 0:
-            failure = f"exit {exit_code}"
-    except subprocess.TimeoutExpired as exc:
-        failure = f"timeout after {run['timeout_seconds']}s"
-        stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else exc.stdout
-        stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else exc.stderr
-        output = (stdout or "") + (stderr or "")
+            failure = failure or f"exit {exit_code}"
     except Exception as exc:
         failure = f"spawn error: {exc}"
         output = f"{type(exc).__name__}: {exc}\n"

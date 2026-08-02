@@ -12,6 +12,7 @@ import sase_core_rs
 
 from sase.core.prompt_artifact_staging import (
     _prune_prompt_artifact_pool,
+    mark_prompt_archive_published,
     stage_prompt_artifact,
 )
 
@@ -85,7 +86,7 @@ def test_changed_bytes_at_same_path_produce_distinct_pool_files(
     assert len(list((tmp_path / ".sase/artifacts/pool").iterdir())) == 2
 
 
-def test_clean_tracked_file_is_vcs_backed_but_dirty_file_is_pooled(
+def test_clean_tracked_file_has_vcs_link_and_exact_pool_fallback(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -123,10 +124,10 @@ def test_clean_tracked_file_is_vcs_backed_but_dirty_file_is_pooled(
 
     assert clean["vcs_repo"] == "primary"
     assert clean["vcs_relpath"] == "tracked.txt"
-    assert clean["pool_relpath"] is None
+    assert clean["pool_relpath"] is not None
     assert dirty["vcs_repo"] is None
     assert dirty["pool_relpath"] is not None
-    assert len(list((repo / ".sase/artifacts/pool").iterdir())) == 1
+    assert len(list((repo / ".sase/artifacts/pool").iterdir())) == 2
 
 
 def test_oversized_file_is_recorded_without_pool_copy(
@@ -192,6 +193,13 @@ def test_pool_gc_only_removes_terminal_published_runs(
         lambda: 1,
     )
 
+    assert _prune_prompt_artifact_pool(tmp_path) == 0
+    assert pool_path.exists()
+
+    mark_prompt_archive_published(
+        artifacts_dir,
+        primary_revision="a" * 40,
+    )
     assert _prune_prompt_artifact_pool(tmp_path) == 1
     assert not pool_path.exists()
     assert len(_rows(tmp_path)) == 1

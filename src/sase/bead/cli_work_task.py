@@ -214,23 +214,43 @@ def launch_task_bead_work(
         except ForcedReuseCleanupError as exc:
             raise TaskBeadWorkError(str(exc)) from exc
 
-    prior_status = issue.status
-    prior_assignee = issue.assignee
     try:
         # A contended preclaim never reaches the store, so an exhausted retry
         # budget leaves the task exactly as it was found — nothing to roll back.
         with timer.stage("preclaim"):
-            retry_bead_store_mutation(
-                lambda: proj.update(
-                    task_id,
-                    status=Status.IN_PROGRESS.value,
-                    assignee=task_id,
-                ),
-                beads_dir=proj.beads_dir,
-                what=f"preclaim task {task_id}",
-                resume_command=f"sase bead work {task_id}",
-            )
-    except (BeadStoreContentionError, KeyError, ValueError) as exc:
+            from sase.bead.sync import bead_store_write_lock
+            from sase.sdd._repository_transaction import SddRepositoryHealthError
+
+            with bead_store_write_lock(proj.beads_dir):
+                current = proj.show(task_id)
+                if (current.status, current.assignee) != (
+                    issue.status,
+                    issue.assignee,
+                ):
+                    raise TaskBeadWorkError(
+                        f"task {task_id} changed while its launch was being "
+                        "prepared; no task state was overwritten"
+                    )
+                prior_status = current.status
+                prior_assignee = current.assignee
+                retry_bead_store_mutation(
+                    lambda: proj.update(
+                        task_id,
+                        status=Status.IN_PROGRESS.value,
+                        assignee=task_id,
+                    ),
+                    beads_dir=proj.beads_dir,
+                    what=f"preclaim task {task_id}",
+                    resume_command=f"sase bead work {task_id}",
+                )
+    except TaskBeadWorkError:
+        raise
+    except (
+        BeadStoreContentionError,
+        KeyError,
+        SddRepositoryHealthError,
+        ValueError,
+    ) as exc:
         raise TaskBeadWorkError(str(exc)) from exc
 
     try:

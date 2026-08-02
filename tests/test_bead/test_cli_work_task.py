@@ -316,6 +316,48 @@ def test_stale_in_progress_task_cleans_up_before_mutation(
         assert (task.status, task.assignee) == (Status.IN_PROGRESS, task_id)
 
 
+def test_task_work_does_not_overwrite_state_changed_during_preparation(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    task_id = seed_task(project_dir)
+
+    def concurrent_claim(query: str, **_kwargs: object) -> str:
+        with BeadProject(project_dir) as other:
+            other.update(
+                task_id,
+                status=Status.IN_PROGRESS.value,
+                assignee="other-worker",
+            )
+        return query
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.prepare_bead_work_force_reuse",
+        concurrent_claim,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.checkpoint_task_work_launch",
+        lambda *_args, **_kwargs: pytest.fail("changed task must not checkpoint"),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.launch_bead_work_agents",
+        lambda *_args, **_kwargs: pytest.fail("changed task must not launch"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(make_args(task_id, yes_to_all=True))
+
+    assert excinfo.value.code == 1
+    assert "changed while its launch was being prepared" in capsys.readouterr().err
+    with BeadProject(project_dir) as project:
+        task = project.show(task_id)
+        assert (task.status, task.assignee) == (
+            Status.IN_PROGRESS,
+            "other-worker",
+        )
+
+
 def test_yes_does_not_skip_destructive_cleanup_confirmation(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

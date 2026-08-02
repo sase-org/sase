@@ -32,6 +32,7 @@ from sase.core.agent_identity_facade import (
     normalize_agent_archive_name,
     normalize_owned_agent_name,
 )
+from sase.core.prompt_artifact_staging import mark_prompt_archive_published
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,6 +222,10 @@ def _publish_prompt_archive(
                             "prompt archive git push failed", pushed
                         ),
                     )
+            mark_prompt_archive_published(
+                artifacts_dir,
+                primary_revision=primary_revision,
+            )
             return PromptArchivePublicationOutcome(
                 published=bool(commit_result),
                 queued=True,
