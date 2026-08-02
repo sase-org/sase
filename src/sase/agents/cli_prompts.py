@@ -19,7 +19,8 @@ from sase.agents_sync.prompt_archive.validation import (
 )
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.output import console, error_console
-from sase.repo_inventory import collect_repo_inventory
+from sase.repo_inventory import RepoRecord, collect_repo_inventory
+from sase.workspace_provider.marker import find_marker_from_cwd
 
 # ``EX_UNAVAILABLE`` from sysexits.h, kept literal for cross-platform parity.
 PROMPT_ARCHIVE_CONTEXT_UNAVAILABLE_EXIT_CODE = 69
@@ -230,13 +231,43 @@ def _plans_repo(target: ProjectTarget) -> Path | None:
         if record.kind == "sidecar"
         and (record.name == "plans" or record.slug == "plans")
     ]
-    candidates = [
-        Path(raw).expanduser().resolve(strict=False)
-        for record in matches
-        for raw in (record.path, *(clone.path for clone in record.clones))
-        if raw
-    ]
-    return next((path for path in candidates if path.is_dir()), None)
+    if len(matches) != 1:
+        return None
+    workspace_num = _caller_workspace_num(target, inventory.records)
+    match = matches[0]
+    clone = match.clone_for_workspace(workspace_num)
+    raw_path = clone.path if clone is not None else match.path
+    path = Path(raw_path).expanduser().resolve(strict=False)
+    return path if path.is_dir() else None
+
+
+def _caller_workspace_num(
+    target: ProjectTarget,
+    records: tuple[RepoRecord, ...],
+) -> int:
+    """Return the registered workspace containing the command's caller."""
+
+    cwd = Path.cwd().resolve(strict=False)
+    marker_match = find_marker_from_cwd(str(cwd))
+    if marker_match is not None:
+        marker = marker_match[1]
+        if marker.project_key == target.project_key and marker.workspace_num >= 0:
+            return marker.workspace_num
+    primary = next(
+        (
+            record
+            for record in records
+            if record.kind == "primary" and record.project_key == target.project_key
+        ),
+        None,
+    )
+    if primary is None:
+        return 0
+    for clone in primary.clones:
+        clone_path = Path(clone.path).expanduser().resolve(strict=False)
+        if cwd == clone_path or cwd.is_relative_to(clone_path):
+            return clone.workspace_num
+    return 0
 
 
 def _print_validation(

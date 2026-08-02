@@ -9,13 +9,14 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import tempfile
 
 from rich.table import Table
 
 from sase._git_remote import github_blob_url
 from sase.agents_sync import git_sync
-from sase.agents_sync.git import run_git
+from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.links import hosted_provider
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.prompt_archive.index import render_prompt_month_index
@@ -101,6 +102,7 @@ def _migrate_prompt_archive_repositories(
     *,
     month: str | None = None,
     write: bool = False,
+    git_runner: GitRunner | None = None,
 ) -> _PromptMigrationReport:
     """Plan or apply the historical prompt migration for one project."""
 
@@ -114,6 +116,7 @@ def _migrate_prompt_archive_repositories(
     moved = 0
     relinked = 0
     months_committed = 0
+    active_repos: set[Path] = set()
     skips: list[_PromptMigrationSkip] = []
     for prompt_month in sorted({item.month for item in items}):
         month_items = tuple(item for item in items if item.month == prompt_month)
@@ -122,8 +125,22 @@ def _migrate_prompt_archive_repositories(
         moved += len(movable)
         relinked += sum(item.plan_changed for item in movable)
         if write and movable:
-            _apply_month(plans_repo, agents_repo, prompt_month, movable)
+            active_repos.update((agents_repo, plans_repo))
+            _apply_month(
+                plans_repo,
+                agents_repo,
+                prompt_month,
+                movable,
+            )
             months_committed += 1
+    if write:
+        _publish_migration_sidecars(
+            target,
+            plans_repo,
+            month=month,
+            active_repos=active_repos,
+            git_runner=git_runner or run_git,
+        )
     return _PromptMigrationReport(
         project=target.project,
         write=write,
@@ -373,6 +390,110 @@ def _commit_paths(repo: Path, paths: list[Path], message: str) -> None:
     )
     if committed.returncode != 0:
         raise RuntimeError(committed.stderr.strip() or "could not commit migration")
+
+
+def _publish_migration_sidecars(
+    target: ProjectTarget,
+    plans_repo: Path,
+    *,
+    month: str | None,
+    active_repos: set[Path],
+    git_runner: GitRunner,
+) -> None:
+    """Synchronously publish new or restart-pending migration commits."""
+
+    repositories = (
+        ("agents", target.sidecar_path),
+        ("plans", plans_repo),
+    )
+    pending: list[tuple[str, Path]] = []
+    for label, repo in repositories:
+        subjects = _ahead_subjects(repo, git_runner)
+        is_restart = subjects is not None and _contains_migration_commit(
+            label,
+            subjects,
+            month=month,
+        )
+        if (subjects and (repo in active_repos or is_restart)) or (
+            subjects is None and repo in active_repos
+        ):
+            pending.append((label, repo))
+    for index, (label, repo) in enumerate(pending):
+        pushed = git_runner(
+            repo,
+            ["push", "origin", "HEAD"],
+            network=True,
+            op=f"prompt_migrate.push_{label}",
+        )
+        if pushed.returncode == 0:
+            continue
+        detail = (pushed.stderr or pushed.stdout or "git push failed").strip()
+        remaining = tuple(path for _name, path in pending[index:])
+        raise RuntimeError(
+            _publication_recovery_message(
+                target,
+                month=month,
+                failed_label=label,
+                detail=detail,
+                repositories=remaining,
+            )
+        )
+
+
+def _ahead_subjects(repo: Path, git_runner: GitRunner) -> tuple[str, ...] | None:
+    result = git_runner(
+        repo,
+        ["log", "--format=%s", "@{upstream}..HEAD"],
+        op="prompt_migrate.ahead",
+    )
+    if result.returncode != 0:
+        return None
+    return tuple(line.strip() for line in result.stdout.splitlines() if line.strip())
+
+
+def _contains_migration_commit(
+    label: str,
+    subjects: tuple[str, ...],
+    *,
+    month: str | None,
+) -> bool:
+    if label == "agents":
+        prefix = "chore(prompts): migrate "
+        suffix = " prompt archive"
+    else:
+        prefix = "Migrate "
+        suffix = " prompts to agents sidecar"
+    return any(
+        subject == f"{prefix}{month}{suffix}"
+        if month is not None
+        else subject.startswith(prefix) and subject.endswith(suffix)
+        for subject in subjects
+    )
+
+
+def _publication_recovery_message(
+    target: ProjectTarget,
+    *,
+    month: str | None,
+    failed_label: str,
+    detail: str,
+    repositories: tuple[Path, ...],
+) -> str:
+    commands = [
+        f"git -C {shlex.quote(str(repo))} push origin HEAD" for repo in repositories
+    ]
+    rerun = (
+        f"sase agent prompts migrate --write --project {shlex.quote(target.project)}"
+    )
+    if month is not None:
+        rerun += f" --month {month}"
+    commands.append(rerun)
+    rendered = "\n  ".join(commands)
+    return (
+        f"{failed_label} sidecar migration push failed: {detail}\n"
+        "Migration commits remain durable locally. Recover with exactly:\n"
+        f"  {rendered}"
+    )
 
 
 def _resolve_plan_path(plans_repo: Path, month: str, name: str) -> Path | None:

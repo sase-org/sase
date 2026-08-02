@@ -546,7 +546,7 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         "-w",
         "--write",
         action="store_true",
-        help="Apply and commit the migration (default: read-only report)",
+        help=("Apply, commit, and publish both sidecars (default: read-only report)"),
     )
 
     prompts_show = prompts_sub.add_parser(

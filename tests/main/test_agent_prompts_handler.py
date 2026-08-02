@@ -11,6 +11,7 @@ import pytest
 from sase.agents import cli_prompts
 from sase.agents_sync.models import ProjectTarget, SyncOutcome, TargetSelection
 from sase.main.parser import create_parser, default_list_delegation_notice
+from sase.repo_inventory import RepoCloneRecord, RepoInventory, RepoRecord
 
 
 def _target(repo: Path, workspace: Path) -> ProjectTarget:
@@ -186,3 +187,59 @@ def test_prompt_list_keeps_unavailable_context_as_error(
     assert "no project with an available agents sidecar was found" in (
         capsys.readouterr().err
     )
+
+
+def test_plans_repo_uses_the_callers_workspace_clone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "primary"
+    current = tmp_path / "workspace-7"
+    old_plans = tmp_path / "primary-plans"
+    current_plans = tmp_path / "workspace-7-plans"
+    for path in (primary, current, old_plans, current_plans):
+        path.mkdir()
+    target = _target(tmp_path / "agents", primary)
+    clones = (
+        RepoCloneRecord(0, str(primary), True),
+        RepoCloneRecord(7, str(current), True),
+    )
+    plan_clones = (
+        RepoCloneRecord(0, str(old_plans), True),
+        RepoCloneRecord(7, str(current_plans), True),
+    )
+    inventory = RepoInventory(
+        (
+            RepoRecord(
+                "project",
+                "primary",
+                "Project",
+                "project-key",
+                str(primary),
+                True,
+                False,
+                None,
+                "test",
+                None,
+                clones=clones,
+            ),
+            RepoRecord(
+                "plans",
+                "sidecar",
+                "Project",
+                "project-key",
+                str(old_plans),
+                True,
+                True,
+                None,
+                "test",
+                None,
+                slug="plans",
+                clones=plan_clones,
+            ),
+        )
+    )
+    monkeypatch.setattr(cli_prompts, "collect_repo_inventory", lambda **_kw: inventory)
+    monkeypatch.chdir(current)
+
+    assert cli_prompts._plans_repo(target) == current_plans
