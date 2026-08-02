@@ -206,7 +206,7 @@ def _resolve_model_alias_result(
             elif is_provider_coder:
                 # A configured or temporary generic coder is an explicit
                 # fleet-wide override. Provider-specific configuration above
-                # still wins, while the shipped provider-local target is used
+                # still wins, while the direct shipped target is used
                 # only when neither explicit path applies.
                 assert overrides is not None
                 if (

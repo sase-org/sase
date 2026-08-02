@@ -70,7 +70,7 @@ def test_role_alias_helpers() -> None:
     cheapest_selector = parse_model_alias_selector(targets["cheapest"])
     assert cheapest_selector is not None
     assert cheapest_selector.mode == "round_robin"
-    assert implicit_model_alias_value("claude_coder") == "claude/sonnet"
+    assert implicit_model_alias_value("claude_coder") == "codex/gpt-5.5"
     assert implicit_model_alias_value("codex_coder") == "codex/gpt-5.5"
     assert implicit_model_alias_fallback("codex_coder") is None
     assert implicit_model_alias_fallback_reference("codex_coder") is None
@@ -78,7 +78,7 @@ def test_role_alias_helpers() -> None:
     assert implicit_model_alias_value("fakey_coder") is None
     assert implicit_model_alias_fallback("fakey_coder") == "coder"
     assert dict(provider_coder_targets()) == {
-        "claude": "claude/sonnet",
+        "claude": "codex/gpt-5.5",
         "codex": "codex/gpt-5.5",
     }
     assert implicit_model_alias_fallback("default") is None
@@ -217,9 +217,9 @@ def test_pinned_provider_coder_aliases_use_direct_defaults(
     claude = resolve_model_alias_with_effort("claude_coder")
     codex = resolve_model_alias_with_effort("codex_coder")
 
-    assert (claude.target, claude.effort) == ("claude/sonnet", None)
+    assert (claude.target, claude.effort) == ("codex/gpt-5.5", None)
     assert (codex.target, codex.effort) == ("codex/gpt-5.5", None)
-    assert resolve_model_provider("claude_coder") == ("claude", "sonnet")
+    assert resolve_model_provider("claude_coder") == ("codex", "gpt-5.5")
     assert resolve_model_provider("codex_coder") == ("codex", "gpt-5.5")
 
 
@@ -243,7 +243,7 @@ def test_provider_coder_alias_follows_configured_coder(
 ) -> None:
     """A generic coder configuration is a fleet-wide explicit override.
 
-    This explicit route takes precedence over provider-local shipped targets,
+    This explicit route takes precedence over direct shipped targets,
     while an explicitly configured provider-specific alias remains stronger.
     """
     mock_provider_config(

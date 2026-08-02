@@ -6,7 +6,7 @@
 # Each entry carries at most one of `fallback` (an @<alias> reference,
 # optionally with a trailing @<effort>) or `target` (a concrete model,
 # provider/model, `A | B` pool, or `A || B` ordered fallback). `coder` may
-# additionally carry provider-specific targets used by registered
+# additionally carry direct shipped targets used by registered
 # `<provider>_coder` aliases; providers without a target still inherit
 # `@coder`. `default` carries neither: it resolves through the configured/
 # autodetected provider's tier default. Every entry requires a `description`.
@@ -19,7 +19,7 @@ aliases:
   coder:
     fallback: "@default"
     provider_targets:
-      claude: "claude/sonnet"
+      claude: "codex/gpt-5.5"
       codex: "codex/gpt-5.5"
     description: >-
       Coder follow-up agents launched from plans (fallback for unpinned

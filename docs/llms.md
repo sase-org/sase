@@ -700,7 +700,7 @@ you have not defined them. Most fall back through other aliases to `@default`; t
 | ---------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `@default`             | Model used when a prompt has no `%model` directive.                                                  | Configured `model_aliases.builtin.default`, else the provider's requested-tier default. |
 | `@coder`               | Coder follow-up launched from an accepted plan.                                                      | `@default`                                                                              |
-| `@claude_coder`        | Coder follow-up for a Claude-authored plan.                                                          | `claude/sonnet`                                                                         |
+| `@claude_coder`        | Coder follow-up for a Claude-authored plan.                                                          | `codex/gpt-5.5`                                                                         |
 | `@codex_coder`         | Coder follow-up for a Codex-authored plan.                                                           | `codex/gpt-5.5`                                                                         |
 | `@<other>_coder`       | Coder follow-up for a plan authored by another registered provider (`@agy_coder`, `@qwen_coder`, …). | `@coder`                                                                                |
 | `@epic_lander`         | Epic land agent with no explicit land model.                                                         | `@default`                                                                              |
@@ -944,8 +944,8 @@ use the specified tier regardless of what the caller requests.
 Delegated launches do not use a separate "worker lane". Instead, each delegated role resolves through an
 [implicit role alias](#implicit-role-aliases):
 
-- **Coder follow-ups** from an accepted plan use `@<provider>_coder` for the planner's provider. `@claude_coder`
-  defaults to `claude/sonnet`, `@codex_coder` defaults to `codex/gpt-5.5`, and registered providers without a shipped
+- **Coder follow-ups** from an accepted plan use `@<provider>_coder` for the planner's provider. `@claude_coder` and
+  `@codex_coder` are distinct aliases that both default to `codex/gpt-5.5`; registered providers without a shipped
   target fall back through `@coder` to `@default`. Missing planner-provider metadata selects generic `@coder` directly.
 - **`sase bead work` phase agents** without an explicit per-bead model use the alias matching their normalized size:
   `@xsmall_phase_worker`, `@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, or

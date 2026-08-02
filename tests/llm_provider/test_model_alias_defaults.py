@@ -83,7 +83,7 @@ def test_provider_coder_targets_are_separate_immutable_policy() -> None:
     targets = provider_coder_targets()
 
     assert dict(targets) == {
-        "claude": "claude/sonnet",
+        "claude": "codex/gpt-5.5",
         "codex": "codex/gpt-5.5",
     }
     assert not isinstance(targets, MutableMapping)

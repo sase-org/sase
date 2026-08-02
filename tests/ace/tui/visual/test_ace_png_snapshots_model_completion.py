@@ -128,8 +128,8 @@ _ALIAS_ROWS = [
         "@claude_coder",
         kind="implicit_alias",
         alias_kind="provider_coder",
-        target_provider="claude",
-        target_model="sonnet",
+        target_provider="codex",
+        target_model="gpt-5.5",
         description="Claude coder follow-up model.",
     ),
     _alias_row(

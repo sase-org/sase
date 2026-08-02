@@ -214,7 +214,12 @@ def calm_views() -> list[AliasView]:
                 ),
             ),
         ),
-        _view("claude_coder", "provider_coder", provider="claude", model="sonnet"),
+        _view(
+            "claude_coder",
+            "provider_coder",
+            provider="codex",
+            model="gpt-5.5",
+        ),
         _view(
             "codex_coder",
             "provider_coder",

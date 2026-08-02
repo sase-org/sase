@@ -1594,13 +1594,14 @@ hand-off artifact. Set `SASE_CODER_INHERIT_PLANNER_CHAT=1` to restore the old be
 also carries a `%model:` directive. A model chosen at approval time (or a `%model:`/`%m` directive inside a custom coder
 prompt) wins. When no model is chosen, the follow-up routes through the planner provider's **coder alias**: a
 Claude-authored plan emits `%model:@claude_coder`, a Codex plan `%model:@codex_coder`, and so on for every registered
-provider. When the planner is missing provider metadata the follow-up falls back to the generic `%model:@coder`. Each
-`@claude_coder` launch defaults to `claude/sonnet`, and `@codex_coder` defaults to `codex/gpt-5.5`; other registered
-provider-coder aliases inherit `@coder`, which defaults to `@default`. Explicit launch-scoped coder values,
-provider-specific temporary/configured values, and an explicit generic temporary/configured `@coder` all take precedence
-over the shipped provider target. Configure `llm_provider.model_aliases.builtin.<provider>_coder` to route one
-provider's coder follow-ups elsewhere (see [Configured Model Aliases](llms.md#configured-model-aliases)). The recorded
-follow-up metadata resolves the alias to the concrete model the coder actually launches with.
+provider. When the planner is missing provider metadata the follow-up falls back to the generic `%model:@coder`.
+`@claude_coder` and `@codex_coder` remain distinct planner-provider aliases, but both default to `codex/gpt-5.5` when no
+stronger override is present; other registered provider-coder aliases inherit `@coder`, which defaults to `@default`.
+Explicit launch-scoped coder values, provider-specific temporary/configured values, and an explicit generic
+temporary/configured `@coder` all take precedence over the shipped provider target. Configure
+`llm_provider.model_aliases.builtin.<provider>_coder` to route one provider's coder follow-ups elsewhere (see
+[Configured Model Aliases](llms.md#configured-model-aliases)). The recorded follow-up metadata resolves the alias to the
+concrete model the coder actually launches with.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus recent approved and inferred
 rejected archived plans. Use the `id_prefix` from a Proposed row with `sase plan approve <id-prefix>` to use the

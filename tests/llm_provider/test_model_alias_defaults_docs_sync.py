@@ -22,6 +22,16 @@ _DOC_PATHS = (
 )
 
 
+def _doc_line_mentions_alias_target(text: str, alias: str, target: str) -> bool:
+    escaped = target.replace("|", "\\|")
+    for line in text.splitlines():
+        if f"@{alias}" not in line:
+            continue
+        if target in line or escaped in line:
+            return True
+    return False
+
+
 def test_every_shipped_target_is_quoted_in_both_docs() -> None:
     """Each target must appear verbatim or markdown-table-escaped in each doc.
 
@@ -44,4 +54,20 @@ def test_every_shipped_target_is_quoted_in_both_docs() -> None:
                 f"{doc_path.relative_to(_REPO_ROOT)} is missing the current "
                 f"'{name}' default ({target!r}); update it to match "
                 "src/sase/llm_provider/model_alias_defaults.yml"
+            )
+
+
+def test_provider_coder_defaults_are_documented_by_alias() -> None:
+    """Provider-coder rows must pair each alias with its shipped target.
+
+    When multiple provider-coder aliases share a target, a stale target for
+    one alias must not pass merely because the shared value appears elsewhere.
+    """
+    for doc_path in _DOC_PATHS:
+        text = doc_path.read_text(encoding="utf-8")
+        for provider, target in provider_coder_targets().items():
+            alias = f"{provider}_coder"
+            assert _doc_line_mentions_alias_target(text, alias, target), (
+                f"{doc_path.relative_to(_REPO_ROOT)} must mention @{alias} "
+                f"together with its shipped default {target!r}"
             )

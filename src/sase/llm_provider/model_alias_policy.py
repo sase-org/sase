@@ -33,7 +33,7 @@ import yaml  # type: ignore[import-untyped]
 # Most roles fall back to another alias (ultimately ``@default``) when they are
 # not explicitly configured. A fallback reference may carry an effort overlay,
 # such as ``@default@high``; an outer effort still wins. Selected
-# ``<provider>_coder`` aliases own provider-local targets, while unpinned
+# ``<provider>_coder`` aliases own direct shipped targets, while unpinned
 # providers inherit ``@coder``. ``smartest`` owns an independent concrete
 # maximum-effort target, while ``cheap``, ``cheaper``, and ``cheapest`` own
 # load-balanced pools. ``default`` itself falls back to the configured or

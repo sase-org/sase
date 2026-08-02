@@ -1070,12 +1070,12 @@ and xlarge phase/task fallback chains. See [Implicit role aliases](llms.md#impli
 tasks require an explicit size after `/sase_new_task` has ruled out a semantic duplicate and a causally related
 in-progress epic. Legacy tasks without size metadata remain launchable through the small phase/task route.
 
-The primary provider-coder aliases have direct shipped values: `@claude_coder` uses `claude/sonnet` and `@codex_coder`
-uses `codex/gpt-5.5`. Other registered `<provider>_coder` aliases inherit `@coder`. A launch-scoped specific or generic
-coder value wins first, followed by a provider-specific temporary/configured value, an explicit generic
-temporary/configured `@coder`, the shipped provider target, and finally the unpinned `@coder` fallback. If the planner
-has no provider metadata, the approval follow-up selects generic `@coder` directly. An approval-time model or outer
-effort suffix remains authoritative.
+The primary provider-coder aliases have direct shipped values: `@claude_coder` resolves to `codex/gpt-5.5`, and
+`@codex_coder` resolves to `codex/gpt-5.5` when no stronger override is present. Other registered `<provider>_coder`
+aliases inherit `@coder`. A launch-scoped specific or generic coder value wins first, followed by a provider-specific
+temporary/configured value, an explicit generic temporary/configured `@coder`, the shipped provider target, and finally
+the unpinned `@coder` fallback. If the planner has no provider metadata, the approval follow-up selects generic `@coder`
+directly. An approval-time model or outer effort suffix remains authoritative.
 
 `model_aliases.builtin.epic_creator` is retired. SASE no longer launches an epic-creator agent, resolves that alias
 implicitly, or treats it as a builtin override, so a stale entry should be deleted rather than repointed. `sase doctor`

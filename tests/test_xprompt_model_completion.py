@@ -411,9 +411,9 @@ def test_generic_coder_override_updates_implicit_provider_coder_metadata(
                 "claude_coder",
                 kind="provider_coder",
                 configured=False,
-                provider="claude",
-                model="sonnet",
-                implicit_value="claude/sonnet",
+                provider="codex",
+                model="gpt-5.5",
+                implicit_value="codex/gpt-5.5",
             ),
             _alias_view(
                 "codex_coder",

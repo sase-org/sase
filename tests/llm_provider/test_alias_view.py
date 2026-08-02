@@ -118,13 +118,13 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     )
     assert by_name["claude_coder"].kind == "provider_coder"
     assert by_name["codex_coder"].kind == "provider_coder"
-    assert by_name["claude_coder"].implicit_value == "claude/sonnet"
+    assert by_name["claude_coder"].implicit_value == "codex/gpt-5.5"
     assert by_name["codex_coder"].implicit_value == "codex/gpt-5.5"
     assert by_name["claude_coder"].implicit_fallback is None
     assert by_name["codex_coder"].implicit_fallback is None
     assert (by_name["claude_coder"].provider, by_name["claude_coder"].model) == (
-        "claude",
-        "sonnet",
+        "codex",
+        "gpt-5.5",
     )
     assert (by_name["codex_coder"].provider, by_name["codex_coder"].model) == (
         "codex",

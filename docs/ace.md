@@ -2004,11 +2004,11 @@ shows the effective `max running agents` global cap; an active temporary cap sho
 value on the same line. An explicit effort suffix inherited from an alias target appears beside that row's model badge;
 rows that simply inherit the header default omit the redundant suffix.
 
-With no explicit coder routing, the `claude_coder` row is a direct implicit `CLAUDE(sonnet)` target and `codex_coder` is
-direct implicit `CODEX(gpt-5.5)`; neither displays an obsolete `→ @coder` reference. Other registered provider-coder
-rows retain `implicit → @coder`. A configured or temporary generic `coder` value intentionally becomes a fleet-wide
-route for otherwise unconfigured provider-coder rows, so those rows show its effective target and `→ @coder` provenance.
-Provider-specific values remain more specific, and launch-scoped coder choices precede both.
+With no explicit coder routing, the `claude_coder` and `codex_coder` rows are direct implicit `CODEX(gpt-5.5)` targets;
+neither displays an obsolete `→ @coder` reference. Other registered provider-coder rows retain `implicit → @coder`. A
+configured or temporary generic `coder` value intentionally becomes a fleet-wide route for otherwise unconfigured
+provider-coder rows, so those rows show its effective target and `→ @coder` provenance. Provider-specific values remain
+more specific, and launch-scoped coder choices precede both.
 
 The top level is split into **Built-in** and **Custom** sections. Each header reports the aliases represented by its
 rows (including members of collapsed buckets) and its bucket count. This sectioning groups the existing deterministic
@@ -2923,10 +2923,10 @@ Epic:
   use `j`/`k` or arrows to navigate, `Enter` to select, `Esc` to clear the filter or cancel, and `'` for jump hints over
   the visible selectable rows. The displayed default resolves to the model the handoff will actually use: the planner
   provider's coder alias (`@<planner_provider>_coder`, e.g. `@claude_coder`, falling back to `@coder` when planner
-  provider metadata is missing). Out of the box, Claude and Codex planner aliases resolve to `claude/sonnet` and
-  `codex/gpt-5.5`; unpinned providers inherit `@coder`. Selecting a specific model and then re-opening the picker and
-  choosing "Follow-up default" resets the follow-up back to that role default (distinct from pressing `Esc`, which keeps
-  the current selection).
+  provider metadata is missing). Out of the box, Claude and Codex planner aliases both resolve to `codex/gpt-5.5`;
+  unpinned providers inherit `@coder`. Selecting a specific model and then re-opening the picker and choosing "Follow-up
+  default" resets the follow-up back to that role default (distinct from pressing `Esc`, which keeps the current
+  selection).
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
 commit location and follow-up behavior. Additional family members are launched explicitly with
