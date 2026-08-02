@@ -394,9 +394,9 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         if previous is not None and not prompt_commit_snapshot_expired(previous):
             return
         self._prompt_commit_inflight.add(project)
-        worker_name = (
-            f"prompt-commit-inventory:{len(self._prompt_commit_worker_projects)}"
-        )
+        # One worker per project is in flight at a time, so the project keys the
+        # name uniquely and a finished worker can never retire a live one.
+        worker_name = f"prompt-commit-inventory:{'' if project is None else project}"
         self._prompt_commit_worker_projects[worker_name] = project
 
         def task() -> _PromptCommitInventoryWorkerResult:
@@ -483,11 +483,19 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle repository-completion fetch worker results."""
         if event.worker.group == "prompt-commit-inventory":
-            project = self._prompt_commit_worker_projects.pop(
-                event.worker.name,
-                None,
-            )
-            self._prompt_commit_inflight.discard(project)
+            # Pending and running transitions must leave the inflight marker in
+            # place, or the loading row vanishes and every keystroke spawns
+            # another git scan for the same project.
+            if event.state in (
+                WorkerState.SUCCESS,
+                WorkerState.ERROR,
+                WorkerState.CANCELLED,
+            ):
+                project = self._prompt_commit_worker_projects.pop(
+                    event.worker.name,
+                    None,
+                )
+                self._prompt_commit_inflight.discard(project)
             if event.state == WorkerState.SUCCESS:
                 result = event.worker.result
                 if isinstance(result, _PromptCommitInventoryWorkerResult):

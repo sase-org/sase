@@ -6,9 +6,7 @@ from dataclasses import dataclass
 from time import monotonic
 
 from sase.artifact_refs import ArtifactRefContext
-from sase_core_rs import (  # type: ignore[import-untyped]
-    artifact_ref_payload_inventory,
-)
+from sase.core.rust import require_rust_binding
 
 
 PROMPT_COMMIT_INVENTORY_TTL = 2.0
@@ -55,7 +53,8 @@ def load_prompt_commit_snapshot(
     loaded_at: float | None = None,
 ) -> PromptCommitSnapshot:
     """Load commit rows through the shared core; worker-thread use only."""
-    inventory = artifact_ref_payload_inventory("commit", context.to_wire())
+    binding = require_rust_binding("artifact_ref_payload_inventory")
+    inventory = binding("commit", context.to_wire())
     raw_rows = inventory.get("payloads", [])
     rows = tuple(
         row

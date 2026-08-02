@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import patch
+from typing import cast
+from unittest.mock import Mock, patch
+
+from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.widgets.prompt_commit_inventory import (
     ArtifactRefCommitRow,
@@ -36,9 +39,10 @@ def test_snapshot_maps_shared_core_rows_without_rederiving_fields() -> None:
         ],
         "truncated_payloads": 4,
     }
+    binding = Mock(return_value=inventory)
     with patch(
-        "sase.ace.tui.widgets.prompt_commit_inventory.artifact_ref_payload_inventory",
-        return_value=inventory,
+        "sase.ace.tui.widgets.prompt_commit_inventory.require_rust_binding",
+        return_value=binding,
     ) as loader:
         snapshot = load_prompt_commit_snapshot(
             "sase",
@@ -46,7 +50,8 @@ def test_snapshot_maps_shared_core_rows_without_rederiving_fields() -> None:
             loaded_at=12.0,
         )
 
-    loader.assert_called_once_with("commit", {"repositories": []})
+    loader.assert_called_once_with("artifact_ref_payload_inventory")
+    binding.assert_called_once_with("commit", {"repositories": []})
     assert snapshot == PromptCommitSnapshot(
         "sase",
         (
@@ -113,6 +118,45 @@ def test_cold_commit_snapshot_schedules_one_threaded_worker() -> None:
     run_worker.assert_called_once()
     assert run_worker.call_args.kwargs["group"] == "prompt-commit-inventory"
     assert run_worker.call_args.kwargs["thread"] is True
+
+
+def test_running_worker_keeps_its_project_marked_inflight() -> None:
+    text_area = PromptTextArea()
+    context = _context()
+
+    with patch.object(type(text_area), "run_worker") as run_worker:
+        text_area._schedule_prompt_commit_inventory_load(
+            "sase",
+            context,  # type: ignore[arg-type]
+        )
+    worker_name = run_worker.call_args.kwargs["name"]
+
+    for state in (WorkerState.PENDING, WorkerState.RUNNING):
+        text_area.on_worker_state_changed(
+            _worker_event(worker_name, state),
+        )
+        assert text_area._prompt_commit_inflight == {"sase"}
+
+    with patch.object(type(text_area), "run_worker") as rerun_worker:
+        text_area._schedule_prompt_commit_inventory_load(
+            "sase",
+            context,  # type: ignore[arg-type]
+        )
+    rerun_worker.assert_not_called()
+
+    text_area.on_worker_state_changed(
+        _worker_event(worker_name, WorkerState.ERROR),
+    )
+    assert text_area._prompt_commit_inflight == set()
+
+
+def _worker_event(name: str, state: WorkerState) -> Worker.StateChanged:
+    worker = SimpleNamespace(
+        name=name,
+        group="prompt-commit-inventory",
+        result=None,
+    )
+    return cast(Worker.StateChanged, SimpleNamespace(worker=worker, state=state))
 
 
 def test_fresh_snapshot_does_not_schedule_revalidation() -> None:
