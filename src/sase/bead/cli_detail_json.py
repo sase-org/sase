@@ -1,0 +1,123 @@
+"""JSON serialization for bead detail commands."""
+
+from __future__ import annotations
+
+import json
+
+from sase.bead.cli_detail_resolution import IssueDetail, PlanLink
+from sase.bead.model import Dependency, Issue
+
+
+def render_issue_detail_json(
+    detail: IssueDetail,
+    *,
+    created_by_url: str | None = None,
+    page_url: str | None = None,
+) -> str:
+    """Render a stable single-bead JSON envelope."""
+    envelope: dict[str, object] = {
+        "issue": issue_to_wire_dict(detail.issue),
+        "ancestors": [
+            ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.ancestors
+        ],
+        "children": {
+            "phases": [
+                ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.phases
+            ],
+            "epics": [
+                ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.child_epics
+            ],
+        },
+        "depends_on": [
+            ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.depends_on
+        ],
+        "blocks": [ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.blocks],
+        "plan": _plan_to_wire_dict(detail.plan),
+    }
+    if created_by_url:
+        envelope["created_by_url"] = created_by_url
+    if page_url:
+        envelope["page_url"] = page_url
+    return json.dumps(envelope, indent=2) + "\n"
+
+
+def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
+    """Return the shared flat issue schema used by read-command JSON."""
+    payload: dict[str, object] = {
+        "id": issue.id,
+        "title": issue.title,
+        "status": issue.status.value,
+        "issue_type": issue.issue_type.value,
+        "tier": issue.tier.value if issue.tier else None,
+        "parent_id": issue.parent_id,
+        "owner": issue.owner,
+        "assignee": issue.assignee,
+        "created_at": issue.created_at,
+        "created_by": issue.created_by,
+        "updated_at": issue.updated_at,
+        "closed_at": issue.closed_at,
+        "close_reason": issue.close_reason,
+        "resolution": issue.resolution.value if issue.resolution else None,
+        "description": issue.description,
+        "notes": issue.notes,
+        "design": issue.design,
+        **({"refs": list(issue.refs)} if issue.refs else {}),
+        "plus_one_count": issue.plus_one_count,
+        "plus_one_evidence": [
+            {
+                "timestamp": evidence.timestamp,
+                "reporter": evidence.reporter,
+                "note": evidence.note,
+                "refs": list(evidence.refs),
+            }
+            for evidence in issue.plus_one_evidence
+        ],
+        "model": issue.model,
+        "is_ready_to_work": issue.is_ready_to_work,
+        "changespec_name": issue.changespec_name,
+        "changespec_bug_id": issue.changespec_bug_id,
+        "dependencies": [_dependency_to_wire_dict(dep) for dep in issue.dependencies],
+    }
+    if issue.size is not None:
+        payload["size"] = issue.size.value
+    return payload
+
+
+def _dependency_to_wire_dict(dep: Dependency) -> dict[str, str]:
+    return {
+        "issue_id": dep.issue_id,
+        "depends_on_id": dep.depends_on_id,
+        "created_at": dep.created_at,
+        "created_by": dep.created_by,
+    }
+
+
+def ref_to_wire_dict(issue_id: str, issue: Issue | None) -> dict[str, object]:
+    """Return the shared resolved-or-dangling bead reference schema."""
+    return {
+        "id": issue_id,
+        "resolved": issue is not None,
+        "title": issue.title if issue else None,
+        "status": issue.status.value if issue else None,
+        "issue_type": issue.issue_type.value if issue else None,
+        "tier": issue.tier.value if issue and issue.tier else None,
+        "size": issue.size.value if issue and issue.size else None,
+    }
+
+
+def _plan_to_wire_dict(plan: PlanLink | None) -> dict[str, object] | None:
+    if plan is None:
+        return None
+    return {
+        "section": plan.section,
+        "source": plan.source,
+        "path": plan.path,
+        "from": (
+            ref_to_wire_dict(plan.from_ref.issue_id, plan.from_ref.issue)
+            if plan.from_ref
+            else None
+        ),
+    }
+
+
+__all__ = ["issue_to_wire_dict", "ref_to_wire_dict", "render_issue_detail_json"]
