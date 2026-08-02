@@ -160,9 +160,10 @@ Artifact references cover more than indexed files:
 | `@bug:<project>#<number>` | One issue in the project's configured tracker                             |
 
 ACE can supply these without memorizing the grammar. Type `@` in the prompt bar for the grouped reference menu, or press
-`%` on an Artifacts entry to open **Copy as…**. Choose **Reference in new agent prompt** to open a prompt pre-filled
-with the entry's project and prompt-ready `@` reference; choose **Copy artifact reference** when you only want the
-reference on the clipboard.
+`%` on an Artifacts entry to open **Copy as…**. The prompt bar and editor LSP both complete `@commit:` from local git
+checkouts, inserting the repository name plus a short SHA that resolves at launch. Choose **Reference in new agent
+prompt** to open a prompt pre-filled with the entry's project and prompt-ready `@` reference; choose **Copy artifact
+reference** when you only want the reference on the clipboard.
 
 At launch, document, chat, file, bead, and agent references become local `@path` tokens. Commit references become a
 repository-and-revision locator plus the local checkout, while bug references become an issue number and URL. A

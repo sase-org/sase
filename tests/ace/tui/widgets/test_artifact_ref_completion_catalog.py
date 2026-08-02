@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from sase_core_rs import artifact_ref_payload_inventory
+
+from sase.artifact_ref_prompt import _resolve_for_launch
 from sase.ace.tui.widgets import artifact_ref_completion as artifact_completion
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefCommitCandidate,
@@ -15,9 +21,14 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     detect_artifact_ref_completion_context,
     load_artifact_ref_completion_catalog,
 )
+from sase.ace.tui.widgets.prompt_commit_inventory import (
+    load_prompt_commit_snapshot,
+)
 from sase.artifact_refs import (
     ArtifactRefContext,
     ArtifactRefDocumentRoot,
+    ArtifactRefRepository,
+    parse_artifact_ref,
 )
 
 
@@ -228,3 +239,104 @@ def test_dynamic_payload_index_is_memoized_by_snapshot_identity() -> None:
         "rank": 0,
         "body": "Alpha body",
     }
+
+
+def test_commit_completion_rows_match_shared_inventory_and_resolve(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "sase"
+    second = tmp_path / "sase-core"
+    _init_git_repo(first)
+    _init_git_repo(second)
+    recent_sha = _commit_at(second, 1_700_000_100, "fix(core): ranked row")
+    older_sha = _commit_at(first, 1_700_000_000, "docs: older row")
+    context = ArtifactRefContext(
+        document_roots=(),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifacts.jsonl",
+        repositories=(
+            ArtifactRefRepository(
+                "sase",
+                checkout_path=first,
+                checkout_paths=(first,),
+            ),
+            ArtifactRefRepository(
+                "sase-core",
+                checkout_path=second,
+                checkout_paths=(second,),
+            ),
+        ),
+        projects=(),
+    )
+    raw_inventory = artifact_ref_payload_inventory("commit", context.to_wire())
+    lsp_payload_sequence = tuple(
+        f"@commit:{row['payload']}"
+        for row in raw_inventory["payloads"]
+        if isinstance(row, dict)
+    )
+
+    catalog = ArtifactRefCompletionCatalog(project=None, kinds=("commit",))
+    snapshot = load_prompt_commit_snapshot(None, context, loaded_at=1.0)
+    completion_context = detect_artifact_ref_completion_context(
+        "@commit:",
+        len("@commit:"),
+        catalog.kinds,
+    )
+    assert completion_context is not None
+
+    result = build_artifact_ref_completion_result(
+        completion_context,
+        catalog,
+        commits=snapshot.rows,
+        commits_truncated_payloads=snapshot.truncated_payloads,
+    )
+    prompt_payload_sequence = tuple(
+        candidate.insertion for candidate in result.candidates
+    )
+
+    assert lsp_payload_sequence == prompt_payload_sequence
+    assert prompt_payload_sequence == (
+        f"@commit:sase-core@{recent_sha[:12]}",
+        f"@commit:sase@{older_sha[:12]}",
+    )
+    for insertion in prompt_payload_sequence:
+        parsed = parse_artifact_ref(insertion.removeprefix("@"))
+        resolution = _resolve_for_launch(parsed, context=context)
+        assert resolution.status != "missing"
+        assert resolution.locator is not None
+
+
+def _init_git_repo(repo: Path) -> None:
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "commit-completion@example.com")
+    _git(repo, "config", "user.name", "Commit Completion")
+    _git(repo, "remote", "add", "origin", str(repo))
+
+
+def _commit_at(repo: Path, timestamp: int, message: str) -> str:
+    filename = f"{timestamp}.txt"
+    (repo / filename).write_text(f"{message}\n", encoding="utf-8")
+    _git(repo, "add", filename)
+    env = {
+        "GIT_AUTHOR_DATE": f"{timestamp} +0000",
+        "GIT_COMMITTER_DATE": f"{timestamp} +0000",
+    }
+    _git(repo, "commit", "-q", "-m", message, env=env)
+    return _git(repo, "rev-parse", "HEAD").strip()
+
+
+def _git(
+    repo: Path,
+    *args: str,
+    env: dict[str, str] | None = None,
+) -> str:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+        env=None if env is None else {**os.environ, **env},
+    )
+    return result.stdout
