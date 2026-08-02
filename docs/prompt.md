@@ -61,8 +61,9 @@ stores at once** and ranks canonical archived prompts first, so it answers "I re
 whether it was archived from an agent run or just ran once last month."
 
 - **Canonical agents archive** — committed run prompts in the agents sidecar under `prompts/<YYYYMM>/`. Search resolves
-  the current project's archive the same way `sase agent prompts` does, reads the prompt body and provenance links, and
-  ranks these curated records first.
+  the current project's archive the same way `sase agent prompts` does, reads the prompt as authored plus its provenance
+  links, and ranks these curated records first. A stored rendered agent prompt is deliberately excluded from the
+  searchable text.
 - **Local prompt history** — the machine-wide `~/.sase/prompt_history/` shard store: every prompt ever submitted on this
   machine, across all repos.
 
@@ -122,8 +123,8 @@ highlighted.
 
 An empty or whitespace-only query is a usage error (exit `2`). A query that matches nothing is **not** an error (exit
 `0`): `compact`/`full` print `No prompts match "<query>".` and `json` returns an envelope with `count: 0`. When `-s all`
-finds the same prompt in both stores (identical text), the local copy collapses into the archive hit, annotated
-`also in local history`.
+finds the same authored prompt in both stores after normalizing whitespace and canonical-archive xprompt links, the
+local copy collapses into the archive hit, annotated `also in local history`.
 
 ## Common Workflows
 
