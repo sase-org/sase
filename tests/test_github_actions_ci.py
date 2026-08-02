@@ -139,6 +139,29 @@ def test_redundant_lanes_are_consolidated_without_dropping_commands() -> None:
     } <= artifact_names
 
 
+def test_test_job_timeout_allows_slow_3_12_leg() -> None:
+    workflow = _load_ci_workflow()
+    assert workflow["jobs"]["test"]["timeout-minutes"] == 90
+
+
+def test_test_job_only_collects_coverage_on_3_12_leg() -> None:
+    workflow = _load_ci_workflow()
+    steps = workflow["jobs"]["test"]["steps"]
+
+    coverage_step = next(
+        step for step in steps if step.get("name") == "Run tests (coverage leg)"
+    )
+    assert coverage_step["if"] == "matrix.python-version == '3.12'"
+    assert coverage_step["run"] == "just test-cov"
+
+    plain_step = next(
+        step
+        for step in steps
+        if step.get("name") == "Run tests" and step.get("run") == "just test"
+    )
+    assert plain_step["if"] == "matrix.python-version != '3.12'"
+
+
 def test_visual_suite_runs_only_in_dedicated_job() -> None:
     workflow = _load_ci_workflow()
     jobs = workflow["jobs"]

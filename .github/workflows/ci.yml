@@ -162,7 +162,7 @@ jobs:
   test:
     needs: build-core
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       # One flaky leg must not cancel its siblings: the default fail-fast has
       # been observed erasing the 3.12 coverage gate over a 3.14-only failure.
@@ -175,11 +175,18 @@ jobs:
         uses: ./.github/actions/setup-sase
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Run tests
+      - name: Run tests (coverage leg)
+        if: matrix.python-version == '3.12'
         env:
           # The dedicated visual-test job is the sole visual execution.
           SASE_PYTEST_EXCLUDE_VISUAL: "true"
         run: just test-cov
+      - name: Run tests
+        if: matrix.python-version != '3.12'
+        env:
+          # The dedicated visual-test job is the sole visual execution.
+          SASE_PYTEST_EXCLUDE_VISUAL: "true"
+        run: just test
       - name: Upload coverage
         if: matrix.python-version == '3.12'
         uses: codecov/codecov-action@v4
