@@ -46,12 +46,14 @@ def test_builds_all_presentation_views_from_binding_payloads() -> None:
     assert views.activity.skills[0].distinct_agents == 3
     assert views.activity.workspaces[0].workspace_num == 17
     assert views.plans_questions.mean_phases_per_epic == 3.0
-    assert views.plans_questions.plans_proposed == 4
-    assert views.plans_questions.plans_approved == 1
-    assert views.plans_questions.plans_rejected == 2
-    assert views.plans_questions.plans_pending == 1
-    assert views.plans_questions.question_sessions == 1
-    assert views.plans_questions.asking_agents == 1
+    assert views.plans_questions.plans_proposed == 3
+    assert views.plans_questions.plans_approved == 2
+    assert views.plans_questions.plans_rejected == 1
+    assert views.plans_questions.plans_feedback == 0
+    assert views.plans_questions.plans_pending == 0
+    assert views.plans_questions.question_sessions == 2
+    assert views.plans_questions.asking_agents == 2
+    assert views.plans_questions.coverage_start_ts == 1_000.0
     assert views.plans_questions.questions_per_session[-1].label == "2"
 
 
@@ -64,7 +66,7 @@ def test_models_are_frozen() -> None:
         views.xprompts.available = True  # type: ignore[misc]
 
 
-def test_filtered_plans_questions_keep_global_document_aggregates() -> None:
+def test_plans_questions_ignore_inaccurate_index_derived_totals() -> None:
     payload = run_payload()
     payload["plans"] = {
         "proposed": 1,
@@ -80,9 +82,10 @@ def test_filtered_plans_questions_keep_global_document_aggregates() -> None:
         view.plans_proposed,
         view.plans_approved,
         view.plans_rejected,
+        view.plans_feedback,
         view.plans_pending,
-    ) == (1, 1, 0, 0)
-    assert (view.question_sessions, view.asking_agents) == (1, 1)
+    ) == (3, 2, 1, 0, 0)
+    assert (view.question_sessions, view.asking_agents) == (2, 2)
     assert [(row.label, row.count) for row in view.plan_tiers] == [
         ("epic", 2),
         ("tale", 1),

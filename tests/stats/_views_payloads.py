@@ -202,12 +202,14 @@ def activity_payload() -> dict[str, object]:
         ],
         "plans": {
             "proposed": 3,
+            "proposing_agents": 2,
             "tiers": [
                 {"name": "epic", "count": 2},
                 {"name": "tale", "count": 1},
             ],
             "approved": 2,
             "rejected": 1,
+            "feedback": 0,
             "pending": 0,
             "phases_per_epic": [
                 {"value": 2, "count": 1},
@@ -217,6 +219,7 @@ def activity_payload() -> dict[str, object]:
         },
         "questions": {
             "sessions": 2,
+            "asking_agents": 2,
             "questions": 3,
             "questions_per_session": [
                 {"value": 1, "count": 1},
@@ -224,4 +227,5 @@ def activity_payload() -> dict[str, object]:
             ],
             "mean_questions_per_session": 1.5,
         },
+        "coverage_start_ts": 1_000.0,
     }

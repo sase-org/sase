@@ -522,25 +522,25 @@ def build_xprompts_view(
 
 
 def build_plans_questions_view(
-    run_payload: Payload, activity_payload: Payload
+    _run_payload: Payload, activity_payload: Payload
 ) -> PlansQuestionsView:
-    run_plans = mapping(run_payload.get("plans"))
     activity_plans = mapping(activity_payload.get("plans"))
     questions = mapping(activity_payload.get("questions"))
-    run_questions = mapping(run_payload.get("questions"))
     return PlansQuestionsView(
-        plans_proposed=integer(run_plans.get("proposed")),
+        plans_proposed=integer(activity_plans.get("proposed")),
         plan_tiers=count_rows(rows(activity_plans, "tiers")),
-        plans_approved=integer(run_plans.get("approved")),
-        plans_rejected=integer(run_plans.get("rejected")),
-        plans_pending=integer(run_plans.get("pending")),
+        plans_approved=integer(activity_plans.get("approved")),
+        plans_rejected=integer(activity_plans.get("rejected")),
+        plans_feedback=integer(activity_plans.get("feedback")),
+        plans_pending=integer(activity_plans.get("pending")),
         phases_per_epic=distribution_rows(rows(activity_plans, "phases_per_epic")),
         mean_phases_per_epic=number(activity_plans.get("mean_phases_per_epic")),
-        question_sessions=integer(run_questions.get("sessions")),
-        asking_agents=integer(run_questions.get("asking_agents")),
+        question_sessions=integer(questions.get("sessions")),
+        asking_agents=integer(questions.get("asking_agents")),
         questions=integer(questions.get("questions")),
         questions_per_session=distribution_rows(
             rows(questions, "questions_per_session")
         ),
         mean_questions_per_session=number(questions.get("mean_questions_per_session")),
+        coverage_start_ts=optional_number(activity_payload.get("coverage_start_ts")),
     )

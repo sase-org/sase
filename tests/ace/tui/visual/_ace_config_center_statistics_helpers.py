@@ -284,9 +284,11 @@ def _populated_statistics_view(
         },
         "plans": {
             "proposed": 11,
+            "proposing_agents": 7,
             "approved": 8,
             "rejected": 1,
-            "pending": 2,
+            "feedback": 1,
+            "pending": 1,
         },
         "questions": {"sessions": 8, "asking_agents": 6},
         "workspaces": [
@@ -507,6 +509,7 @@ def _populated_statistics_view(
         },
         "questions": {
             "sessions": 8,
+            "asking_agents": 6,
             "questions": 13,
             "questions_per_session": [
                 {"value": 1, "count": 4},

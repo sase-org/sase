@@ -63,7 +63,8 @@ def test_view_renderables_include_verified_metric_definitions() -> None:
             "Scope = launch-boundary references only; workflow step templates excluded"
         ),
         "plans_questions": (
-            "(all projects) = global durable activity the project filter cannot scope"
+            "Project scope = plans and questions honor the filter; "
+            "skills and memories remain global"
         ),
     }
     for view in VIEW_ORDER:

@@ -98,8 +98,8 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
     ),
     "plans_questions": (
         _MetricLegend(
-            "(all projects)",
-            "global durable activity the project filter cannot scope",
+            "Project scope",
+            "plans and questions honor the filter; skills and memories remain global",
         ),
     ),
 }

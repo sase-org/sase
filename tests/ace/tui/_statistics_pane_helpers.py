@@ -238,18 +238,21 @@ def _activity_payload() -> dict:
         "memories": [{"name": "tui_perf.md", "count": 4, "distinct_agents": 2}],
         "plans": {
             "proposed": 3,
+            "proposing_agents": 2,
             "tiers": [
                 {"name": "epic", "count": 1},
                 {"name": "tale", "count": 2},
             ],
             "approved": 2,
             "rejected": 0,
+            "feedback": 0,
             "pending": 1,
             "phases_per_epic": [{"value": 5, "count": 1}],
             "mean_phases_per_epic": 5.0,
         },
         "questions": {
             "sessions": 2,
+            "asking_agents": 2,
             "questions": 3,
             "questions_per_session": [
                 {"value": 1, "count": 1},

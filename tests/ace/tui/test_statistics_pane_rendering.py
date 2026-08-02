@@ -78,32 +78,39 @@ def test_all_project_plan_and_question_values_need_no_scope_markers() -> None:
     pane = StatisticsPane(auto_load=False)
     view = _result(pane._view, pane._range, pane._runtime_group_by).views
 
-    columns = pane._plans_questions_renderable(view.plans_questions)
-    rendered = _render_plain(columns)
+    group = pane._plans_questions_renderable(
+        view.plans_questions, requested_start_ts=pane._range.start_ts
+    )
+    columns = group.renderables[-1]
+    rendered = _render_plain(group)
 
     assert [panel.title for panel in columns.renderables] == ["Plans", "Questions"]
     assert "all projects" not in rendered
-    assert "Proposed  1  ·  Approved  1  ·  Rejected  0  ·  Pending  0" in rendered
-    assert "Sessions  1  ·  Asking agents  1  ·  Questions  3" in rendered
+    assert (
+        "Proposed  3  ·  Approved  2  ·  Rejected  0  ·  Feedback  0  ·  Pending  1"
+    ) in rendered
+    assert "Sessions  2  ·  Asking agents  2  ·  Questions  3" in rendered
 
 
-def test_project_filter_marks_only_global_plan_and_question_values() -> None:
+def test_project_filtered_plan_and_question_values_need_no_scope_markers() -> None:
     pane = StatisticsPane(auto_load=False)
     pane._project_filter = "sase"
     view = _result(pane._view, pane._range, pane._runtime_group_by).views
 
-    columns = pane._plans_questions_renderable(view.plans_questions)
-    rendered = _render_plain(columns)
+    group = pane._plans_questions_renderable(
+        view.plans_questions, requested_start_ts=pane._range.start_ts
+    )
+    columns = group.renderables[-1]
+    rendered = _render_plain(group)
 
     assert [panel.title for panel in columns.renderables] == ["Plans", "Questions"]
-    assert "Proposed  1  ·  Approved  1  ·  Rejected  0  ·  Pending  0" in rendered
-    assert "Sessions  1  ·  Asking agents  1" in rendered
-    assert "Tier (all projects)" in rendered
-    assert "Mean phases per epic (all projects): 5.00" in rendered
-    assert "Phases (all projects)" in rendered
-    assert "Questions (all projects): 3" in rendered
-    assert "Mean questions per session (all projects): 1.50" in rendered
-    assert "Questions (all projects)" in rendered
+    assert (
+        "Proposed  3  ·  Approved  2  ·  Rejected  0  ·  Feedback  0  ·  Pending  1"
+    ) in rendered
+    assert "Sessions  2  ·  Asking agents  2" in rendered
+    assert "all projects" not in rendered
+    assert "Mean phases per epic: 5.00" in rendered
+    assert "Mean questions per session: 1.50" in rendered
 
 
 @pytest.mark.parametrize(
@@ -152,6 +159,25 @@ def test_swarm_rows_and_focus_header_label_the_swarm_kind() -> None:
     rendered = _render_plain(pane._xprompts_usage_renderable(views.xprompts))
 
     assert "#research_swarm  swarm" in rendered
+
+
+def test_plans_questions_render_feedback_and_coverage_floor() -> None:
+    pane = StatisticsPane(auto_load=False)
+    payload = _activity_payload()
+    payload["coverage_start_ts"] = pane._range.start_ts + 60
+    views = build_statistics_views(
+        _run_payload(pane._range, pane._runtime_group_by), payload
+    )
+
+    rendered = _render_plain(
+        pane._plans_questions_renderable(
+            views.plans_questions,
+            requested_start_ts=pane._range.start_ts,
+        )
+    )
+
+    assert "Feedback  0" in rendered
+    assert "Plan/question data begins" in rendered
 
 
 def test_xprompt_focus_header_labels_the_swarm_kind() -> None:

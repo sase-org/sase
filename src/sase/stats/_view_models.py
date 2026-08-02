@@ -254,6 +254,7 @@ class PlansQuestionsView:
     plan_tiers: tuple[CountRow, ...]
     plans_approved: int
     plans_rejected: int
+    plans_feedback: int
     plans_pending: int
     phases_per_epic: tuple[DistributionRow, ...]
     mean_phases_per_epic: float
@@ -262,6 +263,7 @@ class PlansQuestionsView:
     questions: int
     questions_per_session: tuple[DistributionRow, ...]
     mean_questions_per_session: float
+    coverage_start_ts: float | None
 
 
 @dataclass(frozen=True, slots=True)

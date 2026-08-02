@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from rich import box
@@ -10,6 +11,7 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+from sase.core.time import get_timezone
 from sase.telemetry.render import format_duration
 
 from .statistics_pane_data import StatisticsView, StatisticsViewData
@@ -55,7 +57,10 @@ class StatisticsViewsRenderingMixin(
         elif self._view == "xprompts":
             return self._xprompts_renderable(result)
         elif self._view == "plans_questions":
-            renderable = self._plans_questions_renderable(views.plans_questions)
+            renderable = self._plans_questions_renderable(
+                views.plans_questions,
+                requested_start_ts=result.selected_range.start_ts,
+            )
         return Group(renderable, self._legend_note(self._view))
 
     def _overview_renderable(self, overview: Any) -> Group:
@@ -213,40 +218,31 @@ class StatisticsViewsRenderingMixin(
             expand=True,
         )
 
-    def _plans_questions_renderable(self, view: Any) -> Columns:
-        unscoped_suffix = " (all projects)" if self._project_filter else ""
+    def _plans_questions_renderable(
+        self, view: Any, *, requested_start_ts: int
+    ) -> Group:
         plans_summary = Text(
             f"Proposed  {view.plans_proposed}  ·  Approved  {view.plans_approved}  ·  "
-            f"Rejected  {view.plans_rejected}  ·  Pending  {view.plans_pending}"
+            f"Rejected  {view.plans_rejected}  ·  Feedback  {view.plans_feedback}  ·  "
+            f"Pending  {view.plans_pending}"
         )
-        tiers = self._count_table(f"Tier{unscoped_suffix}", view.plan_tiers)
-        phases = self._distribution_table(
-            f"Phases{unscoped_suffix}", view.phases_per_epic
-        )
+        tiers = self._count_table("Tier", view.plan_tiers)
+        phases = self._distribution_table("Phases", view.phases_per_epic)
         questions_summary = Text(
             f"Sessions  {view.question_sessions}  ·  Asking agents  {view.asking_agents}"
         )
-        question_summary_rows: tuple[Text, ...]
-        if self._project_filter:
-            question_summary_rows = (
-                questions_summary,
-                Text(f"Questions{unscoped_suffix}: {view.questions}"),
-            )
-        else:
-            questions_summary.append(f"  ·  Questions  {view.questions}")
-            question_summary_rows = (questions_summary,)
+        questions_summary.append(f"  ·  Questions  {view.questions}")
         question_sizes = self._distribution_table(
-            f"Questions{unscoped_suffix}", view.questions_per_session
+            "Questions", view.questions_per_session
         )
-        return Columns(
+        columns = Columns(
             (
                 Panel(
                     Group(
                         plans_summary,
                         tiers,
                         Text(
-                            "Mean phases per epic"
-                            f"{unscoped_suffix}: {view.mean_phases_per_epic:.2f}",
+                            f"Mean phases per epic: {view.mean_phases_per_epic:.2f}",
                             style="dim",
                         ),
                         phases,
@@ -256,11 +252,10 @@ class StatisticsViewsRenderingMixin(
                 ),
                 Panel(
                     Group(
-                        *question_summary_rows,
+                        questions_summary,
                         Text(
                             "Mean questions per session"
-                            f"{unscoped_suffix}: "
-                            f"{view.mean_questions_per_session:.2f}",
+                            f": {view.mean_questions_per_session:.2f}",
                             style="dim",
                         ),
                         question_sizes,
@@ -272,6 +267,18 @@ class StatisticsViewsRenderingMixin(
             equal=True,
             expand=True,
         )
+        if (
+            view.coverage_start_ts is None
+            or requested_start_ts >= view.coverage_start_ts
+        ):
+            return Group(columns)
+        coverage_start = datetime.fromtimestamp(view.coverage_start_ts, get_timezone())
+        coverage_note = Text(
+            "Plan/question data begins "
+            f"{coverage_start:%b} {coverage_start.day}, {coverage_start.year}",
+            style=_GOLD,
+        )
+        return Group(coverage_note, columns)
 
     @staticmethod
     def _count_table(
