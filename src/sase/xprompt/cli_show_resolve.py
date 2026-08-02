@@ -387,6 +387,7 @@ def _show_steps(workflow: Workflow) -> list[ShowStep]:
                 hidden=step.hidden,
                 condition=step.condition,
                 output_schema=(dict(step.output.schema) if step.output else None),
+                body=step.agent or step.bash or step.python or step.prompt_part,
             )
         )
     return rows
@@ -413,12 +414,32 @@ def _show_references(
             ShowReference(
                 raw_ref=scanned.raw_ref,
                 name=scanned.name,
-                kind=scanned.kind,
+                kind=_show_reference_kind(
+                    scanned.name,
+                    scanned.kind,
+                    scanned.item,
+                    local_xprompts,
+                ),
                 resolved=scanned.item is not None,
                 source_display=_reference_source_display(scanned.item, project),
             )
         )
     return rows
+
+
+def _show_reference_kind(
+    name: str,
+    kind: str | None,
+    item: XPrompt | Workflow | None,
+    local_xprompts: dict[str, XPrompt],
+) -> str | None:
+    if name in local_xprompts:
+        return "local helper"
+    if isinstance(item, XPrompt) and item.skill:
+        return "skill"
+    if kind == "part":
+        return "xprompt"
+    return kind
 
 
 def _reference_source_display(

@@ -37,6 +37,7 @@ class ShowStep:
     hidden: bool
     condition: str | None
     output_schema: dict[str, Any] | None
+    body: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

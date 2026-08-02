@@ -273,6 +273,7 @@ def test_references_are_resolved_and_deduplicated_in_document_order(
         ("#_helper", True),
         ("#nope", False),
     ]
+    assert record.references[0].kind == "local helper"
 
 
 def test_record_json_projection_is_complete_and_serializable(
@@ -369,6 +370,7 @@ def test_step_record_reuses_shared_type_and_output_schema(
     assert record.steps[0].label == "print('ok')"
     assert record.steps[0].hidden is True
     assert record.steps[0].output_schema == {"type": "object"}
+    assert record.steps[0].body == "print('ok')"
 
 
 def test_public_definition_helpers(tmp_path: Path) -> None:

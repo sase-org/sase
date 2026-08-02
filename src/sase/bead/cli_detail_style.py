@@ -7,9 +7,8 @@ from enum import StrEnum
 
 from sase.ansi_style import ansi_sgr, apply_ansi
 from sase.bead.cli_dep_render import resolve_color
+from sase.cli_show_palette import PATH_COLOR, SECTION_COLOR
 
-_SECTION_COLOR = "#5F87FF"
-_PATH_COLOR = "#87AFFF"
 _TIER_COLOR = "#FFAF00"
 _DANGLING_COLOR = "#FF8787"
 
@@ -76,12 +75,12 @@ class DetailPalette:
     def section(self, value: str) -> str:
         """Style a top-level section header (``DESCRIPTION``, ``NOTES``, ...)."""
         return apply_ansi(
-            value, ansi_sgr(color=_SECTION_COLOR, bold=True), enabled=self.enabled
+            value, ansi_sgr(color=SECTION_COLOR, bold=True), enabled=self.enabled
         )
 
     def subsection(self, value: str) -> str:
         """Style a nested section header (``PHASES``, ``CHILD EPICS``)."""
-        return apply_ansi(value, ansi_sgr(color=_SECTION_COLOR), enabled=self.enabled)
+        return apply_ansi(value, ansi_sgr(color=SECTION_COLOR), enabled=self.enabled)
 
     def label(self, value: str) -> str:
         """Style a field label (``Type:``, ``Owner:``, ...)."""
@@ -93,12 +92,12 @@ class DetailPalette:
 
     def path(self, value: str) -> str:
         """Style a design/plan reference or REFS line."""
-        return apply_ansi(value, ansi_sgr(color=_PATH_COLOR), enabled=self.enabled)
+        return apply_ansi(value, ansi_sgr(color=PATH_COLOR), enabled=self.enabled)
 
     def url(self, value: str) -> str:
         """Style a hosted-page or creator URL."""
         return apply_ansi(
-            value, ansi_sgr(color=_PATH_COLOR, underline=True), enabled=self.enabled
+            value, ansi_sgr(color=PATH_COLOR, underline=True), enabled=self.enabled
         )
 
     def tier(self, value: str) -> str:
