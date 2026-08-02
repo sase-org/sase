@@ -9,9 +9,9 @@ creating a traceable chain from intent to execution. In this guide, "plan-like a
 Agent plans are ephemeral by default -- they live in a single session's context window and vanish when the session ends.
 SDD fixes this by writing plans and linked prompt archives to disk as first-class artifacts:
 
-- **Prompts** preserve both the launch-normalized XPrompt text and, when available, the final rendered prompt sent to
-  the model in the agents sidecar's `prompts/<YYYYMM>/` archive, so the "why" and exact execution input remain
-  inspectable.
+- **Prompts** preserve a durable primary body and, when available, the final preprocessed prompt SASE handed to the
+  provider in the agents sidecar's `prompts/<YYYYMM>/` archive. For an approved plan, the primary body is the
+  dry-expanded planning snapshot; for an ordinary commit publication, it is the pre-expansion XPrompt.
 - **Tales** record ordinary approved implementation plans, so decomposition decisions are queryable after the fact.
 - **Epics** record executable multi-phase plans that can be handed to `sase bead work`.
 - **Research** records exploratory findings, prior art, options, critiques, and recommendations that inform later work.
@@ -58,22 +58,27 @@ current month directory; SASE does not write research files automatically.
 
 ### Prompt Archive Publication
 
-Committed runs publish a canonical prompt document to the agents sidecar. A plan-backed run uses the plan slug for the
-archive filename; an unplanned run uses the committing agent's global lane name. Each current archive can preserve two
-different views of the launch prompt:
+SASE has two prompt-publication paths, and their ordering matters:
 
-1. The **XPrompt prompt** is the `raw_xprompt.md` launch artifact after alias and launch-boundary normalization but
-   before xprompt expansion. SASE keeps `#...` references visible and rewrites the ones with captured, resolvable
-   provenance as hosted links to their definitions. It similarly turns staged `@...` references into durable links when
-   possible.
-2. The **rendered prompt** is the final provider prompt selected from the run's artifacts—the text actually sent to the
-   model. When available, it is appended in a separate collapsed, verbatim section. It is explicitly truncated when it
-   exceeds [`chat_history.rendered_prompt_max_bytes`](configuration.md#chat_history); the XPrompt prompt remains
-   complete.
+1. **Approved plan:** while handling approval, SASE first dry-expands the planner prompt, attempts to publish the
+   plan-named archive entry, and then writes the tale or hands the epic to `sase bead work`. Dry expansion resolves
+   xprompts, strips prompt directives, and inlines workflow `prompt_part` content without executing pre- or post-steps.
+2. **Agent-backed commit:** after the primary commit succeeds, the commit workflow attempts to publish the run's
+   `raw_xprompt.md`. Project and configured xprompt aliases have already been resolved, but xprompts have not been
+   expanded. A plan-backed entry uses the plan slug; an entry without a plan uses the publishing agent's global lane
+   name.
 
-This distinction is intentional: the XPrompt view preserves the authored structure and reusable references, while the
-rendered view records the fully expanded execution input. `sase agent prompts show <prompt>` prints the XPrompt body by
-default; add `--rendered` to print the stored rendered prompt. Legacy archives may have only the first view.
+That plan snapshot or pre-expansion XPrompt becomes the archive's **primary body**. SASE rewrites captured, resolvable
+`#...` references in a pre-expansion body as hosted links and turns staged `@...` references in either kind of body into
+durable links when possible. The primary body remains complete rather than being size-truncated.
+
+When an eligible `*_prompt.md` artifact exists, SASE also appends a separate collapsed **rendered prompt** section. It
+contains the final preprocessed prompt SASE handed to the provider; it does not include instructions or other context
+that the provider adds. SASE retains at most [`chat_history.rendered_prompt_max_bytes`](configuration.md#chat_history)
+UTF-8 bytes and explicitly marks truncation.
+
+`sase agent prompts show <prompt>` prints the primary body by default; add `--rendered` to print the stored
+provider-prompt representation. Legacy archives may have only the primary body.
 
 ### Artifact Persistence
 
@@ -84,9 +89,10 @@ The approved plan artifact is:
    `{YYYYMM}` is derived from the current date. Its `PROMPT` header links to the canonical prompt archive entry in the
    agents sidecar, `prompts/{YYYYMM}/{plan_name}.md`, when that prompt has been published.
 
-For tales, the agent runner promotes the plan and publishes the prompt archive together. For epics, the planner prompt
-is published to the agents sidecar while the canonical `sase bead work <plan-file>` command owns archiving and linking
-the plan itself. This keeps host approval and the finishing planner agent from writing the same plan concurrently.
+For tales, the agent runner attempts the prompt publication before it writes and commits the promoted plan; these are
+ordered operations, not one atomic cross-repository transaction. For epics, the runner likewise attempts to publish the
+planner prompt first, while the canonical `sase bead work <plan-file>` command owns archiving and linking the plan
+itself. This keeps host approval and the finishing planner agent from writing the same plan concurrently.
 
 Plans and research notes are organized into `YYYYMM` subdirectories (for example, `202603/`) based on the creation date.
 Canonical prompts are organized in the agents sidecar under `prompts/<YYYYMM>/`, with copied prompt-linked bytes under

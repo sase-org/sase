@@ -60,22 +60,24 @@ Run `sase prompt <command> --help` for the full flag list of any subcommand.
 stores at once** and ranks canonical archived prompts first, so it answers "I remember a prompt about X — find it,
 whether it was archived from an agent run or just ran once last month."
 
-- **Canonical agents archive** — committed run prompts in the agents sidecar under `prompts/<YYYYMM>/`. Search resolves
-  the current project's archive the same way `sase agent prompts` does, reads the prompt as authored plus its provenance
-  links, and ranks these curated records first. A stored rendered agent prompt is deliberately excluded from the
-  searchable text.
+- **Canonical agents archive** — prompts published by agent-backed commits and approved planner runs in the agents
+  sidecar under `prompts/<YYYYMM>/`. Search resolves the current project's archive the same way `sase agent prompts`
+  does, reads each entry's primary body, and ranks these curated records first. For a commit publication that body is
+  the pre-expansion XPrompt with any resolved provenance links; for an approved planner publication it is the
+  dry-expanded plan snapshot. A separately stored provider prompt is deliberately excluded from the searchable text.
 - **Local prompt history** — the machine-wide `~/.sase/prompt_history/` shard store: every prompt ever submitted on this
   machine, across all repos.
 
 Use `sase agent prompts list` and `sase agent prompts validate` to inspect or validate the canonical archive directly.
-`sase agent prompts show <prompt>` prints the archived XPrompt body, while `sase agent prompts show --rendered <prompt>`
-prints the final stored provider prompt when that rendering is available.
+`sase agent prompts show <prompt>` prints the primary archive body, while `sase agent prompts show --rendered <prompt>`
+prints the stored provider-prompt representation when available. The rendered representation may be truncated at the
+configured byte limit.
 
-Matching is a **case-insensitive substring** test of the literal query (no regex or globbing) against every
-human-readable field — title, body, locator/ID, archive path, `plan:` link, and tags — so each hit can report _why_ it
-matched. Results are ranked deterministically: archive before local, a title/locator/path hit before a body-only hit,
-newer before older, with a stable tiebreak so output is byte-identical across runs. `search` is **read-only**: it never
-writes or locks either store, so it is safe to run against a corrupt or unreadable history.
+Matching is a **case-insensitive substring** test of the literal query (no regex or globbing) against these searchable
+fields: title, body, locator/ID, archive path, plan label, and tags. Each hit can therefore report _why_ it matched.
+Results are ranked deterministically: archive before local, a title/locator/path hit before a body-only hit, newer
+before older, with a stable tiebreak so output is byte-identical across runs. `search` is **read-only**: it never writes
+or locks either store, so it is safe to run against a corrupt or unreadable history.
 
 ```bash
 sase prompt search auth                  # both stores, compact, most-relevant first
@@ -103,8 +105,9 @@ sase prompt search auth -f json | jq '.total, (.results | length)'
 ```
 
 `-f full` prints each hit completely, divider-separated: a **local** hit reuses the exact `sase prompt show -f markdown`
-rendering, and an **archived** hit shows a compact metadata header (path, `plan`, tags) plus its XPrompt body with the
-match highlighted. The stored rendered prompt is not searched or included in these results.
+rendering, and an **archived** hit shows its available path, `plan`, artifact-count, tag, and local-history metadata
+plus the primary archive body with the match highlighted. The separately stored provider prompt is not searched or
+included in these results.
 
 ### Filtering by date, tag, source, and status
 

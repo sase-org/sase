@@ -1932,20 +1932,27 @@ iterations (to guard against circular references).
 
 ## Stored Prompt Renderings
 
-Agent runs persist two prompt renderings when those artifacts are available:
+Saved chats and canonical prompt archives expose related, but not identical, prompt representations:
 
-- The **XPrompt prompt** is the raw `raw_xprompt.md` text after alias and launch-boundary normalization, before xprompt
-  expansion. Chat files and prompt archive entries keep this form readable so `#...` references remain visible.
-- The **rendered prompt** is the final provider prompt selected from the agent artifacts directory and sent to the
-  model. It is stored separately as verbatim Markdown and is not linkified.
+- The **XPrompt prompt** in a saved chat comes from `raw_xprompt.md` after project and configured xprompt aliases have
+  been resolved, but before xprompt expansion. It keeps reusable `#...` references visible.
+- A prompt archive's **primary body** normally uses that same pre-expansion artifact for an agent-backed commit.
+  Approved planner entries are the exception: their primary body is the dry-expanded, directive-stripped plan snapshot.
+- The **rendered prompt** is the final preprocessed prompt SASE passed to the provider invocation. It is stored
+  separately and is not linkified. It is not the provider's complete model context, which may also include provider
+  instructions and repository context.
 
 During launch, SASE records best-effort provenance for each used xprompt in `xprompt_sources.json`. During chat storage
-and prompt archive publication, resolvable references in the XPrompt prompt are rewritten as hosted Markdown links to
-their definition file, with `#L...` anchors for config-file definitions when the line is known. Unresolvable references
-are left exactly as typed; SASE does not invent placeholder links.
+and commit-backed prompt archive publication, resolvable references in a pre-expansion XPrompt are rewritten as hosted
+Markdown links to their definition file, with `#L...` anchors for config-file definitions when the line is known.
+Unresolvable references are left exactly as typed; SASE does not invent placeholder links. The primary body is not
+size-truncated. A rendered prompt retains at most
+[`chat_history.rendered_prompt_max_bytes`](configuration.md#chat_history) UTF-8 bytes and carries an explicit marker if
+the rest was omitted.
 
-Use `sase chat show -x` / `sase chat show -r` for the two renderings in a saved transcript, and
-`sase agent prompts show PROMPT` / `sase agent prompts show -r PROMPT` for the archived XPrompt body or rendered prompt.
+Use `sase chat show -x` / `sase chat show -r` for the two representations in a saved transcript. For an archive,
+`sase agent prompts show PROMPT` prints the primary body and `sase agent prompts show -r PROMPT` prints the stored
+provider-prompt representation.
 
 ## Multi-Agent Prompts
 

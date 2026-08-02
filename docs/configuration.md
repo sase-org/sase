@@ -2139,9 +2139,9 @@ Source: `src/sase/default_config.yml`, `src/sase/integrations/chat_install.py`
 
 ### chat_history
 
-Controls how much of the final rendered provider prompt SASE persists in durable chat Markdown and canonical
-agents-sidecar prompt archives. The launch-normalized XPrompt prompt is stored separately and is not truncated by this
-setting.
+Controls how much of the final preprocessed prompt SASE handed to a provider is retained in durable chat Markdown and
+canonical agents-sidecar prompt archives. It does not include context that the provider adds itself. The separate
+XPrompt section in chat history and the primary body of an archive entry are not truncated by this setting.
 
 ```yaml
 chat_history:
@@ -2152,12 +2152,18 @@ chat_history:
 | ---------------------------------------- | ---- | --------- | ------- | -------------------------------------------------------------------------------------------------- |
 | `chat_history.rendered_prompt_max_bytes` | int  | `1048576` | `1`     | Maximum UTF-8 bytes retained for one rendered prompt before the stored section reports truncation. |
 
-An invalid or missing value falls back to 1 MiB. If the XPrompt and rendered prompts are identical, the stored section
-records that fact instead of duplicating the text. Use `sase chat show -x` / `-r` or `sase agent prompts show <prompt>`
-/ `sase agent prompts show --rendered <prompt>` to inspect the two views. See
-[Stored Prompt Renderings](xprompt.md#stored-prompt-renderings) for their semantics.
+An invalid or missing value falls back to 1 MiB. The byte limit applies to the retained prompt prefix; SASE adds the
+truncation notice outside that prefix. In chat history, identical XPrompt and provider prompts are recorded once with an
+identity marker. Canonical prompt archives always keep the provider representation in its own section when one is
+available, even when it matches the primary body.
 
-Source: `src/sase/default_config.yml`, `src/sase/config/core.py`, `src/sase/history/chat_prompt_sections.py`
+Use `sase chat show -x` / `-r` to inspect a saved chat's XPrompt or provider prompt. For an archive,
+`sase agent prompts show <prompt>` prints the primary body and `sase agent prompts show --rendered <prompt>` prints the
+stored provider-prompt representation. See [Stored Prompt Renderings](xprompt.md#stored-prompt-renderings) for the
+important difference between those bodies.
+
+Source: `src/sase/default_config.yml`, `src/sase/config/core.py`, `src/sase/history/chat_prompt_sections.py`,
+`src/sase/agents_sync/prompt_archive/preparation.py`, `src/sase/agents_sync/prompt_archive/render.py`
 
 ### telegram
 
