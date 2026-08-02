@@ -8,13 +8,15 @@ from rich.console import Console, ConsoleOptions, RenderResult
 from rich.style import StyleType
 from rich.text import Span, Text
 
+from ._agent_page_section import ResponsiveAgentPageSection
 from ._agent_bead_section import ResponsiveBeadSection
 from ._agent_plan_section import ResponsivePlanSection
 from ._agent_slow_tools_detail import ResponsiveSlowToolCallsSection
 from ._agent_wait_section import ResponsiveWaitSection
 
 type ResponsiveHeaderSection = (
-    ResponsiveBeadSection
+    ResponsiveAgentPageSection
+    | ResponsiveBeadSection
     | ResponsivePlanSection
     | ResponsiveSlowToolCallsSection
     | ResponsiveWaitSection

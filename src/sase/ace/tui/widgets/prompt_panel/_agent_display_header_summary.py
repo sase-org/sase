@@ -16,6 +16,7 @@ from sase.ace.tui.tools import (
 )
 from sase.ace.tui.widgets.file_panel._diff import DIFF_CACHE_TTL_SECONDS
 from ...models.agent import Agent
+from ...models.agent_page_url import agent_publishes_page, resolve_agent_page_url
 from ...models.agent_associated_plan import (
     associated_plan_cache_key,
     resolve_agent_plan_enrichment,
@@ -147,12 +148,12 @@ def build_detail_header_summary(
     agent: Agent,
     *,
     include_slow_tools: bool = True,
+    include_agent_page_url: bool = True,
 ) -> DetailHeaderSummary:
     """Build expensive header enrichments outside hot selection rendering.
 
-    ``include_slow_tools`` lets clan aggregation reuse all existing context
-    loaders without discovering tool-call artifacts unless that aggregate
-    section was explicitly requested by the current fold state.
+    The include flags let clan aggregation reuse existing context loaders
+    without resolving per-member details that the aggregate does not render.
     """
     xprompts_used = None
     if agent.step_type not in ("bash", "python", "parallel"):
@@ -174,6 +175,12 @@ def build_detail_header_summary(
     slow_tool_sources = None
     if include_slow_tools and supports_slow_tool_sources(agent):
         slow_tool_sources = build_slow_tool_sources(agent)
+
+    agent_page_url = (
+        resolve_agent_page_url(agent)
+        if include_agent_page_url and agent_publishes_page(agent)
+        else None
+    )
 
     from sase.ace.tui.memory_reads import load_memory_reads_for_agent_context
     from sase.ace.tui.opened_workspaces import (
@@ -214,6 +221,7 @@ def build_detail_header_summary(
         skill_uses=load_skill_uses_for_agent_context(agent),
         opened_workspaces=load_opened_workspaces_for_agent_context(agent),
         slow_tool_sources=slow_tool_sources,
+        agent_page_url=agent_page_url,
     )
 
 

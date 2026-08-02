@@ -46,6 +46,7 @@ def load_clan_disk_member_snapshot(
         context = build_detail_header_summary(
             member,
             include_slow_tools=needs_slow_tools,
+            include_agent_page_url=False,
         )
         slow_tool_sources = context.slow_tool_sources
     elif needs_slow_tools:

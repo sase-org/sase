@@ -296,7 +296,7 @@ def test_queued_explicit_wait_renders_runner_lane_only(
 def test_responsive_range_covers_exact_logical_wait_block() -> None:
     text = Text("prefix\n")
     ranges: dict[str, tuple[int, int]] = {}
-    _meta_fields, section = append_agent_metadata_fields(
+    metadata = append_agent_metadata_fields(
         text,
         make_agent(
             status="WAITING",
@@ -311,6 +311,7 @@ def test_responsive_range_covers_exact_logical_wait_block() -> None:
         responsive_ranges=ranges,
     )
 
+    section = metadata.wait_section
     assert section is not None
     start, end = ranges[WAIT_SECTION_ID]
     prefix = text.plain[:start]

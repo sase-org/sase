@@ -42,6 +42,10 @@ from ._agent_display_header_metadata import (
 from ._agent_display_header_renderable import AgentHeader, AgentHeaderRenderable
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
 from ._agent_output_variables import append_agent_output_variables_section
+from ._agent_page_section import (
+    AGENT_PAGE_SECTION_ID,
+    ResponsiveAgentPageSection,
+)
 from ._agent_plan_section import ResponsivePlanSection
 from ._agent_slow_tools_detail import ResponsiveSlowToolCallsSection
 from ._agent_wait_section import (
@@ -146,7 +150,7 @@ def build_header_text(
     queue_selection = runner_queue_selection(agent, runner_capacity)
 
     responsive_ranges: dict[str, tuple[int, int]] = {}
-    meta_fields, wait_section = append_agent_metadata_fields(
+    metadata = append_agent_metadata_fields(
         header_text,
         agent,
         cheap=cheap,
@@ -163,6 +167,9 @@ def build_header_text(
         ),
         responsive_ranges=responsive_ranges,
     )
+    meta_fields = metadata.meta_fields
+    page_section = metadata.page_section
+    wait_section = metadata.wait_section
 
     append_runner_queue_section(header_text, agent, queue_selection)
 
@@ -334,12 +341,16 @@ def build_header_text(
         tuple[
             int,
             int,
-            ResponsiveBeadSection
+            ResponsiveAgentPageSection
+            | ResponsiveBeadSection
             | ResponsivePlanSection
             | ResponsiveSlowToolCallsSection
             | ResponsiveWaitSection,
         ]
     ] = []
+    if page_section is not None and AGENT_PAGE_SECTION_ID in responsive_ranges:
+        start, end = responsive_ranges[AGENT_PAGE_SECTION_ID]
+        responsive_sections.append((start, end, page_section))
     if wait_section is not None and WAIT_SECTION_ID in responsive_ranges:
         start, end = responsive_ranges[WAIT_SECTION_ID]
         responsive_sections.append((start, end, wait_section))

@@ -76,6 +76,7 @@ class DetailHeaderSummary:
     skill_uses: tuple[SkillUseDisplayEvent, ...] = ()
     opened_workspaces: tuple[OpenedWorkspaceDisplayEvent, ...] = ()
     slow_tool_sources: tuple[SlowToolSource, ...] | None = None
+    agent_page_url: str | None = None
 
     @property
     def bead_summary(self) -> BeadSummary | None:

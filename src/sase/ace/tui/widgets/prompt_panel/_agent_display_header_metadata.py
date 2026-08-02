@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from rich.text import Text
@@ -22,6 +23,10 @@ from .._agent_list_styling import (
     _FAMILY_NAME_STYLE,
 )
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
+from ._agent_page_section import (
+    AGENT_PAGE_SECTION_ID,
+    ResponsiveAgentPageSection,
+)
 from ._file_path_hints import append_text_with_file_hints
 from ._helpers import (
     append_major_section_divider,
@@ -53,6 +58,15 @@ _LEGACY_MEMBER_STATUS_STYLES: dict[str, str] = {
     "Failed": "bold #FF5F5F",
     "Done": "bold #5FD75F",
 }
+
+
+@dataclass(frozen=True, slots=True)
+class _AgentMetadataFields:
+    """Core metadata fields and responsive sections appended to a header."""
+
+    meta_fields: list[tuple[str, str]]
+    page_section: ResponsiveAgentPageSection | None
+    wait_section: ResponsiveWaitSection | None
 
 
 def _queued_for_label(requested_at: str | None) -> str | None:
@@ -94,7 +108,8 @@ def _append_identity_fields(
     agent: Agent,
     summary: DetailHeaderSummary | None,
     cached_bead_display: Callable[[Agent], object],
-) -> None:
+    responsive_ranges: MutableMapping[str, tuple[int, int]] | None,
+) -> ResponsiveAgentPageSection | None:
     """Append agent identity and retry-chain fields."""
     text.append("Name: ", style="bold #87D7FF")
     presented_name = agent.presented_agent_name or agent.agent_name
@@ -122,6 +137,14 @@ def _append_identity_fields(
     else:
         text.append(f"{_UNASSIGNED_AGENT_NAME_DISPLAY}\n", style="dim")
 
+    page_section = None
+    if summary is not None and summary.agent_page_url:
+        page_section = ResponsiveAgentPageSection(summary.agent_page_url)
+        start = len(text)
+        text.append_text(page_section.logical_text)
+        if responsive_ranges is not None:
+            responsive_ranges[AGENT_PAGE_SECTION_ID] = (start, len(text))
+
     if agent.is_retry_attempt or agent.is_retried_parent:
         text.append("Retry chain: ", style="bold #87D7FF")
         text.append("↻ ", style="bold #FFAF00")
@@ -134,6 +157,7 @@ def _append_identity_fields(
                 text.append(", ", style="dim")
             text.append("handed off to retry", style="dim #FFAF00")
         text.append("\n")
+    return page_section
 
 
 def _append_project_fields(
@@ -305,9 +329,15 @@ def append_agent_metadata_fields(
     tribe_wait_bindings: Mapping[tuple[object, str], TribeWaitBinding] | None = None,
     runner_queue_ahead_count: int | None = None,
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None = None,
-) -> tuple[list[tuple[str, str]], ResponsiveWaitSection | None]:
-    """Append core metadata and return workflow fields plus the wait section."""
-    _append_identity_fields(text, agent, summary, cached_bead_display)
+) -> _AgentMetadataFields:
+    """Append core metadata and return workflow fields plus responsive lanes."""
+    page_section = _append_identity_fields(
+        text,
+        agent,
+        summary,
+        cached_bead_display,
+        responsive_ranges,
+    )
 
     step_output = agent.step_output if isinstance(agent.step_output, dict) else None
     meta_project = step_output.get("meta_project") if step_output is not None else None
@@ -363,7 +393,7 @@ def append_agent_metadata_fields(
     )
     _append_retry_fields(text, agent)
     _append_timestamp_fields(text, agent, hint_state)
-    return meta_fields, wait_section
+    return _AgentMetadataFields(meta_fields, page_section, wait_section)
 
 
 def append_legacy_parallel_members_section(text: Text, agent: Agent) -> None:
