@@ -20,6 +20,7 @@ from sase.artifact_refs import (
     scan_artifact_refs,
 )
 from sase.xprompt._literal_zones import literal_zone_ranges
+from sase.xprompt.highlight_theme import derive_argument_color
 from sase.xprompt.project_identity import known_project_namespaces
 
 from ._jinja_highlight import (
@@ -27,7 +28,6 @@ from ._jinja_highlight import (
     _MAX_OVERLAY_BYTES,
     _MAX_OVERLAY_LINES,
 )
-from ._xprompt_syntax_highlight import derive_argument_color
 from .artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
     ArtifactRefCompletionCatalog,

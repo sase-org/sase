@@ -274,6 +274,10 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-eb(ShowLookupMiss)' \
         --epic-symbol 'sase-eb(normalize_show_name)' \
         --epic-symbol 'sase-eb(resolve_show_record)' \
+        --epic-symbol 'sase-eb(HighlightSpan)' \
+        --epic-symbol 'sase-eb(HighlightStyle)' \
+        --epic-symbol 'sase-eb(highlight_spans)' \
+        --epic-symbol 'sase-eb(highlight_theme)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

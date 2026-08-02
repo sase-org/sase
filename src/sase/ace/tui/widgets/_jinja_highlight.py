@@ -9,6 +9,7 @@ from rich.style import Style
 from textual.widgets._text_area import TextAreaTheme
 
 from sase.xprompt import jinja_inspect
+from sase.xprompt.highlight import MAX_HIGHLIGHT_BYTES, MAX_HIGHLIGHT_LINES
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -16,8 +17,8 @@ else:
     _MixinBase = object
 
 _JINJA_THEME_NAME = "sase-jinja-prompt"
-_MAX_OVERLAY_BYTES = 80_000
-_MAX_OVERLAY_LINES = 1_200
+_MAX_OVERLAY_BYTES = MAX_HIGHLIGHT_BYTES
+_MAX_OVERLAY_LINES = MAX_HIGHLIGHT_LINES
 
 
 class JinjaHighlightMixin(_MixinBase):

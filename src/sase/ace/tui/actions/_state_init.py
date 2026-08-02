@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any, Literal
 from textual.timer import Timer
 from textual.worker import Worker
 
+from sase.xprompt.highlight_theme import ACE_THEME_NAME
+
 from ...query import parse_query
 from ..exit_action import AceExitAction
 from ..models.agent_runner_slots import RunnerCapacitySnapshot
@@ -110,7 +112,7 @@ class StateInitMixin:
         ) = None
         self._admin_center_tab_save_task: asyncio.Task[None] | None = None
         self._init_task_queue()  # type: ignore[attr-defined]
-        self.theme = "flexoki"
+        self.theme = ACE_THEME_NAME
         self._auto_start_axe = auto_start_axe
         self._restart_axe = restart_axe
         self.exit_action = AceExitAction.QUIT
