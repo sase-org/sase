@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pytest
 from sase.chat.cli_list import handle_chat_list
 from sase.chat.cli_show import handle_chat_show
+from sase.history.chat_prompt_sections import render_prompt_sections
 from sase.history.chat_catalog import ChatTranscriptInfo, chat_info_to_json
 from sase.history.chat_catalog_provenance import (
     CHAT_PROVENANCE_VALUES,
@@ -55,6 +56,25 @@ def _write_chat(
         header += f" ({agent})"
     body = f"{header}\n\n## Prompt\n\n{prompt}\n\n## Response\n\n{response}\n"
     path.write_text(body, encoding="utf-8")
+    return path
+
+
+def _write_chat_with_renderings(
+    sase_home: Path,
+    basename: str,
+    *,
+    xprompt: str,
+    rendered: str,
+) -> Path:
+    chat_dir = sase_home / "chats" / "202604"
+    chat_dir.mkdir(parents=True, exist_ok=True)
+    path = chat_dir / f"{basename}.md"
+    path.write_text(
+        "# Chat History - run\n\n"
+        + render_prompt_sections(xprompt, rendered)
+        + "\n## Prompt\n\nlegacy prompt\n\n## Response\n\nanswer\n",
+        encoding="utf-8",
+    )
     return path
 
 
@@ -190,8 +210,24 @@ def test_parser_show_format_choices() -> None:
     args = parser.parse_args(["chat", "show", "-b", "x", "-f", "resume"])
     assert args.basename == "x"
     assert args.format == "resume"
+    args = parser.parse_args(["chat", "show", "-b", "x", "-f", "xprompt"])
+    assert args.format == "xprompt"
+    args = parser.parse_args(["chat", "show", "-b", "x", "-f", "rendered"])
+    assert args.format == "rendered"
     with pytest.raises(SystemExit):
         parser.parse_args(["chat", "show", "-n", "alpha", "-f", "bogus"])
+
+
+def test_parser_show_prompt_rendering_shortcuts() -> None:
+    parser = create_parser()
+
+    assert parser.parse_args(["chat", "show", "-b", "x", "-x"]).format == "xprompt"
+    assert (
+        parser.parse_args(["chat", "show", "-b", "x", "--rendered"]).format
+        == "rendered"
+    )
+    with pytest.raises(SystemExit):
+        parser.parse_args(["chat", "show", "-b", "x", "-f", "raw", "-r"])
 
 
 def test_parser_show_default_format_is_raw() -> None:
@@ -598,6 +634,58 @@ def test_show_resume_format(
     # load_chat_for_resume emits **User:**/**Assistant:** flat turns.
     assert "hello there" in out
     assert "hi back" in out
+
+
+def test_show_xprompt_format_prints_stored_xprompt(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = _setup_fake_home(monkeypatch, tmp_path)
+    chat = _write_chat_with_renderings(
+        home,
+        "branch-run-260429_101500",
+        xprompt="Use [#plan](https://example.test/plan.md).",
+        rendered="expanded prompt\n",
+    )
+
+    handle_chat_show(_show_args(path=str(chat), format="xprompt"))
+
+    out = capsys.readouterr().out
+    assert out == "Use [#plan](https://example.test/plan.md).\n"
+
+
+def test_show_rendered_shortcut_prints_stored_rendered_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = _setup_fake_home(monkeypatch, tmp_path)
+    chat = _write_chat_with_renderings(
+        home,
+        "branch-run-260429_101500",
+        xprompt="Use #plan.",
+        rendered="expanded prompt\n",
+    )
+
+    handle_chat_show(_show_args(path=str(chat), format="rendered"))
+
+    assert capsys.readouterr().out == "expanded prompt\n"
+
+
+def test_show_rendered_exits_nonzero_without_stored_section(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = _setup_fake_home(monkeypatch, tmp_path)
+    chat = _write_chat(home, "branch-run-260429_101500")
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_chat_show(_show_args(path=str(chat), format="rendered"))
+
+    assert excinfo.value.code == 1
+    assert "no stored rendered prompt" in capsys.readouterr().err
 
 
 def test_show_basename_resolves_via_sharded_lookup(

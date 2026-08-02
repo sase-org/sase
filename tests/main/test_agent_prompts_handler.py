@@ -10,6 +10,7 @@ import pytest
 
 from sase.agents import cli_prompts
 from sase.agents_sync.models import ProjectTarget, SyncOutcome, TargetSelection
+from sase.history.chat_prompt_sections import render_prompt_sections
 from sase.main.parser import create_parser, default_list_delegation_notice
 from sase.repo_inventory import RepoCloneRecord, RepoInventory, RepoRecord
 
@@ -31,6 +32,7 @@ def _args(subcommand: str, **overrides: object) -> argparse.Namespace:
         "json": False,
         "month": None,
         "project": None,
+        "rendered": False,
         "show_warnings": False,
     }
     values.update(overrides)
@@ -83,6 +85,100 @@ def test_prompt_list_and_validate_json(
     assert validation["ok"] is True
     assert validation["legacy_files"] == 1
     assert validation["files"][0]["name"] == "example"
+
+
+def test_prompt_show_prints_xprompt_body_by_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "agents"
+    workspace = tmp_path / "workspace"
+    prompt = repo / "prompts/202608/example.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(
+        "# Archive prompt\n\nUse [#plan](https://example.test/plan).\n\n"
+        + render_prompt_sections(None, "rendered prompt\n"),
+        encoding="utf-8",
+    )
+    target = _target(repo, workspace)
+    monkeypatch.setattr(
+        cli_prompts,
+        "resolve_sync_targets",
+        lambda _selectors=(): TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(cli_prompts, "_plans_repo", lambda _target: None)
+
+    assert cli_prompts.handle_agents_prompts(_args("show", prompt="example")) == 0
+
+    out = capsys.readouterr().out
+    assert "Use [#plan](https://example.test/plan)." in out
+    assert "rendered prompt" not in out
+    assert "sase:section" not in out
+
+
+def test_prompt_show_rendered_prints_stored_rendered_prompt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "agents"
+    workspace = tmp_path / "workspace"
+    prompt = repo / "prompts/202608/example.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(
+        "XPrompt body.\n\n" + render_prompt_sections(None, "rendered prompt\n"),
+        encoding="utf-8",
+    )
+    target = _target(repo, workspace)
+    monkeypatch.setattr(
+        cli_prompts,
+        "resolve_sync_targets",
+        lambda _selectors=(): TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(cli_prompts, "_plans_repo", lambda _target: None)
+
+    assert (
+        cli_prompts.handle_agents_prompts(
+            _args("show", prompt="example", rendered=True)
+        )
+        == 0
+    )
+
+    assert capsys.readouterr().out == "rendered prompt\n"
+
+
+def test_prompt_show_json_reports_selected_rendering(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "agents"
+    workspace = tmp_path / "workspace"
+    prompt = repo / "prompts/202608/example.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(
+        "XPrompt body.\n\n" + render_prompt_sections(None, "rendered prompt\n"),
+        encoding="utf-8",
+    )
+    target = _target(repo, workspace)
+    monkeypatch.setattr(
+        cli_prompts,
+        "resolve_sync_targets",
+        lambda _selectors=(): TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(cli_prompts, "_plans_repo", lambda _target: None)
+
+    assert (
+        cli_prompts.handle_agents_prompts(
+            _args("show", prompt="example", json=True, rendered=True)
+        )
+        == 0
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["rendering"] == "rendered"
+    assert payload["content"] == "rendered prompt\n"
 
 
 @pytest.mark.parametrize(

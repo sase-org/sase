@@ -66,6 +66,7 @@ version of this model; the text model above is the authoritative current referen
 - [Protected Content](#protected-content)
 - [XPrompt Aliases](#xprompt-aliases)
 - [Recursive Expansion](#recursive-expansion)
+- [Stored Prompt Renderings](#stored-prompt-renderings)
 - [Multi-Agent Prompts](#multi-agent-prompts)
   - [Xprompt Swarms (Library-Defined Fan-Out)](#xprompt-swarms-library-defined-fan-out)
 - [Relationship to Workflows](#relationship-to-workflows)
@@ -1928,6 +1929,23 @@ See [Configuration Reference: xprompt_aliases](configuration.md#xprompt_aliases)
 XPrompt bodies can reference other xprompts. Expansion is iterative: after each round of substitution, the result is
 scanned again for new `#name` references. This continues until no known references remain, up to a maximum of 100
 iterations (to guard against circular references).
+
+## Stored Prompt Renderings
+
+Agent runs persist two prompt renderings when those artifacts are available:
+
+- The **XPrompt prompt** is the raw `raw_xprompt.md` text after alias and launch-boundary normalization, before xprompt
+  expansion. Chat files and prompt archive entries keep this form readable so `#...` references remain visible.
+- The **rendered prompt** is the final provider prompt selected from the agent artifacts directory and sent to the
+  model. It is stored separately as verbatim Markdown and is not linkified.
+
+During launch, SASE records best-effort provenance for each used xprompt in `xprompt_sources.json`. During chat storage
+and prompt archive publication, resolvable references in the XPrompt prompt are rewritten as hosted Markdown links to
+their definition file, with `#L...` anchors for config-file definitions when the line is known. Unresolvable references
+are left exactly as typed; SASE does not invent placeholder links.
+
+Use `sase chat show -x` / `sase chat show -r` for the two renderings in a saved transcript, and
+`sase agent prompts show PROMPT` / `sase agent prompts show -r PROMPT` for the archived XPrompt body or rendered prompt.
 
 ## Multi-Agent Prompts
 

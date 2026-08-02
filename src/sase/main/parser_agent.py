@@ -551,7 +551,7 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
 
     prompts_show = prompts_sub.add_parser(
         "show",
-        help="Show one canonical archived prompt",
+        help="Print one archived prompt's XPrompt body or rendered prompt",
     )
     prompts_show.add_argument(
         "prompt",
@@ -559,6 +559,12 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Prompt name, YYYYMM/name, or prompts/YYYYMM/name.md",
     )
     _add_prompt_archive_common_options(prompts_show, include_month=False)
+    prompts_show.add_argument(
+        "-r",
+        "--rendered",
+        action="store_true",
+        help="Print the stored rendered prompt instead of the XPrompt prompt body",
+    )
 
     prompts_validate = prompts_sub.add_parser(
         "validate",

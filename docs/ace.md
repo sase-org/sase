@@ -329,6 +329,13 @@ Selecting a row loads a detail pane off the event loop with a bounded transcript
 originating agent's provider, model, status, and whether it has been dismissed. Those agent facts come from the run's
 artifact directory, so a `remote` transcript with no local artifact shows the transcript alone.
 
+Current chat transcripts also store the launch prompt in two forms before the legacy `## Prompt` / `## Response` turn:
+the **XPrompt prompt** keeps unexpanded `#...` references and linkifies resolvable definitions, while the **rendered
+prompt** is the final text sent to the model. The Chats detail pane shows those as separate prompt sections and hides
+the sentinel comments and collapsed HTML wrapper used by the Markdown file on disk. From the CLI, `sase chat show -x`
+prints the stored XPrompt prompt and `sase chat show -r` prints the stored rendered prompt; legacy transcripts without
+those sections continue to open normally but cannot print a missing rendering.
+
 | Key       | Action                                                                                    |
 | --------- | ----------------------------------------------------------------------------------------- |
 | `j` / `k` | Select the next / previous transcript, skipping day headings                              |

@@ -10,6 +10,7 @@ from sase.history.chat import (
     load_chat_for_resume,
 )
 from sase.history.chat_catalog import ChatRefError, resolve_chat_ref
+from sase.history.chat_prompt_sections import extract_prompt_renderings
 
 
 def handle_chat_show(args: argparse.Namespace) -> None:
@@ -31,11 +32,17 @@ def handle_chat_show(args: argparse.Namespace) -> None:
     if fmt == "raw":
         _print_raw(resolved_path)
         return
+    if fmt == "rendered":
+        _print_prompt_rendering(resolved_path, rendered=True)
+        return
     if fmt == "resume":
         _print_resume(resolved_path)
         return
     if fmt == "response":
         _print_response(resolved_path)
+        return
+    if fmt == "xprompt":
+        _print_prompt_rendering(resolved_path, rendered=False)
         return
 
     print(f"sase chat show: unknown format: {fmt}", file=sys.stderr)
@@ -59,6 +66,23 @@ def _print_resume(path: str) -> None:
         sys.exit(1)
     sys.stdout.write(text)
     if not text.endswith("\n"):
+        sys.stdout.write("\n")
+
+
+def _print_prompt_rendering(path: str, *, rendered: bool) -> None:
+    try:
+        with open(path, encoding="utf-8") as f:
+            renderings = extract_prompt_renderings(f.read())
+    except OSError as exc:
+        print(f"sase chat show: cannot read {path}: {exc}", file=sys.stderr)
+        sys.exit(1)
+    content = renderings.rendered_prompt if rendered else renderings.xprompt_prompt
+    label = "rendered prompt" if rendered else "XPrompt prompt"
+    if content is None:
+        print(f"sase chat show: no stored {label} found in {path}", file=sys.stderr)
+        sys.exit(1)
+    sys.stdout.write(content)
+    if not content.endswith("\n"):
         sys.stdout.write("\n")
 
 

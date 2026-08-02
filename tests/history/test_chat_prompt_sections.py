@@ -7,6 +7,8 @@ import pytest
 
 from sase.history.chat import _parse_chat_turns, save_chat_history
 from sase.history.chat_prompt_sections import (
+    extract_prompt_renderings,
+    remove_prompt_sections,
     render_prompt_sections,
     strip_prompt_sections,
 )
@@ -67,6 +69,36 @@ def test_literal_sentinels_cannot_terminate_sections() -> None:
     assert rendered.count("<!-- /sase:section:rendered -->") == 1
     assert "&lt;!-- /sase:section:xprompt --&gt;" in rendered
     assert "&lt;!-- /sase:section:rendered --&gt;" in rendered
+
+
+def test_extract_prompt_renderings_strips_storage_wrappers() -> None:
+    content = render_prompt_sections(
+        "Use [#plan](https://example.test/plan.md#L4)",
+        "rendered body\n",
+    )
+
+    renderings = extract_prompt_renderings(content)
+
+    assert renderings.xprompt_prompt == "Use [#plan](https://example.test/plan.md#L4)"
+    assert renderings.rendered_prompt == "rendered body\n"
+
+
+def test_extract_identical_rendered_prompt_uses_xprompt_body() -> None:
+    renderings = extract_prompt_renderings(render_prompt_sections("same", "same"))
+
+    assert renderings.xprompt_prompt == "same"
+    assert renderings.rendered_prompt == "same"
+
+
+def test_remove_prompt_sections_deletes_storage_blocks() -> None:
+    content = "before\n" + render_prompt_sections("#raw", "expanded") + "after\n"
+
+    stripped = remove_prompt_sections(content)
+
+    assert "#raw" not in stripped
+    assert "expanded" not in stripped
+    assert stripped.splitlines()[0] == "before"
+    assert stripped.splitlines()[-1] == "after"
 
 
 def test_strip_prompt_sections_preserves_length_and_line_offsets() -> None:
