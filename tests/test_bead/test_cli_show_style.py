@@ -583,3 +583,25 @@ def test_show_closed_phase_with_markdown_rich_ansi_snapshot(
     )
 
     assert out == _read_golden("show_style_closed_phase.ansi")
+
+
+def test_show_closed_phase_with_markdown_rich_ansi_snapshot_ignores_no_color(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("NO_COLOR", "1")
+    issues, target_id = _closed_with_resolution()
+    issues[target_id].description = (
+        "# Summary\n\nFixed the bug:\n\n- root caused by X\n- patched Y\n\n"
+        "```python\ndef fixed():\n    return True\n```\n"
+    )
+    out = _render(
+        target_id,
+        issues,
+        style="rich",
+        color="always",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    assert out == _read_golden("show_style_closed_phase.ansi")

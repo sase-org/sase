@@ -108,6 +108,7 @@ def _render_text(highlighted: Text) -> str:
     console = Console(
         file=StringIO(),
         force_terminal=True,
+        no_color=False,
         color_system="256",
         width=_RENDER_WIDTH,
         soft_wrap=True,
