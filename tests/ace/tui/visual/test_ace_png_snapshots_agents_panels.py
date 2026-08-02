@@ -26,6 +26,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
+    wait_for_state,
     wait_for_startup,
     wait_for_svg_contains,
     wait_for_visual_idle,
@@ -317,6 +318,14 @@ async def test_agents_collapsed_panel_png_snapshot(
         )
         await page.press("L")
         await page.wait_for(lambda _screen: page.app._panel_fold_hint_mode_active)
+        await wait_for_state(
+            page,
+            lambda: (
+                footer._last_layout_inputs is not None
+                and footer._last_layout_inputs == ([("<esc>", "cancel")], "FOLDS")
+            ),
+            description="panel fold hint footer",
+        )
         panel_titles = [
             Text.from_markup(widget.border_title).plain
             for widget in container.query("AgentList")

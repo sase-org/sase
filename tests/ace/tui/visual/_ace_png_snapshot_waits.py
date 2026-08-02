@@ -98,6 +98,15 @@ def assert_visual_frame_converged(page: AcePage) -> None:
         )
 
 
+def mark_current_visual_frame_converged(page: AcePage) -> None:
+    """Accept the current synchronously-normalized frame for PNG capture."""
+    setattr(
+        page,
+        _VISUAL_CONVERGED_SVG_ATTR,
+        page.export_svg(title=_VISUAL_CONVERGENCE_TITLE),
+    )
+
+
 def _clear_transient_button_state(page: AcePage) -> None:
     from textual.widgets import Button
 

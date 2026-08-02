@@ -354,6 +354,10 @@ test-visual *args: _setup-visual (_header "test-visual")
 # 566.68s, with no convergence timeout. Final exact-frame fix (sase-9y.3):
 # 363 passed, 1 skipped in 9m37s under the same 26-worker/two-CPU contention,
 # retaining exact PNG equality without regenerating goldens.
+# Baseline refresh (sase-e9.3), measured 2026-08-02: 405 passed, 1 skipped in
+# 605.72s (0:10:05) under the same 26-worker/two-CPU contention path, retaining
+# exact PNG equality without regenerating goldens. The local run disabled only
+# suite-gate admission because sibling workspaces were holding the shared pool.
 # Override the CPU list or worker count with SASE_VISUAL_CONTENTION_CPUS and
 # SASE_VISUAL_CONTENTION_WORKERS.
 [positional-arguments]

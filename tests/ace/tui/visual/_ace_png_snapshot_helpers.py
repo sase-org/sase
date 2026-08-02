@@ -23,6 +23,7 @@ from tests.ace.tui.visual._ace_png_snapshot_startup import (
 from tests.ace.tui.visual._ace_png_snapshot_waits import (
     _pending_visual_work as _pending_visual_work,
     assert_visual_frame_converged as assert_visual_frame_converged,
+    mark_current_visual_frame_converged as mark_current_visual_frame_converged,
     wait_for_state as wait_for_state,
     wait_for_svg_contains as wait_for_svg_contains,
     wait_for_visual_idle as wait_for_visual_idle,
@@ -36,6 +37,7 @@ __all__ = [
     "axe_collected_data",
     "changespecs",
     "hood_neighbor_agents",
+    "mark_current_visual_frame_converged",
     "patch_startup_loaders",
     "project_records",
     "retry_agent",

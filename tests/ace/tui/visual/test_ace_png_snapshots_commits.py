@@ -21,6 +21,7 @@ from tests.ace.tui._commits_pane_helpers import _DIFF, _result, _result_with_sid
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
+    wait_for_state,
     wait_for_startup,
     wait_for_svg_contains,
     wait_for_visual_idle,
@@ -67,17 +68,22 @@ async def _commit_filter_query(
 ) -> None:
     values = parse_commit_filter_query(query)
     await page.press("slash")
-    await page.wait_for(lambda _state: bar.display)
+    await wait_for_state(page, lambda: bar.display, description="commit filter bar")
     bar.query_one("#commit-filter-input", SingleLineVimTextArea).load_text(query)
-    await page.wait_for(
-        lambda _state: (
+    await wait_for_state(
+        page,
+        lambda: (
             pane.filters == values
             and (pane._scope_key(), values) in pane._authoritative_results
-        )
+        ),
+        description="authoritative commit filter result",
+        timeout=30.0,
     )
     await page.press("enter")
-    await page.wait_for(
-        lambda _state: pane.query_one("#commits-timeline", CommitsTimeline).has_focus
+    await wait_for_state(
+        page,
+        lambda: pane.query_one("#commits-timeline", CommitsTimeline).has_focus,
+        description="commits timeline focus",
     )
     assert bar.display is True
 

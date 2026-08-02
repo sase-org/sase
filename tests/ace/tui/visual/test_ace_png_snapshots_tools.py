@@ -25,6 +25,7 @@ from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from sase.ace.tui.widgets.tools_panel import AgentToolsPanel, ToolDetailLevel
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
+    mark_current_visual_frame_converged,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -457,8 +458,8 @@ async def test_agents_tools_panel_detail_level_png_snapshots(
             canonical_size = Size(tools_scroll.virtual_size.width, 79)
             tools_scroll.set_reactive(Widget.virtual_size, canonical_size)
             tools_scroll._scroll_update(canonical_size)
-            await wait_for_visual_idle(page)
             assert tools_scroll.virtual_size.height == 79
+            mark_current_visual_frame_converged(page)
 
         footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
         assert footer._last_layout_inputs is not None
