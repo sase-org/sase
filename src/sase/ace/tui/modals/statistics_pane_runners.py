@@ -255,13 +255,37 @@ class StatisticsRunnersRenderingMixin:
                         style=f"bold {_RED}",
                     )
                 )
-        skipped = runners.malformed_rows_skipped + runners.invalid_intervals_skipped
+        skipped = (
+            runners.malformed_rows_skipped
+            + runners.invalid_intervals_skipped
+            + runners.lanes_without_end_skipped
+            + runners.user_hidden_skipped
+        )
         if skipped:
+            details: list[str] = []
+            if runners.malformed_rows_skipped or runners.invalid_intervals_skipped:
+                details.append(
+                    "skipped "
+                    f"{runners.malformed_rows_skipped} malformed rows and "
+                    f"{runners.invalid_intervals_skipped} invalid intervals."
+                )
+            if runners.lanes_without_end_skipped:
+                noun = "lane" if runners.lanes_without_end_skipped == 1 else "lanes"
+                verb = "is" if runners.lanes_without_end_skipped == 1 else "are"
+                details.append(
+                    f"{runners.lanes_without_end_skipped} {noun} ran in this window "
+                    f"with no recorded end time and {verb} not counted."
+                )
+            if runners.user_hidden_skipped:
+                noun = "row" if runners.user_hidden_skipped == 1 else "rows"
+                verb = "was" if runners.user_hidden_skipped == 1 else "were"
+                details.append(
+                    f"{runners.user_hidden_skipped} user-hidden {noun} {verb} not "
+                    "counted."
+                )
             notes.append(
                 Text(
-                    "Partial valid snapshot: skipped "
-                    f"{runners.malformed_rows_skipped} malformed rows and "
-                    f"{runners.invalid_intervals_skipped} invalid intervals.",
+                    "Partial valid snapshot: " + " ".join(details),
                     style=f"dim {_GOLD}",
                 )
             )

@@ -174,6 +174,9 @@ def _run_payload(selected_range: StatsRange, group_by: RuntimeGroupBy) -> dict:
                     "runner_seconds": 3_600.0,
                 }
             ],
+            "lanes_counted": 3,
+            "lanes_without_end_skipped": 0,
+            "user_hidden_skipped": 0,
             "malformed_rows_skipped": 0,
             "invalid_intervals_skipped": 0,
         },

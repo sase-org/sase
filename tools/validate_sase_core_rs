@@ -204,8 +204,8 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
             payload = module.agent_stats_query_runs(
                 str(index_path),
                 {
-                    "start_ts": 0,
-                    "end_ts": 1,
+                    "start_ts": 1,
+                    "end_ts": 2,
                     "runtime_group_by": "project",
                     "project": None,
                     "work_top_n": 1,
@@ -218,9 +218,9 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
     if not isinstance(payload, dict):
         _error("agent statistics work-schema probe returned a non-dict payload")
         return False
-    if payload.get("schema_version") != 4:
+    if payload.get("schema_version") != 5:
         _error(
-            "agent statistics work-schema probe requires schema version 4: "
+            "agent statistics work-schema probe requires schema version 5: "
             f"got {payload.get('schema_version')!r}"
         )
         return False
@@ -236,6 +236,17 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
     xprompts = payload.get("xprompts")
     if not isinstance(xprompts, dict) or not isinstance(xprompts.get("rows"), list):
         _error("agent statistics xprompt-schema probe payload has invalid xprompts")
+        return False
+    runners = payload.get("runners")
+    runner_counters = (
+        "lanes_counted",
+        "lanes_without_end_skipped",
+        "user_hidden_skipped",
+    )
+    if not isinstance(runners, dict) or any(
+        not isinstance(runners.get(field), int) for field in runner_counters
+    ):
+        _error("agent statistics runner-schema probe payload has invalid counters")
         return False
     return True
 

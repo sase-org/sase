@@ -12,6 +12,8 @@ class ClanRuntimeMemberWire:
     run_started_at: str | None = None
     stopped_at: str | None = None
     finished_at: float | None = None
+    has_done_marker: bool = False
+    terminal_is_synthesized: bool = False
     plan_submitted_at: list[str] = field(default_factory=list)
     feedback_submitted_at: list[str] = field(default_factory=list)
     plan_approved: bool = False

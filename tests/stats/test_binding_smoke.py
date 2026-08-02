@@ -91,7 +91,9 @@ def test_statistics_facade_smoke_through_real_bindings(tmp_path: Path) -> None:
     assert runners.available is True
     assert runners.peak_runners == 1
     assert runners.current_limit == 8
-    assert runners.invalid_intervals_skipped == 1
+    assert runners.lanes_counted == 1
+    assert runners.lanes_without_end_skipped == 1
+    assert runners.invalid_intervals_skipped == 0
     assert [row.runners for row in runners.distribution] == [0, 1]
     assert sum(row.seconds for row in runners.distribution) == pytest.approx(
         runners.end_ts - runners.start_ts

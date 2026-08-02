@@ -271,8 +271,9 @@ class StatisticsHelpModal(ModalScreen[None]):
                 "the selected window, and are clipped to its start and end.",
             ),
             (
-                "Human waits",
-                "Yielded plan and question waits are excluded from runner time.",
+                "Slot yields",
+                "Question waits that release a runner slot are excluded; plan-review "
+                "waits remain occupied.",
             ),
             (
                 "Zero occupancy",
@@ -296,8 +297,9 @@ class StatisticsHelpModal(ModalScreen[None]):
             ),
             (
                 "Skipped data",
-                "Malformed rows and invalid intervals are reported and omitted without "
-                "discarding the remaining valid snapshot.",
+                "Malformed rows, invalid bounds, lanes without trustworthy ends, and "
+                "user-hidden rows are reported and omitted without discarding the "
+                "remaining valid snapshot.",
             ),
             (
                 "Current limit",

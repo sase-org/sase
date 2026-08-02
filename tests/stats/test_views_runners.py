@@ -25,6 +25,9 @@ def test_runner_view_maps_summary_distribution_and_timezone_slices() -> None:
     assert runners.busy_share == pytest.approx(6_000 / 7_200)
     assert runners.runner_seconds == 9_000.0
     assert runners.current_limit == 4
+    assert runners.lanes_counted == 8
+    assert runners.lanes_without_end_skipped == 3
+    assert runners.user_hidden_skipped == 4
     assert runners.malformed_rows_skipped == 1
     assert runners.invalid_intervals_skipped == 2
 
@@ -60,6 +63,9 @@ def test_runner_view_absent_payload_is_unavailable_but_keeps_current_limit() -> 
     assert runners.peak_runners == 0
     assert runners.average_runners == 0.0
     assert runners.current_limit == 6
+    assert runners.lanes_counted == 0
+    assert runners.lanes_without_end_skipped == 0
+    assert runners.user_hidden_skipped == 0
 
 
 def test_runner_emptiness_is_independent_of_launch_count() -> None:
@@ -90,6 +96,9 @@ def test_runner_emptiness_is_independent_of_launch_count() -> None:
     assert views.empty is True
     assert views.runners.available is True
     assert [row.runners for row in views.runners.distribution] == [0, 1]
+    assert views.runners.lanes_counted == 0
+    assert views.runners.lanes_without_end_skipped == 0
+    assert views.runners.user_hidden_skipped == 0
 
 
 def test_runner_view_is_frozen() -> None:

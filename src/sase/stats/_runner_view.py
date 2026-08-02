@@ -42,6 +42,9 @@ def build_runners_view(
             current_limit=current_runner_limit,
             distribution=(),
             trend=(),
+            lanes_counted=0,
+            lanes_without_end_skipped=0,
+            user_hidden_skipped=0,
             malformed_rows_skipped=0,
             invalid_intervals_skipped=0,
         )
@@ -82,6 +85,9 @@ def build_runners_view(
         current_limit=current_runner_limit,
         distribution=distribution,
         trend=trend,
+        lanes_counted=integer(runners.get("lanes_counted")),
+        lanes_without_end_skipped=integer(runners.get("lanes_without_end_skipped")),
+        user_hidden_skipped=integer(runners.get("user_hidden_skipped")),
         malformed_rows_skipped=integer(runners.get("malformed_rows_skipped")),
         invalid_intervals_skipped=integer(runners.get("invalid_intervals_skipped")),
     )

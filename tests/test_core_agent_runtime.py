@@ -53,3 +53,19 @@ def test_facade_excludes_plan_and_pending_question_waits() -> None:
     )
 
     assert runtime == ClanRuntimeWire(wall_clock_seconds=90.0, active=False)
+
+
+def test_facade_does_not_use_synthesized_terminal_timestamp() -> None:
+    runtime = aggregate_clan_runtime(
+        [
+            ClanRuntimeMemberWire(
+                run_started_at=_timestamp(0),
+                finished_at=(BASE + timedelta(hours=40)).timestamp(),
+                has_done_marker=True,
+                terminal_is_synthesized=True,
+            )
+        ],
+        now=BASE + timedelta(hours=41),
+    )
+
+    assert runtime == ClanRuntimeWire()

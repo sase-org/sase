@@ -67,6 +67,9 @@ def _runner_result(
                         "runner_seconds": 0.0,
                     }
                 ],
+                "lanes_counted": 0,
+                "lanes_without_end_skipped": 0,
+                "user_hidden_skipped": 0,
                 "malformed_rows_skipped": 0,
                 "invalid_intervals_skipped": 0,
             }
@@ -121,6 +124,9 @@ def _runner_result(
                         "runner_seconds": 4_500.0,
                     },
                 ],
+                "lanes_counted": 8,
+                "lanes_without_end_skipped": 3,
+                "user_hidden_skipped": 1,
                 "malformed_rows_skipped": 1,
                 "invalid_intervals_skipped": 2,
             }
@@ -172,6 +178,8 @@ def test_summary_derives_current_limit_comparison_and_surfaces_caveats() -> None
     assert "not project-specific capacity or a historical limit" in context
     assert "Observed peak 4 exceeds today's current global limit 3" in context
     assert "skipped 1 malformed rows and 2 invalid intervals" in context
+    assert "3 lanes ran in this window with no recorded end time" in context
+    assert "1 user-hidden row" in context
 
 
 def test_timeline_uses_fixed_zero_baseline_peak_scale_and_bounded_columns() -> None:
@@ -195,6 +203,15 @@ def test_timeline_uses_fixed_zero_baseline_peak_scale_and_bounded_columns() -> N
     assert compressed[0].peak_runners == 3
     assert compressed[1].average_runners == pytest.approx(2.25)
     assert compressed[1].peak_runners == 4
+
+
+def test_runner_context_omits_partial_note_when_no_rows_were_skipped() -> None:
+    pane = StatisticsPane(auto_load=False)
+    context = _render_plain(
+        Group(*pane._runner_context(_runner_result(idle=True).views.runners))
+    )
+
+    assert "Partial valid snapshot" not in context
 
 
 def test_occupancy_contains_every_exact_row_and_current_day_styles() -> None:

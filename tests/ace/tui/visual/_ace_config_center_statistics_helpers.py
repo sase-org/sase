@@ -476,6 +476,9 @@ def _populated_statistics_view(
                     )
                 )
             ],
+            "lanes_counted": 37,
+            "lanes_without_end_skipped": 4,
+            "user_hidden_skipped": 0,
             "malformed_rows_skipped": 2,
             "invalid_intervals_skipped": 1,
         },

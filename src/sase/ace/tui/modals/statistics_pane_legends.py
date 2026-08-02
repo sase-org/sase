@@ -39,7 +39,7 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
         ),
         _MetricLegend(
             "Window",
-            "carry-in/live overlap clipped to range; yielded human waits excluded",
+            "carry-in/live overlap clipped; slot-releasing question waits excluded",
         ),
         _MetricLegend("Zero", "wall time with no eligible runner"),
         _MetricLegend("Average", "runner-seconds ÷ analyzed wall time"),
@@ -47,7 +47,7 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
         _MetricLegend("Project", "filtered before concurrency is combined"),
         _MetricLegend(
             "Skipped",
-            "malformed rows/invalid intervals omitted while valid data remains",
+            "malformed rows, invalid bounds, missing ends, and user-hidden rows omitted",
         ),
         _MetricLegend(
             "Current limit",

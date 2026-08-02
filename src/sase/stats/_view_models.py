@@ -311,5 +311,8 @@ class RunnersView:
     current_limit: int | None
     distribution: tuple[RunnerOccupancyRow, ...]
     trend: tuple[RunnerTrendSlice, ...]
+    lanes_counted: int
+    lanes_without_end_skipped: int
+    user_hidden_skipped: int
     malformed_rows_skipped: int
     invalid_intervals_skipped: int
