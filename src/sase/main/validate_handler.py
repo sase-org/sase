@@ -8,11 +8,14 @@ import sys
 from dataclasses import dataclass
 from typing import NoReturn
 
+from sase.agents.cli_prompts import PROMPT_ARCHIVE_CONTEXT_UNAVAILABLE_EXIT_CODE
+
 
 @dataclass(frozen=True)
 class _ValidationCheck:
     label: str
     argv: tuple[str, ...]
+    skip_returncodes: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -37,6 +40,7 @@ _CHECKS = (
     _ValidationCheck(
         "agent prompts validate",
         ("agent", "prompts", "validate"),
+        (PROMPT_ARCHIVE_CONTEXT_UNAVAILABLE_EXIT_CODE,),
     ),
 )
 
@@ -56,7 +60,7 @@ def _run_validate_command() -> int:
     """Run every SASE validation check and return a process exit code."""
     results = [_run_check(check) for check in _CHECKS]
     _print_results(results)
-    return 0 if all(result.returncode == 0 for result in results) else 1
+    return 0 if all(_is_success(result) for result in results) else 1
 
 
 def _run_check(check: _ValidationCheck) -> _ValidationResult:
@@ -86,21 +90,48 @@ def _run_check(check: _ValidationCheck) -> _ValidationResult:
 def _print_results(results: list[_ValidationResult]) -> None:
     print("SASE validation")
     for result in results:
-        status = "ok" if result.returncode == 0 else "fail"
+        status = (
+            "ok"
+            if result.returncode == 0
+            else "skip"
+            if _is_skipped(result)
+            else "fail"
+        )
         print(f"  {status:<6} {result.check.label}")
 
     for result in results:
         if result.returncode == 0:
             continue
-        _print_failure(result)
-    if any(result.returncode != 0 for result in results):
+        if _is_skipped(result):
+            _print_skip(result)
+        else:
+            _print_failure(result)
+    if any(not _is_success(result) for result in results):
         print()
         print(_SUPPORT_HINT)
+
+
+def _is_skipped(result: _ValidationResult) -> bool:
+    return result.returncode in result.check.skip_returncodes
+
+
+def _is_success(result: _ValidationResult) -> bool:
+    return result.returncode == 0 or _is_skipped(result)
+
+
+def _print_skip(result: _ValidationResult) -> None:
+    print()
+    print(f"{result.check.label} skipped (exit {result.returncode})")
+    _print_result_output(result)
 
 
 def _print_failure(result: _ValidationResult) -> None:
     print()
     print(f"{result.check.label} failed (exit {result.returncode})")
+    _print_result_output(result)
+
+
+def _print_result_output(result: _ValidationResult) -> None:
     had_output = False
     if result.stdout:
         had_output = True

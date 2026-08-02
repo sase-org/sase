@@ -196,6 +196,43 @@ def test_validate_aggregates_prompt_archive_failure(
     assert "stdout:\nprompt archive broken\n" in out
 
 
+def test_validate_skips_unavailable_prompt_archive_context(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    results = [
+        (0, "", ""),
+        (0, "", ""),
+        (0, "", ""),
+        (0, "", ""),
+        (
+            validate_handler.PROMPT_ARCHIVE_CONTEXT_UNAVAILABLE_EXIT_CODE,
+            "Prompt archive validation skipped: context unavailable: "
+            "project 'sase' was not found\n",
+            "",
+        ),
+    ]
+
+    def fake_run(
+        command: list[str],
+        *,
+        capture_output: bool,
+        text: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        returncode, stdout, stderr = results.pop(0)
+        return _completed(command, returncode, stdout=stdout, stderr=stderr)
+
+    monkeypatch.setattr(validate_handler.subprocess, "run", fake_run)
+
+    assert _run_validate_command() == 0
+    out = capsys.readouterr().out
+    assert "  skip   agent prompts validate\n" in out
+    assert "agent prompts validate skipped (exit 69)" in out
+    assert "project 'sase' was not found" in out
+    assert "run `sase doctor -v` or `sase doctor -j`" not in out
+
+
 def test_entry_dispatches_validate_command(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[str] = []
 

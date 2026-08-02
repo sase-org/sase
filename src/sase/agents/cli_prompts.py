@@ -21,6 +21,9 @@ from sase.agents_sync.targets import resolve_sync_targets
 from sase.output import console, error_console
 from sase.repo_inventory import collect_repo_inventory
 
+# ``EX_UNAVAILABLE`` from sysexits.h, kept literal for cross-platform parity.
+PROMPT_ARCHIVE_CONTEXT_UNAVAILABLE_EXIT_CODE = 69
+
 
 @dataclass(frozen=True, slots=True)
 class _PromptArchiveContext:
@@ -34,6 +37,12 @@ def handle_agents_prompts(args: argparse.Namespace) -> int:
     subcommand = getattr(args, "prompts_subcommand", None)
     try:
         context = _resolve_context(getattr(args, "project", None))
+    except _PromptArchiveContextUnavailable as exc:
+        if subcommand == "validate":
+            _print_unavailable_context(args, str(exc))
+            return PROMPT_ARCHIVE_CONTEXT_UNAVAILABLE_EXIT_CODE
+        error_console.print(f"[red]Error:[/red] {exc}")
+        return 1
     except ValueError as exc:
         error_console.print(f"[red]Error:[/red] {exc}")
         return 1
@@ -47,6 +56,29 @@ def handle_agents_prompts(args: argparse.Namespace) -> int:
         return _handle_validate(args, context)
     error_console.print("Usage: sase agent prompts {list,migrate,show,validate}")
     return 2
+
+
+class _PromptArchiveContextUnavailable(ValueError):
+    """The prompt archive cannot be reached from the current host context."""
+
+
+def _print_unavailable_context(args: argparse.Namespace, reason: str) -> None:
+    if getattr(args, "json", False):
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "skipped": True,
+                    "reason": reason,
+                },
+                indent=2,
+            )
+        )
+        return
+    console.print(
+        "[yellow]Prompt archive validation skipped:[/yellow] "
+        f"context unavailable: {reason}"
+    )
 
 
 def _handle_list(
@@ -146,20 +178,22 @@ def _resolve_context(project: str | None) -> _PromptArchiveContext:
     selection = (
         resolve_sync_targets((selector,)) if selector else resolve_sync_targets()
     )
-    if len(selection.targets) != 1:
+    if len(selection.targets) > 1:
+        raise ValueError("multiple projects matched; pass -p/--project")
+    if not selection.targets:
         details = [
             outcome.error or outcome.skip_reason
             for outcome in selection.outcomes
             if outcome.error or outcome.skip_reason
         ]
         if details:
-            raise ValueError(details[0])
-        if not selection.targets:
-            raise ValueError("no project with an available agents sidecar was found")
-        raise ValueError("multiple projects matched; pass -p/--project")
+            raise _PromptArchiveContextUnavailable(details[0])
+        raise _PromptArchiveContextUnavailable(
+            "no project with an available agents sidecar was found"
+        )
     target = selection.targets[0]
     if not target.sidecar_path.is_dir():
-        raise ValueError(
+        raise _PromptArchiveContextUnavailable(
             f"agents sidecar checkout is unavailable: {target.sidecar_path}"
         )
     return _PromptArchiveContext(target, _plans_repo(target))
@@ -226,4 +260,7 @@ def _print_validation(
         )
 
 
-__all__ = ["handle_agents_prompts"]
+__all__ = [
+    "PROMPT_ARCHIVE_CONTEXT_UNAVAILABLE_EXIT_CODE",
+    "handle_agents_prompts",
+]

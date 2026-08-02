@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from sase.agents import cli_prompts
-from sase.agents_sync.models import ProjectTarget, TargetSelection
+from sase.agents_sync.models import ProjectTarget, SyncOutcome, TargetSelection
 from sase.main.parser import create_parser, default_list_delegation_notice
 
 
@@ -81,3 +81,108 @@ def test_prompt_list_and_validate_json(
     validation = json.loads(capsys.readouterr().out)
     assert validation["ok"] is True
     assert validation["files"][0]["name"] == "example"
+
+
+@pytest.mark.parametrize(
+    "selection, reason",
+    [
+        (
+            TargetSelection(
+                (),
+                (
+                    SyncOutcome(
+                        "missing",
+                        "missing",
+                        error="project 'missing' was not found",
+                    ),
+                ),
+            ),
+            "project 'missing' was not found",
+        ),
+        (
+            TargetSelection((), ()),
+            "no project with an available agents sidecar was found",
+        ),
+    ],
+)
+def test_prompt_validate_reports_unavailable_context_as_skip(
+    selection: TargetSelection,
+    reason: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        cli_prompts,
+        "resolve_sync_targets",
+        lambda _selectors=(): selection,
+    )
+
+    assert cli_prompts.handle_agents_prompts(_args("validate", json=True)) == (
+        cli_prompts.PROMPT_ARCHIVE_CONTEXT_UNAVAILABLE_EXIT_CODE
+    )
+    assert json.loads(capsys.readouterr().out) == {
+        "ok": False,
+        "skipped": True,
+        "reason": reason,
+    }
+
+
+def test_prompt_validate_skips_when_agents_checkout_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "missing-agents"
+    target = _target(repo, tmp_path / "workspace")
+    monkeypatch.setattr(
+        cli_prompts,
+        "resolve_sync_targets",
+        lambda _selectors=(): TargetSelection((target,), ()),
+    )
+
+    assert cli_prompts.handle_agents_prompts(_args("validate")) == (
+        cli_prompts.PROMPT_ARCHIVE_CONTEXT_UNAVAILABLE_EXIT_CODE
+    )
+    output = capsys.readouterr().out
+    assert "Prompt archive validation skipped: context unavailable:" in output
+    assert str(repo) in output.replace("\n", "")
+
+
+def test_prompt_validate_keeps_invalid_archive_as_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "agents"
+    artifact = repo / "artifacts/202608/000000000000-example.txt"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("digest does not match the filename\n", encoding="utf-8")
+    target = _target(repo, tmp_path / "workspace")
+    monkeypatch.setattr(
+        cli_prompts,
+        "resolve_sync_targets",
+        lambda _selectors=(): TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(cli_prompts, "_plans_repo", lambda _target: None)
+
+    assert cli_prompts.handle_agents_prompts(_args("validate", json=True)) == 1
+    validation = json.loads(capsys.readouterr().out)
+    assert validation["ok"] is False
+    assert validation["errors"][0]["code"] == "artifact-digest"
+    assert "skipped" not in validation
+
+
+def test_prompt_list_keeps_unavailable_context_as_error(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        cli_prompts,
+        "resolve_sync_targets",
+        lambda _selectors=(): TargetSelection((), ()),
+    )
+
+    assert cli_prompts.handle_agents_prompts(_args("list")) == 1
+    assert "no project with an available agents sidecar was found" in (
+        capsys.readouterr().err
+    )
