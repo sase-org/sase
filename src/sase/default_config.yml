@@ -754,7 +754,9 @@ llm_provider:
   # Allowed: none, minimal, low, medium, high, xhigh, max.
   default_effort: ""
   # Model aliases for no-%model launches, delegated work, and reusable prompts.
-  # Builtin role overrides live under builtin. Normal epic landers, task
+  # Builtin role overrides live under builtin. @claude_coder and @codex_coder
+  # ship with provider-local direct defaults, while other registered
+  # <provider>_coder aliases inherit @coder. Normal epic landers, task
   # workers without size metadata, and @smart fall back to @default;
   # threshold-selected epic landers and extra-large phases use @smartest,
   # which owns a concrete maximum-effort target. `cheap`, `cheaper`, and
@@ -768,14 +770,15 @@ llm_provider:
   # completions and the Models panel. Bucket membership is display-only: ACE
   # always supplies `coders` and `phase_worker`, and custom aliases assigned to
   # either bucket coalesce with its builtin aliases.
-  # Current shipped defaults for every builtin alias below (and their
-  # descriptions) are the single responsibility of
+  # Current shipped defaults for every builtin alias below, including selected
+  # provider-coder targets (and their descriptions), are the single
+  # responsibility of
   # src/sase/llm_provider/model_alias_defaults.yml; the target values shown
   # here are grammar examples only, not the shipped defaults.
   # model_aliases:
   #   builtin:
   #     default: opus               # model used when a prompt has no %model directive
-  #     coder: "@default"           # plan coder follow-ups (fallback for <provider>_coder)
+  #     coder: "@default"           # generic/fallback plan coder follow-ups
   #     claude_coder: codex/gpt-4.1 # coder follow-ups from Claude-authored plans
   #     codex_coder: claude/opus    # coder follow-ups from Codex-authored plans
   #     epic_lander: "@default"     # epic land agents

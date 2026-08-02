@@ -116,6 +116,7 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
         make_alias_view("default", "default"),
         make_alias_view("coder", "role"),
         make_alias_view("codex_coder", "provider_coder"),
+        make_alias_view("opencode_coder", "provider_coder"),
         make_alias_view("epic_lander", "role"),
         make_alias_view("big_epic_lander", "role"),
         make_alias_view("xsmall_phase_worker", "role"),
@@ -148,9 +149,10 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
     assert _alias_disabled_reason(coder_context, "hop_a") == "would create a cycle"
     assert _alias_disabled_reason(coder_context, "cycle_a") == ("would create a cycle")
     assert _alias_disabled_reason(coder_context, "safe") is None
-    # provider_coder -> coder -> default and big_epic_lander -> smartest are
-    # implicit chains.
-    assert _alias_disabled_reason(default_context, "codex_coder") == (
+    # Unpinned provider_coder -> coder -> default and
+    # big_epic_lander -> smartest are implicit chains. Pinned Codex is direct.
+    assert _alias_disabled_reason(default_context, "codex_coder") is None
+    assert _alias_disabled_reason(default_context, "opencode_coder") == (
         "would create a cycle"
     )
     assert _alias_disabled_reason(default_context, "big_epic_lander") is None

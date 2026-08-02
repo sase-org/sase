@@ -144,12 +144,59 @@ def test_provider_coder_alias_override(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"default": "claude/opus"}},
+            "model_aliases": {
+                "builtin": {"default": "claude/opus", "coder": "claude/sonnet"}
+            },
         },
     )
 
     set_alias_override("codex_coder", "codex/o3", None, source="panel")
     assert resolve_model_provider("codex_coder") == ("codex", "o3")
+
+
+def test_generic_coder_override_supersedes_shipped_provider_targets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "claude/opus"}},
+        },
+    )
+    set_alias_override("coder", "codex/o3@medium", None, source="panel")
+
+    assert resolve_model_provider_with_effort("@claude_coder") == (
+        "codex",
+        "o3",
+        "medium",
+    )
+    assert resolve_model_provider_with_effort("@codex_coder@xhigh") == (
+        "codex",
+        "o3",
+        "xhigh",
+    )
+    assert resolve_model_provider("@smart") == ("claude", "opus")
+
+
+def test_configured_provider_coder_beats_generic_temporary_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {
+                    "coder": "claude/sonnet",
+                    "codex_coder": "codex/gpt-5.6-sol",
+                }
+            },
+        },
+    )
+    set_alias_override("coder", "claude/opus", None, source="panel")
+
+    assert resolve_model_provider("codex_coder") == ("codex", "gpt-5.6-sol")
 
 
 def test_nondefault_override_leaves_default_lane_unchanged(

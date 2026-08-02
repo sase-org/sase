@@ -118,6 +118,18 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     )
     assert by_name["claude_coder"].kind == "provider_coder"
     assert by_name["codex_coder"].kind == "provider_coder"
+    assert by_name["claude_coder"].implicit_value == "claude/sonnet"
+    assert by_name["codex_coder"].implicit_value == "codex/gpt-5.5"
+    assert by_name["claude_coder"].implicit_fallback is None
+    assert by_name["codex_coder"].implicit_fallback is None
+    assert (by_name["claude_coder"].provider, by_name["claude_coder"].model) == (
+        "claude",
+        "sonnet",
+    )
+    assert (by_name["codex_coder"].provider, by_name["codex_coder"].model) == (
+        "codex",
+        "gpt-5.5",
+    )
 
     myalias = by_name["myalias"]
     assert myalias.kind == "user"
@@ -276,9 +288,11 @@ def test_unconfigured_provider_coder_follows_configured_coder(
 
     assert codex_coder.kind == "provider_coder"
     assert codex_coder.configured is False
-    # Effective target follows @coder (claude/sonnet), not @default.
+    # The explicit fleet-wide coder route supersedes the shipped Codex target.
     assert codex_coder.provider == "claude"
     assert codex_coder.model == "sonnet"
+    assert codex_coder.implicit_value == "codex/gpt-5.5"
+    assert codex_coder.implicit_fallback == "coder"
 
 
 def test_custom_alias_view_carries_source_and_description(

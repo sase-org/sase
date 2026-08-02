@@ -1,10 +1,11 @@
 """Names, defaults, and descriptions for built-in model aliases.
 
-Shipped defaults (targets, role fallbacks, and descriptions) live in the
-bundled ``model_alias_defaults.yml`` sibling file, not in this module. Editing
-that YAML is the single change needed to alter what an implicit alias
-resolves to out of the box; this module only owns the alias *name* constants
-and the loader that turns the YAML into cached accessor mappings.
+Shipped defaults (targets, role fallbacks, provider-coder targets, and
+descriptions) live in the bundled ``model_alias_defaults.yml`` sibling file,
+not in this module. Editing that YAML is the single change needed to alter what
+an implicit alias resolves to out of the box; this module only owns the alias
+*name* constants and the loader that turns the YAML into cached accessor
+mappings.
 """
 
 from __future__ import annotations
@@ -31,16 +32,18 @@ import yaml  # type: ignore[import-untyped]
 #
 # Most roles fall back to another alias (ultimately ``@default``) when they are
 # not explicitly configured. A fallback reference may carry an effort overlay,
-# such as ``@default@high``; an outer effort still wins. ``smartest`` owns an
-# independent concrete maximum-effort target, while ``cheap``, ``cheaper``, and
-# ``cheapest`` own load-balanced pools. ``default`` itself falls back to the
-# configured or autodetected provider's tier default. See
-# ``model_alias_defaults.yml`` for the current value of every default.
+# such as ``@default@high``; an outer effort still wins. Selected
+# ``<provider>_coder`` aliases own provider-local targets, while unpinned
+# providers inherit ``@coder``. ``smartest`` owns an independent concrete
+# maximum-effort target, while ``cheap``, ``cheaper``, and ``cheapest`` own
+# load-balanced pools. ``default`` itself falls back to the configured or
+# autodetected provider's tier default. See ``model_alias_defaults.yml`` for
+# the current value of every default.
 
 #: The implicit "default" alias name (used for no-``%model`` launches).
 DEFAULT_MODEL_ALIAS_NAME = "default"
 
-#: The implicit "coder" alias name (``<provider>_coder`` falls back to this).
+#: The implicit "coder" alias name (unpinned ``<provider>_coder`` aliases use it).
 CODER_MODEL_ALIAS_NAME = "coder"
 
 #: Suffix that turns a provider name into its ``<provider>_coder`` alias.
@@ -109,6 +112,7 @@ class _ModelAliasDefaults:
 
     role_alias_fallbacks: Mapping[str, str]
     implicit_alias_targets: Mapping[str, str]
+    provider_coder_targets: Mapping[str, str]
     role_alias_descriptions: Mapping[str, str]
 
 
@@ -161,6 +165,7 @@ def _load_model_alias_defaults() -> _ModelAliasDefaults:
 
     fallbacks: dict[str, str] = {}
     targets: dict[str, str] = {}
+    coder_targets: dict[str, str] = {}
     descriptions: dict[str, str] = {}
     for name, entry in aliases.items():
         if not isinstance(entry, dict):
@@ -192,6 +197,40 @@ def _load_model_alias_defaults() -> _ModelAliasDefaults:
                 )
             targets[name] = target.strip()
 
+        if "provider_targets" in entry:
+            provider_targets = entry["provider_targets"]
+            if name != CODER_MODEL_ALIAS_NAME:
+                raise _defaults_error(
+                    resource,
+                    f"entry {name!r} must not set 'provider_targets'; only "
+                    f"{CODER_MODEL_ALIAS_NAME!r} may set it",
+                )
+            if not isinstance(provider_targets, dict):
+                raise _defaults_error(
+                    resource,
+                    f"entry {name!r} has a non-mapping 'provider_targets'",
+                )
+            for provider, provider_target in provider_targets.items():
+                if not isinstance(provider, str) or not provider.strip():
+                    raise _defaults_error(
+                        resource,
+                        f"entry {name!r} has a non-string or empty provider name",
+                    )
+                if not isinstance(provider_target, str) or not provider_target.strip():
+                    raise _defaults_error(
+                        resource,
+                        f"entry {name!r} provider {provider!r} has a non-string "
+                        "or empty target",
+                    )
+                clean_provider = provider.strip()
+                if clean_provider in coder_targets:
+                    raise _defaults_error(
+                        resource,
+                        f"entry {name!r} repeats provider {clean_provider!r} after "
+                        "whitespace normalization",
+                    )
+                coder_targets[clean_provider] = provider_target.strip()
+
         description = entry.get("description")
         if not isinstance(description, str) or not description.strip():
             raise _defaults_error(
@@ -202,6 +241,7 @@ def _load_model_alias_defaults() -> _ModelAliasDefaults:
     return _ModelAliasDefaults(
         role_alias_fallbacks=MappingProxyType(fallbacks),
         implicit_alias_targets=MappingProxyType(targets),
+        provider_coder_targets=MappingProxyType(coder_targets),
         role_alias_descriptions=MappingProxyType(descriptions),
     )
 
@@ -218,6 +258,11 @@ def role_alias_fallbacks() -> Mapping[str, str]:
 def implicit_alias_targets() -> Mapping[str, str]:
     """Return concrete/selector default targets for implicit aliases."""
     return _load_model_alias_defaults().implicit_alias_targets
+
+
+def provider_coder_targets() -> Mapping[str, str]:
+    """Return shipped provider-name targets for ``<provider>_coder`` aliases."""
+    return _load_model_alias_defaults().provider_coder_targets
 
 
 def role_alias_descriptions() -> Mapping[str, str]:

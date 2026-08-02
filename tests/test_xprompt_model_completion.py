@@ -398,6 +398,85 @@ def test_model_completion_override_overlay_rewrites_only_alias_target(
     assert live_default.reference == ""
 
 
+def test_generic_coder_override_updates_implicit_provider_coder_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(model_completion, "get_llm_metadata_payload", _metadata_payload)
+    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(
+        model_completion,
+        "build_alias_views",
+        lambda **_kwargs: [
+            _alias_view(
+                "claude_coder",
+                kind="provider_coder",
+                configured=False,
+                provider="claude",
+                model="sonnet",
+                implicit_value="claude/sonnet",
+            ),
+            _alias_view(
+                "codex_coder",
+                kind="provider_coder",
+                configured=False,
+                provider="codex",
+                model="gpt-5.5",
+                implicit_value="codex/gpt-5.5",
+            ),
+            _alias_view(
+                "opencode_coder",
+                kind="provider_coder",
+                configured=False,
+                provider="claude",
+                model="opus",
+                implicit_reference="coder",
+            ),
+        ],
+    )
+    generic = TemporaryLLMOverride(
+        provider="codex",
+        model="gpt-5.6-sol",
+        raw_model="codex/gpt-5.6-sol@medium",
+        created_at=1.0,
+        expires_at=None,
+        source="test",
+        effort="medium",
+    )
+    specific = TemporaryLLMOverride(
+        provider="claude",
+        model="opus",
+        raw_model="claude/opus",
+        created_at=1.0,
+        expires_at=None,
+        source="test",
+    )
+
+    entries = model_completion.build_model_completion_catalog(
+        overrides={"coder": generic, "codex_coder": specific}
+    )
+    by_value = {entry.value: entry for entry in entries}
+
+    claude = by_value["@claude_coder"]
+    assert (claude.target_provider, claude.target_model, claude.target_effort) == (
+        "codex",
+        "gpt-5.6-sol",
+        "medium",
+    )
+    assert (claude.provenance, claude.reference) == ("implicit", "coder")
+
+    codex = by_value["@codex_coder"]
+    assert (codex.target_provider, codex.target_model) == ("claude", "opus")
+    assert codex.provenance == "override"
+    assert codex.reference == ""
+
+    opencode = by_value["@opencode_coder"]
+    assert (opencode.target_provider, opencode.target_model) == (
+        "codex",
+        "gpt-5.6-sol",
+    )
+    assert opencode.reference == "coder"
+
+
 def test_model_completion_catalog_rebuilds_when_config_token_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -457,6 +536,8 @@ def _alias_view(
     description: str | None = None,
     config_source: str | None = None,
     bucket: str | None = None,
+    implicit_reference: str | None = None,
+    implicit_value: str | None = None,
     selector_mode: str | None = None,
     selector_members: tuple[ModelAliasSelectorMember, ...] = (),
     effort: str | None = None,
@@ -472,6 +553,8 @@ def _alias_view(
         configured_source=config_source,
         description=description,
         bucket=bucket,
+        implicit_reference=implicit_reference,
+        implicit_value=implicit_value,
         selector_mode=selector_mode,  # type: ignore[arg-type]
         selector_members=selector_members,
         effort=effort,

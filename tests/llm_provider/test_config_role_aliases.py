@@ -21,6 +21,7 @@ from sase.llm_provider.load_balancing import parse_model_alias_selector
 from sase.llm_provider.model_alias_config import is_provider_coder_alias
 from sase.llm_provider.model_alias_policy import (
     implicit_alias_targets,
+    provider_coder_targets,
     role_alias_fallbacks,
 )
 from sase.llm_provider.registry import resolve_model_provider
@@ -69,9 +70,17 @@ def test_role_alias_helpers() -> None:
     cheapest_selector = parse_model_alias_selector(targets["cheapest"])
     assert cheapest_selector is not None
     assert cheapest_selector.mode == "round_robin"
-    assert implicit_model_alias_fallback("codex_coder") == "coder"
-    assert implicit_model_alias_fallback_reference("codex_coder") == "@coder"
+    assert implicit_model_alias_value("claude_coder") == "claude/sonnet"
+    assert implicit_model_alias_value("codex_coder") == "codex/gpt-5.5"
+    assert implicit_model_alias_fallback("codex_coder") is None
+    assert implicit_model_alias_fallback_reference("codex_coder") is None
     assert implicit_model_alias_fallback_effort("codex_coder") is None
+    assert implicit_model_alias_value("fakey_coder") is None
+    assert implicit_model_alias_fallback("fakey_coder") == "coder"
+    assert dict(provider_coder_targets()) == {
+        "claude": "claude/sonnet",
+        "codex": "codex/gpt-5.5",
+    }
     assert implicit_model_alias_fallback("default") is None
 
 
@@ -191,10 +200,32 @@ def test_coder_alias_chains_to_default(monkeypatch: pytest.MonkeyPatch) -> None:
     assert resolve_model_provider("coder") == ("codex", "gpt-5.6-sol")
 
 
-def test_provider_coder_alias_chains_to_coder(
+@pytest.mark.parametrize("active_provider", ["claude", "codex"])
+def test_pinned_provider_coder_aliases_use_direct_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+    active_provider: str,
+) -> None:
+    """Pinned provider coders do not depend on the active default provider."""
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": active_provider,
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.6-sol@high"}},
+        },
+    )
+
+    claude = resolve_model_alias_with_effort("claude_coder")
+    codex = resolve_model_alias_with_effort("codex_coder")
+
+    assert (claude.target, claude.effort) == ("claude/sonnet", None)
+    assert (codex.target, codex.effort) == ("codex/gpt-5.5", None)
+    assert resolve_model_provider("claude_coder") == ("claude", "sonnet")
+    assert resolve_model_provider("codex_coder") == ("codex", "gpt-5.5")
+
+
+def test_unpinned_provider_coder_alias_chains_to_coder(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``<provider>_coder`` defaults to ``@coder`` -> ``@default`` when unset."""
     mock_provider_config(
         monkeypatch,
         {
@@ -203,20 +234,17 @@ def test_provider_coder_alias_chains_to_coder(
         },
     )
 
-    # codex is a registered provider, so codex_coder is an implicit alias.
-    assert resolve_model_alias("codex_coder") == "codex/gpt-5.6-sol"
-    assert resolve_model_provider("codex_coder") == ("codex", "gpt-5.6-sol")
+    assert resolve_model_alias("fakey_coder") == "codex/gpt-5.6-sol"
+    assert resolve_model_provider("fakey_coder") == ("codex", "gpt-5.6-sol")
 
 
 def test_provider_coder_alias_follows_configured_coder(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An unconfigured ``<provider>_coder`` inherits a configured ``coder``.
+    """A generic coder configuration is a fleet-wide explicit override.
 
-    Regression: the implicit provider-coder fallback must reference ``@coder``
-    itself, not ``coder``'s resolved fallback. Otherwise configuring ``coder``
-    once fails to flow through to the provider-specific coder lanes and they
-    skip straight to ``@default``.
+    This explicit route takes precedence over provider-local shipped targets,
+    while an explicitly configured provider-specific alias remains stronger.
     """
     mock_provider_config(
         monkeypatch,
@@ -231,10 +259,18 @@ def test_provider_coder_alias_follows_configured_coder(
         },
     )
 
-    # codex_coder is unconfigured, so it inherits @coder (claude/sonnet) rather
-    # than skipping straight to @default (codex/gpt-5.6-sol).
     assert resolve_model_alias("codex_coder") == "claude/sonnet"
     assert resolve_model_provider("codex_coder") == ("claude", "sonnet")
+
+
+def test_provider_coder_direct_default_accepts_outer_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+
+    resolved = resolve_model_alias_with_effort("@codex_coder@xhigh")
+
+    assert (resolved.target, resolved.effort) == ("codex/gpt-5.5", "xhigh")
 
 
 def test_configured_provider_coder_shadows_generic_coder(

@@ -59,7 +59,7 @@ def test_state_tag_configured_reference_uses_shared_reference_accent() -> None:
         now=0.0,
     )
     implicit = _state_tag(
-        make_alias_view("codex_coder", "provider_coder"),
+        make_alias_view("opencode_coder", "provider_coder"),
         now=0.0,
     )
 
@@ -112,12 +112,20 @@ def test_state_tag_implicit_size_phase_worker() -> None:
     assert text.plain == "implicit → @default @ high"
 
 
-def test_state_tag_implicit_provider_coder() -> None:
+def test_state_tag_implicit_unpinned_provider_coder() -> None:
+    text = _state_tag(
+        make_alias_view("opencode_coder", "provider_coder"),
+        now=0.0,
+    )
+    assert text.plain == "implicit → @coder"
+
+
+def test_state_tag_implicit_pinned_provider_coder_is_direct() -> None:
     text = _state_tag(
         make_alias_view("codex_coder", "provider_coder"),
         now=0.0,
     )
-    assert text.plain == "implicit → @coder"
+    assert text.plain == "implicit"
 
 
 def test_custom_builtin_warning_survives_active_override() -> None:

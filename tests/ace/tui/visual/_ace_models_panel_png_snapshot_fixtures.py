@@ -102,10 +102,8 @@ def calm_views() -> list[AliasView]:
         _view(
             "coder",
             "role",
-            configured=True,
-            configured_value="@default",
             provider="claude",
-            model="opus",
+            model="claude-fable-4-10",
         ),
         _view("epic_lander", "role", provider="claude", model="opus"),
         _view(
@@ -216,14 +214,12 @@ def calm_views() -> list[AliasView]:
                 ),
             ),
         ),
-        _view("claude_coder", "provider_coder", provider="claude", model="opus"),
+        _view("claude_coder", "provider_coder", provider="claude", model="sonnet"),
         _view(
             "codex_coder",
             "provider_coder",
-            configured=True,
-            configured_value="codex/o3",
             provider="codex",
-            model="o3",
+            model="gpt-5.5",
         ),
         _view(
             "fast",

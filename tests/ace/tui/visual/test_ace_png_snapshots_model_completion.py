@@ -129,8 +129,7 @@ _ALIAS_ROWS = [
         kind="implicit_alias",
         alias_kind="provider_coder",
         target_provider="claude",
-        target_model="opus",
-        reference="coder",
+        target_model="sonnet",
         description="Claude coder follow-up model.",
     ),
     _alias_row(

@@ -10,7 +10,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.llm_provider.model_alias_policy import implicit_alias_targets
+from sase.llm_provider.model_alias_policy import (
+    implicit_alias_targets,
+    provider_coder_targets,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DOC_PATHS = (
@@ -28,7 +31,14 @@ def test_every_shipped_target_is_quoted_in_both_docs() -> None:
     """
     for doc_path in _DOC_PATHS:
         text = doc_path.read_text(encoding="utf-8")
-        for name, target in implicit_alias_targets().items():
+        shipped_targets = {
+            **implicit_alias_targets(),
+            **{
+                f"{provider}_coder": target
+                for provider, target in provider_coder_targets().items()
+            },
+        }
+        for name, target in shipped_targets.items():
             escaped = target.replace("|", "\\|")
             assert target in text or escaped in text, (
                 f"{doc_path.relative_to(_REPO_ROOT)} is missing the current "

@@ -5,9 +5,11 @@
 #
 # Each entry carries at most one of `fallback` (an @<alias> reference,
 # optionally with a trailing @<effort>) or `target` (a concrete model,
-# provider/model, `A | B` pool, or `A || B` ordered fallback). `default`
-# carries neither: it resolves through the configured/autodetected provider's
-# tier default. Every entry requires a `description`.
+# provider/model, `A | B` pool, or `A || B` ordered fallback). `coder` may
+# additionally carry provider-specific targets used by registered
+# `<provider>_coder` aliases; providers without a target still inherit
+# `@coder`. `default` carries neither: it resolves through the configured/
+# autodetected provider's tier default. Every entry requires a `description`.
 schema_version: 1
 aliases:
   default:
@@ -16,9 +18,12 @@ aliases:
       ultimately falls back to it.
   coder:
     fallback: "@default"
+    provider_targets:
+      claude: "claude/sonnet"
+      codex: "codex/gpt-5.5"
     description: >-
-      Coder follow-up agents launched from plans (fallback for every
-      <provider>_coder alias).
+      Coder follow-up agents launched from plans (fallback for unpinned
+      <provider>_coder aliases).
   epic_lander:
     fallback: "@default"
     description: "Epic land agents that finalize and submit an epic."

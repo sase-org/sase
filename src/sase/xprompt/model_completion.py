@@ -211,6 +211,7 @@ def _apply_alias_overrides(
         if entry.kind in {"implicit_alias", "user_alias"}
     }
     overlaid = list(entries)
+    specifically_overridden = {alias.lstrip("@") for alias in overrides}
     for raw_alias, override in overrides.items():
         index = positions.get(raw_alias.lstrip("@"))
         if index is None:
@@ -227,6 +228,28 @@ def _apply_alias_overrides(
             pool_available=0,
             pool_total=0,
         )
+
+    generic_coder_override = overrides.get("coder") or overrides.get("@coder")
+    if generic_coder_override is not None:
+        for index, entry in enumerate(overlaid):
+            alias = entry.value.lstrip("@")
+            if (
+                entry.alias_kind != "provider_coder"
+                or entry.provenance != "implicit"
+                or alias in specifically_overridden
+            ):
+                continue
+            overlaid[index] = replace(
+                entry,
+                target_provider=generic_coder_override.provider,
+                target_model=generic_coder_override.model,
+                target_effort=generic_coder_override.effort or "",
+                reference="coder",
+                reference_effort="",
+                selector_mode="",
+                pool_available=0,
+                pool_total=0,
+            )
     return overlaid
 
 

@@ -203,6 +203,23 @@ def _resolve_model_alias_result(
             target: str | None = None
             if bare in aliases:
                 target = aliases[bare].strip()
+            elif is_provider_coder:
+                # A configured or temporary generic coder is an explicit
+                # fleet-wide override. Provider-specific configuration above
+                # still wins, while the shipped provider-local target is used
+                # only when neither explicit path applies.
+                assert overrides is not None
+                if (
+                    CODER_MODEL_ALIAS_NAME in overrides
+                    or CODER_MODEL_ALIAS_NAME in aliases
+                ):
+                    if bare in seen:
+                        return fail()
+                    seen.add(bare)
+                    current = f"@{CODER_MODEL_ALIAS_NAME}"
+                    steps += 1
+                    continue
+                target = config.implicit_model_alias_value(bare)
             elif bare in role_targets:
                 target = role_targets[bare]
 
@@ -332,7 +349,7 @@ def _model_alias_selector(name: str) -> ModelAliasSelector | None:
     alias = name.strip()
     value = config._get_model_aliases().get(alias)
     if value is None:
-        value = implicit_alias_targets().get(alias)
+        value = config.implicit_model_alias_value(alias)
     if value is None:
         return None
     try:
@@ -404,7 +421,6 @@ def validate_model_alias_selector_value(name: str, value: str) -> tuple[str, ...
         return ()
 
     aliases = config._get_model_aliases()
-    role_targets = implicit_alias_targets()
     errors: list[str] = []
     owner = name.strip() or "<alias>"
     member_label = (
@@ -434,7 +450,7 @@ def validate_model_alias_selector_value(name: str, value: str) -> tuple[str, ...
             seen.add(referenced)
             target = aliases.get(referenced)
             if target is None:
-                target = role_targets.get(referenced)
+                target = config.implicit_model_alias_value(referenced)
             if target is None:
                 target = config.implicit_model_alias_fallback_reference(referenced)
             if target is None:
