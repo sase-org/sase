@@ -164,3 +164,58 @@ async def test_tasks_authoritative_identity_miss_uses_nearest_row_fallback(
 
         assert pane.query_one("#tasks-list", OptionList).highlighted == 0
         assert state.tasks.task.identity == "alpha"
+
+
+async def test_tasks_provisional_highlight_echo_cannot_promote_stand_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A highlight message describing the provisional stand-in row must not
+    promote it over a pending request, even if it slips past the
+    ``ProgrammaticSelectionGuard`` — e.g. a second rebuild's echo arriving
+    after the guard has moved on to a newer intended selection.
+    """
+    patch_store_loader(monkeypatch, [])
+    first = task(
+        "first",
+        label="sync first",
+        status="success",
+        age_seconds=10,
+    )
+    second = task(
+        "second",
+        label="sync second",
+        status="success",
+        age_seconds=20,
+    )
+    state = AdminCenterSessionState()
+
+    async with TasksTestApp(queue(second, first)).run_test() as pilot:
+        _, pane = await open_tasks_pane(pilot, session_state=state)
+        if pane._refresh_timer is not None:
+            pane._refresh_timer.stop()
+        state.tasks.task.record("store-wanted", 1)
+        pane._store_loaded_once = False
+        pane._store_load_pending = True
+        pane._tasks = [first, second]
+
+        pane._rebuild_list()
+        await pilot.pause()
+
+        assert state.tasks.task.identity == "store-wanted"
+        assert state.tasks.task.provisional is True
+        assert state.tasks.task.displayed_identity == "second"
+        assert state.tasks.task.displayed_row == 1
+
+        # The guard remembers only one intended selection; clear it to
+        # simulate an older echo slipping through after a later rebuild.
+        pane._selection_guard.clear()
+        option_list = pane.query_one("#tasks-list", OptionList)
+        pane.on_option_list_option_highlighted(
+            OptionList.OptionHighlighted(
+                option_list, option_list.get_option_at_index(1), 1
+            )
+        )
+        await pilot.pause()
+
+        assert state.tasks.task.identity == "store-wanted"
+        assert state.tasks.task.provisional is True

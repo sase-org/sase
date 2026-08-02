@@ -38,6 +38,7 @@ from tests.ace.tui.modals.test_project_inventory_subtabs import (
 from tests.ace.tui._tasks_pane_helpers import (
     patch_store_loader as _patch_store_loader,
     queue as _queue,
+    store_task as _store_task,
     task as _task,
 )
 from tests.ace.tui.test_xprompt_browser_load_keymap import _md_xprompt
@@ -113,7 +114,18 @@ def _patch_all_surfaces(
 
     monkeypatch.setattr(lp, "_build_log_pane_load_result", _load_logs)
     _patch_inventory_data(monkeypatch)
-    _patch_store_loader(monkeypatch, [])
+    _patch_store_loader(
+        monkeypatch,
+        [
+            _store_task(
+                "resume-store-1",
+                label="detached resume check",
+                status="running",
+                session_id=None,
+                kind="detached",
+            )
+        ],
+    )
     _patch_catalog(
         monkeypatch,
         catalog=_catalog(),

@@ -202,6 +202,13 @@ class TasksPaneSelectionMixin(_MixinBase):
         task = self._get_selected_task()
         return self._task_identity(task) if task is not None else None
 
+    def _restore_target(self) -> tuple[str | None, int | None]:
+        """Return the entry a rebuild must restore: request beats stand-in."""
+        bookmark = self._session_state.task  # type: ignore[attr-defined]
+        if bookmark.provisional:
+            return bookmark.identity, bookmark.row
+        return self._selected_task_identity(), self._highlighted_row()
+
     def _record_bookmark(
         self, index: int | None, *, authoritative: bool = True
     ) -> None:
@@ -245,7 +252,12 @@ class TasksPaneSelectionMixin(_MixinBase):
             if 0 <= current_row < len(self._tasks):
                 self._user_scrolled = False
                 task = self._tasks[current_row]
-                self._record_bookmark(current_row)
+                bookmark = self._session_state.task  # type: ignore[attr-defined]
+                stand_in_echo = bookmark.provisional and (identity, current_row) == (
+                    bookmark.displayed_identity,
+                    bookmark.displayed_row,
+                )
+                self._record_bookmark(current_row, authoritative=not stand_in_echo)
                 self._display_output(task)
                 if task.store_backed and not task.output:
                     self._request_store_reload(force=True)
@@ -280,11 +292,9 @@ class TasksPaneSelectionMixin(_MixinBase):
         bookmark = self._session_state.task  # type: ignore[attr-defined]
         identity = self._rekey_task_identity(prior_identity or bookmark.identity)
         selected_index: int | None = None
-        pending_missing_bookmark = (
-            identity is not None
-            and not any(self._task_identity(task) == identity for task in self._tasks)
-            and (self._store_load_pending or not self._store_loaded_once)
-        )
+        pending_missing_bookmark = not any(
+            self._task_identity(task) == identity for task in self._tasks
+        ) and (self._store_load_pending or not self._store_loaded_once)
         option_list.clear_options()
         for option in self._create_options():
             option_list.add_option(option)

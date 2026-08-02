@@ -295,3 +295,176 @@ async def test_following_a_live_store_row_bypasses_the_mtime_cache(
 
     assert calls[-1]["detail_task_id"] == "fff666"
     assert (calls[-1]["known_mtime"] is not None) is expects_cache
+
+
+async def test_tasks_session_restores_selected_store_row_across_modal_instances(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A store row is not yet in ``_store_rows`` at ``on_mount``, so the
+    resumed selection must survive the asynchronous window before it loads.
+    """
+    running = task(
+        "run",
+        label="sync sase-42",
+        status="running",
+        age_seconds=3,
+        live_output="Syncing...\n",
+    )
+    success = task(
+        "ok",
+        label="mail sase-41",
+        status="success",
+        age_seconds=120,
+        output="Mailed PR\n",
+    )
+    patch_store_loader(
+        monkeypatch,
+        [
+            store_task(
+                "store-detached-1",
+                label="detached epic launch",
+                status="running",
+                session_id=None,
+                kind="detached",
+            )
+        ],
+        output="worker: creating beads\n",
+    )
+    state = AdminCenterSessionState()
+
+    async with TasksTestApp(queue(success, running)).run_test() as pilot:
+        first, pane = await open_tasks_pane(pilot, session_state=state)
+        await pilot.pause()
+        await pilot.pause()
+
+        option_list = pane.query_one("#tasks-list", OptionList)
+        target_index = next(
+            index
+            for index in range(option_list.option_count)
+            if option_list.get_option_at_index(index).id == "task__store-detached-1"
+        )
+        for _ in range(target_index):
+            await pilot.press("j")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert state.tasks.task.identity == "store-detached-1"
+        assert "worker: creating beads" in output_plain(pane)
+
+        first.action_close()
+        await pilot.pause()
+
+        _, reopened = await open_tasks_pane(pilot, session_state=state)
+        await pilot.pause()
+        await pilot.pause()
+
+        assert reopened is not pane
+        reopened_list = reopened.query_one("#tasks-list", OptionList)
+        assert reopened_list.highlighted == target_index
+        assert (
+            reopened_list.get_option_at_index(target_index).id
+            == "task__store-detached-1"
+        )
+        assert "detached epic launch" in output_plain(reopened)
+
+
+async def test_tasks_fresh_open_selects_newest_row_after_store_rows_arrive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no prior bookmark, a fresh open must settle on the newest merged
+    row rather than whatever happened to be row 0 before the store loaded.
+
+    Store rows carry a durable timestamp unrelated to wall-clock time, so
+    this drives the pre-/post-store rebuild pair directly rather than via
+    real timing, matching the reproduction's asynchronous-arrival window.
+    """
+    patch_store_loader(monkeypatch, [])
+    older = task("older", label="sync older", status="success", age_seconds=50)
+    newer = task("newer", label="sync newer", status="success", age_seconds=5)
+    state = AdminCenterSessionState()
+
+    async with TasksTestApp(queue(older)).run_test() as pilot:
+        _, pane = await open_tasks_pane(pilot, session_state=state)
+        if pane._refresh_timer is not None:
+            pane._refresh_timer.stop()
+
+        # By now the real mount + focus_default cycle has already settled
+        # on an authoritative selection (the store legitimately finished
+        # loading zero rows). Reset to a blank bookmark to simulate a
+        # genuinely fresh open before driving the pre-/post-store pair below.
+        state.tasks.task.record(None, None)
+
+        # Pre-store paint: only ``older`` exists yet, so it lands
+        # (provisionally) on row 0 even though there is no real bookmark.
+        pane._store_loaded_once = False
+        pane._store_load_pending = True
+        pane._tasks = [older]
+        pane._rebuild_list()
+        await pilot.pause()
+
+        assert state.tasks.task.identity is None
+        assert state.tasks.task.provisional is True
+        assert state.tasks.task.displayed_identity == "older"
+
+        # ``newer`` arrives from the store and becomes the true row 0.
+        pane._store_loaded_once = True
+        pane._store_load_pending = False
+        pane._tasks = [newer, older]
+        pane._rebuild_list()
+        await pilot.pause()
+
+        option_list = pane.query_one("#tasks-list", OptionList)
+        assert option_list.highlighted == 0
+        assert option_list.get_option_at_index(0).id == "task__newer"
+        assert state.tasks.task.identity == "newer"
+
+
+async def test_tasks_scope_toggle_preserves_store_row_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Selecting a store row and toggling scope must resume that same row
+    once the re-scoped store read lands, even though it shifts index.
+    """
+    patch_store_loader(
+        monkeypatch,
+        [
+            store_task(
+                "store-scope-other",
+                label="other session task",
+                status="success",
+                session_id="session-other",
+            ),
+            store_task(
+                "store-scope-mine",
+                label="detached scope task",
+                status="running",
+                session_id=None,
+                kind="detached",
+            ),
+        ],
+    )
+
+    async with TasksTestApp(queue()).run_test() as pilot:
+        _, pane = await open_tasks_pane(pilot)
+        await pilot.pause()
+        await pilot.pause()
+
+        option_list = pane.query_one("#tasks-list", OptionList)
+        assert option_list.option_count == 1
+        assert option_list.highlighted == 0
+        assert pane._selected_task_identity() == "store-scope-mine"
+
+        await pilot.press("a")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert pane._all_sessions is True
+        option_list = pane.query_one("#tasks-list", OptionList)
+        assert option_list.option_count == 2
+        target_index = next(
+            index
+            for index in range(option_list.option_count)
+            if option_list.get_option_at_index(index).id == "task__store-scope-mine"
+        )
+        assert option_list.highlighted == target_index
+        assert pane._selected_task_identity() == "store-scope-mine"

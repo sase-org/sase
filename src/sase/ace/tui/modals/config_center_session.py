@@ -11,12 +11,20 @@ UpdatesSubTab = Literal["core", "plugins", "agent-clis"]
 
 @dataclass
 class SelectionBookmark:
-    """Requested selection plus the row a staged rebuild currently displays."""
+    """Requested selection plus the row a staged rebuild currently displays.
+
+    ``identity``/``row`` hold the entry a caller has requested. When an
+    asynchronous data source has not finished loading, a rebuild instead
+    paints a stand-in row into ``displayed_identity``/``displayed_row`` and
+    sets ``provisional`` so later callers know the paint does not satisfy the
+    request.
+    """
 
     identity: str | None = None
     row: int | None = None
     displayed_identity: str | None = None
     displayed_row: int | None = None
+    provisional: bool = False
 
     def record(self, identity: str | None, row: int | None) -> None:
         """Store a user selection or an authoritative rebuild result."""
@@ -24,11 +32,13 @@ class SelectionBookmark:
         self.row = row
         self.displayed_identity = identity
         self.displayed_row = row
+        self.provisional = False
 
     def display(self, identity: str | None, row: int | None) -> None:
         """Track a provisional row without replacing the requested selection."""
         self.displayed_identity = identity
         self.displayed_row = row
+        self.provisional = True
 
     def rekey(self, old_identity: str, new_identity: str) -> None:
         """Replace a requested/displayed identity after its stable key is minted."""

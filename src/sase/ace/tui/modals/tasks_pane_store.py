@@ -74,6 +74,8 @@ class TasksPaneStoreMixin(_MixinBase):
 
         def _rekey_task_identity(self, identity: str | None) -> str | None: ...
 
+        def _restore_target(self) -> tuple[str | None, int | None]: ...
+
         def _selected_task_identity(self) -> str | None: ...
 
         def _signal_store_task(self, task_id: str) -> str | None: ...
@@ -94,8 +96,7 @@ class TasksPaneStoreMixin(_MixinBase):
         self._tick_count += 1
         if self._tick_count % _STORE_RELOAD_TICKS == 0:
             self._request_store_reload()
-        prior_identity = self._selected_task_identity()
-        highlighted = self._highlighted_row()
+        prior_identity, highlighted = self._restore_target()
         self._tasks = self._merged_tasks()
         new_statuses = self._status_snapshot()
 
@@ -160,18 +161,16 @@ class TasksPaneStoreMixin(_MixinBase):
         self._store_mtime = snapshot.mtime
         self._store_detail_id = snapshot.detail_task_id
         self._store_loaded_once = True
+        prior_identity, highlighted = self._restore_target()
         if snapshot.unchanged:
-            identity = self._session_state.task.identity  # type: ignore[attr-defined]
-            if identity is not None and not any(
-                self._task_identity(task) == identity for task in self._tasks
+            if prior_identity is not None and not any(
+                self._task_identity(task) == prior_identity for task in self._tasks
             ):
                 self._rebuild_list(
-                    highlight_index=self._highlighted_row(),
-                    prior_identity=identity,
+                    highlight_index=highlighted,
+                    prior_identity=prior_identity,
                 )
             return
-        prior_identity = self._selected_task_identity()
-        highlighted = self._highlighted_row()
         self._store_rows = snapshot.rows
         self._tasks = self._merged_tasks()
         requested_identity = self._rekey_task_identity(
@@ -200,8 +199,7 @@ class TasksPaneStoreMixin(_MixinBase):
 
     def action_toggle_scope(self) -> None:
         """Toggle between this session's tasks and every session's."""
-        prior_identity = self._selected_task_identity()
-        highlighted = self._highlighted_row()
+        prior_identity, highlighted = self._restore_target()
         self._all_sessions = not self._all_sessions
         self._session_state.all_sessions = self._all_sessions  # type: ignore[attr-defined]
         self._store_rows = []
