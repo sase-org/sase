@@ -138,8 +138,8 @@ def resolve_archive_date(frontmatter: Mapping[str, Any], path: Path) -> str:
 
     Precedence (highest first):
 
-    1. frontmatter ``last_used`` then ``timestamp`` — ``prompt export --sdd``
-       records these, so they are the most precise;
+    1. frontmatter ``last_used`` then ``timestamp`` — archived prompt records
+       carry these, so they are the most precise;
     2. the ``YYYYMM`` segment of the file's parent directory — the reliable
        fallback for the nested ``prompts/YYYYMM/`` layout;
     3. the file's mtime — last resort.
