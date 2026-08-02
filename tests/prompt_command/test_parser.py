@@ -145,7 +145,7 @@ def test_prompt_search_subcommand_parses_with_short_flags() -> None:
             "-n",
             "5",
             "-s",
-            "sdd",
+            "archive",
             "-t",
             "review",
             "-t",
@@ -160,9 +160,14 @@ def test_prompt_search_subcommand_parses_with_short_flags() -> None:
     assert search_args.color == "never"
     assert search_args.format == "json"
     assert search_args.limit == 5
-    assert search_args.source == "sdd"
+    assert search_args.source == "archive"
     assert search_args.tag == ["review", "auth"]
     assert search_args.cancelled is True
+
+    deprecated_alias = parser.parse_args(
+        ["prompt", "search", "auth", "--source", "sdd"]
+    )
+    assert deprecated_alias.source == "sdd"
 
 
 def test_prompt_search_defaults() -> None:

@@ -31,16 +31,19 @@ def _ns(query: str, **overrides: object) -> argparse.Namespace:
     return argparse.Namespace(**base)
 
 
-def _write_sdd(base: Path, month: str, name: str, content: str) -> None:
-    path = base / "sdd" / "prompts" / month / f"{name}.md"
+def _write_archive(base: Path, month: str, name: str, content: str) -> None:
+    path = base / "prompts" / month / f"{name}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
 
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Run the search handler from an isolated repo root (for SDD discovery)."""
+    """Run the search handler from an isolated repo root (for archive discovery)."""
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sase.prompt.cli_search.resolve_prompt_archive_root", lambda: tmp_path
+    )
     return tmp_path
 
 
@@ -55,6 +58,7 @@ _RESULT_KEYS = [
     "matched_fields",
     "tags",
     "plan",
+    "artifact_count",
     "cancelled",
     "text_sha256",
     "text_chars",
@@ -72,11 +76,14 @@ def test_json_envelope_shape_and_keys(
     history_file: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _write_sdd(
+    _write_archive(
         repo,
         "202604",
         "auth_snapshot",
-        "---\nplan: sdd/plans/202604/auth.md\nprompt_tags: [review]\n---\n"
+        "---\nprompt_tags: [review]\n---\n"
+        "- **PLAN:** [202604/auth.md](https://example.test/plans/auth)\n"
+        "- **ARTIFACTS:**\n"
+        "  - [trace.txt](../../artifacts/202604/trace.txt)\n\n"
         "Rotate auth tokens nightly.\n",
     )
     _seed(_entry("retry the auth flow on failure", "260601_000000"))
@@ -89,22 +96,23 @@ def test_json_envelope_shape_and_keys(
     assert payload["query"] == "auth"
     assert payload["count"] == 2
     assert payload["total"] == 2
-    assert payload["counts"] == {"sdd": 1, "local": 1}
+    assert payload["counts"] == {"archive": 1, "local": 1}
 
-    # SDD ranks first; every documented result key is present, in order.
-    sdd, local = payload["results"]
-    assert list(sdd.keys()) == _RESULT_KEYS
-    assert sdd["source"] == "sdd"
-    assert sdd["id"] == "auth_snapshot"
-    assert sdd["path"] == "sdd/prompts/202604/auth_snapshot.md"
-    assert sdd["date"] == "2026-04-01"  # frontmatter-less → YYYYMM path fallback
-    assert sdd["plan"] == "sdd/plans/202604/auth.md"
-    assert sdd["tags"] == ["review"]
-    assert sdd["cancelled"] is None
-    assert "body" in sdd["matched_fields"]
+    # archive ranks first; every documented result key is present, in order.
+    archive, local = payload["results"]
+    assert list(archive.keys()) == _RESULT_KEYS
+    assert archive["source"] == "archive"
+    assert archive["id"] == "auth_snapshot"
+    assert archive["path"] == "prompts/202604/auth_snapshot.md"
+    assert archive["date"] == "2026-04-01"  # frontmatter-less → YYYYMM path fallback
+    assert archive["plan"] == "202604/auth.md"
+    assert archive["artifact_count"] == 1
+    assert archive["tags"] == ["review"]
+    assert archive["cancelled"] is None
+    assert "body" in archive["matched_fields"]
     # Full text is carried (parity with prompt show -f json).
-    assert sdd["text"] == "Rotate auth tokens nightly."
-    assert sdd["text_chars"] == len("Rotate auth tokens nightly.")
+    assert archive["text"] == "Rotate auth tokens nightly."
+    assert archive["text_chars"] == len("Rotate auth tokens nightly.")
 
     assert local["source"] == "local"
     assert local["id"] == _prompt_id("retry the auth flow on failure")
@@ -137,7 +145,7 @@ def test_json_no_match_is_empty_envelope(
     payload = json.loads(capsys.readouterr().out)
     assert payload["count"] == 0
     assert payload["total"] == 0
-    assert payload["counts"] == {"sdd": 0, "local": 0}
+    assert payload["counts"] == {"archive": 0, "local": 0}
     assert payload["results"] == []
 
 
@@ -157,7 +165,7 @@ def test_json_truncation_reports_count_total_counts(
     assert payload["count"] == 2
     assert len(payload["results"]) == 2
     assert payload["total"] == 3
-    assert payload["counts"] == {"sdd": 0, "local": 3}
+    assert payload["counts"] == {"archive": 0, "local": 3}
 
 
 def test_json_date_is_null_when_undatable(
@@ -179,27 +187,31 @@ def test_json_date_is_null_when_undatable(
 # ---------------------------------------------------------------------------
 
 
-def test_full_renders_sdd_metadata_and_body(
+def test_full_renders_archive_metadata_and_body(
     repo: Path,
     history_file: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _write_sdd(
+    _write_archive(
         repo,
         "202604",
         "auth_snapshot",
-        "---\nplan: sdd/plans/202604/auth.md\nprompt_tags: [review]\n---\n"
+        "---\nprompt_tags: [review]\n---\n"
+        "- **PLAN:** [202604/auth.md](https://example.test/plans/auth)\n"
+        "- **ARTIFACTS:**\n"
+        "  - [trace.txt](../../artifacts/202604/trace.txt)\n\n"
         "Rotate auth tokens nightly.\n",
     )
-    handle_prompt_search(_ns("auth", source="sdd", format="full"))
+    handle_prompt_search(_ns("auth", source="archive", format="full"))
     out = capsys.readouterr().out
     # Per-hit header: badge + locator + date.
-    assert "sdd" in out
+    assert "archive" in out
     assert "auth_snapshot" in out
     assert "2026-04-01" in out
-    # Compact metadata header for the SDD-specific fields.
-    assert "path: sdd/prompts/202604/auth_snapshot.md" in out
-    assert "plan: sdd/plans/202604/auth.md" in out
+    # Compact metadata header for the archive-specific fields.
+    assert "path: prompts/202604/auth_snapshot.md" in out
+    assert "plan: 202604/auth.md" in out
+    assert "artifacts: 1" in out
     assert "tags: review" in out
     # The body is rendered in full.
     assert "Rotate auth tokens nightly." in out
@@ -210,8 +222,8 @@ def test_full_highlights_match_when_colored(
     history_file: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _write_sdd(repo, "202604", "auth_snapshot", "Rotate auth tokens nightly.\n")
-    handle_prompt_search(_ns("auth", source="sdd", format="full", color="always"))
+    _write_archive(repo, "202604", "auth_snapshot", "Rotate auth tokens nightly.\n")
+    handle_prompt_search(_ns("auth", source="archive", format="full", color="always"))
     out = capsys.readouterr().out
     assert "\x1b[" in out
     assert "33m" in out  # bold-yellow highlight on the matched term
@@ -255,7 +267,7 @@ def test_full_divides_consecutive_hits(
     history_file: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _write_sdd(repo, "202604", "auth_snapshot", "auth in the snapshot\n")
+    _write_archive(repo, "202604", "auth_snapshot", "auth in the snapshot\n")
     _seed(_entry("auth in local history", "260601_000000"))
     handle_prompt_search(_ns("auth", format="full"))
     out = capsys.readouterr().out
@@ -285,5 +297,5 @@ def test_full_footer_reports_truncation(
     )
     handle_prompt_search(_ns("auth", source="local", format="full", limit=2))
     out = capsys.readouterr().out
-    assert "3 matches (0 SDD · 3 local)" in out
+    assert "3 matches (0 archive · 3 local)" in out
     assert "showing 2" in out

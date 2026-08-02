@@ -87,7 +87,7 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase prompt export
     export_parser = prompt_sub.add_parser(
         "export",
-        help="Export a prompt to stdout, a file, or an SDD snapshot",
+        help="Export a local-history prompt to stdout or a file",
     )
     export_parser.add_argument(
         "id",
@@ -117,7 +117,8 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         "--sdd",
         action="store_true",
         help=(
-            "Write an SDD snapshot under sdd/plans/YYYYMM/prompts/ (implies --metadata)"
+            "Retired compatibility option; use --out for files or `sase agent"
+            " prompts` for canonical archived prompts"
         ),
     )
 
@@ -268,18 +269,16 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase prompt search
     search_parser = prompt_sub.add_parser(
         "search",
-        help="Search exported SDD snapshots and local history for matching prompts",
+        help="Search canonical archived prompts and local history",
         description=(
             "Find prompts whose text or metadata contains a literal query,"
-            " across exported or historical sdd/plans/*/prompts/ snapshots and"
-            " the machine-wide local prompt history. SDD snapshots rank first;"
-            " use `sase agent prompts` for the canonical agents-sidecar prompt"
-            " archive."
+            " across the canonical agents-sidecar archive and machine-wide"
+            " local prompt history. Archived prompts rank first."
         ),
         epilog=(
             "Examples:\n"
             "  sase prompt search auth\n"
-            "  sase prompt search tui --source sdd\n"
+            "  sase prompt search tui --source archive\n"
             "  sase prompt search review --after 30d --tag review\n"
             "  sase prompt search deploy --format json --limit 0"
         ),
@@ -330,9 +329,12 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
     search_parser.add_argument(
         "-s",
         "--source",
-        choices=["sdd", "local", "all"],
+        choices=["archive", "local", "all", "sdd"],
         default="all",
-        help="Which store to search: sdd, local, or all (default: all)",
+        help=(
+            "Which store to search: archive, local, or all (default: all);"
+            " sdd is a deprecated alias for archive"
+        ),
     )
     search_parser.add_argument(
         "-t",
@@ -346,7 +348,7 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         "-x",
         "--cancelled",
         action="store_true",
-        help="Restrict local results to cancelled prompts (no effect on SDD)",
+        help="Restrict local results to cancelled prompts (no effect on archive)",
     )
 
     # sase prompt select

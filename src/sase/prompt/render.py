@@ -112,7 +112,7 @@ def source_badge(source: PromptSource) -> Text:
     from sase.prompt.search.model import PromptSource
 
     badges = {
-        PromptSource.SDD: ("sdd", "bold cyan"),
+        PromptSource.ARCHIVE: ("archive", "bold cyan"),
         PromptSource.LOCAL: ("local", "bold blue"),
     }
     label, style = badges.get(source, (str(source), ""))

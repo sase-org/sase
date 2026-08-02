@@ -13,7 +13,7 @@ assert that:
 - ``full`` renders exactly the limit's worth of hits (divider-separated) and
   reports the true totals.
 
-The shared SDD snapshots also confirm that SDD hits still group first and that
+The shared archive hits also confirm that canonical hits still group first and that
 per-source counts stay correct even when the local store dwarfs them.
 """
 
@@ -36,7 +36,7 @@ from ._helpers import _entry, _prompt_id, _seed
 # (well past any snippet cutoff) and carry the most recent local timestamps, so
 # they land inside the default window — proving ``compact`` keeps them bounded
 # rather than excluding them.
-_SDD_COUNT = 2
+_ARCHIVE_COUNT = 2
 _BULK_COUNT = 1500
 _HUGE_COUNT = 3
 _HUGE_CHARS = 20_000
@@ -46,7 +46,7 @@ _QUERY = "auth"
 
 # Totals the seeded corpus must report.
 _LOCAL_TOTAL = _BULK_COUNT + _HUGE_COUNT
-_GRAND_TOTAL = _SDD_COUNT + _LOCAL_TOTAL
+_GRAND_TOTAL = _ARCHIVE_COUNT + _LOCAL_TOTAL
 
 
 @dataclass(frozen=True)
@@ -79,16 +79,19 @@ def _ns(query: str, **overrides: object) -> argparse.Namespace:
 def large_corpus(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, history_file: Path
 ) -> _Corpus:
-    """Seed a large local history plus a few SDD snapshots, all matching ``auth``.
+    """Seed a large local history plus a few archive hits, all matching ``auth``.
 
-    Runs from an isolated repo root so SDD discovery is scoped to the temp tree.
+    Runs from an isolated archive root so discovery is scoped to the temp tree.
     Every entry contains the query term, so the match count equals the whole
     corpus and any unbounded output would be unmistakable.
     """
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sase.prompt.cli_search.resolve_prompt_archive_root", lambda: tmp_path
+    )
 
-    for index in range(_SDD_COUNT):
-        path = tmp_path / "sdd" / "prompts" / "202604" / f"auth_sdd_{index}.md"
+    for index in range(_ARCHIVE_COUNT):
+        path = tmp_path / "prompts" / "202604" / f"auth_archive_{index}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"rotate auth tokens nightly {index}\n", encoding="utf-8")
 
@@ -122,12 +125,15 @@ def test_compact_stays_bounded_and_hides_full_text(
     out = capsys.readouterr().out
 
     # The footer reports the true (large) totals and flags the truncation.
-    assert f"{_GRAND_TOTAL} matches ({_SDD_COUNT} SDD · {_LOCAL_TOTAL} local)" in out
+    assert (
+        f"{_GRAND_TOTAL} matches ({_ARCHIVE_COUNT} archive · {_LOCAL_TOTAL} local)"
+        in out
+    )
     assert f"showing {_DEFAULT_LIMIT}" in out
 
-    # SDD still groups first even though local dwarfs it.
-    assert f"── SDD prompts ({_SDD_COUNT}) ──" in out
-    assert out.index("SDD prompts") < out.index("Local history")
+    # The archive still groups first even though local history dwarfs it.
+    assert f"── Archived prompts ({_ARCHIVE_COUNT}) ──" in out
+    assert out.index("Archived prompts") < out.index("Local history")
 
     # The newest local prompt is shown; the oldest (last-ranked) is not — proof
     # the default window is bounded rather than dumping every match.
@@ -152,7 +158,10 @@ def test_json_results_are_capped_with_accurate_totals(
     assert len(payload["results"]) == _DEFAULT_LIMIT
     # Totals and per-source counts describe the full pre-limit match set.
     assert payload["total"] == _GRAND_TOTAL
-    assert payload["counts"] == {"sdd": _SDD_COUNT, "local": _LOCAL_TOTAL}
+    assert payload["counts"] == {
+        "archive": _ARCHIVE_COUNT,
+        "local": _LOCAL_TOTAL,
+    }
 
     # The oldest (last-ranked) prompt is beyond the cap and absent from results.
     shown_ids = {result["id"] for result in payload["results"]}
@@ -167,7 +176,10 @@ def test_full_renders_only_the_limit_with_accurate_totals(
     out = capsys.readouterr().out
 
     # The footer still reports the true totals and the truncation.
-    assert f"{_GRAND_TOTAL} matches ({_SDD_COUNT} SDD · {_LOCAL_TOTAL} local)" in out
+    assert (
+        f"{_GRAND_TOTAL} matches ({_ARCHIVE_COUNT} archive · {_LOCAL_TOTAL} local)"
+        in out
+    )
     assert f"showing {_DEFAULT_LIMIT}" in out
 
     # Dividers separate consecutive hits, so exactly limit-1 of them appear:

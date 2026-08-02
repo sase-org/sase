@@ -174,6 +174,17 @@ def _handle_migrate(
 
 
 def _resolve_context(project: str | None) -> _PromptArchiveContext:
+    target = _resolve_target(project)
+    return _PromptArchiveContext(target, _plans_repo(target))
+
+
+def resolve_prompt_archive_root(project: str | None = None) -> Path:
+    """Return the agents-sidecar root selected by ``sase agent prompts``."""
+
+    return _resolve_target(project).sidecar_path
+
+
+def _resolve_target(project: str | None) -> ProjectTarget:
     selector = project or _current_project()
     selection = (
         resolve_sync_targets((selector,)) if selector else resolve_sync_targets()
@@ -196,7 +207,7 @@ def _resolve_context(project: str | None) -> _PromptArchiveContext:
         raise _PromptArchiveContextUnavailable(
             f"agents sidecar checkout is unavailable: {target.sidecar_path}"
         )
-    return _PromptArchiveContext(target, _plans_repo(target))
+    return target
 
 
 def _current_project() -> str | None:

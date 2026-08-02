@@ -322,17 +322,6 @@ def test_custom_document_role_accepts_flat_sidecar_month_root(
 # ---------------------------------------------------------------------------
 
 
-def test_find_sdd_file_prompts_nested() -> None:
-    """find_sdd_file returns the canonical nested prompt path."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        base = Path(tmpdir)
-        nested = base / "plans" / "202603" / "prompts" / "my_plan.md"
-        nested.parent.mkdir(parents=True)
-        nested.write_text("prompt", encoding="utf-8")
-        result = find_sdd_file(base, "prompts", "my_plan.md")
-        assert result == nested
-
-
 def test_find_sdd_file_sharded_plan() -> None:
     """find_sdd_file finds a canonical file in a YYYYMM subdirectory."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -355,47 +344,6 @@ def test_find_sdd_file_finds_canonical_in_tree_plan() -> None:
         assert result == canonical
 
 
-def test_find_sdd_file_prefers_nested_over_legacy() -> None:
-    """find_sdd_file prefers the canonical nested path over legacy roots."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        base = Path(tmpdir)
-        legacy = base / "prompts" / "my_plan.md"
-        legacy.parent.mkdir()
-        legacy.write_text("legacy", encoding="utf-8")
-        nested = base / "plans" / "202603" / "prompts" / "my_plan.md"
-        nested.parent.mkdir(parents=True)
-        nested.write_text("nested", encoding="utf-8")
-        result = find_sdd_file(base, "prompts", "my_plan.md")
-        assert result == nested
-
-
-def test_find_sdd_file_prefers_canonical_sdd_over_legacy() -> None:
-    """Canonical sdd/<kind> wins over legacy root <kind>."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        base = Path(tmpdir)
-        (base / "sdd" / "plans" / "202603" / "prompts").mkdir(parents=True)
-        (base / "specs" / "202603").mkdir(parents=True)
-        canonical = base / "sdd" / "plans" / "202603" / "prompts" / "my_plan.md"
-        legacy = base / "specs" / "202603" / "my_plan.md"
-        canonical.write_text("canonical", encoding="utf-8")
-        legacy.write_text("legacy", encoding="utf-8")
-
-        result = find_sdd_file(base, "specs", "my_plan.md")
-        assert result == canonical
-
-
-def test_find_sdd_file_legacy_specs_alias() -> None:
-    """Legacy specs paths remain visible through prompt lookup."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        base = Path(tmpdir)
-        (base / "sdd" / "specs" / "202603").mkdir(parents=True)
-        legacy = base / "sdd" / "specs" / "202603" / "my_plan.md"
-        legacy.write_text("legacy", encoding="utf-8")
-
-        assert find_sdd_file(base, "prompts", "my_plan.md") == legacy
-        assert find_sdd_file(base, "specs", "my_plan.md") == legacy
-
-
 def test_find_sdd_file_does_not_accept_legacy_epics_kind() -> None:
     """Tier vocabulary is not accepted as a physical lookup directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -411,6 +359,6 @@ def test_find_sdd_file_missing() -> None:
     """find_sdd_file returns None when file does not exist anywhere."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
-        (base / "prompts").mkdir()
-        result = find_sdd_file(base, "prompts", "nonexistent.md")
+        (base / "plans").mkdir()
+        result = find_sdd_file(base, "plans", "nonexistent.md")
         assert result is None

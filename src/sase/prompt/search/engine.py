@@ -81,8 +81,8 @@ def search_prompts(
         tags: Keep only hits carrying *any* of these tags (OR across repeats),
             compared case-insensitively after sigil-stripping. Empty disables the
             tag filter.
-        cancelled_only: Restrict **local** hits to cancelled prompts. SDD
-            snapshots have no cancelled state and are unaffected.
+        cancelled_only: Restrict **local** hits to cancelled prompts. Archive
+            hits have no cancelled state and are unaffected.
         limit: Cap the number of **shown** matches after ranking. ``<= 0`` means
             unlimited. The pre-limit ``total`` and per-source ``counts`` are
             always reported regardless of *limit*.
@@ -214,7 +214,7 @@ def _rank_key(match: PromptSearchMatch) -> tuple[int, int, int, tuple[str, str]]
 
     Ordering, most significant first:
 
-    1. **Source priority** — SDD before local.
+    1. **Source priority** — canonical archive before local.
     2. **Match tier** — a strong-field hit (title/locator/path) before a
        body/plan/tag-only hit.
     3. **Recency** — newer date first (the date is negated so a plain ascending
@@ -231,8 +231,8 @@ def _rank_key(match: PromptSearchMatch) -> tuple[int, int, int, tuple[str, str]]
 
 
 def _source_priority(source: PromptSource) -> int:
-    """Return ``0`` for SDD (ranked first) and ``1`` for local."""
-    return 0 if source is PromptSource.SDD else 1
+    """Return ``0`` for the archive (ranked first) and ``1`` for local."""
+    return 0 if source is PromptSource.ARCHIVE else 1
 
 
 def _match_tier(matched_fields: tuple[str, ...]) -> int:

@@ -8,7 +8,7 @@ rendering (and migratable to a shared backend later, per
   result model and the :class:`PromptSearchResult` envelope.
 - :mod:`sase.prompt.search.dates` — date-filter parsing and the documented
   per-source date precedence.
-- :mod:`sase.prompt.search.sources` — SDD + local loaders, unification, and
+- :mod:`sase.prompt.search.sources` — archive + local loaders, unification, and
   sha-based de-duplication into one corpus.
 - :mod:`sase.prompt.search.engine` — the pure, deterministic match/filter/rank/
   limit engine over a loaded corpus.
@@ -23,7 +23,7 @@ from sase.prompt.search.dates import (
     PromptSearchDateError,
     hit_date,
     parse_search_date,
-    resolve_sdd_date,
+    resolve_archive_date,
 )
 from sase.prompt.search.engine import EmptyPromptQueryError, search_prompts
 from sase.prompt.search.model import (
@@ -35,7 +35,7 @@ from sase.prompt.search.model import (
 from sase.prompt.search.sources import (
     collect_prompt_hits,
     load_local_prompt_hits,
-    load_sdd_prompt_hits,
+    load_archive_prompt_hits,
 )
 
 __all__ = [
@@ -48,8 +48,8 @@ __all__ = [
     "collect_prompt_hits",
     "hit_date",
     "load_local_prompt_hits",
-    "load_sdd_prompt_hits",
+    "load_archive_prompt_hits",
     "parse_search_date",
-    "resolve_sdd_date",
+    "resolve_archive_date",
     "search_prompts",
 ]

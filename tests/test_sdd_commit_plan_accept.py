@@ -12,11 +12,8 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
     """_commit_sdd_files writes the message to a temp file and passes it to -M."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
-        prompts = Path(ws) / "prompts" / "202603"
         plans = Path(ws) / "plans" / "202603"
-        prompts.mkdir(parents=True)
         plans.mkdir(parents=True)
-        (prompts / "my_plan.md").write_text("prompt", encoding="utf-8")
         (plans / "my_plan.md").write_text("plan", encoding="utf-8")
 
         captured_msg_content: list[str] = []
@@ -42,12 +39,12 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
         assert not captured_msg_paths[0].exists()
         assert (
             captured_msg_content[0]
-            == "chore: Add SDD prompt and plan for my_plan\n\nSASE_TYPE=sdd"
+            == "chore: Add SDD plan for my_plan\n\nSASE_TYPE=sdd"
         )
 
 
-def test_commit_sdd_files_passes_f_flags() -> None:
-    """_commit_sdd_files passes -f for each existing prompt/plan file."""
+def test_commit_sdd_files_passes_f_flag_only_for_plan() -> None:
+    """_commit_sdd_files ignores retired plans-store prompt snapshots."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
         prompts = Path(ws) / "prompts" / "202603"
@@ -74,7 +71,7 @@ def test_commit_sdd_files_passes_f_flags() -> None:
 
         cmd = captured_cmd[0]
         f_values = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-f"]
-        assert str(prompt_file) in f_values
+        assert str(prompt_file) not in f_values
         assert str(plan_file) in f_values
 
 
@@ -107,35 +104,23 @@ def test_commit_sdd_files_finds_canonical_sdd_paths() -> None:
         f_values = [
             captured_cmd[0][i + 1] for i, v in enumerate(captured_cmd[0]) if v == "-f"
         ]
-        assert str(prompt_file) in f_values
+        assert str(prompt_file) not in f_values
         assert str(plan_file) in f_values
 
 
-def test_commit_sdd_files_prompt_only() -> None:
-    """Only prompt file exists, so sase commit is invoked with one -f."""
+def test_commit_sdd_files_retired_prompt_snapshot_only_is_noop() -> None:
+    """A plans-store prompt snapshot is no longer a commit candidate."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
         prompts = Path(ws) / "prompts" / "202603"
         prompts.mkdir(parents=True)
         (prompts / "only_prompt.md").write_text("prompt", encoding="utf-8")
 
-        captured_cmd: list[list[str]] = []
-
-        def fake_run(
-            cmd: list[str], **kwargs: object
-        ) -> subprocess.CompletedProcess[str]:
-            captured_cmd.append(list(cmd))
-            return subprocess.CompletedProcess(cmd, 0)
-
-        with patch(
-            "sase.axe.run_agent_exec_plan_accept.subprocess.run", side_effect=fake_run
-        ):
+        mock_run = MagicMock()
+        with patch("sase.axe.run_agent_exec_plan_accept.subprocess.run", mock_run):
             assert _commit_sdd_files(ws, "only_prompt") is True
 
-        assert len(captured_cmd) == 1
-        cmd = captured_cmd[0]
-        f_values = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-f"]
-        assert len(f_values) == 1
+        mock_run.assert_not_called()
 
 
 def test_commit_sdd_files_noop_no_files() -> None:
@@ -151,9 +136,9 @@ def test_commit_sdd_files_logs_failure() -> None:
     """Non-zero exit code from sase commit is logged."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
-        prompts = Path(ws) / "prompts" / "202603"
-        prompts.mkdir(parents=True)
-        (prompts / "fail.md").write_text("prompt", encoding="utf-8")
+        plans = Path(ws) / "plans" / "202603"
+        plans.mkdir(parents=True)
+        (plans / "fail.md").write_text("plan", encoding="utf-8")
         captured_msg_paths: list[Path] = []
 
         def fake_run(

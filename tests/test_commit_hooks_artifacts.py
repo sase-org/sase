@@ -489,7 +489,7 @@ class TestHandleSasePlan:
         dest = repo_dir / "sdd" / "plans" / "202511" / "my_plan.md"
         assert dest.exists()
 
-    def test_vc_true_adds_prompt_frontmatter_when_prompt_exists(
+    def test_vc_true_ignores_retired_plans_prompt_snapshot(
         self, tmp_path: Path
     ) -> None:
         plan_file = tmp_path / "my_plan.md"
@@ -512,10 +512,8 @@ class TestHandleSasePlan:
 
         dest = repo_dir / "sdd" / "plans" / "202603" / "my_plan.md"
         text = dest.read_text(encoding="utf-8")
-        assert (
-            "- **PROMPT:** [sdd/plans/202603/prompts/my_plan.md]"
-            "(prompts/my_plan.md)" in text
-        )
+        assert "**PROMPT:**" not in text
+        assert prompt_file.read_text(encoding="utf-8") == "# Prompt\n"
         assert payload["_plan_path"] == str(dest)
 
 

@@ -1,9 +1,10 @@
-"""``sase prompt export``/``save`` — bridge prompts into durable artifacts.
+"""``sase prompt export``/``save`` — bridge prompts into durable files.
 
 ``export`` is a full-text escape hatch (like ``show``/``copy``): it prints a
-prompt to stdout, writes it to a chosen file, or snapshots it under
-``sdd/plans/YYYYMM/prompts/`` with provenance frontmatter. ``save`` writes an ordinary
-markdown xprompt file that the existing loader can resolve via ``#name``.
+prompt to stdout or writes it to a chosen file. ``save`` writes an ordinary
+markdown xprompt file that the existing loader can resolve via ``#name``. The
+retired ``--sdd`` spelling remains parseable only to explain the canonical
+agents-sidecar archive and direct users to safe replacements.
 
 Neither command touches the prompt-history store, so they need no lock; their
 only safety guard is that an existing destination is never silently overwritten
@@ -26,8 +27,7 @@ from sase.history.prompt import (
 )
 from sase.prompt.render import prompt_preview
 
-# Where exported snapshots say they came from. A stable, machine-independent
-# label keeps committed SDD snapshots diff-friendly across workstations.
+# Where metadata-wrapped local-history exports say they came from.
 _SOURCE_LABEL = "sase prompt history"
 
 # Frontmatter key for free-form user tags. The reserved ``tags`` key is limited
@@ -107,7 +107,7 @@ def _write_file_or_exit(dest: Path, content: str, *, force: bool, prog: str) -> 
 
 
 def handle_prompt_export(args: argparse.Namespace) -> None:
-    """Export a prompt to stdout, a file, or an SDD snapshot."""
+    """Export a prompt to stdout or a chosen file."""
     prog = "sase prompt export"
     selector: str = getattr(args, "id", "")
     out: str | None = getattr(args, "out", None)
@@ -115,25 +115,20 @@ def handle_prompt_export(args: argparse.Namespace) -> None:
     force = bool(getattr(args, "force", False))
     metadata = bool(getattr(args, "metadata", False))
 
-    if out is not None and sdd:
+    if sdd:
         print(
-            f"{prog}: --out and --sdd choose different destinations; pass only one.",
+            f"{prog}: --sdd is retired because canonical archived prompts must"
+            " come from agent runs with captured provenance. Use --out PATH for"
+            " a local-history export, or `sase agent prompts` to inspect the"
+            " canonical agents-sidecar archive.",
             file=sys.stderr,
         )
         sys.exit(2)
 
     record = _resolve_or_exit(selector, prog=prog)
 
-    # An SDD snapshot is meant to stand alone in the repo, so it always carries
-    # provenance frontmatter regardless of --metadata.
-    include_metadata = metadata or sdd
+    include_metadata = metadata
     content = _build_export_content(record, metadata=include_metadata)
-
-    if sdd:
-        dest = _sdd_snapshot_path(record)
-        _write_file_or_exit(dest, content, force=force, prog=prog)
-        print(f"Exported {record.id} to {dest}.")
-        return
 
     if out is not None:
         dest = Path(out).expanduser()
@@ -162,26 +157,6 @@ def _build_export_content(record: PromptHistoryRecord, *, metadata: bool) -> str
         }
     )
     return f"{block}\n{record.text}"
-
-
-def _sdd_snapshot_path(record: PromptHistoryRecord) -> Path:
-    """Return the default nested SDD prompt snapshot path."""
-    from sase.sdd._paths import get_yyyymm
-    from sase.sdd.store import materialize_sdd_store
-
-    slug = _slugify(record.text)
-    basename = f"{slug}_{record.id}" if slug else record.id
-    workspace = Path.cwd()
-    try:
-        from sase.main.utils import ensure_project_file_and_get_workspace_num
-
-        _, workspace_num, _ = ensure_project_file_and_get_workspace_num(
-            create_missing=False
-        )
-    except Exception:
-        workspace_num = None
-    store = materialize_sdd_store(workspace, workspace_num or 1)
-    return store.kind_root("plans") / get_yyyymm() / "prompts" / f"{basename}.md"
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 """Source-agnostic data model for the unified prompt search corpus.
 
-A :class:`PromptHit` is one prompt drawn from either store (a committed SDD
-snapshot or a local prompt-history entry), normalized to a single shape so the
+A :class:`PromptHit` is one prompt drawn from either store (the canonical agents
+archive or local prompt history), normalized to a single shape so the
 engine and renderers never branch on provenance beyond the :attr:`PromptHit.source`
 tag. The model is pure data: no IO, no rendering, no presentation truncation.
 """
@@ -16,47 +16,50 @@ from enum import StrEnum
 class PromptSource(StrEnum):
     """Which store a :class:`PromptHit` came from.
 
-    :class:`~enum.StrEnum` keeps the value JSON-friendly (``"sdd"`` / ``"local"``)
-    and directly comparable to the ``-s/--source`` CLI argument.
+    :class:`~enum.StrEnum` keeps the value JSON-friendly
+    (``"archive"`` / ``"local"``) and directly comparable to the canonical
+    ``-s/--source`` CLI arguments. The deprecated ``sdd`` spelling is resolved
+    by the CLI before this model is used.
     """
 
-    SDD = "sdd"
+    ARCHIVE = "archive"
     LOCAL = "local"
 
 
 @dataclass(frozen=True)
 class PromptHit:
-    """One unified search candidate from the SDD or local prompt store.
+    """One unified search candidate from the archive or local prompt store.
 
     The fields deliberately cover both stores; presentation-only concerns
     (highlighting, truncation, colored badges) live in the renderers, not here.
 
     Attributes:
         source: Which store the hit came from.
-        id: Stable locator. SDD: the repo-relative path stem (e.g.
+        id: Stable locator. Archive: the repo-relative path stem (e.g.
             ``kitty_image_panel_fix``). Local: the ``ph_<sha256[:12]>`` content
             ID that ``sase prompt show/run/edit`` already accept.
-        text: The prompt body. SDD: the markdown body with frontmatter and the
-            system artifact-link bullet stripped. Local: the exact recorded
+        text: The prompt body. Archive: the markdown body with its canonical
+            metadata header stripped. Local: the exact recorded
             prompt text.
         title: A cleaned one-line preview of the prompt, falling back to the
             locator when the body has no usable line.
         date: A comparable SASE ``YYmmdd_HHMMSS`` timestamp resolved via the
             documented per-source precedence (see :mod:`sase.prompt.search.dates`).
             This is the value ``--after``/``--before`` filter against.
-        text_sha256: SDD: the recorded frontmatter ``sha256`` when present, else
+        text_sha256: Archive: the recorded frontmatter ``sha256`` when present, else
             the digest computed over :attr:`text`. Local: the entry's content
             digest. Drives best-effort cross-store de-duplication.
-        path: SDD: the repo-relative file path. Local: ``None`` (the store is a
+        path: Archive: the repo-relative file path. Local: ``None`` (the store is a
             single JSON file).
-        plan: SDD: the visible ``PLAN`` artifact-link label (the tale/epic it
+        plan: Archive: the visible ``PLAN`` header label (the tale/epic it
             produced). Local: ``None``.
-        tags: Sigil-stripped, de-duplicated tag tokens drawn from SDD
+        artifact_count: Archive: number of entries in the ``ARTIFACTS`` header.
+            Local: ``None``.
+        tags: Sigil-stripped, de-duplicated tag tokens drawn from archive
             ``prompt_tags`` frontmatter and the ``#xprompt`` chips embedded in
             the body.
-        cancelled: Local: the entry's cancelled flag. SDD: ``None`` (snapshots
-            have no cancelled state).
-        also_in_local: ``True`` on an SDD hit when a local entry with the same
+        cancelled: Local: the entry's cancelled flag. Archive: ``None``.
+        also_in_local: ``True`` on an archive hit when a local entry with the same
             ``text_sha256`` was collapsed into it during de-duplication.
     """
 
@@ -68,6 +71,7 @@ class PromptHit:
     text_sha256: str
     path: str | None = None
     plan: str | None = None
+    artifact_count: int | None = None
     tags: tuple[str, ...] = ()
     cancelled: bool | None = None
     also_in_local: bool = False

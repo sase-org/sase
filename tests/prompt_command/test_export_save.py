@@ -7,13 +7,8 @@ from pathlib import Path
 import pytest
 
 from sase.prompt.cli_export import handle_prompt_export, handle_prompt_save
-from tests.sdd_policy_helpers import set_sdd_policy
 
 from ._helpers import _entry, _export_ns, _prompt_id, _save_ns, _seed
-
-
-def _patch_sdd_storage(monkeypatch: pytest.MonkeyPatch, storage: str) -> None:
-    set_sdd_policy(monkeypatch, storage)
 
 
 def test_export_stdout_raw_is_byte_exact(
@@ -73,65 +68,27 @@ def test_export_out_writes_file_and_guards_overwrite(
     assert dest.read_text(encoding="utf-8") == text + "\n"
 
 
-def test_export_sdd_writes_snapshot_with_metadata(
+def test_export_sdd_is_retired_and_cannot_write_into_plans(
     history_file: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    _patch_sdd_storage(monkeypatch, "in_tree")
-    text = "snapshot this prompt under the sdd tree"
-    _seed(_entry(text, "260603_000000"))
-
-    handle_prompt_export(_export_ns(_prompt_id(text), sdd=True))
-
-    snapshots = list((tmp_path / "sdd" / "plans").glob("*/prompts/*.md"))
-    assert len(snapshots) == 1
-    snapshot = snapshots[0]
-    # Default SDD filename is a clean slug plus the short prompt ID.
-    assert _prompt_id(text) in snapshot.name
-    assert "snapshot-this-prompt" in snapshot.name
-    content = snapshot.read_text(encoding="utf-8")
-    # --sdd implies metadata even though --metadata was not passed.
-    assert content.startswith("---\n")
-    assert "source: sase prompt history" in content
-    assert text in content
-
-
-def test_export_sdd_writes_snapshot_to_resolved_local_store(
-    history_file: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    _patch_sdd_storage(monkeypatch, "local")
-    text = "snapshot this prompt under the local sdd store"
-    _seed(_entry(text, "260603_000000"))
-
-    handle_prompt_export(_export_ns(_prompt_id(text), sdd=True))
-
-    snapshots = list((tmp_path / ".sase" / "sdd" / "plans").glob("*/prompts/*.md"))
-    assert len(snapshots) == 1
-    assert _prompt_id(text) in snapshots[0].name
-    assert not (tmp_path / "sdd" / "plans").exists()
-
-
-def test_export_out_and_sdd_are_mutually_exclusive(
-    history_file: Path,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    text = "ambiguous destination prompt"
+    text = "do not forge an archived prompt"
     _seed(_entry(text, "260603_000000"))
 
     with pytest.raises(SystemExit) as exc_info:
-        handle_prompt_export(
-            _export_ns(_prompt_id(text), out=str(tmp_path / "x.md"), sdd=True)
-        )
+        handle_prompt_export(_export_ns(_prompt_id(text), sdd=True))
 
     assert exc_info.value.code == 2
-    assert "only one" in capsys.readouterr().err
+    error = capsys.readouterr().err
+    assert "--sdd is retired" in error
+    assert "--out PATH" in error
+    assert "sase agent prompts" in error
+    assert not list(tmp_path.glob("**/plans/*/prompts/*.md"))
+    assert not (tmp_path / "sdd").exists()
+    assert not (tmp_path / ".sase" / "sdd").exists()
 
 
 def test_export_unknown_selector_exits_two(

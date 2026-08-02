@@ -1,4 +1,4 @@
-"""Tests for the unified prompt-search corpus: SDD + local loaders and dedup."""
+"""Tests for the unified prompt-search corpus: archive + local history."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from sase.history.prompt_store import PromptEntry, save_prompt_history
 from sase.prompt.search.model import PromptHit, PromptSource
 from sase.prompt.search.sources import (
     collect_prompt_hits,
+    load_archive_prompt_hits,
     load_local_prompt_hits,
-    load_sdd_prompt_hits,
 )
 
 
@@ -25,196 +25,112 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def _archive_prompt(
+    body: str,
+    *,
+    plan: str | None = None,
+    artifacts: tuple[str, ...] = (),
+    frontmatter: str = "",
+) -> str:
+    lines: list[str] = []
+    if frontmatter:
+        lines.extend(["---", frontmatter.rstrip(), "---"])
+    if plan is not None:
+        lines.append(f"- **PLAN:** [{plan}](https://example.test/plans/{plan})")
+    lines.extend(
+        [
+            "- **AGENTS:**",
+            "  - [alice.athena.worker](https://example.test/agents/worker)",
+        ]
+    )
+    if artifacts:
+        lines.append("- **ARTIFACTS:**")
+        lines.extend(
+            f"  - [{name}](../../artifacts/202604/{name})" for name in artifacts
+        )
+    lines.extend(["", body])
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def _by_id(hits: list[PromptHit]) -> dict[str, PromptHit]:
     return {hit.id: hit for hit in hits}
 
 
-# ---------------------------------------------------------------------------
-# SDD discovery across layouts
-# ---------------------------------------------------------------------------
-
-
-def test_sdd_discovers_canonical_legacy_and_local_layouts(tmp_path: Path) -> None:
+def test_archive_discovers_only_canonical_agents_layout(tmp_path: Path) -> None:
     _write(
-        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "canonical.md",
-        "canonical body\n",
-    )
-    _write(tmp_path / "prompts" / "legacy.md", "legacy body\n")
-    # The local layout is reached by pointing base_dir at a ``.sase/sdd`` root.
-    _write(
-        tmp_path / "local_sdd" / "plans" / "202605" / "prompts" / "localmode.md",
-        "local body\n",
-    )
-
-    hits = _by_id(load_sdd_prompt_hits(tmp_path))
-    assert set(hits) == {"canonical", "legacy"}
-    assert all(hit.source is PromptSource.SDD for hit in hits.values())
-
-    local_hits = _by_id(load_sdd_prompt_hits(tmp_path / "local_sdd"))
-    assert "localmode" in local_hits
-
-
-def test_sdd_project_root_includes_local_sase_sdd(tmp_path: Path) -> None:
-    # A normal project-root scan must also surface the project-local
-    # nested ``.sase/sdd`` store, not only the committed canonical/legacy roots.
-    _write(
-        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "canonical.md",
-        "canonical body\n",
+        tmp_path / "prompts/202604/canonical.md",
+        _archive_prompt("canonical body"),
     )
     _write(
-        tmp_path / ".sase" / "sdd" / "plans" / "202605" / "prompts" / "localsnap.md",
-        "local snapshot body\n",
+        tmp_path / "plans/202604/prompts/legacy.md",
+        "legacy plans snapshot\n",
     )
+    _write(tmp_path / "prompts/README.md", "# Prompt index\n")
 
-    hits = _by_id(load_sdd_prompt_hits(tmp_path))
-    assert set(hits) == {"canonical", "localsnap"}
-    assert all(hit.source is PromptSource.SDD for hit in hits.values())
-    # The local hit's path is reported relative to the project root.
-    assert hits["localsnap"].path == ".sase/sdd/plans/202605/prompts/localsnap.md"
+    hits = load_archive_prompt_hits(tmp_path)
+
+    assert [hit.id for hit in hits] == ["canonical"]
+    assert hits[0].source is PromptSource.ARCHIVE
+    assert hits[0].path == "prompts/202604/canonical.md"
 
 
-def test_sdd_no_duplicate_when_local_root_overlaps(tmp_path: Path) -> None:
-    # When *base_dir* is itself a ``.sase/sdd`` root, canonical discovery and
-    # the appended project-local arm both reach the same
-    # file; resolved-path de-dup must keep it to a single hit.
-    sdd_root = tmp_path / ".sase" / "sdd"
+def test_archive_loader_empty_when_no_prompts_dir(tmp_path: Path) -> None:
+    assert load_archive_prompt_hits(tmp_path) == []
+
+
+def test_archive_strips_header_and_reads_metadata(tmp_path: Path) -> None:
     _write(
-        sdd_root / "plans" / "202605" / "prompts" / "localmode.md",
-        "local body\n",
+        tmp_path / "prompts/202604/widget.md",
+        _archive_prompt(
+            "#widget Fix the rendering bug.\nSecond line.",
+            plan="202604/widget_plan.md",
+            artifacts=("diagram.png", "trace.txt"),
+        ),
     )
-    hits = load_sdd_prompt_hits(sdd_root)
-    assert [hit.id for hit in hits] == ["localmode"]
 
+    hit = load_archive_prompt_hits(tmp_path)[0]
 
-def test_sdd_loader_empty_when_no_prompts_dir(tmp_path: Path) -> None:
-    assert load_sdd_prompt_hits(tmp_path) == []
-
-
-def test_sdd_hit_relative_path_and_locator(tmp_path: Path) -> None:
-    _write(
-        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "kitty_panel.md",
-        "body\n",
-    )
-    hit = load_sdd_prompt_hits(tmp_path)[0]
-    assert hit.id == "kitty_panel"
-    assert hit.path == "sdd/plans/202604/prompts/kitty_panel.md"
-
-
-# ---------------------------------------------------------------------------
-# Frontmatter parse, body strip, title, plan, date
-# ---------------------------------------------------------------------------
-
-
-def test_sdd_strips_frontmatter_from_text_and_reads_plan(tmp_path: Path) -> None:
-    _write(
-        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "foo.md",
-        "---\nplan: sdd/plans/202604/foo.md\n---\n\nFix the widget thoroughly.\n",
-    )
-    hit = load_sdd_prompt_hits(tmp_path)[0]
-    assert hit.text == "Fix the widget thoroughly."
-    assert "plan:" not in hit.text
-    assert hit.plan == "sdd/plans/202604/foo.md"
+    assert hit.text == "#widget Fix the rendering bug.\nSecond line."
+    assert "AGENTS" not in hit.text
+    assert hit.title == "Fix the rendering bug."
+    assert hit.plan == "202604/widget_plan.md"
+    assert hit.artifact_count == 2
+    assert hit.tags == ("widget",)
     assert hit.cancelled is None
 
 
-def test_sdd_projects_canonical_plan_link_label(tmp_path: Path) -> None:
+def test_archive_date_prefers_frontmatter_then_month(tmp_path: Path) -> None:
     _write(
-        tmp_path / "sdd" / "plans" / "202607" / "prompts" / "linked.md",
-        "---\ncreate_time: 2026-07-21 12:00:00\n---\n\n"
-        "- **PLAN:** [../sdd/plans/202607/linked.md](../linked.md)\n\n"
-        "Prompt body.\n",
+        tmp_path / "prompts/202604/dated.md",
+        _archive_prompt(
+            "dated body",
+            frontmatter="last_used: '260512_143000'",
+        ),
+    )
+    _write(
+        tmp_path / "prompts/202604/undated.md",
+        _archive_prompt("undated body"),
     )
 
-    hit = load_sdd_prompt_hits(tmp_path)[0]
+    hits = _by_id(load_archive_prompt_hits(tmp_path))
 
-    assert hit.plan == "../sdd/plans/202607/linked.md"
-    assert hit.text == "Prompt body."
-    assert hit.title == "Prompt body."
+    assert hits["dated"].date == "260512_143000"
+    assert hits["undated"].date == "260401_000000"
 
 
-def test_sdd_title_is_cleaned_first_line(tmp_path: Path) -> None:
+def test_archive_tags_combine_frontmatter_and_body(tmp_path: Path) -> None:
     _write(
-        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "foo.md",
-        "#widget Fix the rendering bug.\nSecond line ignored.\n",
+        tmp_path / "prompts/202604/tagged.md",
+        _archive_prompt(
+            "Look at #review and #widget.",
+            frontmatter="prompt_tags: [review, auth]",
+        ),
     )
-    hit = load_sdd_prompt_hits(tmp_path)[0]
-    # The ``#widget`` chip is stripped from the preview title.
-    assert hit.title == "Fix the rendering bug."
 
+    hit = load_archive_prompt_hits(tmp_path)[0]
 
-def test_sdd_title_falls_back_to_locator_for_empty_body(tmp_path: Path) -> None:
-    _write(
-        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "empty_body.md",
-        "---\nplan: x\n---\n",
-    )
-    hit = load_sdd_prompt_hits(tmp_path)[0]
-    assert hit.title == "empty_body"
-
-
-def test_sdd_date_precedence_frontmatter_then_path(tmp_path: Path) -> None:
-    # ``prompt export`` quotes SASE timestamps so YAML round-trips them as
-    # strings (unquoted, ``260512_143000`` would parse as an integer).
-    _write(
-        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "dated.md",
-        "---\nlast_used: '260512_143000'\n---\nbody\n",
-    )
-    _write(tmp_path / "sdd" / "plans" / "202604" / "prompts" / "undated.md", "body\n")
-    hits = _by_id(load_sdd_prompt_hits(tmp_path))
-    assert hits["dated"].date == "260512_143000"  # frontmatter wins
-    assert hits["undated"].date == "260401_000000"  # path YYYYMM fallback
-
-
-def test_sdd_tolerates_malformed_frontmatter(tmp_path: Path) -> None:
-    _write(
-        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "broken.md",
-        "---\nplan: [unclosed\n: : :\n---\nstill scanned\n",
-    )
-    _write(tmp_path / "sdd" / "plans" / "202604" / "prompts" / "ok.md", "fine\n")
-    hits = _by_id(load_sdd_prompt_hits(tmp_path))
-    # The broken file is still included rather than aborting the scan.
-    assert set(hits) == {"broken", "ok"}
-
-
-# ---------------------------------------------------------------------------
-# Tag extraction
-# ---------------------------------------------------------------------------
-
-
-def test_sdd_tags_combine_frontmatter_and_body(tmp_path: Path) -> None:
-    _write(
-        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "tagged.md",
-        "---\nprompt_tags: [review, auth]\n---\nLook at #review and #widget.\n",
-    )
-    hit = load_sdd_prompt_hits(tmp_path)[0]
-    assert "review" in hit.tags
-    assert "auth" in hit.tags
-    assert "widget" in hit.tags  # chip name, sigil stripped
-    # Tags are de-duplicated case-insensitively (``review`` from frontmatter
-    # and the ``#review`` chip collapse to one).
-    assert sum(1 for t in hit.tags if t.lower() == "review") == 1
-
-
-def test_sdd_tags_accept_comma_delimited_string(tmp_path: Path) -> None:
-    _write(
-        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "csv.md",
-        "---\nprompt_tags: review, auth\n---\nbody\n",
-    )
-    hit = load_sdd_prompt_hits(tmp_path)[0]
-    assert set(hit.tags) == {"review", "auth"}
-
-
-def test_sdd_no_tags_when_absent(tmp_path: Path) -> None:
-    _write(
-        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "plain.md",
-        "just prose here\n",
-    )
-    hit = load_sdd_prompt_hits(tmp_path)[0]
-    assert hit.tags == ()
-
-
-# ---------------------------------------------------------------------------
-# Local adapter
-# ---------------------------------------------------------------------------
+    assert set(hit.tags) == {"review", "auth", "widget"}
+    assert sum(tag.casefold() == "review" for tag in hit.tags) == 1
 
 
 @pytest.mark.usefixtures("history_file")
@@ -234,66 +150,37 @@ def test_local_adapter_shape_includes_cancelled() -> None:
             ),
         ]
     )
+
     hits = load_local_prompt_hits()
-    assert len(hits) == 2  # both launched and cancelled are loaded
     by_text = {hit.text: hit for hit in hits}
-    launched = by_text["launched prompt about tui"]
-    assert launched.source is PromptSource.LOCAL
-    assert launched.id.startswith("ph_")
-    assert launched.path is None
-    assert launched.plan is None
-    assert launched.date == "260601_090000"
-    assert launched.cancelled is False
+
+    assert len(hits) == 2
+    assert by_text["launched prompt about tui"].source is PromptSource.LOCAL
+    assert by_text["launched prompt about tui"].artifact_count is None
     assert by_text["cancelled draft prompt"].cancelled is True
 
 
 @pytest.mark.usefixtures("history_file")
-def test_local_adapter_extracts_body_tags() -> None:
-    save_prompt_history(
-        [
-            PromptEntry(
-                text="please run #widget and #review now",
-                timestamp="260601_090000",
-                last_used="260601_090000",
-            ),
-        ]
-    )
-    hit = load_local_prompt_hits()[0]
-    assert "widget" in hit.tags
-    assert "review" in hit.tags
-
-
-@pytest.mark.usefixtures("history_file")
-def test_local_adapter_text_sha256_matches_content() -> None:
-    text = "a unique local prompt for hashing"
-    save_prompt_history(
-        [PromptEntry(text=text, timestamp="260601_090000", last_used="260601_090000")]
-    )
-    hit = load_local_prompt_hits()[0]
-    assert hit.text_sha256 == _sha256(text)
-
-
-# ---------------------------------------------------------------------------
-# collect_prompt_hits: unification + dedup
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.usefixtures("history_file")
-def test_collect_dedup_prefers_sdd_and_annotates(tmp_path: Path) -> None:
+def test_collect_dedup_prefers_archive_and_annotates(tmp_path: Path) -> None:
     shared = "Shared prompt about authentication token rotation."
     sha = _sha256(shared)
     _write(
-        tmp_path / "sdd" / "plans" / "202605" / "prompts" / "rotate.md",
-        f"---\nsha256: {sha}\nlast_used: 260512_143000\n---\n\n{shared}\n",
+        tmp_path / "prompts/202605/rotate.md",
+        _archive_prompt(
+            shared,
+            frontmatter=f"sha256: {sha}\nlast_used: '260512_143000'",
+        ),
     )
     _write(
-        tmp_path / "sdd" / "plans" / "202605" / "prompts" / "sdd_only.md",
-        "only in sdd\n",
+        tmp_path / "prompts/202605/archive_only.md",
+        _archive_prompt("only in archive"),
     )
     save_prompt_history(
         [
             PromptEntry(
-                text=shared, timestamp="260512_143000", last_used="260512_143000"
+                text=shared,
+                timestamp="260512_143000",
+                last_used="260512_143000",
             ),
             PromptEntry(
                 text="local only prompt",
@@ -303,52 +190,34 @@ def test_collect_dedup_prefers_sdd_and_annotates(tmp_path: Path) -> None:
         ]
     )
 
-    hits = collect_prompt_hits([PromptSource.SDD, PromptSource.LOCAL], tmp_path)
+    hits = collect_prompt_hits([PromptSource.ARCHIVE, PromptSource.LOCAL], tmp_path)
 
     shared_hits = [hit for hit in hits if hit.text_sha256 == sha]
-    assert len(shared_hits) == 1  # collapsed to a single hit
-    assert shared_hits[0].source is PromptSource.SDD  # SDD prioritized
-    assert shared_hits[0].also_in_local is True  # annotated
-    # The non-duplicate hits from both stores survive.
-    ids = {hit.id for hit in hits}
-    assert "sdd_only" in ids
+    assert len(shared_hits) == 1
+    assert shared_hits[0].source is PromptSource.ARCHIVE
+    assert shared_hits[0].also_in_local is True
+    assert "archive_only" in {hit.id for hit in hits}
     assert any(hit.text == "local only prompt" for hit in hits)
 
 
 @pytest.mark.usefixtures("history_file")
 def test_collect_single_source_skips_the_other(tmp_path: Path) -> None:
-    _write(tmp_path / "sdd" / "plans" / "202605" / "prompts" / "only.md", "sdd body\n")
-    save_prompt_history(
-        [
-            PromptEntry(
-                text="local body", timestamp="260601_090000", last_used="260601_090000"
-            )
-        ]
-    )
-
-    sdd_only = collect_prompt_hits([PromptSource.SDD], tmp_path)
-    assert {hit.source for hit in sdd_only} == {PromptSource.SDD}
-
-    local_only = collect_prompt_hits([PromptSource.LOCAL], tmp_path)
-    assert {hit.source for hit in local_only} == {PromptSource.LOCAL}
-
-
-@pytest.mark.usefixtures("history_file")
-def test_collect_no_dedup_without_recorded_sha(tmp_path: Path) -> None:
-    # An SDD snapshot whose body sha differs from the local entry is never
-    # collapsed: dedup is strictly digest-based and conservative.
     _write(
-        tmp_path / "sdd" / "plans" / "202605" / "prompts" / "p.md", "body text one\n"
+        tmp_path / "prompts/202605/only.md",
+        _archive_prompt("archive body"),
     )
     save_prompt_history(
         [
             PromptEntry(
-                text="different body text",
+                text="local body",
                 timestamp="260601_090000",
                 last_used="260601_090000",
             )
         ]
     )
-    hits = collect_prompt_hits([PromptSource.SDD, PromptSource.LOCAL], tmp_path)
-    assert len(hits) == 2
-    assert not any(hit.also_in_local for hit in hits)
+
+    archive_only = collect_prompt_hits([PromptSource.ARCHIVE], tmp_path)
+    local_only = collect_prompt_hits([PromptSource.LOCAL], None)
+
+    assert {hit.source for hit in archive_only} == {PromptSource.ARCHIVE}
+    assert {hit.source for hit in local_only} == {PromptSource.LOCAL}

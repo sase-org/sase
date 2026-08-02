@@ -105,30 +105,6 @@ def sdd_kind_roots(base_dir: Path, kind: str) -> list[Path]:
     return roots
 
 
-def sdd_prompt_roots(base_dir: Path) -> list[Path]:
-    """Return exported/historical nested and legacy prompt lookup roots.
-
-    Canonical committed run prompts live in the agents sidecar. Exported and
-    historical SDD prompt snapshots may live below each plan month directory;
-    legacy ``prompts/`` and ``specs/`` roots remain readable during migration.
-    """
-    roots: list[Path] = []
-    seen: set[Path] = set()
-    plans_roots = [base_dir / "sdd" / "plans", base_dir / "plans"]
-    if has_month_dirs(base_dir):
-        plans_roots.append(base_dir)
-    for plans_root in plans_roots:
-        for root in sorted(plans_root.glob("*/prompts")):
-            if root not in seen:
-                roots.append(root)
-                seen.add(root)
-    for root in sdd_kind_roots(base_dir, "prompts"):
-        if root not in seen:
-            roots.append(root)
-            seen.add(root)
-    return roots
-
-
 def find_sdd_file(base_dir: Path, kind: str, name: str) -> Path | None:
     """Search for an SDD file in canonical in-tree or sidecar layouts.
 
@@ -137,11 +113,7 @@ def find_sdd_file(base_dir: Path, kind: str, name: str) -> Path | None:
 
     Returns the first match, or ``None`` if not found.
     """
-    roots = (
-        sdd_prompt_roots(base_dir)
-        if kind in _SDD_PROMPT_KINDS
-        else sdd_kind_roots(base_dir, kind)
-    )
+    roots = sdd_kind_roots(base_dir, kind)
     for root in roots:
         flat = root / name
         if flat.exists():

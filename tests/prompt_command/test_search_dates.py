@@ -1,4 +1,4 @@
-"""Tests for prompt-search date parsing and SDD date precedence."""
+"""Tests for prompt-search date parsing and archive date precedence."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from sase.prompt.search.dates import (
     PromptSearchDateError,
     hit_date,
     parse_search_date,
-    resolve_sdd_date,
+    resolve_archive_date,
 )
 from sase.prompt.search.model import PromptHit, PromptSource
 
@@ -119,42 +119,44 @@ def test_parse_search_date_error_lists_examples() -> None:
 
 
 # ---------------------------------------------------------------------------
-# resolve_sdd_date — precedence
+# resolve_archive_date — precedence
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_sdd_date_prefers_frontmatter_last_used() -> None:
-    path = Path("sdd/prompts/202604/x.md")
-    resolved = resolve_sdd_date(
+def test_resolve_archive_date_prefers_frontmatter_last_used() -> None:
+    path = Path("prompts/202604/x.md")
+    resolved = resolve_archive_date(
         {"last_used": "260512_143000", "timestamp": "260101_000000"}, path
     )
     assert resolved == "260512_143000"
 
 
-def test_resolve_sdd_date_falls_back_to_timestamp() -> None:
-    path = Path("sdd/prompts/202604/x.md")
-    assert resolve_sdd_date({"timestamp": "260101_000000"}, path) == "260101_000000"
+def test_resolve_archive_date_falls_back_to_timestamp() -> None:
+    path = Path("prompts/202604/x.md")
+    assert resolve_archive_date({"timestamp": "260101_000000"}, path) == "260101_000000"
 
 
-def test_resolve_sdd_date_accepts_yaml_date_objects() -> None:
-    path = Path("sdd/prompts/202604/x.md")
-    assert resolve_sdd_date({"last_used": date(2026, 5, 12)}, path) == "260512_000000"
+def test_resolve_archive_date_accepts_yaml_date_objects() -> None:
+    path = Path("prompts/202604/x.md")
+    assert (
+        resolve_archive_date({"last_used": date(2026, 5, 12)}, path) == "260512_000000"
+    )
     moment = datetime(2026, 5, 12, 8, 9, 10)
-    assert resolve_sdd_date({"timestamp": moment}, path) == "260512_080910"
+    assert resolve_archive_date({"timestamp": moment}, path) == "260512_080910"
 
 
-def test_resolve_sdd_date_falls_back_to_path_yyyymm() -> None:
-    path = Path("sdd/prompts/202604/x.md")
-    assert resolve_sdd_date({}, path) == "260401_000000"
+def test_resolve_archive_date_falls_back_to_path_yyyymm() -> None:
+    path = Path("prompts/202604/x.md")
+    assert resolve_archive_date({}, path) == "260401_000000"
 
 
-def test_resolve_sdd_date_ignores_unparseable_frontmatter_date() -> None:
+def test_resolve_archive_date_ignores_unparseable_frontmatter_date() -> None:
     # A garbage frontmatter date is skipped, not fatal: precedence drops to path.
-    path = Path("sdd/prompts/202604/x.md")
-    assert resolve_sdd_date({"last_used": "not-a-date"}, path) == "260401_000000"
+    path = Path("prompts/202604/x.md")
+    assert resolve_archive_date({"last_used": "not-a-date"}, path) == "260401_000000"
 
 
-def test_resolve_sdd_date_falls_back_to_mtime(
+def test_resolve_archive_date_falls_back_to_mtime(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr("sase.prompt.search.dates._timezone", lambda: _UTC)
@@ -162,7 +164,7 @@ def test_resolve_sdd_date_falls_back_to_mtime(
     snapshot.write_text("body\n", encoding="utf-8")
     mtime = datetime(2026, 3, 4, 5, 6, 7, tzinfo=_UTC).timestamp()
     os.utime(snapshot, (mtime, mtime))
-    assert resolve_sdd_date({}, snapshot) == "260304_050607"
+    assert resolve_archive_date({}, snapshot) == "260304_050607"
 
 
 # ---------------------------------------------------------------------------

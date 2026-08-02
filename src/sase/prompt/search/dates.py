@@ -5,7 +5,7 @@ Two responsibilities:
 - :func:`parse_search_date` turns a user ``--after``/``--before`` value into a
   comparable SASE ``YYmmdd_HHMMSS`` anchor, extending the prune parser with
   ``YYYYMM`` and relative ``Nd/Nw/Nm/Ny`` offsets.
-- :func:`resolve_sdd_date` implements the documented SDD date precedence
+- :func:`resolve_archive_date` implements the documented archive date precedence
   (frontmatter timestamp → ``YYYYMM`` path segment → file mtime); local entries
   use their ``last_used`` directly. :func:`hit_date` is the single accessor the
   engine and renderers use for a hit's comparable date.
@@ -34,7 +34,7 @@ _RELATIVE_RE = re.compile(r"^(\d+)([dwmy])$")
 # A full ``YYYYMM`` month, e.g. ``202604``. Distinguished from a 6-digit
 # ``YYmmdd`` by trying the SASE-native ``YYmmdd`` parse first (see below).
 _YYYYMM_RE = re.compile(r"^(\d{4})(\d{2})$")
-# Canonical SDD month segment, e.g. ``sdd/plans/202604/prompts/foo.md``.
+# Canonical archive month segment, e.g. ``prompts/202604/foo.md``.
 _PATH_YYYYMM_RE = re.compile(r"^\d{6}$")
 
 # Oldest-sortable floor for hits whose date cannot be resolved at all.
@@ -133,15 +133,15 @@ def _subtract_months(moment: datetime, months: int) -> datetime:
     return moment.replace(year=year, month=month, day=day)
 
 
-def resolve_sdd_date(frontmatter: Mapping[str, Any], path: Path) -> str:
-    """Resolve an SDD snapshot's comparable date via the documented precedence.
+def resolve_archive_date(frontmatter: Mapping[str, Any], path: Path) -> str:
+    """Resolve an archived prompt's comparable date via documented precedence.
 
     Precedence (highest first):
 
     1. frontmatter ``last_used`` then ``timestamp`` — ``prompt export --sdd``
        records these, so they are the most precise;
     2. the ``YYYYMM`` segment of the file's parent directory — the reliable
-       fallback for the nested ``sdd/plans/YYYYMM/prompts/`` layout;
+       fallback for the nested ``prompts/YYYYMM/`` layout;
     3. the file's mtime — last resort.
     """
     for key in ("last_used", "timestamp"):

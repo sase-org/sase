@@ -212,14 +212,6 @@ def _get_repo_root(cwd: str) -> str:
     return ""
 
 
-def _infer_prompt_path(reference_root: str, plan_path: str) -> Path | None:
-    """Infer the prompt counterpart for a plan path, if one exists."""
-    from sase.sdd.files import find_sdd_file
-
-    root = Path(reference_root)
-    return find_sdd_file(root, "prompts", os.path.basename(plan_path))
-
-
 def _store_owning_plan_path(
     plan_path: Path,
     code_repo_root: str,
@@ -402,21 +394,6 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
 
             fields = {"tier": read_plan_tier_from_content(plan_content) or "tale"}
             plan_content = set_frontmatter_fields(plan_content, fields)
-            prompt_path = _infer_prompt_path(reference_root, plan_path)
-            if prompt_path is not None:
-                from sase.sdd.artifact_links import (
-                    SddArtifactLinkType,
-                    update_source_aware_artifact_link,
-                )
-
-                plan_content = update_source_aware_artifact_link(
-                    plan_content,
-                    Path(reference_root),
-                    Path(plan_path),
-                    prompt_path,
-                    SddArtifactLinkType.PROMPT,
-                    remove_legacy=True,
-                )
             from sase.sdd.plan_header_writes import (
                 refresh_bead_plan_section,
                 refresh_existing_parent_section,

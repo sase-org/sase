@@ -1,10 +1,10 @@
-"""``sase prompt search`` — cross-store search over SDD + local prompts.
+"""``sase prompt search`` — canonical archive and local-history search.
 
 This is the ChangeSpecI surface: argument validation, color resolution, the call into
 the pure :func:`~sase.prompt.search.engine.search_prompts` engine, and the three
 renderers that mirror ``sase bead search`` — ``compact``, ``json``, ``full``.
 
-- ``compact`` (default) groups hits by source (SDD before local), prints a
+- ``compact`` (default) groups hits by source (archive before local), prints a
   badge + locator + date + path/status line per hit, a dim indented snippet that
   highlights the matched term (or names the field that matched, so the user
   always sees *why* a hit matched), and a footer that makes truncation explicit.
@@ -13,7 +13,7 @@ renderers that mirror ``sase bead search`` — ``compact``, ``json``, ``full``.
   self-sufficient and truncation is explicit.
 - ``full`` renders each hit completely, divider-separated: a local hit reuses
   ``sase prompt show``'s markdown verbatim (no second renderer to drift), and an
-  SDD hit shows a compact metadata header plus its body with the match
+  archive hit shows a compact metadata header plus its body with the match
   highlighted.
 """
 
@@ -32,6 +32,7 @@ from sase.history.prompt import (
     PromptSelectorError,
     resolve_prompt_selector,
 )
+from sase.agents.cli_prompts import resolve_prompt_archive_root
 from sase.prompt.cli_show import render_prompt_markdown
 from sase.prompt.render import (
     format_search_date,
@@ -52,8 +53,8 @@ from sase.project_display_names import humanize_vcs_refs_in_text
 
 # Longest single snippet line shown under a hit, centered on the match.
 _SNIPPET_CHARS = 96
-# Source render order: SDD always groups above local (the ranking's priority).
-_SOURCE_ORDER: tuple[PromptSource, ...] = (PromptSource.SDD, PromptSource.LOCAL)
+# Source render order: the canonical archive always groups above local history.
+_SOURCE_ORDER: tuple[PromptSource, ...] = (PromptSource.ARCHIVE, PromptSource.LOCAL)
 # Fields whose match is best illustrated by the body snippet itself.
 _BODY_FIELDS = frozenset({"title", "body"})
 
@@ -73,7 +74,8 @@ def handle_prompt_search(args: argparse.Namespace) -> None:
     limit = _resolve_limit(getattr(args, "limit", 20))
     fmt: str = getattr(args, "format", "compact") or "compact"
 
-    hits = collect_prompt_hits(sources, Path.cwd())
+    archive_root = _resolve_archive_root(sources)
+    hits = collect_prompt_hits(sources, archive_root)
     result = search_prompts(
         query,
         hits,
@@ -106,11 +108,28 @@ def handle_prompt_search(args: argparse.Namespace) -> None:
 def _resolve_sources(choice: str | None) -> list[PromptSource]:
     """Map the ``--source`` choice to the concrete source set to search."""
     normalized = (choice or "all").lower()
-    if normalized == "sdd":
-        return [PromptSource.SDD]
+    if normalized in {"archive", "sdd"}:
+        return [PromptSource.ARCHIVE]
     if normalized == "local":
         return [PromptSource.LOCAL]
-    return [PromptSource.SDD, PromptSource.LOCAL]
+    return [PromptSource.ARCHIVE, PromptSource.LOCAL]
+
+
+def _resolve_archive_root(sources: list[PromptSource]) -> Path | None:
+    """Resolve the canonical archive, tolerating absence for an all-source run."""
+
+    if PromptSource.ARCHIVE not in sources:
+        return None
+    try:
+        return resolve_prompt_archive_root()
+    except ValueError as exc:
+        if sources == [PromptSource.ARCHIVE]:
+            print(
+                f"sase prompt search: canonical archive unavailable: {exc}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        return None
 
 
 def _resolve_date(value: str | None) -> str | None:
@@ -197,7 +216,7 @@ def _group_by_source(
 
 def _group_header(source: PromptSource, shown: int) -> Text:
     """Return the dim ``── <label> (<shown>) ──`` group header."""
-    label = "SDD prompts" if source is PromptSource.SDD else "Local history"
+    label = "Archived prompts" if source is PromptSource.ARCHIVE else "Local history"
     return Text(f"── {label} ({shown}) ──", style="dim")
 
 
@@ -225,11 +244,16 @@ def _hit_line(match: PromptSearchMatch, query: str) -> Text:
 
 
 def _line_suffix(hit: PromptHit) -> Text | None:
-    """Return the trailing path (SDD) or launched/cancelled status (local)."""
+    """Return archive metadata or launched/cancelled local status."""
     text = Text()
-    if hit.source is PromptSource.SDD:
+    if hit.source is PromptSource.ARCHIVE:
         if hit.path:
             text.append(hit.path, style="dim")
+        if hit.artifact_count is not None:
+            if text.plain:
+                text.append("  ")
+            noun = "artifact" if hit.artifact_count == 1 else "artifacts"
+            text.append(f"{hit.artifact_count} {noun}", style="dim")
         if hit.also_in_local:
             if text.plain:
                 text.append("  ")
@@ -318,11 +342,11 @@ def _single_line_snippet(
 
 def _footer(result: PromptSearchResult) -> Text:
     """Return the count footer; the ``showing`` clause appears when truncated."""
-    sdd = result.count_for(PromptSource.SDD)
+    archive = result.count_for(PromptSource.ARCHIVE)
     local = result.count_for(PromptSource.LOCAL)
     total = result.total
     noun = "match" if total == 1 else "matches"
-    text = Text(f"{total} {noun} ({sdd} SDD · {local} local)", style="dim")
+    text = Text(f"{total} {noun} ({archive} archive · {local} local)", style="dim")
     if result.count < total:
         text.append(f" · showing {result.count}", style="dim")
     return text
@@ -346,7 +370,7 @@ def _render_json(result: PromptSearchResult) -> None:
         "count": result.count,
         "total": result.total,
         "counts": {
-            PromptSource.SDD.value: result.count_for(PromptSource.SDD),
+            PromptSource.ARCHIVE.value: result.count_for(PromptSource.ARCHIVE),
             PromptSource.LOCAL.value: result.count_for(PromptSource.LOCAL),
         },
         "results": [_match_to_json(match) for match in result.matches],
@@ -367,6 +391,7 @@ def _match_to_json(match: PromptSearchMatch) -> dict[str, object]:
         "matched_fields": list(match.matched_fields),
         "tags": list(hit.tags),
         "plan": hit.plan,
+        "artifact_count": hit.artifact_count,
         "cancelled": hit.cancelled,
         "text_sha256": hit.text_sha256,
         "text_chars": hit.text_chars,
@@ -386,8 +411,9 @@ def _render_full(result: PromptSearchResult, *, use_color: bool) -> None:
     """Print each hit completely, divider-separated, in ranked order.
 
     A local hit reuses ``sase prompt show``'s markdown verbatim so the output
-    never drifts from ``prompt show``; an SDD hit shows a compact metadata
-    header (path, plan, tags) plus its body with the matched term highlighted.
+    never drifts from ``prompt show``; an archive hit shows a compact metadata
+    header (path, plan, artifact count, tags) plus its body with the matched term
+    highlighted.
     The trailing footer keeps truncation explicit, as in every other format.
     """
     console = _make_console(use_color)
@@ -403,7 +429,7 @@ def _render_full(result: PromptSearchResult, *, use_color: bool) -> None:
         if match.hit.source is PromptSource.LOCAL:
             _render_full_local(match.hit)
         else:
-            _render_full_sdd(console, match, result.query)
+            _render_full_archive(console, match, result.query)
 
     console.print()
     console.print(_footer(result), soft_wrap=True)
@@ -437,10 +463,12 @@ def _render_full_local(hit: PromptHit) -> None:
     sys.stdout.write(render_prompt_markdown(record))
 
 
-def _render_full_sdd(console: Console, match: PromptSearchMatch, query: str) -> None:
-    """Render an SDD hit: a compact metadata header plus the highlighted body."""
+def _render_full_archive(
+    console: Console, match: PromptSearchMatch, query: str
+) -> None:
+    """Render an archive hit with metadata and its highlighted body."""
     hit = match.hit
-    for label, value in _sdd_metadata(hit):
+    for label, value in _archive_metadata(hit):
         meta = Text()
         meta.append(f"{label}: ", style="dim")
         meta.append(value, style="dim")
@@ -452,17 +480,19 @@ def _render_full_sdd(console: Console, match: PromptSearchMatch, query: str) -> 
     )
 
 
-def _sdd_metadata(hit: PromptHit) -> list[tuple[str, str]]:
-    """Return the present ``(label, value)`` metadata rows for an SDD hit.
+def _archive_metadata(hit: PromptHit) -> list[tuple[str, str]]:
+    """Return the present metadata rows for an archive hit.
 
     The date already appears in the per-hit header, so it is not repeated here;
-    only the SDD-specific fields that exist on the hit are shown.
+    only archive-specific fields that exist on the hit are shown.
     """
     rows: list[tuple[str, str]] = []
     if hit.path:
         rows.append(("path", hit.path))
     if hit.plan:
         rows.append(("plan", hit.plan))
+    if hit.artifact_count is not None:
+        rows.append(("artifacts", str(hit.artifact_count)))
     if hit.tags:
         rows.append(("tags", ", ".join(hit.tags)))
     if hit.also_in_local:

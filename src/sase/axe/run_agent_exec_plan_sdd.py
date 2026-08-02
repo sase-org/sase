@@ -19,7 +19,7 @@ def commit_sdd_files_for_exec_plan(
     logger: logging.Logger,
     subprocess_run: Callable[..., Any],
 ) -> bool:
-    """Commit an SDD prompt and, by default, its plan via ``sase commit``.
+    """Commit an approved SDD plan via ``sase commit``.
 
     The ``#gh`` workflow pre-step runs ``git checkout . && git clean -fd`` which
     wipes uncommitted files.  Committing (and pushing) the SDD files first
@@ -32,9 +32,8 @@ def commit_sdd_files_for_exec_plan(
 
     fname = f"{plan_name}.md"
     base = Path(workspace_dir)
-    prompt_found = find_sdd_file(base, "prompts", fname)
     plan_found = find_sdd_file(base, "plans", fname)
-    if prompt_found is None and plan_found is None:
+    if plan_found is None:
         try:
             from sase.sdd.store import read_sdd_store_record, resolve_sdd_dir
 
@@ -48,22 +47,17 @@ def commit_sdd_files_for_exec_plan(
             if record is not None:
                 resolved = resolve_sdd_dir(base, 1)
                 if resolved.is_dir():
-                    prompt_found = find_sdd_file(resolved, "prompts", fname)
                     plan_found = find_sdd_file(resolved, "plans", fname)
         except Exception:
             pass
-    candidates = (prompt_found, plan_found) if include_plan else (prompt_found,)
+    candidates = (plan_found,) if include_plan else ()
     files = [str(f) for f in candidates if f is not None]
     if not files:
         return True
     from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
 
     message = apply_auto_commit_type_tag(
-        (
-            f"chore: Add SDD prompt and plan for {plan_name}"
-            if include_plan
-            else f"chore: Add SDD prompt for {plan_name}"
-        ),
+        f"chore: Add SDD plan for {plan_name}",
         "sdd",
     )
     # -M / --message-file expects a file path, not a raw string.
