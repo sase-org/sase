@@ -270,9 +270,7 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-e6(XpromptSourceRecord)' \
-        --epic-symbol 'sase-e6(XpromptTargetResolver)' \
-        --epic-symbol 'sase-e6(load_xprompt_source_records)' \
+        --epic-symbol 'sase-e6(strip_prompt_sections)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

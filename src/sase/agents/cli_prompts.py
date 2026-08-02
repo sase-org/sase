@@ -276,6 +276,11 @@ def _print_validation(
     show_warnings: bool,
 ) -> None:
     warning_count = len(validation.warnings)
+    legacy_summary = (
+        f", {validation.legacy_files} legacy prompts without rendered sections"
+        if validation.legacy_files
+        else ""
+    )
     hidden_hint = (
         " (use --show-warnings to display)"
         if warning_count and not show_warnings
@@ -284,12 +289,14 @@ def _print_validation(
     if validation.ok:
         console.print(
             "[green]Prompt archive validation passed:[/green] "
-            f"{len(validation.files)} prompts, {warning_count} warnings{hidden_hint}"
+            f"{len(validation.files)} prompts, {warning_count} warnings"
+            f"{legacy_summary}{hidden_hint}"
         )
     else:
         error_console.print(
             "[red]Prompt archive validation failed:[/red] "
-            f"{len(validation.errors)} errors, {warning_count} warnings{hidden_hint}"
+            f"{len(validation.errors)} errors, {warning_count} warnings"
+            f"{legacy_summary}{hidden_hint}"
         )
     for issue in validation.issues:
         if issue.severity == "warning" and not show_warnings:

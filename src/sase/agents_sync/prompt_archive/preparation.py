@@ -11,6 +11,7 @@ import shutil
 import tempfile
 from typing import Any
 
+from sase.agent.artifact_files_cache import ArtifactFileCache
 from sase.agent_lanes import lane_name
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.models import ProjectTarget
@@ -38,6 +39,7 @@ from sase.sdd.plan_header_block import (
     PlanHeaderSectionKind,
     parse_plan_header_block,
 )
+from sase.xprompt_links import XpromptTargetResolver, load_xprompt_source_records
 
 type _HostedResolverFactory = Callable[
     [Path, ProjectTarget, GitRunner], HostedLinkResolver | None
@@ -98,6 +100,7 @@ def prepare_prompt_archive(
     )
     records = load_manifest_records(manifest_path, agent_artifacts_dir)
     hosted = hosted_resolver_factory(workspace_root, target, git_runner)
+    repo_roots = repository_roots_factory()
     target_resolver = _ArtifactTargetResolver(
         yyyymm=archive_month,
         repo=repo,
@@ -106,17 +109,29 @@ def prepare_prompt_archive(
         primary_revision=primary_revision,
         hosted=hosted,
         git_runner=git_runner,
-        repository_roots=repository_roots_factory(),
+        repository_roots=repo_roots,
     )
     prompt = (
         prompt_content
         if prompt_content is not None
         else (agent_artifacts_dir / "raw_xprompt.md").read_text(encoding="utf-8")
     )
+    xprompt_records = load_xprompt_source_records(agent_artifacts_dir)
+    xprompt_target = XpromptTargetResolver(
+        primary_root=commit_cwd,
+        primary_revision=primary_revision,
+        hosted=hosted,
+        git_runner=git_runner,
+        repository_roots=repo_roots,
+    )
+    rendered_prompt = _read_rendered_prompt(agent_artifacts_dir, meta)
     rendered = render_prompt_document(
         prompt,
         records,
         artifact_target=target_resolver,
+        xprompt_records=xprompt_records,
+        xprompt_target=xprompt_target,
+        rendered_prompt=rendered_prompt,
         agent_label=global_agent,
         agent_target=hosted.agent_url(global_agent) if hosted is not None else None,
         plan_label=plan_label,
@@ -134,6 +149,31 @@ def prepare_prompt_archive(
     index_path = month_dir / "README.md"
     _atomic_write_text(index_path, render_prompt_month_index(month_dir))
     return PreparedPromptArchive(prompt_path, rendered, copied)
+
+
+def _read_rendered_prompt(
+    artifacts_dir: Path,
+    meta: dict[str, Any],
+) -> str | None:
+    """Read the final model prompt selected by the shared artifact policy."""
+
+    raw_step_name = meta.get("step_name")
+    step_name = raw_step_name if isinstance(raw_step_name, str) else None
+    is_workflow_child = bool(
+        step_name
+        and (
+            meta.get("parent_timestamp")
+            or meta.get("parent_agent_timestamp")
+            or meta.get("workflow_name")
+        )
+    )
+    cache = ArtifactFileCache()
+    selected = cache.select_prompt_file(
+        str(artifacts_dir),
+        is_workflow_child=is_workflow_child,
+        step_name=step_name,
+    )
+    return cache.read_text(selected) if selected is not None else None
 
 
 class _ArtifactTargetResolver:

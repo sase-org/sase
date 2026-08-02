@@ -81,6 +81,7 @@ def test_prompt_list_and_validate_json(
     assert cli_prompts.handle_agents_prompts(_args("validate", json=True)) == 0
     validation = json.loads(capsys.readouterr().out)
     assert validation["ok"] is True
+    assert validation["legacy_files"] == 1
     assert validation["files"][0]["name"] == "example"
 
 

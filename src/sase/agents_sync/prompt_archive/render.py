@@ -5,10 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from sase.core.prompt_artifact_staging import PromptArtifactRecord
 from sase.core.rust import require_rust_binding
+from sase.history.chat_prompt_sections import render_prompt_sections
 from sase.sdd.plan_header_block import (
     PlanHeaderEntry,
     PlanHeaderSection,
@@ -18,6 +19,11 @@ from sase.sdd.plan_header_block import (
 
 ArtifactTargetResolver = Callable[[PromptArtifactRecord], str | None]
 
+if TYPE_CHECKING:
+    from sase.xprompt_links import XpromptSourceRecord
+
+XpromptTargetResolver = Callable[["XpromptSourceRecord"], str | None]
+
 
 @dataclass(frozen=True, slots=True)
 class RenderedPromptArchive:
@@ -25,6 +31,7 @@ class RenderedPromptArchive:
 
     document: str
     linked_records: tuple[PromptArtifactRecord, ...]
+    linked_xprompt_records: tuple[XpromptSourceRecord, ...] = ()
 
 
 def load_manifest_records(
@@ -47,6 +54,9 @@ def render_prompt_document(
     records: Sequence[PromptArtifactRecord],
     *,
     artifact_target: ArtifactTargetResolver,
+    xprompt_records: Sequence[XpromptSourceRecord] = (),
+    xprompt_target: XpromptTargetResolver | None = None,
+    rendered_prompt: str | None = None,
     agent_label: str,
     agent_target: str | None,
     plan_label: str | None = None,
@@ -75,6 +85,20 @@ def render_prompt_document(
         cast(Sequence[PromptArtifactRecord], payload.get("linked_records", ()))
     )
     document = str(payload.get("prompt") or "")
+    linked_xprompts: tuple[XpromptSourceRecord, ...] = ()
+    if xprompt_records and xprompt_target is not None:
+        xprompt_rewrite = require_rust_binding("prompt_xprompt_rewrite_links")
+        xprompt_payload = cast(
+            Mapping[str, Any],
+            xprompt_rewrite(document, list(xprompt_records), xprompt_target),
+        )
+        document = str(xprompt_payload.get("prompt") or "")
+        linked_xprompts = tuple(
+            cast(
+                "Sequence[XpromptSourceRecord]",
+                xprompt_payload.get("linked_records", ()),
+            )
+        )
     if plan_label is not None and plan_target is not None:
         from sase.sdd.artifact_links import (
             SddArtifactLinkType,
@@ -107,17 +131,23 @@ def render_prompt_document(
             ),
         )
 
+    rendered_section = render_prompt_sections(None, rendered_prompt)
+    if rendered_section:
+        document = f"{document.rstrip()}\n\n{rendered_section}"
+
     from sase.file_references import format_with_prettier
 
     return RenderedPromptArchive(
         document=format_with_prettier(document),
         linked_records=linked,
+        linked_xprompt_records=linked_xprompts,
     )
 
 
 __all__ = [
     "ArtifactTargetResolver",
     "RenderedPromptArchive",
+    "XpromptTargetResolver",
     "load_manifest_records",
     "render_prompt_document",
 ]

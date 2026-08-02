@@ -15,6 +15,12 @@ from sase.core.prompt_artifact_staging import (
     PromptArtifactRecord,
 )
 from sase.core.rust import require_rust_binding
+from sase.history.chat_prompt_sections import (
+    RENDERED_SECTION_END,
+    RENDERED_SECTION_START,
+    XPROMPT_SECTION_END,
+    XPROMPT_SECTION_START,
+)
 from sase.sdd._paths import has_month_dirs, is_month_dir_name
 from sase.sdd.plan_header_block import (
     PlanHeaderDisposition,
@@ -26,8 +32,9 @@ from sase.sdd.plan_header_block import (
 PromptArchiveSeverity = Literal["error", "warning"]
 
 _ARTIFACT_FILENAME_RE = re.compile(r"^([0-9a-fA-F]{12})-")
-_MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]\n]*\]\(([^\s)]+)(?:\s+[^)]*)?\)")
+_MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[([^\]\n]*)\]\(([^\s)]+)(?:\s+[^)]*)?\)")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+_RENDERED_FENCE_OPEN_RE = re.compile(r"^(`{3,})markdown\s*$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +83,7 @@ class PromptArchiveValidation:
     root: Path
     files: tuple[_PromptArchiveFile, ...]
     issues: tuple[_PromptArchiveIssue, ...]
+    legacy_files: int = 0
 
     @property
     def errors(self) -> tuple[_PromptArchiveIssue, ...]:
@@ -94,6 +102,7 @@ class PromptArchiveValidation:
             "root": str(self.root),
             "ok": self.ok,
             "files": [file.to_json_dict() for file in self.files],
+            "legacy_files": self.legacy_files,
             "errors": [asdict(issue) for issue in self.errors],
             "warnings": [asdict(issue) for issue in self.warnings],
         }
@@ -114,6 +123,7 @@ def validate_prompt_archive(
     issues: list[_PromptArchiveIssue] = []
     referenced_artifacts: set[Path] = set()
     agents_by_month: dict[str, set[str]] = {}
+    legacy_files = 0
 
     for path in _prompt_paths(root, month):
         prompt, sections, parse_error = _read_prompt(path)
@@ -143,6 +153,11 @@ def validate_prompt_archive(
                 _PromptArchiveIssue("error", "prompt-parse", relpath, parse_error)
             )
             continue
+
+        has_rendered_section = _validate_prompt_sections(prompt, relpath, issues)
+        if not has_rendered_section:
+            legacy_files += 1
+        _validate_xprompt_link_targets(prompt, relpath, issues)
 
         if plan is not None:
             _validate_plan_target(plan, relpath, plans_root, issues)
@@ -208,6 +223,7 @@ def validate_prompt_archive(
         issues=tuple(
             sorted(issues, key=lambda issue: (issue.path, issue.code, issue.message))
         ),
+        legacy_files=legacy_files,
     )
 
 
@@ -331,20 +347,119 @@ def _plans_root(value: Path | str | None) -> Path | None:
 
 
 def _markdown_targets_outside_fences(document: str) -> set[str]:
-    targets: set[str] = set()
+    return {target for _label, target in _markdown_links_outside_fences(document)}
+
+
+def _markdown_links_outside_fences(document: str) -> set[tuple[str, str]]:
+    links: set[tuple[str, str]] = set()
     fence: str | None = None
     for line in document.splitlines():
         marker = _FENCE_RE.match(line)
         if marker is not None:
             token = marker.group(1)
             if fence is None:
-                fence = token[0]
-            elif token[0] == fence:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence):
                 fence = None
             continue
         if fence is None:
-            targets.update(match.group(1) for match in _MARKDOWN_LINK_RE.finditer(line))
-    return targets
+            links.update(
+                (match.group(1), match.group(2))
+                for match in _MARKDOWN_LINK_RE.finditer(line)
+            )
+    return links
+
+
+def _validate_prompt_sections(
+    document: str,
+    relpath: str,
+    issues: list[_PromptArchiveIssue],
+) -> bool:
+    rendered_payload: str | None = None
+    rendered_present = False
+    for label, start, end in (
+        ("XPrompt", XPROMPT_SECTION_START, XPROMPT_SECTION_END),
+        ("rendered prompt", RENDERED_SECTION_START, RENDERED_SECTION_END),
+    ):
+        start_count = document.count(start)
+        end_count = document.count(end)
+        if label == "rendered prompt":
+            rendered_present = bool(start_count or end_count)
+        if start_count == end_count == 0:
+            continue
+        start_at = document.find(start)
+        end_at = document.find(end)
+        if start_count != 1 or end_count != 1 or end_at < start_at:
+            issues.append(
+                _PromptArchiveIssue(
+                    "error",
+                    "prompt-section-sentinel",
+                    relpath,
+                    f"{label} section sentinels are not paired exactly once",
+                )
+            )
+            continue
+        if label == "rendered prompt":
+            rendered_payload = document[start_at + len(start) : end_at]
+
+    if rendered_payload is not None and not _rendered_fence_is_balanced(
+        rendered_payload
+    ):
+        issues.append(
+            _PromptArchiveIssue(
+                "error",
+                "rendered-prompt-fence",
+                relpath,
+                "rendered prompt section does not contain one balanced Markdown fence",
+            )
+        )
+    return rendered_present
+
+
+def _rendered_fence_is_balanced(section: str) -> bool:
+    lines = section.splitlines()
+    openings = [
+        (index, match.group(1))
+        for index, line in enumerate(lines)
+        if (match := _RENDERED_FENCE_OPEN_RE.fullmatch(line.strip())) is not None
+    ]
+    if len(openings) != 1:
+        return False
+    opening_index, fence = openings[0]
+    closings = [
+        index
+        for index, line in enumerate(lines)
+        if index > opening_index and line.strip() == fence
+    ]
+    return len(closings) == 1
+
+
+def _validate_xprompt_link_targets(
+    document: str,
+    relpath: str,
+    issues: list[_PromptArchiveIssue],
+) -> None:
+    invalid = sorted(
+        {
+            target
+            for label, target in _markdown_links_outside_fences(document)
+            if label.startswith("#") and not _is_absolute_https_url(target)
+        }
+    )
+    for target in invalid:
+        issues.append(
+            _PromptArchiveIssue(
+                "error",
+                "xprompt-link-target",
+                relpath,
+                f"xprompt link target must be an absolute https:// URL: {target}",
+            )
+        )
+
+
+def _is_absolute_https_url(target: str) -> bool:
+    parsed = urlsplit(target)
+    return parsed.scheme.casefold() == "https" and bool(parsed.netloc)
 
 
 def _local_artifact_path(root: Path, prompt: Path, target: str) -> Path | None:
