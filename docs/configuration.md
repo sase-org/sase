@@ -3200,14 +3200,14 @@ SDD initialization/path resolution lives under `sase repo`; artifact browsing an
 under `sase plan`. Link commands accept `-p/--path`, which may point at an SDD root or a project root. Bare
 `sase plan links` defaults to its `list` child.
 
-| Command                    | Flags                                                                       | Description                                                             |
-| -------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `sase repo init`           | `-p/--path`, `-c/--check`, `-d/--diff`, `-C/--no-commit`                    | Initialize configured sidecars and repository wiring                    |
-| `sase repo path REPO`      | `-e/--ensure`, `-p/--project`, `-w/--workspace`                             | Print a primary or sidecar path; optionally materialize it              |
-| `sase plan links [list]`   | `-p/--path`, `-j/--json`                                                    | List prompt/plan artifact links and bidirectional status                |
-| `sase plan links repair`   | `-p/--path`, `-w/--write`                                                   | Infer unambiguous prompt/plan pairs and optionally write fixes          |
-| `sase plan links validate` | `-p/--path`, `-j/--json`, `-q/--quiet`, `-s/--strict`, `-W/--show-warnings` | Validate links; strict mode turns unpaired historical files into errors |
-| `sase plan search`         | `-k/--kind`, `-o/--source`, `-f/--format`, plus query/date/status filters   | Search or browse tale, epic, prompt, and research artifacts             |
+| Command                    | Flags                                                                     | Description                                                    |
+| -------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `sase repo init`           | `-p/--path`, `-c/--check`, `-d/--diff`, `-C/--no-commit`                  | Initialize configured sidecars and repository wiring           |
+| `sase repo path REPO`      | `-e/--ensure`, `-p/--project`, `-w/--workspace`                           | Print a primary or sidecar path; optionally materialize it     |
+| `sase plan links [list]`   | `-p/--path`, `-j/--json`                                                  | List prompt/plan artifact links and bidirectional status       |
+| `sase plan links repair`   | `-p/--path`, `-w/--write`                                                 | Infer unambiguous prompt/plan pairs and optionally write fixes |
+| `sase plan links validate` | `-p/--path`, `-j/--json`, `-q/--quiet`, `-W/--show-warnings`              | Validate a plan's own metadata and `PROMPT` bullet             |
+| `sase plan search`         | `-k/--kind`, `-o/--source`, `-f/--format`, plus query/date/status filters | Search or browse tale, epic, prompt, and research artifacts    |
 
 ### `sase validate`
 

@@ -201,12 +201,6 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Show warning-severity issues (hidden by default)",
     )
-    links_validate_parser.add_argument(
-        "-s",
-        "--strict",
-        action="store_true",
-        help="Treat unpaired historical files as validation errors",
-    )
 
     list_parser = plan_subparsers.add_parser(
         "list",

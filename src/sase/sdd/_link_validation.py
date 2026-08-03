@@ -6,12 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from sase.sdd._link_files import list_sdd_files, resolve_sdd_root
-from sase.sdd._link_models import Severity, SddFile, SddIssue, SddValidation
+from sase.sdd._link_models import SddFile, SddIssue, SddValidation
 from sase.sdd._legacy_prompt_files import list_plans_store_prompt_files
 from sase.sdd._link_support import (
     PLAN_KINDS,
     expected_link_type,
-    infer_counterpart,
     link_reference,
     mixed_link_agrees,
     resolve_link_path,
@@ -29,10 +28,9 @@ from sase.sdd.plan_tiers import normalize_plan_tier
 def validate_sdd_tree(
     path: str | None = None,
     *,
-    strict: bool = False,
     legacy_error_allowlist: frozenset[str] = frozenset(),
 ) -> SddValidation:
-    """Validate artifact metadata and bidirectional links under an SDD root."""
+    """Validate artifact metadata and a plan's own PROMPT bullet."""
     root = resolve_sdd_root(path)
     if not root.is_dir():
         issue = SddIssue(
@@ -44,7 +42,6 @@ def validate_sdd_tree(
         return SddValidation(root=root, files=[], issues=[issue])
 
     files = list_sdd_files(root, kind="all")
-    by_path = {file.path.resolve(): file for file in files}
     issues: list[SddIssue] = []
 
     for prompt_path, _month in list_plans_store_prompt_files(root):
@@ -93,35 +90,6 @@ def validate_sdd_tree(
         link_type = expected_link_type(file)
         link_field = link_type.legacy_field
         link = file.artifact_link
-        counterpart = infer_counterpart(file, files)
-        if len(counterpart) == 1 and link.kind is SddArtifactLinkKind.MISSING:
-            issues.append(
-                SddIssue(
-                    severity="error",
-                    code="missing-link",
-                    path=file.relpath,
-                    message=f"missing {link_field!r} link to {counterpart[0].relpath}",
-                )
-            )
-        elif len(counterpart) > 1:
-            issues.append(
-                SddIssue(
-                    severity=_strict_severity(strict),
-                    code="ambiguous-counterpart",
-                    path=file.relpath,
-                    message="multiple inferable counterpart files: "
-                    + ", ".join(item.relpath for item in counterpart),
-                )
-            )
-        elif not counterpart and link.kind is SddArtifactLinkKind.MISSING:
-            issues.append(
-                SddIssue(
-                    severity=_strict_severity(strict),
-                    code="unpaired-file",
-                    path=file.relpath,
-                    message="no inferable counterpart file",
-                )
-            )
 
         if link.kind is SddArtifactLinkKind.MISSING:
             continue
@@ -177,89 +145,6 @@ def validate_sdd_tree(
                     ),
                 )
             )
-            continue
-
-        target_path = resolve_link_path(root, file.path, link)
-        if target_path is None:
-            continue
-        target = by_path.get(target_path.resolve())
-        if target is None:
-            issues.append(
-                SddIssue(
-                    severity="error",
-                    code="link-missing-target",
-                    path=file.relpath,
-                    message=f"{link_field!r} target does not exist: "
-                    f"{link.resolution_target}",
-                )
-            )
-            continue
-
-        if file.kind == "prompts" and target.kind not in PLAN_KINDS:
-            issues.append(
-                SddIssue(
-                    severity="error",
-                    code="link-kind",
-                    path=file.relpath,
-                    message=f"{link_field!r} target is not a plan file: {target.relpath}",
-                )
-            )
-        elif file.kind in PLAN_KINDS and target.kind != "prompts":
-            issues.append(
-                SddIssue(
-                    severity="error",
-                    code="link-kind",
-                    path=file.relpath,
-                    message=f"{link_field!r} target is not a prompt file: {target.relpath}",
-                )
-            )
-
-        reverse_type = expected_link_type(target)
-        reverse_field = reverse_type.legacy_field
-        reverse_link = target.artifact_link
-        if (
-            reverse_link.kind
-            in {SddArtifactLinkKind.MISSING, SddArtifactLinkKind.INVALID}
-            or reverse_link.link_type is not reverse_type
-        ):
-            issues.append(
-                SddIssue(
-                    severity="error",
-                    code="reverse-link",
-                    path=file.relpath,
-                    message=f"{target.relpath} is missing a valid {reverse_field!r} link",
-                )
-            )
-            continue
-        if reverse_link.kind is SddArtifactLinkKind.MIXED and not mixed_link_agrees(
-            root, target.path, reverse_link
-        ):
-            issues.append(
-                SddIssue(
-                    severity="error",
-                    code="reverse-link",
-                    path=file.relpath,
-                    message=f"{target.relpath} has conflicting {reverse_field!r} links",
-                )
-            )
-            continue
-        resolved_reverse = resolve_link_path(root, target.path, reverse_link)
-        if resolved_reverse is None:
-            continue
-        reverse_path = resolved_reverse.resolve()
-        if reverse_path != file.path.resolve():
-            issues.append(
-                SddIssue(
-                    severity="error",
-                    code="reverse-link",
-                    path=file.relpath,
-                    message=(
-                        f"{target.relpath} links back to "
-                        f"{link_reference(root, target.path, reverse_link)}, "
-                        f"not {file.relpath}"
-                    ),
-                )
-            )
 
     return SddValidation(
         root=root,
@@ -299,10 +184,6 @@ def collect_sdd_links(root: Path) -> list[dict[str, Any]]:
                 )
         rows.append(row)
     return rows
-
-
-def _strict_severity(strict: bool) -> Severity:
-    return "error" if strict else "warning"
 
 
 def _validate_parent_section(

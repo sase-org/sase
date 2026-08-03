@@ -44,13 +44,13 @@ def test_validate_accepts_empty_sidecar_clone_root(tmp_path: Path) -> None:
     assert validation.root == root.resolve()
 
 
-def test_validate_allows_default_unpaired_warnings(
+def test_validate_accepts_plan_without_prompt_bullet(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "sdd"
     _write_archived_plan(root)
-    unpaired = root / "plans" / "202605" / "unpaired.md"
-    unpaired.write_text("---\ntier: tale\n---\n# Unpaired plan\n", encoding="utf-8")
+    promptless = root / "plans" / "202605" / "promptless.md"
+    promptless.write_text("---\ntier: tale\n---\n# Promptless plan\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
         handle_plan_links_command(make_args(path=str(root)))
@@ -58,25 +58,7 @@ def test_validate_allows_default_unpaired_warnings(
     assert excinfo.value.code == 0
     out = capsys.readouterr().out
     assert "SDD validation passed" in out
-    assert "unpaired-file" not in out
-    assert "(use --show-warnings to display)" in out
-
-
-def test_validate_show_warnings_flag_displays_warning_lines(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    root = tmp_path / "sdd"
-    unpaired = root / "plans" / "202605" / "unpaired.md"
-    unpaired.parent.mkdir(parents=True)
-    unpaired.write_text("---\ntier: tale\n---\n# Unpaired plan\n", encoding="utf-8")
-
-    with pytest.raises(SystemExit) as excinfo:
-        handle_plan_links_command(make_args(path=str(root), show_warnings=True))
-
-    assert excinfo.value.code == 0
-    out = capsys.readouterr().out
-    assert "unpaired-file" in out
-    assert "(use --show-warnings to display)" not in out
+    assert "0 warnings" in out
 
 
 def test_validate_default_uses_configured_separate_repo_store(
@@ -96,18 +78,6 @@ def test_validate_default_uses_configured_separate_repo_store(
     assert "SDD validation passed: 1 files" in capsys.readouterr().out
 
 
-def test_validate_strict_fails_unpaired_plan(tmp_path: Path) -> None:
-    root = tmp_path / "sdd"
-    plan = root / "plans" / "202605" / "legacy.md"
-    plan.parent.mkdir(parents=True)
-    plan.write_text("---\ntier: tale\n---\n# Plan\n", encoding="utf-8")
-
-    with pytest.raises(SystemExit) as excinfo:
-        handle_plan_links_command(make_args(path=str(root), strict=True, quiet=True))
-
-    assert excinfo.value.code == 1
-
-
 def test_validate_passing_run_prints_no_repair_hint(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -123,7 +93,9 @@ def test_validate_passing_run_prints_no_repair_hint(
     assert "sase plan links repair --write" not in out + err
 
 
-def test_validate_reports_broken_relative_prompt_target(tmp_path: Path) -> None:
+def test_validate_does_not_check_relative_prompt_target_existence(
+    tmp_path: Path,
+) -> None:
     root = tmp_path / "repo--plans"
     plan = root / "202607" / "broken.md"
     plan.parent.mkdir(parents=True)
@@ -136,23 +108,17 @@ def test_validate_reports_broken_relative_prompt_target(tmp_path: Path) -> None:
 
     validation = validate_sdd_tree(str(root))
 
-    issue = next(
-        issue for issue in validation.errors if issue.code == "link-missing-target"
-    )
-    assert "prompts/broken.md" in issue.message
+    assert validation.ok
 
 
-def test_validate_accepts_external_prompt_target_and_marks_plan_paired(
-    tmp_path: Path,
-) -> None:
+def test_validate_accepts_external_prompt_target(tmp_path: Path) -> None:
     root = tmp_path / "repo--plans"
     _write_archived_plan(root, "external")
 
     validation = validate_sdd_tree(str(root))
 
     assert validation.ok
-    assert not any(issue.code == "unpaired-file" for issue in validation.issues)
-    assert not any(issue.code == "link-missing-target" for issue in validation.issues)
+    assert validation.issues == []
 
 
 @pytest.mark.parametrize(

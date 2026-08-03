@@ -163,6 +163,7 @@ def _handle_validate(
         month=getattr(args, "month", None),
         plans_repo=context.plans_repo,
         workspace_roots=context.target.primary_roots,
+        project_key=context.target.project_key,
     )
     if getattr(args, "json", False):
         print(json.dumps(validation.to_json_dict(), indent=2))

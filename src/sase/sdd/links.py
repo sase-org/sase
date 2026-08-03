@@ -68,12 +68,9 @@ _expected_link_type = expected_link_type
 _relpath = relpath
 
 
-def validate_sdd_tree(
-    path: str | None = None, *, strict: bool = False
-) -> SddValidation:
-    """Validate artifact metadata and bidirectional links under an SDD root."""
+def validate_sdd_tree(path: str | None = None) -> SddValidation:
+    """Validate artifact metadata and a plan's own PROMPT bullet."""
     return _validate_sdd_tree(
         path,
-        strict=strict,
         legacy_error_allowlist=LEGACY_INVALID_SDD_ERROR_ALLOWLIST,
     )

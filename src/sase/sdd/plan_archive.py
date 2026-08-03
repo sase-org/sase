@@ -75,9 +75,10 @@ def archive_plan_file(
     ``PROMPT`` link is projected from the canonical path unconditionally,
     instead of probing the filesystem for it — the probe otherwise races the
     snapshot's own write/push and can lose, permanently archiving the plan
-    without its link. A genuinely missing snapshot then surfaces as one
-    honest ``link-missing-target`` error rather than a silently half-linked
-    pair.
+    without its link. A genuinely missing snapshot is not caught here or by
+    ``sase plan links validate`` (which no longer checks where a PROMPT
+    bullet resolves); it instead surfaces once the agents-sidecar prompt
+    archive is validated.
 
     This helper only writes the file. Its caller owns commit and push policy.
     """

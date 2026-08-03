@@ -45,6 +45,26 @@ def test_sweep_applies_full_schema_at_cutover_only(tmp_path: Path) -> None:
     assert sweep.issues == ()
 
 
+def test_sweep_accepts_plan_pending_association_refresh(tmp_path: Path) -> None:
+    _write_plan(
+        tmp_path,
+        "202608",
+        "pending_refresh.md",
+        "---\ntier: tale\ntitle: Pending association refresh\n"
+        "goal: Validate before AGENTS and COMMITS sections are refreshed\n"
+        "---\n\n"
+        "- **PROMPT:** [prompts/202608/pending_refresh.md]"
+        "(https://github.com/example/project--agents/blob/main/"
+        "prompts/202608/pending_refresh.md)\n\n"
+        "# Plan\n",
+    )
+
+    sweep = _sweep_committed_plans(tmp_path)
+
+    assert sweep.ok is True
+    assert sweep.issues == ()
+
+
 def test_sweep_reports_all_strict_plan_failures(tmp_path: Path) -> None:
     _write_plan(
         tmp_path,

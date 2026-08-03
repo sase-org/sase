@@ -250,9 +250,9 @@ conflicting, malformed, duplicate, wrong-kind, unsafe, or nonexistent-target lin
 `sase plan links repair --write` to install canonical bullets and remove only the corresponding legacy property. Repair
 preserves unrelated frontmatter and body content and is idempotent.
 
-`sase plan links validate` checks these bidirectional links for prompts, tales, and epics. It treats unpaired historical
-files as warnings by default and as errors with `--strict`. Research notes are durable SDD context, but they are not
-part of the prompt-plan link validator.
+`sase plan links validate` checks a tale or epic's own `PROMPT` bullet is well-formed; it no longer checks that a
+matching prompt file exists, since prompts live in the agents-sidecar archive rather than the plans tree. Research notes
+are durable SDD context, but they are not part of the prompt-plan link validator.
 
 ### Model Field
 
@@ -388,28 +388,30 @@ nested prompt snapshots and historical root-level scratch files are not part of 
 SDD's durable operations live primarily on the repo and plan command groups; executable epic handoff uses the bead
 command group:
 
-| Command                    | Purpose                                                                                        |
-| -------------------------- | ---------------------------------------------------------------------------------------------- |
-| `sase repo init`           | Initialize configured sidecars, generated guides, config, and the repository ignore rule       |
-| `sase init repo`           | Alias for `sase repo init`                                                                     |
-| `sase repo path REPO`      | Print a primary or sidecar path; `-e/--ensure` materializes the selected sidecar               |
-| `sase plan links [list]`   | Print each prompt/plan artifact link and whether its reverse link is intact                    |
-| `sase plan links refresh`  | Preview header-block reconciliation; `-w/--write` applies it, `-P/--plan REF` scopes it        |
-| `sase plan links repair`   | Preview canonical link migration; add `-w/--write` to update unambiguous pairs                 |
-| `sase plan links validate` | Validate links; `-j/--json`, `-q/--quiet`, `-s/--strict`, and `-W/--show-warnings` tune output |
-| `sase plan search`         | Search or browse tale, epic, prompt, and research artifacts                                    |
-| `sase plan validate`       | Validate by authored tier; `-e/--explain`, `-j/--json`, and `-q/--quiet` tune output           |
-| `sase bead work PLAN_FILE` | Validate, archive, link, and launch an epic plan; `-n/--dry-run` previews without mutation     |
+| Command                    | Purpose                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------ |
+| `sase repo init`           | Initialize configured sidecars, generated guides, config, and the repository ignore rule   |
+| `sase init repo`           | Alias for `sase repo init`                                                                 |
+| `sase repo path REPO`      | Print a primary or sidecar path; `-e/--ensure` materializes the selected sidecar           |
+| `sase plan links [list]`   | Print each prompt/plan artifact link and whether its reverse link is intact                |
+| `sase plan links refresh`  | Preview header-block reconciliation; `-w/--write` applies it, `-P/--plan REF` scopes it    |
+| `sase plan links repair`   | Preview canonical link migration; add `-w/--write` to update unambiguous pairs             |
+| `sase plan links validate` | Validate links; `-j/--json`, `-q/--quiet`, and `-W/--show-warnings` tune output            |
+| `sase plan search`         | Search or browse tale, epic, prompt, and research artifacts                                |
+| `sase plan validate`       | Validate by authored tier; `-e/--explain`, `-j/--json`, and `-q/--quiet` tune output       |
+| `sase bead work PLAN_FILE` | Validate, archive, link, and launch an epic plan; `-n/--dry-run` previews without mutation |
 
 The link subcommands accept `-p/--path`, which may point at an SDD root or a project root. Bare `sase plan links`
-defaults to `sase plan links list`. Validation treats unpaired or ambiguous historical files as warnings by default and
-promotes them to errors with `--strict`; parse errors, missing targets, wrong link kinds, and broken reverse links are
-errors unless explicitly allowlisted for legacy data.
+defaults to `sase plan links list`. Validation no longer checks that a plan has a paired prompt file or that a `PROMPT`
+bullet's target exists — prompts live in the agents-sidecar archive and are validated separately by
+`sase agent prompts validate`. `sase plan links validate` only checks a plan's own metadata and `PROMPT` bullet:
+frontmatter parses, `tier` is valid, `PARENT` resolves to a real plan file, and the `PROMPT` bullet (when present) uses
+the correct link kind and canonical placement; these are all errors unless explicitly allowlisted for legacy data.
 
 `sase plan links validate` hides warning-severity issues from its text output by default — the summary line still
 reports the warning count and appends `(use --show-warnings to display)` so they remain discoverable without scrolling
-through noise on the happy path. Pass `-W/--show-warnings` to print each warning, or `--strict` to promote warnings to
-errors before filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
+through noise on the happy path. Pass `-W/--show-warnings` to print each warning. JSON mode (`-j/--json`) and exit codes
+are unaffected by `-W`.
 
 For a repository whose own `sase/sase.yml` sets `is_sase_managed: true`, the `sase repo init` command materializes the
 provider-selected store. On GitHub it finds or creates every enabled configured sidecar, deriving

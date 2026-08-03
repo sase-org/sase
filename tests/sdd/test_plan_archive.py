@@ -98,9 +98,8 @@ def test_archive_leaves_unpaired_plan_unlinked_without_prompt_snapshot(
     content = result.path.read_text(encoding="utf-8")
     validation = validate_sdd_tree(str(store.sdd_dir))
     assert parse_sdd_artifact_link(content).reference is None
-    assert validation.errors == []
-    assert any(issue.code == "unpaired-file" for issue in validation.warnings)
-    assert not any(issue.code == "link-missing-target" for issue in validation.issues)
+    assert validation.ok
+    assert validation.issues == []
 
 
 def test_archive_default_still_skips_prompt_section_without_snapshot(

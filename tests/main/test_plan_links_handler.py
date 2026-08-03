@@ -38,7 +38,6 @@ def test_parser_registers_nested_links_commands() -> None:
             "sdd",
             "-j",
             "-q",
-            "--strict",
             "-W",
         ]
     )
@@ -46,7 +45,6 @@ def test_parser_registers_nested_links_commands() -> None:
     assert validate.path == "sdd"
     assert validate.json is True
     assert validate.quiet is True
-    assert validate.strict is True
     assert validate.show_warnings is True
 
     repair = parser.parse_args(["plan", "links", "repair", "-p", "sdd", "-w"])

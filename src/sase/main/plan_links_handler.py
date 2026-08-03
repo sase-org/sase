@@ -80,7 +80,7 @@ def _handle_refresh(args: argparse.Namespace) -> NoReturn:
 def _handle_validate(args: argparse.Namespace) -> NoReturn:
     from sase.sdd.links import validate_sdd_tree, validation_to_json
 
-    validation = validate_sdd_tree(args.path, strict=args.strict)
+    validation = validate_sdd_tree(args.path)
     if args.json:
         print(json.dumps(validation_to_json(validation), indent=2))
     elif not args.quiet or not validation.ok:
@@ -88,7 +88,7 @@ def _handle_validate(args: argparse.Namespace) -> NoReturn:
     sys.exit(0 if validation.ok else 1)
 
 
-_REPAIRABLE_ISSUE_CODES = frozenset({"missing-link", "reverse-link", "link-format"})
+_REPAIRABLE_ISSUE_CODES = frozenset({"link-format"})
 
 
 def _print_validation(validation: Any, *, show_warnings: bool) -> None:

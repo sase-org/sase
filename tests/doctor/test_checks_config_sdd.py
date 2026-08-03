@@ -76,9 +76,12 @@ def test_config_sdd_uses_materialized_separate_repo_store(
 
 
 def test_config_sdd_allows_non_strict_validation_warnings(tmp_path: Path) -> None:
-    tale = tmp_path / ".sase" / "sdd" / "plans" / "202605" / "unpaired.md"
-    tale.parent.mkdir(parents=True)
-    tale.write_text("---\ntier: tale\n---\n# Unpaired\n", encoding="utf-8")
+    from sase.sdd.links import LEGACY_INVALID_SDD_ERROR_ALLOWLIST
+
+    allowlisted = next(iter(LEGACY_INVALID_SDD_ERROR_ALLOWLIST))
+    legacy_prompt = tmp_path / ".sase" / "sdd" / allowlisted
+    legacy_prompt.parent.mkdir(parents=True)
+    legacy_prompt.write_text("# Historical prompt\n", encoding="utf-8")
 
     check = check_config_sdd(_doctor_context(tmp_path))
 

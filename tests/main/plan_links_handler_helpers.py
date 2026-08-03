@@ -19,7 +19,6 @@ def make_args(**overrides: object) -> argparse.Namespace:
         "path": None,
         "json": False,
         "quiet": False,
-        "strict": False,
         "show_warnings": False,
     }
     defaults.update(overrides)

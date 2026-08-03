@@ -40,7 +40,7 @@ def check_config_sdd(context: DoctorContext) -> DiagnosticCheck:
             data={"sdd_root": None},
         )
 
-    validation = validate_sdd_tree(str(root), strict=False)
+    validation = validate_sdd_tree(str(root))
     issue_rows = [
         {
             "severity": issue.severity,
