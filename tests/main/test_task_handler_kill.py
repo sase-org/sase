@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import json
 
 import pytest
@@ -23,6 +24,10 @@ def test_kill_resolves_prefix_and_marks_active_task_killed(
         label="Global launch",
         kind="detached",
         status="running",
+        # A pidless supervisor-owned row is only valid during the submission
+        # grace period.  Keep it fresh so a concurrent reconciliation pass
+        # cannot correctly classify this kill fixture as an orphan.
+        created_at=datetime.now(UTC).isoformat(),
         finished_at=None,
         exit_code=None,
     )
