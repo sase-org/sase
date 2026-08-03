@@ -10,7 +10,7 @@ from typing import Literal
 BeadRefreshMode = Literal["background", "blocking", "off"]
 
 
-class _BeadStoreRefreshError(RuntimeError):
+class BeadStoreRefreshError(RuntimeError):
     """Raised when a blocking refresh cannot integrate the bead store."""
 
 
@@ -73,7 +73,7 @@ def refresh_bead_store(
         if current_generation is not None and current_generation != observed_generation:
             return
         if not acquired:
-            raise _BeadStoreRefreshError(
+            raise BeadStoreRefreshError(
                 f"could not acquire the bead-store refresh lock for {repo_root}"
             )
         outcome = integrate_sdd_repository(
@@ -93,4 +93,4 @@ def refresh_bead_store(
         return
 
     detail = outcome.error or f"SDD integration ended with {outcome.status.value}"
-    raise _BeadStoreRefreshError(detail)
+    raise BeadStoreRefreshError(detail)

@@ -32,10 +32,10 @@ from sase.bead._sync_refresh import integration_is_fresh as _integration_is_fres
 
 
 BeadRefreshMode = _sync_refresh.BeadRefreshMode
-_BeadStoreRefreshError = _sync_refresh._BeadStoreRefreshError
-_SyncLogOutcome = _sync_logs._SyncLogOutcome
-_PushOutcome = _sync_publication._PushOutcome
-_AsyncPushHandle = _sync_publication._AsyncPushHandle
+_BeadStoreRefreshError = _sync_refresh.BeadStoreRefreshError
+_SyncLogOutcome = _sync_logs.SyncLogOutcome
+_PushOutcome = _sync_publication.PushOutcome
+_AsyncPushHandle = _sync_publication.AsyncPushHandle
 
 _DEEP_DIVERGENCE_SIDE_THRESHOLD = _sync_diagnostics._DEEP_DIVERGENCE_SIDE_THRESHOLD
 _SYNC_LOG_SCAN_LIMIT = _sync_logs._SYNC_LOG_SCAN_LIMIT
@@ -79,8 +79,8 @@ def publish_bead_claim(
     )
 
 
-_has_push_remote = _sync_publication._has_push_remote
-_head_is_published = _sync_publication._head_is_published
+_has_push_remote = _sync_publication.has_push_remote
+_head_is_published = _sync_publication.head_is_published
 
 
 def push_bead_work_launch_async(beads_dir: Path) -> _AsyncPushHandle | None:
@@ -92,7 +92,7 @@ def push_bead_work_launch_async(beads_dir: Path) -> _AsyncPushHandle | None:
     )
 
 
-_semantic_beads_dir_for_sync = _sync_publication._semantic_beads_dir_for_sync
+_semantic_beads_dir_for_sync = _sync_publication.semantic_beads_dir_for_sync
 
 
 def _maybe_schedule_bead_refresh(beads_dir: Path) -> _AsyncPushHandle | None:
@@ -178,14 +178,14 @@ def unpushed_bead_commit_count(repo_root: Path, beads_dir: Path) -> int:
 
 
 _managed_sync_log_diagnostics = _sync_logs.managed_sync_log_diagnostics
-_recent_bead_sync_log_paths = _sync_logs._recent_bead_sync_log_paths
-_parse_sync_log_outcome = _sync_logs._parse_sync_log_outcome
-_read_sync_log_records = _sync_logs._read_sync_log_records
-_classify_sync_error = _sync_logs._classify_sync_error
-_normalize_logged_repo_root = _sync_logs._normalize_logged_repo_root
-_normalized_path_string = _sync_logs._normalized_path_string
+_recent_bead_sync_log_paths = _sync_logs.recent_bead_sync_log_paths
+_parse_sync_log_outcome = _sync_logs.parse_sync_log_outcome
+_read_sync_log_records = _sync_logs.read_sync_log_records
+_classify_sync_error = _sync_logs.classify_sync_error
+_normalize_logged_repo_root = _sync_logs.normalize_logged_repo_root
+_normalized_path_string = _sync_logs.normalized_path_string
 _latest_bead_sync_log = _sync_logs.latest_bead_sync_log
-_bead_sync_log_dir = _sync_logs._bead_sync_log_dir
+_bead_sync_log_dir = _sync_logs.bead_sync_log_dir
 
 
 def _new_sync_log_path() -> Path:
@@ -193,4 +193,4 @@ def _new_sync_log_path() -> Path:
     return _new_sync_log_path_impl()
 
 
-_git_state_path = _sync_diagnostics._git_state_path
+_git_state_path = _sync_diagnostics.git_state_path_for_checkout

@@ -18,7 +18,7 @@ _SYNC_LOG_RECURRING_FAILURE_THRESHOLD = 2
 
 
 @dataclass(frozen=True)
-class _SyncLogOutcome:
+class SyncLogOutcome:
     """Parsed terminal outcome from one managed-sync log."""
 
     path: Path
@@ -31,16 +31,16 @@ class _SyncLogOutcome:
 def managed_sync_log_diagnostics(repo_root: Path) -> list[str]:
     """Return bounded warnings for recurring same-clone managed-sync failures."""
     try:
-        repo_key = _normalized_path_string(repo_root)
-        outcomes: list[_SyncLogOutcome] = []
-        for path in _recent_bead_sync_log_paths():
-            outcome = _parse_sync_log_outcome(path)
+        repo_key = normalized_path_string(repo_root)
+        outcomes: list[SyncLogOutcome] = []
+        for path in recent_bead_sync_log_paths():
+            outcome = parse_sync_log_outcome(path)
             if outcome is not None and outcome.repo_root == repo_key:
                 outcomes.append(outcome)
     except Exception:
         return []
 
-    failures: list[_SyncLogOutcome] = []
+    failures: list[SyncLogOutcome] = []
     for outcome in outcomes:
         if outcome.terminal_event == "failed":
             failures.append(outcome)
@@ -64,9 +64,9 @@ def managed_sync_log_diagnostics(repo_root: Path) -> list[str]:
     ]
 
 
-def _recent_bead_sync_log_paths(limit: int = _SYNC_LOG_SCAN_LIMIT) -> list[Path]:
+def recent_bead_sync_log_paths(limit: int = _SYNC_LOG_SCAN_LIMIT) -> list[Path]:
     try:
-        logs = list(_bead_sync_log_dir().glob("sync-*.log"))
+        logs = list(bead_sync_log_dir().glob("sync-*.log"))
     except Exception:
         return []
 
@@ -79,8 +79,8 @@ def _recent_bead_sync_log_paths(limit: int = _SYNC_LOG_SCAN_LIMIT) -> list[Path]
     return sorted(logs, key=mtime, reverse=True)[:limit]
 
 
-def _parse_sync_log_outcome(path: Path) -> _SyncLogOutcome | None:
-    records = _read_sync_log_records(path)
+def parse_sync_log_outcome(path: Path) -> SyncLogOutcome | None:
+    records = read_sync_log_records(path)
     if not records:
         return None
 
@@ -90,9 +90,7 @@ def _parse_sync_log_outcome(path: Path) -> _SyncLogOutcome | None:
     for record in records:
         event = record.get("event")
         if event == "started":
-            repo_root = (
-                _normalize_logged_repo_root(record.get("repo_root")) or repo_root
-            )
+            repo_root = normalize_logged_repo_root(record.get("repo_root")) or repo_root
         if event in {"completed", "failed", "skipped"}:
             terminal_event = event
             raw_error = record.get("error")
@@ -100,16 +98,16 @@ def _parse_sync_log_outcome(path: Path) -> _SyncLogOutcome | None:
 
     if repo_root is None:
         return None
-    return _SyncLogOutcome(
+    return SyncLogOutcome(
         path=path,
         repo_root=repo_root,
         terminal_event=terminal_event,
-        error_class=_classify_sync_error(error) if error else None,
+        error_class=classify_sync_error(error) if error else None,
         error=error,
     )
 
 
-def _read_sync_log_records(path: Path) -> list[dict[str, Any]]:
+def read_sync_log_records(path: Path) -> list[dict[str, Any]]:
     try:
         with open(path, "rb") as log_file:
             size = log_file.seek(0, os.SEEK_END)
@@ -138,7 +136,7 @@ def _read_sync_log_records(path: Path) -> list[dict[str, Any]]:
     return records
 
 
-def _classify_sync_error(error: str) -> str:
+def classify_sync_error(error: str) -> str:
     text = error.lower()
     if (
         "semantic bead conflict resolution failed" in text
@@ -181,13 +179,13 @@ def _classify_sync_error(error: str) -> str:
     return "other failure"
 
 
-def _normalize_logged_repo_root(raw: object) -> str | None:
+def normalize_logged_repo_root(raw: object) -> str | None:
     if not isinstance(raw, str) or not raw:
         return None
-    return _normalized_path_string(Path(raw))
+    return normalized_path_string(Path(raw))
 
 
-def _normalized_path_string(path: Path) -> str:
+def normalized_path_string(path: Path) -> str:
     try:
         return str(path.expanduser().resolve(strict=False))
     except (OSError, RuntimeError):
@@ -197,7 +195,7 @@ def _normalized_path_string(path: Path) -> str:
 def latest_bead_sync_log() -> Path | None:
     """Return the newest managed-sync log, when one exists."""
     try:
-        logs = list(_bead_sync_log_dir().glob("sync-*.log"))
+        logs = list(bead_sync_log_dir().glob("sync-*.log"))
     except Exception:
         return None
 
@@ -210,7 +208,7 @@ def latest_bead_sync_log() -> Path | None:
     return max(logs, key=mtime, default=None)
 
 
-def _bead_sync_log_dir() -> Path:
+def bead_sync_log_dir() -> Path:
     """Return the managed-sync log directory."""
     from sase.core.paths import ensure_sase_directory
 

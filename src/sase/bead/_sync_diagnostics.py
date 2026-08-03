@@ -29,7 +29,7 @@ def bead_sync_diagnostics(
     if repo_root is None:
         return []
     messages: list[str] = []
-    git_dir = _git_state_path(repo_root, "")
+    git_dir = git_state_path_for_checkout(repo_root, "")
     if (git_dir / "rebase-merge").is_dir() or (git_dir / "rebase-apply").is_dir():
         messages.append("WARNING: bead store is mid-rebase")
 
@@ -139,7 +139,7 @@ def unpushed_bead_commit_count(repo_root: Path, beads_dir: Path) -> int:
         return 0
 
 
-def _git_state_path(repo_root: Path, name: str) -> Path:
+def git_state_path_for_checkout(repo_root: Path, name: str) -> Path:
     """Compatibility wrapper for resolving files in a checkout's Git dir."""
     from sase.sdd._integration_marker import git_state_path
 
