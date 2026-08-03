@@ -55,7 +55,7 @@ def resolve_bead_commit_tag(
 
 
 def known_bead_ids_for_store(store: SddStore) -> frozenset[str] | None:
-    """Return every bead ID *store* holds, or ``None`` when it cannot be read."""
+    """Return canonical and compatibility bead IDs, or ``None`` if unreadable."""
 
     try:
         if not store.is_sidecar_storage or store.beads_dir is None:
@@ -63,9 +63,35 @@ def known_bead_ids_for_store(store: SddStore) -> frozenset[str] | None:
         from sase.bead.store_locator import open_bead_project_for_beads_dir
 
         with open_bead_project_for_beads_dir(store.kind_root("beads")) as project:
-            return frozenset(issue.id for issue in project.list_issues())
+            canonical = frozenset(issue.id for issue in project.list_issues())
+        aliases = bead_id_aliases_for_store(store)
+        return canonical | frozenset(
+            old_id
+            for old_id, canonical_id in aliases.items()
+            if canonical_id in canonical
+        )
     except Exception:  # noqa: BLE001 - existence checks stay best-effort.
         return None
+
+
+def bead_id_aliases_for_store(store: SddStore) -> dict[str, str]:
+    """Return the store's well-shaped old-to-canonical bead ID aliases."""
+
+    if not store.is_sidecar_storage or store.beads_dir is None:
+        return {}
+    from sase.bead.config import load_config
+
+    raw = load_config(store.kind_root("beads")).get("id_aliases", {})
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        old_id: canonical_id
+        for old_id, canonical_id in raw.items()
+        if isinstance(old_id, str)
+        and old_id.strip() == old_id
+        and isinstance(canonical_id, str)
+        and canonical_id.strip() == canonical_id
+    }
 
 
 def resolve_bead_page_target(
@@ -153,6 +179,7 @@ def _resolve_store(primary_root: Path) -> SddStore:
 
 
 __all__ = [
+    "bead_id_aliases_for_store",
     "known_bead_ids_for_store",
     "resolve_bead_commit_tag",
     "resolve_bead_page_target",

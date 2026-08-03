@@ -270,8 +270,17 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-em(parse_local)' \
+        --epic-symbol 'sase-ei(ReferenceRewriteAction)' \
+        --epic-symbol 'sase-ei(ReferenceRewritePlan)' \
+        --epic-symbol 'sase-ei(apply_changespec_reference_rewrite)' \
+        --epic-symbol 'sase-ei(plan_changespec_reference_rewrite)' \
+        --epic-symbol 'sase-ei(plan_plan_reference_rewrite)' \
+        --epic-symbol 'sase-ej(enqueue_bead_pages_publication)' \
+        --epic-symbol 'sase-ej(enqueue_committed_agent_publication)' \
+        --epic-symbol 'sase-ej(enqueue_plan_header_publication)' \
+        --epic-symbol 'sase-ej(enqueue_sidecar_push_publication)' \
         --epic-symbol 'sase-em(format_local)' \
+        --epic-symbol 'sase-em(parse_local)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

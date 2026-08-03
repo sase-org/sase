@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from sase.association_agents import (
     AgentAssociationRef,
@@ -65,6 +65,7 @@ def artifact_associations(
     records: Iterable[AgentArtifactRecordWire],
     known_bead_ids: frozenset[str],
     identity: AgentIdentitySnapshot,
+    id_aliases: Mapping[str, str] | None = None,
 ) -> dict[str, dict[str, AgentAssociationRef]]:
     """Group visible artifact agents by the bead derived from their name."""
 
@@ -82,14 +83,17 @@ def artifact_associations(
             else None
         )
         bead_id = agent_name_bead_id(raw_name, identity)
+        canonical_bead_id = (
+            None if bead_id is None else (id_aliases or {}).get(bead_id, bead_id)
+        )
         association = artifact_agent_association(raw_name, identity)
         if (
-            bead_id is not None
-            and bead_id in known_bead_ids
+            canonical_bead_id is not None
+            and canonical_bead_id in known_bead_ids
             and association is not None
         ):
-            agents[bead_id][association.label] = merge_agent_associations(
-                agents[bead_id].get(association.label),
+            agents[canonical_bead_id][association.label] = merge_agent_associations(
+                agents[canonical_bead_id].get(association.label),
                 association,
             )
     return dict(agents)

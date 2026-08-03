@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 import re
@@ -48,6 +49,7 @@ def read_history_associations(
     known_bead_ids: frozenset[str],
     identity: AgentIdentitySnapshot,
     git_runner: GitRunner,
+    id_aliases: Mapping[str, str] | None = None,
 ) -> _HistoryAssociations:
     """Walk one repository's history and group footer tags by known bead."""
 
@@ -88,6 +90,7 @@ def read_history_associations(
             agents,
             agent_commits,
             commits,
+            id_aliases or {},
         )
     return _HistoryAssociations(
         dict(agents),
@@ -104,6 +107,7 @@ def _index_history_entry(
     agents: defaultdict[str, dict[str, AgentAssociationRef]],
     agent_commits: defaultdict[str, dict[str, set[tuple[str, str]]]],
     commits: defaultdict[str, dict[tuple[str, str], HistoricalBeadCommit]],
+    id_aliases: Mapping[str, str],
 ) -> None:
     sha = chunks[0].lstrip("\r\n").strip().casefold()
     subject = chunks[2].rstrip("\r\n")
@@ -114,7 +118,12 @@ def _index_history_entry(
         return
     tags = {tag.key: tag.value for tag in footer.tags}
     tagged_bead = commit_tag_label(tags.get("BEAD"))
-    bead_id = _associated_bead_id(tagged_bead, subject, known_bead_ids)
+    bead_id = _associated_bead_id(
+        tagged_bead,
+        subject,
+        known_bead_ids,
+        id_aliases,
+    )
     if bead_id is None:
         return
 
@@ -149,14 +158,17 @@ def _associated_bead_id(
     tagged_bead: str | None,
     subject: str,
     known_bead_ids: frozenset[str],
+    id_aliases: Mapping[str, str],
 ) -> str | None:
     if tagged_bead is not None:
-        return tagged_bead if tagged_bead in known_bead_ids else None
+        canonical = id_aliases.get(tagged_bead, tagged_bead)
+        return canonical if canonical in known_bead_ids else None
     legacy = _LEGACY_BEAD_SUBJECT_RE.search(subject)
     if legacy is None:
         return None
     candidate = legacy.group(1)
-    return candidate if candidate in known_bead_ids else None
+    canonical = id_aliases.get(candidate, candidate)
+    return canonical if canonical in known_bead_ids else None
 
 
 __all__ = [

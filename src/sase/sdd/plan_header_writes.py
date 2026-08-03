@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -194,6 +195,7 @@ def refresh_bead_plan_section(
     store: SddStore | None = None,
     primary_root: Path | None = None,
     known_bead_ids: frozenset[str] | None = None,
+    page_target_resolver: Callable[[str], str | None] | None = None,
 ) -> str:
     """Rebuild ``BEAD`` from the plan's durable bead frontmatter.
 
@@ -224,14 +226,17 @@ def refresh_bead_plan_section(
         raise ValueError("plan bead frontmatter must be a non-empty string")
 
     bead_id = raw_bead.strip()
-    from sase.bead_pages.links import resolve_bead_page_target
+    if page_target_resolver is not None:
+        target = page_target_resolver(bead_id)
+    else:
+        from sase.bead_pages.links import resolve_bead_page_target
 
-    target = resolve_bead_page_target(
-        bead_id,
-        store=store,
-        primary_root=primary_root,
-        known_ids=known_bead_ids,
-    )
+        target = resolve_bead_page_target(
+            bead_id,
+            store=store,
+            primary_root=primary_root,
+            known_ids=known_bead_ids,
+        )
     return upsert_plan_header_section(
         document,
         PlanHeaderSection(

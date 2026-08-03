@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from contextlib import nullcontext
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -101,7 +102,13 @@ def _refresh_locked(
         view_context = open_bead_project_for_beads_dir(store.kind_root("beads"))
         with view_context as view:
             bead_issues = tuple(view.list_issues())
-            selected = _select_issues(bead_issues, bead_id)
+            from sase.bead_pages.links import bead_id_aliases_for_store
+
+            aliases = bead_id_aliases_for_store(store)
+            canonical_bead_id = (
+                None if bead_id is None else aliases.get(bead_id, bead_id)
+            )
+            selected = _select_issues(bead_issues, canonical_bead_id)
             if selected is None:
                 return _error_report(
                     pages_root,
@@ -110,6 +117,12 @@ def _refresh_locked(
                     "bead-unresolved",
                     f"bead does not exist in store: {bead_id}",
                 )
+            valid_aliases, alias_issues = _validated_aliases(
+                aliases,
+                bead_issues,
+                pages_root,
+            )
+            issues.extend(alias_issues)
 
             resolver = link_resolver
             if resolver is None:
@@ -148,6 +161,7 @@ def _refresh_locked(
                 selected,
                 index,
                 resolver,
+                valid_aliases,
                 include_roster=bead_id is None,
             )
     except Exception as exc:  # noqa: BLE001 - command-level diagnostic.
@@ -245,11 +259,13 @@ def _render_payloads(
     selected: tuple[Issue, ...],
     association_index: BeadAssociationIndex,
     link_resolver: HostedLinkResolver,
+    aliases: Mapping[str, str],
     *,
     include_roster: bool,
 ) -> tuple[tuple[Path, bytes, str | None], ...]:
     from sase.bead.cli_detail import IssueDetailIndex
     from sase.bead_pages.rendering import render_bead_page_detail_bytes
+    from sase.bead_pages.rendering import render_bead_alias_page_bytes
     from sase.bead_pages.roster import render_bead_pages_roster_bytes
 
     detail_index = IssueDetailIndex.from_issues(all_issues)
@@ -266,6 +282,16 @@ def _render_payloads(
         )
         for issue in selected
     ]
+    selected_ids = frozenset(issue.id for issue in selected)
+    payloads.extend(
+        (
+            pages_root.parent / bead_page_path(old_id),
+            render_bead_alias_page_bytes(old_id, canonical_id),
+            canonical_id,
+        )
+        for old_id, canonical_id in aliases.items()
+        if canonical_id in selected_ids
+    )
     if include_roster:
         payloads.append(
             (
@@ -275,6 +301,52 @@ def _render_payloads(
             )
         )
     return tuple(sorted(payloads, key=lambda item: item[0].as_posix()))
+
+
+def _validated_aliases(
+    aliases: Mapping[str, str],
+    issues: tuple[Issue, ...],
+    pages_root: Path,
+) -> tuple[dict[str, str], tuple[BeadPagesRefreshIssue, ...]]:
+    canonical_ids = frozenset(issue.id for issue in issues)
+    valid: dict[str, str] = {}
+    diagnostics: list[BeadPagesRefreshIssue] = []
+    for old_id, canonical_id in sorted(aliases.items()):
+        if old_id in canonical_ids:
+            diagnostics.append(
+                BeadPagesRefreshIssue(
+                    "error",
+                    "alias-shadows-canonical",
+                    str(pages_root),
+                    f"bead ID alias shadows canonical ID: {old_id}",
+                )
+            )
+            continue
+        if canonical_id not in canonical_ids:
+            diagnostics.append(
+                BeadPagesRefreshIssue(
+                    "error",
+                    "alias-target-missing",
+                    str(pages_root),
+                    f"bead ID alias target does not exist: {old_id} -> {canonical_id}",
+                )
+            )
+            continue
+        try:
+            bead_page_path(old_id)
+            bead_page_path(canonical_id)
+        except ValueError as exc:
+            diagnostics.append(
+                BeadPagesRefreshIssue(
+                    "error",
+                    "alias-page-invalid",
+                    str(pages_root),
+                    str(exc),
+                )
+            )
+            continue
+        valid[old_id] = canonical_id
+    return valid, tuple(diagnostics)
 
 
 def _orphan_paths(

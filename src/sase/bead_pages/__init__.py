@@ -14,13 +14,18 @@ from sase.bead_pages.paths import (
     bead_page_path,
     bead_page_root,
 )
-from sase.bead_pages.rendering import render_bead_page, render_bead_page_bytes
+from sase.bead_pages.rendering import (
+    render_bead_alias_page_bytes,
+    render_bead_page,
+    render_bead_page_bytes,
+)
 
 __all__ = [
     "BEAD_PAGES_DIRNAME",
     "bead_lineage_root",
     "bead_page_path",
     "bead_page_root",
+    "render_bead_alias_page_bytes",
     "render_bead_page",
     "render_bead_page_bytes",
 ]

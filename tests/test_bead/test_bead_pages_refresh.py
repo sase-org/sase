@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+import json
 from pathlib import Path
 from types import MappingProxyType
 from typing import cast
@@ -272,3 +273,60 @@ def test_missing_bead_scope_is_an_error_without_writes(
     assert not report.ok
     assert report.errors[0].code == "bead-unresolved"
     assert report.actions == ()
+
+
+def test_refresh_renders_and_cleans_deterministic_alias_pages(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path)
+    issues = _issues()
+    _patch_dependencies(monkeypatch, issues)
+    beads_root = _beads_root(store)
+    aliases = {
+        "gh_sase-org__sase-ai": "sase-ai",
+        "gh_sase-org__sase-ai.7": "sase-ai.7",
+    }
+    (beads_root / "config.json").write_text(
+        json.dumps(
+            {
+                "issue_prefix": "sase",
+                "next_counter": 1,
+                "owner": "",
+                "id_aliases": aliases,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    written = refresh_bead_pages(
+        store,
+        primary_root=tmp_path,
+        write=True,
+        association_index=_index(),
+        link_resolver=_Links(),  # type: ignore[arg-type]
+    )
+
+    alias_root = beads_root / "pages" / "gh_sase-org__sase-ai" / "README.md"
+    alias_child = (
+        beads_root / "pages" / "gh_sase-org__sase-ai" / "gh_sase-org__sase-ai.7.md"
+    )
+    assert written.ok
+    assert alias_root.is_file() and alias_child.is_file()
+    assert "[`sase-ai`](../sase-ai/README.md)" in alias_root.read_text()
+    assert "[`sase-ai.7`](../sase-ai/sase-ai.7.md)" in alias_child.read_text()
+
+    config = json.loads((beads_root / "config.json").read_text())
+    config["id_aliases"] = {}
+    (beads_root / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    cleaned = refresh_bead_pages(
+        store,
+        primary_root=tmp_path,
+        write=True,
+        association_index=_index(),
+        link_resolver=_Links(),  # type: ignore[arg-type]
+    )
+
+    assert cleaned.ok
+    assert not alias_root.exists()
+    assert not alias_child.exists()
