@@ -142,6 +142,10 @@ def create_and_launch_epic_from_plan(
                     plan_proposed_by=plan.proposed_by,
                 ),
             )
+        if proj.last_prefix_repair is not None:
+            from sase.bead.cli_work_from_plan_render import render_prefix_repair
+
+            render_prefix_repair(*proj.last_prefix_repair)
         if timer is not None:
             timer.fields["bead_id"] = epic.id
 

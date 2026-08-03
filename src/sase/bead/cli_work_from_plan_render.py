@@ -77,6 +77,14 @@ def render_parent_preview(
     )
 
 
+def render_prefix_repair(stored: str, corrected: str) -> None:
+    """Render an automatic issue-prefix repair notice."""
+    Console().print(
+        f"[green]✓[/green] Issue prefix    {stored} → {corrected} "
+        "(repaired from ProjectSpec key; existing bead IDs keep the old prefix)"
+    )
+
+
 def render_created_beads(
     issue: Any,
     phases: list[Any],

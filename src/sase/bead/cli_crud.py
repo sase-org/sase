@@ -135,6 +135,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         ),
     )
 
+    prefix_repair: tuple[str, str] | None = None
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         proj = mutation.project
         if parent_id:
@@ -166,7 +167,12 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
+        prefix_repair = proj.last_prefix_repair
         mutation.commit(require_mutation_commit_message("create", [issue.id]))
+    if prefix_repair is not None:
+        from sase.bead.cli_work_from_plan_render import render_prefix_repair
+
+        render_prefix_repair(*prefix_repair)
     print(f"Created {issue.issue_type.value}: {issue.id} — {issue.title}")
 
 

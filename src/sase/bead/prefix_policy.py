@@ -92,3 +92,18 @@ def stale_key_prefix_report(beads_dir: Path) -> tuple[str, str] | None:
         return None
 
     return stored, label
+
+
+def repair_stale_key_prefix(beads_dir: Path) -> tuple[str, str] | None:
+    """Rewrite a key-leaked issue prefix in place; return the repair tuple."""
+    report = stale_key_prefix_report(beads_dir)
+    if report is None:
+        return None
+
+    from sase.bead.config import load_config, save_config
+
+    _stored, corrected = report
+    config = load_config(beads_dir)
+    config["issue_prefix"] = corrected
+    save_config(beads_dir, config)
+    return report

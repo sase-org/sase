@@ -166,7 +166,10 @@ def _repair_projection(
 
 
 def _repair_issue_prefix(assume_yes: bool) -> None:
-    from sase.bead.prefix_policy import stale_key_prefix_report
+    from sase.bead.prefix_policy import (
+        repair_stale_key_prefix,
+        stale_key_prefix_report,
+    )
 
     with get_project() as proj:
         report = stale_key_prefix_report(proj.beads_dir)
@@ -181,7 +184,6 @@ def _repair_issue_prefix(assume_yes: bool) -> None:
         print("Issue prefix repair cancelled; no changes applied.")
         return
 
-    from sase.bead.config import load_config, save_config
     from sase.bead.sync import bead_store_write_lock
 
     with bead_store_write_lock(beads_dir) as already_locked:
@@ -193,9 +195,7 @@ def _repair_issue_prefix(assume_yes: bool) -> None:
             )
             return
         stored, corrected = report
-        config = load_config(beads_dir)
-        config["issue_prefix"] = corrected
-        save_config(beads_dir, config)
+        repair_stale_key_prefix(beads_dir)
         auto_commit_bead_store(
             f"chore(beads): repair issue prefix {stored} -> {corrected}",
             push_after_commit=False,

@@ -26,8 +26,10 @@ class BeadProjectMutationMixin:
 
     beads_dir: Path
     _current_time: Callable[[], str]
+    _last_prefix_repair: tuple[str, str] | None
     _record_mutation_outcome: Callable[[dict[str, object]], None]
     _refresh_db_from_jsonl: Callable[[], None]
+    _repair_stale_key_prefix: Callable[[], None]
 
     if TYPE_CHECKING:
 
@@ -60,8 +62,11 @@ class BeadProjectMutationMixin:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
+        self._last_prefix_repair = None
         if parent_id is not None:
             parent_id = self.resolve_id(parent_id)
+        else:
+            self._repair_stale_key_prefix()
         issue, outcome = rust_beads.create(
             self.beads_dir,
             title=title,

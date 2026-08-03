@@ -25,6 +25,7 @@ class BeadProjectStoreMixin:
     _conn_cache: sqlite3.Connection | None
     _id_gen: IdGenerator
     _last_mutation_outcome: dict[str, object]
+    _last_prefix_repair: tuple[str, str] | None
     _mutation_changed: bool
 
     @property
@@ -95,6 +96,17 @@ class BeadProjectStoreMixin:
         """Persist the ID counter to config."""
         self._config["next_counter"] = self._id_gen.counter
         save_config(self.beads_dir, self._config)
+
+    def _repair_stale_key_prefix(self) -> None:
+        """Forward-repair a leaked ProjectSpec-key issue prefix before minting."""
+        self._last_prefix_repair = None
+        from sase.bead.prefix_policy import repair_stale_key_prefix
+
+        report = repair_stale_key_prefix(self.beads_dir)
+        if report is None:
+            return
+        self._refresh_db_from_jsonl()
+        self._last_prefix_repair = report
 
     def _record_mutation_outcome(self, outcome: dict[str, object]) -> None:
         """Accumulate honest core mutation results for commit gating."""

@@ -654,8 +654,8 @@ Run health checks on the beads database. Checks for:
 - Uncommitted bead-state changes
 - Orphan children (phase or nested-plan beads whose parent is missing)
 - Legacy or unresolved `design` plan references
-- Issue prefix leaked as the project's ProjectSpec directory key instead of its `PROJECT_NAME` (reported only; repair
-  with `sase bead doctor --fix-issue-prefix`)
+- Issue prefix leaked as the project's ProjectSpec directory key instead of its `PROJECT_NAME` (reported; automatically
+  repaired before the next top-level bead is minted, or repair on demand with `sase bead doctor --fix-issue-prefix`)
 - Artifact references with unknown namespaces, missing targets, or ambiguous targets
 - `claimed` beads whose assignee resolves to no agent artifact (reported only; run `sase bead open <id>` to clear them)
 - `open` beads owned by a live agent that has not started work yet (reported only; it means the `bead_claim_checks` chop
@@ -670,17 +670,18 @@ status changes, fields outside `closed_at`, `close_reason`, and `updated_at`, or
 successful repair commits `chore(beads): reproject bead state from canonical events`; a second clean run writes nothing.
 Use `--yes` for non-interactive repair after reviewing the preview through an external approval gate.
 
-`--fix-issue-prefix` previews and, after confirmation, resets a store's issue prefix when it was leaked as the project's
-ProjectSpec directory key (e.g. `gh_bobs-org__bob-cli`) instead of its `PROJECT_NAME` (e.g. `bob-cli`). A deliberately
-customized prefix is never flagged. The repair is forward-only: existing bead IDs keep the old prefix, and only new
-top-level beads use the corrected one.
+`--fix-issue-prefix` previews and, after confirmation, resets a store's issue prefix on demand when it was leaked as the
+project's ProjectSpec directory key (e.g. `gh_bobs-org__bob-cli`) instead of its `PROJECT_NAME` (e.g. `bob-cli`). The
+same repair also runs automatically before the next top-level bead is minted. A deliberately customized prefix is never
+flagged. The repair is forward-only: existing bead IDs keep the old prefix, and only new top-level beads use the
+corrected one.
 
-| Flag                     | Description                                                                        |
-| ------------------------ | ---------------------------------------------------------------------------------- |
-| `-F, --fix-design-refs`  | Repair recoverable legacy design references after confirmation                     |
-| `-I, --fix-issue-prefix` | Reset a leaked ProjectSpec-key issue prefix to the project name after confirmation |
-| `-P, --fix-projection`   | Rewrite `issues.jsonl` from canonical event streams after confirmation             |
-| `-y, --yes`              | Apply the requested doctor repair without an interactive confirmation              |
+| Flag                     | Description                                                                         |
+| ------------------------ | ----------------------------------------------------------------------------------- |
+| `-F, --fix-design-refs`  | Repair recoverable legacy design references after confirmation                      |
+| `-I, --fix-issue-prefix` | Repair a leaked ProjectSpec-key issue prefix to the project name after confirmation |
+| `-P, --fix-projection`   | Rewrite `issues.jsonl` from canonical event streams after confirmation              |
+| `-y, --yes`              | Apply the requested doctor repair without an interactive confirmation               |
 
 ### `sase bead history [<id>]`
 
@@ -714,8 +715,9 @@ record names that sidecar, and `beads/` in the `--plans` repository until then.
 
 A newly initialized store's default `issue_prefix` is the project's `PROJECT_NAME` display name (falling back to the
 internal ProjectSpec key, then the git remote's repo name, then the directory name) rather than the raw ProjectSpec key.
-Use `sase bead doctor --fix-issue-prefix` to forward-repair a store created before this change that already leaked the
-key (see [`sase bead doctor`](#sase-bead-doctor)).
+Stores created before this change that already leaked the key are forward-repaired automatically before their next
+top-level bead is minted. Use `sase bead doctor --fix-issue-prefix` to repair one on demand before creating another bead
+(see [`sase bead doctor`](#sase-bead-doctor)).
 
 ### `sase bead list`
 

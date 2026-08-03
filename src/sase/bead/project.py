@@ -53,6 +53,7 @@ class BeadProject(
         self._conn_cache: sqlite3.Connection | None = None
         self._mutation_changed = False
         self._last_mutation_outcome: dict[str, object] = {}
+        self._last_prefix_repair: tuple[str, str] | None = None
         prefix = str(self._config.get("issue_prefix", "beads"))
         raw_counter = self._config.get("next_counter", 1)
         counter = raw_counter if isinstance(raw_counter, int) else int(str(raw_counter))
@@ -79,6 +80,11 @@ class BeadProject(
     def last_mutation_outcome(self) -> dict[str, object]:
         """Return the most recent Rust mutation outcome."""
         return self._last_mutation_outcome.copy()
+
+    @property
+    def last_prefix_repair(self) -> tuple[str, str] | None:
+        """Return the most recent automatic issue-prefix repair."""
+        return self._last_prefix_repair
 
     @staticmethod
     def init(root_dir: str | Path, beads_dirname: str = BEADS_DIRNAME) -> BeadProject:
