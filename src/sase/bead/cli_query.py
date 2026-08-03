@@ -125,7 +125,12 @@ def handle_bead_list(args: argparse.Namespace) -> None:
 def handle_bead_show(args: argparse.Namespace) -> None:
     with get_read_view() as view:
         try:
-            issue = view.show(args.id)
+            detail = None
+            if args.format == "compact":
+                issue = view.show(args.id)
+            else:
+                detail = resolve_issue_detail(view, args.id)
+                issue = detail.issue
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
@@ -147,7 +152,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                     end="",
                 )
             case "json":
-                detail = resolve_issue_detail(view, issue)
+                assert detail is not None
                 print(
                     render_issue_detail_json(
                         detail,
@@ -161,7 +166,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                     end="",
                 )
             case "full":
-                detail = resolve_issue_detail(view, issue)
+                assert detail is not None
                 reference_context = artifact_reference_context() if issue.refs else None
                 print(
                     render_issue_detail(

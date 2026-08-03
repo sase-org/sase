@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,17 @@ from sase.core.bead_wire import (
 from sase.core.rust import require_rust_binding
 
 
+@dataclass(frozen=True)
+class BeadIssueDetailSnapshot:
+    """Relationships resolved from one Rust bead-store snapshot."""
+
+    issue: Issue
+    ancestors: tuple[Issue | None, ...]
+    children: tuple[Issue, ...]
+    depends_on: tuple[Issue | None, ...]
+    blocks: tuple[Issue, ...]
+
+
 def show(beads_dir: Path | str, issue_id: str) -> Issue:
     binding = require_rust_binding("bead_show")
     try:
@@ -26,6 +38,28 @@ def show(beads_dir: Path | str, issue_id: str) -> Issue:
         _raise_key_error_for_missing_issue(issue_id, exc)
         raise
     return issue_from_dict(payload)
+
+
+def show_issue_detail(beads_dir: Path | str, issue_id: str) -> BeadIssueDetailSnapshot:
+    binding = require_rust_binding("bead_show_issue_detail")
+    try:
+        payload: dict[str, Any] = binding(str(beads_dir), issue_id)
+    except ValueError as exc:
+        _raise_key_error_for_missing_issue(issue_id, exc)
+        raise
+    return BeadIssueDetailSnapshot(
+        issue=issue_from_dict(payload["issue"]),
+        ancestors=tuple(
+            None if issue is None else issue_from_dict(issue)
+            for issue in payload["ancestors"]
+        ),
+        children=tuple(issues_from_list(payload["children"])),
+        depends_on=tuple(
+            None if issue is None else issue_from_dict(issue)
+            for issue in payload["depends_on"]
+        ),
+        blocks=tuple(issues_from_list(payload["blocks"])),
+    )
 
 
 def resolve_id(beads_dir: Path | str, issue_id: str) -> str:
@@ -161,6 +195,7 @@ def _raise_key_error_for_missing_issue(issue_id: str, exc: ValueError) -> None:
 
 
 __all__ = [
+    "BeadIssueDetailSnapshot",
     "blocked",
     "doctor",
     "doctor_report",
@@ -171,5 +206,6 @@ __all__ = [
     "resolve_id",
     "search",
     "show",
+    "show_issue_detail",
     "stats",
 ]

@@ -48,6 +48,16 @@ def test_read_facade_matches_bead_project_queries(
         assert rust_beads.show(beads_dir, issues["epic"].id) == project.show(
             issues["epic"].id
         )
+        detail = rust_beads.show_issue_detail(beads_dir, issues["second"].id)
+        assert detail.issue == issues["second"]
+        assert [issue.id if issue else None for issue in detail.ancestors] == [
+            issues["epic"].id
+        ]
+        assert detail.children == ()
+        assert [issue.id if issue else None for issue in detail.depends_on] == [
+            issues["first"].id
+        ]
+        assert detail.blocks == ()
         assert _ids(rust_beads.list_issues(beads_dir)) == _ids(project.list_issues())
         assert _ids(rust_beads.list_issues(beads_dir, statuses=[Status.OPEN])) == _ids(
             project.list_issues(statuses=[Status.OPEN])
@@ -75,6 +85,8 @@ def test_read_facade_missing_issue_raises_key_error(
     try:
         with pytest.raises(KeyError, match="Issue not found"):
             rust_beads.show(beads_dir, "missing")
+        with pytest.raises(KeyError, match="Issue not found"):
+            rust_beads.show_issue_detail(beads_dir, "missing")
     finally:
         project.__exit__()
 

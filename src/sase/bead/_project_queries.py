@@ -10,6 +10,7 @@ from sase.bead.model import BeadSearchMatch, BeadTier, Issue, IssueType, Status
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from sase.core.bead_read_facade import BeadIssueDetailSnapshot
 
 
 class BeadProjectQueryMixin:
@@ -23,6 +24,12 @@ class BeadProjectQueryMixin:
         from sase.core import bead_read_facade as rust_beads
 
         return rust_beads.show(self.beads_dir, issue_id)
+
+    def show_issue_detail(self, issue_id: str) -> BeadIssueDetailSnapshot:
+        """Resolve one issue and its detail relationships in one store read."""
+        from sase.core import bead_read_facade as rust_beads
+
+        return rust_beads.show_issue_detail(self.beads_dir, issue_id)
 
     def resolve_id(self, issue_id: str) -> str:
         """Return the canonical full ID for a full or shorthand bead ID."""

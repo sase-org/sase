@@ -103,8 +103,50 @@ class IssueDetailIndex:
         )
 
 
-def resolve_issue_detail(view: BeadProject, issue: Issue) -> IssueDetail:
+def resolve_issue_detail(view: BeadProject, issue: Issue | str) -> IssueDetail:
     """Resolve every relationship needed by the text and JSON detail views."""
+    if hasattr(view, "show_issue_detail"):
+        issue_id = issue if isinstance(issue, str) else issue.id
+        snapshot = view.show_issue_detail(issue_id)
+        resolved_issue = snapshot.issue
+        ancestors = _ancestor_refs_from_snapshot(resolved_issue, snapshot.ancestors)
+        phases = tuple(
+            _issue_ref(child)
+            for child in snapshot.children
+            if child.issue_type == IssueType.PHASE
+        )
+        child_epics = tuple(
+            _issue_ref(child)
+            for child in snapshot.children
+            if child.issue_type == IssueType.PLAN
+        )
+        dependencies = tuple(
+            _issue_ref(resolved)
+            if resolved is not None
+            else _unresolved_ref(dependency.depends_on_id)
+            for dependency, resolved in zip(
+                resolved_issue.dependencies,
+                snapshot.depends_on,
+                strict=True,
+            )
+        )
+        blocks = tuple(_issue_ref(blocked) for blocked in snapshot.blocks)
+        return IssueDetail(
+            issue=resolved_issue,
+            ancestors=ancestors,
+            phases=phases,
+            child_epics=child_epics,
+            depends_on=dependencies,
+            blocks=blocks,
+            plan=_resolve_plan_link(resolved_issue, ancestors),
+        )
+
+    if isinstance(issue, str):
+        issue = view.show(issue)
+    return _resolve_issue_detail_legacy(view, issue)
+
+
+def _resolve_issue_detail_legacy(view: BeadProject, issue: Issue) -> IssueDetail:
     ancestors = _parent_lineage(view, issue)
     children = view.get_epic_children(issue.id)
     phases = tuple(
@@ -143,6 +185,22 @@ def resolve_issue_detail(view: BeadProject, issue: Issue) -> IssueDetail:
         blocks=tuple(blocks),
         plan=_resolve_plan_link(issue, ancestors),
     )
+
+
+def _ancestor_refs_from_snapshot(
+    issue: Issue,
+    ancestors: tuple[Issue | None, ...],
+) -> tuple[IssueRef, ...]:
+    refs: list[IssueRef] = []
+    parent_id = issue.parent_id
+    for ancestor in ancestors:
+        if ancestor is None:
+            if parent_id is not None:
+                refs.append(_unresolved_ref(parent_id))
+            break
+        refs.append(_issue_ref(ancestor))
+        parent_id = ancestor.parent_id
+    return tuple(refs)
 
 
 def _parent_lineage(view: BeadProject, issue: Issue) -> tuple[IssueRef, ...]:
