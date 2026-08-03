@@ -13,8 +13,14 @@ from sase.agents_sync.models import (
 
 
 def agents_sync_status_needs_attention(status: ProjectSyncStatus) -> bool:
-    """Return whether cached incoming hoods are waiting to be imported."""
-    return status.pending_foreign_count > 0
+    """Return whether agents sync or publication status needs visible attention."""
+    return agents_sync_status_attention_count(status) > 0
+
+
+def agents_sync_status_attention_count(status: ProjectSyncStatus) -> int:
+    """Return the compact badge count for incoming hoods and queue diagnostics."""
+
+    return status.pending_foreign_count + len(status.quarantine_diagnostics)
 
 
 def captured_agent_hood_label(item: CapturedIncomingHood) -> str:
@@ -125,6 +131,7 @@ def summarize_cached_agents_results(
 
 __all__ = [
     "agents_sync_outcome_line",
+    "agents_sync_status_attention_count",
     "agents_sync_status_needs_attention",
     "cached_agents_result_line",
     "captured_agent_hood_label",

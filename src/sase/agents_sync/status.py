@@ -27,7 +27,7 @@ from sase.agents_sync.models import (
     SyncStatusSnapshot,
 )
 from sase.agents_sync.publication_outbox import (
-    publication_quarantine_diagnostics,
+    publication_status_diagnostics,
 )
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.config import require_agent_owner_identity
@@ -284,7 +284,7 @@ def _reconcile_project_status(
 
 def _publication_diagnostics(project_key: str) -> tuple[str, ...]:
     try:
-        return publication_quarantine_diagnostics(project_key)
+        return publication_status_diagnostics(project_key)
     except (OSError, RuntimeError, ValueError) as exc:
         return (f"publication outbox diagnostics unavailable: {exc}",)
 

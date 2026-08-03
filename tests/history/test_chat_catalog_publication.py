@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
 from sase.agents_sync.models import TargetSelection
 from sase.history.chat_catalog_provenance import load_chat_catalog
 from sase.history.chat_catalog_provenance import sidecars
@@ -149,6 +150,42 @@ def test_family_member_chat_finds_its_lane_publication_request(
     assert entry.publication_disposition == "queued"
     assert entry.publication_attempts == 1
     assert entry.publication_last_error == "network down"
+
+
+def test_non_agent_publication_requests_do_not_attach_to_chats(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = _setup_home(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        sidecars,
+        "resolve_sync_targets",
+        lambda: TargetSelection(),
+    )
+    chat = _chat(home, "typed-publication-260724_160401")
+    _artifact(home, "20260724160401", chat)
+    _write_outbox(
+        home,
+        [
+            AgentPublicationOutboxItem(
+                project_key="proj",
+                project="Project",
+                kind="bead_pages",
+                bead_id="proj-1",
+                lineage_root="proj-1",
+                primary_revision="b" * 40,
+                created_at=1.0,
+                updated_at=1.0,
+            ).to_json_dict()
+        ],
+        schema_version=4,
+    )
+
+    entry = load_chat_catalog(force=True).entries[0]
+
+    assert entry.publication_disposition is None
+    assert entry.publication_pending is False
+    assert entry.publication_quarantined is False
 
 
 def test_malformed_publication_state_becomes_catalog_diagnostic(

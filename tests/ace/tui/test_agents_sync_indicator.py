@@ -80,8 +80,33 @@ def test_indicator_shows_pending_projects_and_deterministic_tooltip() -> None:
         "Alpha:\n"
         "  alice.hera.bar — 1 run, 0 families\n"
         "  alice.zeus.foo — 2 runs, 1 family\n"
-        "Click to import these cached hoods without fetching. Press ,U "
+        "Click to import the cached hoods above without fetching. Press ,U "
         "to include them in the comprehensive update."
+    )
+
+
+def test_indicator_counts_publication_diagnostics() -> None:
+    indicator = AgentsSyncIndicator()
+
+    indicator.set_status(
+        _snapshot(
+            ProjectSyncStatus(
+                "a",
+                "Alpha",
+                "ready",
+                quarantine_diagnostics=(
+                    "publication request bead lineage a-1 queued for the publications lane",
+                ),
+            )
+        )
+    )
+
+    assert indicator.pending_count == 1
+    assert indicator._build_content(indicator.pending_projects).plain == " ⇅ 1 "
+    assert str(indicator.tooltip) == (
+        "Publication queue diagnostics:\n"
+        "Alpha:\n"
+        "  publication request bead lineage a-1 queued for the publications lane"
     )
 
 
@@ -101,7 +126,7 @@ def test_indicator_clear_and_idempotent_projection() -> None:
     assert indicator.pending_count == 0
     assert indicator._build_content(indicator.pending_projects).plain == ""
     assert indicator.tooltip == (
-        "No cached incoming agent hoods from other owners are waiting"
+        "No cached incoming agent hoods or publication requests are waiting"
     )
 
 

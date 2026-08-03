@@ -530,10 +530,36 @@ def publication_quarantine_diagnostics(project_key: str) -> tuple[str, ...]:
     )
 
 
+def publication_status_diagnostics(project_key: str) -> tuple[str, ...]:
+    """Render operator-facing diagnostics for every queued publication request."""
+
+    return tuple(
+        _publication_status_diagnostic(item)
+        for item in list_agent_publications(project_key)
+    )
+
+
+def _publication_status_diagnostic(item: AgentPublicationOutboxItem) -> str:
+    if item.terminal or item.quarantined:
+        return _publication_stopped_diagnostic(item)
+
+    subject = f"publication request {publication_request_subject(item)}"
+    if item.attempts:
+        message = f"{subject} queued for retry after {item.attempts} attempt(s)"
+    else:
+        message = f"{subject} queued for the publications lane"
+    if item.last_error:
+        message = f"{message}: {item.last_error}"
+    return (
+        f"{message}; run `sase axe chop run sidecar_publication -L publications` "
+        "to drain now"
+    )
+
+
 def _publication_stopped_diagnostic(item: AgentPublicationOutboxItem) -> str:
     """Render one quarantined or retired request with accurate remediation."""
 
-    subject = f"publication request {_publication_subject(item)}"
+    subject = f"publication request {publication_request_subject(item)}"
     if item.terminal:
         reason = item.terminal_reason or item.last_error or "unknown reason"
         return (
@@ -547,7 +573,9 @@ def _publication_stopped_diagnostic(item: AgentPublicationOutboxItem) -> str:
     )
 
 
-def _publication_subject(item: SidecarPublicationRequest) -> str:
+def publication_request_subject(item: SidecarPublicationRequest) -> str:
+    """Return a concise, stable label for one typed publication request."""
+
     if item.kind == "agent_hood":
         return f"{item.global_agent}@{item.primary_revision[:12]}"
     if item.kind == "bead_pages":
@@ -841,6 +869,8 @@ __all__ = [
     "enqueue_sidecar_push_publication",
     "list_agent_publications",
     "publication_quarantine_diagnostics",
+    "publication_request_subject",
+    "publication_status_diagnostics",
     "snapshot_agent_publications_from_path",
     "update_agent_publications",
 ]

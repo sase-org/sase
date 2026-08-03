@@ -98,6 +98,8 @@ def load_publication_backlog() -> tuple[
             )
             continue
         for item in items:
+            if item.kind != "agent_hood":
+                continue
             for name in {item.global_agent, item.local_agent}:
                 groups[(project_dir.name, name)].append(item)
     result = {

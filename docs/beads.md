@@ -162,26 +162,25 @@ open ──claim──▶ claimed ──promote──▶ in_progress ──close
 
 - **Claim.** When a bead-carrying agent enters a wait phase (dependency `%wait`, runner-slot, or duration waits), the
   runner sets the bead to `claimed` and assigns it to the agent name. Claims are written to the project's canonical bead
-  store, committed locally, and then published synchronously on a best-effort basis so other hosts can see the claim:
-  the runner runs the managed sync worker for that store right after the commit lands. Publication never rolls a claim
-  back — a missing git repo or missing remote is a silent local-only outcome, and a real sync failure only prints a
-  warning with the managed-sync log path while the local commit stands. Claiming is advisory: it never blocks or fails
-  an agent launch, and a straight-through launch with no waits skips it entirely. Because it is advisory, the claim is
-  acquired **best-effort**: the runner retries a bounded number of times (refreshing the canonical store once when the
-  bead is not there yet, which is normal right after an epic graph is published), and whatever it fails to acquire is
-  picked up by the `bead_claim_checks` reconciler. A bead can therefore turn `claimed` a few seconds after its agent
-  starts waiting rather than instantly.
+  store and committed locally; sidecar page rendering and pushes are queued for the `publications` axe lane. Queueing
+  never rolls a claim back — a missing git repo or missing remote is a local-only outcome, and a real queueing failure
+  only prints a warning while the local commit stands. Claiming is advisory: it never blocks or fails an agent launch,
+  and a straight-through launch with no waits skips it entirely. Because it is advisory, the claim is acquired
+  **best-effort**: the runner retries a bounded number of times (refreshing the canonical store once when the bead is
+  not there yet, which is normal right after an epic graph is published), and whatever it fails to acquire is picked up
+  by the `bead_claim_checks` reconciler. A bead can therefore turn `claimed` a few seconds after its agent starts
+  waiting rather than instantly.
 - **Promote.** Immediately before model execution the runner performs the existing just-in-time claim, which sets
   `status=in_progress` and assigns the runner name. Promotion is what makes the claim permanent; from that point the
   claim is never released automatically. In managed standalone SDD stores the promotion must produce a local commit and
-  is published the same best-effort way before model execution; in in-tree stores the agent commits the promotion along
-  with its implementation instead.
+  queues the same publication work before model execution; in in-tree stores the agent commits the promotion along with
+  its implementation instead.
 - **Release.** If the owning agent dies before it ever promoted its claim, the bead returns to `open` with an empty
   assignee. The runner shutdown path releases the claim on ordinary kills (except when a retry handoff is pending, which
   keeps the claim), and the `bead_claim_checks` chop is the backstop for SIGKILL, crashes, and reboots. It releases a
   claim only when the owning agent is dead, never promoted, and resolvable to its artifact; anything else is left
-  untouched and reported by `sase doctor` instead. A committed release is published the same best-effort way as a claim,
-  so a freed bead does not stay claimed on other hosts.
+  untouched and reported by `sase doctor` instead. A committed release queues the same publication work as a claim, so a
+  freed bead is propagated by the `publications` lane.
 - **Reconcile.** The `bead_claim_checks` chop — registered under the `waits` lumberjack — runs in both directions. Next
   to the release pass above, an acquire pass claims a bead on behalf of a live agent that is waiting without a claim,
   which is what makes a lost or delayed claim self-healing within one `waits` interval. A held claim is recorded in the
@@ -470,16 +469,16 @@ sase bead pages refresh --json          # machine-readable report
 sase bead pages url beads-1.2           # print the hosted URL for one bead
 ```
 
-Per-commit publication refreshes the committed bead's lineage after a `create_commit` or `create_pull_request` workflow
-that carries `SASE_BEAD=`. The shared `pages/README.md` roster is owned by `sase bead pages refresh`, so regular commits
-avoid rewriting a file every active agent could touch. `sase bead show <id>` prints a `PAGE` section when the local
-sidecar remote and branch resolve to a hosted URL; `--format json` includes `page_url` in the same case. Its
-`CREATED BY` section similarly links agent-created beads to the corresponding hosted agents-sidecar page. An epic agent
-clan's summary panel also shows its epic bead's hosted page URL when one resolves; run `sase plan links refresh` to
-repair a plan whose `BEAD` bullet predates hosted links. Epic clan summaries place the label and complete URL on one
-logical line, with no SASE-authored break or whitespace inside the address. A panel too narrow for the composed row
-moves the whole address to the next row flush-left, so terminal URL matchers and copy/paste always see the complete
-target.
+Per-commit publication queues the committed bead's lineage after a `create_commit` or `create_pull_request` workflow
+that carries `SASE_BEAD=`. The `publications` axe lane renders and pushes that lineage after the primary commit returns.
+The shared `pages/README.md` roster is owned by `sase bead pages refresh`, so regular commits avoid rewriting a file
+every active agent could touch. `sase bead show <id>` prints a `PAGE` section when the local sidecar remote and branch
+resolve to a hosted URL; `--format json` includes `page_url` in the same case. Its `CREATED BY` section similarly links
+agent-created beads to the corresponding hosted agents-sidecar page. An epic agent clan's summary panel also shows its
+epic bead's hosted page URL when one resolves; run `sase plan links refresh` to repair a plan whose `BEAD` bullet
+predates hosted links. Epic clan summaries place the label and complete URL on one logical line, with no SASE-authored
+break or whitespace inside the address. A panel too narrow for the composed row moves the whole address to the next row
+flush-left, so terminal URL matchers and copy/paste always see the complete target.
 
 ## CLI Commands
 
@@ -530,9 +529,9 @@ This upward cascade continues only through phase parents and never auto-closes a
 retains that responsibility. Removing a child epic does not trigger the cascade, so its phase stays open and can be
 scheduled again on retry.
 
-When a close changes the store, SASE commits it and then publishes it according to `sdd.push_after_commit` (default:
-`async`). Use `--no-push` to keep the commit local while batching bead mutations, then publish the batch with a later
-`sase bead sync`.
+When a close changes the store, SASE commits it locally and queues sidecar publication according to
+`sdd.push_after_commit` (default: `async`). Use `--no-push` to keep the commit local while batching bead mutations, then
+publish the batch with a later `sase bead sync` or `sidecar_publication` chop run.
 
 | Flag               | Description                                                                                                  |
 | ------------------ | ------------------------------------------------------------------------------------------------------------ |
@@ -947,7 +946,8 @@ For a task bead, `sase bead work <task-id>` accepts `ready` (normal), `open` (ma
 1. Force-reuses the task ID as the deterministic agent name after showing or confirming any destructive cleanup.
 2. Selects the bead's stored model or its size-derived phase-worker alias; missing legacy size normalizes to small.
 3. Renders one VCS-aware prompt ending in `#bd/work_task:<task-id>`, plus `#plan` for large/xlarge tasks.
-4. Sets `status=in_progress` and `assignee=<task-id>` in one checkpoint commit, publishes it, then launches the worker.
+4. Sets `status=in_progress` and `assignee=<task-id>` in one checkpoint commit, queues publication, then launches the
+   worker.
 5. Restores the prior task state if dispatch fails before any runner starts; a live runner keeps the checkpoint.
 
 The `TaskTriage` gate's default Launch branch submits this command as a detached task with `--yes-to-all`; optional gate
@@ -966,7 +966,7 @@ Plan-file mode is the canonical epic-approval entry point. It:
 
 A missing phase description becomes a deterministic pointer to the plan and phase ID. A linked `bead_id` that no longer
 exists fails with instructions to remove the stale link or restore the bead store. Failures before the launch checkpoint
-is committed remove the newly-created epic and children and restore the plan link. A publication failure after the
+is committed remove the newly-created epic and children and restore the plan link. A queueing failure after the
 checkpoint preserves the linked, preassigned epic as the safe retry point even though no runner spawned. If dispatch
 fails with no runner spawned, plan-file mode removes a newly created graph and restores the plan link; for an epic that
 already existed, it instead restores that epic's prior readiness, assignments, and statuses. Once a runner has spawned,
@@ -1068,10 +1068,10 @@ and project name (for example `#git:sase` or `#gh:sase-org/sase`). If the curren
 SASE project, the prompts are left unprefixed and run in the caller's normal launch context.
 
 If checkpoint creation fails before it commits, the command restores every phase/epic status and assignee it changed,
-and restores `is_ready_to_work` only when this attempt set it. A detached-store publication failure after the local
+and restores `is_ready_to_work` only when this attempt set it. A detached-store queueing failure after the local
 checkpoint commit stops before spawning and preserves that checkpoint as the safe retry point; rerun without `--no-push`
-after fixing the remote. For an existing epic, an agent-dispatch failure before any runner spawns restores the prior
-assignments and commits the recovery. Plan-file mode additionally removes a graph created by that invocation and
+after fixing the queue target. For an existing epic, an agent-dispatch failure before any runner spawns restores the
+prior assignments and commits the recovery. Plan-file mode additionally removes a graph created by that invocation and
 restores its plan link. A partial-spawn failure SIGTERMs the children it did start and preserves the preassigned
 checkpoint for recovery. An epic that was already ready remains ready.
 
@@ -1079,13 +1079,12 @@ Successful launches do not add a post-launch bead commit: the pre-spawn graph ch
 state. The accepted `bead.push_after_commit` configuration field is not consulted by this current path. The exact
 synchronization sequence depends on the target:
 
-- For a bead-ID target, SASE runs the managed sync worker synchronously after the checkpoint unless `--no-push` was
-  passed. A store with no Git remote makes that sync a local no-op. Any reported sync or push error stops the launch
-  before dispatch, including for an in-tree Git store. A remote-backed detached store has the additional requirement
-  that the checkpoint was actually pushed.
-- For a plan-file target, SASE synchronously publishes a remote-backed detached bead graph before dispatch. After a
-  successful dispatch it makes a best-effort synchronous push of the plans store, which publishes the archived plan and
-  its `bead_id` link. A failure in this later plans-store push is a warning, not a launch failure.
+- For a bead-ID target, SASE commits the checkpoint locally and queues the bead-store push unless `--no-push` was
+  passed. A store with no Git remote makes that queueing a local no-op. Queueing failure stops before dispatch because
+  the worker may need the checkpoint from a remote-backed detached store.
+- For a plan-file target, SASE commits the archived plan, bead graph, and `bead_id` link locally, then queues the
+  relevant beads and plans sidecar pushes. A failure in the later queued plans-store push is reported by doctor/status,
+  not by the launch that already handed work to agents.
 - `--no-push` skips these synchronization steps. It is usable only when workers can see the local checkpoint directly; a
   remote-backed detached bead store exits nonzero before any agent is spawned.
 

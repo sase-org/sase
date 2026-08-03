@@ -609,20 +609,21 @@ Because the Axe tab claims `d`, the `show_diff` action is active only on the PRs
 
 #### `ace.agents_sync`
 
-| Field                        | Type   | Default | Description                                                                                          |
-| ---------------------------- | ------ | ------- | ---------------------------------------------------------------------------------------------------- |
-| `check_interval_minutes`     | number | `10`    | Interval between cache-and-receipt status reconciliations in a running ACE session.                  |
-| `recompute_interval_minutes` | number | `30`    | Minimum cadence between status checks that fetch remote refs before recomputing the snapshot.        |
-| `indicator`                  | bool   | `true`  | Show the top-bar `⇅ N` badge only for validated hoods from other owners cached and not yet imported. |
+| Field                        | Type   | Default | Description                                                                                   |
+| ---------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------- |
+| `check_interval_minutes`     | number | `10`    | Interval between cache-and-receipt status reconciliations in a running ACE session.           |
+| `recompute_interval_minutes` | number | `30`    | Minimum cadence between status checks that fetch remote refs before recomputing the snapshot. |
+| `indicator`                  | bool   | `true`  | Show the top-bar `⇅ N` badge for cached incoming hoods and publication queue diagnostics.     |
 
 Both intervals must be greater than zero. ACE schedules the first check after its initial paint, coalesces overlapping
 checks, and keeps the network-fetch cadence separate from the cheaper cache/receipt reconciliation cadence. Only a
 remote recomputation runs Git and refreshes ahead and behind counts; the cheaper pass carries those diagnostic values
-forward. Neither value controls the badge. The badge counts only validated incoming hoods from other owners in the
-immutable incoming cache whose digests are not covered by import receipts. Clicking it imports exactly the displayed
-cache items without any fetch, pull, push, export, or sidecar-checkout mutation. Hiding the indicator also disables the
-periodic ACE status scheduler, but it does not disable `sase agent sync`, Updates-pane `a`, commit-triggered hood
-publication, or the `,U` cached-integration leg. See [Agent Hood Synchronization](agents_sidecar.md).
+forward. Neither value controls the badge. The badge counts validated incoming hoods from other owners in the immutable
+incoming cache whose digests are not covered by import receipts, plus publication queue diagnostics from the same
+no-network snapshot. Clicking it imports exactly the displayed cache items without any fetch, pull, push, export, or
+sidecar-checkout mutation; publication diagnostics remain informational. Hiding the indicator also disables the periodic
+ACE status scheduler, but it does not disable `sase agent sync`, Updates-pane `a`, commit-triggered publication
+queueing, or the `,U` cached-integration leg. See [Agent Hood Synchronization](agents_sidecar.md).
 
 #### `ace.tribes`
 
@@ -1255,9 +1256,9 @@ Research is config-declared per project and defaults to `<owner>/<project>--rese
 and research entries. A project-local `agents` entry replaces the implicit entry: use `disabled: true` to opt out or
 `visibility: private` to retain it with a private remote policy. Project-local `default_linked_repos: false` suppresses
 both implicit managed-project entries. `sase repo init` can create and seed the agents remote only after its separate
-default-no consent prompt. Successful agent commit/PR workflows publish the committing hood, while `sase agent sync`
-imports shared history and reconciles every locally commit-eligible hood through the stable machine-level clone. See
-[Agent Hood Synchronization](agents_sidecar.md) before enabling a public remote.
+default-no consent prompt. Successful agent commit/PR workflows queue the committing hood for the `publications` lane,
+while `sase agent sync` imports shared history and reconciles every locally commit-eligible hood through the stable
+machine-level clone. See [Agent Hood Synchronization](agents_sidecar.md) before enabling a public remote.
 
 The deprecated `linked_repos` and `sibling_repos` keys are still accepted as aliases during the compatibility window.
 Canonical `repos.linked` entries take precedence over both aliases when the same name is defined.
@@ -1588,6 +1589,24 @@ axe:
             Applies the axe query and starts non-blocking critique_comments checks for mailed ChangeSpecs that have an
             available workspace, then records a comment-cycle summary. The lumberjack's one-minute interval is the
             polling throttle; pending_checks_poll later consumes each background result.
+    publications:
+      description: |-
+        Publish queued agents and beads sidecar work off the interactive commit path
+
+        Runs every thirty seconds so sidecar pages, prompt archives, and their pushes land promptly without any
+        interactive command waiting on sidecar git or network work. Put durable sidecar publication here; bead-store
+        reconciliation, ChangeSpec lifecycle, and remote PR polling belong in the other lanes.
+      interval: 30
+      chop_timeout: "5m"
+      chops:
+        - name: sidecar_publication
+          script: sase_chop_sidecar_publication
+          description: |-
+            Drain each project's queued agents, beads, and plan-header publication requests
+
+            Publishes queued agent hoods and prompt archives, renders and commits queued bead pages, refreshes the
+            plan headers those publications feed, and pushes each sidecar, under bounded per-project locks. Contended
+            or failing projects back off exponentially and are retried on a later tick instead of blocking the pass.
     housekeeping:
       description: |-
         Run hourly error digests and managed-temp cleanup

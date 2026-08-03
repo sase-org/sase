@@ -148,7 +148,7 @@ ChangeSpec         (create ChangeSpec entry in project file)              [PR on
     |
 Result marker      (write commit_result.json for xprompt post-steps)
     |
-Agent publication  (resolve target; enqueue exact hood, then try publish) [agent commit/PR only]
+Sidecar queue      (enqueue bead/agent/plan publication requests)         [commit/PR only]
     |
 COMMITS entry      (append entry to project file)                         [commit/propose only]
 ```
@@ -220,13 +220,14 @@ be derived — and it is omitted for manual non-agent commits. New commits never
 still removes inherited `AGENT` and historical `MACHINE` values. `create_proposal` does not get runtime commit tags
 because it saves a diff instead of creating a VCS commit.
 
-After an agent-backed primary operation and its first durable result marker, the workflow first refreshes the committed
-bead's generated page lineage when the message carries `SASE_BEAD=`. It then resolves the immutable primary revision
-through the VCS provider and resolves the project's agents target. When that target is available, SASE records a
-project-scoped outbox request for only that agent's top-level hood before attempting publication. The attempt also
-drains older requests for the project. A failure after enqueueing does not invalidate the primary commit; the request
-remains for a later agent commit or full `sase agent sync`. Target-resolution and outbox-persistence failures occur
-before that durability guarantee, so they can instead skip publication or require `sase commit --resume`.
+After an agent-backed primary operation and its first durable result marker, the workflow queues the committed bead's
+generated page lineage when the message carries `SASE_BEAD=`, queues the committed plan-header refresh when the message
+carries `SASE_PLAN=`, and queues the committing agent's top-level hood plus prompt archive when runtime provenance is
+available. It resolves the immutable primary revision through the VCS provider because that revision is part of the
+queue key and the eventual hosted links. Once queued, the primary commit is complete; the `publications` lumberjack
+later drains the project in sidecar dependency order. Queueing failures are warnings and do not invalidate the primary
+commit. Only failure to resolve a required immutable primary revision asks for `sase commit --resume`, because replaying
+the same checkpoint can fill that key without creating another primary commit.
 
 **Footer tag prefix:** All SASE-authored commit footer tags (`TYPE`, `BEAD`, `AGENT`, `PLAN`, `BUG`, and any configured
 or inherited PR tag keys) are written with a `SASE_` prefix — for example `SASE_TYPE=sdd` and `SASE_AGENT=<name>`.

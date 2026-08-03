@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 import time
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from sase.agents_sync.publication_outbox import (
     AGENT_PUBLICATION_OUTBOX_FILENAME,
@@ -12,6 +13,7 @@ from sase.agents_sync.publication_outbox import (
     PUBLICATION_RETRY_COMMAND,
     AgentPublicationOutboxItem,
     configured_publication_max_attempts,
+    publication_request_subject,
     snapshot_agent_publications_from_path,
 )
 from sase.core.project_lifecycle_facade import list_project_records
@@ -27,6 +29,11 @@ DEFAULT_PUBLICATION_STALLED_AGE_SECONDS = 24 * 60 * 60
 _MAX_DETAIL_ROWS = 10
 _REMEDIATION_COMMAND = PUBLICATION_RETRY_COMMAND
 _RETIRED_REMEDIATION_COMMAND = PUBLICATION_DROP_COMMAND
+_AXE_ENSURE_COMMAND = "sase axe ensure"
+_AXE_STATUS_COMMAND = "sase axe status"
+_AXE_CHOP_LIST_COMMAND = "sase axe chop list"
+_PUBLICATIONS_LUMBERJACK = "publications"
+_SIDECAR_PUBLICATION_CHOP = "sidecar_publication"
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +44,7 @@ class _OutboxProblem:
     item: AgentPublicationOutboxItem
     reasons: tuple[str, ...]
     age_seconds: float | None
+    command: str | None = None
 
     @property
     def retired(self) -> bool:
@@ -48,10 +56,24 @@ class _OutboxProblem:
 
     @property
     def stalled(self) -> bool:
-        return not self.retired and not self.quarantined
+        return (
+            not self.retired
+            and not self.quarantined
+            and any(reason.startswith("stalled:") for reason in self.reasons)
+        )
+
+    @property
+    def not_draining(self) -> bool:
+        return (
+            not self.retired
+            and not self.quarantined
+            and any(reason.startswith("not draining:") for reason in self.reasons)
+        )
 
     @property
     def remediation_command(self) -> str:
+        if self.command is not None:
+            return self.command
         return _RETIRED_REMEDIATION_COMMAND if self.retired else _REMEDIATION_COMMAND
 
     def detail(self) -> str:
@@ -63,8 +85,8 @@ class _OutboxProblem:
         )
         error = f", last error: {self.item.last_error}" if self.item.last_error else ""
         return (
-            f"{self.project}: {self.item.global_agent}@"
-            f"{self.item.primary_revision[:12]} {reason} after "
+            f"{self.project}: {publication_request_subject(self.item)} "
+            f"{reason} after "
             f"{self.item.attempts} attempt(s){age}{error}"
         )
 
@@ -73,19 +95,35 @@ class _OutboxProblem:
             "project_key": self.project_key,
             "project": self.project,
             "outbox_path": str(self.path),
+            "request_id": self.item.id,
+            "kind": self.item.kind,
+            "subject": publication_request_subject(self.item),
+            "logical_key": self.item.logical_key,
             "global_agent": self.item.global_agent,
             "local_agent": self.item.local_agent,
             "primary_revision": self.item.primary_revision,
             "local_hood": self.item.local_hood,
+            "bead_id": self.item.bead_id,
+            "lineage_root": self.item.lineage_root,
+            "plan_ref": self.item.plan_ref,
+            "sidecar_kind": self.item.sidecar_kind,
             "attempts": self.item.attempts,
             "quarantined": self.item.quarantined,
             "retired": self.retired,
+            "stalled": self.stalled,
+            "not_draining": self.not_draining,
             "terminal_reason": self.item.terminal_reason,
             "last_error": self.item.last_error,
             "age_seconds": self.age_seconds,
             "reasons": self.reasons,
             "remediation_command": self.remediation_command,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class _DrainIssue:
+    reason: str
+    remediation_command: str
 
 
 class _OutboxProjectData(TypedDict):
@@ -97,6 +135,9 @@ class _OutboxProjectData(TypedDict):
     quarantined_request_count: int
     retired_request_count: int
     stalled_request_count: int
+    not_draining_request_count: int
+    request_kind_counts: dict[str, int]
+    active_kind_counts: dict[str, int]
 
 
 def agent_publication_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
@@ -184,6 +225,8 @@ def _check_agent_publication_outbox(
     outboxes: list[_OutboxProjectData] = []
     problems: list[_OutboxProblem] = []
     errors: list[str] = []
+    drain_issue: _DrainIssue | None = None
+    drain_issue_checked = False
     for record in records:
         path = projects_root / record.project_name / AGENT_PUBLICATION_OUTBOX_FILENAME
         try:
@@ -195,6 +238,12 @@ def _check_agent_publication_outbox(
             )
             continue
 
+        if not drain_issue_checked and any(
+            not item.quarantined and not item.terminal for item in items
+        ):
+            drain_issue = _publication_drain_issue()
+            drain_issue_checked = True
+
         project_problems: list[_OutboxProblem] = []
         for item in items:
             problem = _problem_for_item(
@@ -204,6 +253,9 @@ def _check_agent_publication_outbox(
                 now=checked_at,
                 stalled_attempts=attempts_threshold,
                 stalled_age_seconds=stalled_age_seconds,
+                drain_issue=(
+                    drain_issue if not item.quarantined and not item.terminal else None
+                ),
             )
             if problem is not None:
                 project_problems.append(problem)
@@ -245,23 +297,19 @@ def _check_agent_publication_outbox(
         quarantined_count = sum(problem.quarantined for problem in problems)
         retired_count = sum(problem.retired for problem in problems)
         stalled_count = sum(problem.stalled for problem in problems)
-        breakdown = ", ".join(
-            (
-                f"{quarantined_count} quarantined",
-                *((f"{retired_count} retired",) if retired_count else ()),
-                f"{stalled_count} stalled",
-            )
-        )
+        not_draining_count = sum(problem.not_draining for problem in problems)
+        breakdown_parts = [
+            f"{quarantined_count} quarantined",
+            *((f"{retired_count} retired",) if retired_count else ()),
+            *((f"{stalled_count} stalled",) if stalled_count else ()),
+            *((f"{not_draining_count} not draining",) if not_draining_count else ()),
+        ]
+        breakdown = ", ".join(breakdown_parts)
         commands = tuple(
             dict.fromkeys(problem.remediation_command for problem in problems)
         )
         next_steps = tuple(
-            (
-                f"Run `{_REMEDIATION_COMMAND}` to release quarantined requests and retry publication."
-                if command == _REMEDIATION_COMMAND
-                else f"Run `{_RETIRED_REMEDIATION_COMMAND}` to drop retired requests that can never be published."
-            )
-            for command in sorted(commands)
+            _next_step_for_command(command) for command in sorted(commands)
         )
         return DiagnosticCheck(
             id="state.agent_publication_outbox",
@@ -303,6 +351,7 @@ def _problem_for_item(
     now: float,
     stalled_attempts: int,
     stalled_age_seconds: float,
+    drain_issue: _DrainIssue | None,
 ) -> _OutboxProblem | None:
     age_seconds = _item_age_seconds(item, now=now)
     if item.terminal:
@@ -325,12 +374,18 @@ def _problem_for_item(
         )
 
     reasons: list[str] = []
+    command: str | None = None
+    if drain_issue is not None:
+        reasons.append(drain_issue.reason)
+        command = drain_issue.remediation_command
     if item.attempts >= stalled_attempts:
         reasons.append(f"stalled: attempts >= {stalled_attempts}")
     if age_seconds is not None and age_seconds >= stalled_age_seconds:
         reasons.append(f"stalled: age >= {_format_duration(stalled_age_seconds)}")
     if not reasons:
         return None
+    if command is None:
+        command = _REMEDIATION_COMMAND
     return _OutboxProblem(
         record.project_name,
         effective_project_name(record),
@@ -338,6 +393,7 @@ def _problem_for_item(
         item,
         tuple(reasons),
         age_seconds,
+        command,
     )
 
 
@@ -358,6 +414,9 @@ def _outbox_project_data(
     items: tuple[AgentPublicationOutboxItem, ...],
     problems: tuple[_OutboxProblem, ...],
 ) -> _OutboxProjectData:
+    active_items = tuple(
+        item for item in items if not item.quarantined and not item.terminal
+    )
     return {
         "project_key": record.project_name,
         "project": effective_project_name(record),
@@ -371,6 +430,9 @@ def _outbox_project_data(
         ),
         "retired_request_count": sum(item.terminal for item in items),
         "stalled_request_count": sum(problem.stalled for problem in problems),
+        "not_draining_request_count": sum(problem.not_draining for problem in problems),
+        "request_kind_counts": _kind_counts(items),
+        "active_kind_counts": _kind_counts(active_items),
     }
 
 
@@ -396,6 +458,9 @@ def _outbox_data(
         "quarantined_request_count": sum(problem.quarantined for problem in problems),
         "retired_request_count": sum(problem.retired for problem in problems),
         "stalled_request_count": sum(problem.stalled for problem in problems),
+        "not_draining_request_count": sum(problem.not_draining for problem in problems),
+        "request_kind_counts": _sum_kind_counts(outboxes, "request_kind_counts"),
+        "active_kind_counts": _sum_kind_counts(outboxes, "active_kind_counts"),
         "problems": tuple(problem.to_data() for problem in problems),
         "error_count": len(errors),
         "errors": errors,
@@ -406,6 +471,81 @@ def _outbox_data(
         "remediation_command": _REMEDIATION_COMMAND,
         "retired_remediation_command": _RETIRED_REMEDIATION_COMMAND,
     }
+
+
+def _publication_drain_issue() -> _DrainIssue | None:
+    try:
+        from sase.axe.status_collector import collect_axe_status_snapshot
+
+        snapshot = collect_axe_status_snapshot()
+    except Exception as exc:  # noqa: BLE001 - doctor should isolate AXE failures.
+        return _DrainIssue(
+            f"not draining: AXE status unavailable ({type(exc).__name__}: {exc})",
+            _AXE_STATUS_COMMAND,
+        )
+
+    row = next(
+        (
+            item
+            for item in snapshot.lumberjacks
+            if getattr(item, "name", "") == _PUBLICATIONS_LUMBERJACK
+        ),
+        None,
+    )
+    if row is None or not bool(getattr(row, "configured", False)):
+        return _DrainIssue(
+            "not draining: publications lumberjack is not configured",
+            _AXE_CHOP_LIST_COMMAND,
+        )
+    if _SIDECAR_PUBLICATION_CHOP not in tuple(getattr(row, "configured_chops", ())):
+        return _DrainIssue(
+            "not draining: publications lumberjack does not run sidecar_publication",
+            _AXE_CHOP_LIST_COMMAND,
+        )
+    state = str(getattr(row, "state", "") or "not reporting")
+    if state != "running":
+        return _DrainIssue(
+            f"not draining: publications lumberjack is {state}",
+            _AXE_ENSURE_COMMAND,
+        )
+    return None
+
+
+def _next_step_for_command(command: str) -> str:
+    if command == _REMEDIATION_COMMAND:
+        return (
+            f"Run `{_REMEDIATION_COMMAND}` to release quarantined requests and retry "
+            "publication."
+        )
+    if command == _RETIRED_REMEDIATION_COMMAND:
+        return (
+            f"Run `{_RETIRED_REMEDIATION_COMMAND}` to drop retired requests that can "
+            "never be published."
+        )
+    if command == _AXE_ENSURE_COMMAND:
+        return (
+            f"Run `{_AXE_ENSURE_COMMAND}` to start or heal the publications lumberjack."
+        )
+    if command == _AXE_CHOP_LIST_COMMAND:
+        return (
+            f"Run `{_AXE_CHOP_LIST_COMMAND}` and confirm the publications lumberjack "
+            "includes sidecar_publication."
+        )
+    return f"Run `{command}`."
+
+
+def _kind_counts(items: tuple[AgentPublicationOutboxItem, ...]) -> dict[str, int]:
+    return dict(sorted(Counter(item.kind for item in items).items()))
+
+
+def _sum_kind_counts(
+    outboxes: tuple[_OutboxProjectData, ...],
+    field: Literal["request_kind_counts", "active_kind_counts"],
+) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for row in outboxes:
+        counts.update(row[field])
+    return dict(sorted(counts.items()))
 
 
 def _format_duration(seconds: float | None) -> str:

@@ -48,8 +48,15 @@ def _patch_plugins_catalog(
             else tuple(agent_cli_statuses)
         ),
         agent_cli_colors={"claude": "#D97757", "codex": "#10A37F"},
+        agent_cli_history=(),
+        agent_cli_history_error=None,
     )
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
+    monkeypatch.setattr(
+        pbp,
+        "_load_agent_cli_history_config",
+        lambda: pbp._AgentCliHistoryConfig(enabled=False, max_rows=8),
+    )
     monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)
     monkeypatch.setattr(
         pbp,

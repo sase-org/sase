@@ -16,18 +16,18 @@ operators can also manage it directly with `sase axe start` and `sase axe stop`.
 ┌─────────────────────────────────────────────────────────┐
 │                    Orchestrator                          │
 │  (spawns & monitors all lumberjacks)                    │
-├──────────┬──────────┬──────────┬────────────┬───────────┤
-│  hooks   │  waits   │  checks  │  comments  │ housekeep │
-│  (5s)    │  (10s)   │  (5min)  │  (1min)    │ (1hr)     │
-│          │          │          │            │           │
-│ hook_    │ wait_    │ cl_sub-  │ comment_   │ error_    │
-│ checks   │ checks   │ mitted_  │ checks     │ digest    │
-│ mentor_  │          │ checks   │            │ managed_  │
-│ checks   │          │ stale_   │            │ tmp_reap  │
-│ workflow_│          │ running_ │            │           │
-│ checks   │          │ cleanup  │            │           │
-│ ...      │          │          │            │           │
-└──────────┴──────────┴──────────┴────────────┴───────────┘
+├──────────┬──────────┬──────────┬────────────┬──────────────┬───────────┤
+│  hooks   │  waits   │  checks  │  comments  │ publications │ housekeep │
+│  (5s)    │  (10s)   │  (5min)  │  (1min)    │ (30s)        │ (1hr)     │
+│          │          │          │            │              │           │
+│ hook_    │ wait_    │ cl_sub-  │ comment_   │ sidecar_     │ error_    │
+│ checks   │ checks   │ mitted_  │ checks     │ publication  │ digest    │
+│ mentor_  │          │ checks   │            │              │ managed_  │
+│ checks   │          │ stale_   │            │              │ tmp_reap  │
+│ workflow_│          │ running_ │            │              │           │
+│ checks   │          │ cleanup  │            │              │           │
+│ ...      │          │          │            │              │           │
+└──────────┴──────────┴──────────┴────────────┴──────────────┴───────────┘
 ```
 
 ### Key Concepts
@@ -105,6 +105,7 @@ sase axe chop doctor            # exits 1 if a configured script chop cannot be 
 
 # Run a single chop once
 sase axe chop run hook_checks
+sase axe chop run sidecar_publication -L publications --dry-run
 
 # Preview a proposal-emitting chop without launching agents
 sase axe chop run 'refresh_docs[sase]' -L docs --dry-run --chop-verbose
@@ -157,7 +158,7 @@ Use these related commands according to intent:
 
 ## Default Lumberjacks
 
-Axe ships with five default lumberjacks:
+Axe ships with six default lumberjacks:
 
 ### hooks (5-second interval)
 
@@ -233,6 +234,24 @@ Comment polling:
 | Chop             | Description                   |
 | ---------------- | ----------------------------- |
 | `comment_checks` | Start critique comment checks |
+
+### publications (30-second interval)
+
+Queued sidecar publication:
+
+| Chop                  | Description                                      |
+| --------------------- | ------------------------------------------------ |
+| `sidecar_publication` | Drain queued agents, beads, and plan-header work |
+
+Interactive commands enqueue durable sidecar publication requests and return after the primary work is committed. The
+`sidecar_publication` chop drains each project in dependency order: agent hoods and prompt archives first, bead pages
+second, plan-header refreshes third, and sidecar pushes last. It runs under bounded per-project locks and a whole-pass
+work budget, so one contended or failing project is backed off and retried later instead of blocking the lane.
+
+Use `sase doctor` to see a healthy empty queue, quarantined or retired requests, stale requests, and a non-empty queue
+whose `publications` lumberjack is not running. For an immediate manual pass, run
+`sase axe chop run sidecar_publication -L publications`; add `--dry-run` to inspect the chop without mutating sidecars.
+Repeated failures are recorded on the durable request and quarantine after the configured publication attempt budget.
 
 ### housekeeping (1-hour interval)
 

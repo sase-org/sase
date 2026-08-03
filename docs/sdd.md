@@ -60,13 +60,14 @@ current month directory; SASE does not write research files automatically.
 
 SASE has two prompt-publication paths, and their ordering matters:
 
-1. **Approved plan:** while handling approval, SASE first dry-expands the planner prompt, attempts to publish the
-   plan-named archive entry, and then writes the tale or hands the epic to `sase bead work`. Dry expansion resolves
-   xprompts, strips prompt directives, and inlines workflow `prompt_part` content without executing pre- or post-steps.
-2. **Agent-backed commit:** after the primary commit succeeds, the commit workflow attempts to publish the run's
-   `raw_xprompt.md`. Project and configured xprompt aliases have already been resolved, but xprompts have not been
-   expanded. A plan-backed entry uses the plan slug; an entry without a plan uses the publishing agent's global lane
-   name.
+1. **Approved plan:** while handling approval, SASE first dry-expands the planner prompt, queues the plan-named archive
+   entry for the `publications` axe lane, and then writes the tale or hands the epic to `sase bead work`. Dry expansion
+   resolves xprompts, strips prompt directives, and inlines workflow `prompt_part` content without executing pre- or
+   post-steps.
+2. **Agent-backed commit:** after the primary commit succeeds, the commit workflow queues publication of the run's
+   `raw_xprompt.md` for the same lane. Project and configured xprompt aliases have already been resolved, but xprompts
+   have not been expanded. A plan-backed entry uses the plan slug; an entry without a plan uses the publishing agent's
+   global lane name.
 
 That plan snapshot or pre-expansion XPrompt becomes the archive's **primary body**. SASE rewrites captured, resolvable
 `#...` references in a pre-expansion body as hosted links and turns staged `@...` references in either kind of body into
@@ -89,10 +90,10 @@ The approved plan artifact is:
    `{YYYYMM}` is derived from the current date. Its `PROMPT` header links to the canonical prompt archive entry in the
    agents sidecar, `prompts/{YYYYMM}/{plan_name}.md`, when that prompt has been published.
 
-For tales, the agent runner attempts the prompt publication before it writes and commits the promoted plan; these are
-ordered operations, not one atomic cross-repository transaction. For epics, the runner likewise attempts to publish the
-planner prompt first, while the canonical `sase bead work <plan-file>` command owns archiving and linking the plan
-itself. This keeps host approval and the finishing planner agent from writing the same plan concurrently.
+For tales, the agent runner queues prompt publication before it writes and commits the promoted plan; these are ordered
+operations, not one atomic cross-repository transaction. For epics, the runner likewise queues the planner prompt first,
+while the canonical `sase bead work <plan-file>` command owns archiving and linking the plan itself. The `publications`
+lane later publishes the prompt archive and downstream hosted links after the sidecars it depends on are ready.
 
 Plans and research notes are organized into `YYYYMM` subdirectories (for example, `202603/`) based on the creation date.
 Canonical prompts are organized in the agents sidecar under `prompts/<YYYYMM>/`, with copied prompt-linked bytes under

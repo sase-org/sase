@@ -68,10 +68,11 @@ cannot leave a half-rendered hood.
 ## Prompt and artifact archive
 
 The agents sidecar is also the canonical home for prompts published by agent-backed commits and approved planner runs.
-After the primary commit succeeds, `sase commit` attempts to publish the committing run's prompt to
-`prompts/<YYYYMM>/<name>.md`. Approving a planner's tale or epic attempts a separate, plan-named publication before SASE
-continues with the plan write or epic handoff. Plan-backed entries use the plan slug as the filename; entries without a
-plan use the publishing agent's global lane name. Each prompt document has the same header-block grammar as plans:
+After the primary commit succeeds, `sase commit` queues publication of the committing run's prompt to
+`prompts/<YYYYMM>/<name>.md` through the `publications` axe lane. Approving a planner's tale or epic queues a separate,
+plan-named publication before SASE continues with the plan write or epic handoff. Plan-backed entries use the plan slug
+as the filename; entries without a plan use the publishing agent's global lane name. Each prompt document has the same
+header-block grammar as plans:
 
 - `PLAN` links back to the plans sidecar when the run has a plan.
 - `AGENTS` links to the published agent page for the run.
@@ -118,10 +119,10 @@ belong to that hood.
 
 After an agent-backed commit or pull-request operation records its first durable result marker, the commit workflow
 resolves the project's agents target. When that target is available, SASE records an outbox request for the exact hood
-before trying to publish it; the attempt also drains older queued publications for the project. A failure after the
-request is queued does not roll back the primary VCS result, and the entry remains for a later commit or full sync. If
-the target cannot be resolved, no outbox entry is guaranteed; a later full sync still publishes every locally eligible
-hood. See [runtime provenance and publication](commit_workflows.md#cli-inputs-and-internal-payload).
+and returns without running sidecar Git or network work. The `publications` lumberjack later drains older queued
+requests for the project in dependency order. A queueing failure does not roll back the primary VCS result; a later full
+sync still publishes every locally eligible hood. See
+[runtime provenance and publication](commit_workflows.md#cli-inputs-and-internal-payload).
 
 Published runs that are temporarily missing from local inventory are retained. New terminal state, commits, prompt data,
 and chat refresh the same stable run; absence does not create an implicit deletion or tombstone. Identical inputs
@@ -240,14 +241,16 @@ sase agent sync -p project-alias -p another-project
 ```
 
 The repository transaction acquires a bounded lock, fetches and pulls with rebase, imports validated shared v2 history
-and optional legacy v1 bundles, drains commit-publication outbox entries, performs v2 publication for locally owned
-hoods, rebuilds deterministic indexes, commits with the full owner identity, and pushes. A non-fast-forward rejection
-triggers one pull/recompute/commit/push retry. Conflicted rebases are aborted and reported; a failure in one project
-does not prevent the others from running. Import preflight indexes local artifacts once per project sync and reuses that
-view across every incoming hood and run. Exact-owner preflight also indexes matching `SASE_AGENT` commit evidence across
-local project checkouts, so cleaned runs are observed instead of re-imported. Interrupted transaction recovery runs once
-per project pass, v1 compatibility lookup scans artifacts once, and imported dismissed bundles update their summary
-index incrementally. The Updates pane's `a` action is the ACE equivalent for all enabled projects.
+and optional legacy v1 bundles, drains queued agent-hood requests when run manually, performs v2 publication for locally
+owned hoods, rebuilds deterministic indexes, commits with the full owner identity, and pushes. Automatic draining
+belongs to the `publications` axe lane; `sase agent sync` remains the explicit recovery and full-reconciliation command.
+A non-fast-forward rejection triggers one pull/recompute/commit/push retry. Conflicted rebases are aborted and reported;
+a failure in one project does not prevent the others from running. Import preflight indexes local artifacts once per
+project sync and reuses that view across every incoming hood and run. Exact-owner preflight also indexes matching
+`SASE_AGENT` commit evidence across local project checkouts, so cleaned runs are observed instead of re-imported.
+Interrupted transaction recovery runs once per project pass, v1 compatibility lookup scans artifacts once, and imported
+dismissed bundles update their summary index incrementally. The Updates pane's `a` action is the ACE equivalent for all
+enabled projects.
 
 Use `--json` to audit the complete schema-version-2 result. In addition to the legacy `integrated`, `refreshed`,
 `exported`, and `export_refreshed` fields, each project reports `hoods_imported`, `hoods_import_refreshed`,
@@ -257,14 +260,16 @@ import count, `V1` is the changed legacy-v1 publication count, and `HOODS` / `RU
 totals. ACE's tracked-task lines likewise do not currently include the v2 import fields, so a project that only imports
 or refreshes v2 history can be summarized there as `current`; use the CLI's `--json` result to audit those imports.
 
-Commit-triggered publications use a durable outbox at `~/.sase/projects/<project-key>/agents-publication-outbox.json`.
-Each request records its agent, primary revision, top-level hood, attempt count, most recent attributable error, and
-quarantine or retirement state. A hood-specific preparation failure increments only requests for that hood;
-repository-wide failures such as lock contention, pull failure, or push failure remain retryable without consuming the
-per-item quarantine budget. A repeatable failure that proves the requested hood can never be published retires that
-request after one confirming retry instead of quarantining it. Successful requests are acknowledged only after the
-sidecar commit is safely pushed (or the prepared payload is already current) and the requested agent page exists in the
-sidecar.
+Commit-triggered publications use a durable typed queue at
+`~/.sase/projects/<project-key>/agents-publication-outbox.json`. Requests can publish an agent hood plus prompt archive,
+render a bead-page lineage, refresh a committed plan header, or push a sidecar that already has local commits. Each
+request records its kind, logical key, attempt count, most recent attributable error, and quarantine or retirement
+state. The drainer processes requests in the required order: `agent_hood`, `bead_pages`, `plan_header`, then
+`sidecar_push`. A hood-specific preparation failure increments only requests for that hood; repository-wide failures
+such as lock contention, pull failure, or push failure remain retryable without consuming unrelated per-item quarantine
+budgets. A repeatable failure that proves the requested hood can never be published retires that request after one
+confirming retry instead of quarantining it. Successful requests are acknowledged only after their sidecar work is
+committed and safely pushed, or after the prepared payload is already current.
 
 ### Chats provenance versus publication
 
@@ -319,22 +324,24 @@ become pending updates. `--refresh` is rejected unless `--check` is also present
 ## ACE integration
 
 ACE performs a networked detection check after first paint and then checks enabled agents repositories periodically. The
-green `⇅ N` badge counts only validated incoming hoods from other owners already captured in the incoming cache and not
-covered by an import receipt. Same-user/other-machine and other-user/same-machine hoods are incoming from another owner;
-exact-current-owner changes are not. Local ahead work, missing or disabled sidecars, Git behind counts, and errors
-remain available in CLI diagnostics but do not light the badge.
+green `⇅ N` badge counts validated incoming hoods from other owners already captured in the incoming cache and
+publication queue diagnostics from the same no-network status snapshot. Same-user/other-machine and
+other-user/same-machine hoods are incoming from another owner; exact-current-owner changes are not. Local ahead work,
+missing or disabled sidecars, Git behind counts, and errors remain available in CLI diagnostics but do not light the
+badge unless they are represented by publication queue diagnostics.
 
-Hover the badge for the project, source owner, hood, run, and family counts represented by that immutable snapshot.
-Clicking it imports exactly those displayed cache items as a tracked task. That path does not fetch, pull, push, export,
-or mutate the sidecar checkout; successful receipts clear the corresponding badge entries. The `,U` comprehensive update
-preview likewise captures only the cache items visible when the preview is built, lists their exact project and hood
-counts under **Agents repos**, and imports them after its other legs without network access. A later periodic fetch
-cannot widen an already confirmed preview.
+Hover the badge for the project, source owner, hood, run, and family counts represented by that immutable snapshot, plus
+any queued, quarantined, retired, or retryable publication diagnostics. Clicking it imports exactly the displayed cache
+items as a tracked task; publication diagnostics stay informational and are cleared by the `publications` lane or an
+explicit sync. That path does not fetch, pull, push, export, or mutate the sidecar checkout; successful receipts clear
+the corresponding cache entries. The `,U` comprehensive update preview likewise captures only the cache items visible
+when the preview is built, lists their exact project and hood counts under **Agents repos**, and imports them after its
+other legs without network access. A later periodic fetch cannot widen an already confirmed preview.
 
 For an explicit full network reconciliation, open SASE Admin Center's Updates pane and press `a` (**Sync agents**). That
-tracked action covers every enabled project, drains publication retries, continues after project-local failures, and
-refreshes the agent list, status, badge, and indexes when it completes. It is equivalent to unscoped `sase agent sync`,
-not to clicking the badge or running `,U`.
+tracked action covers every enabled project, drains retryable agent-hood publication work, continues after project-local
+failures, and refreshes the agent list, status, badge, and indexes when it completes. It is equivalent to unscoped
+`sase agent sync`, not to clicking the badge or running `,U`.
 
 Configure that status loop under `ace.agents_sync`. By default, ACE reconciles cached entries and receipts every 10
 minutes and, once at least 30 minutes have elapsed, performs the remote-fetching detection pass on the next status tick.
@@ -354,9 +361,10 @@ All Git, validation, cache import, and full-sync work runs outside the Textual e
 - An interrupted v2 local import stays invisible until complete. A subsequent v2 import pass performs journal recovery;
   in the normal case, rerunning a mutating sync supplies that pass. Use `--json` to inspect recovery or quarantine
   diagnostics.
-- A post-commit sidecar push failure leaves the primary commit successful and a durable retry request under the
-  project's SASE state. Fix credentials/connectivity and run `sase agent sync -p <project>` (or Updates-pane `a`) to
-  drain it. Repeating the original commit workflow does not create another primary commit.
+- A queued sidecar publication failure leaves the primary commit successful and a durable retry request under the
+  project's SASE state. Fix credentials/connectivity and let the `publications` lane retry, or run
+  `sase axe chop run sidecar_publication -L publications` / `sase agent sync -p <project>` for an explicit drain.
+  Repeating the original commit workflow does not create another primary commit.
 - If an ordinary retry reports a quarantined publication request, fix the item-specific cause and run
   `sase agent sync --retry-quarantined -p <project>`. Rerun `sase agent sync --check --json` afterward and confirm that
   no publication quarantine diagnostic remains.
