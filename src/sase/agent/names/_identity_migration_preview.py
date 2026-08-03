@@ -19,13 +19,15 @@ from sase.agent.names._identity_migration_actions import (
     artifact_actions,
     block_sort_key,
     bundle_actions,
-    chat_actions,
     dedupe_actions,
     notification_actions,
-    planned_chat_path_map,
     prompt_history_actions,
     registry_actions,
     skip_sort_key,
+)
+from sase.agent.names._identity_migration_chat_actions import (
+    chat_actions,
+    planned_chat_path_map,
 )
 from sase.agent.names._identity_migration_common import read_json_payload
 from sase.agent.names._identity_migration_types import (
