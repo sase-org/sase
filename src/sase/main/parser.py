@@ -1,7 +1,8 @@
 """Argument parser creation for the SASE CLI tool."""
 
 import argparse
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
+from importlib import import_module
 import os
 import sys
 from dataclasses import dataclass
@@ -10,59 +11,64 @@ from typing import Any, overload, TextIO, TypeVar
 from rich.console import Console
 from rich.text import Text
 
-from sase.main.parser_ace import register_ace_parser, register_axe_parser
-from sase.main.parser_agent import register_agent_parser
-from sase.main.parser_agent_cli import register_agent_cli_parser
-from sase.main.parser_artifact import register_artifact_parser
-from sase.main.parser_bead import register_bead_parser
-from sase.main.parser_chat import register_chat_parser
-from sase.main.parser_commands import (
-    register_changespec_parser,
-    register_comments_parser,
-    register_config_parser,
-    register_file_history_parser,
-    register_file_parser,
-    register_logs_parser,
-    register_lsp_parser,
-    register_notify_parser,
-    register_path_parser,
-    register_plan_parser,
-    register_questions_parser,
-    register_revive_log_parser,
-    register_run_parser,
-)
-from sase.main.parser_commit import (
-    register_commit_parser,
-    register_restore_parser,
-    register_revert_parser,
-)
-from sase.main.parser_core import register_core_parser
-from sase.main.parser_doctor import register_doctor_parser
-from sase.main.parser_editor import register_editor_parser
-from sase.main.parser_file_hook import register_file_hook_parser
-from sase.main.parser_gate import register_gate_parser
-from sase.main.parser_init import register_init_parser
-from sase.main.parser_launch import register_launch_parser
-from sase.main.parser_memory import register_memory_parser
-from sase.main.parser_mobile import register_mobile_parser
-from sase.main.parser_plugin import register_plugin_parser
-from sase.main.parser_project import register_project_parser
-from sase.main.parser_prompt import register_prompt_parser
-from sase.main.parser_repo import register_repo_parser
-from sase.main.parser_repro import register_repro_parser
-from sase.main.parser_skills import register_skills_parser
-from sase.main.parser_task import register_task_parser
-from sase.main.parser_telemetry import register_telemetry_parser
-from sase.main.parser_update import register_update_parser
-from sase.main.parser_validate import register_validate_parser
-from sase.main.parser_var import register_var_parser
-from sase.main.parser_vcs import register_vcs_parser
-from sase.main.parser_version import register_version_parser
-from sase.main.parser_workspace import register_workspace_parser
-from sase.main.parser_xprompt import register_xprompt_parser
-
-
 _NamespaceT = TypeVar("_NamespaceT")
+
+_RegistrarSpec = tuple[str, str]
+
+# Keep the command inventory and registrar routing in one lazy registry. Values are
+# module/function names instead of imported callables so ``create_parser(only=...)``
+# does not import unrelated command trees. Aliases share one registrar and are
+# deduplicated when the full parser is built.
+_COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
+    "ace": ("sase.main.parser_ace", "register_ace_parser"),
+    "agent": ("sase.main.parser_agent", "register_agent_parser"),
+    "agent-cli": ("sase.main.parser_agent_cli", "register_agent_cli_parser"),
+    "artifact": ("sase.main.parser_artifact", "register_artifact_parser"),
+    "artifact-file": ("sase.main.parser_artifact", "register_artifact_parser"),
+    "axe": ("sase.main.parser_ace", "register_axe_parser"),
+    "bead": ("sase.main.parser_bead", "register_bead_parser"),
+    "changespec": ("sase.main.parser_commands", "register_changespec_parser"),
+    "chat": ("sase.main.parser_chat", "register_chat_parser"),
+    "comments": ("sase.main.parser_commands", "register_comments_parser"),
+    "commit": ("sase.main.parser_commit", "register_commit_parser"),
+    "config": ("sase.main.parser_commands", "register_config_parser"),
+    "core": ("sase.main.parser_core", "register_core_parser"),
+    "doctor": ("sase.main.parser_doctor", "register_doctor_parser"),
+    "editor": ("sase.main.parser_editor", "register_editor_parser"),
+    "file": ("sase.main.parser_commands", "register_file_parser"),
+    "file-history": ("sase.main.parser_commands", "register_file_history_parser"),
+    "file-hook": ("sase.main.parser_file_hook", "register_file_hook_parser"),
+    "gate": ("sase.main.parser_gate", "register_gate_parser"),
+    "init": ("sase.main.parser_init", "register_init_parser"),
+    "launch": ("sase.main.parser_launch", "register_launch_parser"),
+    "logs": ("sase.main.parser_commands", "register_logs_parser"),
+    "lsp": ("sase.main.parser_commands", "register_lsp_parser"),
+    "memory": ("sase.main.parser_memory", "register_memory_parser"),
+    "mobile": ("sase.main.parser_mobile", "register_mobile_parser"),
+    "notify": ("sase.main.parser_commands", "register_notify_parser"),
+    "path": ("sase.main.parser_commands", "register_path_parser"),
+    "plan": ("sase.main.parser_commands", "register_plan_parser"),
+    "plugin": ("sase.main.parser_plugin", "register_plugin_parser"),
+    "project": ("sase.main.parser_project", "register_project_parser"),
+    "prompt": ("sase.main.parser_prompt", "register_prompt_parser"),
+    "questions": ("sase.main.parser_commands", "register_questions_parser"),
+    "repo": ("sase.main.parser_repo", "register_repo_parser"),
+    "repro": ("sase.main.parser_repro", "register_repro_parser"),
+    "restore": ("sase.main.parser_commit", "register_restore_parser"),
+    "revert": ("sase.main.parser_commit", "register_revert_parser"),
+    "revive-log": ("sase.main.parser_commands", "register_revive_log_parser"),
+    "run": ("sase.main.parser_commands", "register_run_parser"),
+    "skill": ("sase.main.parser_skills", "register_skills_parser"),
+    "task": ("sase.main.parser_task", "register_task_parser"),
+    "telemetry": ("sase.main.parser_telemetry", "register_telemetry_parser"),
+    "update": ("sase.main.parser_update", "register_update_parser"),
+    "validate": ("sase.main.parser_validate", "register_validate_parser"),
+    "var": ("sase.main.parser_var", "register_var_parser"),
+    "vcs": ("sase.main.parser_vcs", "register_vcs_parser"),
+    "version": ("sase.main.parser_version", "register_version_parser"),
+    "workspace": ("sase.main.parser_workspace", "register_workspace_parser"),
+    "xprompt": ("sase.main.parser_xprompt", "register_xprompt_parser"),
+}
 
 
 class _SaseArgumentParser(argparse.ArgumentParser):
@@ -433,8 +439,50 @@ def default_list_delegation_notice(args: argparse.Namespace) -> str | None:
     return f"No subcommand provided for '{group}'; delegating to '{group} list'."
 
 
-def create_parser() -> argparse.ArgumentParser:
-    """Create the argument parser with subcommands."""
+def parser_only_hint(argv: Sequence[str]) -> str | None:
+    """Return a safe narrow-parser hint for a complete command-line argv."""
+    if len(argv) < 2:
+        return None
+
+    candidate = argv[1]
+    if candidate.startswith("-") or candidate not in _COMMAND_REGISTRARS:
+        return None
+    return candidate
+
+
+def _register_command_parsers(
+    subparsers: argparse._SubParsersAction,
+    *,
+    only: str | None,
+) -> None:
+    specs: Iterable[_RegistrarSpec]
+    full_registrars: dict[str, Any] | None = None
+    if only is None:
+        from sase.main.parser_full_registrars import COMMAND_REGISTRARS_BY_NAME
+
+        specs = _COMMAND_REGISTRARS.values()
+        full_registrars = COMMAND_REGISTRARS_BY_NAME
+    else:
+        try:
+            specs = (_COMMAND_REGISTRARS[only],)
+        except KeyError:
+            raise ValueError(f"unknown top-level command: {only}") from None
+
+    registered: set[_RegistrarSpec] = set()
+    for spec in specs:
+        if spec in registered:
+            continue
+        registered.add(spec)
+        module_name, registrar_name = spec
+        if full_registrars is None:
+            registrar = getattr(import_module(module_name), registrar_name)
+        else:
+            registrar = full_registrars[registrar_name]
+        registrar(subparsers)
+
+
+def create_parser(*, only: str | None = None) -> argparse.ArgumentParser:
+    """Create the full argument parser, or only one top-level command tree."""
     parser = _SaseArgumentParser(
         add_help=False,
         description="SASE - Structured Agentic Software Engineering",
@@ -458,56 +506,7 @@ def create_parser() -> argparse.ArgumentParser:
         dest="command", help="Available commands", required=True
     )
 
-    # =========================================================================
-    # TOP-LEVEL SUBCOMMANDS (keep sorted alphabetically)
-    # =========================================================================
-    register_ace_parser(top_level_subparsers)
-    register_agent_parser(top_level_subparsers)
-    register_agent_cli_parser(top_level_subparsers)
-    register_artifact_parser(top_level_subparsers)
-    register_axe_parser(top_level_subparsers)
-    register_bead_parser(top_level_subparsers)
-    register_changespec_parser(top_level_subparsers)
-    register_chat_parser(top_level_subparsers)
-    register_comments_parser(top_level_subparsers)
-    register_commit_parser(top_level_subparsers)
-    register_config_parser(top_level_subparsers)
-    register_core_parser(top_level_subparsers)
-    register_doctor_parser(top_level_subparsers)
-    register_editor_parser(top_level_subparsers)
-    register_file_parser(top_level_subparsers)
-    register_file_history_parser(top_level_subparsers)
-    register_file_hook_parser(top_level_subparsers)
-    register_gate_parser(top_level_subparsers)
-    register_init_parser(top_level_subparsers)
-    register_launch_parser(top_level_subparsers)
-    register_logs_parser(top_level_subparsers)
-    register_lsp_parser(top_level_subparsers)
-    register_memory_parser(top_level_subparsers)
-    register_mobile_parser(top_level_subparsers)
-    register_notify_parser(top_level_subparsers)
-    register_path_parser(top_level_subparsers)
-    register_plan_parser(top_level_subparsers)
-    register_plugin_parser(top_level_subparsers)
-    register_project_parser(top_level_subparsers)
-    register_prompt_parser(top_level_subparsers)
-    register_questions_parser(top_level_subparsers)
-    register_repo_parser(top_level_subparsers)
-    register_repro_parser(top_level_subparsers)
-    register_restore_parser(top_level_subparsers)
-    register_revert_parser(top_level_subparsers)
-    register_revive_log_parser(top_level_subparsers)
-    register_run_parser(top_level_subparsers)
-    register_skills_parser(top_level_subparsers)
-    register_task_parser(top_level_subparsers)
-    register_telemetry_parser(top_level_subparsers)
-    register_update_parser(top_level_subparsers)
-    register_validate_parser(top_level_subparsers)
-    register_var_parser(top_level_subparsers)
-    register_vcs_parser(top_level_subparsers)
-    register_version_parser(top_level_subparsers)
-    register_workspace_parser(top_level_subparsers)
-    register_xprompt_parser(top_level_subparsers)
+    _register_command_parsers(top_level_subparsers, only=only)
 
     _sort_subcommand_help(parser)
     _default_list_subcommands(parser)
