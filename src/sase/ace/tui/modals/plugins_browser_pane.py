@@ -216,6 +216,7 @@ class PluginsBrowserPane(
         ("m", "switch_mode", "Switch mode"),
         ("u", "update_sase", "Update core + plugins"),
         ("A", "update_agent_clis", "Update agent CLIs"),
+        ("H", "toggle_history_scope", "History scope"),
         ("a", "sync_agents", "Sync agents"),
         ("U", "update", "Update plugin"),
         ("r", "refresh", "Refresh"),
@@ -277,6 +278,7 @@ class PluginsBrowserPane(
         self._marked_agent_clis: set[str] = set()
         self._agent_cli_results: dict[str, AgentCliUpdateResult] = {}
         self._agent_cli_detail_name: str | None = None
+        self._agent_cli_history_key: tuple[str | None, bool] | None = None
         self._plugin_selection_guard = ProgrammaticSelectionGuard()
         self._agent_cli_selection_guard = ProgrammaticSelectionGuard()
         self._updates_loaded_once = False
@@ -395,6 +397,8 @@ class PluginsBrowserPane(
             return not self._loading and self._agent_cli_plan_worker is None
         if action == "sync_agents":
             return callable(getattr(self.app, "action_sync_agents", None))
+        if action == "toggle_history_scope":
+            return self._active_subtab == "agent-clis"
         plugin_only = {
             "install",
             "toggle_install_mark",

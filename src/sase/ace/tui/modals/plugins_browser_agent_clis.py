@@ -34,6 +34,7 @@ from sase.agent_clis.models import (
     UpdateResultStatus,
     UpdateTrigger,
 )
+from sase.agent_clis.history import AgentCliUpdateRun
 from sase.agent_clis.runner import CommandResult, run_command
 from sase.config.core import load_merged_config
 
@@ -43,6 +44,7 @@ from .plugin_action_confirm_modal import (
     PluginActionVariant,
 )
 from .plugins_browser_constants import _SUBTAB_NAV_HINT
+from .plugins_browser_agent_clis_history import build_agent_cli_history_panel
 
 if TYPE_CHECKING:
     from textual.app import App
@@ -118,6 +120,10 @@ class AgentCliBrowserMixin:
         _agent_cli_colors: dict[str, str]
         _agent_cli_detail_name: str | None
         _agent_cli_error: str | None
+        _agent_cli_history: tuple[AgentCliUpdateRun, ...]
+        _agent_cli_history_config: AgentCliHistoryConfig
+        _agent_cli_history_error: str | None
+        _agent_cli_history_key: tuple[str | None, bool] | None
         _agent_cli_plan_worker: Worker[Any] | None
         _agent_cli_results: dict[str, AgentCliUpdateResult]
         _agent_cli_statuses: tuple[AgentCliStatus, ...]
@@ -125,6 +131,7 @@ class AgentCliBrowserMixin:
         _marked_agent_clis: set[str]
         _marked_install: set[str]
         _offline: bool
+        _now: float
         _session_state: Any
         _agent_cli_selection_guard: ProgrammaticSelectionGuard
         _updates_loaded_once: bool
@@ -378,17 +385,51 @@ class AgentCliBrowserMixin:
         status = self._current_agent_cli()
         name = status.name if status is not None else None
         if not force and name == self._agent_cli_detail_name:
+            self._render_agent_cli_history()
             return
         self._agent_cli_detail_name = name
         try:
             detail = self.query_one("#agent-clis-detail", Static)  # type: ignore[attr-defined]
         except Exception:
+            pass
+        else:
+            detail.update(
+                _DETAIL_PLACEHOLDER
+                if status is None
+                else self._agent_cli_detail_panel(status)
+            )
+        self._render_agent_cli_history(force=force)
+
+    def _render_agent_cli_history(self, *, force: bool = False) -> None:
+        status = self._current_agent_cli()
+        scope = bool(self._session_state.agent_cli_history_all)
+        key = (status.name if status is not None else None, scope)
+        if not force and key == self._agent_cli_history_key:
             return
-        detail.update(
-            _DETAIL_PLACEHOLDER
-            if status is None
-            else self._agent_cli_detail_panel(status)
+        self._agent_cli_history_key = key
+        try:
+            history = self.query_one("#agent-clis-history", Static)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        history.update(
+            build_agent_cli_history_panel(
+                status,
+                self._agent_cli_history,
+                enabled=self._agent_cli_history_config.enabled,
+                error=self._agent_cli_history_error,
+                all_clis=scope,
+                now=self._now,
+                max_rows=self._agent_cli_history_config.max_rows,
+                colors=self._agent_cli_colors,
+            )
         )
+
+    def action_toggle_history_scope(self) -> None:
+        """Toggle between the selected-CLI and all-CLIs history views."""
+        self._session_state.agent_cli_history_all = not bool(
+            self._session_state.agent_cli_history_all
+        )
+        self._render_agent_cli_history(force=True)
 
     def _agent_cli_detail_panel(self, status: AgentCliStatus) -> Panel:
         entry = self._agent_cli_update_entry(status)
