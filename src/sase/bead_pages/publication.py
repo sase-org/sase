@@ -19,46 +19,48 @@ class _BeadPagePublicationOutcome:
 
     changed: bool = False
     committed: bool = False
+    queued: bool = False
     skip_reason: str | None = None
     error: str | None = None
 
 
-def publish_committed_bead_pages(
+def mark_committed_bead_pages(
     commit_message: str,
     *,
     primary_root: Path | str,
+    primary_revision: str = "",
     project: str | None = None,
 ) -> _BeadPagePublicationOutcome:
-    """Publish the lineage named by ``SASE_BEAD`` without ever raising."""
+    """Durably queue the committed bead lineage without sidecar git work."""
 
-    try:
-        from sase.sdd.checkout_anchor import resolve_checkout_anchor
-
-        anchor = resolve_checkout_anchor(primary_root)
-        return _publish_committed_bead_pages(
-            commit_message,
-            primary_root=anchor.primary_root,
-            project=project or anchor.project_name,
-        )
-    except Exception as exc:  # noqa: BLE001 - auxiliary post-commit boundary.
-        return _error_outcome(exc)
-
-
-def _publish_committed_bead_pages(
-    commit_message: str,
-    *,
-    primary_root: Path,
-    project: str | None,
-) -> _BeadPagePublicationOutcome:
     bead_id = _committed_bead_id(commit_message)
     if not bead_id:
         return _BeadPagePublicationOutcome(skip_reason="commit has no SASE_BEAD tag")
+    try:
+        from sase.agents_sync.commit_publication import (
+            resolve_sidecar_publication_target,
+        )
+        from sase.agents_sync.publication_outbox import (
+            enqueue_bead_pages_publication,
+        )
 
-    return _publish_bead_lineage(
-        bead_id,
-        primary_root=primary_root,
-        project=project,
-    )
+        target, error = resolve_sidecar_publication_target(
+            project=project,
+            commit_cwd=primary_root,
+        )
+        if target is None:
+            return _BeadPagePublicationOutcome(
+                skip_reason=error or "repository does not map to a SASE project"
+            )
+        enqueue_bead_pages_publication(
+            project_key=target.project_key,
+            project=target.project,
+            bead_id=bead_id,
+            primary_revision=primary_revision,
+        )
+        return _BeadPagePublicationOutcome(queued=True)
+    except Exception as exc:  # noqa: BLE001 - auxiliary queue boundary.
+        return _error_outcome(exc)
 
 
 def drain_bead_pages_publication(
@@ -225,4 +227,7 @@ def _error_outcome(
     return _BeadPagePublicationOutcome(changed=changed, error=message)
 
 
-__all__ = ["drain_bead_pages_publication", "publish_committed_bead_pages"]
+__all__ = [
+    "drain_bead_pages_publication",
+    "mark_committed_bead_pages",
+]

@@ -72,34 +72,6 @@ class _DrainResult:
     error_keys: tuple[tuple[str, str], ...] = ()
 
 
-def publish_committed_agent_hood(
-    local_agent: str,
-    primary_revision: str,
-    *,
-    project: str | None = None,
-    commit_cwd: Path | str | None = None,
-    git_runner: GitRunner = run_git,
-    lock_timeout_seconds: float | None = None,
-) -> _CommitPublicationOutcome:
-    """Compatibility wrapper that enqueues, then manually drains agent work."""
-
-    outcome, target, _item = _enqueue_committed_agent_publication(
-        local_agent,
-        primary_revision,
-        project=project,
-        commit_cwd=commit_cwd,
-    )
-    if target is None or outcome.error is not None or outcome.skip_reason is not None:
-        return outcome
-    if not _active_agent_publications(target.project_key):
-        return outcome
-    return drain_agent_publications(
-        target.project_key,
-        git_runner=git_runner,
-        lock_timeout_seconds=lock_timeout_seconds,
-    )
-
-
 def enqueue_committed_agent_publication(
     local_agent: str,
     primary_revision: str,
@@ -135,33 +107,22 @@ def _enqueue_committed_agent_publication(
 ]:
     """Resolve and enqueue, returning private context for the compatibility path."""
 
-    selector = project
-    if selector is None and commit_cwd is not None:
-        selector = _publication_project_key_from_path(commit_cwd)
-    selector = selector or _current_project()
-    if not selector:
+    target, target_error = resolve_sidecar_publication_target(
+        project=project,
+        commit_cwd=commit_cwd,
+    )
+    if target is None:
         repository = _display_repository(commit_cwd)
         return (
             _CommitPublicationOutcome(
-                skip_reason=f"repository {repository!r} does not map to a SASE project"
+                skip_reason=(
+                    target_error
+                    or f"repository {repository!r} does not map to a SASE project"
+                )
             ),
             None,
             None,
         )
-    selection = resolve_sync_targets((selector,))
-    if len(selection.targets) != 1:
-        outcome = selection.outcomes[0] if selection.outcomes else None
-        detail = (
-            (outcome.skip_reason or outcome.error) if outcome is not None else None
-        ) or "agents target is unavailable"
-        return (
-            _CommitPublicationOutcome(
-                skip_reason=f"project {selector!r} has no usable agents target: {detail}",
-            ),
-            None,
-            None,
-        )
-    target = selection.targets[0]
     owner = require_agent_owner_identity()
     identity = AgentIdentitySnapshot(owner)
     normalized = normalize_agent_archive_name(
@@ -354,6 +315,33 @@ def resolve_publication_project_key(
         ),
     )
     return selected.project_key
+
+
+def resolve_sidecar_publication_target(
+    *,
+    project: str | None = None,
+    commit_cwd: Path | str | None = None,
+) -> tuple[ProjectTarget | None, str | None]:
+    """Resolve a durable queue target without touching a sidecar repository.
+
+    Enqueue-only callers use the repository inventory rather than ``git`` so
+    marking publication cannot accidentally perform sidecar work.
+    """
+
+    selector = project
+    if selector is None and commit_cwd is not None:
+        selector = _publication_project_key_from_path(commit_cwd)
+    selector = selector or _current_project()
+    if not selector:
+        return None, None
+    selection = resolve_sync_targets((selector,))
+    if len(selection.targets) == 1:
+        return selection.targets[0], None
+    outcome = selection.outcomes[0] if selection.outcomes else None
+    detail = (
+        (outcome.skip_reason or outcome.error) if outcome is not None else None
+    ) or "agents target is unavailable"
+    return None, f"project {selector!r} has no usable publication target: {detail}"
 
 
 def _publication_project_key_from_path(commit_cwd: Path | str) -> str | None:
@@ -782,7 +770,7 @@ __all__ = [
     "PlanHeaderRefreshOutcome",
     "drain_agent_publications",
     "enqueue_committed_agent_publication",
-    "publish_committed_agent_hood",
     "refresh_committed_plan_header",
     "resolve_publication_project_key",
+    "resolve_sidecar_publication_target",
 ]

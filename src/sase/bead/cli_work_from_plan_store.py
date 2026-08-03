@@ -398,7 +398,13 @@ def push_store_after_launch(store: SddStore, *, no_push: bool) -> None:
     from sase.sdd._commit_store import push_sdd_store_after_commit
 
     try:
-        push_sdd_store_after_commit(store, push_after_commit=True)
+        from sase.sdd._commit_store import sdd_commit_targets
+
+        for target_store, _paths in sdd_commit_targets(
+            store,
+            paths=[store.kind_root("beads")],
+        ):
+            push_sdd_store_after_commit(target_store, push_after_commit=True)
     except Exception:
         _logger.warning(
             "Failed to synchronize SDD store after approved epic launch",

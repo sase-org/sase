@@ -155,6 +155,7 @@ def test_resume_reuses_checkpointed_bead_tag_without_reapplying_it(
     tmp_path: Path,
 ) -> None:
     provider = _make_provider(head_subject="fix: bug")
+    provider.revision_id.return_value = "a" * 40
     mock_get.return_value = provider
     message = "fix: bug\n\nSASE_BEAD=sase-ai.2"
     _save_checkpoint(
@@ -228,7 +229,7 @@ def test_resume_publishes_agent_hood_without_redispatching_primary_commit(
 
     with (
         patch(
-            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+            "sase.agents_sync.commit_publication.enqueue_committed_agent_publication",
             return_value=_CommitPublicationOutcome(published=True),
         ) as publish,
         patch(

@@ -8,7 +8,6 @@ import pytest
 from sase.agents_sync import commit_publication, targets
 from sase.agents_sync.commit_publication import (
     resolve_publication_project_key,
-    publish_committed_agent_hood,
 )
 from sase.agents_sync.models import SyncOutcome, TargetSelection
 from sase.repo_inventory import (
@@ -16,6 +15,9 @@ from sase.repo_inventory import (
     RepoInventory,
     RepoKind,
     RepoRecord,
+)
+from tests.agents_sync.commit_publication_fixtures import (
+    publish_committed_agent_hood,
 )
 
 
@@ -224,5 +226,5 @@ def test_project_without_agents_target_is_skipped(
 
     assert outcome.error is None
     assert outcome.skip_reason == (
-        "project 'proj' has no usable agents target: agents target is unavailable"
+        "project 'proj' has no usable publication target: agents target is unavailable"
     )

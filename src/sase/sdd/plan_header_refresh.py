@@ -19,6 +19,7 @@ class PlanHeaderRefreshOutcome:
 
     changed: bool = False
     committed: bool = False
+    queued: bool = False
     skip_reason: str | None = None
     error: str | None = None
 
@@ -44,6 +45,78 @@ def refresh_committed_plan_header(
     except Exception as exc:  # noqa: BLE001 - auxiliary post-commit boundary.
         _logger.warning("Could not refresh committed plan header: %s", exc)
         return PlanHeaderRefreshOutcome(error=str(exc) or type(exc).__name__)
+
+
+def mark_committed_plan_header(
+    commit_message: str,
+    *,
+    primary_root: Path | str,
+    primary_revision: str,
+    project: str | None = None,
+) -> PlanHeaderRefreshOutcome:
+    """Durably queue one committed plan refresh without sidecar git work."""
+
+    from sase.core.commit_footer_facade import parse_commit_footer
+
+    footer = parse_commit_footer(commit_message)
+    plan_ref = next((tag.label for tag in footer.tags if tag.key == "PLAN"), None)
+    if not plan_ref:
+        return PlanHeaderRefreshOutcome(skip_reason="commit has no SASE_PLAN tag")
+    try:
+        from sase.agents_sync.commit_publication import (
+            resolve_sidecar_publication_target,
+        )
+        from sase.agents_sync.publication_outbox import (
+            enqueue_plan_header_publication,
+        )
+
+        target, error = resolve_sidecar_publication_target(
+            project=project,
+            commit_cwd=primary_root,
+        )
+        if target is None:
+            return PlanHeaderRefreshOutcome(
+                skip_reason=error or "repository does not map to a SASE project"
+            )
+        canonical_ref = _canonical_plan_ref(
+            plan_ref,
+            primary_root=target.primary_checkout,
+        )
+        if canonical_ref is None:
+            return PlanHeaderRefreshOutcome(
+                skip_reason=f"plan reference could not be resolved: {plan_ref}"
+            )
+        enqueue_plan_header_publication(
+            project_key=target.project_key,
+            project=target.project,
+            plan_ref=canonical_ref,
+            primary_revision=primary_revision,
+            commit_message=commit_message,
+        )
+        return PlanHeaderRefreshOutcome(queued=True)
+    except Exception as exc:  # noqa: BLE001 - auxiliary queue boundary.
+        _logger.warning("Could not mark committed plan header: %s", exc)
+        return PlanHeaderRefreshOutcome(error=str(exc) or type(exc).__name__)
+
+
+def _canonical_plan_ref(plan_ref: str, *, primary_root: Path) -> str | None:
+    from sase.sdd.plan_refs import (
+        canonicalize_plan_reference_from_roots,
+        resolve_plan_reference_from_roots,
+        workspace_context_for_plan_resolution,
+    )
+    from sase.sdd.store import resolve_sdd_store
+
+    workspace_dir, workspace_num = workspace_context_for_plan_resolution(primary_root)
+    store = resolve_sdd_store(workspace_dir, workspace_num)
+    plans_root = store.kind_root("plans")
+    resolution = resolve_plan_reference_from_roots(plan_ref, roots=(plans_root,))
+    if resolution.resolved_path is None:
+        return None
+    return canonicalize_plan_reference_from_roots(
+        resolution.resolved_path,
+        roots=(plans_root,),
+    )
 
 
 def drain_plan_header_publication(
@@ -176,5 +249,6 @@ def _refresh_committed_plan_header(
 __all__ = [
     "PlanHeaderRefreshOutcome",
     "drain_plan_header_publication",
+    "mark_committed_plan_header",
     "refresh_committed_plan_header",
 ]

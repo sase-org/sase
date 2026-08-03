@@ -6,7 +6,6 @@ import subprocess
 import pytest
 
 from sase.agents_sync import commit_publication
-from sase.agents_sync.commit_publication import publish_committed_agent_hood
 from sase.agents_sync.git import run_git
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.models import (
@@ -26,7 +25,11 @@ from sase.agents_sync.v2_models import (
     V2PublicationCounts,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from tests.agents_sync.commit_publication_fixtures import git, setup_target
+from tests.agents_sync.commit_publication_fixtures import (
+    git,
+    publish_committed_agent_hood,
+    setup_target,
+)
 
 
 def test_push_failure_is_queued_and_next_commit_drains_idempotently(
