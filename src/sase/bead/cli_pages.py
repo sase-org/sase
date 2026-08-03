@@ -140,7 +140,8 @@ def _resolve_page_bead_id(store: Any, bead_id: str | None) -> str | None:
         with open_bead_project_for_beads_dir(store.kind_root("beads")) as project:
             return project.resolve_id(bead_id)
     except KeyError:
-        return bead_id
+        print(f"Error: issue not found: {bead_id}", file=sys.stderr)
+        sys.exit(1)
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)

@@ -497,7 +497,9 @@ def test_plan_agent_launch_fanout_rust_allocates_named_and_numeric_alt_ids() -> 
     assert [slot.prompt for slot in plan.slots] == ["a x", "a y", "b x", "b y"]
 
 
-def test_plan_agent_launch_fanout_rust_repeat_handles_id_aliases_and_literals() -> None:
+def test_plan_agent_launch_fanout_rust_repeat_handles_id_shorthands_and_literals() -> (
+    None
+):
     pytest.importorskip("sase_core_rs")
 
     prompt = (

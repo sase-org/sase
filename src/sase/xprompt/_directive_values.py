@@ -231,7 +231,7 @@ def resolve_model_alias_overrides(
     from sase.llm_provider.config import model_alias_names
 
     aliases = model_alias_names()
-    valid_aliases = ", ".join(f"@{name}" for name in sorted(aliases))
+    valid_alias_names = ", ".join(f"@{name}" for name in sorted(aliases))
     resolved: dict[str, str] = {}
     for raw_key, raw_value in raw_overrides.items():
         key = raw_key.strip()
@@ -242,7 +242,7 @@ def resolve_model_alias_overrides(
         if key not in aliases:
             raise DirectiveError(
                 f"Unknown model alias '{key}' on %model — valid aliases: "
-                f"{valid_aliases}."
+                f"{valid_alias_names}."
             )
 
         value = raw_value
