@@ -107,9 +107,9 @@ def test_state_tag_implicit_big_epic_lander() -> None:
     assert text.plain == "implicit → @smartest"
 
 
-def test_state_tag_implicit_size_phase_worker() -> None:
+def test_state_tag_implicit_concrete_size_phase_worker() -> None:
     text = _state_tag(make_alias_view("medium_phase_worker", "role"), now=0.0)
-    assert text.plain == "implicit → @default @ high"
+    assert text.plain == "implicit"
 
 
 def test_state_tag_implicit_unpinned_provider_coder() -> None:
@@ -401,19 +401,33 @@ def test_render_alias_row_ellipsizes_combined_badge_and_effort() -> None:
         ("medium", "overrides default medium"),
     ],
 )
-def test_reference_effort_description_names_implicit_source(
+def test_reference_effort_description_names_configured_source(
     default_effort: str | None,
     comparison: str,
 ) -> None:
     view = make_alias_view(
         "medium_phase_worker",
         "role",
+        configured=True,
+        configured_value="@default@high",
         effort="high",
     )
 
     text = _description_text_for_view(view, default_effort).plain
 
     assert text == f"effort: high (via @default@high) · {comparison}"
+
+
+def test_medium_phase_worker_description_omits_reference_source() -> None:
+    view = make_alias_view(
+        "medium_phase_worker",
+        "role",
+        effort="xhigh",
+    )
+
+    text = _description_text_for_view(view, None).plain
+
+    assert text == "effort: xhigh · no default configured"
 
 
 def test_reference_effort_description_is_suppressed_during_override() -> None:

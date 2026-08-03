@@ -1260,15 +1260,15 @@ The parenthesized `%model` form accepts keyword arguments that temporarily repla
 The optional positional value selects the current agent's model. Each `alias=value` entry changes how that bare alias
 resolves. Without a positional value, the current agent still starts from the normal default, but that resolution uses
 the map: `default=...` changes it directly, while a size-specific phase-worker keyword affects only that phase or task
-route. The size-specific worker aliases and implicit fallbacks are:
+route. The size-specific worker aliases and implicit defaults are:
 
-| Route           | Alias                 | Implicit fallback |
-| --------------- | --------------------- | ----------------- |
-| `xsmall` worker | `xsmall_phase_worker` | `@cheaper`        |
-| `small` worker  | `small_phase_worker`  | `@cheap`          |
-| `medium` worker | `medium_phase_worker` | `@default@high`   |
-| `large` worker  | `large_phase_worker`  | `@smart`          |
-| `xlarge` worker | `xlarge_phase_worker` | `@smartest`       |
+| Route           | Alias                 | Implicit default      |
+| --------------- | --------------------- | --------------------- |
+| `xsmall` worker | `xsmall_phase_worker` | `@cheaper`            |
+| `small` worker  | `small_phase_worker`  | `@cheap`              |
+| `medium` worker | `medium_phase_worker` | `codex/gpt-5.5@xhigh` |
+| `large` worker  | `large_phase_worker`  | `@smart`              |
+| `xlarge` worker | `xlarge_phase_worker` | `@smartest`           |
 
 Legacy tasks without stored size metadata normalize to the `small_phase_worker` route at launch.
 

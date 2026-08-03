@@ -6,7 +6,7 @@ This package also hosts the Rust-bindable facade layer (see
 - :mod:`sase.core.rust` — strict ``sase_core_rs`` loader for ported facades.
 - :mod:`sase.core.wire` — stable wire records the Rust impl produces/consumes.
 - :mod:`sase.core.wire_conversion` — Python ``ChangeSpec`` -> wire records.
-- :mod:`sase.core.parser_facade` — :func:`parse_project_file` / ``_bytes``.
+- :mod:`sase.core.parser_facade` — :func:`parse_project_file` / :func:`parse_project_bytes`.
 - :mod:`sase.core.query_facade` — query parse / build context / evaluate.
 - :mod:`sase.core.query_corpus_facade` — persistent Rust query corpus handles.
 - :mod:`sase.core.graph_index_facade` — :func:`build_changespec_graph_index`.
@@ -55,6 +55,7 @@ from sase.core.shell import (
     strip_hook_prefix,
 )
 from sase.core.time import generate_timestamp, get_timezone
+
 
 __all__ = [
     "BeadIdTokenRewriteOutcome",

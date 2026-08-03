@@ -189,7 +189,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
                         "builtin alias override; move its target to "
                         "llm_provider.model_aliases.builtin.medium_phase_worker "
                         "to keep controlling medium phases, or remove it to "
-                        "accept the @default fallback"
+                        "accept the shipped codex/gpt-5.5@xhigh default"
                     ),
                 }
             )

@@ -41,16 +41,15 @@ def test_role_alias_helpers() -> None:
     assert implicit_model_alias_fallback("epic_lander") == "default"
     assert implicit_model_alias_fallback("xsmall_phase_worker") == "cheaper"
     assert implicit_model_alias_fallback("small_phase_worker") == "cheap"
-    assert implicit_model_alias_fallback("medium_phase_worker") == "default"
+    assert "medium_phase_worker" not in fallbacks
+    assert implicit_model_alias_fallback("medium_phase_worker") is None
+    assert implicit_model_alias_fallback_reference("medium_phase_worker") is None
+    assert implicit_model_alias_fallback_effort("medium_phase_worker") is None
     assert (
-        implicit_model_alias_fallback_reference("medium_phase_worker")
-        == (fallbacks["medium_phase_worker"])
+        implicit_model_alias_value("medium_phase_worker")
+        == (targets["medium_phase_worker"])
     )
-    assert implicit_model_alias_fallback_effort("medium_phase_worker") == "high"
-    assert implicit_model_alias_value("medium_phase_worker") is None
-    # Pins the shape (not the literal string) so a bad YAML edit still fails:
-    # medium_phase_worker must keep carrying a high-effort overlay.
-    assert fallbacks["medium_phase_worker"] == "@default@high"
+    assert parse_model_alias_selector(targets["medium_phase_worker"]) is None
     assert implicit_model_alias_fallback("large_phase_worker") == "smart"
     assert implicit_model_alias_fallback("xlarge_phase_worker") == "smartest"
     assert implicit_model_alias_fallback("smart") == "default"
@@ -121,17 +120,17 @@ def test_default_alias_falls_back_to_provider_tier_default(
     assert resolve_model_provider("default") == ("claude", "opus")
 
 
-def test_medium_phase_worker_follows_provider_default_at_high_effort(
+def test_medium_phase_worker_uses_concrete_xhigh_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
     resolved = resolve_model_alias_with_effort("medium_phase_worker")
 
-    assert (resolved.target, resolved.effort) == ("claude/opus", "high")
+    assert (resolved.target, resolved.effort) == ("codex/gpt-5.5", "xhigh")
 
 
-def test_medium_phase_worker_follows_configured_default_with_outer_effort_winning(
+def test_medium_phase_worker_ignores_default_with_outer_effort_winning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -145,8 +144,8 @@ def test_medium_phase_worker_follows_configured_default_with_outer_effort_winnin
     resolved = resolve_model_alias_with_effort("@medium_phase_worker")
     outer = resolve_model_alias_with_effort("@medium_phase_worker@low")
 
-    assert (resolved.target, resolved.effort) == ("codex/gpt-5.6-sol", "high")
-    assert (outer.target, outer.effort) == ("codex/gpt-5.6-sol", "low")
+    assert (resolved.target, resolved.effort) == ("codex/gpt-5.5", "xhigh")
+    assert (outer.target, outer.effort) == ("codex/gpt-5.5", "low")
 
 
 def test_alias_reference_effort_overrides_target_and_chain_effort(
@@ -299,8 +298,8 @@ def test_epic_execution_role_aliases_follow_size_specific_fallbacks(
         },
     )
 
-    for role in ("epic_lander", "medium_phase_worker"):
-        assert resolve_model_alias(role) == "codex/gpt-5.6-sol"
+    assert resolve_model_alias("epic_lander") == "codex/gpt-5.6-sol"
+    assert resolve_model_alias("medium_phase_worker") == "codex/gpt-5.5"
     for alias in ("smartest", "big_epic_lander", "xlarge_phase_worker"):
         resolved = resolve_model_alias_with_effort(alias)
         assert (resolved.target, resolved.effort) == ("claude/opus", "max")
@@ -369,7 +368,7 @@ def test_stale_phase_worker_builtin_does_not_control_medium_phase(
 
     small = resolve_model_alias_with_effort("small_phase_worker")
     assert (small.target, small.effort) == ("claude/sonnet", "xhigh")
-    assert resolve_model_alias("medium_phase_worker") == "codex/gpt-5.6-sol"
+    assert resolve_model_alias("medium_phase_worker") == "codex/gpt-5.5"
     monkeypatch.setattr(
         "sase.llm_provider.config._resolved_target_is_available",
         lambda target: target.startswith("codex/"),
@@ -481,5 +480,5 @@ def test_custom_phase_worker_alias_is_available_for_explicit_use_only(
     )
 
     assert resolve_model_alias("phase_worker") == "claude/sonnet"
-    assert resolve_model_alias("medium_phase_worker") == "codex/gpt-5.6-sol"
+    assert resolve_model_alias("medium_phase_worker") == "codex/gpt-5.5"
     assert resolve_model_alias("coder") == "codex/gpt-5.5"

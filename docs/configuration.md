@@ -1014,10 +1014,10 @@ llm_provider:
       claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
       codex_coder: claude/opus # coder follow-ups from Codex-authored plans
       big_epic_lander: codex/gpt-5.6-sol # specialize threshold-selected epic landers
-      cheap: claude/sonnet@xhigh | codex/gpt-5.5 # small-phase pool
+      cheap: claude/sonnet@xhigh | codex/gpt-5.5@medium # small-phase pool
       cheaper: claude/sonnet@medium | codex/gpt-5.5@medium # xsmall-phase pool
       cheapest: claude/haiku | codex/gpt-5.3-codex-spark # explicit-use pool
-      medium_phase_worker: "@default@high" # follows @default at high effort
+      medium_phase_worker: codex/gpt-5.5@xhigh # concrete pinned medium target
       large_phase_worker: "@smart"
       smartest: claude/opus@max # concrete maximum-effort target
     custom:
@@ -1067,13 +1067,14 @@ On top of any configured aliases, SASE exposes a fixed set of **implicit role al
 `@cheaper`, plus explicit-use `@cheapest`. `@coder` ships as `codex/gpt-5.5`, and every registered `@<provider>_coder`
 alias inherits `@coder` unless explicitly overridden. `@epic_lander` falls back to `@default`, while `@big_epic_lander`
 falls back independently to `@smartest`; xsmall phases and tasks fall back to `@cheaper`, small ones to `@cheap`, medium
-ones to `@default@high`, large ones to `@smart` (which itself falls back to `@default`), and xlarge ones to `@smartest`.
-The implicit `@smartest` value is the concrete target `claude/opus@max`; xlarge workers and threshold-sized epic landers
-inherit its `max` effort unless they or `@smartest` are overridden. `@cheaper` owns the automatic xsmall phase/task pool
-and `@cheap` the small phase/task pool, while `@cheapest` owns an independent explicit-use pool. Override only
-threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`; override only large phases and sized tasks
-with `model_aliases.builtin.large_phase_worker`. `@smartest` is selected automatically through the threshold-sized epic
-and xlarge phase/task fallback chains. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
+ones use the concrete `codex/gpt-5.5@xhigh` target, large ones to `@smart` (which itself falls back to `@default`), and
+xlarge ones to `@smartest`. The implicit `@medium_phase_worker` and `@smartest` values are concrete targets, so they do
+not track `@default`; xlarge workers and threshold-sized epic landers inherit `@smartest`'s `max` effort unless they or
+`@smartest` are overridden. `@cheaper` owns the automatic xsmall phase/task pool and `@cheap` the small phase/task pool,
+while `@cheapest` owns an independent explicit-use pool. Override only threshold-sized epic landers with
+`model_aliases.builtin.big_epic_lander`; override only large phases and sized tasks with
+`model_aliases.builtin.large_phase_worker`. `@smartest` is selected automatically through the threshold-sized epic and
+xlarge phase/task fallback chains. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
 [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role. New
 tasks require an explicit size after `/sase_new_task` has ruled out a semantic duplicate and a causally related
 in-progress epic. Legacy tasks without size metadata remain launchable through the small phase/task route.

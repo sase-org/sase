@@ -37,7 +37,7 @@ aliases:
     fallback: "@cheap"
     description: "Small bead phase agents that implement directly."
   medium_phase_worker:
-    fallback: "@default@high"
+    target: "codex/gpt-5.5@xhigh"
     description: "Medium bead phase agents that implement directly."
   large_phase_worker:
     fallback: "@smart"
@@ -56,7 +56,7 @@ aliases:
       Highest-capability model used automatically by extra-large phase agents
       and large epic landers.
   cheap:
-    target: "claude/sonnet@xhigh | codex/gpt-5.5"
+    target: "claude/sonnet@xhigh | codex/gpt-5.5@medium"
     description: "Load-balanced pool used automatically by small phase agents."
   cheaper:
     target: "claude/sonnet@medium | codex/gpt-5.5@medium"

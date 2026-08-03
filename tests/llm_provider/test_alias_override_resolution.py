@@ -108,7 +108,7 @@ def test_stale_override_on_phase_worker_has_no_builtin_effect(
         "sonnet",
         "xhigh",
     )
-    assert resolve_model_provider("medium_phase_worker") == ("claude", "opus")
+    assert resolve_model_provider("medium_phase_worker") == ("codex", "gpt-5.5")
     assert resolve_model_provider("large_phase_worker") == ("claude", "opus")
     assert resolve_model_provider_with_effort("xlarge_phase_worker") == (
         "claude",
@@ -237,10 +237,11 @@ def test_default_override_propagates_to_references(
     assert resolve_model_alias("@default") == "codex/o3"
     assert resolve_model_provider("@coder") == ("codex", "gpt-5.5")
     assert resolve_model_provider("@smart") == ("codex", "o3")
+    assert resolve_model_provider("@epic_lander") == ("codex", "o3")
     assert resolve_model_provider_with_effort("@medium_phase_worker") == (
         "codex",
-        "o3",
-        "high",
+        "gpt-5.5",
+        "xhigh",
     )
     assert resolve_effective_default_provider_model() == ("codex", "o3")
 

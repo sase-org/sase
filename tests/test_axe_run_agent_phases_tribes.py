@@ -456,21 +456,18 @@ def _extract_medium_phase_worker_model_meta(tmp_path: Path) -> dict[str, object]
     return json.loads((artifacts_dir / "agent_meta.json").read_text())
 
 
-def test_medium_phase_worker_directive_metadata_resolves_concrete_lane(
+def test_medium_phase_worker_directive_metadata_pins_concrete_lane(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A medium phase records its concrete high-effort model.
-
-    Its nested ``@default`` hop follows the primary override.
-    """
+    """A medium phase records its pinned model despite a default override."""
     _mock_provider_config(monkeypatch, {"provider": "claude"})
     set_temporary_override("codex/o3", 3600.0, source="test")
 
     meta = _extract_medium_phase_worker_model_meta(tmp_path)
 
-    assert (meta["llm_provider"], meta["model"]) == ("codex", "o3")
-    assert meta["reasoning_effort"] == "high"
+    assert (meta["llm_provider"], meta["model"]) == ("codex", "gpt-5.5")
+    assert meta["reasoning_effort"] == "xhigh"
 
 
 def test_fork_reserved_tribe_reference_fails_the_launch(

@@ -38,6 +38,7 @@ def test_includes_default_role_provider_coder_and_user_aliases(
 
     views = build_alias_views()
     by_name = {v.name: v for v in views}
+    targets = implicit_alias_targets()
 
     assert by_name["default"].kind == "default"
     assert by_name["default"].configured is False
@@ -55,8 +56,17 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["small_phase_worker"].kind == "role"
     assert by_name["medium_phase_worker"].kind == "role"
     assert by_name["medium_phase_worker"].configured is False
-    assert by_name["medium_phase_worker"].implicit_fallback == "default"
-    assert by_name["medium_phase_worker"].reference_effort == "high"
+    assert by_name["medium_phase_worker"].implicit_fallback is None
+    assert by_name["medium_phase_worker"].reference_effort is None
+    assert (
+        by_name["medium_phase_worker"].implicit_value
+        == (targets["medium_phase_worker"])
+    )
+    assert (
+        by_name["medium_phase_worker"].provider,
+        by_name["medium_phase_worker"].model,
+        by_name["medium_phase_worker"].effort,
+    ) == ("codex", "gpt-5.5", "xhigh")
     assert by_name["large_phase_worker"].kind == "role"
     assert by_name["xlarge_phase_worker"].kind == "role"
     assert (
@@ -70,8 +80,6 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["smartest"].configured is False
     assert by_name["smartest"].configured_source is None
     assert by_name["smartest"].implicit_fallback is None
-    targets = implicit_alias_targets()
-
     assert by_name["smartest"].implicit_value == targets["smartest"]
     assert (
         by_name["smartest"].provider,
@@ -93,7 +101,7 @@ def test_includes_default_role_provider_coder_and_user_aliases(
         (member.target, member.effort) for member in by_name["cheap"].selector_members
     ] == [
         ("claude/sonnet", "xhigh"),
-        ("codex/gpt-5.5", None),
+        ("codex/gpt-5.5", "medium"),
     ]
     cheaper_selector = parse_model_alias_selector(targets["cheaper"])
     assert cheaper_selector is not None

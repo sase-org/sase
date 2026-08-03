@@ -33,9 +33,10 @@ import yaml  # type: ignore[import-untyped]
 # not explicitly configured. A fallback reference may carry an effort overlay,
 # such as ``@default@high``; an outer effort still wins. Registered
 # ``<provider>_coder`` aliases inherit ``@coder`` unless explicitly
-# overridden. ``coder`` and ``smartest`` own independent concrete targets, while
-# ``cheap``, ``cheaper``, and ``cheapest`` own load-balanced pools. ``default``
-# itself falls back to the configured or autodetected provider's tier default.
+# overridden. ``coder``, ``medium_phase_worker``, and ``smartest`` own
+# independent concrete targets, while ``cheap``, ``cheaper``, and ``cheapest``
+# own load-balanced pools. ``default`` itself falls back to the configured or
+# autodetected provider's tier default.
 # See ``model_alias_defaults.yml`` for the current value of every default.
 
 #: The implicit "default" alias name (used for no-``%model`` launches).

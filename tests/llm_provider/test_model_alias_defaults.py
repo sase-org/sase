@@ -148,7 +148,7 @@ def test_cheap_family_ships_the_expected_members_and_efforts() -> None:
     assert cheap is not None
     assert cheap.members == (
         "claude/sonnet@xhigh",
-        "codex/gpt-5.5",
+        "codex/gpt-5.5@medium",
     )
     assert cheaper is not None
     assert cheaper.members == (
@@ -162,7 +162,13 @@ def test_cheap_family_ships_the_expected_members_and_efforts() -> None:
     )
 
 
-def test_medium_phase_worker_carries_high_effort() -> None:
-    fallback = role_alias_fallbacks()[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME]
-    _clean, effort = split_model_effort(fallback)
-    assert effort == "high"
+def test_medium_phase_worker_ships_concrete_xhigh_target() -> None:
+    targets = implicit_alias_targets()
+
+    target, effort = split_model_effort(targets[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME])
+
+    assert (target, effort) == ("codex/gpt-5.5", "xhigh")
+    assert (
+        parse_model_alias_selector(targets[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME])
+        is None
+    )

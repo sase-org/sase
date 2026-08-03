@@ -289,8 +289,8 @@ phases:
 On Epic approval, SASE deterministically copies the top-level model to the epic plan bead and each phase's model and
 size to its phase bead. `xsmall`, `small`, and `medium` phases implement directly with `@xsmall_phase_worker`,
 `@small_phase_worker`, and `@medium_phase_worker`, respectively. Only `large` and `xlarge` phases receive `#plan`, after
-their work reference, and use `@large_phase_worker` and `@xlarge_phase_worker`. The size aliases fall back to
-`@cheaper`, `@cheap`, `@default@high`, `@smart`, and `@smartest` for `xsmall`, `small`, `medium`, `large`, and `xlarge`
+their work reference, and use `@large_phase_worker` and `@xlarge_phase_worker`. The size aliases resolve to `@cheaper`,
+`@cheap`, `codex/gpt-5.5@xhigh`, `@smart`, and `@smartest` for `xsmall`, `small`, `medium`, `large`, and `xlarge`
 respectively; implicit `@smartest` pins `claude/opus@max`, so xlarge workers inherit `max` effort. Set an explicit phase
 `model` only when the user's prompt requested that model; the explicit model is valid at every size and always wins over
 size-derived routing without changing whether the phase receives `#plan`. The standalone `@cheapest` load-balanced pool

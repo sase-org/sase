@@ -169,7 +169,7 @@ def test_small_phase_and_cheap_share_one_rotation(
     cheap = resolve_model_alias_with_effort("@cheap", consume=True)
 
     assert (small.target, small.effort) == ("claude/sonnet", "xhigh")
-    assert (cheap.target, cheap.effort) == ("codex/gpt-5.5", None)
+    assert (cheap.target, cheap.effort) == ("codex/gpt-5.5", "medium")
 
 
 def test_xsmall_phase_and_cheaper_share_one_rotation(
@@ -212,7 +212,10 @@ def test_cheap_and_cheaper_use_independent_rotations(
         "claude/sonnet",
         "medium",
     )
-    assert (cheap_second.target, cheap_second.effort) == ("codex/gpt-5.5", None)
+    assert (cheap_second.target, cheap_second.effort) == (
+        "codex/gpt-5.5",
+        "medium",
+    )
     assert (cheaper_second.target, cheaper_second.effort) == (
         "codex/gpt-5.5",
         "medium",
@@ -265,7 +268,10 @@ def test_cheap_cheaper_and_cheapest_use_independent_rotations(
         "medium",
     )
     assert (cheapest_first.target, cheapest_first.effort) == ("claude/haiku", None)
-    assert (cheap_second.target, cheap_second.effort) == ("codex/gpt-5.5", None)
+    assert (cheap_second.target, cheap_second.effort) == (
+        "codex/gpt-5.5",
+        "medium",
+    )
     assert (cheaper_second.target, cheaper_second.effort) == (
         "codex/gpt-5.5",
         "medium",
@@ -279,7 +285,7 @@ def test_cheap_cheaper_and_cheapest_use_independent_rotations(
 @pytest.mark.parametrize(
     ("alias", "expected"),
     [
-        ("cheap", ("codex/gpt-5.5", None)),
+        ("cheap", ("codex/gpt-5.5", "medium")),
         ("cheaper", ("codex/gpt-5.5", "medium")),
         ("cheapest", ("codex/gpt-5.3-codex-spark", None)),
     ],

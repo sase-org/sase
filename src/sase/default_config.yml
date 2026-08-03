@@ -809,7 +809,7 @@ llm_provider:
   #     big_epic_lander: "@smartest" # threshold-selected epic land agents
   #     xsmall_phase_worker: "@cheaper" # extra-small bead phase agents
   #     small_phase_worker: "@cheap"    # small bead phase agents
-  #     medium_phase_worker: "@default@high" # follows @default at high effort
+  #     medium_phase_worker: "@default@high" # alias-reference effort example
   #     large_phase_worker: "@smart"    # large bead phase agents
   #     xlarge_phase_worker: "@smartest" # extra-large bead phase agents
   #     smart: "@default"          # high-capability alias

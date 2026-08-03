@@ -2164,10 +2164,11 @@ while the tier override only applies when no concrete override is active.
 
 Delegated launches (plan coder follow-ups and `sase bead work` phase, task, and land agents) resolve through
 [role aliases](llms.md#role-aliases-for-delegated-work) configured under `llm_provider.model_aliases.builtin`. The
-size-specific phase/task aliases route through `@cheaper`, `@cheap`, `@default@high`, `@smart`, and `@smartest`; a task
-without size metadata uses the small phase/task route. Nested `@default` references follow a temporary `default`
-override. The concrete `@smartest` target and selector-backed `@cheap`, `@cheaper`, and `@cheapest` pools do not follow
-it; override the target/pool-owning or size-specific alias itself to move one of those lanes.
+size-specific phase/task aliases route through `@cheaper`, `@cheap`, `codex/gpt-5.5@xhigh`, `@smart`, and `@smartest`; a
+task without size metadata uses the small phase/task route. Nested `@default` references follow a temporary `default`
+override. The concrete `@medium_phase_worker` and `@smartest` targets and selector-backed `@cheap`, `@cheaper`, and
+`@cheapest` pools do not follow it; override the target/pool-owning or size-specific alias itself to move one of those
+lanes.
 
 ### Persistent edits
 
@@ -2209,8 +2210,8 @@ preview.
 - Highlight `cheaper`, `e`, choose `Custom...`, enter `claude/sonnet@medium | codex/gpt-5.5@medium`, and confirm —
   xsmall phases round-robin across installed providers while the panel continues to show the next selection without
   consuming it.
-- Highlight `cheap`, `e`, choose `Custom...`, enter `claude/sonnet@xhigh | codex/gpt-5.5`, and confirm — small phases
-  round-robin across this independent pool without consuming the `cheaper` cursor.
+- Highlight `cheap`, `e`, choose `Custom...`, enter `claude/sonnet@xhigh | codex/gpt-5.5@medium`, and confirm — small
+  phases round-robin across this independent pool without consuming the `cheaper` cursor.
 - Highlight `cheapest`, `e`, choose `Custom...`, enter `claude/haiku | codex/gpt-5.3-codex-spark`, and confirm —
   explicit `@cheapest` launches round-robin across this independent pool without consuming the `cheap` or `cheaper`
   cursor.

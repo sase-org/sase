@@ -29,6 +29,7 @@ def parse_project_file(file_path: str) -> list[ChangeSpec]:
     return parse_project_file_python(file_path)
 
 
+# symvision: tools/validate_sase_core_rs
 def parse_project_bytes(file_path: str, data: bytes) -> list[ChangeSpecWire]:
     """Parse a project file's bytes into wire records via ``sase_core_rs``."""
     rust_parse_project_bytes = require_rust_binding("parse_project_bytes")
