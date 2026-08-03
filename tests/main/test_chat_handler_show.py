@@ -14,7 +14,6 @@ from sase.chat.cli_show import handle_chat_show
 from tests.main.chat_handler_helpers import (
     setup_fake_home,
     write_chat,
-    write_chat_with_renderings,
 )
 
 
@@ -94,58 +93,6 @@ def test_show_resume_format(
     # load_chat_for_resume emits **User:**/**Assistant:** flat turns.
     assert "hello there" in out
     assert "hi back" in out
-
-
-def test_show_xprompt_format_prints_stored_xprompt(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    home = setup_fake_home(monkeypatch, tmp_path)
-    chat = write_chat_with_renderings(
-        home,
-        "branch-run-260429_101500",
-        xprompt="Use [#plan](https://example.test/plan.md).",
-        rendered="expanded prompt\n",
-    )
-
-    handle_chat_show(_show_args(path=str(chat), format="xprompt"))
-
-    out = capsys.readouterr().out
-    assert out == "Use [#plan](https://example.test/plan.md).\n"
-
-
-def test_show_rendered_shortcut_prints_stored_rendered_prompt(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    home = setup_fake_home(monkeypatch, tmp_path)
-    chat = write_chat_with_renderings(
-        home,
-        "branch-run-260429_101500",
-        xprompt="Use #plan.",
-        rendered="expanded prompt\n",
-    )
-
-    handle_chat_show(_show_args(path=str(chat), format="rendered"))
-
-    assert capsys.readouterr().out == "expanded prompt\n"
-
-
-def test_show_rendered_exits_nonzero_without_stored_section(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    home = setup_fake_home(monkeypatch, tmp_path)
-    chat = write_chat(home, "branch-run-260429_101500")
-
-    with pytest.raises(SystemExit) as excinfo:
-        handle_chat_show(_show_args(path=str(chat), format="rendered"))
-
-    assert excinfo.value.code == 1
-    assert "no stored rendered prompt" in capsys.readouterr().err
 
 
 def test_show_basename_resolves_via_sharded_lookup(

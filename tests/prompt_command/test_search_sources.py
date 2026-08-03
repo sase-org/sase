@@ -7,10 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.history.chat_prompt_sections import (
-    RENDERED_SECTION_START,
-    render_prompt_sections,
-)
 from sase.history.prompt_store import PromptEntry, save_prompt_history
 from sase.prompt.search.model import PromptHit, PromptSource
 from sase.prompt.search.sources import (
@@ -137,55 +133,6 @@ def test_archive_tags_combine_frontmatter_and_body(tmp_path: Path) -> None:
     assert sum(tag.casefold() == "review" for tag in hit.tags) == 1
 
 
-def test_archive_indexes_authored_prompt_without_rendered_section(
-    tmp_path: Path,
-) -> None:
-    body = "Fix the orchard selection bug."
-    body += "\n\n" + render_prompt_sections(None, "Kubernetes deployment details")
-    _write(
-        tmp_path / "prompts/202604/orchard.md",
-        _archive_prompt(body),
-    )
-
-    hit = load_archive_prompt_hits(tmp_path)[0]
-
-    assert "orchard" in hit.text
-    assert "Kubernetes" not in hit.text
-    assert "<!-- sase:section:" not in hit.text
-    assert "<details>" not in hit.text
-    assert "<summary>" not in hit.text
-
-
-def test_archive_indexes_authored_prompt_without_xprompt_section(
-    tmp_path: Path,
-) -> None:
-    body = "Fix the orchard selection bug."
-    body += "\n\n" + render_prompt_sections("Symvision implementation notes", None)
-    _write(
-        tmp_path / "prompts/202604/orchard.md",
-        _archive_prompt(body),
-    )
-
-    hit = load_archive_prompt_hits(tmp_path)[0]
-
-    assert "orchard" in hit.text
-    assert "Symvision" not in hit.text
-    assert "<!-- sase:section:" not in hit.text
-
-
-def test_archive_tolerates_unterminated_rendered_section(tmp_path: Path) -> None:
-    body = f"Fix the orchard selection bug.\n\n{RENDERED_SECTION_START}\n"
-    _write(
-        tmp_path / "prompts/202604/orchard.md",
-        _archive_prompt(body),
-    )
-
-    hit = load_archive_prompt_hits(tmp_path)[0]
-
-    assert "orchard" in hit.text
-    assert hit.title == "Fix the orchard selection bug."
-
-
 @pytest.mark.usefixtures("history_file")
 def test_local_adapter_shape_includes_cancelled() -> None:
     save_prompt_history(
@@ -251,58 +198,6 @@ def test_collect_dedup_prefers_archive_and_annotates(tmp_path: Path) -> None:
     assert shared_hits[0].also_in_local is True
     assert "archive_only" in {hit.id for hit in hits}
     assert any(hit.text == "local only prompt" for hit in hits)
-
-
-@pytest.mark.usefixtures("history_file")
-def test_collect_dedup_normalizes_line_wrapping(tmp_path: Path) -> None:
-    archived = "Investigate the authentication failure and rotate the token safely."
-    local = "Investigate the authentication failure\nand rotate the token safely."
-    _write(
-        tmp_path / "prompts/202605/rotate.md",
-        _archive_prompt(archived),
-    )
-    save_prompt_history(
-        [
-            PromptEntry(
-                text=local,
-                timestamp="260512_143000",
-                last_used="260512_143000",
-            )
-        ]
-    )
-
-    hits = collect_prompt_hits([PromptSource.ARCHIVE, PromptSource.LOCAL], tmp_path)
-
-    assert len(hits) == 1
-    assert hits[0].source is PromptSource.ARCHIVE
-    assert hits[0].also_in_local is True
-
-
-@pytest.mark.usefixtures("history_file")
-def test_collect_dedup_normalizes_linkified_xprompt_reference(
-    tmp_path: Path,
-) -> None:
-    archived = "Use [#sase_plan](https://example.test/xprompts/sase_plan.md) now."
-    local = "Use #sase_plan now."
-    _write(
-        tmp_path / "prompts/202605/plan.md",
-        _archive_prompt(archived),
-    )
-    save_prompt_history(
-        [
-            PromptEntry(
-                text=local,
-                timestamp="260512_143000",
-                last_used="260512_143000",
-            )
-        ]
-    )
-
-    hits = collect_prompt_hits([PromptSource.ARCHIVE, PromptSource.LOCAL], tmp_path)
-
-    assert len(hits) == 1
-    assert hits[0].source is PromptSource.ARCHIVE
-    assert hits[0].also_in_local is True
 
 
 @pytest.mark.usefixtures("history_file")

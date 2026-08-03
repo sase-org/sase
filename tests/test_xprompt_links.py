@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 import subprocess
 
@@ -13,7 +12,6 @@ from sase.sdd.hosted_links import HostedLinkResolver
 from sase.xprompt_links import (
     XpromptSourceRecord,
     XpromptTargetResolver,
-    load_xprompt_source_records,
 )
 
 _GITHUB_PRIMARY_REMOTE = "git@github.com:sase-org/sase.git"
@@ -272,30 +270,6 @@ def test_disappeared_recorded_root_falls_back_to_inventory_root(
         "https://github.com/bryanbugyi34/dotfiles/blob/"
         f"{'c' * 40}/home/dot_config/sase/sase.yml"
     )
-
-
-def test_load_xprompt_source_records_missing_artifact_returns_empty(
-    tmp_path: Path,
-) -> None:
-    assert load_xprompt_source_records(tmp_path) == ()
-
-
-def test_load_xprompt_source_records_parses_and_selects_newest(
-    tmp_path: Path,
-) -> None:
-    rows = [
-        _record(repo="sase", repo_root="/old", repo_relpath="a.md"),
-        {
-            **_record(repo="sase", repo_root="/new", repo_relpath="a.md"),
-            "raw_ref": "#plan",
-        },
-    ]
-    (tmp_path / "xprompt_sources.json").write_text(json.dumps(rows), encoding="utf-8")
-
-    records = load_xprompt_source_records(tmp_path)
-
-    assert len(records) == 1
-    assert records[0]["repo_root"] == "/new"
 
 
 if __name__ == "__main__":

@@ -63,15 +63,12 @@ whether it was archived from an agent run or just ran once last month."
 - **Canonical agents archive** — prompts published by agent-backed commits and approved planner runs in the agents
   sidecar under `prompts/<YYYYMM>/`. Search resolves the current project's archive the same way `sase agent prompts`
   does, reads each entry's primary body, and ranks these curated records first. For a commit publication that body is
-  the pre-expansion XPrompt with any resolved provenance links; for an approved planner publication it is the
-  dry-expanded plan snapshot. A separately stored provider prompt is deliberately excluded from the searchable text.
+  the pre-expansion XPrompt; for an approved planner publication it is the dry-expanded plan snapshot.
 - **Local prompt history** — the machine-wide `~/.sase/prompt_history/` shard store: every prompt ever submitted on this
   machine, across all repos.
 
 Use `sase agent prompts list` and `sase agent prompts validate` to inspect or validate the canonical archive directly.
-`sase agent prompts show <prompt>` prints the primary archive body, while `sase agent prompts show --rendered <prompt>`
-prints the stored provider-prompt representation when available. The rendered representation may be truncated at the
-configured byte limit.
+`sase agent prompts show <prompt>` prints the archived Markdown document.
 
 Matching is a **case-insensitive substring** test of the literal query (no regex or globbing) against these searchable
 fields: title, body, locator/ID, archive path, plan label, and tags. Each hit can therefore report _why_ it matched.
@@ -106,8 +103,7 @@ sase prompt search auth -f json | jq '.total, (.results | length)'
 
 `-f full` prints each hit completely, divider-separated: a **local** hit reuses the exact `sase prompt show -f markdown`
 rendering, and an **archived** hit shows its available path, `plan`, artifact-count, tag, and local-history metadata
-plus the primary archive body with the match highlighted. The separately stored provider prompt is not searched or
-included in these results.
+plus the primary archive body with the match highlighted.
 
 ### Filtering by date, tag, source, and status
 

@@ -13,7 +13,6 @@ from sase.ace.tui.widgets.artifacts.chats_detail import (
     build_chat_detail,
     load_chat_detail,
 )
-from sase.history.chat_prompt_sections import render_prompt_sections
 from tests.ace.tui._artifacts_chats_helpers import chat_entry
 
 
@@ -204,63 +203,6 @@ def test_detail_loader_bounds_transcript_to_200_lines(tmp_path) -> None:
     assert len(detail.transcript_preview.splitlines()) == 200
     assert "line 199" in detail.transcript_preview
     assert "line 200" not in detail.transcript_preview
-
-
-def test_detail_loader_extracts_prompt_sections_without_storage_html(tmp_path) -> None:
-    transcript = tmp_path / "chat.md"
-    transcript.write_text(
-        "# Chat History - run\n\n"
-        + render_prompt_sections(
-            "Use [#plan](https://example.test/plan.md).",
-            "expanded prompt\n",
-        )
-        + "\n## Prompt\n\nlegacy prompt\n\n## Response\n\nanswer\n",
-        encoding="utf-8",
-    )
-    entry = replace(
-        chat_entry("stored-prompts"),
-        absolute_path=str(transcript),
-        size_bytes=transcript.stat().st_size,
-        agent_artifact_dir=None,
-    )
-
-    detail = load_chat_detail(entry)
-    rendered = build_chat_detail(entry, detail).plain
-
-    assert "PROMPTS" in rendered
-    assert "XPrompt prompt" in rendered
-    assert "Use [#plan](https://example.test/plan.md)." in rendered
-    assert "rendered prompt" in rendered
-    assert "expanded prompt" in rendered
-    assert "legacy prompt" in rendered
-    assert "sase:section" not in rendered
-    assert "<details>" not in rendered
-    assert "<summary>" not in rendered
-    assert "sase:section" not in detail.transcript_preview
-
-
-def test_detail_loader_finds_prompt_sections_after_preview_cap(tmp_path) -> None:
-    transcript = tmp_path / "chat.md"
-    transcript.write_text(
-        "".join(f"preface {index}\n" for index in range(205))
-        + render_prompt_sections("Use #plan.", "expanded prompt\n")
-        + "\n## Prompt\n\nlegacy prompt\n\n## Response\n\nanswer\n",
-        encoding="utf-8",
-    )
-    entry = replace(
-        chat_entry("long-prefix"),
-        absolute_path=str(transcript),
-        size_bytes=transcript.stat().st_size,
-        agent_artifact_dir=None,
-    )
-
-    detail = load_chat_detail(entry)
-
-    assert detail.transcript_truncated is True
-    assert "preface 199" in detail.transcript_preview
-    assert "preface 200" not in detail.transcript_preview
-    assert detail.xprompt_prompt == "Use #plan."
-    assert detail.rendered_prompt == "expanded prompt\n"
 
 
 def test_detail_shows_logical_reference_before_resolved_path() -> None:

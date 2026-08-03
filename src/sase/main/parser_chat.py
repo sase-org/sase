@@ -86,33 +86,14 @@ def register_chat_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         help="Chat transcript basename (with or without .md extension)",
     )
-    output_group = show_parser.add_mutually_exclusive_group()
-    output_group.add_argument(
+    show_parser.add_argument(
         "-f",
         "--format",
-        choices=("raw", "rendered", "response", "resume", "xprompt"),
+        choices=("raw", "resume", "response"),
         default="raw",
         help=(
             "Output format: 'raw' (default) prints transcript markdown,"
-            " 'rendered' prints the stored rendered prompt,"
-            " 'response' prints the latest response only,"
             " 'resume' prints flattened User/Assistant turns,"
-            " 'xprompt' prints the stored XPrompt prompt"
+            " 'response' prints the latest response only"
         ),
-    )
-    output_group.add_argument(
-        "-r",
-        "--rendered",
-        action="store_const",
-        const="rendered",
-        dest="format",
-        help="Shortcut for --format rendered",
-    )
-    output_group.add_argument(
-        "-x",
-        "--xprompt",
-        action="store_const",
-        const="xprompt",
-        dest="format",
-        help="Shortcut for --format xprompt",
     )

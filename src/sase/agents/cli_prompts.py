@@ -6,8 +6,8 @@ import argparse
 from dataclasses import dataclass
 import json
 from pathlib import Path
-import sys
 
+from rich.syntax import Syntax
 from rich.table import Table
 
 from sase.agents_sync.models import ProjectTarget
@@ -18,13 +18,8 @@ from sase.agents_sync.prompt_archive.validation import (
     validate_prompt_archive,
 )
 from sase.agents_sync.targets import resolve_sync_targets
-from sase.history.chat_prompt_sections import (
-    extract_prompt_renderings,
-    remove_prompt_sections,
-)
 from sase.output import console, error_console
 from sase.repo_inventory import RepoRecord, collect_repo_inventory
-from sase.sdd.plan_header_block import parse_plan_header_block
 from sase.workspace_provider.marker import find_marker_from_cwd
 
 # ``EX_UNAVAILABLE`` from sysexits.h, kept literal for cross-platform parity.
@@ -125,7 +120,6 @@ def _handle_show(
     args: argparse.Namespace,
     context: _PromptArchiveContext,
 ) -> int:
-    rendered = bool(getattr(args, "rendered", False))
     try:
         file = resolve_prompt_archive_file(context.target.sidecar_path, args.prompt)
         content = file.path.read_text(encoding="utf-8")
@@ -133,24 +127,13 @@ def _handle_show(
         error_console.print(f"[red]Error:[/red] {exc}")
         return 1
 
-    body = _document_body(content)
-    xprompt_body = _normalize_printable_prompt(remove_prompt_sections(body))
-    renderings = extract_prompt_renderings(body, xprompt_fallback=xprompt_body)
-    selected = renderings.rendered_prompt if rendered else renderings.xprompt_prompt
-    rendering = "rendered" if rendered else "xprompt"
-    if selected is None:
-        error_console.print(
-            f"[red]Error:[/red] {file.relpath} has no stored {rendering} prompt"
-        )
-        return 1
-
     if getattr(args, "json", False):
         payload = file.to_json_dict()
-        payload["rendering"] = rendering
-        payload["content"] = selected
+        payload["content"] = content
         print(json.dumps(payload, indent=2))
     else:
-        _write_prompt_content(selected)
+        console.print(f"[bold cyan]{file.relpath}[/bold cyan]")
+        console.print(Syntax(content, "markdown", word_wrap=True))
     return 0
 
 
@@ -191,23 +174,6 @@ def _handle_migrate(
         target=context.target,
         plans_repo=context.plans_repo,
     )
-
-
-def _document_body(content: str) -> str:
-    try:
-        return parse_plan_header_block(content).body
-    except (RuntimeError, ValueError):
-        return content
-
-
-def _normalize_printable_prompt(content: str) -> str:
-    return content.strip("\n")
-
-
-def _write_prompt_content(content: str) -> None:
-    sys.stdout.write(content)
-    if not content.endswith("\n"):
-        sys.stdout.write("\n")
 
 
 def _resolve_context(project: str | None) -> _PromptArchiveContext:

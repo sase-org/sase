@@ -101,8 +101,6 @@ The directory has three responsibilities:
   component.
 - `prompt-artifacts.jsonl` records one manifest row per staged reference; `prompt-artifacts.lock` serializes concurrent
   writers.
-- `xprompt_sources.json` records best-effort provenance for each xprompt reference that survived launch prompt scanning,
-  including repository-relative definition paths when they can be resolved.
 
 Clean tracked files inside a known repository are recorded as VCS-backed rows instead of copied into `pool/`. External
 files are hashed and pooled unless they exceed `artifacts.capture.max_file_size_bytes`; oversized files are still hashed
@@ -111,11 +109,9 @@ and recorded with a skip reason, but their bytes are not copied. Locator-only re
 
 When `sase commit` publishes the canonical prompt archive, it reads the manifest rows for that run, copies pooled files
 to the agents sidecar under `artifacts/<YYYYMM>/`, and writes the prompt to `prompts/<YYYYMM>/<name>.md`. The body is
-the XPrompt prompt: resolvable `#...` references link to their hosted definitions, while unresolvable references stay as
-literal text. The prompt's `ARTIFACTS` header section lists exactly the `@...` references made clickable in the body.
-VCS-backed rows link to hosted source blobs at the recorded revision, while copied external files link to
-`../../artifacts/<YYYYMM>/<sha12>-<basename>`. When the run has a rendered prompt artifact, the archive appends it as a
-collapsed verbatim section so readers can compare the original XPrompt prompt to the final prompt sent to the model.
+the prompt text selected for publication. The prompt's `ARTIFACTS` header section lists exactly the `@...` references
+made clickable in the body. VCS-backed rows link to hosted source blobs at the recorded revision, while copied external
+files link to `../../artifacts/<YYYYMM>/<sha12>-<basename>`.
 
 The local pool is a cache for publication, not the permanent archive. `artifacts.capture.pool_max_bytes` controls when
 SASE opportunistically garbage-collects pool files whose manifest rows all belong to terminal runs that have already

@@ -2,20 +2,18 @@
 
 This read-only layer inventories ``prompts/<YYYYMM>/*.md`` in the agents
 sidecar, adapts machine-wide prompt history into the same :class:`PromptHit`
-shape, and collapses cross-store duplicates by normalized authored text.
+shape, and collapses cross-store duplicates by content digest.
 """
 
 from __future__ import annotations
 
 import hashlib
-import re
 from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from sase.agents_sync.prompt_archive.validation import list_prompt_archive_files
-from sase.history.chat_prompt_sections import strip_prompt_sections
 from sase.history.prompt import list_prompt_records
 from sase.history.prompt_metadata import clean_prompt_preview, summarize_prompt_for_list
 from sase.prompt.search.dates import resolve_archive_date
@@ -25,10 +23,6 @@ from sase.sdd.plan_header_block import parse_plan_header_block
 
 _USER_TAGS_KEY = "prompt_tags"
 _TAG_SIGILS = "#@"
-_LINKED_XPROMPT_RE = re.compile(
-    r"\[(?P<reference>#[a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)\]"
-    r"\((?:<https://[^>\n]+>|https://[^\s)]+)\)"
-)
 
 
 def collect_prompt_hits(
@@ -38,8 +32,8 @@ def collect_prompt_hits(
     """Return the unified, de-duplicated corpus for the selected sources.
 
     Archive hits are listed before local hits. When both sources are selected,
-    a local entry with the same normalized authored text is collapsed into the
-    archive hit and annotated with :attr:`PromptHit.also_in_local`.
+    a local entry with the same ``text_sha256`` is collapsed into the archive
+    hit and annotated with :attr:`PromptHit.also_in_local`.
     """
 
     selected = set(sources)
@@ -80,7 +74,7 @@ def _load_archive_file(
 
     try:
         content = path.read_text(encoding="utf-8")
-        text = strip_prompt_sections(parse_plan_header_block(content).body).strip()
+        text = parse_plan_header_block(content).body.strip()
     except (OSError, UnicodeError, RuntimeError, ValueError):
         return None
 
@@ -133,26 +127,23 @@ def _dedup_hits(
     archive_hits: list[PromptHit],
     local_hits: list[PromptHit],
 ) -> list[PromptHit]:
-    """Collapse normalized-text local entries into their canonical archive hit."""
+    """Collapse same-digest local entries into their canonical archive hit."""
 
-    archive_keys = [_dedup_key(hit.text) for hit in archive_hits]
-    local_keys = [_dedup_key(hit.text) for hit in local_hits]
-    archive_key_set = set(archive_keys)
-    local_key_set = set(local_keys)
+    archive_shas = {hit.text_sha256 for hit in archive_hits if hit.text_sha256}
+    local_shas = {hit.text_sha256 for hit in local_hits if hit.text_sha256}
 
     result: list[PromptHit] = []
-    for hit, key in zip(archive_hits, archive_keys, strict=True):
-        result.append(replace(hit, also_in_local=True) if key in local_key_set else hit)
-    for hit, key in zip(local_hits, local_keys, strict=True):
-        if key in archive_key_set:
+    for hit in archive_hits:
+        result.append(
+            replace(hit, also_in_local=True)
+            if hit.text_sha256 and hit.text_sha256 in local_shas
+            else hit
+        )
+    for hit in local_hits:
+        if hit.text_sha256 and hit.text_sha256 in archive_shas:
             continue
         result.append(hit)
     return result
-
-
-def _dedup_key(text: str) -> str:
-    authored = _LINKED_XPROMPT_RE.sub(r"\g<reference>", text)
-    return " ".join(authored.split())
 
 
 def _derive_title(text: str, fallback: str) -> str:

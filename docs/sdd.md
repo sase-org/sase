@@ -69,17 +69,8 @@ SASE has two prompt-publication paths, and their ordering matters:
    have not been expanded. A plan-backed entry uses the plan slug; an entry without a plan uses the publishing agent's
    global lane name.
 
-That plan snapshot or pre-expansion XPrompt becomes the archive's **primary body**. SASE rewrites captured, resolvable
-`#...` references in a pre-expansion body as hosted links and turns staged `@...` references in either kind of body into
-durable links when possible. The primary body remains complete rather than being size-truncated.
-
-When an eligible `*_prompt.md` artifact exists, SASE also appends a separate collapsed **rendered prompt** section. It
-contains the final preprocessed prompt SASE handed to the provider; it does not include instructions or other context
-that the provider adds. SASE retains at most [`chat_history.rendered_prompt_max_bytes`](configuration.md#chat_history)
-UTF-8 bytes and explicitly marks truncation.
-
-`sase agent prompts show <prompt>` prints the primary body by default; add `--rendered` to print the stored
-provider-prompt representation. Legacy archives may have only the primary body.
+That plan snapshot or pre-expansion XPrompt becomes the archive body. SASE turns staged `@...` references into durable
+links when possible.
 
 ### Artifact Persistence
 

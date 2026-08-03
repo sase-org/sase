@@ -13,7 +13,6 @@ from sase.history.chat_catalog_provenance import (
     ChatCatalogEntry,
     ChatCatalogSnapshot,
 )
-from sase.history.chat_prompt_sections import render_prompt_sections
 
 from tests.conftest import redirect_sase_home
 
@@ -44,25 +43,6 @@ def write_chat(
         header += f" ({agent})"
     body = f"{header}\n\n## Prompt\n\n{prompt}\n\n## Response\n\n{response}\n"
     path.write_text(body, encoding="utf-8")
-    return path
-
-
-def write_chat_with_renderings(
-    sase_home: Path,
-    basename: str,
-    *,
-    xprompt: str,
-    rendered: str,
-) -> Path:
-    chat_dir = sase_home / "chats" / "202604"
-    chat_dir.mkdir(parents=True, exist_ok=True)
-    path = chat_dir / f"{basename}.md"
-    path.write_text(
-        "# Chat History - run\n\n"
-        + render_prompt_sections(xprompt, rendered)
-        + "\n## Prompt\n\nlegacy prompt\n\n## Response\n\nanswer\n",
-        encoding="utf-8",
-    )
     return path
 
 

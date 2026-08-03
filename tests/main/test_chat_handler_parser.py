@@ -43,24 +43,21 @@ def test_parser_show_format_choices() -> None:
     args = parser.parse_args(["chat", "show", "-b", "x", "-f", "resume"])
     assert args.basename == "x"
     assert args.format == "resume"
-    args = parser.parse_args(["chat", "show", "-b", "x", "-f", "xprompt"])
-    assert args.format == "xprompt"
-    args = parser.parse_args(["chat", "show", "-b", "x", "-f", "rendered"])
-    assert args.format == "rendered"
     with pytest.raises(SystemExit):
         parser.parse_args(["chat", "show", "-n", "alpha", "-f", "bogus"])
 
 
-def test_parser_show_prompt_rendering_shortcuts() -> None:
+def test_parser_show_rejects_removed_prompt_rendering_selectors() -> None:
     parser = create_parser()
 
-    assert parser.parse_args(["chat", "show", "-b", "x", "-x"]).format == "xprompt"
-    assert (
-        parser.parse_args(["chat", "show", "-b", "x", "--rendered"]).format
-        == "rendered"
-    )
     with pytest.raises(SystemExit):
-        parser.parse_args(["chat", "show", "-b", "x", "-f", "raw", "-r"])
+        parser.parse_args(["chat", "show", "-b", "x", "-f", "xprompt"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["chat", "show", "-b", "x", "-f", "rendered"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["chat", "show", "-b", "x", "-x"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["chat", "show", "-b", "x", "--rendered"])
 
 
 def test_parser_show_default_format_is_raw() -> None:

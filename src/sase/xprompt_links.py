@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import TypedDict
 
 from sase.agents_sync.git import GitRunner
-from sase.core.rust import require_rust_binding
 from sase.sdd.hosted_links import HostedLinkResolver
 
 
@@ -25,21 +24,6 @@ class XpromptSourceRecord(TypedDict):
     repo_relpath: str | None
     chezmoi: bool
     skipped_reason: str | None
-
-
-def load_xprompt_source_records(
-    artifacts_dir: Path | str,
-) -> tuple[XpromptSourceRecord, ...]:
-    """Parse and select the xprompt provenance rows for one agent run."""
-
-    path = Path(artifacts_dir) / "xprompt_sources.json"
-    if not path.is_file():
-        return ()
-    parse = require_rust_binding("prompt_xprompt_records_parse")
-    select = require_rust_binding("prompt_xprompt_records_select")
-    parsed = parse(path.read_bytes())
-    selected = select(parsed)
-    return tuple(cast(list[XpromptSourceRecord], selected))
 
 
 class XpromptTargetResolver:
@@ -115,5 +99,4 @@ def _git_revision(root: Path, git_runner: GitRunner) -> str | None:
 __all__ = [
     "XpromptSourceRecord",
     "XpromptTargetResolver",
-    "load_xprompt_source_records",
 ]

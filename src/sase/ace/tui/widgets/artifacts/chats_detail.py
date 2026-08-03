@@ -13,20 +13,11 @@ from sase.artifact_refs import ArtifactRefContext, reference_for_entry_target
 from sase.core.agent_identity_facade import present_agent_name
 from sase.core.paths import sase_subdir
 from sase.history.chat_catalog_provenance import ChatCatalogEntry
-from sase.history.chat_prompt_sections import (
-    RENDERED_SECTION_END,
-    RENDERED_SECTION_START,
-    XPROMPT_SECTION_END,
-    XPROMPT_SECTION_START,
-    StoredPromptRenderings,
-    extract_prompt_renderings,
-)
 
 from .chats_rendering import CHAT_PROVENANCE_COLORS, CHAT_PROVENANCE_GLYPHS
 from .types import ARTIFACTS_ACCENTS
 
 _TRANSCRIPT_PREVIEW_LINES = 200
-_PROMPT_RENDERING_PREVIEW_LINES = 120
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,8 +27,6 @@ class ChatDetailData:
     absolute_path: str
     transcript_preview: str
     transcript_truncated: bool
-    xprompt_prompt: str | None = None
-    rendered_prompt: str | None = None
     reference: str | None = None
     model: str | None = None
     provider: str | None = None
@@ -48,7 +37,7 @@ class ChatDetailData:
 def load_chat_detail(entry: ChatCatalogEntry) -> ChatDetailData:
     """Read bounded transcript and artifact facts for one selected row."""
 
-    preview, truncated, renderings = _read_transcript_preview(Path(entry.absolute_path))
+    preview, truncated = _read_transcript_preview(Path(entry.absolute_path))
     if not preview:
         preview = _snippet_fallback(entry)
     meta: dict[str, object] = {}
@@ -73,8 +62,6 @@ def load_chat_detail(entry: ChatCatalogEntry) -> ChatDetailData:
         absolute_path=entry.absolute_path,
         transcript_preview=preview,
         transcript_truncated=truncated,
-        xprompt_prompt=renderings.xprompt_prompt,
-        rendered_prompt=renderings.rendered_prompt,
         reference=chat_reference(entry.absolute_path),
         model=model,
         provider=provider,
@@ -151,13 +138,6 @@ def build_chat_detail(
         )
         _field(text, "Dismissed", dismissed)
         _field(text, "Artifact", entry.agent_artifact_dir)
-
-    if detail is not None and (
-        detail.xprompt_prompt is not None or detail.rendered_prompt is not None
-    ):
-        _heading(text, "PROMPTS")
-        _prompt_rendering_section(text, "XPrompt prompt", detail.xprompt_prompt)
-        _prompt_rendering_section(text, "rendered prompt", detail.rendered_prompt)
 
     _heading(text, "TRANSCRIPT")
     if detail is None:
@@ -309,24 +289,6 @@ def _field(text: Text, label: str, value: object | None) -> None:
     text.append(f"{value}\n")
 
 
-def _prompt_rendering_section(
-    text: Text,
-    label: str,
-    value: str | None,
-) -> None:
-    if value is None:
-        return
-    text.append(f"{label}\n", style="bold #87AFFF")
-    preview, truncated = _line_preview(value, _PROMPT_RENDERING_PREVIEW_LINES)
-    text.append(preview or "_Empty prompt._", style="dim")
-    text.append("\n")
-    if truncated:
-        text.append(
-            "... (truncated, press enter for the full chat)\n",
-            style=f"italic {ARTIFACTS_ACCENTS['chats']}",
-        )
-
-
 def chat_reference(path: str) -> str | None:
     """Canonicalize a transcript path without loading unrelated project context."""
 
@@ -344,51 +306,17 @@ def chat_reference(path: str) -> str | None:
     )
 
 
-def _read_transcript_preview(
-    path: Path,
-) -> tuple[str, bool, StoredPromptRenderings]:
+def _read_transcript_preview(path: Path) -> tuple[str, bool]:
     lines: list[str] = []
-    section_blocks: list[str] = []
-    section_lines: list[str] = []
-    active_section_end: str | None = None
-    truncated = False
     try:
         with path.open("r", encoding="utf-8", errors="replace") as handle:
-            for line in handle:
-                stripped = line.strip()
-                if active_section_end is not None:
-                    section_lines.append(line)
-                    if stripped == active_section_end:
-                        section_blocks.append("".join(section_lines))
-                        section_lines = []
-                        active_section_end = None
-                    continue
-                if stripped == XPROMPT_SECTION_START:
-                    section_lines = [line]
-                    active_section_end = XPROMPT_SECTION_END
-                    continue
-                if stripped == RENDERED_SECTION_START:
-                    section_lines = [line]
-                    active_section_end = RENDERED_SECTION_END
-                    continue
-                if len(lines) >= _TRANSCRIPT_PREVIEW_LINES:
-                    truncated = True
-                    continue
+            for index, line in enumerate(handle):
+                if index >= _TRANSCRIPT_PREVIEW_LINES:
+                    return "".join(lines).rstrip(), True
                 lines.append(line)
     except OSError:
-        return "", False, StoredPromptRenderings()
-    return (
-        "".join(lines).rstrip(),
-        truncated,
-        extract_prompt_renderings("".join(section_blocks)),
-    )
-
-
-def _line_preview(content: str, limit: int) -> tuple[str, bool]:
-    lines = content.splitlines(keepends=True)
-    if len(lines) <= limit:
-        return content.rstrip(), False
-    return "".join(lines[:limit]).rstrip(), True
+        return "", False
+    return "".join(lines).rstrip(), False
 
 
 def _snippet_fallback(entry: ChatCatalogEntry) -> str:
