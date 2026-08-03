@@ -225,6 +225,10 @@ async def mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar:
         lambda: text_area.has_focus and text_area._draw_cursor,
         description="focused prompt caret ready for snapshot capture",
     )
+    # Recompute against the final cursor position. Under CI contention the
+    # mount-time debounce can otherwise leave a stale suggestion that was
+    # calculated while the cursor was still at the start of the prompt.
+    text_area._on_prompt_completion_context_changed()
     await wait_for_visual_idle(page)
     return bar
 

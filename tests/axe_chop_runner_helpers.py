@@ -1,10 +1,11 @@
 """Shared helpers for chop runner tests."""
 
 import stat
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
+from sase.core.time import local_now
 
 
 def config_with(**chops_per_jack: list[ChopConfig]) -> AxeConfig:
@@ -31,4 +32,4 @@ def make_script(tmp: Path, name: str, body: str) -> Path:
 
 
 def started_at_seconds_ago(seconds: int) -> str:
-    return (datetime.now() - timedelta(seconds=seconds)).isoformat()
+    return (local_now() - timedelta(seconds=seconds)).isoformat()
