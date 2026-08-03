@@ -9,7 +9,9 @@ import pytest
 from sase.bead.model import PhaseSize, Status
 from sase.bead.work import _build_epic_work_plan, render_multi_prompt
 from sase.llm_provider.config import resolve_model_alias_with_effort
+from sase.llm_provider.model_alias_policy import CHEAP_MODEL_ALIAS_NAME
 from sase.llm_provider.registry import resolve_model_provider
+from tests._model_alias_defaults_fixture import frozen_selector_member
 from sase.xprompt.workflow_models import Workflow
 
 from .work_test_helpers import assert_bare_auto_directives, epic, phase, seed
@@ -376,7 +378,9 @@ class TestModelDirective:
         assert_bare_auto_directives(rendered)
         # The selector-backed phase role preserves its pool member's effort.
         small = resolve_model_alias_with_effort("@small_phase_worker")
-        assert (small.target, small.effort) == ("claude/sonnet", "xhigh")
+        assert (small.target, small.effort) == frozen_selector_member(
+            CHEAP_MODEL_ALIAS_NAME, 0
+        )
         # The lander role still resolves through @default.
         assert resolve_model_provider("@epic_lander") == ("claude", "opus")
 

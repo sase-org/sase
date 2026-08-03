@@ -16,10 +16,25 @@ from sase.llm_provider.registry import (
     resolve_model_provider,
     resolve_model_provider_with_effort,
 )
+from sase.llm_provider.model_alias_policy import (
+    CHEAP_MODEL_ALIAS_NAME,
+    CHEAPER_MODEL_ALIAS_NAME,
+    CHEAPEST_MODEL_ALIAS_NAME,
+    CODER_MODEL_ALIAS_NAME,
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+    SMARTEST_MODEL_ALIAS_NAME,
+)
 from sase.llm_provider.temporary_override import (
     resolve_effective_default_provider_model,
     resolve_effective_default_provider_model_with_effort,
     set_alias_override,
+)
+from tests._model_alias_defaults_fixture import (
+    FROZEN_TARGET_DETAILS,
+    frozen_provider_model,
+    frozen_provider_model_effort,
+    frozen_selector_member,
+    frozen_selector_provider_model_effort,
 )
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
@@ -98,23 +113,25 @@ def test_stale_override_on_phase_worker_has_no_builtin_effect(
 
     set_alias_override("phase_worker", "codex/o3", None, source="panel")
     assert resolve_model_alias("@phase_worker") == "phase_worker"
-    assert resolve_model_provider_with_effort("xsmall_phase_worker") == (
-        "claude",
-        "sonnet",
-        "medium",
+    assert resolve_model_provider_with_effort(
+        "xsmall_phase_worker"
+    ) == frozen_selector_provider_model_effort(
+        CHEAPER_MODEL_ALIAS_NAME,
+        0,
     )
-    assert resolve_model_provider_with_effort("small_phase_worker") == (
-        "claude",
-        "sonnet",
-        "xhigh",
+    assert resolve_model_provider_with_effort(
+        "small_phase_worker"
+    ) == frozen_selector_provider_model_effort(
+        CHEAP_MODEL_ALIAS_NAME,
+        0,
     )
-    assert resolve_model_provider("medium_phase_worker") == ("codex", "gpt-5.5")
+    assert resolve_model_provider("medium_phase_worker") == frozen_provider_model(
+        MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
+    )
     assert resolve_model_provider("large_phase_worker") == ("claude", "opus")
-    assert resolve_model_provider_with_effort("xlarge_phase_worker") == (
-        "claude",
-        "opus",
-        "max",
-    )
+    assert resolve_model_provider_with_effort(
+        "xlarge_phase_worker"
+    ) == frozen_provider_model_effort(SMARTEST_MODEL_ALIAS_NAME)
 
 
 def test_size_specific_phase_override_is_independent(
@@ -130,10 +147,11 @@ def test_size_specific_phase_override_is_independent(
 
     set_alias_override("large_phase_worker", "codex/o3", None, source="panel")
 
-    assert resolve_model_provider_with_effort("small_phase_worker") == (
-        "claude",
-        "sonnet",
-        "xhigh",
+    assert resolve_model_provider_with_effort(
+        "small_phase_worker"
+    ) == frozen_selector_provider_model_effort(
+        CHEAP_MODEL_ALIAS_NAME,
+        0,
     )
     assert resolve_model_provider("medium_phase_worker") == ("claude", "sonnet")
     assert resolve_model_provider("large_phase_worker") == ("codex", "o3")
@@ -235,14 +253,14 @@ def test_default_override_propagates_to_references(
 
     assert resolve_model_alias("default") == "codex/o3"
     assert resolve_model_alias("@default") == "codex/o3"
-    assert resolve_model_provider("@coder") == ("codex", "gpt-5.5")
+    assert resolve_model_provider("@coder") == frozen_provider_model(
+        CODER_MODEL_ALIAS_NAME
+    )
     assert resolve_model_provider("@smart") == ("codex", "o3")
     assert resolve_model_provider("@epic_lander") == ("codex", "o3")
-    assert resolve_model_provider_with_effort("@medium_phase_worker") == (
-        "codex",
-        "gpt-5.5",
-        "xhigh",
-    )
+    assert resolve_model_provider_with_effort(
+        "@medium_phase_worker"
+    ) == frozen_provider_model_effort(MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME)
     assert resolve_effective_default_provider_model() == ("codex", "o3")
 
 
@@ -345,11 +363,24 @@ def test_default_override_does_not_move_pinned_or_selector_backed_lanes(
     smartest = resolve_model_alias_with_effort("@smartest")
     big_lander = resolve_model_alias_with_effort("@big_epic_lander")
     xlarge = resolve_model_alias_with_effort("@xlarge_phase_worker")
-    assert (smartest.target, smartest.effort) == ("claude/opus", "max")
-    assert (big_lander.target, big_lander.effort) == ("claude/opus", "max")
-    assert (xlarge.target, xlarge.effort) == ("claude/opus", "max")
-    assert resolve_model_alias("@cheapest") == "claude/haiku"
+    assert (smartest.target, smartest.effort) == FROZEN_TARGET_DETAILS[
+        SMARTEST_MODEL_ALIAS_NAME
+    ]
+    assert (big_lander.target, big_lander.effort) == FROZEN_TARGET_DETAILS[
+        SMARTEST_MODEL_ALIAS_NAME
+    ]
+    assert (xlarge.target, xlarge.effort) == FROZEN_TARGET_DETAILS[
+        SMARTEST_MODEL_ALIAS_NAME
+    ]
+    assert (
+        resolve_model_alias("@cheapest")
+        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]
+    )
     cheap = resolve_model_alias_with_effort("@cheap")
     small = resolve_model_alias_with_effort("@small_phase_worker")
-    assert (cheap.target, cheap.effort) == ("claude/sonnet", "xhigh")
-    assert (small.target, small.effort) == ("claude/sonnet", "xhigh")
+    assert (cheap.target, cheap.effort) == frozen_selector_member(
+        CHEAP_MODEL_ALIAS_NAME, 0
+    )
+    assert (small.target, small.effort) == frozen_selector_member(
+        CHEAP_MODEL_ALIAS_NAME, 0
+    )

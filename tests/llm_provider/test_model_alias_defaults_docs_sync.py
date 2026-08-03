@@ -29,7 +29,9 @@ def _doc_line_mentions_alias_target(text: str, alias: str, target: str) -> bool:
     return False
 
 
-def test_every_shipped_target_is_quoted_in_both_docs() -> None:
+def test_every_shipped_target_is_quoted_in_both_docs(
+    real_model_alias_defaults: None,
+) -> None:
     """Each target must appear verbatim or markdown-table-escaped in each doc.
 
     Docs quote defaults both inside plain YAML code blocks (unescaped) and
@@ -47,7 +49,9 @@ def test_every_shipped_target_is_quoted_in_both_docs() -> None:
             )
 
 
-def test_provider_coder_defaults_are_documented_by_alias() -> None:
+def test_provider_coder_defaults_are_documented_by_alias(
+    real_model_alias_defaults: None,
+) -> None:
     """Provider-coder rows must pair each alias with the shared @coder default."""
     for doc_path in _DOC_PATHS:
         text = doc_path.read_text(encoding="utf-8")

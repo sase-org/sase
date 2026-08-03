@@ -10,7 +10,20 @@ import pytest
 
 from sase.llm_provider import build_alias_views
 from sase.llm_provider.load_balancing import parse_model_alias_selector
-from sase.llm_provider.model_alias_policy import implicit_alias_targets
+from sase.llm_provider.model_alias_policy import (
+    CHEAP_MODEL_ALIAS_NAME,
+    CHEAPER_MODEL_ALIAS_NAME,
+    CODER_MODEL_ALIAS_NAME,
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+    SMARTEST_MODEL_ALIAS_NAME,
+    implicit_alias_targets,
+)
+from tests._model_alias_defaults_fixture import (
+    FROZEN_SELECTOR_MEMBER_DETAILS,
+    FROZEN_TARGETS,
+    frozen_provider_model,
+    frozen_provider_model_effort,
+)
 from tests.llm_provider._provider_config_helpers import (
     mock_provider_config,
     patch_available_providers,
@@ -50,7 +63,7 @@ def test_includes_default_role_provider_coder_and_user_aliases(
         by_name["big_epic_lander"].provider,
         by_name["big_epic_lander"].model,
         by_name["big_epic_lander"].effort,
-    ) == ("claude", "opus", "max")
+    ) == frozen_provider_model_effort(SMARTEST_MODEL_ALIAS_NAME)
     assert "phase_worker" not in by_name
     assert by_name["xsmall_phase_worker"].kind == "role"
     assert by_name["small_phase_worker"].kind == "role"
@@ -60,32 +73,34 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["medium_phase_worker"].reference_effort is None
     assert (
         by_name["medium_phase_worker"].implicit_value
-        == (targets["medium_phase_worker"])
+        == FROZEN_TARGETS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME]
     )
     assert (
         by_name["medium_phase_worker"].provider,
         by_name["medium_phase_worker"].model,
         by_name["medium_phase_worker"].effort,
-    ) == ("codex", "gpt-5.5", "xhigh")
+    ) == frozen_provider_model_effort(MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME)
     assert by_name["large_phase_worker"].kind == "role"
     assert by_name["xlarge_phase_worker"].kind == "role"
     assert (
         by_name["xlarge_phase_worker"].provider,
         by_name["xlarge_phase_worker"].model,
         by_name["xlarge_phase_worker"].effort,
-    ) == ("claude", "opus", "max")
+    ) == frozen_provider_model_effort(SMARTEST_MODEL_ALIAS_NAME)
     assert by_name["smart"].kind == "role"
     assert by_name["smart"].implicit_fallback == "default"
     assert by_name["smartest"].kind == "role"
     assert by_name["smartest"].configured is False
     assert by_name["smartest"].configured_source is None
     assert by_name["smartest"].implicit_fallback is None
-    assert by_name["smartest"].implicit_value == targets["smartest"]
+    assert (
+        by_name["smartest"].implicit_value == FROZEN_TARGETS[SMARTEST_MODEL_ALIAS_NAME]
+    )
     assert (
         by_name["smartest"].provider,
         by_name["smartest"].model,
         by_name["smartest"].effort,
-    ) == ("claude", "opus", "max")
+    ) == frozen_provider_model_effort(SMARTEST_MODEL_ALIAS_NAME)
     assert by_name["smartest"].selector_mode is None
     assert by_name["smartest"].selector_members == ()
     assert by_name["cheap"].kind == "role"
@@ -99,10 +114,7 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     )
     assert [
         (member.target, member.effort) for member in by_name["cheap"].selector_members
-    ] == [
-        ("claude/sonnet", "xhigh"),
-        ("codex/gpt-5.5", "medium"),
-    ]
+    ] == list(FROZEN_SELECTOR_MEMBER_DETAILS[CHEAP_MODEL_ALIAS_NAME])
     cheaper_selector = parse_model_alias_selector(targets["cheaper"])
     assert cheaper_selector is not None
     assert by_name["cheaper"].implicit_value == targets["cheaper"]
@@ -112,10 +124,7 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     )
     assert [
         (member.target, member.effort) for member in by_name["cheaper"].selector_members
-    ] == [
-        ("claude/sonnet", "medium"),
-        ("codex/gpt-5.5", "medium"),
-    ]
+    ] == list(FROZEN_SELECTOR_MEMBER_DETAILS[CHEAPER_MODEL_ALIAS_NAME])
     assert by_name["cheapest"].kind == "role"
     cheapest_selector = parse_model_alias_selector(targets["cheapest"])
     assert cheapest_selector is not None
@@ -126,18 +135,16 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     )
     assert by_name["claude_coder"].kind == "provider_coder"
     assert by_name["codex_coder"].kind == "provider_coder"
-    assert by_name["coder"].implicit_value == "codex/gpt-5.5"
+    assert by_name["coder"].implicit_value == FROZEN_TARGETS[CODER_MODEL_ALIAS_NAME]
     assert by_name["claude_coder"].implicit_value is None
     assert by_name["codex_coder"].implicit_value is None
     assert by_name["claude_coder"].implicit_fallback == "coder"
     assert by_name["codex_coder"].implicit_fallback == "coder"
     assert (by_name["claude_coder"].provider, by_name["claude_coder"].model) == (
-        "codex",
-        "gpt-5.5",
+        frozen_provider_model(CODER_MODEL_ALIAS_NAME)
     )
     assert (by_name["codex_coder"].provider, by_name["codex_coder"].model) == (
-        "codex",
-        "gpt-5.5",
+        frozen_provider_model(CODER_MODEL_ALIAS_NAME)
     )
 
     myalias = by_name["myalias"]
@@ -246,9 +253,7 @@ def test_smartest_view_is_a_direct_target_even_when_claude_is_unavailable(
     smartest = {view.name: view for view in build_alias_views()}["smartest"]
 
     assert (smartest.provider, smartest.model, smartest.effort) == (
-        "claude",
-        "opus",
-        "max",
+        frozen_provider_model_effort(SMARTEST_MODEL_ALIAS_NAME)
     )
     assert smartest.selector_mode is None
     assert smartest.selector_members == ()

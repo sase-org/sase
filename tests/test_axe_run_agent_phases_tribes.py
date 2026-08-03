@@ -24,7 +24,9 @@ from sase.bead.work import (
     SASE_EPIC_PLAN_SNAPSHOT_ENV,
     SASE_PHASE_BEAD_ID_ENV,
 )
+from sase.llm_provider.model_alias_policy import MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.temporary_override import set_temporary_override
+from tests._model_alias_defaults_fixture import frozen_provider_model_effort
 
 
 def test_extract_directives_persists_runner_output_path(
@@ -466,8 +468,11 @@ def test_medium_phase_worker_directive_metadata_pins_concrete_lane(
 
     meta = _extract_medium_phase_worker_model_meta(tmp_path)
 
-    assert (meta["llm_provider"], meta["model"]) == ("codex", "gpt-5.5")
-    assert meta["reasoning_effort"] == "xhigh"
+    provider, model, effort = frozen_provider_model_effort(
+        MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
+    )
+    assert (meta["llm_provider"], meta["model"]) == (provider, model)
+    assert meta["reasoning_effort"] == effort
 
 
 def test_fork_reserved_tribe_reference_fails_the_launch(

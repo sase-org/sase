@@ -20,10 +20,22 @@ from sase.llm_provider.config import (
 from sase.llm_provider.load_balancing import parse_model_alias_selector
 from sase.llm_provider.model_alias_config import is_provider_coder_alias
 from sase.llm_provider.model_alias_policy import (
+    CHEAP_MODEL_ALIAS_NAME,
+    CHEAPER_MODEL_ALIAS_NAME,
+    CHEAPEST_MODEL_ALIAS_NAME,
+    CODER_MODEL_ALIAS_NAME,
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+    SMARTEST_MODEL_ALIAS_NAME,
     implicit_alias_targets,
     role_alias_fallbacks,
 )
 from sase.llm_provider.registry import resolve_model_provider
+from tests._model_alias_defaults_fixture import (
+    FROZEN_TARGET_DETAILS,
+    FROZEN_TARGETS,
+    frozen_provider_model,
+    frozen_selector_member,
+)
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 
@@ -47,28 +59,40 @@ def test_role_alias_helpers() -> None:
     assert implicit_model_alias_fallback_effort("medium_phase_worker") is None
     assert (
         implicit_model_alias_value("medium_phase_worker")
-        == (targets["medium_phase_worker"])
+        == FROZEN_TARGETS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME]
     )
-    assert parse_model_alias_selector(targets["medium_phase_worker"]) is None
+    assert (
+        parse_model_alias_selector(targets[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME])
+        is None
+    )
     assert implicit_model_alias_fallback("large_phase_worker") == "smart"
     assert implicit_model_alias_fallback("xlarge_phase_worker") == "smartest"
     assert implicit_model_alias_fallback("smart") == "default"
     assert implicit_model_alias_fallback("smartest") is None
-    assert implicit_model_alias_value("smartest") == targets["smartest"]
-    assert parse_model_alias_selector(targets["smartest"]) is None
-    assert implicit_model_alias_value("cheap") == targets["cheap"]
-    cheap_selector = parse_model_alias_selector(targets["cheap"])
+    assert (
+        implicit_model_alias_value("smartest")
+        == FROZEN_TARGETS[SMARTEST_MODEL_ALIAS_NAME]
+    )
+    assert parse_model_alias_selector(targets[SMARTEST_MODEL_ALIAS_NAME]) is None
+    assert implicit_model_alias_value("cheap") == FROZEN_TARGETS[CHEAP_MODEL_ALIAS_NAME]
+    cheap_selector = parse_model_alias_selector(targets[CHEAP_MODEL_ALIAS_NAME])
     assert cheap_selector is not None
     assert cheap_selector.mode == "round_robin"
-    assert implicit_model_alias_value("cheaper") == targets["cheaper"]
-    cheaper_selector = parse_model_alias_selector(targets["cheaper"])
+    assert (
+        implicit_model_alias_value("cheaper")
+        == FROZEN_TARGETS[CHEAPER_MODEL_ALIAS_NAME]
+    )
+    cheaper_selector = parse_model_alias_selector(targets[CHEAPER_MODEL_ALIAS_NAME])
     assert cheaper_selector is not None
     assert cheaper_selector.mode == "round_robin"
-    assert implicit_model_alias_value("cheapest") == targets["cheapest"]
-    cheapest_selector = parse_model_alias_selector(targets["cheapest"])
+    assert (
+        implicit_model_alias_value("cheapest")
+        == FROZEN_TARGETS[CHEAPEST_MODEL_ALIAS_NAME]
+    )
+    cheapest_selector = parse_model_alias_selector(targets[CHEAPEST_MODEL_ALIAS_NAME])
     assert cheapest_selector is not None
     assert cheapest_selector.mode == "round_robin"
-    assert implicit_model_alias_value("coder") == "codex/gpt-5.5"
+    assert implicit_model_alias_value("coder") == FROZEN_TARGETS[CODER_MODEL_ALIAS_NAME]
     assert implicit_model_alias_value("claude_coder") is None
     assert implicit_model_alias_value("codex_coder") is None
     assert implicit_model_alias_fallback("codex_coder") == "coder"
@@ -90,8 +114,10 @@ def test_fakey_coder_alias_still_resolves_despite_picker_hiding(
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
     assert is_provider_coder_alias("fakey_coder") is True
-    assert resolve_model_alias("fakey_coder") == "codex/gpt-5.5"
-    assert resolve_model_provider("fakey_coder") == ("codex", "gpt-5.5")
+    assert resolve_model_alias("fakey_coder") == FROZEN_TARGETS[CODER_MODEL_ALIAS_NAME]
+    assert resolve_model_provider("fakey_coder") == frozen_provider_model(
+        CODER_MODEL_ALIAS_NAME
+    )
 
 
 def test_default_alias_resolves_to_configured_target(
@@ -120,14 +146,16 @@ def test_default_alias_falls_back_to_provider_tier_default(
     assert resolve_model_provider("default") == ("claude", "opus")
 
 
-def test_medium_phase_worker_uses_concrete_xhigh_target(
+def test_medium_phase_worker_uses_concrete_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
     resolved = resolve_model_alias_with_effort("medium_phase_worker")
 
-    assert (resolved.target, resolved.effort) == ("codex/gpt-5.5", "xhigh")
+    assert (resolved.target, resolved.effort) == FROZEN_TARGET_DETAILS[
+        MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
+    ]
 
 
 def test_medium_phase_worker_ignores_default_with_outer_effort_winning(
@@ -144,8 +172,11 @@ def test_medium_phase_worker_ignores_default_with_outer_effort_winning(
     resolved = resolve_model_alias_with_effort("@medium_phase_worker")
     outer = resolve_model_alias_with_effort("@medium_phase_worker@low")
 
-    assert (resolved.target, resolved.effort) == ("codex/gpt-5.5", "xhigh")
-    assert (outer.target, outer.effort) == ("codex/gpt-5.5", "low")
+    target, _effort = FROZEN_TARGET_DETAILS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME]
+    assert (resolved.target, resolved.effort) == FROZEN_TARGET_DETAILS[
+        MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
+    ]
+    assert (outer.target, outer.effort) == (target, "low")
 
 
 def test_alias_reference_effort_overrides_target_and_chain_effort(
@@ -182,7 +213,7 @@ def test_alias_reference_effort_overrides_target_and_chain_effort(
 
 
 def test_coder_alias_ships_common_target(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``coder`` defaults to codex/gpt-5.5, independent of ``@default``."""
+    """``coder`` defaults to its own target, independent of ``@default``."""
     mock_provider_config(
         monkeypatch,
         {
@@ -191,8 +222,10 @@ def test_coder_alias_ships_common_target(monkeypatch: pytest.MonkeyPatch) -> Non
         },
     )
 
-    assert resolve_model_alias("coder") == "codex/gpt-5.5"
-    assert resolve_model_provider("coder") == ("codex", "gpt-5.5")
+    assert resolve_model_alias("coder") == FROZEN_TARGETS[CODER_MODEL_ALIAS_NAME]
+    assert resolve_model_provider("coder") == frozen_provider_model(
+        CODER_MODEL_ALIAS_NAME
+    )
 
 
 @pytest.mark.parametrize("active_provider", ["claude", "codex"])
@@ -212,10 +245,16 @@ def test_provider_coder_aliases_use_common_coder_default(
     claude = resolve_model_alias_with_effort("claude_coder")
     codex = resolve_model_alias_with_effort("codex_coder")
 
-    assert (claude.target, claude.effort) == ("codex/gpt-5.5", None)
-    assert (codex.target, codex.effort) == ("codex/gpt-5.5", None)
-    assert resolve_model_provider("claude_coder") == ("codex", "gpt-5.5")
-    assert resolve_model_provider("codex_coder") == ("codex", "gpt-5.5")
+    assert (claude.target, claude.effort) == FROZEN_TARGET_DETAILS[
+        CODER_MODEL_ALIAS_NAME
+    ]
+    assert (codex.target, codex.effort) == FROZEN_TARGET_DETAILS[CODER_MODEL_ALIAS_NAME]
+    assert resolve_model_provider("claude_coder") == frozen_provider_model(
+        CODER_MODEL_ALIAS_NAME
+    )
+    assert resolve_model_provider("codex_coder") == frozen_provider_model(
+        CODER_MODEL_ALIAS_NAME
+    )
 
 
 def test_unpinned_provider_coder_alias_chains_to_coder(
@@ -229,8 +268,10 @@ def test_unpinned_provider_coder_alias_chains_to_coder(
         },
     )
 
-    assert resolve_model_alias("fakey_coder") == "codex/gpt-5.5"
-    assert resolve_model_provider("fakey_coder") == ("codex", "gpt-5.5")
+    assert resolve_model_alias("fakey_coder") == FROZEN_TARGETS[CODER_MODEL_ALIAS_NAME]
+    assert resolve_model_provider("fakey_coder") == frozen_provider_model(
+        CODER_MODEL_ALIAS_NAME
+    )
 
 
 def test_provider_coder_alias_follows_configured_coder(
@@ -261,7 +302,8 @@ def test_provider_coder_common_default_accepts_outer_effort(
 
     resolved = resolve_model_alias_with_effort("@codex_coder@xhigh")
 
-    assert (resolved.target, resolved.effort) == ("codex/gpt-5.5", "xhigh")
+    target, _effort = FROZEN_TARGET_DETAILS[CODER_MODEL_ALIAS_NAME]
+    assert (resolved.target, resolved.effort) == (target, "xhigh")
 
 
 def test_configured_provider_coder_shadows_generic_coder(
@@ -299,20 +341,36 @@ def test_epic_execution_role_aliases_follow_size_specific_fallbacks(
     )
 
     assert resolve_model_alias("epic_lander") == "codex/gpt-5.6-sol"
-    assert resolve_model_alias("medium_phase_worker") == "codex/gpt-5.5"
+    assert (
+        resolve_model_alias("medium_phase_worker")
+        == FROZEN_TARGET_DETAILS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME][0]
+    )
     for alias in ("smartest", "big_epic_lander", "xlarge_phase_worker"):
         resolved = resolve_model_alias_with_effort(alias)
-        assert (resolved.target, resolved.effort) == ("claude/opus", "max")
+        assert (resolved.target, resolved.effort) == FROZEN_TARGET_DETAILS[
+            SMARTEST_MODEL_ALIAS_NAME
+        ]
     assert resolve_model_alias("large_phase_worker") == "codex/gpt-5.6-sol"
     small = resolve_model_alias_with_effort("small_phase_worker")
     xsmall = resolve_model_alias_with_effort("xsmall_phase_worker")
     cheap = resolve_model_alias_with_effort("cheap")
     cheaper = resolve_model_alias_with_effort("cheaper")
-    assert (small.target, small.effort) == ("claude/sonnet", "xhigh")
-    assert (xsmall.target, xsmall.effort) == ("claude/sonnet", "medium")
-    assert (cheap.target, cheap.effort) == ("claude/sonnet", "xhigh")
-    assert (cheaper.target, cheaper.effort) == ("claude/sonnet", "medium")
-    assert resolve_model_alias("cheapest") == "claude/haiku"
+    assert (small.target, small.effort) == frozen_selector_member(
+        CHEAP_MODEL_ALIAS_NAME, 0
+    )
+    assert (xsmall.target, xsmall.effort) == frozen_selector_member(
+        CHEAPER_MODEL_ALIAS_NAME, 0
+    )
+    assert (cheap.target, cheap.effort) == frozen_selector_member(
+        CHEAP_MODEL_ALIAS_NAME, 0
+    )
+    assert (cheaper.target, cheaper.effort) == frozen_selector_member(
+        CHEAPER_MODEL_ALIAS_NAME, 0
+    )
+    assert (
+        resolve_model_alias("cheapest")
+        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]
+    )
 
 
 def test_configured_smartest_alias_shadows_implicit_target(
@@ -347,7 +405,9 @@ def test_smartest_target_and_effort_do_not_depend_on_provider_availability(
 
     for alias in ("@smartest", "@big_epic_lander", "@xlarge_phase_worker"):
         resolved = resolve_model_alias_with_effort(alias, consume=True)
-        assert (resolved.target, resolved.effort) == ("claude/opus", "max")
+        assert (resolved.target, resolved.effort) == FROZEN_TARGET_DETAILS[
+            SMARTEST_MODEL_ALIAS_NAME
+        ]
 
 
 def test_stale_phase_worker_builtin_does_not_control_medium_phase(
@@ -367,8 +427,13 @@ def test_stale_phase_worker_builtin_does_not_control_medium_phase(
     )
 
     small = resolve_model_alias_with_effort("small_phase_worker")
-    assert (small.target, small.effort) == ("claude/sonnet", "xhigh")
-    assert resolve_model_alias("medium_phase_worker") == "codex/gpt-5.5"
+    assert (small.target, small.effort) == frozen_selector_member(
+        CHEAP_MODEL_ALIAS_NAME, 0
+    )
+    assert (
+        resolve_model_alias("medium_phase_worker")
+        == FROZEN_TARGET_DETAILS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME][0]
+    )
     monkeypatch.setattr(
         "sase.llm_provider.config._resolved_target_is_available",
         lambda target: target.startswith("codex/"),
@@ -393,7 +458,9 @@ def test_configured_phase_size_alias_shadows_default_only_for_that_size(
     )
 
     small = resolve_model_alias_with_effort("small_phase_worker")
-    assert (small.target, small.effort) == ("claude/sonnet", "xhigh")
+    assert (small.target, small.effort) == frozen_selector_member(
+        CHEAP_MODEL_ALIAS_NAME, 0
+    )
     assert resolve_model_alias("medium_phase_worker") == "claude/sonnet"
     assert resolve_model_alias("large_phase_worker") == "codex/o3"
 
@@ -416,7 +483,9 @@ def test_big_epic_lander_uses_smartest_independently_of_epic_lander(
     )
     assert resolve_model_alias("epic_lander") == "claude/sonnet"
     big_lander = resolve_model_alias_with_effort("big_epic_lander")
-    assert (big_lander.target, big_lander.effort) == ("claude/opus", "max")
+    assert (big_lander.target, big_lander.effort) == FROZEN_TARGET_DETAILS[
+        SMARTEST_MODEL_ALIAS_NAME
+    ]
 
 
 def test_configured_big_epic_lander_shadows_implicit_fallback(
@@ -480,5 +549,8 @@ def test_custom_phase_worker_alias_is_available_for_explicit_use_only(
     )
 
     assert resolve_model_alias("phase_worker") == "claude/sonnet"
-    assert resolve_model_alias("medium_phase_worker") == "codex/gpt-5.5"
-    assert resolve_model_alias("coder") == "codex/gpt-5.5"
+    assert (
+        resolve_model_alias("medium_phase_worker")
+        == FROZEN_TARGET_DETAILS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME][0]
+    )
+    assert resolve_model_alias("coder") == FROZEN_TARGETS[CODER_MODEL_ALIAS_NAME]

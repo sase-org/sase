@@ -21,8 +21,14 @@ from sase.llm_provider.load_balancing import (
     ModelAliasSelectorError,
     parse_model_alias_selector,
 )
+from sase.llm_provider.model_alias_policy import (
+    CHEAP_MODEL_ALIAS_NAME,
+    CHEAPER_MODEL_ALIAS_NAME,
+    CHEAPEST_MODEL_ALIAS_NAME,
+)
 from sase.llm_provider.registry import resolve_model_provider_with_effort
 from sase.xprompt.directives import PromptDirectives
+from tests._model_alias_defaults_fixture import frozen_selector_member
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 
@@ -168,8 +174,12 @@ def test_small_phase_and_cheap_share_one_rotation(
     small = resolve_model_alias_with_effort("@small_phase_worker", consume=True)
     cheap = resolve_model_alias_with_effort("@cheap", consume=True)
 
-    assert (small.target, small.effort) == ("claude/sonnet", "xhigh")
-    assert (cheap.target, cheap.effort) == ("codex/gpt-5.5", "medium")
+    assert (small.target, small.effort) == frozen_selector_member(
+        CHEAP_MODEL_ALIAS_NAME, 0
+    )
+    assert (cheap.target, cheap.effort) == frozen_selector_member(
+        CHEAP_MODEL_ALIAS_NAME, 1
+    )
 
 
 def test_xsmall_phase_and_cheaper_share_one_rotation(
@@ -185,8 +195,12 @@ def test_xsmall_phase_and_cheaper_share_one_rotation(
     xsmall = resolve_model_alias_with_effort("@xsmall_phase_worker", consume=True)
     cheaper = resolve_model_alias_with_effort("@cheaper", consume=True)
 
-    assert (xsmall.target, xsmall.effort) == ("claude/sonnet", "medium")
-    assert (cheaper.target, cheaper.effort) == ("codex/gpt-5.5", "medium")
+    assert (xsmall.target, xsmall.effort) == frozen_selector_member(
+        CHEAPER_MODEL_ALIAS_NAME, 0
+    )
+    assert (cheaper.target, cheaper.effort) == frozen_selector_member(
+        CHEAPER_MODEL_ALIAS_NAME, 1
+    )
 
 
 def test_cheap_and_cheaper_use_independent_rotations(
@@ -204,21 +218,17 @@ def test_cheap_and_cheaper_use_independent_rotations(
     cheap_second = resolve_model_alias_with_effort("@cheap", consume=True)
     cheaper_second = resolve_model_alias_with_effort("@cheaper", consume=True)
 
-    assert (cheap_first.target, cheap_first.effort) == (
-        "claude/sonnet",
-        "xhigh",
+    assert (cheap_first.target, cheap_first.effort) == frozen_selector_member(
+        CHEAP_MODEL_ALIAS_NAME, 0
     )
-    assert (cheaper_first.target, cheaper_first.effort) == (
-        "claude/sonnet",
-        "medium",
+    assert (cheaper_first.target, cheaper_first.effort) == frozen_selector_member(
+        CHEAPER_MODEL_ALIAS_NAME, 0
     )
-    assert (cheap_second.target, cheap_second.effort) == (
-        "codex/gpt-5.5",
-        "medium",
+    assert (cheap_second.target, cheap_second.effort) == frozen_selector_member(
+        CHEAP_MODEL_ALIAS_NAME, 1
     )
-    assert (cheaper_second.target, cheaper_second.effort) == (
-        "codex/gpt-5.5",
-        "medium",
+    assert (cheaper_second.target, cheaper_second.effort) == frozen_selector_member(
+        CHEAPER_MODEL_ALIAS_NAME, 1
     )
 
 
@@ -232,14 +242,30 @@ def test_implicit_cheapest_pool_peeks_and_consumes_independently(
         lambda _target: True,
     )
 
-    assert resolve_model_alias("@cheapest") == "claude/haiku"
-    assert resolve_model_alias("@cheapest") == "claude/haiku"
-    assert resolve_model_alias("@cheapest", consume=True) == "claude/haiku"
-    assert resolve_model_alias("@cheapest") == "codex/gpt-5.3-codex-spark"
-    assert resolve_model_alias("@cheapest", consume=True) == (
-        "codex/gpt-5.3-codex-spark"
+    assert (
+        resolve_model_alias("@cheapest")
+        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]
     )
-    assert resolve_model_alias("@cheapest", consume=True) == "claude/haiku"
+    assert (
+        resolve_model_alias("@cheapest")
+        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]
+    )
+    assert (
+        resolve_model_alias("@cheapest", consume=True)
+        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]
+    )
+    assert (
+        resolve_model_alias("@cheapest")
+        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 1)[0]
+    )
+    assert (
+        resolve_model_alias("@cheapest", consume=True)
+        == (frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 1)[0])
+    )
+    assert (
+        resolve_model_alias("@cheapest", consume=True)
+        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]
+    )
 
 
 def test_cheap_cheaper_and_cheapest_use_independent_rotations(
@@ -259,35 +285,38 @@ def test_cheap_cheaper_and_cheapest_use_independent_rotations(
     cheaper_second = resolve_model_alias_with_effort("@cheaper", consume=True)
     cheapest_second = resolve_model_alias_with_effort("@cheapest", consume=True)
 
-    assert (cheap_first.target, cheap_first.effort) == (
-        "claude/sonnet",
-        "xhigh",
+    assert (cheap_first.target, cheap_first.effort) == frozen_selector_member(
+        CHEAP_MODEL_ALIAS_NAME, 0
     )
-    assert (cheaper_first.target, cheaper_first.effort) == (
-        "claude/sonnet",
-        "medium",
+    assert (cheaper_first.target, cheaper_first.effort) == frozen_selector_member(
+        CHEAPER_MODEL_ALIAS_NAME, 0
     )
-    assert (cheapest_first.target, cheapest_first.effort) == ("claude/haiku", None)
-    assert (cheap_second.target, cheap_second.effort) == (
-        "codex/gpt-5.5",
-        "medium",
+    assert (cheapest_first.target, cheapest_first.effort) == frozen_selector_member(
+        CHEAPEST_MODEL_ALIAS_NAME, 0
     )
-    assert (cheaper_second.target, cheaper_second.effort) == (
-        "codex/gpt-5.5",
-        "medium",
+    assert (cheap_second.target, cheap_second.effort) == frozen_selector_member(
+        CHEAP_MODEL_ALIAS_NAME, 1
     )
-    assert (cheapest_second.target, cheapest_second.effort) == (
-        "codex/gpt-5.3-codex-spark",
-        None,
+    assert (cheaper_second.target, cheaper_second.effort) == frozen_selector_member(
+        CHEAPER_MODEL_ALIAS_NAME, 1
+    )
+    assert (cheapest_second.target, cheapest_second.effort) == frozen_selector_member(
+        CHEAPEST_MODEL_ALIAS_NAME, 1
     )
 
 
 @pytest.mark.parametrize(
     ("alias", "expected"),
     [
-        ("cheap", ("codex/gpt-5.5", "medium")),
-        ("cheaper", ("codex/gpt-5.5", "medium")),
-        ("cheapest", ("codex/gpt-5.3-codex-spark", None)),
+        (CHEAP_MODEL_ALIAS_NAME, frozen_selector_member(CHEAP_MODEL_ALIAS_NAME, 1)),
+        (
+            CHEAPER_MODEL_ALIAS_NAME,
+            frozen_selector_member(CHEAPER_MODEL_ALIAS_NAME, 1),
+        ),
+        (
+            CHEAPEST_MODEL_ALIAS_NAME,
+            frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 1),
+        ),
     ],
 )
 def test_implicit_cheap_pools_skip_unavailable_provider(
@@ -328,7 +357,10 @@ def test_prior_cheapest_fingerprint_does_not_carry_cursor_to_shipped_pool(
     cfg["model_aliases"] = {}
     llm_config._get_model_aliases_for_token.cache_clear()
 
-    assert resolve_model_alias("@cheapest", consume=True) == "claude/haiku"
+    assert (
+        resolve_model_alias("@cheapest", consume=True)
+        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]
+    )
 
 
 def test_availability_filter_and_all_unavailable_fallback(

@@ -13,7 +13,15 @@ from sase.llm_provider.config import (
     model_alias_kind,
     resolve_model_alias,
 )
+from sase.llm_provider.model_alias_policy import (
+    CHEAP_MODEL_ALIAS_NAME,
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+)
 from sase.llm_provider.registry import resolve_model_provider
+from tests._model_alias_defaults_fixture import (
+    FROZEN_TARGET_DETAILS,
+    frozen_selector_member,
+)
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 
@@ -238,8 +246,14 @@ def test_launch_phase_worker_override_has_no_builtin_effect(
     )
 
     overrides = {"phase_worker": "codex/o3"}
-    assert resolve_model_alias("@small_phase_worker", overrides) == "claude/sonnet"
-    assert resolve_model_alias("@medium_phase_worker", overrides) == "codex/gpt-5.5"
+    assert (
+        resolve_model_alias("@small_phase_worker", overrides)
+        == (frozen_selector_member(CHEAP_MODEL_ALIAS_NAME, 0)[0])
+    )
+    assert (
+        resolve_model_alias("@medium_phase_worker", overrides)
+        == (FROZEN_TARGET_DETAILS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME][0])
+    )
     assert resolve_model_alias("@large_phase_worker", overrides) == "claude/opus"
     assert resolve_model_alias("@phase_worker", overrides) == "phase_worker"
 
@@ -253,7 +267,10 @@ def test_launch_size_phase_override_is_independent_for_that_size(
         "medium_phase_worker": "claude/sonnet",
         "large_phase_worker": "codex/o3",
     }
-    assert resolve_model_alias("@small_phase_worker", overrides) == "claude/sonnet"
+    assert (
+        resolve_model_alias("@small_phase_worker", overrides)
+        == (frozen_selector_member(CHEAP_MODEL_ALIAS_NAME, 0)[0])
+    )
     assert resolve_model_alias("@medium_phase_worker", overrides) == "claude/sonnet"
     assert resolve_model_alias("@large_phase_worker", overrides) == "codex/o3"
 

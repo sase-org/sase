@@ -16,6 +16,17 @@ from sase.llm_provider.config import (
     model_alias_description,
     model_alias_names,
 )
+from sase.llm_provider.model_alias_policy import (
+    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
+    CHEAP_MODEL_ALIAS_NAME,
+    CHEAPER_MODEL_ALIAS_NAME,
+    CHEAPEST_MODEL_ALIAS_NAME,
+    DEFAULT_MODEL_ALIAS_NAME,
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+    SMART_MODEL_ALIAS_NAME,
+    SMARTEST_MODEL_ALIAS_NAME,
+)
+from tests._model_alias_defaults_fixture import FROZEN_DESCRIPTIONS
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")
@@ -143,30 +154,36 @@ def test_model_alias_description_builtin_and_custom(
     }
     mock_providers.return_value = ["claude"]
 
-    assert model_alias_description("default").startswith("Model used")
-    assert model_alias_description("big_epic_lander") == (
-        "Epic land agents selected for plans at or above the configured "
-        "phase-count threshold."
+    assert (
+        model_alias_description("default")
+        == FROZEN_DESCRIPTIONS[DEFAULT_MODEL_ALIAS_NAME]
+    )
+    assert (
+        model_alias_description("big_epic_lander")
+        == FROZEN_DESCRIPTIONS[BIG_EPIC_LANDER_MODEL_ALIAS_NAME]
     )
     assert model_alias_description("phase_worker") is None
-    assert model_alias_description("medium_phase_worker") == (
-        "Medium bead phase agents that implement directly."
+    assert (
+        model_alias_description("medium_phase_worker")
+        == FROZEN_DESCRIPTIONS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME]
     )
-    assert model_alias_description("smart") == (
-        "High-capability model used automatically by large phase agents."
+    assert (
+        model_alias_description("smart") == FROZEN_DESCRIPTIONS[SMART_MODEL_ALIAS_NAME]
     )
-    assert model_alias_description("smartest") == (
-        "Highest-capability model used automatically by extra-large phase agents "
-        "and large epic landers."
+    assert (
+        model_alias_description("smartest")
+        == FROZEN_DESCRIPTIONS[SMARTEST_MODEL_ALIAS_NAME]
     )
-    assert model_alias_description("cheap") == (
-        "Load-balanced pool used automatically by small phase agents."
+    assert (
+        model_alias_description("cheap") == FROZEN_DESCRIPTIONS[CHEAP_MODEL_ALIAS_NAME]
     )
-    assert model_alias_description("cheaper") == (
-        "Lower-cost load-balanced pool used automatically by extra-small phase agents."
+    assert (
+        model_alias_description("cheaper")
+        == FROZEN_DESCRIPTIONS[CHEAPER_MODEL_ALIAS_NAME]
     )
-    assert model_alias_description("cheapest") == (
-        "Lowest-cost load-balanced pool available for explicit use."
+    assert (
+        model_alias_description("cheapest")
+        == FROZEN_DESCRIPTIONS[CHEAPEST_MODEL_ALIAS_NAME]
     )
     assert model_alias_description("claude_coder") == (
         "Coder follow-up agents for plans authored by claude."

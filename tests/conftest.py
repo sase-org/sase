@@ -383,6 +383,29 @@ def _isolate_default_llm_effort(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _freeze_model_alias_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> Iterator[None]:
+    """Use test-owned model-alias defaults unless a test asks for the real file."""
+    from tests._model_alias_defaults_fixture import install_frozen_model_alias_defaults
+
+    if "real_model_alias_defaults" not in request.fixturenames:
+        install_frozen_model_alias_defaults(monkeypatch)
+    yield
+
+
+@pytest.fixture
+def real_model_alias_defaults() -> Iterator[None]:
+    """Exercise the packaged ``model_alias_defaults.yml`` instead of the fixture."""
+    from sase.llm_provider import model_alias_policy
+
+    model_alias_policy._load_model_alias_defaults.cache_clear()
+    yield
+    model_alias_policy._load_model_alias_defaults.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_runner_limit_override(monkeypatch: pytest.MonkeyPatch) -> None:
     """Prevent ambient machine-wide runner state from changing tests."""
     monkeypatch.setattr(

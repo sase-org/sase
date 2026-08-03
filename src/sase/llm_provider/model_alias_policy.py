@@ -17,6 +17,10 @@ from types import MappingProxyType
 
 import yaml  # type: ignore[import-untyped]
 
+from sase.xprompt.effort import EFFORT_LEVELS_ORDERED, split_model_effort
+
+from .load_balancing import ModelAliasSelectorError, parse_model_alias_selector
+
 # Builtin-role overrides are configured under
 # ``llm_provider.model_aliases.builtin``; user-created aliases live under
 # ``llm_provider.model_aliases.custom`` so they can carry required descriptions.
@@ -121,6 +125,187 @@ def _defaults_error(resource: object, problem: str) -> RuntimeError:
     )
 
 
+def _parse_fallback_reference(
+    resource: object,
+    *,
+    name: str,
+    fallback: str,
+    known_names: set[str],
+) -> str:
+    clean_reference, effort = split_model_effort(fallback)
+    if not clean_reference.startswith("@"):
+        raise _defaults_error(
+            resource,
+            f"entry {name!r} fallback {fallback!r} must be an @<alias> reference",
+        )
+
+    referenced = clean_reference[1:].strip()
+    if not referenced:
+        raise _defaults_error(
+            resource, f"entry {name!r} fallback {fallback!r} references no alias"
+        )
+    if "@" in referenced:
+        suffix = referenced.rsplit("@", 1)[-1]
+        if effort is None and suffix not in EFFORT_LEVELS_ORDERED:
+            levels = ", ".join(EFFORT_LEVELS_ORDERED)
+            raise _defaults_error(
+                resource,
+                f"entry {name!r} fallback {fallback!r} has an invalid effort "
+                f"overlay; expected one of: {levels}",
+            )
+        raise _defaults_error(
+            resource,
+            f"entry {name!r} fallback {fallback!r} must reference one alias",
+        )
+    if referenced not in known_names:
+        raise _defaults_error(
+            resource,
+            f"entry {name!r} fallback {fallback!r} references unknown alias "
+            f"'@{referenced}'",
+        )
+    return referenced
+
+
+def _validate_target(resource: object, *, name: str, target: str) -> None:
+    try:
+        selector = parse_model_alias_selector(target)
+    except ModelAliasSelectorError as exc:
+        raise _defaults_error(
+            resource, f"entry {name!r} target {target!r} is malformed: {exc}"
+        ) from exc
+
+    if selector is not None and not selector.members:
+        raise _defaults_error(
+            resource, f"entry {name!r} target {target!r} has no selector members"
+        )
+
+
+def _validate_fallback_graph(
+    resource: object,
+    *,
+    fallback_refs: Mapping[str, str],
+    target_names: set[str],
+) -> None:
+    for start in fallback_refs:
+        path = [start]
+        seen = {start}
+        current = start
+        while True:
+            referenced = fallback_refs[current]
+            if referenced == DEFAULT_MODEL_ALIAS_NAME or referenced in target_names:
+                break
+            if referenced in seen:
+                cycle_start = path.index(referenced)
+                cycle = [*path[cycle_start:], referenced]
+                rendered = " -> ".join(f"@{alias}" for alias in cycle)
+                raise _defaults_error(
+                    resource,
+                    f"fallback chain for entry {start!r} creates a cycle: {rendered}",
+                )
+            if referenced not in fallback_refs:
+                raise _defaults_error(
+                    resource,
+                    f"fallback chain for entry {start!r} terminates at "
+                    f"alias {referenced!r}, which has no target",
+                )
+            seen.add(referenced)
+            path.append(referenced)
+            current = referenced
+
+
+def _parse_model_alias_defaults(text: str, *, source: object) -> _ModelAliasDefaults:
+    """Parse and validate model-alias defaults YAML from *text*."""
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise _defaults_error(source, f"is not valid YAML: {exc}") from exc
+
+    if not isinstance(data, dict):
+        raise _defaults_error(source, "must contain a YAML mapping at the top level")
+
+    aliases = data.get("aliases")
+    if not isinstance(aliases, dict):
+        raise _defaults_error(source, "must have a top-level 'aliases' mapping")
+
+    known_names = set(_ROLE_ALIAS_NAME_CONSTANTS)
+    yaml_names = set(aliases)
+    if yaml_names != known_names:
+        missing = sorted(known_names - yaml_names)
+        unknown = sorted(yaml_names - known_names)
+        details = []
+        if missing:
+            details.append(f"missing entries for {missing}")
+        if unknown:
+            details.append(f"unknown entries for {sorted(unknown, key=repr)}")
+        raise _defaults_error(source, "; ".join(details))
+
+    fallbacks: dict[str, str] = {}
+    fallback_refs: dict[str, str] = {}
+    targets: dict[str, str] = {}
+    descriptions: dict[str, str] = {}
+    for name, entry in aliases.items():
+        if not isinstance(entry, dict):
+            raise _defaults_error(source, f"entry {name!r} must be a mapping")
+
+        fallback = entry.get("fallback")
+        target = entry.get("target")
+        if fallback is not None and target is not None:
+            raise _defaults_error(
+                source, f"entry {name!r} sets both 'fallback' and 'target'"
+            )
+        if name == DEFAULT_MODEL_ALIAS_NAME and (
+            fallback is not None or target is not None
+        ):
+            raise _defaults_error(
+                source,
+                f"entry {name!r} must not set 'fallback' or 'target'",
+            )
+        if name != DEFAULT_MODEL_ALIAS_NAME and fallback is None and target is None:
+            raise _defaults_error(
+                source, f"entry {name!r} must set either 'fallback' or 'target'"
+            )
+        if fallback is not None:
+            if not isinstance(fallback, str) or not fallback.strip():
+                raise _defaults_error(
+                    source, f"entry {name!r} has a non-string or empty 'fallback'"
+                )
+            clean_fallback = fallback.strip()
+            fallback_refs[name] = _parse_fallback_reference(
+                source,
+                name=name,
+                fallback=clean_fallback,
+                known_names=known_names,
+            )
+            fallbacks[name] = clean_fallback
+        if target is not None:
+            if not isinstance(target, str) or not target.strip():
+                raise _defaults_error(
+                    source, f"entry {name!r} has a non-string or empty 'target'"
+                )
+            clean_target = target.strip()
+            _validate_target(source, name=name, target=clean_target)
+            targets[name] = clean_target
+
+        description = entry.get("description")
+        if not isinstance(description, str) or not description.strip():
+            raise _defaults_error(
+                source, f"entry {name!r} is missing a non-empty 'description'"
+            )
+        descriptions[name] = description.strip()
+
+    _validate_fallback_graph(
+        source,
+        fallback_refs=fallback_refs,
+        target_names=set(targets),
+    )
+
+    return _ModelAliasDefaults(
+        role_alias_fallbacks=MappingProxyType(fallbacks),
+        implicit_alias_targets=MappingProxyType(targets),
+        role_alias_descriptions=MappingProxyType(descriptions),
+    )
+
+
 @functools.cache
 def _load_model_alias_defaults() -> _ModelAliasDefaults:
     """Load and validate the bundled model-alias defaults YAML.
@@ -137,75 +322,7 @@ def _load_model_alias_defaults() -> _ModelAliasDefaults:
     except OSError as exc:
         raise _defaults_error(resource, f"could not be read: {exc}") from exc
 
-    try:
-        data = yaml.safe_load(text)
-    except yaml.YAMLError as exc:
-        raise _defaults_error(resource, f"is not valid YAML: {exc}") from exc
-
-    if not isinstance(data, dict):
-        raise _defaults_error(resource, "must contain a YAML mapping at the top level")
-
-    aliases = data.get("aliases")
-    if not isinstance(aliases, dict):
-        raise _defaults_error(resource, "must have a top-level 'aliases' mapping")
-
-    known_names = set(_ROLE_ALIAS_NAME_CONSTANTS)
-    yaml_names = set(aliases)
-    if yaml_names != known_names:
-        missing = sorted(known_names - yaml_names)
-        unknown = sorted(yaml_names - known_names)
-        details = []
-        if missing:
-            details.append(f"missing entries for {missing}")
-        if unknown:
-            details.append(f"unknown entries for {unknown}")
-        raise _defaults_error(resource, "; ".join(details))
-
-    fallbacks: dict[str, str] = {}
-    targets: dict[str, str] = {}
-    descriptions: dict[str, str] = {}
-    for name, entry in aliases.items():
-        if not isinstance(entry, dict):
-            raise _defaults_error(resource, f"entry {name!r} must be a mapping")
-
-        fallback = entry.get("fallback")
-        target = entry.get("target")
-        if fallback is not None and target is not None:
-            raise _defaults_error(
-                resource, f"entry {name!r} sets both 'fallback' and 'target'"
-            )
-        if name == DEFAULT_MODEL_ALIAS_NAME and (
-            fallback is not None or target is not None
-        ):
-            raise _defaults_error(
-                resource,
-                f"entry {name!r} must not set 'fallback' or 'target'",
-            )
-        if fallback is not None:
-            if not isinstance(fallback, str) or not fallback.strip():
-                raise _defaults_error(
-                    resource, f"entry {name!r} has a non-string or empty 'fallback'"
-                )
-            fallbacks[name] = fallback.strip()
-        if target is not None:
-            if not isinstance(target, str) or not target.strip():
-                raise _defaults_error(
-                    resource, f"entry {name!r} has a non-string or empty 'target'"
-                )
-            targets[name] = target.strip()
-
-        description = entry.get("description")
-        if not isinstance(description, str) or not description.strip():
-            raise _defaults_error(
-                resource, f"entry {name!r} is missing a non-empty 'description'"
-            )
-        descriptions[name] = description.strip()
-
-    return _ModelAliasDefaults(
-        role_alias_fallbacks=MappingProxyType(fallbacks),
-        implicit_alias_targets=MappingProxyType(targets),
-        role_alias_descriptions=MappingProxyType(descriptions),
-    )
+    return _parse_model_alias_defaults(text, source=resource)
 
 
 def role_alias_fallbacks() -> Mapping[str, str]:
