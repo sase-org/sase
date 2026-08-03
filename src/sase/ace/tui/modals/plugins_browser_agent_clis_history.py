@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime
 
 from rich.console import Group, RenderableType
 from rich.panel import Panel
@@ -12,6 +11,7 @@ from rich.text import Text
 
 from sase.agent_clis.history import AgentCliUpdateRun, AgentCliUpdateRunEntry
 from sase.agent_clis.models import AgentCliStatus, UpdateResultStatus, UpdateTrigger
+from sase.core.time import format_local
 
 _ACCENT = "#87D7FF"
 _BORDER = "#5F5F87"
@@ -264,7 +264,7 @@ def _relative_time(epoch: float, *, now: float) -> str:
     days = hours // 24
     if days < 7:
         return f"{days}d ago"
-    return datetime.fromtimestamp(epoch).strftime("%b %d %H:%M")
+    return format_local(epoch, "%b %d %H:%M")
 
 
 def _trigger_badge(trigger: UpdateTrigger) -> str:

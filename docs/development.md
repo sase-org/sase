@@ -225,6 +225,18 @@ These overrides never update or implicitly accept a golden, and they do not bypa
 Per-assertion equivalents are `max_diff_pixels`, `max_diff_ratio`, `max_material_diff_pixels`, and
 `material_diff_threshold`.
 
+## Timestamp Display Convention
+
+User-facing timestamp display must go through `sase.core.time.parse_local` or `sase.core.time.format_local`, so stored
+UTC instants, offset-aware values, naive configured-timezone wall times, and epoch values all render in the configured
+`timezone`. Naive-model arithmetic keeps using `local_now` and `to_local`; storage and wire contracts keep canonical UTC
+unless their owning schema says otherwise.
+
+`tests/test_timezone_display_consistency.py` has the focused `tz_divergence` fixture coverage and the
+`test_no_system_clock_display_sites` AST guard. A new bare `datetime.now()`, argument-less `.astimezone()`, or tz-less
+`datetime.fromtimestamp()` under `src/sase/` should normally be fixed by routing through the time helpers instead of
+adding another guard allowlist entry.
+
 Mismatch assertions, `summary.txt`, and `failure.json` report `material_diff_pixels`, `material_diff_ratio`, and
 `material_diff_threshold` alongside the active area and material limits. Inspect those fields to distinguish broad,
 low-amplitude renderer drift from a small material UI change before using any override.

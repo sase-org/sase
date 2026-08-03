@@ -35,7 +35,7 @@ def _script_chop_run_age_seconds(entry: ChopRunEntry, now: datetime) -> float | 
         return None
     if started_at.tzinfo is None:
         if now.tzinfo is not None:
-            now = datetime.now()
+            now = now.astimezone(get_timezone()).replace(tzinfo=None)
     elif now.tzinfo is None:
         now = now.replace(tzinfo=started_at.tzinfo)
     else:
@@ -104,7 +104,7 @@ def _finalize_stale_script_chop_run(entry: ChopRunEntry, *, reason: str) -> None
         duration_ms = 0
     else:
         if started_at.tzinfo is None:
-            finished_at_for_duration = datetime.now()
+            finished_at_for_duration = finished_at.replace(tzinfo=None)
         else:
             finished_at_for_duration = finished_at.astimezone(started_at.tzinfo)
         duration_ms = max(

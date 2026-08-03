@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import io
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 from rich.console import Console
@@ -13,9 +13,11 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.plugins_browser_agent_clis_history import (
     build_agent_cli_history_panel,
+    _relative_time,
 )
 from sase.agent_clis.history import AgentCliUpdateRun, AgentCliUpdateRunEntry
 from sase.agent_clis.models import UpdateResultStatus, UpdateTrigger
+from sase.core.time import format_local
 
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _agent_cli_statuses,
@@ -221,12 +223,18 @@ def test_history_relative_time_boundaries_and_future_clock_skew() -> None:
         )
         for age in ages
     )
-    absolute = datetime.fromtimestamp(_NOW - 8 * 86_400).strftime("%b %d %H:%M")
+    absolute = format_local(_NOW - 8 * 86_400, "%b %d %H:%M")
 
     rendered = _render_panel(runs, all_clis=True, max_rows=0)
 
     for expected in ("30s ago", "1m ago", "2h ago", "2d ago", absolute, "just now"):
         assert expected in rendered
+
+
+def test_history_absolute_time_uses_configured_timezone(tz_divergence: None) -> None:
+    epoch = datetime(2026, 7, 3, 10, 24, 49, tzinfo=UTC).timestamp()
+
+    assert _relative_time(epoch, now=epoch + 8 * 86_400) == "Jul 03 06:24"
 
 
 def test_per_cli_history_row_limit_and_unlimited_subtitle() -> None:

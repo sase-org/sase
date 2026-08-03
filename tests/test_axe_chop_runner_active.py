@@ -1,10 +1,11 @@
 """Tests for active chop run detection and stale run cleanup."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
 from sase.axe.chop_runner import _active_script_chop_run
+from sase.axe.chop_runner_script_dedupe import _script_chop_run_age_seconds
 from sase.axe.state import ChopRunEntry, read_chop_run, start_chop_run
 
 from tests.axe_chop_runner_helpers import started_at_seconds_ago
@@ -132,6 +133,23 @@ def test_active_script_chop_run_finalizes_old_pidless_running_entry(
     assert finalized.error == (
         "stale running chop never recorded a pid after 90s grace window"
     )
+
+
+def test_pidless_age_uses_configured_timezone_for_naive_rows(
+    tz_divergence: None,
+) -> None:
+    entry = ChopRunEntry(
+        run_id="20260703T062449_000000",
+        lumberjack_name="lj",
+        chop_name="chop",
+        started_at="2026-07-03T06:24:49",
+        finished_at=None,
+        duration_ms=0,
+        status="running",
+    )
+    now = datetime(2026, 7, 3, 10, 25, 49, tzinfo=UTC)
+
+    assert _script_chop_run_age_seconds(entry, now) == 60
 
 
 def test_active_script_chop_run_returns_none_when_newest_finalized(

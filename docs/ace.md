@@ -404,8 +404,10 @@ status line reports both the loaded row count and any in-flight extension.
 Selecting a row loads its detail panel off-thread: the durable `file:<id>` reference beside the resolved stored path,
 file metadata (label, kind and view mode, MIME type, size, short SHA-256, creation time), an origin sentence naming the
 agent and workflow, `live` / `missing` badges for the stored and source paths, and — for Markdown and text rows — a
-bounded preview. Rows whose index entry predates metadata backfill render `-` for the missing values and add a hint to
-run `sase artifact doctor --fix` instead of guessing.
+bounded preview. Row times, detail creation times, and any labeled log timestamps render in the configured timezone;
+zone-labeled values use that timezone's abbreviation rather than a hardcoded `UTC` suffix. Rows whose index entry
+predates metadata backfill render `-` for the missing values and add a hint to run `sase artifact doctor --fix` instead
+of guessing.
 
 | Key       | Action                                                                          |
 | --------- | ------------------------------------------------------------------------------- |

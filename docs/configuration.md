@@ -2123,8 +2123,10 @@ tasks:
 ### timezone
 
 The timezone that governs all SASE wall-clock display and timestamp generation (notifications, agent logs,
-artifact/agent-name timestamps, runtime durations, and TUI displays). When unset, SASE uses the host **system
-timezone**, so machines that don't share our timezone assumptions get sensible behavior out of the box.
+artifact/agent-name timestamps, runtime durations, TUI displays, CLI tables, and generated Markdown pages). Columns or
+labels that previously carried a literal `UTC` suffix now render the configured zone abbreviation. When unset, SASE uses
+the host **system timezone**, so machines that don't share our timezone assumptions get sensible behavior out of the
+box.
 
 ```yaml
 timezone: "America/New_York" # default: system timezone

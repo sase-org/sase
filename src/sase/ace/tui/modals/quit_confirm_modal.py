@@ -12,6 +12,8 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
+from sase.core.time import local_now
+
 from ..task_queue import TaskInfo
 
 _TASK_CARD_WIDTH = 52
@@ -37,7 +39,7 @@ _DEFAULT_TYPE_CHIP_STYLE = "bold black on cyan"
 
 def _format_elapsed(started_at: datetime) -> str:
     """Return compact elapsed runtime for a running task."""
-    now = datetime.now(started_at.tzinfo) if started_at.tzinfo else datetime.now()
+    now = datetime.now(started_at.tzinfo) if started_at.tzinfo else local_now()
     seconds = max(0, int((now - started_at).total_seconds()))
     if seconds < 60:
         return f"{seconds}s"

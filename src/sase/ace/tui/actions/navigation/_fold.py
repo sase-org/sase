@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from sase.core.time import local_now
+
 from ...models.agent_hoods import agent_owns_lane
 from ...models.fold_state import (
     FoldLevel,
@@ -301,8 +303,6 @@ class FoldNavigationMixin(NavigationMixinBase):
         if callable(count_resolver):
             return count_resolver(agent) > 0
 
-        from datetime import datetime
-
         from ...tools.slow import (
             normalize_slow_tool_call_threshold_ms,
             select_slow_tool_calls,
@@ -323,7 +323,7 @@ class FoldNavigationMixin(NavigationMixinBase):
         threshold_ms = normalize_slow_tool_call_threshold_ms(
             getattr(self, "_slow_tool_call_threshold_ms", None)
         )
-        now = datetime.now()
+        now = local_now()
         return any(
             select_slow_tool_calls(
                 source.entries,
