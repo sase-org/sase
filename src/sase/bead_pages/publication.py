@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sase.agents_sync.publication_outbox import SidecarPublicationRequest
 
 _logger = logging.getLogger(__name__)
 
@@ -49,6 +53,40 @@ def _publish_committed_bead_pages(
     bead_id = _committed_bead_id(commit_message)
     if not bead_id:
         return _BeadPagePublicationOutcome(skip_reason="commit has no SASE_BEAD tag")
+
+    return _publish_bead_lineage(
+        bead_id,
+        primary_root=primary_root,
+        project=project,
+    )
+
+
+def drain_bead_pages_publication(
+    request: SidecarPublicationRequest,
+    *,
+    primary_root: Path | str,
+    project: str | None = None,
+) -> _BeadPagePublicationOutcome:
+    """Drain one queued bead-lineage request from a stable primary checkout."""
+
+    if request.kind != "bead_pages":
+        raise ValueError("bead-page drain requires a bead_pages request")
+    try:
+        return _publish_bead_lineage(
+            request.bead_id,
+            primary_root=Path(primary_root).resolve(strict=False),
+            project=project or request.project,
+        )
+    except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary.
+        return _error_outcome(exc)
+
+
+def _publish_bead_lineage(
+    bead_id: str,
+    *,
+    primary_root: Path,
+    project: str | None,
+) -> _BeadPagePublicationOutcome:
 
     from sase.sdd.plan_refs import workspace_context_for_plan_resolution
     from sase.sdd.store import resolve_sdd_store
@@ -183,4 +221,4 @@ def _error_outcome(
     return _BeadPagePublicationOutcome(changed=changed, error=message)
 
 
-__all__ = ["publish_committed_bead_pages"]
+__all__ = ["drain_bead_pages_publication", "publish_committed_bead_pages"]

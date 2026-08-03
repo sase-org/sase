@@ -1,4 +1,4 @@
-"""Durable retry outbox for post-commit agent-hood publication."""
+"""Durable typed queue for asynchronous sidecar publication."""
 
 from __future__ import annotations
 
@@ -12,28 +12,49 @@ import math
 import os
 from pathlib import Path
 import time
+from typing import Literal
 
 from sase.agents_sync.io import atomic_write_json
 from sase.core.paths import sase_projects_dir, validate_sase_project_name
 
-PUBLICATION_OUTBOX_SCHEMA_VERSION = 3
+PUBLICATION_OUTBOX_SCHEMA_VERSION = 4
 DEFAULT_PUBLICATION_MAX_ATTEMPTS = 3
 _PUBLICATION_MAX_ATTEMPTS_ENV = "SASE_AGENTS_PUBLICATION_MAX_ATTEMPTS"
 AGENT_PUBLICATION_OUTBOX_FILENAME = "agents-publication-outbox.json"
 PUBLICATION_RETRY_COMMAND = "sase agent sync --retry-quarantined"
 PUBLICATION_DROP_COMMAND = "sase agent sync --drop-retired"
 
+PublicationKind = Literal[
+    "agent_hood",
+    "bead_pages",
+    "plan_header",
+    "sidecar_push",
+]
+PublicationLogicalKey = tuple[str, str]
+_PUBLICATION_KIND_RANK: dict[PublicationKind, int] = {
+    "agent_hood": 0,
+    "bead_pages": 1,
+    "plan_header": 2,
+    "sidecar_push": 3,
+}
+
 
 @dataclass(frozen=True, slots=True)
 class AgentPublicationOutboxItem:
-    """One idempotent primary-commit-to-sidecar publication request."""
+    """One idempotent sidecar publication request.
+
+    The historical class name remains part of the public API.  Schema v4 makes
+    the record typed while preserving the v1-v3 agent-hood fields and logical
+    key exactly.  Non-agent request constructors below keep their irrelevant
+    legacy fields empty.
+    """
 
     project_key: str
     project: str
-    local_agent: str
-    global_agent: str
-    primary_revision: str
-    local_hood: str
+    local_agent: str = ""
+    global_agent: str = ""
+    primary_revision: str = ""
+    local_hood: str = ""
     hood_digest: str = "pending"
     attempts: int = 0
     last_error: str | None = None
@@ -43,33 +64,48 @@ class AgentPublicationOutboxItem:
     terminal_reason: str | None = None
     created_at: float = 0.0
     updated_at: float = 0.0
+    kind: PublicationKind = "agent_hood"
+    bead_id: str = ""
+    lineage_root: str = ""
+    plan_ref: str = ""
+    commit_message: str = ""
+    sidecar_kind: str = ""
 
     @property
-    def logical_key(self) -> tuple[str, str]:
-        return self.global_agent, self.primary_revision
+    def logical_key(self) -> PublicationLogicalKey:
+        if self.kind == "agent_hood":
+            return self.global_agent, self.primary_revision
+        if self.kind == "bead_pages":
+            return self.lineage_root, self.primary_revision
+        if self.kind == "plan_header":
+            return self.plan_ref, self.primary_revision
+        return self.sidecar_kind, self.project_key
+
+    @property
+    def ordering_rank(self) -> int:
+        """Stable dependency order used by every queue drainer."""
+
+        return _PUBLICATION_KIND_RANK[self.kind]
 
     @property
     def id(self) -> str:
         payload = "\0".join(
             (
                 self.project_key,
-                self.global_agent,
-                self.primary_revision,
-                self.hood_digest,
+                self.kind,
+                *self.logical_key,
+                self.hood_digest if self.kind == "agent_hood" else "",
             )
         )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def to_json_dict(self) -> dict[str, object]:
-        return {
+        result: dict[str, object] = {
             "id": self.id,
+            "kind": self.kind,
+            "rank": self.ordering_rank,
             "project_key": self.project_key,
             "project": self.project,
-            "local_agent": self.local_agent,
-            "global_agent": self.global_agent,
-            "primary_revision": self.primary_revision,
-            "local_hood": self.local_hood,
-            "hood_digest": self.hood_digest,
             "attempts": self.attempts,
             "last_error": self.last_error,
             "quarantined": self.quarantined,
@@ -79,18 +115,109 @@ class AgentPublicationOutboxItem:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
+        if self.kind == "agent_hood":
+            result.update(
+                {
+                    "local_agent": self.local_agent,
+                    "global_agent": self.global_agent,
+                    "primary_revision": self.primary_revision,
+                    "local_hood": self.local_hood,
+                    "hood_digest": self.hood_digest,
+                }
+            )
+        elif self.kind == "bead_pages":
+            result.update(
+                {
+                    "bead_id": self.bead_id,
+                    "lineage_root": self.lineage_root,
+                    "primary_revision": self.primary_revision,
+                }
+            )
+        elif self.kind == "plan_header":
+            result.update(
+                {
+                    "plan_ref": self.plan_ref,
+                    "primary_revision": self.primary_revision,
+                    "commit_message": self.commit_message,
+                }
+            )
+        else:
+            result["sidecar_kind"] = self.sidecar_kind
+        return result
 
 
-def enqueue_agent_publication(
-    item: AgentPublicationOutboxItem,
-) -> AgentPublicationOutboxItem:
+# A clearer schema-v4 name for new callers.  Keep the old name above because
+# it is imported by agents sync, doctor, and provenance consumers.
+SidecarPublicationRequest = AgentPublicationOutboxItem
+
+
+def _bead_pages_publication_request(
+    *,
+    project_key: str,
+    project: str,
+    bead_id: str,
+    lineage_root: str,
+    primary_revision: str = "",
+) -> SidecarPublicationRequest:
+    """Build one workspace-independent bead-lineage publication request."""
+
+    return SidecarPublicationRequest(
+        project_key=project_key,
+        project=project,
+        kind="bead_pages",
+        bead_id=bead_id,
+        lineage_root=lineage_root,
+        primary_revision=primary_revision,
+    )
+
+
+def _plan_header_publication_request(
+    *,
+    project_key: str,
+    project: str,
+    plan_ref: str,
+    primary_revision: str,
+    commit_message: str,
+) -> SidecarPublicationRequest:
+    """Build one workspace-independent committed-plan refresh request."""
+
+    return SidecarPublicationRequest(
+        project_key=project_key,
+        project=project,
+        kind="plan_header",
+        plan_ref=plan_ref,
+        primary_revision=primary_revision,
+        commit_message=commit_message,
+    )
+
+
+def _sidecar_push_publication_request(
+    *,
+    project_key: str,
+    project: str,
+    sidecar_kind: str,
+) -> SidecarPublicationRequest:
+    """Build one coalescing request to push a project's sidecar repository."""
+
+    return SidecarPublicationRequest(
+        project_key=project_key,
+        project=project,
+        kind="sidecar_push",
+        sidecar_kind=sidecar_kind,
+    )
+
+
+def _enqueue_sidecar_publication(
+    item: SidecarPublicationRequest,
+) -> SidecarPublicationRequest:
     """Insert or refresh *item* without duplicating its logical operation."""
 
+    _validate_item(item, item.project_key)
     now = time.time()
 
     def update(
-        items: tuple[AgentPublicationOutboxItem, ...],
-    ) -> tuple[AgentPublicationOutboxItem, ...]:
+        items: tuple[SidecarPublicationRequest, ...],
+    ) -> tuple[SidecarPublicationRequest, ...]:
         existing = next(
             (
                 candidate
@@ -119,7 +246,9 @@ def enqueue_agent_publication(
             ),
             hood_digest=(
                 existing.hood_digest
-                if existing is not None and item.hood_digest == "pending"
+                if item.kind == "agent_hood"
+                and existing is not None
+                and item.hood_digest == "pending"
                 else item.hood_digest
             ),
         )
@@ -133,7 +262,7 @@ def enqueue_agent_publication(
                     ),
                     queued,
                 ),
-                key=lambda candidate: (candidate.created_at, candidate.id),
+                key=_publication_sort_key,
             )
         )
 
@@ -141,6 +270,83 @@ def enqueue_agent_publication(
         candidate
         for candidate in _mutate_outbox(item.project_key, update)
         if candidate.logical_key == item.logical_key
+    )
+
+
+def enqueue_agent_publication(
+    item: AgentPublicationOutboxItem,
+) -> AgentPublicationOutboxItem:
+    """Backward-compatible agent-hood enqueue entry point."""
+
+    if item.kind != "agent_hood":
+        raise ValueError("enqueue_agent_publication requires an agent_hood request")
+    return _enqueue_sidecar_publication(item)
+
+
+def enqueue_bead_pages_publication(
+    *,
+    project_key: str,
+    project: str,
+    bead_id: str,
+    lineage_root: str | None = None,
+    primary_revision: str = "",
+) -> SidecarPublicationRequest:
+    """Enqueue or coalesce one bead lineage."""
+
+    from sase.bead_pages.paths import bead_lineage_root
+
+    derived_root = bead_lineage_root(bead_id)
+    if lineage_root is not None and lineage_root != derived_root:
+        raise ValueError(
+            f"bead lineage root {lineage_root!r} does not match {bead_id!r}"
+        )
+
+    return _enqueue_sidecar_publication(
+        _bead_pages_publication_request(
+            project_key=project_key,
+            project=project,
+            bead_id=bead_id,
+            lineage_root=derived_root,
+            primary_revision=primary_revision,
+        )
+    )
+
+
+def enqueue_plan_header_publication(
+    *,
+    project_key: str,
+    project: str,
+    plan_ref: str,
+    primary_revision: str,
+    commit_message: str,
+) -> SidecarPublicationRequest:
+    """Enqueue or coalesce one committed-plan header refresh."""
+
+    return _enqueue_sidecar_publication(
+        _plan_header_publication_request(
+            project_key=project_key,
+            project=project,
+            plan_ref=plan_ref,
+            primary_revision=primary_revision,
+            commit_message=commit_message,
+        )
+    )
+
+
+def enqueue_sidecar_push_publication(
+    *,
+    project_key: str,
+    project: str,
+    sidecar_kind: str,
+) -> SidecarPublicationRequest:
+    """Enqueue or coalesce one sidecar push."""
+
+    return _enqueue_sidecar_publication(
+        _sidecar_push_publication_request(
+            project_key=project_key,
+            project=project,
+            sidecar_kind=sidecar_kind,
+        )
     )
 
 
@@ -327,7 +533,7 @@ def publication_quarantine_diagnostics(project_key: str) -> tuple[str, ...]:
 def _publication_stopped_diagnostic(item: AgentPublicationOutboxItem) -> str:
     """Render one quarantined or retired request with accurate remediation."""
 
-    subject = f"publication request {item.global_agent}@{item.primary_revision[:12]}"
+    subject = f"publication request {_publication_subject(item)}"
     if item.terminal:
         reason = item.terminal_reason or item.last_error or "unknown reason"
         return (
@@ -339,6 +545,17 @@ def _publication_stopped_diagnostic(item: AgentPublicationOutboxItem) -> str:
         f"{item.last_error or 'unknown error'}; run "
         f"`{PUBLICATION_RETRY_COMMAND}` to retry"
     )
+
+
+def _publication_subject(item: SidecarPublicationRequest) -> str:
+    if item.kind == "agent_hood":
+        return f"{item.global_agent}@{item.primary_revision[:12]}"
+    if item.kind == "bead_pages":
+        suffix = f"@{item.primary_revision[:12]}" if item.primary_revision else ""
+        return f"bead lineage {item.lineage_root}{suffix}"
+    if item.kind == "plan_header":
+        return f"plan {item.plan_ref}@{item.primary_revision[:12]}"
+    return f"{item.sidecar_kind} sidecar for {item.project}"
 
 
 def acknowledge_agent_publications(
@@ -409,7 +626,7 @@ def _read_outbox(
     if (
         not isinstance(schema_version, int)
         or isinstance(schema_version, bool)
-        or schema_version not in {1, 2, PUBLICATION_OUTBOX_SCHEMA_VERSION}
+        or schema_version not in {1, 2, 3, PUBLICATION_OUTBOX_SCHEMA_VERSION}
     ):
         raise RuntimeError("unsupported agents publication outbox schema")
     rows = payload.get("items")
@@ -420,7 +637,9 @@ def _read_outbox(
     )
     if len({item.logical_key for item in items}) != len(items):
         raise RuntimeError("agents publication outbox contains duplicate requests")
-    return items
+    # Rank is the only cross-kind ordering constraint.  Python's stable sort
+    # preserves the durable order within one kind, including legacy files.
+    return tuple(sorted(items, key=lambda item: item.ordering_rank))
 
 
 def _item_from_json(
@@ -432,14 +651,29 @@ def _item_from_json(
     if not isinstance(value, dict):
         raise RuntimeError("agents publication outbox item must be an object")
     row = value
+    kind = (
+        "agent_hood"
+        if schema_version < PUBLICATION_OUTBOX_SCHEMA_VERSION
+        else _json_publication_kind(row, "kind")
+    )
+    if schema_version == PUBLICATION_OUTBOX_SCHEMA_VERSION:
+        rank = _json_nonnegative_int(row, "rank", default=-1)
+        if rank != _PUBLICATION_KIND_RANK[kind]:
+            raise RuntimeError("agents publication outbox rank does not match kind")
     item = AgentPublicationOutboxItem(
         project_key=_json_text(row, "project_key"),
         project=_json_text(row, "project"),
-        local_agent=_json_text(row, "local_agent"),
-        global_agent=_json_text(row, "global_agent"),
+        local_agent=_json_text(row, "local_agent", default=""),
+        global_agent=_json_text(row, "global_agent", default=""),
         primary_revision=_json_text(row, "primary_revision"),
-        local_hood=_json_text(row, "local_hood"),
+        local_hood=_json_text(row, "local_hood", default=""),
         hood_digest=_json_text(row, "hood_digest", default="pending"),
+        kind=kind,
+        bead_id=_json_text(row, "bead_id", default=""),
+        lineage_root=_json_text(row, "lineage_root", default=""),
+        plan_ref=_json_text(row, "plan_ref", default=""),
+        commit_message=_json_text(row, "commit_message", default=""),
+        sidecar_kind=_json_text(row, "sidecar_kind", default=""),
         attempts=_json_nonnegative_int(row, "attempts", default=0),
         last_error=_json_optional_text(row, "last_error"),
         quarantined=_json_boolean(
@@ -457,19 +691,37 @@ def _item_from_json(
         created_at=_json_number(row, "created_at", default=0.0),
         updated_at=_json_number(row, "updated_at", default=0.0),
     )
+    _validate_item(item, project_key)
+    return item
+
+
+def _validate_item(item: SidecarPublicationRequest, project_key: str) -> None:
     if item.project_key != project_key:
         raise RuntimeError("agents publication outbox project identity mismatch")
-    if not all(
-        (
-            item.project,
+    if not item.project_key or not item.project:
+        raise RuntimeError("agents publication outbox item is incomplete")
+    required: tuple[str, ...]
+    if item.kind == "agent_hood":
+        required = (
             item.local_agent,
             item.global_agent,
             item.primary_revision,
             item.local_hood,
         )
-    ):
+    elif item.kind == "bead_pages":
+        required = (item.bead_id, item.lineage_root)
+    elif item.kind == "plan_header":
+        required = (item.plan_ref, item.primary_revision, item.commit_message)
+    else:
+        required = (item.sidecar_kind,)
+    if not all(required):
         raise RuntimeError("agents publication outbox item is incomplete")
-    return item
+
+
+def _publication_sort_key(
+    item: SidecarPublicationRequest,
+) -> tuple[int, float, str]:
+    return item.ordering_rank, item.created_at, item.id
 
 
 def _json_text(
@@ -482,6 +734,19 @@ def _json_text(
     if not isinstance(value, str):
         raise RuntimeError(f"agents publication outbox {field} must be a string")
     return value
+
+
+def _json_publication_kind(
+    row: dict[object, object],
+    field: str,
+) -> PublicationKind:
+    value = row.get(field)
+    if value not in _PUBLICATION_KIND_RANK:
+        raise RuntimeError(
+            "agents publication outbox kind must be one of: "
+            + ", ".join(_PUBLICATION_KIND_RANK)
+        )
+    return value  # type: ignore[return-value]
 
 
 def _json_optional_text(
@@ -563,11 +828,17 @@ __all__ = [
     "PUBLICATION_OUTBOX_SCHEMA_VERSION",
     "PUBLICATION_RETRY_COMMAND",
     "AgentPublicationOutboxItem",
+    "PublicationKind",
+    "PublicationLogicalKey",
+    "SidecarPublicationRequest",
     "acknowledge_agent_publications",
     "clear_quarantined_agent_publications",
     "configured_publication_max_attempts",
     "drop_terminal_agent_publications",
     "enqueue_agent_publication",
+    "enqueue_bead_pages_publication",
+    "enqueue_plan_header_publication",
+    "enqueue_sidecar_push_publication",
     "list_agent_publications",
     "publication_quarantine_diagnostics",
     "snapshot_agent_publications_from_path",

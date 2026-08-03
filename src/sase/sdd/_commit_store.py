@@ -25,6 +25,7 @@ from sase.sdd._store_types import (
 )
 
 if TYPE_CHECKING:
+    from sase.agents_sync.publication_outbox import SidecarPublicationRequest
     from sase.sdd.store import SddStore
 
 _logger = logging.getLogger(__name__)
@@ -456,6 +457,17 @@ def push_sdd_store_after_commit(
     outcome = push_bead_work_launch(store.repo_root)
     if outcome.error:
         _logger.warning("SDD git push failed after local commit: %s", outcome.error)
+
+
+def drain_sidecar_push_publication(
+    request: "SidecarPublicationRequest",
+    store: "SddStore",
+) -> None:
+    """Drain one queued sidecar push using the existing synchronous body."""
+
+    if request.kind != "sidecar_push":
+        raise ValueError("sidecar push drain requires a sidecar_push request")
+    push_sdd_store_after_commit(store, push_after_commit=True)
 
 
 def normalize_sdd_commit_pathspecs(

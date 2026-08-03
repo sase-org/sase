@@ -10,6 +10,7 @@ import pytest
 from sase.agents_sync import commit_publication
 from sase.agents_sync.commit_publication import (
     _publish_queued_locked,
+    enqueue_committed_agent_publication,
     publish_committed_agent_hood,
 )
 from sase.agents_sync.git import run_git
@@ -38,6 +39,40 @@ from sase.agents_sync.v2_models import (
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from tests.agents_sync.commit_publication_fixtures import git, setup_target
+
+
+def test_enqueue_committed_publication_performs_no_git_work(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, _remote = setup_target(tmp_path)
+    owner = AgentOwnerIdentity("alice", "athena")
+    monkeypatch.setattr(
+        commit_publication,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        commit_publication,
+        "require_agent_owner_identity",
+        lambda: owner,
+    )
+
+    def fail_git(*_args, **_kwargs):
+        raise AssertionError("enqueue must not invoke git")
+
+    outcome = enqueue_committed_agent_publication(
+        "worker--code",
+        "a" * 40,
+        project="Project",
+        git_runner=fail_git,
+    )
+
+    assert outcome.queued
+    [request] = list_agent_publications("proj")
+    assert request.kind == "agent_hood"
+    assert request.primary_revision == "a" * 40
 
 
 def test_failed_targeted_publish_cleans_uncommitted_payload(

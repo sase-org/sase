@@ -81,19 +81,72 @@ def publish_committed_agent_hood(
     git_runner: GitRunner = run_git,
     lock_timeout_seconds: float | None = None,
 ) -> _CommitPublicationOutcome:
-    """Publish this commit's exact hood and drain older project requests."""
+    """Compatibility wrapper that enqueues, then manually drains agent work."""
+
+    outcome, target, _item = _enqueue_committed_agent_publication(
+        local_agent,
+        primary_revision,
+        project=project,
+        commit_cwd=commit_cwd,
+    )
+    if target is None or outcome.error is not None or outcome.skip_reason is not None:
+        return outcome
+    if not _active_agent_publications(target.project_key):
+        return outcome
+    return drain_agent_publications(
+        target.project_key,
+        git_runner=git_runner,
+        lock_timeout_seconds=lock_timeout_seconds,
+    )
+
+
+def enqueue_committed_agent_publication(
+    local_agent: str,
+    primary_revision: str,
+    *,
+    project: str | None = None,
+    commit_cwd: Path | str | None = None,
+    git_runner: GitRunner = run_git,
+) -> _CommitPublicationOutcome:
+    """Persist one agent-hood request without sidecar git or network work."""
+
+    # Retained for call-site compatibility and for tests that install a runner
+    # which must never be reached by this enqueue-only path.
+    _ = git_runner
+    outcome, _target, _item = _enqueue_committed_agent_publication(
+        local_agent,
+        primary_revision,
+        project=project,
+        commit_cwd=commit_cwd,
+    )
+    return outcome
+
+
+def _enqueue_committed_agent_publication(
+    local_agent: str,
+    primary_revision: str,
+    *,
+    project: str | None,
+    commit_cwd: Path | str | None,
+) -> tuple[
+    _CommitPublicationOutcome,
+    ProjectTarget | None,
+    AgentPublicationOutboxItem | None,
+]:
+    """Resolve and enqueue, returning private context for the compatibility path."""
 
     selector = project
     if selector is None and commit_cwd is not None:
-        selector = resolve_publication_project_key(
-            commit_cwd,
-            git_runner=git_runner,
-        )
+        selector = _publication_project_key_from_path(commit_cwd)
     selector = selector or _current_project()
     if not selector:
         repository = _display_repository(commit_cwd)
-        return _CommitPublicationOutcome(
-            skip_reason=f"repository {repository!r} does not map to a SASE project"
+        return (
+            _CommitPublicationOutcome(
+                skip_reason=f"repository {repository!r} does not map to a SASE project"
+            ),
+            None,
+            None,
         )
     selection = resolve_sync_targets((selector,))
     if len(selection.targets) != 1:
@@ -101,8 +154,12 @@ def publish_committed_agent_hood(
         detail = (
             (outcome.skip_reason or outcome.error) if outcome is not None else None
         ) or "agents target is unavailable"
-        return _CommitPublicationOutcome(
-            skip_reason=f"project {selector!r} has no usable agents target: {detail}",
+        return (
+            _CommitPublicationOutcome(
+                skip_reason=f"project {selector!r} has no usable agents target: {detail}",
+            ),
+            None,
+            None,
         )
     target = selection.targets[0]
     owner = require_agent_owner_identity()
@@ -126,16 +183,21 @@ def publish_committed_agent_hood(
     )
     try:
         enqueue_agent_publication(item)
-        active_requests = list_agent_publications(
-            target.project_key,
-            include_quarantined=False,
-        )
+        active_requests = _active_agent_publications(target.project_key)
     except Exception as exc:
-        return _CommitPublicationOutcome(
-            error=f"could not persist agents publication retry: {exc}"
+        return (
+            _CommitPublicationOutcome(
+                error=f"could not persist agents publication retry: {exc}"
+            ),
+            target,
+            item,
         )
     if not active_requests:
-        requests = list_agent_publications(target.project_key)
+        requests = tuple(
+            request
+            for request in list_agent_publications(target.project_key)
+            if request.kind == "agent_hood"
+        )
         stopped = next(
             (
                 request
@@ -144,16 +206,45 @@ def publish_committed_agent_hood(
             ),
             None,
         )
-        return _CommitPublicationOutcome(
-            queued=True,
-            quarantined=_quarantined_count(requests),
-            retired=_retired_count(requests),
-            error=(
-                (stopped.terminal_reason or stopped.last_error)
-                if stopped is not None
-                else "agent publication request is quarantined"
+        return (
+            _CommitPublicationOutcome(
+                queued=True,
+                quarantined=_quarantined_count(requests),
+                retired=_retired_count(requests),
+                error=(
+                    (stopped.terminal_reason or stopped.last_error)
+                    if stopped is not None
+                    else "agent publication request is quarantined"
+                ),
             ),
+            target,
+            item,
         )
+    return _CommitPublicationOutcome(queued=True), target, item
+
+
+def drain_agent_publications(
+    project_key: str,
+    *,
+    git_runner: GitRunner = run_git,
+    lock_timeout_seconds: float | None = None,
+) -> _CommitPublicationOutcome:
+    """Drain active agent-hood requests for one project under its sidecar lock."""
+
+    selection = resolve_sync_targets((project_key,))
+    if len(selection.targets) != 1:
+        outcome = selection.outcomes[0] if selection.outcomes else None
+        detail = (
+            (outcome.skip_reason or outcome.error) if outcome is not None else None
+        ) or "agents target is unavailable"
+        return _CommitPublicationOutcome(
+            skip_reason=f"project {project_key!r} has no usable agents target: {detail}"
+        )
+    target = selection.targets[0]
+    try:
+        owner = require_agent_owner_identity()
+    except Exception as exc:
+        return _CommitPublicationOutcome(error=f"owner identity is unavailable: {exc}")
 
     from sase.agents_sync import git_sync
 
@@ -188,7 +279,11 @@ def publish_committed_agent_hood(
     except Exception:
         # Status projection is auxiliary and must not fail a completed publish.
         pass
-    remaining = list_agent_publications(target.project_key)
+    remaining = tuple(
+        item
+        for item in list_agent_publications(target.project_key)
+        if item.kind == "agent_hood"
+    )
     return _CommitPublicationOutcome(
         published=result.drained > 0,
         queued=bool(remaining),
@@ -196,6 +291,19 @@ def publish_committed_agent_hood(
         quarantined=_quarantined_count(remaining),
         retired=_retired_count(remaining),
         error="; ".join(result.item_errors) if result.item_errors else None,
+    )
+
+
+def _active_agent_publications(
+    project_key: str,
+) -> tuple[AgentPublicationOutboxItem, ...]:
+    return tuple(
+        item
+        for item in list_agent_publications(
+            project_key,
+            include_quarantined=False,
+        )
+        if item.kind == "agent_hood"
     )
 
 
@@ -248,6 +356,37 @@ def resolve_publication_project_key(
     return selected.project_key
 
 
+def _publication_project_key_from_path(commit_cwd: Path | str) -> str | None:
+    """Resolve a registered checkout by path without invoking git."""
+
+    cwd = Path(commit_cwd).expanduser().resolve(strict=False)
+    try:
+        inventory = collect_repo_inventory()
+    except Exception:
+        return None
+
+    matches: list[tuple[int, int, str, str]] = []
+    for record in inventory.records:
+        paths = (record.path, *(clone.path for clone in record.clones))
+        for raw_path in paths:
+            if not raw_path:
+                continue
+            root = Path(raw_path).expanduser().resolve(strict=False)
+            if cwd != root and not cwd.is_relative_to(root):
+                continue
+            matches.append(
+                (
+                    -len(root.parts),
+                    _REPO_KIND_ORDER[record.kind],
+                    record.project_key,
+                    record.name.casefold(),
+                )
+            )
+    if not matches:
+        return None
+    return min(matches)[2]
+
+
 def _display_repository(commit_cwd: Path | str | None) -> str:
     if commit_cwd is None:
         return "the current checkout"
@@ -261,10 +400,7 @@ def _publish_queued_locked(
 ) -> _DrainResult:
     from sase.agents_sync import git_sync
 
-    requests = list_agent_publications(
-        target.project_key,
-        include_quarantined=False,
-    )
+    requests = _active_agent_publications(target.project_key)
     if not requests:
         return _DrainResult()
     logical_keys = tuple(item.logical_key for item in requests)
@@ -612,10 +748,7 @@ def _record_failure(
     error: str,
     logical_keys: tuple[tuple[str, str], ...] | None = None,
 ) -> _CommitPublicationOutcome:
-    requests = list_agent_publications(
-        target.project_key,
-        include_quarantined=False,
-    )
+    requests = _active_agent_publications(target.project_key)
     selected = (
         tuple(item.logical_key for item in requests)
         if logical_keys is None
@@ -646,6 +779,8 @@ def _current_project() -> str | None:
 
 __all__ = [
     "PlanHeaderRefreshOutcome",
+    "drain_agent_publications",
+    "enqueue_committed_agent_publication",
     "publish_committed_agent_hood",
     "refresh_committed_plan_header",
     "resolve_publication_project_key",

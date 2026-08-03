@@ -93,9 +93,13 @@ def sync_agents(
                 drop_diagnostics = _dropped_publication_diagnostics(
                     drop_terminal_agent_publications(target.project_key)
                 )
-            pending_publications = list_agent_publications(
-                target.project_key,
-                include_quarantined=False,
+            pending_publications = tuple(
+                item
+                for item in list_agent_publications(
+                    target.project_key,
+                    include_quarantined=False,
+                )
+                if item.kind == "agent_hood"
             )
             outcome = _sync_project(
                 target,

@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sase.agents_sync.publication_outbox import SidecarPublicationRequest
 
 _logger = logging.getLogger(__name__)
 
@@ -40,6 +44,23 @@ def refresh_committed_plan_header(
     except Exception as exc:  # noqa: BLE001 - auxiliary post-commit boundary.
         _logger.warning("Could not refresh committed plan header: %s", exc)
         return PlanHeaderRefreshOutcome(error=str(exc) or type(exc).__name__)
+
+
+def drain_plan_header_publication(
+    request: SidecarPublicationRequest,
+    *,
+    primary_root: Path | str,
+    project: str | None = None,
+) -> PlanHeaderRefreshOutcome:
+    """Drain one queued plan refresh from a stable primary checkout."""
+
+    if request.kind != "plan_header":
+        raise ValueError("plan-header drain requires a plan_header request")
+    return refresh_committed_plan_header(
+        request.commit_message,
+        primary_root=primary_root,
+        project=project or request.project,
+    )
 
 
 def _refresh_committed_plan_header(
@@ -144,4 +165,8 @@ def _refresh_committed_plan_header(
         return PlanHeaderRefreshOutcome(changed=True, committed=committed)
 
 
-__all__ = ["PlanHeaderRefreshOutcome", "refresh_committed_plan_header"]
+__all__ = [
+    "PlanHeaderRefreshOutcome",
+    "drain_plan_header_publication",
+    "refresh_committed_plan_header",
+]
