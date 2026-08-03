@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
+import hashlib
 from pathlib import Path
 from typing import cast
 
@@ -21,6 +22,7 @@ from sase.agents_sync.models import CommitRecord, ProjectTarget
 from sase.agents_sync.rendering import render_browsing_payload
 from sase.agents_sync.v2_io import (
     apply_payload_atomic,
+    apply_payload_plan_atomic,
     content_digest,
     file_reference,
     owner_manifest_path,
@@ -41,6 +43,7 @@ from sase.agents_sync.v2_models import (
     RelationshipKind,
     RunState,
     V2ContainerRecord,
+    V2CompatibilityAlias,
     V2FileReference,
     V2HoodSnapshot,
     V2OwnerHoodEntry,
@@ -67,6 +70,79 @@ from sase.core.agent_identity_facade import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class V2SidecarWrite:
+    path: str
+    preimage_sha256: str | None
+    postimage_sha256: str
+    postimage_bytes: bytes
+
+    def to_json_dict(self, *, include_bytes: bool = False) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "path": self.path,
+            "preimage_sha256": self.preimage_sha256,
+            "postimage_sha256": self.postimage_sha256,
+            "size_bytes": len(self.postimage_bytes),
+        }
+        if include_bytes:
+            import base64
+
+            payload["postimage_base64"] = base64.b64encode(self.postimage_bytes).decode(
+                "ascii"
+            )
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class V2SidecarDelete:
+    path: str
+    preimage_sha256: str
+
+    def to_json_dict(self) -> dict[str, str]:
+        return {"path": self.path, "preimage_sha256": self.preimage_sha256}
+
+
+@dataclass(frozen=True, slots=True)
+class V2SidecarRegenerationPlan:
+    writes: tuple[V2SidecarWrite, ...]
+    deletes: tuple[V2SidecarDelete, ...]
+    compatibility_aliases: tuple[V2CompatibilityAlias, ...]
+    counts: V2PublicationCounts
+
+    @property
+    def payload(self) -> dict[str, bytes]:
+        return {write.path: write.postimage_bytes for write in self.writes}
+
+    @property
+    def delete_paths(self) -> tuple[str, ...]:
+        return tuple(delete.path for delete in self.deletes)
+
+    @property
+    def changed(self) -> bool:
+        return bool(self.writes or self.deletes)
+
+    def to_json_dict(self, *, include_bytes: bool = False) -> dict[str, object]:
+        return {
+            "changed": self.changed,
+            "writes": [
+                write.to_json_dict(include_bytes=include_bytes) for write in self.writes
+            ],
+            "deletes": [delete.to_json_dict() for delete in self.deletes],
+            "compatibility_aliases": [
+                alias.to_json_dict() for alias in self.compatibility_aliases
+            ],
+            "counts": {
+                "hoods_published": self.counts.hoods_published,
+                "hoods_refreshed": self.counts.hoods_refreshed,
+                "hoods_unchanged": self.counts.hoods_unchanged,
+                "families_published": self.counts.families_published,
+                "runs_published": self.counts.runs_published,
+                "diagnostics": list(self.counts.diagnostics),
+                "schema_version": self.counts.schema_version,
+            },
+        }
+
+
 def publish_agent_hood(
     target: ProjectTarget,
     repo_root: Path,
@@ -74,6 +150,7 @@ def publish_agent_hood(
     *,
     identity: AgentIdentitySnapshot | None = None,
     inventory: ProjectHoodInventory | None = None,
+    compatibility_aliases: tuple[V2CompatibilityAlias, ...] = (),
     git_runner: GitRunner = run_git,
 ) -> V2PublicationCounts:
     """Refresh exactly the committing lane's complete top-level local hood.
@@ -113,6 +190,7 @@ def publish_agent_hood(
         project_inventory,
         (hood,),
         owner,
+        compatibility_aliases=compatibility_aliases,
     )
 
 
@@ -122,6 +200,7 @@ def reconcile_agent_hoods(
     *,
     identity: AgentIdentitySnapshot | None = None,
     inventory: ProjectHoodInventory | None = None,
+    compatibility_aliases: tuple[V2CompatibilityAlias, ...] = (),
     git_runner: GitRunner = run_git,
 ) -> V2PublicationCounts:
     """Publish every locally owned hood with a primary-repository commit."""
@@ -138,6 +217,36 @@ def reconcile_agent_hoods(
         project_inventory,
         project_inventory.eligible_hoods(),
         owner,
+        compatibility_aliases=compatibility_aliases,
+    )
+
+
+def plan_agent_sidecar_regeneration(
+    target: ProjectTarget,
+    repo_root: Path,
+    *,
+    identity: AgentIdentitySnapshot | None = None,
+    inventory: ProjectHoodInventory | None = None,
+    hoods: tuple[str, ...] | None = None,
+    compatibility_aliases: tuple[V2CompatibilityAlias, ...] = (),
+    git_runner: GitRunner = run_git,
+) -> V2SidecarRegenerationPlan:
+    """Return the exact v2 sidecar writes/deletes without mutating the repo."""
+
+    snapshot = identity or AgentIdentitySnapshot.current()
+    owner = _owner(snapshot)
+    project_inventory = inventory or build_project_hood_inventory(
+        target, snapshot, git_runner=git_runner
+    )
+    selected_hoods = hoods if hoods is not None else project_inventory.eligible_hoods()
+    return _plan_hoods(
+        target,
+        repo_root,
+        snapshot,
+        project_inventory,
+        selected_hoods,
+        owner,
+        compatibility_aliases=compatibility_aliases,
     )
 
 
@@ -148,10 +257,43 @@ def _publish_hoods(
     inventory: ProjectHoodInventory,
     hoods: tuple[str, ...],
     owner: AgentOwnerIdentity,
+    *,
+    compatibility_aliases: tuple[V2CompatibilityAlias, ...] = (),
 ) -> V2PublicationCounts:
+    plan = _plan_hoods(
+        target,
+        repo_root,
+        identity,
+        inventory,
+        hoods,
+        owner,
+        compatibility_aliases=compatibility_aliases,
+    )
+    if plan.delete_paths:
+        apply_payload_plan_atomic(repo_root, plan.payload, plan.delete_paths)
+    else:
+        apply_payload_atomic(repo_root, plan.payload)
+    return plan.counts
+
+
+def _plan_hoods(
+    target: ProjectTarget,
+    repo_root: Path,
+    identity: AgentIdentitySnapshot,
+    inventory: ProjectHoodInventory,
+    hoods: tuple[str, ...],
+    owner: AgentOwnerIdentity,
+    *,
+    compatibility_aliases: tuple[V2CompatibilityAlias, ...] = (),
+) -> V2SidecarRegenerationPlan:
+    del identity
     project = V2ProjectIdentity(target.project_key, target.project)
     previous_manifest = read_owner_manifest(repo_root, owner, project)
     entries = previous_manifest.by_hood()
+    retired_globals = _retired_alias_globals(compatibility_aliases)
+    retired_hoods = _retired_alias_hoods(owner, compatibility_aliases)
+    for hood in retired_hoods - set(hoods):
+        entries.pop(hood, None)
     payload: dict[str, bytes] = {
         "schema.json": v2_json_bytes(v2_schema_document()),
         "agents/.gitkeep": b"",
@@ -169,6 +311,7 @@ def _publish_hoods(
             hood,
             inventory,
             previous,
+            retired_global_names=retired_globals,
         )
         snapshot_path = _snapshot_path(owner, hood)
         snapshot_bytes = v2_json_bytes(hood_snapshot.to_json_dict())
@@ -194,7 +337,12 @@ def _publish_hoods(
         payload.update(hood_payload)
         current_snapshots[(owner.username, owner.machine_name, hood)] = hood_snapshot
 
-    manifest = V2OwnerManifest(owner, project, tuple(sorted(entries.items())))
+    manifest = V2OwnerManifest(
+        owner,
+        project,
+        tuple(sorted(entries.items())),
+        tuple(sorted(compatibility_aliases, key=_alias_sort_key)),
+    )
     payload[owner_manifest_path(owner)] = v2_json_bytes(manifest.to_json_dict())
     manifests, snapshots = _load_validated_publication(
         repo_root,
@@ -202,16 +350,23 @@ def _publish_hoods(
         override_snapshots=current_snapshots,
         override_payload=payload,
     )
-    payload.update(
-        render_browsing_payload(
-            manifests,
-            snapshots,
-            commit_url_base=_commit_url_base(inventory.primary_remote_url),
-            commit_repo_name=inventory.primary_repo_name,
-        )
+    rendered = render_browsing_payload(
+        manifests,
+        snapshots,
+        commit_url_base=_commit_url_base(inventory.primary_remote_url),
+        commit_repo_name=inventory.primary_repo_name,
     )
-    apply_payload_atomic(repo_root, payload)
-    return V2PublicationCounts(
+    payload.update(rendered)
+    deletes = _planned_deletes(
+        repo_root,
+        previous_manifest,
+        manifest,
+        payload,
+        current_snapshots,
+        owner,
+        retired_hoods,
+    )
+    counts = V2PublicationCounts(
         hoods_published=published,
         hoods_refreshed=refreshed,
         hoods_unchanged=unchanged,
@@ -219,6 +374,117 @@ def _publish_hoods(
         runs_published=runs,
         diagnostics=inventory.diagnostics,
     )
+    return V2SidecarRegenerationPlan(
+        _planned_writes(repo_root, payload),
+        deletes,
+        manifest.compatibility_aliases,
+        counts,
+    )
+
+
+def _planned_writes(
+    repo_root: Path,
+    payload: dict[str, bytes],
+) -> tuple[V2SidecarWrite, ...]:
+    writes: list[V2SidecarWrite] = []
+    for path, postimage in sorted(payload.items()):
+        preimage = _read_optional_bytes(repo_root / path)
+        if preimage == postimage:
+            continue
+        writes.append(
+            V2SidecarWrite(
+                path,
+                _sha256(preimage) if preimage is not None else None,
+                _sha256(postimage),
+                postimage,
+            )
+        )
+    return tuple(writes)
+
+
+def _planned_deletes(
+    repo_root: Path,
+    previous_manifest: V2OwnerManifest,
+    manifest: V2OwnerManifest,
+    payload: dict[str, bytes],
+    current_snapshots: dict[tuple[str, str, str], V2HoodSnapshot],
+    owner: AgentOwnerIdentity,
+    retired_hoods: frozenset[str],
+) -> tuple[V2SidecarDelete, ...]:
+    del current_snapshots, owner
+    previous_hoods = previous_manifest.by_hood()
+    current_hoods = manifest.by_hood()
+    paths: set[str] = set()
+    for hood in sorted(retired_hoods):
+        if hood in current_hoods:
+            continue
+        previous = previous_hoods.get(hood)
+        if previous is not None:
+            paths.update(previous.files)
+            paths.add(_snapshot_path(previous_manifest.owner, hood))
+            paths.add(_hood_readme_path(previous_manifest.owner, hood))
+    for hood, previous in previous_hoods.items():
+        current = current_hoods.get(hood)
+        if current is None:
+            continue
+        paths.update(set(previous.files) - set(current.files))
+    previous_alias_paths = {
+        _alias_page_path(alias) for alias in previous_manifest.compatibility_aliases
+    }
+    current_alias_paths = {
+        _alias_page_path(alias) for alias in manifest.compatibility_aliases
+    }
+    paths.update(previous_alias_paths - current_alias_paths)
+    deletes: list[V2SidecarDelete] = []
+    for path in sorted(paths - set(payload)):
+        preimage = _read_optional_bytes(repo_root / path)
+        if preimage is None:
+            continue
+        deletes.append(V2SidecarDelete(path, _sha256(preimage)))
+    return tuple(deletes)
+
+
+def _retired_alias_globals(
+    compatibility_aliases: tuple[V2CompatibilityAlias, ...],
+) -> frozenset[str]:
+    return frozenset(alias.source_global_name for alias in compatibility_aliases)
+
+
+def _retired_alias_hoods(
+    owner: AgentOwnerIdentity,
+    compatibility_aliases: tuple[V2CompatibilityAlias, ...],
+) -> frozenset[str]:
+    prefix = f"{owner.username}.{owner.machine_name}."
+    hoods: set[str] = set()
+    for alias in compatibility_aliases:
+        if not alias.source_global_name.startswith(prefix):
+            continue
+        local = alias.source_global_name.removeprefix(prefix)
+        hood = agent_local_hood(local)
+        if hood:
+            hoods.add(hood)
+    return frozenset(hoods)
+
+
+def _alias_sort_key(alias: V2CompatibilityAlias) -> tuple[str, str]:
+    return (alias.page_kind, alias.source_global_name)
+
+
+def _alias_page_path(alias: V2CompatibilityAlias) -> str:
+    if alias.page_kind == "agent":
+        return f"agents/{alias.source_global_name}/README.md"
+    return f"families/{alias.source_global_name}.md"
+
+
+def _read_optional_bytes(path: Path) -> bytes | None:
+    try:
+        return path.read_bytes()
+    except FileNotFoundError:
+        return None
+
+
+def _sha256(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _commit_url_base(remote_url: str | None) -> str | None:
@@ -242,6 +508,8 @@ def _build_hood_snapshot(
     hood: str,
     inventory: ProjectHoodInventory,
     previous: V2HoodSnapshot | None,
+    *,
+    retired_global_names: frozenset[str] = frozenset(),
 ) -> tuple[V2HoodSnapshot, dict[str, bytes]]:
     current = inventory.hood_runs(hood)
     family_history = inventory.family_lane_commits(hood)
@@ -259,6 +527,7 @@ def _build_hood_snapshot(
             for run in previous.runs
             if run.source_run_id not in current_ids
             and run.global_name not in current_globals
+            and run.global_name not in retired_global_names
         )
         if previous is not None
         else ()
@@ -273,6 +542,7 @@ def _build_hood_snapshot(
         owner,
         family_history,
         previous.containers if previous is not None else (),
+        retired_global_names=retired_global_names,
     )
     relationships = _build_relationships(
         current,
@@ -369,6 +639,8 @@ def _build_containers(
     owner: AgentOwnerIdentity,
     lane_commits: tuple[InventoryLaneCommitHistory, ...] = (),
     previous: tuple[V2ContainerRecord, ...] = (),
+    *,
+    retired_global_names: frozenset[str] = frozenset(),
 ) -> tuple[V2ContainerRecord, ...]:
     families: dict[str, set[str]] = {}
     clans: dict[str, set[str]] = {}
@@ -416,6 +688,8 @@ def _build_containers(
     ]
     by_key = {(item.kind, item.global_name): item for item in containers}
     for item in previous:
+        if item.global_name in retired_global_names:
+            continue
         key = (item.kind, item.global_name)
         current = by_key.get(key)
         if current is None:
@@ -679,6 +953,10 @@ reconcile_all_hoods = reconcile_agent_hoods
 
 
 __all__ = [
+    "V2SidecarDelete",
+    "V2SidecarRegenerationPlan",
+    "V2SidecarWrite",
+    "plan_agent_sidecar_regeneration",
     "publish_agent_hood",
     "publish_targeted_hood",
     "reconcile_agent_hoods",

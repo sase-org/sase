@@ -89,12 +89,23 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "an agents sidecar checkout, not local agent artifact directories."
         ),
     ),
-    "src/sase/agents_sync/v2_io.py:apply_payload_atomic": DirOpReview(
+    "src/sase/agents_sync/v2_io.py:apply_payload_plan_atomic": DirOpReview(
         exemption=(
-            "Atomically promotes validated owner-sharded payload files inside "
-            "an agents sidecar and removes only its task-owned staging and "
-            "rollback directories, never a local agent artifact directory."
+            "Atomically promotes validated owner-sharded payload files and "
+            "deletes retired sidecar files inside an agents sidecar checkout; "
+            "its staging and rollback paths are task-owned, and it never "
+            "targets a local agent artifact directory."
         ),
+    ),
+    "src/sase/agent/names/_identity_migration_apply.py:_apply_actions_atomic": (
+        DirOpReview(
+            exemption=(
+                "Applies a digest-checked historical identity migration to "
+                "explicitly previewed agent marker, prompt, chat, notification, "
+                "and registry files; production projection hooks run after "
+                "active-home applies."
+            ),
+        )
     ),
     (
         "src/sase/agents_sync/v2_import_transactions.py:apply_and_finalize_transaction"

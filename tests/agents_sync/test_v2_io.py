@@ -17,6 +17,7 @@ from sase.agents_sync.v2_io import (
 )
 from sase.agents_sync.v2_models import (
     V2ContainerRecord,
+    V2CompatibilityAlias,
     V2HoodSnapshot,
     V2OwnerManifest,
     V2ProjectIdentity,
@@ -202,6 +203,23 @@ def test_owner_manifest_and_path_validation_are_strict() -> None:
     manifest = V2OwnerManifest(OWNER, PROJECT)
     assert _owner_manifest_from_json(manifest.to_json_dict()) == manifest
 
+    legacy = manifest.to_json_dict()
+    legacy.pop("compatibility_aliases")
+    assert _owner_manifest_from_json(legacy).compatibility_aliases == ()
+
+    with_alias = V2OwnerManifest(
+        OWNER,
+        PROJECT,
+        compatibility_aliases=(
+            V2CompatibilityAlias(
+                "alice.athena.old",
+                "alice.athena.new",
+                "agent",
+            ),
+        ),
+    )
+    assert _owner_manifest_from_json(with_alias.to_json_dict()) == with_alias
+
     malformed = manifest.to_json_dict()
     malformed["owner"] = {"username": "Alice", "machine_name": "athena"}
     with pytest.raises(AgentsSyncFormatError, match="invalid owner"):
@@ -211,6 +229,72 @@ def test_owner_manifest_and_path_validation_are_strict() -> None:
         with pytest.raises(AgentsSyncFormatError):
             validate_relative_path(unsafe)
     assert validate_relative_path("agents/.gitkeep") == "agents/.gitkeep"
+
+
+@pytest.mark.parametrize(
+    ("aliases", "message"),
+    (
+        (
+            [
+                {
+                    "source_global_name": "alice.athena.old",
+                    "target_global_name": "alice.athena.old",
+                    "page_kind": "agent",
+                }
+            ],
+            "alias to itself",
+        ),
+        (
+            [
+                {
+                    "source_global_name": "alice.athena.old",
+                    "target_global_name": "alice.athena.new",
+                    "page_kind": "agent",
+                },
+                {
+                    "source_global_name": "alice.athena.old",
+                    "target_global_name": "alice.athena.other",
+                    "page_kind": "family",
+                },
+            ],
+            "duplicate compatibility alias source",
+        ),
+        (
+            [
+                {
+                    "source_global_name": "alice.athena.old",
+                    "target_global_name": "alice.athena.new",
+                    "page_kind": "redirect",
+                }
+            ],
+            "invalid page_kind",
+        ),
+        (
+            [
+                {
+                    "source_global_name": "alice.athena.old",
+                    "target_global_name": "alice.athena.new",
+                    "page_kind": "agent",
+                },
+                {
+                    "source_global_name": "alice.athena.new",
+                    "target_global_name": "alice.athena.old",
+                    "page_kind": "agent",
+                },
+            ],
+            "cycle",
+        ),
+    ),
+)
+def test_owner_manifest_rejects_invalid_compatibility_aliases(
+    aliases: list[dict[str, str]],
+    message: str,
+) -> None:
+    manifest = V2OwnerManifest(OWNER, PROJECT).to_json_dict()
+    manifest["compatibility_aliases"] = aliases
+
+    with pytest.raises(AgentsSyncFormatError, match=message):
+        _owner_manifest_from_json(manifest)
 
 
 def test_snapshot_count_limit_is_enforced_before_relationship_validation() -> None:

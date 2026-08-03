@@ -6,6 +6,7 @@ from pathlib import Path, PurePosixPath
 
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.v2_models import (
+    V2CompatibilityAlias,
     V2OwnerHoodEntry,
     V2OwnerManifest,
     V2ProjectIdentity,
@@ -16,6 +17,7 @@ from sase.agents_sync.v2_validation import (
     decode_owner_identity,
     decode_project_identity,
     exact_object,
+    json_list,
     json_from_bytes,
     json_object,
     nonnegative_int,
@@ -79,11 +81,11 @@ def read_all_owner_manifests(repo_root: Path) -> tuple[V2OwnerManifest, ...]:
 
 
 def decode_owner_manifest(value: object) -> V2OwnerManifest:
-    data = exact_object(
-        value,
-        "owner manifest",
-        {"schema_version", "owner", "project", "hoods"},
-    )
+    data = json_object(value, "owner manifest")
+    required = {"schema_version", "owner", "project", "hoods"}
+    optional = {"compatibility_aliases"}
+    if not required <= set(data) or set(data) - (required | optional):
+        raise AgentsSyncFormatError("owner manifest has an invalid shape")
     validate_schema(data, "owner manifest")
     owner = decode_owner_identity(data["owner"], "owner manifest owner")
     project = decode_project_identity(data["project"])
@@ -117,7 +119,59 @@ def decode_owner_manifest(value: object) -> V2OwnerManifest:
                 ),
             )
         )
-    return V2OwnerManifest(owner, project, tuple(hoods))
+    aliases = _compatibility_aliases(data.get("compatibility_aliases", []))
+    return V2OwnerManifest(owner, project, tuple(hoods), aliases)
+
+
+def _compatibility_aliases(value: object) -> tuple[V2CompatibilityAlias, ...]:
+    rows = json_list(value, "owner manifest compatibility_aliases", MAX_CONTAINERS)
+    aliases: list[V2CompatibilityAlias] = []
+    sources: set[str] = set()
+    graph: dict[str, str] = {}
+    for index, raw in enumerate(rows):
+        label = f"owner manifest compatibility_aliases[{index}]"
+        row = exact_object(
+            raw,
+            label,
+            {"source_global_name", "target_global_name", "page_kind"},
+        )
+        source = validate_component(
+            row["source_global_name"],
+            label=f"{label} source_global_name",
+        )
+        target = validate_component(
+            row["target_global_name"],
+            label=f"{label} target_global_name",
+        )
+        if source == target:
+            raise AgentsSyncFormatError(f"{label} must not alias to itself")
+        if source in sources:
+            raise AgentsSyncFormatError(
+                f"duplicate compatibility alias source: {source!r}"
+            )
+        page_kind = row["page_kind"]
+        if page_kind not in {"agent", "family"}:
+            raise AgentsSyncFormatError(f"{label} has an invalid page_kind")
+        sources.add(source)
+        graph[source] = target
+        aliases.append(V2CompatibilityAlias(source, target, page_kind))
+    _reject_alias_cycles(graph)
+    return tuple(
+        sorted(aliases, key=lambda item: (item.page_kind, item.source_global_name))
+    )
+
+
+def _reject_alias_cycles(graph: dict[str, str]) -> None:
+    for source in sorted(graph):
+        seen: set[str] = set()
+        current = source
+        while current in graph:
+            if current in seen:
+                raise AgentsSyncFormatError(
+                    f"compatibility aliases contain a cycle through {current!r}"
+                )
+            seen.add(current)
+            current = graph[current]
 
 
 __all__ = [
