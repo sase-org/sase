@@ -7,6 +7,15 @@ against naive configured-tz model datetimes come from :func:`local_now`. Never
 use the bare system clock (argument-less ``datetime.now()`` / ``.astimezone()``
 / ``datetime.fromtimestamp()``) for any value that is compared against, or
 displayed alongside, a configured-tz value.
+
+Two conventions live side by side:
+
+- **Display**: :func:`parse_local` / :func:`format_local` are the required entry
+  points for turning a *stored* timestamp (aware-UTC ISO, naive ISO, or epoch)
+  into an aware configured-tz value for showing to a human.
+- **Arithmetic**: :func:`local_now` / :func:`to_local` remain the entry points
+  for the naive-model convention, where "now" and stored model datetimes are
+  both naive configured-tz wall time and compare directly.
 """
 
 import os
@@ -108,3 +117,54 @@ def generate_timestamp() -> str:
         Timestamp string like "251227_143052"
     """
     return datetime.now(get_timezone()).strftime("%y%m%d_%H%M%S")
+
+
+def parse_local(value: str | int | float | datetime | None) -> datetime | None:
+    """Return *value* as an aware configured-tz datetime, or ``None`` when unparseable.
+
+    Accepts the shapes a stored timestamp shows up in: an aware-UTC ISO string,
+    a naive ISO string, or Unix epoch seconds. Naive inputs (whether a naive
+    ``datetime`` or a naive ISO string) are treated as configured-tz wall time
+    by repo convention, matching :func:`to_local`.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        if not value.strip():
+            return None
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            return value.astimezone(get_timezone())
+        return value.replace(tzinfo=get_timezone())
+    try:
+        return datetime.fromtimestamp(value, get_timezone())
+    except (OSError, OverflowError, ValueError):
+        return None
+
+
+def format_local(
+    value: str | int | float | datetime | None,
+    fmt: str = "%Y-%m-%d %H:%M:%S",
+    *,
+    default: str = "—",
+) -> str:
+    """Format *value* in the configured timezone, or *default* when unparseable."""
+    parsed = parse_local(value)
+    if parsed is None:
+        return default
+    return parsed.strftime(fmt)
+
+
+__all__ = [
+    "format_local",
+    "generate_timestamp",
+    "get_timezone",
+    "local_now",
+    "local_timezone_name",
+    "parse_local",
+    "to_local",
+]
