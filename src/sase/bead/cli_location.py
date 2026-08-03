@@ -307,9 +307,12 @@ def _select_in_tree_beads_root(
     require_existing: bool,
 ) -> Path | None:
     for parent in [cwd, *cwd.parents]:
-        if (parent / BEADS_DIRNAME).is_dir():
+        candidate = parent / BEADS_DIRNAME
+        if candidate.is_dir() and pytest_path_is_sandboxed(candidate):
             return parent
     primary_beads = primary / BEADS_DIRNAME
+    if not pytest_path_is_sandboxed(primary_beads):
+        return None
     if primary_beads.is_dir() or not require_existing:
         return primary
     return None
@@ -321,10 +324,11 @@ def _resolve_legacy_beads_location(
     require_existing: bool,
 ) -> BeadsLocation | None:
     for parent in [cwd, *cwd.parents]:
-        if (parent / BEADS_DIRNAME).is_dir():
+        candidate = parent / BEADS_DIRNAME
+        if candidate.is_dir() and pytest_path_is_sandboxed(candidate):
             return BeadsLocation(parent, BEADS_DIRNAME, storage="in_tree")
         non_vc = parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
-        if non_vc.is_dir():
+        if non_vc.is_dir() and pytest_path_is_sandboxed(non_vc):
             return BeadsLocation(
                 parent / ".sase" / "sdd",
                 BEADS_DIRNAME_NON_VC,
@@ -333,14 +337,18 @@ def _resolve_legacy_beads_location(
 
     if require_existing:
         return None
+    if not pytest_path_is_sandboxed(cwd / BEADS_DIRNAME):
+        return None
     return BeadsLocation(cwd, BEADS_DIRNAME, storage="in_tree")
 
 
 def _existing_workspace_root(cwd: Path) -> Path | None:
     for parent in [cwd, *cwd.parents]:
-        if (parent / BEADS_DIRNAME).is_dir():
+        candidate = parent / BEADS_DIRNAME
+        if candidate.is_dir() and pytest_path_is_sandboxed(candidate):
             return parent
-        if (parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC).is_dir():
+        non_vc = parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
+        if non_vc.is_dir() and pytest_path_is_sandboxed(non_vc):
             return parent
     return None
 

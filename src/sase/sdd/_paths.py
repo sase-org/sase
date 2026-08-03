@@ -186,22 +186,22 @@ def get_primary_workspace_dir(
 ) -> str:
     """Derive primary workspace dir from current workspace.
 
-    Prefer the project's configured WORKSPACE_DIR (source of truth).
-    Fall back to suffix-stripping based on workspace_num.
+    Prefer an explicit checkout marker when present, then the project's
+    configured WORKSPACE_DIR, then suffix-stripping based on workspace_num.
 
     For workspace_num == 1, returns workspace_dir as-is.
     For workspace_num > 1, strips the ``_{workspace_num}`` suffix.
     """
+    marker_primary = _resolve_primary_from_marker(workspace_dir)
+    if marker_primary:
+        return marker_primary
+
     configured_primary = resolve_primary_from_project(
         workspace_dir,
         project_home=project_home,
     )
     if configured_primary:
         return configured_primary
-
-    marker_primary = _resolve_primary_from_marker(workspace_dir)
-    if marker_primary:
-        return marker_primary
 
     if workspace_num <= 1:
         return workspace_dir

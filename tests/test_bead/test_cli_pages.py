@@ -7,7 +7,10 @@ from pathlib import Path
 
 import pytest
 
+from sase.bead.config import save_config
 from sase.bead.cli_pages import handle_bead_pages
+from sase.bead.model import IssueType
+from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.bead_pages.refresh_models import (
     BeadPagesRefreshAction,
     BeadPagesRefreshReport,
@@ -99,11 +102,22 @@ def test_url_prints_resolved_hosted_page(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     store = _store(tmp_path)
-    url = "https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/sase-ai.7.md"
+    assert store.beads_dir is not None
+    with BeadProject.init(store.beads_dir, beads_dirname=BEADS_DIRNAME_ROOT):
+        pass
+    save_config(
+        store.beads_dir,
+        {"issue_prefix": "sase-ai", "next_counter": 7, "owner": ""},
+    )
+    with BeadProject(store.beads_dir, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+        issue = project.create("Hosted page", IssueType.PLAN)
+    url = (
+        f"https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/{issue.id}.md"
+    )
 
     class _Resolver:
         def bead_url(self, bead_id: str) -> str:
-            assert bead_id == "sase-ai.7"
+            assert bead_id == issue.id
             return url
 
     monkeypatch.setattr(
@@ -114,7 +128,7 @@ def test_url_prints_resolved_hosted_page(
         "sase.sdd.hosted_links.hosted_link_resolver",
         lambda *_args, **_kwargs: _Resolver(),
     )
-    args = create_parser().parse_args(["bead", "pages", "url", "sase-ai.7"])
+    args = create_parser().parse_args(["bead", "pages", "url", issue.id])
 
     with pytest.raises(SystemExit) as exc:
         handle_bead_pages(args)

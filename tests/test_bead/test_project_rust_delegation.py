@@ -12,6 +12,19 @@ from sase.bead.project import BeadProject, EpicPreclaimRollback
 from sase.core import bead_mutation_facade, bead_read_facade
 
 
+def _stub_resolve_id(
+    project: BeadProject, monkeypatch: pytest.MonkeyPatch
+) -> list[str]:
+    calls: list[str] = []
+
+    def fake_resolve_id(issue_id: str) -> str:
+        calls.append(issue_id)
+        return issue_id
+
+    monkeypatch.setattr(project, "resolve_id", fake_resolve_id)
+    return calls
+
+
 def test_bead_project_show_delegates_to_rust_read(tmp_path: Path, monkeypatch) -> None:
     with BeadProject.init(tmp_path) as project:
         expected = Issue(id="delegated-1", title="Delegated", issue_type=IssueType.PLAN)
@@ -22,8 +35,10 @@ def test_bead_project_show_delegates_to_rust_read(tmp_path: Path, monkeypatch) -
             return expected
 
         monkeypatch.setattr(bead_read_facade, "show", fake_show)
+        resolve_calls = _stub_resolve_id(project, monkeypatch)
 
         assert project.show("delegated-1") is expected
+        assert resolve_calls == ["delegated-1"]
         assert calls == [(project.beads_dir, "delegated-1")]
 
 
@@ -86,8 +101,10 @@ def test_bead_project_claim_for_agent_launch_delegates_and_refreshes(
         monkeypatch.setattr(
             project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
         )
+        resolve_calls = _stub_resolve_id(project, monkeypatch)
 
         assert project.claim_for_agent_launch("delegated-1", "agent-1") is expected
+        assert resolve_calls == ["delegated-1"]
         assert calls == [
             {
                 "beads_dir": project.beads_dir,
@@ -114,6 +131,7 @@ def test_bead_project_claim_failure_does_not_refresh_compatibility_state(
         monkeypatch.setattr(
             project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
         )
+        _stub_resolve_id(project, monkeypatch)
 
         with pytest.raises(ValueError, match="closed"):
             project.claim_for_agent_launch("delegated-1", "agent-1")
@@ -249,9 +267,11 @@ def test_bead_project_wait_claim_methods_return_mutation_state(
         monkeypatch.setattr(
             project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
         )
+        resolve_calls = _stub_resolve_id(project, monkeypatch)
 
         method = getattr(project, method_name)
         assert method("delegated-1", "agent-1") == (expected, changed)
+        assert resolve_calls == ["delegated-1"]
         assert refreshes == [True]
 
 
@@ -276,8 +296,10 @@ def test_bead_project_remove_many_delegates_and_refreshes_once(
         monkeypatch.setattr(
             project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
         )
+        resolve_calls = _stub_resolve_id(project, monkeypatch)
 
         assert project.remove_many(["delegated-1", "delegated-2"]) == removed
+        assert resolve_calls == ["delegated-1", "delegated-2"]
         assert calls == [(project.beads_dir, ["delegated-1", "delegated-2"])]
         assert refreshes == [True]
 
@@ -303,12 +325,19 @@ def test_bead_project_update_many_delegates_and_refreshes_once(
         monkeypatch.setattr(
             project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
         )
+        resolve_calls = _stub_resolve_id(project, monkeypatch)
 
         result = project.update_many(
             ["delegated-1", "delegated-2"], status="in_progress"
         )
 
         assert result == updated
+        assert resolve_calls == [
+            "delegated-1",
+            "delegated-2",
+            "delegated-1",
+            "delegated-2",
+        ]
         assert len(calls) == 1
         assert calls[0]["beads_dir"] == project.beads_dir
         assert calls[0]["issue_ids"] == ["delegated-1", "delegated-2"]
@@ -334,10 +363,12 @@ def test_bead_project_show_returns_issue_with_model(
             return expected
 
         monkeypatch.setattr(bead_read_facade, "show", fake_show)
+        resolve_calls = _stub_resolve_id(project, monkeypatch)
 
         result = project.show("delegated-1")
         assert result is not None
         assert result.model == "codex/gpt-5.5"
+        assert resolve_calls == ["delegated-1"]
         assert calls == [(project.beads_dir, "delegated-1")]
 
 

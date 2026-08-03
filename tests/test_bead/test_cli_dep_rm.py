@@ -110,10 +110,7 @@ def test_dep_rm_errors_are_nonzero_and_leave_the_batch_untouched(
     with pytest.raises(SystemExit, match="1"):
         bead_cli.handle_bead_dep(_rm_args(source_id, first_id, "missing-edge"))
 
-    assert (
-        f"Error: Dependency does not exist: {source_id} "
-        "does not depend on missing-edge" in capsys.readouterr().err
-    )
+    assert "Error: issue not found: missing-edge" in capsys.readouterr().err
     with BeadProject(project_dir) as project:
         assert [
             dependency.depends_on_id
