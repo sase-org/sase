@@ -1,4 +1,4 @@
-"""Tests for ``sase bead show``'s ``-S/--style`` colorization and highlighting."""
+"""Tests for ``sase bead show`` style and prose wrapping."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from sase.bead.model import (
     PhaseSize,
     Resolution,
     Status,
+    TaskPlusOneEvidence,
 )
 from sase.main.parser import create_parser
 from sase.phase_size_presentation import PHASE_SIZE_ACCENTS, PHASE_SIZE_STYLES
@@ -74,13 +75,15 @@ def _render(
     *,
     style: str,
     color: str,
+    wrap: str | None = None,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> str:
     _install_view(monkeypatch, issues)
-    args = create_parser().parse_args(
-        ["bead", "show", issue_id, "--style", style, "--color", color]
-    )
+    argv = ["bead", "show", issue_id, "--style", style, "--color", color]
+    if wrap is not None:
+        argv.extend(["--wrap", wrap])
+    args = create_parser().parse_args(argv)
     bead_cli.handle_bead_show(args)
     return capsys.readouterr().out
 
@@ -243,14 +246,6 @@ def test_style_invariant_over_corpus(
         monkeypatch=monkeypatch,
         capsys=capsys,
     )
-    color = _render(
-        target_id,
-        issues,
-        style="color",
-        color="always",
-        monkeypatch=monkeypatch,
-        capsys=capsys,
-    )
     rich = _render(
         target_id,
         issues,
@@ -260,7 +255,39 @@ def test_style_invariant_over_corpus(
         capsys=capsys,
     )
 
-    assert strip_sgr(color) == plain
+    assert strip_sgr(rich) == plain
+
+
+@pytest.mark.parametrize("wrap", ["none", "40", "120"])
+@pytest.mark.parametrize("name,build", _CORPUS, ids=[c[0] for c in _CORPUS])
+def test_style_invariant_over_corpus_per_wrap_width(
+    name: str,
+    build: object,
+    wrap: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issues, target_id = build()  # type: ignore[operator]
+
+    plain = _render(
+        target_id,
+        issues,
+        style="plain",
+        color="always",
+        wrap=wrap,
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+    rich = _render(
+        target_id,
+        issues,
+        style="rich",
+        color="always",
+        wrap=wrap,
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
     assert strip_sgr(rich) == plain
 
 
@@ -412,13 +439,267 @@ def test_json_is_never_styled_even_with_rich_and_color_always(
             "rich",
             "--color",
             "always",
+            "--wrap",
+            "40",
         ]
     )
     bead_cli.handle_bead_show(args)
     out = capsys.readouterr().out
 
     assert "\x1b" not in out
-    json.loads(out)
+    payload = json.loads(out)
+    assert payload["issue"]["description"] == issues[target_id].description
+
+
+def test_style_alias_is_lowercase_and_removed_values_error() -> None:
+    parser = create_parser()
+
+    assert parser.parse_args(["bead", "show", "bd-1", "-s", "rich"]).style == "rich"
+    with pytest.raises(SystemExit) as short_exc:
+        parser.parse_args(["bead", "show", "bd-1", "-S", "rich"])
+    with pytest.raises(SystemExit) as color_exc:
+        parser.parse_args(["bead", "show", "bd-1", "--style", "color"])
+
+    assert short_exc.value.code == 2
+    assert color_exc.value.code == 2
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [("none", None), ("0", None), ("20", 20), ("120", 120), ("auto", -1)],
+)
+def test_wrap_parser_accepts_supported_values(
+    value: str,
+    expected: int | None,
+) -> None:
+    args = create_parser().parse_args(["bead", "show", "bd-1", "--wrap", value])
+
+    assert args.wrap == expected
+
+
+@pytest.mark.parametrize("value", ["19", "-5", "wide"])
+def test_wrap_parser_rejects_bad_values(value: str) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        create_parser().parse_args(["bead", "show", "bd-1", "--wrap", value])
+
+    assert excinfo.value.code == 2
+
+
+def test_blank_lines_stay_blank_at_every_style(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue = Issue(
+        id="bd-blank",
+        title="Blank Lines",
+        issue_type=IssueType.TASK,
+        description="first line\n\nsecond line",
+    )
+    issues = {issue.id: issue}
+
+    plain = _render(
+        issue.id,
+        issues,
+        style="plain",
+        color="always",
+        wrap="40",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+    rich = _render(
+        issue.id,
+        issues,
+        style="rich",
+        color="always",
+        wrap="40",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    assert "\nDESCRIPTION\n  first line\n\n  second line\n" in plain
+    assert strip_sgr(rich) == plain
+
+
+def test_description_continuation_lines_keep_two_space_indent(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue = Issue(
+        id="bd-wrap",
+        title="Wrapped Description",
+        issue_type=IssueType.TASK,
+        description="alpha beta gamma delta epsilon zeta eta theta iota kappa lambda",
+    )
+
+    out = _render(
+        issue.id,
+        {issue.id: issue},
+        style="plain",
+        color="always",
+        wrap="30",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    lines = out.split("\n")
+    body = lines[lines.index("DESCRIPTION") + 1 : -1]
+    assert body == [
+        "  alpha beta gamma delta",
+        "  epsilon zeta eta theta iota",
+        "  kappa lambda",
+    ]
+
+
+def test_description_trailing_newline_survives(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue = Issue(
+        id="bd-trailing",
+        title="Trailing Newline",
+        issue_type=IssueType.TASK,
+        description="line\n",
+    )
+
+    out = _render(
+        issue.id,
+        {issue.id: issue},
+        style="plain",
+        color="always",
+        wrap="40",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    assert out.endswith("\nDESCRIPTION\n  line\n\n")
+
+
+def test_wrap_total_budget_includes_description_indent(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue = Issue(
+        id="bd-budget",
+        title="Budget",
+        issue_type=IssueType.TASK,
+        description=" ".join(f"word{i}" for i in range(20)),
+    )
+
+    out = _render(
+        issue.id,
+        {issue.id: issue},
+        style="plain",
+        color="always",
+        wrap="60",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    lines = out.split("\n")
+    body = lines[lines.index("DESCRIPTION") + 1 : -1]
+    assert all(len(line) <= 60 for line in body)
+
+
+def test_wrap_none_and_zero_disable_wrapping(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    description = " ".join(["word"] * 40)
+    issue = Issue(
+        id="bd-none",
+        title="No Wrap",
+        issue_type=IssueType.TASK,
+        description=description,
+    )
+    issues = {issue.id: issue}
+
+    none = _render(
+        issue.id,
+        issues,
+        style="plain",
+        color="always",
+        wrap="none",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+    zero = _render(
+        issue.id,
+        issues,
+        style="plain",
+        color="always",
+        wrap="0",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    assert zero == none
+    assert f"\n  {description}\n" in none
+
+
+def test_wrap_auto_uses_terminal_width(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import os
+
+    issue = Issue(
+        id="bd-auto",
+        title="Auto Wrap",
+        issue_type=IssueType.TASK,
+        description=" ".join(f"word{i}" for i in range(20)),
+    )
+    monkeypatch.setattr(
+        "sase.main.parser_bead_common.shutil.get_terminal_size",
+        lambda fallback=(80, 24): os.terminal_size((50, 24)),
+    )
+
+    out = _render(
+        issue.id,
+        {issue.id: issue},
+        style="plain",
+        color="always",
+        wrap="auto",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    lines = out.split("\n")
+    body = lines[lines.index("DESCRIPTION") + 1 : -1]
+    assert len(body) > 1
+    assert all(len(line) <= 50 for line in body)
+
+
+def test_plus_one_evidence_notes_wrap_with_four_space_indent(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue = Issue(
+        id="bd-plus-one",
+        title="Plus One",
+        issue_type=IssueType.TASK,
+        plus_one_evidence=[
+            TaskPlusOneEvidence(
+                timestamp="2026-08-03T12:00:00",
+                reporter="agent.alpha",
+                note=" ".join(f"evidence{i}" for i in range(12)),
+            )
+        ],
+    )
+
+    out = _render(
+        issue.id,
+        {issue.id: issue},
+        style="plain",
+        color="always",
+        wrap="50",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    assert all(len(line) <= 50 for line in out.splitlines())
+    evidence_lines = [line for line in out.splitlines() if "evidence" in line]
+    assert len(evidence_lines) > 1
+    assert all(line.startswith("    ") for line in evidence_lines)
 
 
 @pytest.mark.parametrize(
@@ -432,8 +713,6 @@ def test_json_is_never_styled_even_with_rich_and_color_always(
         ("auto", "plain", True, DetailStyle.PLAIN),
         ("always", "auto", False, DetailStyle.RICH),
         ("always", "auto", True, DetailStyle.RICH),
-        ("always", "color", False, DetailStyle.COLOR),
-        ("always", "color", True, DetailStyle.COLOR),
         ("always", "plain", False, DetailStyle.PLAIN),
         ("always", "plain", True, DetailStyle.PLAIN),
     ],
@@ -460,14 +739,18 @@ def test_resolve_detail_style_honors_no_color(
     assert resolve_detail_style(style="auto", color="auto") is DetailStyle.PLAIN
 
 
+def test_resolve_detail_style_rejects_removed_color_style() -> None:
+    with pytest.raises(ValueError, match="unknown detail style"):
+        resolve_detail_style(style="color", color="always")
+
+
 # --- highlight_prose robustness ---
 
 
-def test_highlight_prose_returns_unchanged_for_plain_and_color() -> None:
+def test_highlight_prose_returns_unchanged_for_plain() -> None:
     text = "# Heading\n\nSome text.\n"
 
     assert highlight_prose(text, style=DetailStyle.PLAIN) == text
-    assert highlight_prose(text, style=DetailStyle.COLOR) == text
 
 
 def test_highlight_prose_empty_string() -> None:
@@ -571,7 +854,7 @@ def test_show_closed_phase_with_markdown_rich_ansi_snapshot(
     issues, target_id = _closed_with_resolution()
     issues[target_id].description = (
         "# Summary\n\nFixed the bug:\n\n- root caused by X\n- patched Y\n\n"
-        "```python\ndef fixed():\n    return True\n```\n"
+        "```python\ndef fixed():\n    return True\n```"
     )
     out = _render(
         target_id,
@@ -593,7 +876,7 @@ def test_show_closed_phase_with_markdown_rich_ansi_snapshot_ignores_no_color(
     issues, target_id = _closed_with_resolution()
     issues[target_id].description = (
         "# Summary\n\nFixed the bug:\n\n- root caused by X\n- patched Y\n\n"
-        "```python\ndef fixed():\n    return True\n```\n"
+        "```python\ndef fixed():\n    return True\n```"
     )
     out = _render(
         target_id,

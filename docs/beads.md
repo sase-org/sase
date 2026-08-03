@@ -844,30 +844,44 @@ envelope with `issue`, `ancestors`, `children`, `depends_on`, `blocks`, and `pla
 URL resolves and `created_by_url` when the creator's hosted agent page resolves; every relationship reference includes a
 `resolved` flag and fixed null-valued fields for unresolved IDs.
 
-`--format full` renders a semantically colored, syntax-highlighted detail block controlled by `-S/--style`. Styling is
+`--format full` renders a semantically colored, syntax-highlighted detail block controlled by `-s/--style`. Styling is
 purely additive ANSI: stripping SGR escapes from any styled output reproduces the exact `plain` bytes, so piping to a
 non-TTY (as every agent does) is unaffected. `--color` decides **whether** ANSI may be emitted; `--style` decides **how
 much** styling to apply once that gate is open:
 
-| `--style` | Meaning                                                                                               |
-| --------- | ----------------------------------------------------------------------------------------------------- |
-| `auto`    | Resolve to `rich` when color is enabled, else `plain`. Default.                                       |
-| `plain`   | No ANSI at all, regardless of `--color`.                                                              |
-| `color`   | Semantic palette on structural chrome (glyphs, IDs, section headers, labels, statuses, sizes, paths). |
-| `rich`    | `color` plus markdown/code syntax highlighting inside `DESCRIPTION` and `NOTES`.                      |
+| `--style` | Meaning                                                                                              |
+| --------- | ---------------------------------------------------------------------------------------------------- |
+| `auto`    | Resolve to `rich` when color is enabled, else `plain`. Default.                                      |
+| `plain`   | No ANSI at all, regardless of `--color`.                                                             |
+| `rich`    | Semantic palette plus markdown/code syntax highlighting inside `DESCRIPTION`, `NOTES`, and evidence. |
 
 `--style` has no effect on `--format json`, which is never styled. For `--format compact`, `plain` forces no ANSI while
-`color` and `rich` are equivalent (there is no prose to highlight in a compact row).
+`auto`/`rich` enable the compact row's semantic colors when the color gate is open.
 
 ```bash
 sase bead show sase-64 --style rich --color always
 ```
 
-| Flag           | Values                           | Description                                           |
-| -------------- | -------------------------------- | ----------------------------------------------------- |
-| `-c, --color`  | `auto`, `always`, `never`        | Color mode; now applies to `--format full` too        |
-| `-f, --format` | `compact`, `json`, `full`        | Output format; defaults to `full`                     |
-| `-S, --style`  | `auto`, `plain`, `color`, `rich` | Styling level for `--format full`; defaults to `auto` |
+`DESCRIPTION`, `NOTES`, and task `+1 EVIDENCE` notes wrap at 120 total columns by default. The budget includes the
+rendered indent: with `--wrap 60`, no line in a description block exceeds 60 columns unless it contains a single token
+that is longer than the budget. Wrapping is break-only: short lines are emitted byte-for-byte, existing line breaks are
+not reflowed into longer paragraphs, and `--wrap none` or `--wrap 0` disables wrapping. `--wrap auto` uses the current
+terminal width, floored at 20 columns.
+
+The wrapper never splits URLs, inline code spans, Markdown links, autolinks, or ordinary non-whitespace tokens. Fenced
+code blocks, indented code, tables, tab-bearing lines, structured relationship rows, plan paths, refs, and the title row
+are left unwrapped.
+
+```bash
+sase bead show sase-64 --wrap auto
+```
+
+| Flag           | Values                             | Description                                           |
+| -------------- | ---------------------------------- | ----------------------------------------------------- |
+| `-c, --color`  | `auto`, `always`, `never`          | Color mode; now applies to `--format full` too        |
+| `-f, --format` | `compact`, `json`, `full`          | Output format; defaults to `full`                     |
+| `-s, --style`  | `auto`, `plain`, `rich`            | Styling level for `--format full`; defaults to `auto` |
+| `-w, --wrap`   | integer >= 20, `auto`, `none`, `0` | Prose wrap width for full output; defaults to `120`   |
 
 ### `sase bead stats`
 

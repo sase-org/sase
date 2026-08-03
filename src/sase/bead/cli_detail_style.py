@@ -17,11 +17,10 @@ class DetailStyle(StrEnum):
     """Resolved styling level for one ``render_issue_detail`` call.
 
     ``auto`` never survives resolution — :func:`resolve_detail_style` always
-    returns one of these three concrete levels.
+    returns one of these two concrete levels.
     """
 
     PLAIN = "plain"
-    COLOR = "color"
     RICH = "rich"
 
 
@@ -36,8 +35,8 @@ def resolve_detail_style(*, style: str, color: str) -> DetailStyle:
         return DetailStyle.PLAIN
     if style == "plain":
         return DetailStyle.PLAIN
-    if style == "color":
-        return DetailStyle.COLOR
+    if style not in {"auto", "rich"}:
+        raise ValueError(f"unknown detail style: {style}")
     return DetailStyle.RICH
 
 

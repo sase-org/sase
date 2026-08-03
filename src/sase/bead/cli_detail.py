@@ -38,6 +38,7 @@ from sase.bead.plus_one_presentation import (
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_type_presentation import bead_type_presentation
 from sase.core.agent_identity_facade import present_agent_name
+from sase.markdown_wrap import MIN_PROSE_WRAP_WIDTH, wrap_markdown
 from sase.phase_size_presentation import phase_size_cli_style
 
 
@@ -50,12 +51,13 @@ def render_issue_detail(
     creator_url: str | None = None,
     page_url: str | None = None,
     style: DetailStyle = DetailStyle.PLAIN,
+    wrap: int | None = None,
 ) -> str:
     """Render the established human-readable bead detail block.
 
-    Styling is purely additive ANSI: for any *detail* and any *style*,
-    stripping SGR escapes from the output reproduces the ``DetailStyle.PLAIN``
-    bytes exactly. See ``sase/repos/plans/202608/bead_show_styling.md``.
+    Styling is purely additive ANSI: for any *detail*, *style*, and *wrap*,
+    stripping SGR escapes from the output reproduces the matching
+    ``DetailStyle.PLAIN`` bytes exactly.
     """
     issue = detail.issue
     palette = DetailPalette.for_style(style)
@@ -233,7 +235,12 @@ def render_issue_detail(
             [
                 "",
                 palette.section("DESCRIPTION"),
-                f"  {highlight_prose(issue.description, style=style)}",
+                *_prose_lines(
+                    issue.description,
+                    style=style,
+                    wrap=wrap,
+                    indent="  ",
+                ),
             ]
         )
     if issue.notes:
@@ -241,7 +248,12 @@ def render_issue_detail(
             [
                 "",
                 palette.section("NOTES"),
-                f"  {highlight_prose(issue.notes, style=style)}",
+                *_prose_lines(
+                    issue.notes,
+                    style=style,
+                    wrap=wrap,
+                    indent="  ",
+                ),
             ]
         )
     if issue.plus_one_evidence:
@@ -250,6 +262,7 @@ def render_issue_detail(
                 issue,
                 palette=palette,
                 style=style,
+                wrap=wrap,
                 reference_context=reference_context,
             )
         )
@@ -313,6 +326,7 @@ def _render_plus_one_evidence_lines(
     *,
     palette: DetailPalette,
     style: DetailStyle,
+    wrap: int | None,
     reference_context: ArtifactRefContext | None,
 ) -> list[str]:
     """Render structured corroboration without performing extra store reads."""
@@ -331,8 +345,7 @@ def _render_plus_one_evidence_lines(
         lines.append(
             f"  {palette.accent(plus_one_evidence_label(evidence), PLUS_ONE_CLI_STYLE)}"
         )
-        note = highlight_prose(evidence.note, style=style)
-        lines.extend(f"    {line}" for line in note.splitlines())
+        lines.extend(_prose_lines(evidence.note, style=style, wrap=wrap, indent="    "))
         if not evidence.refs:
             continue
         resolved_refs: Iterable[ArtifactRefListEntry | str] = evidence.refs
@@ -350,6 +363,29 @@ def _render_plus_one_evidence_lines(
             for line in artifact_ref_list_display_lines(resolved_refs)
         )
     return lines
+
+
+def _prose_lines(
+    text: str,
+    *,
+    style: DetailStyle,
+    wrap: int | None,
+    indent: str,
+) -> list[str]:
+    body = text
+    if wrap is not None:
+        content_width = wrap - len(indent)
+        if content_width >= MIN_PROSE_WRAP_WIDTH:
+            body = wrap_markdown(text, width=content_width)
+
+    plain_lines = body.split("\n")
+    styled_lines = highlight_prose(body, style=style).split("\n")
+    if len(styled_lines) != len(plain_lines):
+        styled_lines = plain_lines
+    return [
+        f"{indent}{styled}" if plain else ""
+        for plain, styled in zip(plain_lines, styled_lines, strict=True)
+    ]
 
 
 def _lineage_kind(issue: Issue) -> str:

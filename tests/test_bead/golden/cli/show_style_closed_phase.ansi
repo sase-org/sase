@@ -9,14 +9,13 @@
 
 [1;38;5;69mDESCRIPTION[0m
   [1;49m# Summary[0m[0m
-[0m
-[49mFixed the bug:[0m[0m
-[0m
-[94;49m-[0m[90;49m [0m[49mroot caused by X[0m[0m
-[94;49m-[0m[90;49m [0m[49mpatched Y[0m[0m
-[0m
-[33;49m```[0m[33;49mpython[0m[0m
-[94;49mdef[0m[90;49m [0m[92;49mfixed[0m[49m():[0m[0m
-[49m    [0m[94;49mreturn[0m[49m [0m[94;49mTrue[0m[0m
-[33;49m```[0m[0m
-[0m
+
+  [49mFixed the bug:[0m[0m
+
+  [94;49m-[0m[90;49m [0m[49mroot caused by X[0m[0m
+  [94;49m-[0m[90;49m [0m[49mpatched Y[0m[0m
+
+  [33;49m```[0m[33;49mpython[0m[0m
+  [94;49mdef[0m[90;49m [0m[92;49mfixed[0m[49m():[0m[0m
+  [49m    [0m[94;49mreturn[0m[49m [0m[94;49mTrue[0m[0m
+  [33;49m```[0m[0m

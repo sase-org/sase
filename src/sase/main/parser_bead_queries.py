@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import argparse
 
-from sase.main.parser_bead_common import nonnegative_int
+from sase.main.parser_bead_common import nonnegative_int, wrap_width
+from sase.markdown_wrap import DEFAULT_PROSE_WRAP_WIDTH
 
 
 def register_bead_blocked_parser(
@@ -234,14 +235,17 @@ def register_bead_show_parser(
             "linked plan. --format compact prints the same single row as "
             "'sase bead list'; --format json adds the resolved parent, child, "
             "dependency, blocker, and plan graph as machine-readable data. "
-            "--color now applies to --format full as well as compact."
+            "--color now applies to --format full as well as compact. "
+            "DESCRIPTION, NOTES, and +1 evidence prose wrap at 120 columns by "
+            "default without breaking URLs or inline code spans."
         ),
         epilog=(
             "Examples:\n"
             "  sase bead show sase-64\n"
             "  sase bead show sase-64 --format compact\n"
             "  sase bead show sase-64 --format json\n"
-            "  sase bead show sase-64 --style rich --color always"
+            "  sase bead show sase-64 --style rich --color always\n"
+            "  sase bead show sase-64 --wrap auto"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -260,14 +264,25 @@ def register_bead_show_parser(
         help="Output format: compact, json, or full (default: full)",
     )
     parser.add_argument(
-        "-S",
+        "-s",
         "--style",
-        choices=["auto", "plain", "color", "rich"],
+        choices=["auto", "plain", "rich"],
         default="auto",
         help=(
-            "Styling level for --format full: auto, plain, color, or rich "
+            "Styling level for --format full: auto, plain, or rich "
             "(default: auto). --color decides whether ANSI may be emitted; "
             "--style decides how much styling to apply"
+        ),
+    )
+    parser.add_argument(
+        "-w",
+        "--wrap",
+        metavar="WIDTH",
+        type=wrap_width,
+        default=DEFAULT_PROSE_WRAP_WIDTH,
+        help=(
+            "Wrap DESCRIPTION, NOTES, and +1 evidence prose at WIDTH columns: "
+            f"integer >= 20, 'auto', 'none', or 0 (default: {DEFAULT_PROSE_WRAP_WIDTH})"
         ),
     )
     parser.add_argument("id", help="Full or shorthand issue ID")
