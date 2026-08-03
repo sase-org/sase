@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, tzinfo
+from datetime import tzinfo
 from typing import Literal
 
 from rich.align import Align
@@ -14,6 +14,7 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
+from sase.core.time import get_timezone
 from sase.telemetry.render.axis import (
     Timestamp,
     ValueFormat,
@@ -64,11 +65,12 @@ def render_bar_chart(
     values: Sequence[float] | None = None,
     value_format: ValueFormat = "number",
     recording_started_at: Timestamp | None = None,
-    timezone: tzinfo = UTC,
+    timezone: tzinfo | None = None,
     theme: ChartTheme = DARK_THEME,
 ) -> Panel:
     """Render categorical values as a fixed-size Rich panel."""
 
+    timezone = timezone or get_timezone()
     width = max(12, width)
     height = max(4, height)
     normalized = _normalize_bars(bars, labels=labels, values=values)

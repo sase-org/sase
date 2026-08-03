@@ -10,6 +10,7 @@ from typing import Literal
 from rich.cells import set_cell_size
 from rich.text import Text
 
+from sase.core.time import get_timezone
 from sase.telemetry.render.palette import DARK_THEME, ChartTheme
 
 ValueFormat = Literal["number", "duration", "tokens", "percent", "bytes"]
@@ -84,12 +85,15 @@ def _timestamp_seconds(value: Timestamp) -> float:
     return float(value)
 
 
-def format_recording_started(value: Timestamp | None, *, timezone: tzinfo = UTC) -> str:
+def format_recording_started(
+    value: Timestamp | None, *, timezone: tzinfo | None = None
+) -> str:
     """Build the shared labeled empty-state sentence."""
 
     if value is None:
         return "no samples in range"
-    instant = datetime.fromtimestamp(_timestamp_seconds(value), tz=timezone)
+    resolved_timezone = timezone or get_timezone()
+    instant = datetime.fromtimestamp(_timestamp_seconds(value), tz=resolved_timezone)
     return (
         "no samples in range — telemetry began recording "
         f"{instant.strftime('%Y-%m-%d %H:%M %Z')}"
@@ -100,7 +104,7 @@ def empty_state(
     recording_started_at: Timestamp | None,
     *,
     width: int,
-    timezone: tzinfo = UTC,
+    timezone: tzinfo | None = None,
     theme: ChartTheme = DARK_THEME,
     multiline: bool = False,
 ) -> Text:

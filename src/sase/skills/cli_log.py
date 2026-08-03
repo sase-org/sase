@@ -14,6 +14,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from sase.core.time import format_local
 from sase.main.init_memory.config import project_memory_name
 from sase.skills.use_log import (
     SkillUseEvent,
@@ -248,7 +249,7 @@ def _skills_panel(
             summary.skill_name,
             str(summary.use_count),
             str(summary.distinct_agent_count),
-            summary.last_used_at,
+            format_local(summary.last_used_at),
             summary.last_agent,
             _reason_preview(summary.last_reason),
         )
@@ -278,7 +279,7 @@ def _agents_panel(events: tuple[SkillUseEvent, ...]) -> Panel:
             summary.agent_name,
             str(summary.use_count),
             str(summary.distinct_skill_count),
-            summary.last_used_at,
+            format_local(summary.last_used_at),
             summary.last_skill,
             _reason_preview(summary.last_reason),
         )
@@ -309,7 +310,7 @@ def _runtimes_panel(events: tuple[SkillUseEvent, ...]) -> Panel:
             str(summary.use_count),
             str(summary.distinct_skill_count),
             str(summary.distinct_agent_count),
-            summary.last_used_at,
+            format_local(summary.last_used_at),
             _reason_preview(summary.last_reason),
         )
 
@@ -343,7 +344,7 @@ def _events_panel(events: tuple[SkillUseEvent, ...]) -> Panel:
     for event in ordered_events:
         table.add_row(
             event.id,
-            event.timestamp,
+            format_local(event.timestamp),
             event.agent_name,
             _runtime_label(event.runtime),
             event.skill_name,
@@ -404,7 +405,7 @@ def _event_panel(event: SkillUseEvent) -> Panel:
     detail.add_column(style="bold")
     detail.add_column()
     detail.add_row("ID", event.id)
-    detail.add_row("Timestamp", event.timestamp)
+    detail.add_row("Timestamp", format_local(event.timestamp))
     detail.add_row("Project", event.project)
     detail.add_row("Skill", event.skill_name)
     detail.add_row("Agent", event.agent_name)

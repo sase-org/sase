@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from sase.agents_sync.rendering_commits import MAX_RENDERED_COMMITS
 from sase.agents_sync.rendering_markdown import (
     md_cell,
@@ -20,6 +18,7 @@ from sase.bead_pages.associations import (
     BeadCommitAssociation,
 )
 from sase.bead_pages.paths import bead_page_path
+from sase.core.time import format_local
 
 
 def render_phases(
@@ -120,15 +119,16 @@ def render_commits(
         "",
         "## Commits",
         "",
-        "| Repo | Commit | Subject | Bead | Committed (UTC) |",
+        "| Repo | Commit | Subject | Bead | Committed |",
         "|---|---|---|---|---|",
     ]
     for row in rows[:MAX_RENDERED_COMMITS]:
         repo = md_cell(row.repository.name) if row.repository is not None else "—"
         label = f"`{md_code(row.label)}`"
         commit = f"[{label}]({row.target})" if row.target else label
-        committed = datetime.fromtimestamp(row.committed_at, tz=UTC).strftime(
-            "%Y-%m-%d %H:%M:%S"
+        committed = format_local(
+            row.committed_at,
+            "%Y-%m-%d %H:%M:%S %Z",
         )
         lines.append(
             f"| {repo} | {commit} | {md_cell(row.subject)}"

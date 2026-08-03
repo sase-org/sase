@@ -464,7 +464,7 @@ def test_commit_repo_column_has_unknown_fallback() -> None:
         ),
     )
 
-    assert "| Repo | Commit | Subject | Bead | Committed (UTC) |" in rendered
+    assert "| Repo | Commit | Subject | Bead | Committed |" in rendered
     assert "| — | [`9701511`]" in rendered
 
 
@@ -561,7 +561,7 @@ def test_task_bead_page_renders_bounded_linked_plus_one_callouts() -> None:
 
     assert "**+1 reports:** +1" in rendered
     assert "## +1 Evidence" in rendered
-    assert "> **+1** by `agent.beta` · 2026-08-01 15:00:00 UTC" in rendered
+    assert "> **+1** by `agent.beta` · 2026-08-01 11:00:00 EDT" in rendered
     assert "> \\# Reproduced" in rendered
     assert "> \\```unsafe" in rendered
     assert (

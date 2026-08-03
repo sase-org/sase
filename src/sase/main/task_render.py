@@ -12,6 +12,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from sase.core.time import format_local
 from sase.sessions import session_chip, short_session_handle
 from sase.tasks import (
     COMMAND_TASK_KIND,
@@ -241,9 +242,9 @@ def task_detail(
         rows.append(("Phase", Text(task.phase)))
     rows.extend(
         [
-            ("Created", Text(task.created_at)),
-            ("Started", Text(task.started_at or "—")),
-            ("Finished", Text(task.finished_at or "—")),
+            ("Created", Text(format_local(task.created_at))),
+            ("Started", Text(format_local(task.started_at))),
+            ("Finished", Text(format_local(task.finished_at))),
             ("Duration", Text(_duration_label(task))),
         ]
     )

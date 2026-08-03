@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from sase.agents_sync.models import CommitRecord
 from sase.agents_sync.rendering_markdown import md_cell, md_code
+from sase.core.time import format_local
 
 MAX_RENDERED_COMMITS = 50
 
@@ -64,12 +63,12 @@ def _render_commit_table(
 ) -> list[str]:
     lines = (
         [
-            "| Role | Repo | Commit | Subject | Committed (UTC) |",
+            "| Role | Repo | Commit | Subject | Committed |",
             "|---|---|---|---|---|",
         ]
         if include_role
         else [
-            "| Repo | Commit | Subject | Committed (UTC) |",
+            "| Repo | Commit | Subject | Committed |",
             "|---|---|---|---|",
         ]
     )
@@ -77,8 +76,9 @@ def _render_commit_table(
         commit_cell = f"`{md_code(commit.sha[:7])}`"
         if commit_url_base is not None:
             commit_cell = f"[{commit_cell}]({commit_url_base}/{commit.sha})"
-        committed = datetime.fromtimestamp(commit.committed_at, tz=UTC).strftime(
-            "%Y-%m-%d %H:%M:%S"
+        committed = format_local(
+            commit.committed_at,
+            "%Y-%m-%d %H:%M:%S %Z",
         )
         cells = [
             md_cell(repo_name) if repo_name else "—",

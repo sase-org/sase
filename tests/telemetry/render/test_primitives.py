@@ -50,6 +50,6 @@ def test_humanized_axis_formatters(
 def test_recording_started_empty_state_is_clock_independent() -> None:
     started = datetime(2026, 7, 17, 12, 30, tzinfo=UTC)
 
-    assert format_recording_started(started) == (
+    assert format_recording_started(started, timezone=UTC) == (
         "no samples in range — telemetry began recording 2026-07-17 12:30 UTC"
     )

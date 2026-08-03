@@ -33,6 +33,7 @@ from sase.notification_gates.debug_models import (
 from sase.notification_gates.debug_rendering import (
     build_gate_debug_overview,
     build_no_bundle_overview,
+    iso_from_unix,
 )
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import (
@@ -302,7 +303,7 @@ def _created_time(
     if created_unix is None:
         created_unix = _timestamp(notification_timestamp)
     if created_text is None and created_unix is not None:
-        created_text = _iso_from_unix(created_unix)
+        created_text = iso_from_unix(created_unix)
     return created_text, created_unix
 
 
@@ -333,13 +334,6 @@ def _timestamp(value: str) -> float | None:
         return datetime.fromisoformat(value).timestamp()
     except (ValueError, OSError):
         return None
-
-
-def _iso_from_unix(value: float) -> str:
-    try:
-        return datetime.fromtimestamp(value).astimezone().isoformat()
-    except (ValueError, OSError, OverflowError):
-        return str(value)
 
 
 def _format_age(created: float | None, now: float) -> str:

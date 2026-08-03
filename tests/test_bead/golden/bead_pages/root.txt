@@ -4,7 +4,7 @@
 
 **Status:** ✓ closed · **Resolution:** done · **Type:** ▸ plan · **Tier:** epic
 **Owner:** `owner@example.com` · **Created by:** [alice.athena.sase-ai.plan](https://github.com/sase-org/sase--agents/blob/main/agents/alice.athena.sase-ai.plan/README.md) · **Assignee:** `alice.athena.sase-ai.land`
-**Created:** 2026-07-28 14:20:20 UTC · **Closed:** 2026-07-28 18:02:11 UTC
+**Created:** 2026-07-28 10:20:20 EDT · **Closed:** 2026-07-28 14:02:11 EDT
 **Plan:** [202607/bead\_pages.md](https://github.com/sase-org/sase--plans/blob/main/202607/bead_pages.md)
 
 ## Description
@@ -42,6 +42,6 @@ flowchart TD
 
 ## Commits
 
-| Repo | Commit | Subject | Bead | Committed (UTC) |
+| Repo | Commit | Subject | Bead | Committed |
 |---|---|---|---|---|
-| sase | [`9701511`](https://github.com/sase-org/sase/commit/9701511abcdef) | feat(bead): render \| pages | [sase-ai.1](sase-ai.1.md) | 2024-07-28 14:22:07 |
+| sase | [`9701511`](https://github.com/sase-org/sase/commit/9701511abcdef) | feat(bead): render \| pages | [sase-ai.1](sase-ai.1.md) | 2024-07-28 10:22:07 EDT |

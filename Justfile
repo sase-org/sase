@@ -275,10 +275,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-ei(apply_changespec_reference_rewrite)' \
         --epic-symbol 'sase-ei(plan_changespec_reference_rewrite)' \
         --epic-symbol 'sase-ei(plan_plan_reference_rewrite)' \
-        --epic-symbol 'sase-ej(enqueue_bead_pages_publication)' \
-        --epic-symbol 'sase-ej(enqueue_committed_agent_publication)' \
-        --epic-symbol 'sase-ej(enqueue_plan_header_publication)' \
-        --epic-symbol 'sase-ej(enqueue_sidecar_push_publication)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

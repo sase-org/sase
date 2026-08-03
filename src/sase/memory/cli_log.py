@@ -16,6 +16,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from sase.core.time import format_local
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.read_log import (
     MemoryReadEvent,
@@ -253,7 +254,7 @@ def _proposal_events_panel(
     for event in reversed(_ordered_memory_proposal_events(events)):
         table.add_row(
             event.event_type,
-            event.timestamp,
+            format_local(event.timestamp),
             event.proposal_id,
             _proposal_event_actor(event),
             event.target_path,
@@ -319,7 +320,7 @@ def _paths_panel(
             summary.canonical_path,
             str(summary.read_count),
             str(summary.distinct_agent_count),
-            summary.last_read_at,
+            format_local(summary.last_read_at),
             summary.last_agent,
             _reason_preview(summary.last_reason),
         )
@@ -353,7 +354,7 @@ def _agents_panel(events: tuple[MemoryReadEvent, ...]) -> Panel:
             summary.agent_name,
             str(summary.read_count),
             str(summary.distinct_path_count),
-            summary.last_read_at,
+            format_local(summary.last_read_at),
             summary.last_path,
             _reason_preview(summary.last_reason),
         )
@@ -391,7 +392,7 @@ def _events_panel(events: tuple[MemoryReadEvent, ...]) -> Panel:
     for event in ordered_events:
         table.add_row(
             event.id,
-            event.timestamp,
+            format_local(event.timestamp),
             event.agent_name,
             event.canonical_path,
             _reason_preview(event.reason),
@@ -447,7 +448,7 @@ def _event_panel(event: MemoryReadEvent) -> Panel:
     detail.add_column(style="bold")
     detail.add_column()
     detail.add_row("ID", event.id)
-    detail.add_row("Timestamp", event.timestamp)
+    detail.add_row("Timestamp", format_local(event.timestamp))
     detail.add_row("Project", event.project)
     detail.add_row("Memory path", event.canonical_path)
     detail.add_row("Resolved path", event.resolved_path)

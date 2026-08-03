@@ -118,6 +118,7 @@ def test_component_empty_state_includes_recording_time() -> None:
         width=48,
         height=8,
         recording_started_at=started,
+        timezone=UTC,
     )
 
     assert "telemetry began" in _render(chart)

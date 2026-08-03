@@ -402,7 +402,7 @@ def test_memory_log_id_drilldown_renders_full_event(
     text = output.getvalue()
     assert "Memory Read Event read-b" in text
     assert "Timestamp" in text
-    assert "2026-05-23T12:01:00+00:00" in text
+    assert "2026-05-23 08:01:00" in text
     assert "Agent" in text
     assert "agent-b" in text
     assert "Agent source" in text

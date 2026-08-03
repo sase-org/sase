@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import re
 from typing import Protocol, runtime_checkable
 
@@ -16,6 +15,7 @@ from sase.bead.plus_one_presentation import (
 )
 from sase.bead_pages.paths import bead_lineage_root
 from sase.bead_type_presentation import bead_type_presentation
+from sase.core.time import parse_local
 
 MAX_RENDERED_PROSE_CHARS = 10_000
 
@@ -249,13 +249,10 @@ def _reference_url(reference: str, resolver: PlanLinkResolver | None) -> str | N
 
 
 def _render_instant(value: str) -> str:
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=UTC)
-        return parsed.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-    except ValueError:
+    parsed = parse_local(value)
+    if parsed is None:
         return md_escape(value)
+    return parsed.strftime("%Y-%m-%d %H:%M:%S %Z")
 
 
 def _bounded_prose(value: str) -> str:

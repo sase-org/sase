@@ -8,6 +8,7 @@ from pathlib import Path
 
 from rich.text import Text
 
+from sase.core.time import parse_local
 from sase.memory.proposals import (
     EvidenceRecord,
     MemoryProposalLedgerEvent,
@@ -171,4 +172,6 @@ def format_time_or_age(timestamp: str) -> str:
     hours = minutes // 60
     if hours < 48:
         return f"{hours}h"
-    return parsed.astimezone(UTC).strftime("%Y-%m-%d")
+    local = parse_local(parsed)
+    assert local is not None
+    return local.strftime("%Y-%m-%d")

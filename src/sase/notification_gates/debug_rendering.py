@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from sase.core.time import parse_local
 from sase.notification_gates.durability import request_sha256
 from sase.notifications.models import Notification
 
@@ -56,7 +56,7 @@ def build_gate_debug_overview(
         remaining = deadline - now
         lines.extend(
             (
-                _kv("Deadline", _iso_from_unix(deadline)),
+                _kv("Deadline", iso_from_unix(deadline)),
                 _kv(
                     "Deadline state",
                     (
@@ -238,7 +238,7 @@ def _pending_action_state(notification: Notification) -> str:
             ]
             detail = state
             if isinstance(stale, (int, float)):
-                detail += f"; stale deadline {_iso_from_unix(float(stale))}"
+                detail += f"; stale deadline {iso_from_unix(float(stale))}"
             if transport_names:
                 detail += f"; transports {', '.join(transport_names)}"
             return detail
@@ -261,7 +261,7 @@ def _time_field(payload: Mapping[str, Any], text_key: str, unix_key: str) -> str
     if isinstance(value, str):
         return value
     unix = _number(payload.get(unix_key))
-    return _iso_from_unix(unix) if unix is not None else "unknown"
+    return iso_from_unix(unix) if unix is not None else "unknown"
 
 
 def _number(value: object) -> float | None:
@@ -301,15 +301,15 @@ def _format_size(size: int | None) -> str:
     return f"{size / (1024 * 1024):.1f} MiB"
 
 
-def _iso_from_unix(value: float) -> str:
-    try:
-        return datetime.fromtimestamp(value).astimezone().isoformat()
-    except (ValueError, OSError, OverflowError):
-        return str(value)
+def iso_from_unix(value: float) -> str:
+    """Render Unix epoch seconds in the configured timezone."""
+
+    parsed = parse_local(value)
+    return parsed.isoformat() if parsed is not None else str(value)
 
 
 def _kv(label: str, value: str) -> str:
     return f"{label:<19} {value}"
 
 
-__all__ = ["build_gate_debug_overview", "build_no_bundle_overview"]
+__all__ = ["build_gate_debug_overview", "build_no_bundle_overview", "iso_from_unix"]

@@ -14,6 +14,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from sase.core.time import format_local
 from sase.repo_open_log import (
     RepoOpenEvent,
     filter_repo_open_events,
@@ -257,7 +258,7 @@ def _repos_panel(
             Text(summary.repo_kind, style=_KIND_STYLES[summary.repo_kind]),
             str(summary.open_count),
             str(summary.distinct_agent_count),
-            summary.last_opened_at,
+            format_local(summary.last_opened_at),
             summary.last_agent,
             _reason_preview(summary.last_reason),
         )
@@ -291,7 +292,7 @@ def _agents_panel(events: tuple[RepoOpenEvent, ...]) -> Panel:
             summary.agent_name,
             str(summary.open_count),
             str(summary.distinct_repo_count),
-            summary.last_opened_at,
+            format_local(summary.last_opened_at),
             summary.last_repo,
             _reason_preview(summary.last_reason),
         )
@@ -329,7 +330,7 @@ def _events_panel(events: tuple[RepoOpenEvent, ...]) -> Panel:
     )
     for event in ordered_events:
         table.add_row(
-            event.timestamp,
+            format_local(event.timestamp),
             event.id,
             event.agent_name,
             event.repo,
@@ -375,7 +376,7 @@ def _event_panel(event: RepoOpenEvent) -> Panel:
     detail.add_column(style="bold")
     detail.add_column()
     detail.add_row("ID", event.id)
-    detail.add_row("Timestamp", event.timestamp)
+    detail.add_row("Timestamp", format_local(event.timestamp))
     detail.add_row("Project", event.project)
     detail.add_row("Repo", event.repo)
     detail.add_row("Kind", Text(event.repo_kind, style=_KIND_STYLES[event.repo_kind]))

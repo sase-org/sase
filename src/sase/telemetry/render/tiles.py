@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from datetime import UTC, tzinfo
+from datetime import tzinfo
 
 from rich.align import Align
 from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
+from sase.core.time import get_timezone
 from sase.telemetry.render.axis import (
     Timestamp,
     ValueFormat,
@@ -46,11 +47,12 @@ def render_stat_tile(
     sparkline: Sequence[float] | None = None,
     status: Status | None = None,
     recording_started_at: Timestamp | None = None,
-    timezone: tzinfo = UTC,
+    timezone: tzinfo | None = None,
     theme: ChartTheme = DARK_THEME,
 ) -> Panel:
     """Render a fixed-size value/caption/delta/sparkline summary tile."""
 
+    timezone = timezone or get_timezone()
     width = max(12, width)
     height = max(4, height)
     color = status_color(status) if status else categorical_color(key or caption)

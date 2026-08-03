@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from datetime import UTC, tzinfo
+from datetime import tzinfo
 
 from rich.cells import cell_len, set_cell_size
 from rich.text import Text
 
+from sase.core.time import get_timezone
 from sase.telemetry.render.axis import (
     Timestamp,
     ValueFormat,
@@ -54,11 +55,12 @@ def render_sparkline(
     show_last: bool = True,
     value_format: ValueFormat = "number",
     recording_started_at: Timestamp | None = None,
-    timezone: tzinfo = UTC,
+    timezone: tzinfo | None = None,
     theme: ChartTheme = DARK_THEME,
 ) -> Text:
     """Render a one-row sparkline whose output is bounded to *width* cells."""
 
+    timezone = timezone or get_timezone()
     width = max(1, width)
     finite = [float(value) for value in values if math.isfinite(value)]
     if not finite:
