@@ -75,6 +75,7 @@ def artifact_ref_context(
             ),
             checkout_path=_repository_checkout_path(record, workspace_num),
             checkout_paths=_repository_checkout_paths(record, workspace_num),
+            kind=record.kind,
         )
         for record in repository_records
     )

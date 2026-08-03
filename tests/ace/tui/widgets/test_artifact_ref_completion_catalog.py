@@ -246,10 +246,13 @@ def test_commit_completion_rows_match_shared_inventory_and_resolve(
 ) -> None:
     first = tmp_path / "sase"
     second = tmp_path / "sase-core"
+    sidecar = tmp_path / "plans"
     _init_git_repo(first)
     _init_git_repo(second)
+    _init_git_repo(sidecar)
     recent_sha = _commit_at(second, 1_700_000_100, "fix(core): ranked row")
     older_sha = _commit_at(first, 1_700_000_000, "docs: older row")
+    sidecar_sha = _commit_at(sidecar, 1_700_000_200, "chore(plans): sync from agent")
     context = ArtifactRefContext(
         document_roots=(),
         chats_root=tmp_path / "chats",
@@ -259,11 +262,19 @@ def test_commit_completion_rows_match_shared_inventory_and_resolve(
                 "sase",
                 checkout_path=first,
                 checkout_paths=(first,),
+                kind="primary",
             ),
             ArtifactRefRepository(
                 "sase-core",
                 checkout_path=second,
                 checkout_paths=(second,),
+                kind="linked",
+            ),
+            ArtifactRefRepository(
+                "plans",
+                checkout_path=sidecar,
+                checkout_paths=(sidecar,),
+                kind="sidecar",
             ),
         ),
         projects=(),
@@ -299,11 +310,19 @@ def test_commit_completion_rows_match_shared_inventory_and_resolve(
         f"@commit:sase-core@{recent_sha[:12]}",
         f"@commit:sase@{older_sha[:12]}",
     )
+    assert sidecar_sha[:12] not in " ".join(lsp_payload_sequence)
+    assert raw_inventory["truncated_payloads"] == 0
+    assert snapshot.truncated_payloads == 0
     for insertion in prompt_payload_sequence:
         parsed = parse_artifact_ref(insertion.removeprefix("@"))
         resolution = _resolve_for_launch(parsed, context=context)
         assert resolution.status != "missing"
         assert resolution.locator is not None
+
+    sidecar_reference = parse_artifact_ref(f"commit:plans@{sidecar_sha[:12]}")
+    sidecar_resolution = _resolve_for_launch(sidecar_reference, context=context)
+    assert sidecar_resolution.status != "missing"
+    assert sidecar_resolution.locator is not None
 
 
 def _init_git_repo(repo: Path) -> None:

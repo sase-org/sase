@@ -212,6 +212,7 @@ class ArtifactRefRepository:
     shas: tuple[str, ...] = ()
     checkout_path: Path | None = None
     checkout_paths: tuple[Path, ...] = ()
+    kind: str = ""
 
     def to_wire(self) -> dict[str, object]:
         return {
@@ -219,6 +220,7 @@ class ArtifactRefRepository:
             "aliases": list(self.aliases),
             "shas": list(self.shas),
             "checkout_paths": [str(path) for path in self.checkout_paths],
+            "kind": self.kind,
         }
 
 

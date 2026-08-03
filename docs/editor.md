@@ -77,9 +77,11 @@ manually invoked completion request includes the file rows explicitly. Completio
 inserted, such as `@plans:` and `@src/`. Document-role kinds (including dynamic sidecar roles), chats, indexed artifact
 files, beads, agents, and commits are enumerated or resolved from the selected project's local catalog roots and
 checkout paths. `bead` and `agent` payloads resolve locally from generated sidecar pages, and `commit` payloads are
-enumerated from local git checkouts. `bug` references still receive shape validation only because issue enumeration
-would require a network tracker. The LSP never contacts git hosts, issue trackers, or other network providers. Unknown
-`@kind:` text remains ordinary prose.
+enumerated from local git checkouts, excluding SDD sidecar repositories (`plans`, `beads`, `agents`, `research`) since
+their commits are machine-written bookkeeping rather than a human's recent work. A sidecar commit reference still
+resolves when written out in full, such as `@commit:plans@<sha>` — the exclusion only curates what completion offers.
+`bug` references still receive shape validation only because issue enumeration would require a network tracker. The LSP
+never contacts git hosts, issue trackers, or other network providers. Unknown `@kind:` text remains ordinary prose.
 
 Matching is **fuzzy and ranked on the server** for every enumerated kind — document roles, chats, indexed artifact
 files, beads, agents, and commits — against the inserted payload, the row's title, and, for scoped rows, the qualified

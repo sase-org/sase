@@ -35,7 +35,7 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
                 return tmp_path / "repo-plans"
             raise ValueError(role)
 
-    repo = SimpleNamespace(name="sase", slug="sase-org/sase")
+    repo = SimpleNamespace(name="sase", slug="sase-org/sase", kind="primary")
     inventory = SimpleNamespace(records=(repo,))
     project_record = SimpleNamespace(
         project_name="gh_sase-org__sase",
@@ -99,6 +99,7 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
         "designs",
     )
     assert context.repositories[0].name == "sase"
+    assert context.repositories[0].kind == "primary"
     assert context.projects[0] == ArtifactRefProject(
         name="sase",
         key="gh_sase-org__sase",
