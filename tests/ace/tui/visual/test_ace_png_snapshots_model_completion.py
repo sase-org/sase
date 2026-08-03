@@ -129,7 +129,8 @@ _ALIAS_ROWS = [
         kind="implicit_alias",
         alias_kind="provider_coder",
         target_provider="codex",
-        target_model="gpt-5.5",
+        target_model="gpt-5.6-sol",
+        reference="coder",
         description="Claude coder follow-up model.",
     ),
     _alias_row(

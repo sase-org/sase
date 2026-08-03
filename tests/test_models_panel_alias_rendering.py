@@ -99,7 +99,7 @@ def test_state_tag_implicit_default() -> None:
 
 def test_state_tag_implicit_role() -> None:
     text = _state_tag(make_alias_view("coder", "role"), now=0.0)
-    assert text.plain == "implicit → @default"
+    assert text.plain == "implicit"
 
 
 def test_state_tag_implicit_big_epic_lander() -> None:
@@ -120,12 +120,12 @@ def test_state_tag_implicit_unpinned_provider_coder() -> None:
     assert text.plain == "implicit → @coder"
 
 
-def test_state_tag_implicit_pinned_provider_coder_is_direct() -> None:
+def test_state_tag_implicit_provider_coder_uses_coder() -> None:
     text = _state_tag(
         make_alias_view("codex_coder", "provider_coder"),
         now=0.0,
     )
-    assert text.plain == "implicit"
+    assert text.plain == "implicit → @coder"
 
 
 def test_custom_builtin_warning_survives_active_override() -> None:

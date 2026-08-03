@@ -693,16 +693,17 @@ provider-neutral and read-only.
 #### Implicit role aliases
 
 On top of any aliases you configure, SASE always exposes a fixed set of **implicit role aliases** that resolve even when
-you have not defined them. Most fall back through other aliases to `@default`; the primary provider-coder aliases and
-`@smartest` own concrete targets, while `@cheap`, `@cheaper`, and `@cheapest` own independent built-in pools:
+you have not defined them. Most fall back through other aliases to `@default`; every provider-coder alias inherits
+`@coder`, and `@coder` ships with its own concrete target. `@smartest` also owns a concrete target, while `@cheap`,
+`@cheaper`, and `@cheapest` own independent built-in pools:
 
 | Alias                  | Role                                                                                                 | Value when not configured                                                               |
 | ---------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `@default`             | Model used when a prompt has no `%model` directive.                                                  | Configured `model_aliases.builtin.default`, else the provider's requested-tier default. |
-| `@coder`               | Coder follow-up launched from an accepted plan.                                                      | `@default`                                                                              |
-| `@claude_coder`        | Coder follow-up for a Claude-authored plan.                                                          | `codex/gpt-5.5`                                                                         |
-| `@codex_coder`         | Coder follow-up for a Codex-authored plan.                                                           | `codex/gpt-5.5`                                                                         |
-| `@<other>_coder`       | Coder follow-up for a plan authored by another registered provider (`@agy_coder`, `@qwen_coder`, …). | `@coder`                                                                                |
+| `@coder`               | Coder follow-up launched from an accepted plan.                                                      | `codex/gpt-5.5`                                                                         |
+| `@claude_coder`        | Coder follow-up for a Claude-authored plan.                                                          | `@coder`                                                                                |
+| `@codex_coder`         | Coder follow-up for a Codex-authored plan.                                                           | `@coder`                                                                                |
+| `@<provider>_coder`    | Coder follow-up for a plan authored by another registered provider (`@agy_coder`, `@qwen_coder`, …). | `@coder`                                                                                |
 | `@epic_lander`         | Epic land agent with no explicit land model.                                                         | `@default`                                                                              |
 | `@big_epic_lander`     | Epic land agent selected when the authored phase count meets the configured threshold.               | `@smartest`                                                                             |
 | `@xsmall_phase_worker` | Extra-small phase/task worker with no explicit per-bead model.                                       | `@cheaper`                                                                              |
@@ -717,16 +718,17 @@ you have not defined them. Most fall back through other aliases to `@default`; t
 | `@cheapest`            | Lowest-cost load-balanced pool available for explicit use.                                           | `claude/haiku \| codex/gpt-5.3-codex-spark`                                             |
 
 Override any role by configuring an alias of the same name. For provider-coder aliases, precedence is launch-scoped
-specific/generic coder value, provider-specific temporary/configured value, generic temporary/configured `@coder`, the
-shipped provider target, then the `@coder` structural fallback for providers without a shipped target. An outer effort
-suffix and an approval-time concrete model remain authoritative. A common setup routes coder follow-ups to a second
-provider while normal epic landers track `@default`. Threshold-selected epic landers deliberately diverge through
-`@big_epic_lander` → `@smartest`, so an `epic_lander` override affects only below-threshold epics; configure
-`big_epic_lander` directly to replace the large-epic policy. Phase sizes likewise diverge: xsmall uses `@cheaper`, small
-uses `@cheap`, medium uses `@default@high`, large uses `@smart`, and xlarge uses `@smartest`. The implicit `@smartest`
-value pins `claude/opus` at `max` effort, which both dependent roles inherit. A configured alias value or temporary
-override still takes precedence over that target and effort. The standalone `@cheapest` pool has no automatic consumer
-and is available for explicit launches with its own rotation:
+specific/generic coder value, provider-specific temporary/configured value, then the generic temporary/configured or
+implicit `@coder` value. An outer effort suffix and an approval-time concrete model remain authoritative. Out of the
+box, coder follow-ups are independent of `@default`; configure `coder: "@default"` if you want them to track the normal
+launch lane. A common setup routes coder follow-ups to a second provider while normal epic landers track `@default`.
+Threshold-selected epic landers deliberately diverge through `@big_epic_lander` → `@smartest`, so an `epic_lander`
+override affects only below-threshold epics; configure `big_epic_lander` directly to replace the large-epic policy.
+Phase sizes likewise diverge: xsmall uses `@cheaper`, small uses `@cheap`, medium uses `@default@high`, large uses
+`@smart`, and xlarge uses `@smartest`. The implicit `@smartest` value pins `claude/opus` at `max` effort, which both
+dependent roles inherit. A configured alias value or temporary override still takes precedence over that target and
+effort. The standalone `@cheapest` pool has no automatic consumer and is available for explicit launches with its own
+rotation:
 
 ```yaml
 llm_provider:
@@ -945,8 +947,8 @@ Delegated launches do not use a separate "worker lane". Instead, each delegated 
 [implicit role alias](#implicit-role-aliases):
 
 - **Coder follow-ups** from an accepted plan use `@<provider>_coder` for the planner's provider. `@claude_coder` and
-  `@codex_coder` are distinct aliases that both default to `codex/gpt-5.5`; registered providers without a shipped
-  target fall back through `@coder` to `@default`. Missing planner-provider metadata selects generic `@coder` directly.
+  `@codex_coder` are distinct aliases, but like every registered provider-coder alias they default to `@coder`, whose
+  shipped value is `codex/gpt-5.5`. Missing planner-provider metadata selects generic `@coder` directly.
 - **`sase bead work` phase agents** without an explicit per-bead model use the alias matching their normalized size:
   `@xsmall_phase_worker`, `@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, or
   `@xlarge_phase_worker`. Their defaults are respectively `@cheaper`, `@cheap`, `@default@high`, `@smart`, and
@@ -1041,8 +1043,8 @@ For every alias, including `default`, `resolve_model_alias()` consults the launc
 active machine-wide override, then its configured/implicit value. The implicit `default` value is the configured or
 autodetected provider's requested-tier model. This order applies at every nested alias hop. At a provider-specific
 `<provider>_coder` hop, a launch-scoped specific value beats a launch-scoped generic `coder` value; both beat
-provider-specific temporary/configured values. An explicit generic temporary/configured `coder` value comes next, then
-the shipped provider target, and finally `@coder` for an unpinned provider.
+provider-specific temporary/configured values. The alias then falls through to the generic temporary/configured or
+implicit `@coder` value.
 
 A concrete temporary override sets both the default provider and a concrete `model_override` for the next launch — so
 the agent metadata (running marker, plan review badge, agent rows) reflects the actual model that will run, not just the

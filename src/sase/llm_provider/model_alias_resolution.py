@@ -203,23 +203,6 @@ def _resolve_model_alias_result(
             target: str | None = None
             if bare in aliases:
                 target = aliases[bare].strip()
-            elif is_provider_coder:
-                # A configured or temporary generic coder is an explicit
-                # fleet-wide override. Provider-specific configuration above
-                # still wins, while the direct shipped target is used
-                # only when neither explicit path applies.
-                assert overrides is not None
-                if (
-                    CODER_MODEL_ALIAS_NAME in overrides
-                    or CODER_MODEL_ALIAS_NAME in aliases
-                ):
-                    if bare in seen:
-                        return fail()
-                    seen.add(bare)
-                    current = f"@{CODER_MODEL_ALIAS_NAME}"
-                    steps += 1
-                    continue
-                target = config.implicit_model_alias_value(bare)
             elif bare in role_targets:
                 target = role_targets[bare]
 

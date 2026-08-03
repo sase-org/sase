@@ -63,7 +63,7 @@ def test_alias_context_builds_styled_rows_after_models() -> None:
     assert all(isinstance(option.prompt, Text) for option in alias_options)
     assert {option.prompt.plain.index("→") for option in alias_options} == {27}
     coder = next(option for option in alias_options if option.id == "@coder")
-    assert "CODEX(gpt-5.6-sol)" in coder.prompt.plain
+    assert "CODEX(gpt-5.5)" in coder.prompt.plain
     assert any(span.style == "bold #87D7FF" for span in coder.prompt.spans)
 
 
@@ -149,12 +149,13 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
     assert _alias_disabled_reason(coder_context, "hop_a") == "would create a cycle"
     assert _alias_disabled_reason(coder_context, "cycle_a") == ("would create a cycle")
     assert _alias_disabled_reason(coder_context, "safe") is None
-    # Unpinned provider_coder -> coder -> default and
-    # big_epic_lander -> smartest are implicit chains. Pinned Codex is direct.
-    assert _alias_disabled_reason(default_context, "codex_coder") is None
-    assert _alias_disabled_reason(default_context, "opencode_coder") == (
+    # Provider_coder -> coder and big_epic_lander -> smartest are implicit
+    # chains. @coder no longer depends on @default.
+    assert _alias_disabled_reason(coder_context, "codex_coder") == (
         "would create a cycle"
     )
+    assert _alias_disabled_reason(default_context, "codex_coder") is None
+    assert _alias_disabled_reason(default_context, "opencode_coder") is None
     assert _alias_disabled_reason(default_context, "big_epic_lander") is None
     assert _alias_disabled_reason(default_context, "large_phase_worker") == (
         "would create a cycle"
@@ -234,7 +235,7 @@ async def test_alias_picker_filters_all_alias_fields_and_returns_raw_token() -> 
         filter_input = modal.query_one("#model-picker-filter", Input)
         assert filter_input.placeholder == "Filter aliases, providers, or models..."
 
-        for query in ("@coder", "coder", "implementation follow-up", "gpt-5.6"):
+        for query in ("@coder", "coder", "implementation follow-up", "gpt-5.5"):
             filter_input.value = query
             await pilot.pause()
             ids = {

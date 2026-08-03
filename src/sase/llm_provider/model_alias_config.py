@@ -13,7 +13,6 @@ from .model_alias_policy import (
     DEFAULT_MODEL_ALIAS_NAME,
     PROVIDER_CODER_ALIAS_SUFFIX,
     implicit_alias_targets,
-    provider_coder_targets,
     role_alias_descriptions,
     role_alias_fallbacks,
 )
@@ -279,11 +278,7 @@ def implicit_model_alias_fallback_reference(name: str) -> str | None:
     """Return the raw immediate implicit fallback reference for *name*."""
     alias = name.strip()
     fallback = role_alias_fallbacks().get(alias)
-    if (
-        fallback is None
-        and is_provider_coder_alias(alias)
-        and implicit_model_alias_value(alias) is None
-    ):
+    if fallback is None and is_provider_coder_alias(alias):
         fallback = f"@{CODER_MODEL_ALIAS_NAME}"
     return fallback
 
@@ -300,11 +295,7 @@ def implicit_model_alias_fallback_effort(name: str) -> str | None:
 def implicit_model_alias_value(name: str) -> str | None:
     """Return a concrete/selector implicit target value for *name*, if any."""
     alias = name.strip()
-    target = implicit_alias_targets().get(alias)
-    if target is not None or not is_provider_coder_alias(alias):
-        return target
-    provider = alias[: -len(PROVIDER_CODER_ALIAS_SUFFIX)]
-    return provider_coder_targets().get(provider)
+    return implicit_alias_targets().get(alias)
 
 
 def format_model_directive_value(value: str) -> str:

@@ -154,7 +154,7 @@ def test_provider_coder_alias_override(monkeypatch: pytest.MonkeyPatch) -> None:
     assert resolve_model_provider("codex_coder") == ("codex", "o3")
 
 
-def test_generic_coder_override_supersedes_shipped_provider_targets(
+def test_generic_coder_override_propagates_to_provider_coders(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -235,7 +235,7 @@ def test_default_override_propagates_to_references(
 
     assert resolve_model_alias("default") == "codex/o3"
     assert resolve_model_alias("@default") == "codex/o3"
-    assert resolve_model_provider("@coder") == ("codex", "o3")
+    assert resolve_model_provider("@coder") == ("codex", "gpt-5.5")
     assert resolve_model_provider("@smart") == ("codex", "o3")
     assert resolve_model_provider_with_effort("@medium_phase_worker") == (
         "codex",

@@ -157,7 +157,6 @@ from .model_alias_policy import (  # noqa: E402
     XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME as XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME as XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     implicit_alias_targets as _implicit_alias_targets,
-    provider_coder_targets as _provider_coder_targets,
     role_alias_descriptions as _role_alias_descriptions,
     role_alias_fallbacks as _role_alias_fallbacks,
 )

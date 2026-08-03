@@ -10,10 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.llm_provider.model_alias_policy import (
-    implicit_alias_targets,
-    provider_coder_targets,
-)
+from sase.llm_provider.model_alias_policy import implicit_alias_targets
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DOC_PATHS = (
@@ -41,14 +38,7 @@ def test_every_shipped_target_is_quoted_in_both_docs() -> None:
     """
     for doc_path in _DOC_PATHS:
         text = doc_path.read_text(encoding="utf-8")
-        shipped_targets = {
-            **implicit_alias_targets(),
-            **{
-                f"{provider}_coder": target
-                for provider, target in provider_coder_targets().items()
-            },
-        }
-        for name, target in shipped_targets.items():
+        for name, target in implicit_alias_targets().items():
             escaped = target.replace("|", "\\|")
             assert target in text or escaped in text, (
                 f"{doc_path.relative_to(_REPO_ROOT)} is missing the current "
@@ -58,15 +48,11 @@ def test_every_shipped_target_is_quoted_in_both_docs() -> None:
 
 
 def test_provider_coder_defaults_are_documented_by_alias() -> None:
-    """Provider-coder rows must pair each alias with its shipped target.
-
-    When multiple provider-coder aliases share a target, a stale target for
-    one alias must not pass merely because the shared value appears elsewhere.
-    """
+    """Provider-coder rows must pair each alias with the shared @coder default."""
     for doc_path in _DOC_PATHS:
         text = doc_path.read_text(encoding="utf-8")
-        for provider, target in provider_coder_targets().items():
-            alias = f"{provider}_coder"
+        for alias in ("claude_coder", "codex_coder", "<provider>_coder"):
+            target = "@coder"
             assert _doc_line_mentions_alias_target(text, alias, target), (
                 f"{doc_path.relative_to(_REPO_ROOT)} must mention @{alias} "
                 f"together with its shipped default {target!r}"

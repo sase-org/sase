@@ -45,7 +45,7 @@ def make_alias_context(
                 "coder",
                 "role",
                 provider="codex",
-                model="gpt-5.6-sol",
+                model="gpt-5.5",
                 description="Implementation follow-up agents.",
             ),
             make_alias_view("epic_lander", "role", provider="claude", model="opus"),

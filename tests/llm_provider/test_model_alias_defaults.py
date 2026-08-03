@@ -7,8 +7,6 @@ dropping a role alias or rerouting it to the wrong fallback.
 
 from __future__ import annotations
 
-from collections.abc import MutableMapping
-
 import pytest
 
 from sase.llm_provider.load_balancing import (
@@ -31,7 +29,6 @@ from sase.llm_provider.model_alias_policy import (
     XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     implicit_alias_targets,
-    provider_coder_targets,
     role_alias_descriptions,
     role_alias_fallbacks,
 )
@@ -79,69 +76,6 @@ def test_default_alias_has_neither_fallback_nor_target() -> None:
     assert DEFAULT_MODEL_ALIAS_NAME not in implicit_alias_targets()
 
 
-def test_provider_coder_targets_are_separate_immutable_policy() -> None:
-    targets = provider_coder_targets()
-
-    assert dict(targets) == {
-        "claude": "codex/gpt-5.5",
-        "codex": "codex/gpt-5.5",
-    }
-    assert not isinstance(targets, MutableMapping)
-    assert set(targets).isdisjoint(_DECLARED_ROLE_ALIAS_NAMES)
-    for target in targets.values():
-        clean, effort = split_model_effort(target)
-        assert clean == target
-        assert effort is None
-        assert parse_model_alias_selector(target) is None
-
-
-@pytest.mark.parametrize(
-    ("entry_name", "provider_targets", "message"),
-    [
-        ("smart", {"claude": "claude/sonnet"}, "only 'coder' may set it"),
-        ("coder", ["claude/sonnet"], "non-mapping 'provider_targets'"),
-        ("coder", {" ": "claude/sonnet"}, "empty provider name"),
-        ("coder", {"claude": " "}, "empty target"),
-    ],
-)
-def test_provider_coder_target_validation(
-    monkeypatch: pytest.MonkeyPatch,
-    entry_name: str,
-    provider_targets: object,
-    message: str,
-) -> None:
-    """Malformed provider mappings fail through the bundled-resource loader."""
-    import yaml
-
-    from sase.llm_provider import model_alias_policy
-
-    real_resource = model_alias_policy.files("sase.llm_provider").joinpath(
-        "model_alias_defaults.yml"
-    )
-    data = yaml.safe_load(real_resource.read_text(encoding="utf-8"))
-    data["aliases"][entry_name]["provider_targets"] = provider_targets
-    rendered = yaml.safe_dump(data)
-
-    class _Resource:
-        def read_text(self, *, encoding: str) -> str:
-            assert encoding == "utf-8"
-            return rendered
-
-        def __str__(self) -> str:
-            return "test-model-alias-defaults.yml"
-
-    class _Package:
-        def joinpath(self, name: str) -> _Resource:
-            assert name == "model_alias_defaults.yml"
-            return _Resource()
-
-    model_alias_policy._load_model_alias_defaults.cache_clear()
-    monkeypatch.setattr(model_alias_policy, "files", lambda _package: _Package())
-
-    with pytest.raises(RuntimeError, match=message):
-        model_alias_policy._load_model_alias_defaults()
-
-
 def test_every_description_is_a_nonempty_stripped_string() -> None:
     for name, description in role_alias_descriptions().items():
         assert isinstance(description, str) and description, name
@@ -181,6 +115,15 @@ def test_smartest_ships_concrete_max_effort_target() -> None:
 
     assert (target, effort) == ("claude/opus", "max")
     assert parse_model_alias_selector(targets[SMARTEST_MODEL_ALIAS_NAME]) is None
+
+
+def test_coder_ships_common_concrete_target() -> None:
+    targets = implicit_alias_targets()
+
+    target, effort = split_model_effort(targets[CODER_MODEL_ALIAS_NAME])
+
+    assert (target, effort) == ("codex/gpt-5.5", None)
+    assert parse_model_alias_selector(targets[CODER_MODEL_ALIAS_NAME]) is None
 
 
 def test_cheap_family_are_round_robin_pools() -> None:

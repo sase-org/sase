@@ -413,7 +413,6 @@ def test_generic_coder_override_updates_implicit_provider_coder_metadata(
                 configured=False,
                 provider="codex",
                 model="gpt-5.5",
-                implicit_value="codex/gpt-5.5",
             ),
             _alias_view(
                 "codex_coder",
@@ -421,7 +420,6 @@ def test_generic_coder_override_updates_implicit_provider_coder_metadata(
                 configured=False,
                 provider="codex",
                 model="gpt-5.5",
-                implicit_value="codex/gpt-5.5",
             ),
             _alias_view(
                 "opencode_coder",
@@ -429,7 +427,6 @@ def test_generic_coder_override_updates_implicit_provider_coder_metadata(
                 configured=False,
                 provider="claude",
                 model="opus",
-                implicit_reference="coder",
             ),
         ],
     )
@@ -536,7 +533,6 @@ def _alias_view(
     description: str | None = None,
     config_source: str | None = None,
     bucket: str | None = None,
-    implicit_reference: str | None = None,
     implicit_value: str | None = None,
     selector_mode: str | None = None,
     selector_members: tuple[ModelAliasSelectorMember, ...] = (),
@@ -553,7 +549,6 @@ def _alias_view(
         configured_source=config_source,
         description=description,
         bucket=bucket,
-        implicit_reference=implicit_reference,
         implicit_value=implicit_value,
         selector_mode=selector_mode,  # type: ignore[arg-type]
         selector_members=selector_members,

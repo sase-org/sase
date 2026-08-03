@@ -1059,10 +1059,11 @@ built-in bucket name joins that row while remaining independently addressable an
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases** that resolve even when unset:
 `@default` (no-`%model` launches), `@coder` and the per-provider `@<provider>_coder` (plan coder follow-ups),
 `@epic_lander`, `@big_epic_lander`, the five `<size>_phase_worker` aliases, `@smartest`, `@smart`, `@cheap`, and
-`@cheaper`, plus explicit-use `@cheapest`. `@epic_lander` falls back to `@default`, while `@big_epic_lander` falls back
-independently to `@smartest`; xsmall phases and tasks fall back to `@cheaper`, small ones to `@cheap`, medium ones to
-`@default@high`, large ones to `@smart` (which itself falls back to `@default`), and xlarge ones to `@smartest`. The
-implicit `@smartest` value is the concrete target `claude/opus@max`; xlarge workers and threshold-sized epic landers
+`@cheaper`, plus explicit-use `@cheapest`. `@coder` ships as `codex/gpt-5.5`, and every registered `@<provider>_coder`
+alias inherits `@coder` unless explicitly overridden. `@epic_lander` falls back to `@default`, while `@big_epic_lander`
+falls back independently to `@smartest`; xsmall phases and tasks fall back to `@cheaper`, small ones to `@cheap`, medium
+ones to `@default@high`, large ones to `@smart` (which itself falls back to `@default`), and xlarge ones to `@smartest`.
+The implicit `@smartest` value is the concrete target `claude/opus@max`; xlarge workers and threshold-sized epic landers
 inherit its `max` effort unless they or `@smartest` are overridden. `@cheaper` owns the automatic xsmall phase/task pool
 and `@cheap` the small phase/task pool, while `@cheapest` owns an independent explicit-use pool. Override only
 threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`; override only large phases and sized tasks
@@ -1072,12 +1073,11 @@ and xlarge phase/task fallback chains. See [Implicit role aliases](llms.md#impli
 tasks require an explicit size after `/sase_new_task` has ruled out a semantic duplicate and a causally related
 in-progress epic. Legacy tasks without size metadata remain launchable through the small phase/task route.
 
-The primary provider-coder aliases have direct shipped values: `@claude_coder` resolves to `codex/gpt-5.5`, and
-`@codex_coder` resolves to `codex/gpt-5.5` when no stronger override is present. Other registered `<provider>_coder`
-aliases inherit `@coder`. A launch-scoped specific or generic coder value wins first, followed by a provider-specific
-temporary/configured value, an explicit generic temporary/configured `@coder`, the shipped provider target, and finally
-the unpinned `@coder` fallback. If the planner has no provider metadata, the approval follow-up selects generic `@coder`
-directly. An approval-time model or outer effort suffix remains authoritative.
+`@claude_coder`, `@codex_coder`, and every other registered `@<provider>_coder` alias inherit `@coder` by default, so
+they resolve to `codex/gpt-5.5` out of the box. A launch-scoped specific or generic coder value wins first, followed by
+a provider-specific temporary/configured value, then the generic temporary/configured or implicit `@coder` value. If the
+planner has no provider metadata, the approval follow-up selects generic `@coder` directly. An approval-time model or
+outer effort suffix remains authoritative.
 
 `model_aliases.builtin.epic_creator` is retired. SASE no longer launches an epic-creator agent, resolves that alias
 implicitly, or treats it as a builtin override, so a stale entry should be deleted rather than repointed. `sase doctor`

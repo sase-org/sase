@@ -149,8 +149,6 @@ class AliasView:
             does not override the configured/provider default.
         override: The active temporary override for this alias, or ``None``.
         bucket: The optional Models-panel bucket for a custom alias.
-        implicit_reference: An explicit generic role reference currently
-            shaping an otherwise direct implicit alias.
         reference_effort: Effort overlay carried by the row's immediate
             ``@name`` reference, or ``None`` for a concrete pinned target.
         implicit_value: Raw concrete/selector value supplied by an implicit alias.
@@ -170,7 +168,6 @@ class AliasView:
     configured_source: str | None = None
     description: str | None = None
     bucket: str | None = None
-    implicit_reference: str | None = None
     implicit_value: str | None = None
     selector_mode: ModelAliasSelectorMode | None = None
     selector_members: tuple[ModelAliasSelectorMember, ...] = ()
@@ -215,7 +212,7 @@ class AliasView:
         """Return the immediate fallback for an unconfigured implicit alias."""
         if self.configured:
             return None
-        return self.implicit_reference or implicit_model_alias_fallback(self.name)
+        return implicit_model_alias_fallback(self.name)
 
     @property
     def reference_effort(self) -> str | None:
@@ -468,15 +465,6 @@ def build_alias_views(
             )
         else:
             provider, model, effort = _effective_provider_model(name, override)
-        generic_coder_reference = (
-            name not in configured
-            and override is None
-            and _alias_kind(name) == "provider_coder"
-            and (
-                CODER_MODEL_ALIAS_NAME in configured
-                or CODER_MODEL_ALIAS_NAME in active_overrides
-            )
-        )
         views.append(
             AliasView(
                 name=name,
@@ -489,9 +477,6 @@ def build_alias_views(
                 configured_source=model_alias_config_source(name),
                 description=model_alias_description(name),
                 bucket=model_alias_bucket(name),
-                implicit_reference=(
-                    CODER_MODEL_ALIAS_NAME if generic_coder_reference else None
-                ),
                 implicit_value=implicit_model_alias_value(name),
                 selector_mode=selector.mode if selector is not None else None,
                 selector_members=selector.members if selector is not None else (),

@@ -102,8 +102,8 @@ def calm_views() -> list[AliasView]:
         _view(
             "coder",
             "role",
-            provider="claude",
-            model="claude-fable-4-10",
+            provider="codex",
+            model="gpt-5.5",
         ),
         _view("epic_lander", "role", provider="claude", model="opus"),
         _view(

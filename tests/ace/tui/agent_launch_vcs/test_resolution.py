@@ -317,7 +317,7 @@ def test_save_replayable_vcs_selection_skips_default_git_home(
     assert app._last_custom_agent_selection == "sentinel"
 
 
-def test_run_agent_launch_body_known_project_ref_without_provider_targets_project(
+def test_run_agent_launch_body_known_project_ref_without_project_provider_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
