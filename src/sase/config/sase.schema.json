@@ -600,6 +600,17 @@
               "minimum": 0,
               "default": 5
             },
+            "agent_cli_history": {
+              "type": "boolean",
+              "description": "Show the durable update-history panel beneath the selected CLI's details on the Agent CLIs sub-tab",
+              "default": true
+            },
+            "agent_cli_history_max_rows": {
+              "type": "integer",
+              "description": "Maximum rows (per-CLI view) or runs (all-CLIs view) shown in the Agent CLIs update-history panel; 0 shows all",
+              "minimum": 0,
+              "default": 8
+            },
             "indicator": {
               "type": "boolean",
               "description": "Show a segmented top-bar badge while SASE core, installed plugins, or supported agent CLIs have updates available",

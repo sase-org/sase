@@ -27,7 +27,9 @@ from sase.agent_clis.models import (
 
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _agent_cli_statuses,
+    _agent_cli_update_run,
     _catalog,
+    _core_versions,
     _open_plugins_pane,
     _patch_catalog,
     _patch_other_panes,
@@ -382,3 +384,154 @@ class _Reporter:
 
     def subprocess_run_fn(self) -> Any:
         raise AssertionError("executor was stubbed; no subprocess should run")
+
+
+async def test_agent_cli_history_populates_pane_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    run = _agent_cli_update_run()
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        agent_cli_history=(run,),
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        assert pane._agent_cli_history == (run,)
+        assert pane._agent_cli_history_error is None
+
+
+async def test_agent_cli_history_defaults_when_loader_omits_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    # A stubbed loader that predates the history fields must keep working —
+    # every field is adopted via getattr(..., default).
+    monkeypatch.setattr(
+        pbp,
+        "_load_plugins_catalog",
+        lambda **_kw: SimpleNamespace(catalog=_catalog(), error=None, now=0.0),
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        assert pane._agent_cli_history == ()
+        assert pane._agent_cli_history_error is None
+
+
+def _patch_loading_collaborators(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    agent_cli_statuses: tuple[AgentCliStatus, ...],
+) -> None:
+    """Stub every non-history leg of ``load_plugins_catalog_for_pane``."""
+    monkeypatch.setattr(loading, "probe_uv_tool", lambda: None)
+    monkeypatch.setattr(loading, "load_merged_config", dict)
+    monkeypatch.setattr(loading, "config_dev_root", lambda _config: "/tmp/dev")
+    monkeypatch.setattr(
+        loading,
+        "_collect_core_versions_for_pane",
+        lambda **_kwargs: _core_versions(),
+    )
+    monkeypatch.setattr(
+        loading,
+        "_collect_agent_clis_for_pane",
+        lambda **_kwargs: (agent_cli_statuses, None, {}),
+    )
+    monkeypatch.setattr(loading, "load_plugin_catalog", lambda **_kwargs: _catalog())
+    monkeypatch.setattr(loading, "enrich_with_latest", lambda loaded, **_kwargs: loaded)
+    monkeypatch.setattr(
+        loading,
+        "_fetch_core_incoming_commits_for_pane",
+        lambda *_args, **_kwargs: {},
+    )
+
+
+def test_agent_cli_history_read_failure_sets_error_and_preserves_statuses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    statuses = _agent_cli_statuses()
+    _patch_loading_collaborators(monkeypatch, agent_cli_statuses=statuses)
+
+    def _raise(**_kwargs: Any) -> tuple[Any, ...]:
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(pbp, "_read_agent_cli_update_runs", _raise)
+
+    result = loading.load_plugins_catalog_for_pane(
+        offline=True,
+        incoming_commits_enabled=False,
+        agent_cli_history_enabled=True,
+        now=123.0,
+    )
+
+    assert result.agent_cli_history == ()
+    assert result.agent_cli_history_error is not None
+    assert "disk gone" in result.agent_cli_history_error
+    assert result.agent_cli_statuses == statuses
+    assert result.agent_cli_error is None
+
+
+def test_agent_cli_history_disabled_skips_journal_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    statuses = _agent_cli_statuses()
+    _patch_loading_collaborators(monkeypatch, agent_cli_statuses=statuses)
+    calls: list[dict[str, Any]] = []
+
+    def _spy(**kwargs: Any) -> tuple[Any, ...]:
+        calls.append(kwargs)
+        raise AssertionError("must not be called while history is disabled")
+
+    monkeypatch.setattr(pbp, "_read_agent_cli_update_runs", _spy)
+
+    result = loading.load_plugins_catalog_for_pane(
+        offline=True,
+        incoming_commits_enabled=False,
+        agent_cli_history_enabled=False,
+        now=123.0,
+    )
+
+    assert calls == []
+    assert result.agent_cli_history == ()
+    assert result.agent_cli_history_error is None
+
+
+def test_agent_cli_history_config_coerces_bad_values_to_defaults() -> None:
+    config = pbp._load_agent_cli_history_config(
+        lambda: {
+            "ace": {
+                "updates": {
+                    "agent_cli_history": True,
+                    "agent_cli_history_max_rows": 12,
+                }
+            }
+        }
+    )
+    assert config.enabled is True
+    assert config.max_rows == 12
+
+    fallback = pbp._load_agent_cli_history_config(
+        lambda: {
+            "ace": {
+                "updates": {
+                    "agent_cli_history": "not-a-bool",
+                    "agent_cli_history_max_rows": -3,
+                }
+            }
+        }
+    )
+    assert fallback.enabled is True
+    assert fallback.max_rows == 8
+
+    non_integer = pbp._load_agent_cli_history_config(
+        lambda: {
+            "ace": {
+                "updates": {"agent_cli_history_max_rows": "not-an-int"},
+            }
+        }
+    )
+    assert non_integer.max_rows == 8

@@ -4,13 +4,21 @@ from __future__ import annotations
 
 import io
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from rich.console import Console
 from textual.widgets import OptionList
 
-from sase.agent_clis.models import AgentCliStatus, InstallMethod
+from sase.agent_clis.history import AgentCliUpdateRun, build_agent_cli_update_run
+from sase.agent_clis.models import (
+    AgentCliStatus,
+    AgentCliUpdateResult,
+    InstallMethod,
+    UpdateResultStatus,
+    UpdateTrigger,
+)
 from sase.agents_sync.models import SyncStatusSnapshot
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
@@ -182,6 +190,8 @@ def _patch_catalog(
     agent_cli_statuses: tuple[AgentCliStatus, ...] = (),
     agent_cli_error: str | None = None,
     agent_cli_colors: dict[str, str] | None = None,
+    agent_cli_history: tuple[AgentCliUpdateRun, ...] = (),
+    agent_cli_history_error: str | None = None,
 ) -> None:
     result = pbp._PluginsLoadResult(
         catalog=catalog,
@@ -195,6 +205,8 @@ def _patch_catalog(
         agent_cli_statuses=agent_cli_statuses,
         agent_cli_error=agent_cli_error,
         agent_cli_colors=agent_cli_colors or {},
+        agent_cli_history=agent_cli_history,
+        agent_cli_history_error=agent_cli_history_error,
     )
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
     monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)
@@ -417,6 +429,30 @@ def _agent_cli_statuses() -> tuple[AgentCliStatus, ...]:
             docs_url="https://github.com/QwenLM/qwen-code",
             install_hint="npm install -g @qwen-code/qwen-code",
         ),
+    )
+
+
+def _agent_cli_update_run(
+    *,
+    run_id: str = "abc123def456",
+    trigger: UpdateTrigger = UpdateTrigger.ADMIN_CENTER,
+) -> AgentCliUpdateRun:
+    """A deterministic single-CLI update run for history plumbing tests."""
+    result = AgentCliUpdateResult(
+        name="claude",
+        display_name="Claude Code",
+        status=UpdateResultStatus.UPDATED,
+        old_version="1.0.0",
+        new_version="1.1.0",
+        command=("claude", "update"),
+        docs_url=None,
+    )
+    return build_agent_cli_update_run(
+        (result,),
+        trigger=trigger,
+        elapsed=9.0,
+        now=datetime(2026, 8, 1, 12, 0, tzinfo=UTC),
+        run_id=run_id,
     )
 
 

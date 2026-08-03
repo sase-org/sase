@@ -6604,6 +6604,13 @@ PluginsBrowserPane #agent-clis-detail {
     color: $text;
 }
 
+PluginsBrowserPane #agent-clis-history {
+    width: 100%;
+    height: auto;
+    color: $text;
+    margin-top: 1;
+}
+
 /* Plugins install/update confirm-preview modal (Phase 4, reused Phase 5) */
 PluginActionConfirmModal > #plugin-action-container {
     width: 76;

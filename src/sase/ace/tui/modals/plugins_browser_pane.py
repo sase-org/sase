@@ -16,6 +16,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import ContentSwitcher, OptionList, Static
 from textual.worker import Worker, WorkerState
 
+from sase.agent_clis.history import AgentCliUpdateRun, read_agent_cli_update_runs
 from sase.agent_clis.models import AgentCliUpdateResult
 from sase.agent_clis.operations import (
     execute_agent_cli_updates,
@@ -41,7 +42,11 @@ from sase.uv_tool.versions import CoreVersions, collect_installed_core_versions
 
 from .plugins_browser_constants import _DETAIL_PLACEHOLDER, _SUBTAB_NAV_HINT
 from .config_center_session import UpdatesSessionState, UpdatesSubTab
-from .plugins_browser_agent_clis import AgentCliBrowserMixin
+from .plugins_browser_agent_clis import (
+    AgentCliBrowserMixin,
+    AgentCliHistoryConfig,
+    load_agent_cli_history_config,
+)
 from .plugins_browser_comprehensive_update import (
     ComprehensiveUpdateActionsMixin,
     ComprehensiveUpdateRequest,
@@ -161,6 +166,9 @@ _load_incoming_commits_config = load_incoming_commits_config
 _callable_accepts_keyword = callable_accepts_keyword
 _plan_agent_cli_updates = plan_agent_cli_updates
 _execute_agent_cli_updates = execute_agent_cli_updates
+_read_agent_cli_update_runs = read_agent_cli_update_runs
+_AgentCliHistoryConfig = AgentCliHistoryConfig
+_load_agent_cli_history_config = load_agent_cli_history_config
 
 _SUBTAB_ORDER: tuple[UpdatesSubTab, ...] = ("core", "plugins", "agent-clis")
 _SUBTAB_WIDGET_IDS: dict[UpdatesSubTab, str] = {
@@ -261,6 +269,11 @@ class PluginsBrowserPane(
         self._agent_cli_statuses = ()
         self._agent_cli_error: str | None = None
         self._agent_cli_colors: dict[str, str] = {}
+        self._agent_cli_history: tuple[AgentCliUpdateRun, ...] = ()
+        self._agent_cli_history_error: str | None = None
+        self._agent_cli_history_config: AgentCliHistoryConfig = (
+            _load_agent_cli_history_config()
+        )
         self._marked_agent_clis: set[str] = set()
         self._agent_cli_results: dict[str, AgentCliUpdateResult] = {}
         self._agent_cli_detail_name: str | None = None
@@ -359,6 +372,7 @@ class PluginsBrowserPane(
                                 id="agent-clis-detail",
                                 markup=False,
                             )
+                            yield Static("", id="agent-clis-history", markup=False)
                 yield Static(
                     self._agent_cli_hints(), id="agent-clis-hints", markup=False
                 )
@@ -479,6 +493,7 @@ class PluginsBrowserPane(
         offline = self._offline
         incoming_commits_enabled = self._incoming_commits_enabled
         incoming_commits_limit = self._incoming_commits_limit
+        agent_cli_history_enabled = self._agent_cli_history_config.enabled
 
         def task() -> _PluginsLoadResult:
             return _load_plugins_catalog(
@@ -486,6 +501,7 @@ class PluginsBrowserPane(
                 offline=offline,
                 incoming_commits_enabled=incoming_commits_enabled,
                 incoming_commits_limit=incoming_commits_limit,
+                agent_cli_history_enabled=agent_cli_history_enabled,
             )
 
         self._worker = self.run_worker(
@@ -612,6 +628,12 @@ class PluginsBrowserPane(
             )
             self._agent_cli_error = getattr(result, "agent_cli_error", None)
             self._agent_cli_colors = dict(getattr(result, "agent_cli_colors", {}) or {})
+            self._agent_cli_history = tuple(
+                getattr(result, "agent_cli_history", ()) or ()
+            )
+            self._agent_cli_history_error = getattr(
+                result, "agent_cli_history_error", None
+            )
             self._render_all()
             update_status = getattr(result, "update_status", None)
             refresh_indicator = getattr(

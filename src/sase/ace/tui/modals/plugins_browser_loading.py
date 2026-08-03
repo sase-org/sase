@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from sase.agent_clis.history import AgentCliUpdateRun
 from sase.agent_clis.models import AgentCliStatus
 from sase.agent_clis.operations import collect_agent_cli_statuses
 from sase.config import load_merged_config
@@ -72,6 +73,8 @@ class PluginsLoadResult:
     agent_cli_statuses: tuple[AgentCliStatus, ...] = ()
     agent_cli_error: str | None = None
     agent_cli_colors: dict[str, str] = field(default_factory=dict)
+    agent_cli_history: tuple[AgentCliUpdateRun, ...] = ()
+    agent_cli_history_error: str | None = None
 
 
 def probe_uv_tool() -> UvToolInstall | NotUvToolInstall | None:
@@ -99,6 +102,7 @@ def load_plugins_catalog_for_pane(
     offline: bool = False,
     incoming_commits_enabled: bool = True,
     incoming_commits_limit: int = 7,
+    agent_cli_history_enabled: bool = True,
     now: float | None = None,
 ) -> PluginsLoadResult:
     """Load the plugin catalog (merged with installed + latest). Off-thread safe.
@@ -122,6 +126,9 @@ def load_plugins_catalog_for_pane(
         core_error = _error_text(exc)
     agent_cli_statuses, agent_cli_error, agent_cli_colors = (
         _collect_agent_clis_for_pane(refresh=refresh, offline=offline)
+    )
+    agent_cli_history, agent_cli_history_error = _collect_agent_cli_history_for_pane(
+        enabled=agent_cli_history_enabled
     )
     core_incoming_commits = _fetch_core_incoming_commits_for_pane(
         core_versions,
@@ -179,7 +186,29 @@ def load_plugins_catalog_for_pane(
         agent_cli_statuses=agent_cli_statuses,
         agent_cli_error=agent_cli_error,
         agent_cli_colors=agent_cli_colors,
+        agent_cli_history=agent_cli_history,
+        agent_cli_history_error=agent_cli_history_error,
     )
+
+
+def _collect_agent_cli_history_for_pane(
+    *, enabled: bool
+) -> tuple[tuple[AgentCliUpdateRun, ...], str | None]:
+    """Best-effort agent-CLI update history read, off the event loop.
+
+    Routed through ``pane_module._read_agent_cli_update_runs`` (a deferred
+    import, mirroring the ``_execute_agent_cli_updates`` indirection) rather
+    than calling ``read_agent_cli_update_runs`` directly, so tests and visual
+    fixtures can stub the read the same way they stub the other pane hooks.
+    """
+    if not enabled:
+        return (), None
+    from . import plugins_browser_pane as pane_module
+
+    try:
+        return pane_module._read_agent_cli_update_runs(limit=200), None
+    except Exception as exc:  # noqa: BLE001 - this panel degrades independently.
+        return (), _error_text(exc)
 
 
 def _collect_agent_clis_for_pane(

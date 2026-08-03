@@ -75,6 +75,7 @@ class UpdatesSessionState:
     active_subtab: UpdatesSubTab = "core"
     plugins: SelectionBookmark = field(default_factory=SelectionBookmark)
     agent_clis: SelectionBookmark = field(default_factory=SelectionBookmark)
+    agent_cli_history_all: bool = False
 
 
 @dataclass
