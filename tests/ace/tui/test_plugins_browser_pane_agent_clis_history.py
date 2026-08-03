@@ -17,7 +17,6 @@ from sase.ace.tui.modals.plugins_browser_agent_clis_history import (
 )
 from sase.agent_clis.history import AgentCliUpdateRun, AgentCliUpdateRunEntry
 from sase.agent_clis.models import UpdateResultStatus, UpdateTrigger
-from sase.core.time import format_local
 
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _agent_cli_statuses,
@@ -212,7 +211,9 @@ def test_history_trigger_badges(trigger: UpdateTrigger, badge: str) -> None:
     assert f"30s ago · {badge} · 9.0s" in rendered
 
 
-def test_history_relative_time_boundaries_and_future_clock_skew() -> None:
+def test_history_relative_time_boundaries_and_future_clock_skew(
+    tz_divergence: None,
+) -> None:
     ages = (30, 90, 2 * 3_600, 2 * 86_400, 8 * 86_400, -30)
     runs = tuple(
         _run(
@@ -223,7 +224,7 @@ def test_history_relative_time_boundaries_and_future_clock_skew() -> None:
         )
         for age in ages
     )
-    absolute = format_local(_NOW - 8 * 86_400, "%b %d %H:%M")
+    absolute = "Jan 07 03:00"
 
     rendered = _render_panel(runs, all_clis=True, max_rows=0)
 
