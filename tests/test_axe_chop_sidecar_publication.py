@@ -114,7 +114,7 @@ def _configure(
     projects_root.mkdir()
     monkeypatch.setattr(publication, "sase_projects_dir", lambda: projects_root)
     monkeypatch.setattr(
-        "sase.agents_sync.publication_outbox.sase_projects_dir",
+        "sase.agents_sync.publication_outbox_store.sase_projects_dir",
         lambda: projects_root,
     )
     monkeypatch.setattr(
