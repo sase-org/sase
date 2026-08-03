@@ -16,6 +16,7 @@ from sase.agent.names import (
     claim_registered_clan_name,
     claim_registered_name,
     convert_registered_agent_to_family,
+    get_reserved_agent_names,
     get_reserved_clan_names,
     get_reserved_family_names,
     load_name_registry,
@@ -200,6 +201,54 @@ def test_family_conversion_reserves_base_and_original_member(tmp_path: Path) -> 
         assert lookup_registered_name("foo--0")["reservation_kind"] == "claimed"
         with pytest.raises(NameCollisionError, match="reserved for agent family"):
             claim_registered_name("foo", other_dir, replace_existing=True)
+
+
+def test_auto_prefix_hood_neighbor_does_not_block_family_conversion(
+    tmp_path: Path,
+) -> None:
+    artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
+    root_dir = artifacts_root / "20260803082344"
+    hood_dir = artifacts_root / "20260803082549"
+    root_dir.mkdir(parents=True)
+    hood_dir.mkdir(parents=True)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        claim_registered_name("sq", root_dir)
+        claim_registered_name("sq.w0", hood_dir)
+        (root_dir / "agent_meta.json").write_text(
+            json.dumps({"name": "sq", "model": "test"}),
+            encoding="utf-8",
+        )
+        (hood_dir / "agent_meta.json").write_text(
+            json.dumps({"name": "sq.w0", "model": "test"}),
+            encoding="utf-8",
+        )
+        rebuild_name_registry()
+        convert_registered_agent_to_family("sq", "sq--plan", root_dir)
+
+        assert lookup_registered_name("sq")["container_kind"] == "family"
+        assert lookup_registered_name("sq--plan")["reservation_kind"] == "claimed"
+        assert {"sq", "sq.w0"} <= get_reserved_agent_names()
+
+
+def test_family_conversion_still_rejects_other_exact_claim_owner(
+    tmp_path: Path,
+) -> None:
+    artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
+    root_dir = artifacts_root / "20260803082344"
+    other_dir = artifacts_root / "20260803082549"
+    root_dir.mkdir(parents=True)
+    other_dir.mkdir(parents=True)
+    for artifact_dir in (root_dir, other_dir):
+        (artifact_dir / "agent_meta.json").write_text(
+            json.dumps({"name": "sq", "model": "test"}),
+            encoding="utf-8",
+        )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        with pytest.raises(NameCollisionError, match="agent name 'sq'"):
+            convert_registered_agent_to_family("sq", "sq--plan", root_dir)
 
 
 def test_template_reservation_rejects_existing_namespace_descendant(

@@ -18,6 +18,7 @@ from sase.agent.names import _registry_mutations, _registry_queries
 from sase.agent.names._registry_entries import (
     dotted_namespace_prefixes as _dotted_namespace_prefixes,
     entry_belongs_to_artifact as _entry_belongs_to_artifact,
+    entry_has_other_claim_owner as _entry_has_other_claim_owner,
     entry_has_other_owner as _entry_has_other_owner,
     owner_from_artifact_name as _owner_from_artifact_name,
 )
@@ -320,6 +321,7 @@ def _mutation_operations() -> RegistryMutationOperations:
         owner_from_artifact_name=_owner_from_artifact_name,
         entry_belongs_to_artifact=_entry_belongs_to_artifact,
         entry_has_other_owner=_entry_has_other_owner,
+        entry_has_other_claim_owner=_entry_has_other_claim_owner,
         dotted_namespace_prefixes=_dotted_namespace_prefixes,
         equivalent_entry=_equivalent_entry,
         raise_name_collision=_raise_name_collision,

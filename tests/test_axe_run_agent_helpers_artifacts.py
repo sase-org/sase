@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.agent.names import lookup_registered_name, rebuild_name_registry
 from sase.axe.run_agent_helpers import (
     append_meta_list_field,
     create_followup_artifacts,
@@ -81,6 +82,33 @@ def test_promote_to_workflow_renames_plan_root_to_first_member(tmp_path) -> None
     assert meta["agent_family_role"] == "root"
     assert meta["role_suffix"] == "--plan"
     assert meta["pid"] == 123
+
+
+def test_promote_to_workflow_ignores_preexisting_hood_neighbor_prefix(
+    tmp_path: Path,
+) -> None:
+    artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
+    root_dir = artifacts_root / "20260803082344"
+    hood_dir = artifacts_root / "20260803082549"
+    root_dir.mkdir(parents=True)
+    hood_dir.mkdir(parents=True)
+    (root_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "sq", "pid": 123}),
+        encoding="utf-8",
+    )
+    (hood_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "sq.w0", "pid": 456}),
+        encoding="utf-8",
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        promote_to_workflow(str(root_dir), "sq")
+
+        meta = json.loads((root_dir / "agent_meta.json").read_text(encoding="utf-8"))
+        assert meta["name"] == "sq--plan"
+        assert meta["agent_family"] == "sq"
+        assert lookup_registered_name("sq")["container_kind"] == "family"
 
 
 def test_promote_to_workflow_renames_generic_root_to_zero_member(tmp_path) -> None:

@@ -46,6 +46,20 @@ def entry_has_other_owner(entry: dict[str, Any], artifact_dir: Path) -> bool:
     return False
 
 
+def entry_has_other_claim_owner(entry: dict[str, Any], artifact_dir: Path) -> bool:
+    """Return whether a non-prefix owner belongs to a different artifact."""
+    records = [entry]
+    collision_owners = entry.get("collision_owners")
+    if isinstance(collision_owners, list):
+        records.extend(owner for owner in collision_owners if isinstance(owner, dict))
+    for record in records:
+        if record.get("reservation_kind") == "auto_prefix":
+            continue
+        if not entry_belongs_to_artifact(record, artifact_dir):
+            return True
+    return False
+
+
 def entry_owner_missing(entry: dict[str, Any]) -> bool:
     if entry.get("container_kind") == "owner_namespace":
         return False

@@ -87,6 +87,54 @@ def test_registry_rebuild_collects_family_container(tmp_path: Path) -> None:
     assert data["entries"]["foo--0"]["reservation_kind"] == "claimed"
 
 
+def test_registry_rebuild_family_container_outranks_auto_prefix(
+    tmp_path: Path,
+) -> None:
+    _make_agent(tmp_path, "proj", "run1", "sq.w0")
+    _make_agent(
+        tmp_path,
+        "proj",
+        "run2",
+        "sq--plan",
+        workflow_name="sq",
+        agent_family="sq",
+        role_suffix="--plan",
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        data = rebuild_name_registry()
+
+    entry = data["entries"]["sq"]
+    assert entry["container_kind"] == "family"
+    assert entry["reservation_kind"] == "family"
+
+
+def test_registry_rebuild_clan_container_outranks_auto_prefix(
+    tmp_path: Path,
+) -> None:
+    _make_agent(tmp_path, "proj", "run1", "sq.w0")
+    clan_dir = _make_agent(tmp_path, "proj", "run2", "sq.member")
+    (clan_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "sq.member",
+                "model": "test",
+                "agent_clan": "sq",
+                "agent_clan_generation": "run0",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        data = rebuild_name_registry()
+
+    entry = data["entries"]["sq"]
+    assert entry["container_kind"] == "clan"
+    assert entry["reservation_kind"] == "clan"
+    assert entry["clan_generation"] == "run0"
+
+
 def test_registry_rebuild_collects_sharded_agent_and_tracks_day_dir(
     tmp_path: Path,
 ) -> None:

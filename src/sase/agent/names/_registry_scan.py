@@ -431,6 +431,8 @@ def _add_owner_clan(
     if not isinstance(existing, dict):
         entries[name] = entry
         return
+    if _promote_container_over_auto_prefix(entries, name, entry):
+        return
     if existing.get("container_kind") == "clan":
         if existing.get("reservation_kind") == "planned_clan" and (
             _entry_owner_identity(existing) == _entry_owner_identity(entry)
@@ -467,6 +469,8 @@ def _add_owner_family(
     if not isinstance(existing, dict):
         entries[name] = entry
         return
+    if _promote_container_over_auto_prefix(entries, name, entry):
+        return
     if existing.get("container_kind") == "family":
         return
     if _entry_owner_identity(existing) == _entry_owner_identity(entry):
@@ -501,6 +505,35 @@ def _add_owner_name(
     if not isinstance(existing, dict):
         entries[name] = entry
         return
+    _append_collision_owner(existing, entry)
+
+
+def _promote_container_over_auto_prefix(
+    entries: dict[str, dict[str, Any]],
+    name: str,
+    entry: dict[str, Any],
+) -> bool:
+    existing = entries.get(name)
+    if not isinstance(existing, dict):
+        return False
+    if existing.get("reservation_kind") != "auto_prefix":
+        return False
+    previous_collision_owners = existing.get("collision_owners")
+    displaced = dict(existing)
+    displaced.pop("collision_owners", None)
+    entries[name] = entry
+    _append_collision_owner(entry, displaced)
+    if isinstance(previous_collision_owners, list):
+        for owner_entry in previous_collision_owners:
+            if isinstance(owner_entry, dict):
+                _append_collision_owner(entry, owner_entry)
+    return True
+
+
+def _append_collision_owner(
+    existing: dict[str, Any],
+    entry: dict[str, Any],
+) -> None:
     if _entry_owner_identity(existing) == _entry_owner_identity(entry):
         return
     collision_owners = existing.setdefault("collision_owners", [])

@@ -36,6 +36,7 @@ class RegistryMutationOperations:
     owner_from_artifact_name: _OwnerEntryFactory
     entry_belongs_to_artifact: Callable[[dict[str, Any], Path], bool]
     entry_has_other_owner: Callable[[dict[str, Any], Path], bool]
+    entry_has_other_claim_owner: Callable[[dict[str, Any], Path], bool]
     dotted_namespace_prefixes: Callable[[str], set[str]]
     equivalent_entry: Callable[
         [Mapping[str, Any], str, AgentIdentitySnapshot],

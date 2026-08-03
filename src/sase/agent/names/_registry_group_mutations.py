@@ -135,7 +135,7 @@ def convert_registered_agent_to_family(
                 operations.raise_container_name_collision(name, existing)
             if container_kind not in {None, "family"}:
                 operations.raise_container_name_collision(name, existing)
-            if container_kind is None and operations.entry_has_other_owner(
+            if container_kind is None and operations.entry_has_other_claim_owner(
                 existing, artifact_dir
             ):
                 operations.raise_name_collision(name)
@@ -143,7 +143,7 @@ def convert_registered_agent_to_family(
         member_storage_name, member_existing = operations.equivalent_entry(
             entries, member_name, identity
         )
-        if isinstance(member_existing, dict) and operations.entry_has_other_owner(
+        if isinstance(member_existing, dict) and operations.entry_has_other_claim_owner(
             member_existing, artifact_dir
         ):
             operations.raise_name_collision(member_name)
