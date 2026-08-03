@@ -84,6 +84,9 @@ def _child_environment(
     pool_dir: Path, socket_path: Path, run_id: str, *, gate_timeout: float | None
 ) -> dict[str, str]:
     environment = os.environ.copy()
+    for name in tuple(environment):
+        if name.startswith("PYTEST_XDIST_"):
+            environment.pop(name, None)
     for name in (
         "PYTEST_XDIST_WORKER",
         "SASE_PYTEST_WORKERS",
@@ -99,6 +102,10 @@ def _child_environment(
             "SASE_TEST_GATE_INTEGRATION_RUN_ID": run_id,
             "SASE_TEST_GATE_INTEGRATION_SOCKET": str(socket_path),
             "SASE_TEST_GATE_SLOTS": str(_POOL_SIZE),
+            # Nested child runs should not share the outer full suite's scratch
+            # root. Its stale-run reaper and temp leak guard can otherwise make
+            # child pytest teardown depend on unrelated concurrent suite work.
+            "SASE_PYTEST_TMPDIR": str(pool_dir.parent / "child-pytest" / run_id),
         }
     )
     if gate_timeout is not None:
