@@ -18,6 +18,7 @@ from textual.worker import Worker, WorkerState
 from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase._linked_repo_identity import reset_repo_identity_caches
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.selection import (
     ProgrammaticSelectionGuard,
@@ -221,6 +222,7 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
         if self._loading:
             self._reload_pending = True
             return
+        self._prepare_inventory_load()
         self._loading = True
         self._load_error = ""
         self._update_summary()
@@ -270,6 +272,9 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
         ):
             self._reload_pending = False
             self.call_later(self._start_inventory_load)
+
+    def _prepare_inventory_load(self) -> None:
+        """Run cheap synchronous preparation immediately before worker launch."""
 
     def _apply_filters(self) -> None:
         if self._project_filter is not None:
@@ -510,6 +515,17 @@ class RepoInventoryPane(_InventoryPaneBase[RepoRecord, RepoInventoryIssue]):
 
     _prefix = "repos"
     _option_list_id = "repos-list"
+    _reset_caches_on_next_load = False
+
+    def action_reload_inventory(self) -> None:
+        self._reset_caches_on_next_load = True
+        super().action_reload_inventory()
+
+    def _prepare_inventory_load(self) -> None:
+        if not self._reset_caches_on_next_load:
+            return
+        reset_repo_identity_caches()
+        self._reset_caches_on_next_load = False
 
     def _load_inventory(
         self,

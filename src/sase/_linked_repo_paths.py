@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -10,8 +11,10 @@ from sase._linked_repo_config import (
     HIDDEN_SIDECAR_ROLES,
     _SIDECAR_ROLE_KEY,
     _SIDECAR_SLUG_KEY,
+    RepoConfigCacheKey,
     merged_sidecar_entries_from_config,
     normalize_path,
+    repo_config_cache_key,
     resolution_config,
 )
 from sase.core.paths import sase_projects_dir
@@ -91,18 +94,35 @@ def _sdd_sidecar_repo_dirnames(
 ) -> dict[str, str]:
     """Map configured/store/fallback sidecar names to clone directory names."""
 
+    primary = Path(primary_workspace_dir).expanduser().resolve(strict=False)
+    try:
+        resolved_config = resolution_config(str(primary), config)
+        config_key = repo_config_cache_key(resolved_config)
+    except Exception:
+        config_key = None
+    return dict(_sdd_sidecar_repo_dirnames_cached(str(primary), config_key))
+
+
+@lru_cache(maxsize=256)
+def _sdd_sidecar_repo_dirnames_cached(
+    primary_workspace_dir: str,
+    config_key: RepoConfigCacheKey | None,
+) -> tuple[tuple[str, str], ...]:
     from sase.sdd.store import read_sdd_store_record
 
-    primary = Path(primary_workspace_dir).expanduser().resolve(strict=False)
+    primary = Path(primary_workspace_dir)
     configured: dict[str, str] = {}
     configured_roles: set[str] = set()
     disabled: set[str] = set()
     hidden: set[str] = set()
     try:
-        resolved_config = resolution_config(str(primary), config)
-        configured_entries = merged_sidecar_entries_from_config(
-            resolved_config,
-            primary_workspace_dir=str(primary),
+        configured_entries = (
+            []
+            if config_key is None
+            else merged_sidecar_entries_from_config(
+                config_key.config,
+                primary_workspace_dir=str(primary),
+            )
         )
     except Exception:
         configured_entries = []
@@ -132,15 +152,16 @@ def _sdd_sidecar_repo_dirnames(
             and _repo_basename(sidecar.repo) not in disabled
             and _repo_basename(sidecar.repo) not in hidden
         }
-        return {
+        mapping = {
             key: value
             for key, value in {**store_mapping, **configured}.items()
             if key not in hidden and value not in hidden
         }
+        return tuple(mapping.items())
 
     project_name = primary.name
     if not project_name:
-        return configured
+        return tuple(configured.items())
     from sase.sdd.store import BEADS_SIDECAR_ROLE, PLANS_SIDECAR_ROLE
 
     fallbacks = {
@@ -152,11 +173,18 @@ def _sdd_sidecar_repo_dirnames(
         if (slug := f"{project_name}--{kind}") not in disabled
         if slug not in hidden
     }
-    return {
+    mapping = {
         key: value
         for key, value in {**fallbacks, **configured}.items()
         if key not in hidden and value not in hidden
     }
+    return tuple(mapping.items())
+
+
+def reset_linked_repo_path_caches() -> None:
+    """Clear memoized sidecar path derivations."""
+
+    _sdd_sidecar_repo_dirnames_cached.cache_clear()
 
 
 def sdd_sidecar_clone_dirname(

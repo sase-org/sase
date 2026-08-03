@@ -357,3 +357,28 @@ def test_reload_requests_are_coalesced_while_worker_is_active(
     pane._start_inventory_load()
 
     assert pane._reload_pending is True
+
+
+def test_repo_reload_resets_identity_caches_before_loading(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pane = RepoInventoryPane(
+        projects_root=tmp_path,
+        project_records=[make_project_record("alpha")],
+    )
+    resets: list[None] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_inventory_panes.reset_repo_identity_caches",
+        lambda: resets.append(None),
+    )
+    monkeypatch.setattr(
+        pane,
+        "_start_inventory_load",
+        lambda: pane._prepare_inventory_load(),
+    )
+
+    pane.action_reload_inventory()
+
+    assert resets == [None]
+    assert pane._reset_caches_on_next_load is False

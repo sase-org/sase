@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from functools import lru_cache
 import json
 import os
 from pathlib import Path
@@ -43,12 +45,28 @@ _SIDECAR_REMOTE_URL_KEY = "_sase_sidecar_remote_url"
 _SIDECAR_REPO_REF_KEY = "_sase_sidecar_repo_ref"
 
 
+@dataclass(frozen=True)
+class RepoConfigCacheKey:
+    """Hash a config by value while retaining the original mapping on misses."""
+
+    token: tuple[Any, ...]
+    config: Mapping[str, Any] = field(compare=False, hash=False, repr=False)
+
+
 def resolution_config(
     primary_workspace_dir: str,
     config: Mapping[str, Any] | None,
 ) -> Mapping[str, Any]:
     if config is not None:
         return config
+
+    primary = str(Path(primary_workspace_dir).expanduser().resolve(strict=False))
+    return _resolution_config_cached(primary)
+
+
+@lru_cache(maxsize=256)
+def _resolution_config_cached(primary_workspace_dir: str) -> Mapping[str, Any]:
+    """Resolve config once per primary workspace until explicitly reset."""
 
     from sase.config.core import load_merged_config
 
@@ -138,6 +156,17 @@ def merged_sidecar_entries_from_config(
     or store-record fallbacks.
     """
 
+    primary = str(Path(primary_workspace_dir).expanduser().resolve(strict=False))
+    cached = _merged_sidecar_entries_cached(primary, repo_config_cache_key(config))
+    return [dict(entry) for entry in cached]
+
+
+@lru_cache(maxsize=256)
+def _merged_sidecar_entries_cached(
+    primary_workspace_dir: str,
+    config_key: RepoConfigCacheKey,
+) -> tuple[Mapping[str, Any], ...]:
+    config = config_key.config
     raw_entries = _entries_for_repos_key(config, REPOS_SIDECAR_CONFIG_KEY)
     merged: list[dict[str, Any]] = []
     tokens_by_index: list[set[str]] = []
@@ -162,7 +191,7 @@ def merged_sidecar_entries_from_config(
         )
 
     normalized: list[Mapping[str, Any]] = []
-    primary = Path(primary_workspace_dir).expanduser().resolve(strict=False)
+    primary = Path(primary_workspace_dir)
     for entry in merged:
         identity = resolve_sidecar_repo_identity(
             entry,
@@ -185,7 +214,50 @@ def merged_sidecar_entries_from_config(
             normalized_entry[_SIDECAR_REPO_REF_KEY] = identity.repo
             normalized_entry[_SIDECAR_REMOTE_URL_KEY] = identity.remote_url
         normalized.append(normalized_entry)
-    return normalized
+    return tuple(normalized)
+
+
+def repo_config_cache_key(config: Mapping[str, Any]) -> RepoConfigCacheKey:
+    """Return a hashable value token retaining the source config mapping."""
+
+    return RepoConfigCacheKey(_freeze_config_value(config), config)
+
+
+def _freeze_config_value(value: Any) -> tuple[Any, ...]:
+    """Return a stable, type-aware token for JSON-shaped config values."""
+
+    if isinstance(value, Mapping):
+        items = (
+            (
+                type(key).__module__,
+                type(key).__qualname__,
+                repr(key),
+                _freeze_config_value(item),
+            )
+            for key, item in value.items()
+        )
+        return ("mapping", *sorted(items))
+    if isinstance(value, list):
+        return ("list", *(_freeze_config_value(item) for item in value))
+    if isinstance(value, tuple):
+        return ("tuple", *(_freeze_config_value(item) for item in value))
+    if isinstance(value, (set, frozenset)):
+        return (
+            type(value).__qualname__,
+            *sorted(_freeze_config_value(item) for item in value),
+        )
+    try:
+        hash(value)
+    except TypeError:
+        return (type(value).__module__, type(value).__qualname__, repr(value))
+    return (type(value).__module__, type(value).__qualname__, value)
+
+
+def reset_linked_repo_config_caches() -> None:
+    """Clear memoized linked-repository config derivations."""
+
+    _resolution_config_cached.cache_clear()
+    _merged_sidecar_entries_cached.cache_clear()
 
 
 def configured_sidecar_roles(

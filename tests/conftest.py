@@ -420,7 +420,9 @@ def _clear_config_caches() -> None:
     from sase.llm_provider import config as llm_provider_config
     from sase.llm_provider import launch_alias_overrides
     from sase.llm_provider.registry import provider_cli_available
+    from sase._linked_repo_identity import reset_repo_identity_caches
 
+    reset_repo_identity_caches()
     config_core.clear_config_cache()
     llm_provider_config._get_model_aliases_for_token.cache_clear()
     launch_alias_overrides._parse_env_value.cache_clear()

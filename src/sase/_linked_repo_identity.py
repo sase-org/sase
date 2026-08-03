@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 import subprocess
 from typing import Any
@@ -142,6 +143,18 @@ def _github_repo_identity_from_origin(
     *,
     config: Mapping[str, Any] | None,
 ) -> _GitHubRepoIdentity | None:
+    resolved_primary = primary.expanduser().resolve(strict=False)
+    return _github_repo_identity_from_origin_cached(
+        str(resolved_primary),
+        configured_github_hosts(config),
+    )
+
+
+@lru_cache(maxsize=256)
+def _github_repo_identity_from_origin_cached(
+    primary: str,
+    github_hosts: frozenset[str],
+) -> _GitHubRepoIdentity | None:
     try:
         result = subprocess.run(
             ["git", "remote", "get-url", "origin"],
@@ -159,12 +172,25 @@ def _github_repo_identity_from_origin(
         return None
 
     parsed = parse_hosted_git_remote(remote)
-    if parsed is None or parsed.host not in configured_github_hosts(config):
+    if parsed is None or parsed.host not in github_hosts:
         return None
     parts = parsed.repo.split("/")
     if len(parts) != 2 or not all(parts):
         return None
     return _GitHubRepoIdentity(parsed.host, f"{parts[0]}/{parts[1]}")
+
+
+def reset_repo_identity_caches() -> None:
+    """Clear process-lifetime repository identity/config derivations."""
+
+    _github_repo_identity_from_origin_cached.cache_clear()
+
+    # Import lazily to keep the identity -> config -> identity dependency acyclic.
+    from sase._linked_repo_config import reset_linked_repo_config_caches
+    from sase._linked_repo_paths import reset_linked_repo_path_caches
+
+    reset_linked_repo_config_caches()
+    reset_linked_repo_path_caches()
 
 
 def configured_github_hosts(config: Mapping[str, Any] | None) -> frozenset[str]:

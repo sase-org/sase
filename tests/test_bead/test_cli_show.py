@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 import pytest
 
 from sase.bead.cli_detail import resolve_bead_creator_url
 from sase.bead.model import Issue, IssueType
+from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.main.parser import create_parser
+from sase.repo_inventory import collect_repo_inventory
 from tests.test_bead.cli_show_test_helpers import (
     show,
     show_with_format,
@@ -276,3 +279,95 @@ def test_resolve_bead_creator_url_never_raises(
     )
 
     assert resolve_bead_creator_url("bbugyi200.athena.q8--plan") is None
+
+
+def test_full_show_bounds_git_origin_probes_during_repo_inventory(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    (primary / ".git").mkdir()
+    config = {
+        "is_sase_managed": True,
+        "repos": {
+            "sidecar": [
+                {"name": "plans"},
+                {"name": "beads"},
+                {"name": "research"},
+                {"name": "agents"},
+            ]
+        },
+    }
+    project_record = ProjectRecordWire(
+        schema_version=3,
+        project_name="widget",
+        project_dir=str(tmp_path / "project"),
+        project_file=str(tmp_path / "project" / "widget.sase"),
+        archive_file=None,
+        workspace_dir=str(primary),
+        state="enabled",
+        state_explicit=False,
+        system_managed=False,
+        active_claim_count=0,
+        launchable=True,
+    )
+    origin_probes: list[tuple[str, ...]] = []
+
+    def run(
+        argv: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        origin_probes.append(tuple(argv))
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout="git@github.com:acme/widget.git\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr("sase._linked_repo_identity.subprocess.run", run)
+    monkeypatch.setattr(
+        "sase.repo_inventory.list_project_records",
+        lambda *_args, **_kwargs: [project_record],
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.read_project_local_config",
+        lambda _primary: config,
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.resolution_config",
+        lambda _primary, _config: config,
+    )
+
+    issue = Issue(
+        id="beads-inventory-budget",
+        title="Inventory budget",
+        issue_type=IssueType.TASK,
+        owner="owner@example.com",
+        created_by="bbugyi200.athena.q8--plan",
+    )
+    use_single_issue_view(monkeypatch, issue)
+
+    class _Resolver:
+        def agent_url(self, _agent_name: str) -> None:
+            collect_repo_inventory(project="widget")
+
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.workspace_context_for_plan_resolution",
+        lambda _cwd: (primary, 0),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.resolve_sdd_store",
+        lambda _workspace_dir, _workspace_num: object(),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.hosted_links.hosted_link_resolver",
+        lambda _store, *, primary_root: _Resolver(),
+    )
+
+    show(issue, capsys)
+
+    probe_count = origin_probes.count(("git", "remote", "get-url", "origin"))
+    assert 1 <= probe_count <= 2

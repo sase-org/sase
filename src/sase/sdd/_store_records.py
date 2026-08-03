@@ -62,7 +62,9 @@ def write_sdd_store_record(
 ) -> SddStoreRecord:
     """Validate and atomically write the materialized-store record."""
 
-    return _write_sdd_store_record(primary_workspace_dir, record)
+    written = _write_sdd_store_record(primary_workspace_dir, record)
+    _reset_repo_identity_caches()
+    return written
 
 
 def normalize_sdd_store_record(
@@ -83,7 +85,16 @@ def delete_sdd_store_record(primary_workspace_dir: str | Path) -> bool:
         _record_cache.pop(record_path, None)
         return False
     _record_cache.pop(record_path, None)
+    _reset_repo_identity_caches()
     return True
+
+
+def _reset_repo_identity_caches() -> None:
+    """Keep process-lifetime repo derivations coherent after store mutations."""
+
+    from sase._linked_repo_identity import reset_repo_identity_caches
+
+    reset_repo_identity_caches()
 
 
 def _write_sdd_store_record(
