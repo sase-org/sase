@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import UTC, datetime
+from datetime import datetime
 import json
 import sys
 
@@ -20,6 +20,7 @@ from sase.core.artifact_file_retention import (
     plan_artifact_file_retention,
 )
 from sase.core.artifact_file_trash import TrashResult, trash_artifact_files
+from sase.core.time import get_timezone
 from sase.project_display_names import (
     ProjectRefDisplaySnapshot,
     load_project_ref_display_snapshot,
@@ -43,7 +44,7 @@ def handle_prune(args: argparse.Namespace) -> int:
     limit = getattr(args, "limit", None)
     keep_generations = getattr(args, "keep_generations", None)
     policy = RetentionPolicy(
-        now=datetime.now(UTC).isoformat(),
+        now=datetime.now(get_timezone()).isoformat(),
         keep_per_label=(
             get_artifact_retention_keep_per_label()
             if keep_generations is None

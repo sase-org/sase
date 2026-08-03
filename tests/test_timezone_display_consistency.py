@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import argparse
 from datetime import UTC, datetime
+import os
+from pathlib import Path
 
 import pytest
 from rich.console import Console
@@ -30,6 +32,9 @@ from sase.ace.tui.widgets.artifacts.files_rendering import (
 from sase.ace.tui.widgets.artifacts.plans_rendering import archive_text
 from sase.artifact_cli.listing import handle_list
 from sase.bead.model import Issue, IssueType, Resolution, Status
+from sase.core.artifact_file_explicit import write_artifact_file_index_unlocked
+from sase.core.artifact_file_helpers import file_created_at
+from sase.core.artifact_file_query_facade import query_artifact_files
 from sase.core.artifact_file_types import ArtifactFile
 from sase.core.time import format_local, parse_local
 from sase.plan_search.model import Plan, PlanSearchMatch
@@ -282,3 +287,38 @@ def test_artifact_list_uses_configured_timezone(
     output = capsys.readouterr().out
     assert "2026-07-24 21:30" in output
     assert "2026-07-25 01:30" not in output
+
+
+# --- artifact-file calendar dates -----------------------------------------
+
+
+def test_file_created_at_mints_configured_timezone_offset(
+    tz_divergence: None,
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "late-local-day.txt"
+    artifact.write_text("artifact", encoding="utf-8")
+    timestamp = datetime(2026, 7, 4, 1, 30, tzinfo=UTC).timestamp()
+    os.utime(artifact, (timestamp, timestamp))
+
+    created_at = file_created_at(artifact)
+
+    assert created_at == "2026-07-03T21:30:00-04:00"
+
+
+def test_since_filter_uses_created_at_embedded_offset_calendar_date(
+    tz_divergence: None,
+    tmp_path: Path,
+) -> None:
+    index = tmp_path / "index.jsonl"
+    artifact = ArtifactFile(
+        id="default:111111111111111111111111",
+        label="late-local-day",
+        kind="file",
+        path=str(tmp_path / "late-local-day.txt"),
+        created_at="2026-07-03T21:30:00-04:00",
+    )
+    write_artifact_file_index_unlocked(index, [artifact])
+
+    assert query_artifact_files(index, since="2026-07-03") == [artifact]
+    assert query_artifact_files(index, since="2026-07-04") == []

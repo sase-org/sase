@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 import json
 from pathlib import Path
 import sys
@@ -36,6 +36,7 @@ from sase.core.artifact_file_retention import (
 )
 from sase.core.artifact_file_types import default_artifact_files_root
 from sase.core.rust import require_rust_binding
+from sase.core.time import get_timezone
 from sase.project_display_names import (
     ProjectRefDisplaySnapshot,
     load_project_ref_display_snapshot,
@@ -72,7 +73,7 @@ def handle_stats(args: argparse.Namespace) -> int:
     keep_per_label = get_artifact_retention_keep_per_label()
     max_age_days = get_artifact_retention_max_age_days()
     policy = RetentionPolicy(
-        now=datetime.now(UTC).isoformat(),
+        now=datetime.now(get_timezone()).isoformat(),
         keep_per_label=keep_per_label,
         before=None if max_age_days == 0 else f"{max_age_days}d",
         project=project,

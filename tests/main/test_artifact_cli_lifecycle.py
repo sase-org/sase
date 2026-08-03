@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timedelta
 import json
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from sase.core.artifact_file_protection import ProtectedArtifactIds
 from sase.core.artifact_file_reclaim import ReclaimPlan, _ReclaimItem
 from sase.core.artifact_file_trash import list_trashed_artifact_files
 from sase.core.artifact_file_types import ArtifactFile, ArtifactFileAssociation
+from sase.core.time import get_timezone
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
 
@@ -185,6 +187,7 @@ def test_prune_json_contains_plan_and_apply_execution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    tz_divergence: None,
 ) -> None:
     _seed_prune_store(tmp_path, monkeypatch)
     monkeypatch.setattr(
@@ -202,6 +205,9 @@ def test_prune_json_contains_plan_and_apply_execution(
     payload = json.loads(capsys.readouterr().out)
     assert payload["schema_version"] == 1
     assert payload["mode"] == "apply"
+    policy_now = datetime.fromisoformat(payload["policy"]["now"])
+    assert policy_now.utcoffset() == policy_now.astimezone(get_timezone()).utcoffset()
+    assert policy_now.utcoffset() != timedelta(0)
     assert payload["plan"]["counts"]["selected"] == 1
     assert payload["execution"]["rows_trashed"] == 1
 

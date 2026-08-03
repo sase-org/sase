@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timedelta
 import json
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from sase.core.artifact_file_retention import (
     _RetentionCounts,
     RetentionPlan,
 )
+from sase.core.time import get_timezone
 from sase.project_display_names import (
     ProjectDisplaySnapshot,
     ProjectRefDisplaySnapshot,
@@ -94,6 +96,7 @@ def _patch_default_retention(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_stats_json_has_stable_envelope_and_builds_default_plan(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    tz_divergence: None,
 ) -> None:
     calls: dict[str, object] = {}
     referenced_only = "default:111111111111111111111111"
@@ -174,6 +177,9 @@ def test_stats_json_has_stable_envelope_and_builds_default_plan(
     assert policy.project == "gh_sase-org__sase"  # type: ignore[union-attr]
     assert policy.before == "90d"  # type: ignore[union-attr]
     assert policy.protected_ids == protections.ids  # type: ignore[union-attr]
+    policy_now = datetime.fromisoformat(policy.now)  # type: ignore[union-attr]
+    assert policy_now.utcoffset() == policy_now.astimezone(get_timezone()).utcoffset()
+    assert policy_now.utcoffset() != timedelta(0)
 
 
 def test_stats_pretty_report_has_every_section_and_warning(

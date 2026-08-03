@@ -15,6 +15,7 @@ from sase.core.artifact_file_types import (
     ArtifactFileAssociation,
     artifact_file_association_from_dir,
 )
+from sase.core.time import get_timezone
 
 _KNOWN_MIME_TYPES = {
     ".bmp": "image/bmp",
@@ -307,7 +308,7 @@ def file_created_at(path: Path | str) -> str | None:
         stat = Path(path).expanduser().stat()
     except OSError:
         return None
-    return datetime.fromtimestamp(stat.st_mtime, UTC).isoformat()
+    return datetime.fromtimestamp(stat.st_mtime, get_timezone()).isoformat()
 
 
 def now_iso() -> str:
