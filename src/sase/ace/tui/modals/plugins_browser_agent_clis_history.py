@@ -22,7 +22,7 @@ _FAILURE_REASON_MAX_CELLS = 52
 
 _GLYPHS: dict[UpdateResultStatus, tuple[str, str]] = {
     UpdateResultStatus.UPDATED: ("▲", f"bold {_SUCCESS}"),
-    UpdateResultStatus.FAILED: ("✖", f"bold {_FAILURE}"),
+    UpdateResultStatus.FAILED: ("!", f"bold {_FAILURE}"),
     UpdateResultStatus.ALREADY_CURRENT: ("·", "dim"),
     UpdateResultStatus.SKIPPED: ("○", "dim"),
 }

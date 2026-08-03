@@ -494,6 +494,8 @@ ace:
     post_update_toast_diffstat: true # show applied file and line counts
     post_update_toast_commits: true # show applied commits grouped by repository
     post_update_toast_max_commits: 5 # applied subjects shown per repository
+    agent_cli_history: true # show Agent CLIs update history in the Updates tab
+    agent_cli_history_max_rows: 8 # history rows/runs shown; 0 shows all
     indicator: true # show the segmented SASE + agent-CLI update badge
     incoming_commits:
       enabled: true # show incoming commit subjects in the Updates tab
@@ -669,6 +671,8 @@ ACE reads this TUI setting from the user-level `~/.config/sase/sase.yml` (and us
 | `post_update_toast_diffstat`            | bool   | `true`  | Show per-repository applied file and line-change statistics when available.                                                       |
 | `post_update_toast_commits`             | bool   | `true`  | Show applied commits grouped by repository when available.                                                                        |
 | `post_update_toast_max_commits`         | int    | `5`     | Maximum applied commit subjects shown per repository; `0` keeps totals but hides subjects.                                        |
+| `agent_cli_history`                     | bool   | `true`  | Show the durable update-history panel beneath the selected CLI's details on the Agent CLIs sub-tab.                               |
+| `agent_cli_history_max_rows`            | int    | `8`     | Maximum rows in the this-CLI view or runs in the all-CLIs view; `0` shows all history loaded for the pane.                        |
 | `indicator`                             | bool   | `true`  | Show the segmented SASE and agent-CLI badge when cached status reports available updates.                                         |
 | `incoming_commits.enabled`              | bool   | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.                                                    |
 | `incoming_commits.max_per_repo`         | int    | `7`     | Maximum incoming commit subjects to show per repository in Updates-tab details.                                                   |

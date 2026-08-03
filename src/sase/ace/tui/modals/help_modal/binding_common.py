@@ -75,6 +75,7 @@ ADMIN_CENTER_UPDATES_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("A", "Update agent CLIs"),
         ("a", "Full sync all enabled agents repositories"),
         ("Space", "Mark plugin / agent CLI"),
+        ("H", "CLI history: this / all"),
         ("r / o", "Refresh / offline mode"),
     ],
 )

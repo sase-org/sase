@@ -3863,8 +3863,14 @@ scope everywhere. See the [CLI reference](cli.md#daily-operation).
 Open the SASE Admin Center with `#`, then press `6`. The Updates tab has **Core**, **Plugins**, and **Agent CLIs**
 sub-tabs; cycle them with `]` / `[`. Core shows SASE package versions and incoming commits. Plugins hosts the catalog
 browser and its install/update/uninstall/mode-switch actions. Agent CLIs shows provider-colored installed → latest rows,
-exact update or manual commands, vendor docs links, and update marks. Providers that opt out of independent CLI
-management, including the bundled internal Fakey provider, are omitted from this sub-tab.
+exact update or manual commands, vendor docs links, update marks, and durable update history. Providers that opt out of
+independent CLI management, including the bundled internal Fakey provider, are omitted from this sub-tab.
+
+Every sase-managed agent-CLI update run from `,U`, `A`, or `sase agent-cli update` is appended to
+`~/.sase/logs/agent_cli_updates.jsonl`. Runs where no command reaches a terminal outcome are not recorded. The Agent
+CLIs sub-tab renders that journal below the selected CLI's details; `H` toggles between this CLI's executed update rows
+and a run-grouped timeline across all CLIs. Configure the panel with `ace.updates.agent_cli_history` and
+`agent_cli_history_max_rows`.
 
 Automatic checks publish one composite snapshot after first paint. Ten-minute session ticks only revalidate cached
 SASE/plugin rows and provider names already known outdated; full discovery waits for the longer configured recompute

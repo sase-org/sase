@@ -175,6 +175,10 @@ SASE only automates updates it can identify safely, and it never uses `sudo` and
 Anything already at its latest known version is reported as an explicit `already up to date` skip rather than being
 reinstalled. Skips carry the provider's canonical docs URL where one is known.
 
+Runs from `sase agent-cli update` are journaled with the same bounded history used by ACE and `,U` at
+`~/.sase/logs/agent_cli_updates.jsonl`. Set `SASE_AGENT_CLI_UPDATE_JOURNAL_MAX_BYTES` to override that file's maximum
+size; runs where no command reaches a terminal outcome are not recorded.
+
 This command manages the provider CLIs only. Use [`sase update`](cli.md) to upgrade SASE itself and its plugins.
 
 The same inventory is available inside ACE on the SASE Admin Center's **Updates → Agent CLIs** sub-tab, which adds

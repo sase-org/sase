@@ -21,6 +21,7 @@ from tests.ace.tui.visual._ace_config_center_modal_helpers import (
 )
 from tests.ace.tui.visual._ace_config_center_plugins_helpers import (
     _PLUGINS_NOW,
+    _agent_cli_history,
     _patch_plugins_catalog,
     _visual_incoming_commits,
 )
@@ -43,6 +44,7 @@ from tests.ace.tui.visual._ace_config_center_xprompt_helpers import (
 __all__ = [
     "_FIXED_TASK_NOW",
     "_PLUGINS_NOW",
+    "_agent_cli_history",
     "_build_view",
     "_config_layers",
     "_config_schema",

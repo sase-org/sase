@@ -21,6 +21,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _open_modal,
     _open_plugins_modal,
     _patch_config_view,
+    _agent_cli_history,
     _patch_plugins_catalog,
     _patch_xprompt_sources,
     _wait_for_plugins_detail,
@@ -143,6 +144,97 @@ async def test_config_center_agent_clis_marked_png_snapshot(
             page,
             "config_center_agent_clis_marked_120x40",
             title="ACE SASE Admin Center — Agent CLIs sub-tab (marked update)",
+        )
+
+
+async def test_config_center_agent_clis_history_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Agent CLI history shows selected CLI update and failure rows."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(
+        monkeypatch,
+        agent_cli_history=_agent_cli_history(),
+        agent_cli_history_enabled=True,
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        _, pane = await _open_plugins_modal(page)
+        pane._switch_to_subtab("agent-clis")
+        await page.wait_for(lambda _s: pane._agent_cli_detail_name == "claude")
+        await _wait_for_plugins_detail(page, pane)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_agent_clis_history_120x40",
+            title="ACE SASE Admin Center — Agent CLIs sub-tab (history)",
+        )
+
+
+async def test_config_center_agent_clis_history_all_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Agent CLI history all-CLIs scope groups rows by update run."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(
+        monkeypatch,
+        agent_cli_history=_agent_cli_history(),
+        agent_cli_history_enabled=True,
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        _, pane = await _open_plugins_modal(page)
+        pane._switch_to_subtab("agent-clis")
+        await page.wait_for(lambda _s: pane._agent_cli_detail_name == "claude")
+        pane.action_toggle_history_scope()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_agent_clis_history_all_120x40",
+            title="ACE SASE Admin Center — Agent CLIs sub-tab (all history)",
+        )
+
+
+async def test_config_center_agent_clis_history_empty_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Agent CLI history empty state explains how updates enter the journal."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(
+        monkeypatch,
+        agent_cli_history=(),
+        agent_cli_history_enabled=True,
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        _, pane = await _open_plugins_modal(page)
+        pane._switch_to_subtab("agent-clis")
+        await page.wait_for(lambda _s: pane._agent_cli_detail_name == "claude")
+        await _wait_for_plugins_detail(page, pane)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_agent_clis_history_empty_120x40",
+            title="ACE SASE Admin Center — Agent CLIs sub-tab (empty history)",
         )
 
 
