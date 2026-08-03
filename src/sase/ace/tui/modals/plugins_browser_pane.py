@@ -8,13 +8,10 @@ the same update services used by the CLI.
 from __future__ import annotations
 
 import time
-from typing import Any, cast
+from typing import Any
 
-from textual import on
-from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import ContentSwitcher, OptionList, Static
-from textual.worker import Worker, WorkerState
+from textual.containers import Vertical
+from textual.worker import Worker
 
 from sase.agent_clis.history import AgentCliUpdateRun, read_agent_cli_update_runs
 from sase.agent_clis.models import AgentCliUpdateResult
@@ -40,7 +37,6 @@ from sase.updates.incoming_commits import (
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
 from sase.uv_tool.versions import CoreVersions, collect_installed_core_versions
 
-from .plugins_browser_constants import _DETAIL_PLACEHOLDER, _SUBTAB_NAV_HINT
 from .config_center_session import UpdatesSessionState, UpdatesSubTab
 from .plugins_browser_agent_clis import (
     AgentCliBrowserMixin,
@@ -78,6 +74,12 @@ from .plugins_browser_install import (
     plan_install_preview,
 )
 from .plugins_browser_list import PluginsBrowserList
+from .plugins_browser_layout import (
+    PluginsBrowserLayoutMixin,
+    _SUBTAB_ORDER,
+    _SUBTABS,
+    _SUBTAB_WIDGET_IDS,
+)
 from .plugins_browser_loading import (
     PluginsLoadResult,
     load_plugins_catalog_for_pane,
@@ -119,6 +121,10 @@ from .plugins_browser_update import (
     update_subject,
     update_success_message,
     update_summary,
+)
+from .plugins_browser_workers import (
+    PluginsBrowserWorkersMixin,
+    _FRESH_EDITABLE_ROOTS_TTL_SECONDS,
 )
 
 _PluginsFilterInput = PluginsFilterInput
@@ -170,22 +176,12 @@ _read_agent_cli_update_runs = read_agent_cli_update_runs
 _AgentCliHistoryConfig = AgentCliHistoryConfig
 _load_agent_cli_history_config = load_agent_cli_history_config
 
-_SUBTAB_ORDER: tuple[UpdatesSubTab, ...] = ("core", "plugins", "agent-clis")
-_SUBTAB_WIDGET_IDS: dict[UpdatesSubTab, str] = {
-    "core": "updates-subtab-core",
-    "plugins": "updates-subtab-plugins",
-    "agent-clis": "updates-subtab-agent-clis",
-}
-_SUBTABS: tuple[PanelTab, ...] = (
-    PanelTab("core", "Core", "#AF87FF"),
-    PanelTab("plugins", "Plugins", "#AF87FF"),
-    PanelTab("agent-clis", "Agent CLIs", "#AF87FF"),
-)
-_FRESH_EDITABLE_ROOTS_TTL_SECONDS = 60.0
 _monotonic = time.monotonic
 
 
 class PluginsBrowserPane(
+    PluginsBrowserLayoutMixin,
+    PluginsBrowserWorkersMixin,
     ComprehensiveUpdateActionsMixin,
     AgentCliBrowserMixin,
     ModeSwitchActionsMixin,
@@ -318,385 +314,3 @@ class PluginsBrowserPane(
         self._core_incoming_commits: dict[str, IncomingCommits] = {}
         self._install_mode: str | None = None
         self._dev_root: str | None = None
-
-    def compose(self) -> ComposeResult:
-        yield PanelTabStrip(
-            _SUBTABS,
-            self._active_subtab,
-            uppercase_active=True,
-            id="updates-subtabs",
-        )
-        with ContentSwitcher(
-            initial=_SUBTAB_WIDGET_IDS[self._active_subtab],
-            id="updates-subtab-switcher",
-        ):
-            with Vertical(id=_SUBTAB_WIDGET_IDS["core"]):
-                banner = Static(self._all_current_banner(), id="updates-current-banner")
-                banner.display = False
-                yield banner
-                yield Static(self._core_versions_panel(), id="sase-core-versions")
-                yield Static(self._core_hints(), id="updates-core-hints", markup=False)
-            with Vertical(id=_SUBTAB_WIDGET_IDS["plugins"]):
-                yield Static(self._summary_text(), id="plugins-summary", markup=False)
-                yield _PluginsFilterInput(
-                    placeholder="/ filter plugins…", id="plugins-filter-input"
-                )
-                with Horizontal(id="plugins-panels"):
-                    with Vertical(id="plugins-list-panel"):
-                        yield Static(
-                            self._status_message(), id="plugins-status", markup=False
-                        )
-                        yield _PluginList(*self._create_options(), id="plugins-list")
-                    with Vertical(id="plugins-detail-panel"):
-                        with VerticalScroll(id="plugins-detail-scroll"):
-                            yield Static(
-                                _DETAIL_PLACEHOLDER,
-                                id="plugins-detail",
-                                markup=False,
-                            )
-                yield Static(self._hints(), id="plugins-hints", markup=False)
-            with Vertical(id=_SUBTAB_WIDGET_IDS["agent-clis"]):
-                yield Static(
-                    self._agent_cli_summary(), id="agent-clis-summary", markup=False
-                )
-                with Horizontal(id="agent-clis-panels"):
-                    with Vertical(id="agent-clis-list-panel"):
-                        yield Static(
-                            self._agent_cli_status_message(),
-                            id="agent-clis-status",
-                            markup=False,
-                        )
-                        yield _PluginList(id="agent-clis-list")
-                    with Vertical(id="agent-clis-detail-panel"):
-                        with VerticalScroll(id="agent-clis-detail-scroll"):
-                            yield Static(
-                                "Select an agent CLI to view its update details.",
-                                id="agent-clis-detail",
-                                markup=False,
-                            )
-                            yield Static("", id="agent-clis-history", markup=False)
-                yield Static(
-                    self._agent_cli_hints(), id="agent-clis-hints", markup=False
-                )
-
-    def on_mount(self) -> None:
-        self._detail_debouncer = DetailPanelDebouncer(self.app)
-        self._sync_state_visibility()
-        self._sync_current_banner()
-        if self._auto_load:
-            self._start_load(force=False)
-
-    def on_unmount(self) -> None:
-        if self._detail_debouncer is not None:
-            self._detail_debouncer.cancel()
-
-    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action == "update_sase":
-            return self._can_update_sase()
-        if action == "update_agent_clis":
-            return not self._loading and self._agent_cli_plan_worker is None
-        if action == "sync_agents":
-            return callable(getattr(self.app, "action_sync_agents", None))
-        if action == "toggle_history_scope":
-            return self._active_subtab == "agent-clis"
-        plugin_only = {
-            "install",
-            "toggle_install_mark",
-            "uninstall",
-            "switch_mode",
-            "update",
-            "toggle_verbose",
-            "focus_filter",
-        }
-        if action in plugin_only and self._active_subtab != "plugins":
-            return False
-        browse_only = {
-            "next_option",
-            "prev_option",
-            "toggle_mark",
-            "scroll_detail_down",
-            "scroll_detail_up",
-            "scroll_to_top",
-            "scroll_to_bottom",
-        }
-        if action in browse_only and self._active_subtab == "core":
-            return False
-        return super().check_action(action, parameters)
-
-    @on(PanelTabStrip.TabClicked)
-    def _on_subtab_clicked(self, event: PanelTabStrip.TabClicked) -> None:
-        event.stop()
-        if event.tab_id in _SUBTAB_ORDER:
-            self._switch_to_subtab(cast(UpdatesSubTab, event.tab_id))
-
-    def _switch_to_subtab(self, subtab: UpdatesSubTab) -> None:
-        self._active_subtab = subtab
-        self._session_state.active_subtab = subtab
-        if self._detail_debouncer is not None:
-            self._detail_debouncer.cancel()
-        try:
-            self.query_one(
-                "#updates-subtab-switcher", ContentSwitcher
-            ).current = _SUBTAB_WIDGET_IDS[subtab]
-            self.query_one("#updates-subtabs", PanelTabStrip).set_active_tab(subtab)
-        except Exception:
-            return
-        self.focus_default()
-
-    def _cycle_subtab(self, step: int) -> None:
-        index = _SUBTAB_ORDER.index(self._active_subtab)
-        self._switch_to_subtab(_SUBTAB_ORDER[(index + step) % len(_SUBTAB_ORDER)])
-
-    def action_cycle_subtab(self) -> None:
-        self._cycle_subtab(1)
-
-    def action_cycle_subtab_reverse(self) -> None:
-        self._cycle_subtab(-1)
-
-    def _core_hints(self) -> str:
-        offline = " (on)" if self._offline else " off"
-        return " · ".join(
-            (
-                "u core+plugins",
-                "A agent CLIs",
-                "a sync agents",
-                "r reload",
-                f"o{offline}",
-                _SUBTAB_NAV_HINT,
-                "esc",
-            )
-        )
-
-    def action_sync_agents(self) -> None:
-        """Delegate ``a`` to ACE's shared tracked full-sync action."""
-        action = getattr(self.app, "action_sync_agents", None)
-        if callable(action):
-            action()
-
-    def _start_load(self, *, force: bool) -> None:
-        self._loading = True
-        self._error = None
-        # A reload invalidates the prior handoff immediately.  Only this
-        # load's successful online result may establish new evidence.
-        self._fresh_editable_roots_evidence = None
-        # Re-highlight whatever is selected now once the reload lands so a
-        # refresh / offline toggle doesn't snap the user back to the top.
-        self._restore_name = (
-            self._highlighted_name() or self._session_state.plugins.identity
-        )
-        self._core_incoming_commits = {}
-        self._sync_state_visibility()
-        self._sync_current_banner()
-        self._update_static("#plugins-summary", self._summary_text())
-        self._update_static("#plugins-hints", self._hints())
-        self._update_static("#updates-core-hints", self._core_hints())
-        self._update_static("#agent-clis-summary", self._agent_cli_summary())
-        self._update_static("#agent-clis-hints", self._agent_cli_hints())
-        self._update_static("#sase-core-versions", self._core_versions_panel())
-        refresh = force
-        offline = self._offline
-        incoming_commits_enabled = self._incoming_commits_enabled
-        incoming_commits_limit = self._incoming_commits_limit
-        agent_cli_history_enabled = self._agent_cli_history_config.enabled
-
-        def task() -> _PluginsLoadResult:
-            return _load_plugins_catalog(
-                refresh=refresh,
-                offline=offline,
-                incoming_commits_enabled=incoming_commits_enabled,
-                incoming_commits_limit=incoming_commits_limit,
-                agent_cli_history_enabled=agent_cli_history_enabled,
-            )
-
-        self._worker = self.run_worker(
-            task, thread=True, exclusive=True, exit_on_error=False
-        )
-
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        incoming_key = self._incoming_commit_workers.get(id(event.worker))
-        if incoming_key is not None:
-            self._on_incoming_commits_worker_state(event, incoming_key)
-            return
-        if event.worker is self._plan_worker:
-            if event.state == WorkerState.SUCCESS:
-                self._plan_worker = None
-                self._on_install_preview(event.worker.result)
-            elif event.state == WorkerState.ERROR:
-                self._plan_worker = None
-                self._notify(self._worker_error_text(event.worker), severity="error")
-            return
-        if event.worker is self._update_plan_worker:
-            if event.state == WorkerState.SUCCESS:
-                self._update_plan_worker = None
-                self._on_update_preview(event.worker.result)
-            elif event.state == WorkerState.ERROR:
-                self._update_plan_worker = None
-                self._notify(
-                    self._worker_error_text(event.worker, kind="update"),
-                    severity="error",
-                )
-            return
-        if event.worker is self._uninstall_plan_worker:
-            if event.state == WorkerState.SUCCESS:
-                self._uninstall_plan_worker = None
-                self._on_uninstall_preview(event.worker.result)
-            elif event.state == WorkerState.ERROR:
-                self._uninstall_plan_worker = None
-                self._notify(
-                    self._worker_error_text(event.worker, kind="uninstall"),
-                    severity="error",
-                )
-            return
-        if event.worker is self._sase_update_plan_worker:
-            if event.state == WorkerState.SUCCESS:
-                self._sase_update_plan_worker = None
-                self._on_sase_update_preview(event.worker.result)
-            elif event.state == WorkerState.ERROR:
-                self._sase_update_plan_worker = None
-                self._notify(
-                    self._worker_error_text(event.worker, kind="sase update"),
-                    severity="error",
-                )
-            return
-        if event.worker is self._comprehensive_update_plan_worker:
-            if event.state == WorkerState.SUCCESS:
-                self._comprehensive_update_plan_worker = None
-                self._on_comprehensive_update_preview(event.worker.result)
-            elif event.state == WorkerState.ERROR:
-                self._comprehensive_update_plan_worker = None
-                self._notify(
-                    self._worker_error_text(
-                        event.worker,
-                        kind="comprehensive update",
-                    ),
-                    severity="error",
-                )
-            return
-        if event.worker is self._mode_switch_plan_worker:
-            if event.state == WorkerState.SUCCESS:
-                self._mode_switch_plan_worker = None
-                self._on_mode_switch_preview(event.worker.result)
-            elif event.state == WorkerState.ERROR:
-                self._mode_switch_plan_worker = None
-                self._notify(
-                    self._worker_error_text(event.worker, kind="mode switch"),
-                    severity="error",
-                )
-            return
-        if event.worker is self._agent_cli_plan_worker:
-            if event.state == WorkerState.SUCCESS:
-                self._agent_cli_plan_worker = None
-                self._on_agent_cli_update_preview(event.worker.result)
-            elif event.state == WorkerState.ERROR:
-                self._agent_cli_plan_worker = None
-                self._notify(
-                    self._worker_error_text(event.worker, kind="agent CLI update"),
-                    severity="error",
-                )
-            return
-        if event.worker is not self._worker:
-            return
-        if event.state == WorkerState.SUCCESS:
-            result = event.worker.result
-            self._loading = False
-            self._updates_loaded_once = True
-            self._catalog = getattr(result, "catalog", None)
-            self._error = getattr(result, "error", None)
-            self._now = getattr(result, "now", self._now)
-            fresh_roots = frozenset(getattr(result, "fresh_editable_roots", ()))
-            self._fresh_editable_roots_evidence = None
-            if self._error is None and not self._offline and fresh_roots:
-                self._fresh_editable_roots_evidence = (
-                    fresh_roots,
-                    _monotonic(),
-                )
-            # Keep a previously-detected probe result if a stubbed loader (or a
-            # failed probe) returns None -- "detect once" per the epic.
-            probed = getattr(result, "uv_tool", None)
-            if probed is not None:
-                self._uv_tool = probed
-            core_versions = getattr(result, "core_versions", None)
-            if core_versions is not None:
-                self._core_versions = core_versions
-            install_mode = getattr(result, "install_mode", None)
-            if install_mode is not None:
-                self._install_mode = install_mode
-            dev_root = getattr(result, "dev_root", None)
-            if dev_root is not None:
-                self._dev_root = dev_root
-            self._core_incoming_commits = dict(
-                getattr(result, "core_incoming_commits", {}) or {}
-            )
-            self._agent_cli_statuses = tuple(
-                getattr(result, "agent_cli_statuses", ()) or ()
-            )
-            self._agent_cli_error = getattr(result, "agent_cli_error", None)
-            self._agent_cli_colors = dict(getattr(result, "agent_cli_colors", {}) or {})
-            self._agent_cli_history = tuple(
-                getattr(result, "agent_cli_history", ()) or ()
-            )
-            self._agent_cli_history_error = getattr(
-                result, "agent_cli_history_error", None
-            )
-            self._render_all()
-            update_status = getattr(result, "update_status", None)
-            refresh_indicator = getattr(
-                self.app,
-                "_schedule_updates_indicator_revalidation",
-                None,
-            )
-            if update_status is not None and callable(refresh_indicator):
-                refresh_indicator(update_status)
-            if self._auto_update_on_load:
-                self._auto_update_on_load = False
-                request = self._comprehensive_update_request
-                self._comprehensive_update_request = None
-                provider_names = request.provider_names if request is not None else None
-                if self._all_up_to_date() and not provider_names:
-                    self._notify(
-                        "Everything is already up to date.",
-                        severity="information",
-                    )
-                else:
-                    fresh_roots = self._reusable_fresh_editable_roots()
-
-                    def _start_captured_request() -> None:
-                        # Consume before invoking the planning hook so closing,
-                        # cancellation, or a scheduling failure cannot replay it.
-                        self._starting_comprehensive_request = request
-                        try:
-                            self._start_sase_update_preview(
-                                already_refreshed_roots=fresh_roots
-                            )
-                        finally:
-                            self._starting_comprehensive_request = None
-
-                    self.app.call_later(_start_captured_request)
-        elif event.state == WorkerState.ERROR:
-            self._auto_update_on_load = False
-            self._comprehensive_update_request = None
-            self._starting_comprehensive_request = None
-            self._loading = False
-            self._fresh_editable_roots_evidence = None
-            self._error = (
-                str(event.worker.error) if event.worker.error else "load failed"
-            )
-            self._core_incoming_commits = {}
-            self._render_all()
-
-    def _reusable_fresh_editable_roots(
-        self,
-        *,
-        now: float | None = None,
-        ttl_seconds: float = _FRESH_EDITABLE_ROOTS_TTL_SECONDS,
-    ) -> frozenset[str]:
-        """Return load-refreshed roots while their short handoff is fresh."""
-        evidence = self._fresh_editable_roots_evidence
-        if evidence is None:
-            return frozenset()
-        roots, completed_at = evidence
-        current = _monotonic() if now is None else now
-        age = current - completed_at
-        if 0.0 <= age <= ttl_seconds:
-            return roots
-        return frozenset()
