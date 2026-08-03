@@ -8,10 +8,12 @@ from types import MappingProxyType
 from typing import Protocol
 
 from sase.agents_sync.git import GitRunner, run_git
+from sase.agent.names._registry import name_registry_load_session
 from sase.association_agents import (
     AgentAssociationRef,
     merge_agent_associations,
     resolve_agent_association_url,
+    snapshot_agent_name_registry,
 )
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
@@ -47,6 +49,30 @@ def build_plan_association_index(
     identity: AgentIdentitySnapshot | None = None,
 ) -> PlanAssociationIndex:
     """Derive all plan agents and commits in one reusable pass."""
+
+    with name_registry_load_session():
+        return _build_plan_association_index(
+            store,
+            primary_root=primary_root,
+            project=project,
+            git_runner=git_runner,
+            link_resolver=link_resolver,
+            artifact_records=artifact_records,
+            identity=identity,
+        )
+
+
+def _build_plan_association_index(
+    store: SddStore,
+    *,
+    primary_root: Path | str | None,
+    project: str | None,
+    git_runner: GitRunner,
+    link_resolver: _LinkResolver | None,
+    artifact_records: Iterable[AgentArtifactRecordWire] | None,
+    identity: AgentIdentitySnapshot | None,
+) -> PlanAssociationIndex:
+    """Build the index inside one validated agent-name registry session."""
 
     primary = Path(primary_root or Path.cwd()).resolve(strict=False)
     normalizer = PlanReferenceNormalizer(store, primary)
@@ -84,6 +110,7 @@ def build_plan_association_index(
         project=selected_project,
         primary_root=primary,
     )
+    snapshot_agent_name_registry(resolver, diagnostics)
     keys = set(nodes) | set(agents) | set(commits)
     by_plan = {
         plan_ref: _rendering_records(

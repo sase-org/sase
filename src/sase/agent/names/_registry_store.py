@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 import hashlib
 import json
 import os
@@ -17,6 +19,10 @@ from sase.core.paths import sase_home
 SCHEMA_VERSION = 2
 _LEGACY_SCHEMA_VERSION = 1
 INDEX_FILENAME = "agent_name_registry.json"
+
+_SOURCE_SIGNATURE_SESSION: ContextVar[list[dict[str, int | str]] | None] = ContextVar(
+    "agent_name_registry_source_signature_session", default=None
+)
 
 
 def registry_path() -> Path:
@@ -109,6 +115,10 @@ def registry_file_is_stale(data: dict[str, Any]) -> bool:
 def _source_signature() -> dict[str, int | str]:
     """Fingerprint registry sources without observing live run output mtimes."""
 
+    session_cache = _SOURCE_SIGNATURE_SESSION.get()
+    if session_cache:
+        return session_cache[0]
+
     digest = hashlib.sha256()
     paths = sorted(
         set(_registry_source_signature_paths()),
@@ -125,7 +135,27 @@ def _source_signature() -> dict[str, int | str]:
             continue
         digest.update(f"{stat.st_mtime_ns}:{stat.st_size}".encode())
         digest.update(b"\0")
-    return {"count": len(paths), "path_digest": digest.hexdigest()}
+    signature: dict[str, int | str] = {
+        "count": len(paths),
+        "path_digest": digest.hexdigest(),
+    }
+    if session_cache is not None:
+        session_cache.append(signature)
+    return signature
+
+
+@contextmanager
+def source_signature_load_session() -> Iterator[None]:
+    """Memoize one source signature for a bounded registry load session."""
+
+    if _SOURCE_SIGNATURE_SESSION.get() is not None:
+        yield
+        return
+    token = _SOURCE_SIGNATURE_SESSION.set([])
+    try:
+        yield
+    finally:
+        _SOURCE_SIGNATURE_SESSION.reset(token)
 
 
 def _registry_source_signature_paths() -> list[Path]:

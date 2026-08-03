@@ -13,6 +13,7 @@ from sase.association_agents import (
     AgentAssociationRef,
     merge_agent_associations,
     resolve_agent_association_url,
+    snapshot_agent_name_registry,
 )
 from sase.bead.model import Issue
 from sase.bead.store_locator import open_bead_project_for_beads_dir
@@ -122,7 +123,7 @@ def build_bead_association_index(
         project=selected_project,
         primary_root=primary,
     )
-    _snapshot_agent_name_registry(resolver, diagnostics)
+    snapshot_agent_name_registry(resolver, diagnostics)
     source_beads = association_source_beads(issues)
     by_bead = {
         bead_id: _rendering_records(
@@ -138,21 +139,6 @@ def build_bead_association_index(
         MappingProxyType(by_bead),
         tuple(diagnostics),
     )
-
-
-def _snapshot_agent_name_registry(
-    resolver: _LinkResolver,
-    diagnostics: list[str],
-) -> None:
-    """Let hosted resolvers amortize registry reads across the whole build."""
-
-    snapshot = getattr(resolver, "snapshot_agent_name_registry", None)
-    if not callable(snapshot):
-        return
-    try:
-        snapshot()
-    except Exception as exc:  # noqa: BLE001 - best-effort link projection.
-        diagnostics.append(f"could not snapshot agent-name registry: {exc}")
 
 
 def _history_repositories(

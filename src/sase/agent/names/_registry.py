@@ -39,6 +39,7 @@ from sase.agent.names._registry_store import (
     registry_data as _store_registry_data,
     registry_file_is_stale as _store_registry_file_is_stale,
     registry_path as _store_registry_path,
+    source_signature_load_session as _store_source_signature_load_session,
     write_registry as _store_write_registry,
 )
 from sase.core.agent_identity_facade import (
@@ -388,11 +389,12 @@ def load_name_registry() -> dict[str, Any]:
 def name_registry_load_session() -> Iterator[None]:
     """Reuse one validated registry snapshot during a bounded import loop."""
 
-    token = _LOAD_SESSION_ACTIVE.set(True)
-    try:
-        yield
-    finally:
-        _LOAD_SESSION_ACTIVE.reset(token)
+    with _store_source_signature_load_session():
+        token = _LOAD_SESSION_ACTIVE.set(True)
+        try:
+            yield
+        finally:
+            _LOAD_SESSION_ACTIVE.reset(token)
 
 
 def rebuild_name_registry() -> dict[str, Any]:

@@ -8,6 +8,8 @@ import shutil
 import time
 from unittest.mock import patch
 
+import pytest
+
 from sase.agent.names import (
     get_reserved_agent_names,
     load_name_registry,
@@ -15,7 +17,7 @@ from sase.agent.names import (
     lowest_name_suggestion,
     rebuild_name_registry,
 )
-from sase.agent.names import _registry, _registry_store
+from sase.agent.names import _registry, _registry_scan, _registry_store
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
@@ -119,6 +121,116 @@ def test_registry_signature_ignores_live_artifact_output(tmp_path: Path) -> None
         after = _registry_store._source_signature()
 
     assert after == before
+
+
+def test_registry_signature_detects_dismissed_bundle_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    _registry_scan._directory_entries_for_signature.cache_clear()
+    bundle = _write_bundle(
+        tmp_path,
+        "20260508120000.json",
+        {"agent_name": "foo", "raw_suffix": "20260508120000"},
+    )
+    before = _registry_store._source_signature()
+
+    bundle.write_text(
+        json.dumps(
+            {
+                "agent_name": "rewritten-name",
+                "raw_suffix": "20260508120000",
+            }
+        ),
+        encoding="utf-8",
+    )
+    rewritten = _registry_store._source_signature()
+
+    time.sleep(0.01)
+    added_bundle = _write_bundle(
+        tmp_path,
+        "20260508120100.json",
+        {"agent_name": "bar", "raw_suffix": "20260508120100"},
+    )
+    added = _registry_store._source_signature()
+
+    time.sleep(0.01)
+    added_bundle.unlink()
+    removed = _registry_store._source_signature()
+
+    assert rewritten != before
+    assert added != rewritten
+    assert removed != added
+
+
+def test_registry_source_scan_caches_unchanged_shards(tmp_path: Path) -> None:
+    for index in range(100):
+        _write_bundle(
+            tmp_path,
+            f"20260508{index:06d}.json",
+            {"agent_name": f"name-{index}", "raw_suffix": f"20260508{index:06d}"},
+        )
+    cache = _registry_scan._directory_entries_for_signature
+    cache.cache_clear()
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        first = _registry_scan.source_signature_paths()
+        first_info = cache.cache_info()
+        second = _registry_scan.source_signature_paths()
+        second_info = cache.cache_info()
+
+        time.sleep(0.01)
+        added = _write_bundle(
+            tmp_path,
+            "20260508999999.json",
+            {"agent_name": "later", "raw_suffix": "20260508999999"},
+        )
+        third = _registry_scan.source_signature_paths()
+        third_info = cache.cache_info()
+
+    assert second == first
+    assert added in third
+    assert second_info.misses == first_info.misses
+    assert second_info.hits > first_info.hits
+    assert third_info.misses == second_info.misses + 1
+
+
+def test_registry_source_scan_caches_unchanged_artifact_walks(
+    tmp_path: Path,
+) -> None:
+    for index in range(100):
+        _make_sharded_agent(
+            tmp_path,
+            "proj",
+            f"20260613{index:06d}",
+            f"name-{index}",
+        )
+    _registry_scan._directory_entries_for_signature.cache_clear()
+    _registry_scan._artifact_dirs_for_signature.cache_clear()
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch.object(
+            _registry_scan,
+            "iter_agent_artifact_dirs",
+            wraps=_registry_scan.iter_agent_artifact_dirs,
+        ) as artifact_scan,
+    ):
+        first = _registry_scan.source_signature_paths()
+        second = _registry_scan.source_signature_paths()
+        time.sleep(0.01)
+        added = _make_sharded_agent(
+            tmp_path,
+            "proj",
+            "20260613199999",
+            "later",
+        )
+        third = _registry_scan.source_signature_paths()
+
+    assert second == first
+    assert added in third
+    assert artifact_scan.call_count == 2
 
 
 def test_registry_rebuild_collects_numeric_auto_prefix(tmp_path: Path) -> None:
@@ -290,3 +402,21 @@ def test_registry_load_session_reuses_validated_cache(tmp_path: Path) -> None:
                     assert "foo" in load_name_registry()["entries"]
 
     assert is_stale.call_count == 0
+
+
+def test_registry_load_session_memoizes_source_signature(tmp_path: Path) -> None:
+    _make_agent(tmp_path, "proj", "run1", "foo")
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch.object(
+            _registry_store,
+            "source_signature_paths",
+            wraps=_registry_store.source_signature_paths,
+        ) as signature_paths,
+    ):
+        with _registry.name_registry_load_session():
+            first = _registry_store._source_signature()
+            second = _registry_store._source_signature()
+
+    assert second == first
+    assert signature_paths.call_count == 1

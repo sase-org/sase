@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 import subprocess
+from unittest.mock import patch
 
+from sase.agent.names import _registry_store
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
@@ -42,6 +44,32 @@ class _FakeLinks:
 
     def commit_url(self, sha: str) -> str | None:
         return f"https://commits.example/{sha}"
+
+
+class _BatchLinks(_FakeLinks):
+    def __init__(self, *, snapshot_error: Exception | None = None) -> None:
+        self.snapshot_calls = 0
+        self.agent_url_calls = 0
+        self.snapshot_error = snapshot_error
+
+    def snapshot_agent_name_registry(self) -> None:
+        self.snapshot_calls += 1
+        if self.snapshot_error is not None:
+            raise self.snapshot_error
+
+    def agent_url(self, agent_name: str) -> str | None:
+        self.agent_url_calls += 1
+        return super().agent_url(agent_name)
+
+
+class _RegistryLoadingBatchLinks(_BatchLinks):
+    def snapshot_agent_name_registry(self) -> None:
+        super().snapshot_agent_name_registry()
+        _registry_store._source_signature()
+
+    def agent_url(self, agent_name: str) -> str | None:
+        _registry_store._source_signature()
+        return super().agent_url(agent_name)
 
 
 def _store(root: Path) -> SddStore:
@@ -164,6 +192,70 @@ def test_builds_sorted_rendering_records_from_one_history_walk(
     assert associations.commits[0].target == (f"https://commits.example/{sha_early}")
     assert associations.agents[0].target == (
         "https://agents.example/alice.athena.reviewer"
+    )
+
+
+def test_snapshots_agent_registry_once_for_many_plan_associations(
+    tmp_path: Path,
+) -> None:
+    plans = tmp_path / "plans"
+    store = _store(plans)
+    records = []
+    for plan_index in range(20):
+        plan = _plan(
+            plans,
+            f"202607/plan-{plan_index}.md",
+            tier="tale",
+        )
+        records.extend(
+            _record(
+                tmp_path,
+                f"worker-{plan_index}-{agent_index}",
+                plan_path=str(plan),
+            )
+            for agent_index in range(10)
+        )
+    links = _RegistryLoadingBatchLinks()
+
+    with patch.object(
+        _registry_store,
+        "source_signature_paths",
+        wraps=_registry_store.source_signature_paths,
+    ) as signature_paths:
+        index = build_plan_association_index(
+            store,
+            primary_root=tmp_path,
+            git_runner=_FakeGit(""),
+            link_resolver=links,
+            artifact_records=records,
+            identity=_identity(),
+        )
+
+    assert len(index.by_plan) == 20
+    assert links.snapshot_calls == 1
+    assert links.agent_url_calls == 200
+    assert signature_paths.call_count == 1
+
+
+def test_agent_registry_snapshot_failure_is_diagnostic(tmp_path: Path) -> None:
+    plans = tmp_path / "plans"
+    store = _store(plans)
+    plan = _plan(plans, "202607/child.md", tier="tale")
+    links = _BatchLinks(snapshot_error=RuntimeError("registry unavailable"))
+
+    index = build_plan_association_index(
+        store,
+        primary_root=tmp_path,
+        git_runner=_FakeGit(""),
+        link_resolver=links,
+        artifact_records=(_record(tmp_path, "worker", plan_path=str(plan)),),
+        identity=_identity(),
+    )
+
+    assert links.snapshot_calls == 1
+    assert links.agent_url_calls == 1
+    assert index.diagnostics == (
+        "could not snapshot agent-name registry: registry unavailable",
     )
 
 

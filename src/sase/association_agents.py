@@ -109,6 +109,21 @@ def resolve_agent_association_url(
     return resolver.agent_url(association.label)
 
 
+def snapshot_agent_name_registry(
+    resolver: _AgentAssociationLinkResolver,
+    diagnostics: list[str],
+) -> None:
+    """Let compatible resolvers amortize registry reads across a whole build."""
+
+    snapshot = getattr(resolver, "snapshot_agent_name_registry", None)
+    if not callable(snapshot):
+        return
+    try:
+        snapshot()
+    except Exception as exc:  # noqa: BLE001 - best-effort link projection.
+        diagnostics.append(f"could not snapshot agent-name registry: {exc}")
+
+
 def _global_name(value: str, identity: AgentIdentitySnapshot) -> str:
     try:
         return globalize_owned_agent_name(value, identity)
@@ -134,4 +149,5 @@ __all__ = [
     "commit_agent_association",
     "merge_agent_associations",
     "resolve_agent_association_url",
+    "snapshot_agent_name_registry",
 ]
