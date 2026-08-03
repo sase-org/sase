@@ -74,7 +74,11 @@ class _AsyncPushHandle:
     log_path: Path
 
 
-def push_bead_work_launch(beads_dir: Path) -> _PushOutcome:
+def push_bead_work_launch(
+    beads_dir: Path,
+    *,
+    lock_timeout: float | None = None,
+) -> _PushOutcome:
     """Synchronize and push the just-committed bead state.
 
     Returns a :class:`_PushOutcome` describing whether the push happened, was
@@ -97,6 +101,7 @@ def push_bead_work_launch(beads_dir: Path) -> _PushOutcome:
             repo_root,
             semantic_beads_dir,
             log_path=log_path,
+            lock_timeout=lock_timeout,
         )
         if result.pushed:
             return _PushOutcome(

@@ -675,6 +675,24 @@ axe:
             Scans waiting markers across projects and resolves named-agent, artifact, and closed-bead dependencies from
             shared agent metadata and canonical bead state. It writes ready.json only after every dependency is
             satisfied; invalid or already-ready markers are skipped without blocking other agents.
+    publications:
+      description: |-
+        Publish queued agents and beads sidecar work off the interactive commit path
+
+        Runs every thirty seconds so sidecar pages, prompt archives, and their pushes land promptly without any
+        interactive command waiting on sidecar git or network work. Put durable sidecar publication here; bead-store
+        reconciliation, ChangeSpec lifecycle, and remote PR polling belong in the other lanes.
+      interval: 30
+      chop_timeout: "5m"
+      chops:
+        - name: sidecar_publication
+          script: sase_chop_sidecar_publication
+          description: |-
+            Drain each project's queued agents, beads, and plan-header publication requests
+
+            Publishes queued agent hoods and prompt archives, renders and commits queued bead pages, refreshes the
+            plan headers those publications feed, and pushes each sidecar, under bounded per-project locks. Contended
+            or failing projects back off exponentially and are retried on a later tick instead of blocking the pass.
     checks:
       description: |-
         Poll slower PR-submission and workspace-claim checks on a five-minute cadence

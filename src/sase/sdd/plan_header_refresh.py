@@ -51,16 +51,22 @@ def drain_plan_header_publication(
     *,
     primary_root: Path | str,
     project: str | None = None,
+    lock_timeout_seconds: float | None = None,
 ) -> PlanHeaderRefreshOutcome:
     """Drain one queued plan refresh from a stable primary checkout."""
 
     if request.kind != "plan_header":
         raise ValueError("plan-header drain requires a plan_header request")
-    return refresh_committed_plan_header(
-        request.commit_message,
-        primary_root=primary_root,
-        project=project or request.project,
-    )
+    try:
+        return _refresh_committed_plan_header(
+            request.commit_message,
+            primary_root=Path(primary_root).resolve(strict=False),
+            project=project or request.project,
+            lock_timeout_seconds=lock_timeout_seconds,
+        )
+    except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary.
+        _logger.warning("Could not refresh committed plan header: %s", exc)
+        return PlanHeaderRefreshOutcome(error=str(exc) or type(exc).__name__)
 
 
 def _refresh_committed_plan_header(
@@ -68,6 +74,7 @@ def _refresh_committed_plan_header(
     *,
     primary_root: Path,
     project: str | None,
+    lock_timeout_seconds: float | None = None,
 ) -> PlanHeaderRefreshOutcome:
     from sase.core.commit_footer_facade import parse_commit_footer
 
@@ -111,6 +118,7 @@ def _refresh_committed_plan_header(
     plans_repo = store.repo_root_for_kind("plans")
     with store_git_write_lock(
         plans_repo,
+        timeout=lock_timeout_seconds,
         op="sdd.plan_header.post_commit",
         mutates_worktree=True,
     ) as acquired:

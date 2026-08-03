@@ -759,6 +759,7 @@ def _record_failure(
         selected,
         error=error,
         increment_attempts=True,
+        quarantine_threshold=configured_publication_max_attempts(),
     )
     return _CommitPublicationOutcome(
         queued=True,
