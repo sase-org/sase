@@ -13,13 +13,8 @@ from sase.agents_sync.inventory import (
 )
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import CommitRecord, ProjectTarget
-from sase.agents_sync.publication import (
-    plan_agent_sidecar_regeneration,
-    publish_agent_hood,
-    reconcile_agent_hoods,
-)
-from sase.agents_sync.v2_io import read_hood_snapshot, read_owner_manifest
-from sase.agents_sync.v2_models import V2CompatibilityAlias, V2ProjectIdentity
+from sase.agents_sync.publication import publish_agent_hood, reconcile_agent_hoods
+from sase.agents_sync.v2_io import read_hood_snapshot
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 
 _HEADING_RE = re.compile(r"^## (?P<title>.+)$", re.MULTILINE)
@@ -450,89 +445,6 @@ def test_full_reconciliation_discovers_only_commit_eligible_hoods(
     assert (machine / "hoods" / "foo" / "snapshot.json").is_file()
     assert (machine / "hoods" / "work" / "snapshot.json").is_file()
     assert not (machine / "hoods" / "zap").exists()
-
-
-def test_sidecar_regeneration_plan_retires_old_identity_with_alias_page(
-    tmp_path: Path,
-) -> None:
-    target = _target(tmp_path)
-    repo = target.sidecar_path
-    repo.mkdir()
-    owner = AgentOwnerIdentity("alice", "athena")
-    old_run = _run("legacy.1", "21", commit=True)
-    new_run = replace(
-        old_run,
-        source_run_id="run-22",
-        local_name="modern.1",
-        global_name="alice.athena.modern.1",
-        commits=(CommitRecord("b" * 40, "modern", 2),),
-        prompt_bytes=b"prompt for modern.1\n",
-        chat_bytes=b"chat for modern.1\n",
-        timestamp="20260723122200",
-    )
-    old_inventory = ProjectHoodInventory(owner, "proj", (old_run,))
-    new_inventory = ProjectHoodInventory(owner, "proj", (new_run,))
-    alias = V2CompatibilityAlias(
-        "alice.athena.legacy.1",
-        "alice.athena.modern.1",
-        "agent",
-    )
-
-    publish_agent_hood(
-        target,
-        repo,
-        "legacy.1",
-        identity=_identity(),
-        inventory=old_inventory,
-    )
-    before = {
-        path.relative_to(repo).as_posix(): path.read_bytes()
-        for path in repo.rglob("*")
-        if path.is_file()
-    }
-
-    plan = plan_agent_sidecar_regeneration(
-        target,
-        repo,
-        identity=_identity(),
-        inventory=new_inventory,
-        hoods=("modern",),
-        compatibility_aliases=(alias,),
-    )
-    after_plan = {
-        path.relative_to(repo).as_posix(): path.read_bytes()
-        for path in repo.rglob("*")
-        if path.is_file()
-    }
-
-    assert after_plan == before
-    assert plan.changed
-    assert "agents/alice.athena.legacy.1/meta.json" in plan.delete_paths
-    assert "agents/alice.athena.legacy.1/README.md" in plan.payload
-    assert (
-        plan.payload["agents/alice.athena.legacy.1/README.md"]
-        .decode()
-        .startswith("# Historical Agent: alice.athena.legacy.1")
-    )
-
-    reconcile_agent_hoods(
-        target,
-        repo,
-        identity=_identity(),
-        inventory=new_inventory,
-        compatibility_aliases=(alias,),
-    )
-
-    manifest = read_owner_manifest(repo, owner, V2ProjectIdentity("proj", "Project"))
-    assert tuple(hood for hood, _entry in manifest.hoods) == ("modern",)
-    assert manifest.compatibility_aliases == (alias,)
-    assert not (repo / "agents" / "alice.athena.legacy.1" / "meta.json").exists()
-    assert (
-        (repo / "agents" / "alice.athena.legacy.1" / "README.md")
-        .read_text()
-        .startswith("# Historical Agent: alice.athena.legacy.1")
-    )
-    assert (repo / "agents" / "alice.athena.modern.1" / "README.md").is_file()
 
 
 def test_publication_links_commits_for_github_primary_remote(tmp_path: Path) -> None:

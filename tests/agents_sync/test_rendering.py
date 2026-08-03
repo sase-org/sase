@@ -12,7 +12,6 @@ from sase.agents_sync.models import CommitRecord
 from sase.agents_sync.rendering import render_browsing_payload
 from sase.agents_sync.v2_models import (
     V2ContainerRecord,
-    V2CompatibilityAlias,
     V2HoodSnapshot,
     V2OwnerHoodEntry,
     V2OwnerManifest,
@@ -136,63 +135,6 @@ def test_agent_and_family_pages_render_relative_breadcrumbs() -> None:
         "[foo](../users/alice/machines/athena/hoods/foo/README.md) / foo.bar"
         in family_page
     )
-
-
-def test_compatibility_alias_pages_render_without_indexing_old_names() -> None:
-    owner = AgentOwnerIdentity("alice", "athena")
-    project = V2ProjectIdentity("proj", "Project")
-    run = V2RunRecord(
-        "run-family",
-        "foo.bar--code",
-        "alice.athena.foo.bar--code",
-        "completed",
-    )
-    family = V2ContainerRecord(
-        "family",
-        "alice.athena.foo.bar",
-        ("run-family",),
-    )
-    snapshot = V2HoodSnapshot(
-        owner,
-        project,
-        "foo",
-        "alice.athena.foo",
-        runs=(run,),
-        containers=(family,),
-    )
-    manifest = V2OwnerManifest(
-        owner,
-        project,
-        (("foo", V2OwnerHoodEntry("a" * 64, (), 1, 1)),),
-        (
-            V2CompatibilityAlias(
-                "alice.athena.old-agent",
-                "alice.athena.foo.bar--code",
-                "agent",
-            ),
-            V2CompatibilityAlias(
-                "alice.athena.old-family",
-                "alice.athena.foo.bar",
-                "family",
-            ),
-        ),
-    )
-
-    payload = render_browsing_payload(
-        (manifest,),
-        {("alice", "athena", "foo"): snapshot},
-    )
-
-    agent_alias = payload["agents/alice.athena.old-agent/README.md"].decode()
-    family_alias = payload["families/alice.athena.old-family.md"].decode()
-    assert "# Historical Agent: alice.athena.old-agent" in agent_alias
-    assert "[alice.athena.foo.bar--code](../alice.athena.foo.bar--code/README.md)" in (
-        agent_alias
-    )
-    assert "# Historical Family: alice.athena.old-family" in family_alias
-    assert "[alice.athena.foo.bar](alice.athena.foo.bar.md)" in family_alias
-    assert "old-agent" not in payload["README.md"].decode()
-    assert "old-family" not in payload["users/alice/machines/athena/README.md"].decode()
 
 
 def test_commit_tables_link_escape_and_format_utc(

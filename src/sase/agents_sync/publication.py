@@ -12,14 +12,9 @@ from sase.agents_sync.inventory import (
 )
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import ProjectTarget
-from sase.agents_sync.publication_models import (
-    V2SidecarDelete,
-    V2SidecarRegenerationPlan,
-    V2SidecarWrite,
-)
 from sase.agents_sync.publication_planning import plan_hoods
-from sase.agents_sync.v2_io import apply_payload_atomic, apply_payload_plan_atomic
-from sase.agents_sync.v2_models import V2CompatibilityAlias, V2PublicationCounts
+from sase.agents_sync.v2_io import apply_payload_atomic
+from sase.agents_sync.v2_models import V2PublicationCounts
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
@@ -36,7 +31,6 @@ def publish_agent_hood(
     *,
     identity: AgentIdentitySnapshot | None = None,
     inventory: ProjectHoodInventory | None = None,
-    compatibility_aliases: tuple[V2CompatibilityAlias, ...] = (),
     git_runner: GitRunner = run_git,
 ) -> V2PublicationCounts:
     """Refresh exactly the committing lane's complete top-level local hood.
@@ -74,7 +68,6 @@ def publish_agent_hood(
         project_inventory,
         (hood,),
         owner,
-        compatibility_aliases=compatibility_aliases,
     )
 
 
@@ -84,7 +77,6 @@ def reconcile_agent_hoods(
     *,
     identity: AgentIdentitySnapshot | None = None,
     inventory: ProjectHoodInventory | None = None,
-    compatibility_aliases: tuple[V2CompatibilityAlias, ...] = (),
     git_runner: GitRunner = run_git,
 ) -> V2PublicationCounts:
     """Publish every locally owned hood with a primary-repository commit."""
@@ -100,35 +92,6 @@ def reconcile_agent_hoods(
         project_inventory,
         project_inventory.eligible_hoods(),
         owner,
-        compatibility_aliases=compatibility_aliases,
-    )
-
-
-def plan_agent_sidecar_regeneration(
-    target: ProjectTarget,
-    repo_root: Path,
-    *,
-    identity: AgentIdentitySnapshot | None = None,
-    inventory: ProjectHoodInventory | None = None,
-    hoods: tuple[str, ...] | None = None,
-    compatibility_aliases: tuple[V2CompatibilityAlias, ...] = (),
-    git_runner: GitRunner = run_git,
-) -> V2SidecarRegenerationPlan:
-    """Return the exact v2 sidecar writes/deletes without mutating the repo."""
-
-    snapshot = identity or AgentIdentitySnapshot.current()
-    owner = _owner(snapshot)
-    project_inventory = inventory or build_project_hood_inventory(
-        target, snapshot, git_runner=git_runner
-    )
-    selected_hoods = hoods if hoods is not None else project_inventory.eligible_hoods()
-    return plan_hoods(
-        target,
-        repo_root,
-        project_inventory,
-        selected_hoods,
-        owner,
-        compatibility_aliases=compatibility_aliases,
     )
 
 
@@ -138,22 +101,16 @@ def _publish_hoods(
     inventory: ProjectHoodInventory,
     hoods: tuple[str, ...],
     owner: AgentOwnerIdentity,
-    *,
-    compatibility_aliases: tuple[V2CompatibilityAlias, ...] = (),
 ) -> V2PublicationCounts:
-    plan = plan_hoods(
+    payload, counts = plan_hoods(
         target,
         repo_root,
         inventory,
         hoods,
         owner,
-        compatibility_aliases=compatibility_aliases,
     )
-    if plan.delete_paths:
-        apply_payload_plan_atomic(repo_root, plan.payload, plan.delete_paths)
-    else:
-        apply_payload_atomic(repo_root, plan.payload)
-    return plan.counts
+    apply_payload_atomic(repo_root, payload)
+    return counts
 
 
 def _owner(identity: AgentIdentitySnapshot) -> AgentOwnerIdentity:
@@ -168,10 +125,6 @@ reconcile_all_hoods = reconcile_agent_hoods
 
 
 __all__ = [
-    "V2SidecarDelete",
-    "V2SidecarRegenerationPlan",
-    "V2SidecarWrite",
-    "plan_agent_sidecar_regeneration",
     "publish_agent_hood",
     "publish_targeted_hood",
     "reconcile_agent_hoods",

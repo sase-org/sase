@@ -91,32 +91,6 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "inspected before consulting an exact dismissed-archive fallback."
         ),
     ),
-    "src/sase/agent/names/_identity_migration_preview.py:_affected_artifacts": (
-        PathPassingReview(
-            exemption=(
-                "Read-only historical identity migration preview: marker JSON "
-                "is scanned only to select affected artifacts and build the "
-                "digest-addressed action plan."
-            ),
-        )
-    ),
-    "src/sase/agent/names/_identity_migration_preview.py:_artifact_structured_paths": (
-        PathPassingReview(
-            exemption=(
-                "Read-only historical identity migration preview path expansion: "
-                "candidate marker paths are enumerated before digest-addressed "
-                "actions are planned."
-            ),
-        )
-    ),
-    "src/sase/agent/names/_identity_migration_preview.py:_validate_live_artifacts": (
-        PathPassingReview(
-            exemption=(
-                "Read-only live-agent guard for historical identity migration: "
-                "marker state is inspected only to block unsafe applies."
-            ),
-        )
-    ),
     "src/sase/core/wait_dependency_resolution/_index.py:add_many": PathPassingReview(
         exemption=(
             "Read-only dependency-index construction: done.json is batched into "

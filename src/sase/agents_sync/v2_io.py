@@ -74,16 +74,6 @@ def v2_schema_document() -> dict[str, object]:
 def apply_payload_atomic(repo_root: Path, payload: Mapping[str, bytes]) -> bool:
     """Apply a complete prebuilt payload, restoring prior bytes on failure."""
 
-    return apply_payload_plan_atomic(repo_root, payload, ())
-
-
-def apply_payload_plan_atomic(
-    repo_root: Path,
-    payload: Mapping[str, bytes],
-    deletes: tuple[str, ...] | list[str] = (),
-) -> bool:
-    """Apply prebuilt writes and deletes, restoring prior bytes on failure."""
-
     root = repo_root.resolve(strict=False)
     ordered = sorted(payload.items())
     if sum(len(value) for _path, value in ordered) > MAX_PAYLOAD_BYTES:
@@ -95,20 +85,12 @@ def apply_payload_plan_atomic(
         if not destination.resolve(strict=False).is_relative_to(root):
             raise AgentsSyncFormatError(f"publication escapes repository: {relative!r}")
         resolved.append((relative, destination, bytes(content)))
-    delete_paths: list[tuple[str, Path]] = []
-    for relative in sorted(set(deletes) - set(payload)):
-        validate_relative_path(relative)
-        destination = repo_root / relative
-        if not destination.resolve(strict=False).is_relative_to(root):
-            raise AgentsSyncFormatError(f"publication escapes repository: {relative!r}")
-        delete_paths.append((relative, destination))
     changed = [
         item
         for item in resolved
         if not item[1].is_file() or item[1].read_bytes() != item[2]
     ]
-    changed_deletes = [item for item in delete_paths if item[1].exists()]
-    if not changed and not changed_deletes:
+    if not changed:
         return False
 
     stage = Path(tempfile.mkdtemp(prefix=".sase-v2-stage-", dir=repo_root))
@@ -123,11 +105,6 @@ def apply_payload_plan_atomic(
                 destination.read_bytes() if destination.is_file() else None
             )
             atomic_write_bytes(destination, (stage / relative).read_bytes())
-        for _relative, destination in changed_deletes:
-            backups[destination] = (
-                destination.read_bytes() if destination.is_file() else None
-            )
-            destination.unlink()
     except Exception:
         for destination, original in reversed(tuple(backups.items())):
             if original is None:
@@ -153,7 +130,6 @@ __all__ = [
     "MAX_TEXT_BYTES",
     "V2_METADATA_FIELDS",
     "apply_payload_atomic",
-    "apply_payload_plan_atomic",
     "content_digest",
     "file_reference",
     "owner_manifest_path",

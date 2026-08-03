@@ -20,7 +20,6 @@ RunState = Literal[
 ]
 ContainerKind = Literal["family", "clan"]
 RelationshipKind = Literal["parent", "workflow_parent", "retry", "wait"]
-CompatibilityAliasPageKind = Literal["agent", "family"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -262,32 +261,14 @@ class V2OwnerHoodEntry:
 
 
 @dataclass(frozen=True, slots=True)
-class V2CompatibilityAlias:
-    source_global_name: str
-    target_global_name: str
-    page_kind: CompatibilityAliasPageKind
-
-    def to_json_dict(self) -> dict[str, str]:
-        return {
-            "source_global_name": self.source_global_name,
-            "target_global_name": self.target_global_name,
-            "page_kind": self.page_kind,
-        }
-
-
-@dataclass(frozen=True, slots=True)
 class V2OwnerManifest:
     owner: AgentOwnerIdentity
     project: V2ProjectIdentity
     hoods: tuple[tuple[str, V2OwnerHoodEntry], ...] = ()
-    compatibility_aliases: tuple[V2CompatibilityAlias, ...] = ()
     schema_version: int = V2_SCHEMA_VERSION
 
     def by_hood(self) -> dict[str, V2OwnerHoodEntry]:
         return dict(self.hoods)
-
-    def aliases_by_source(self) -> dict[str, V2CompatibilityAlias]:
-        return {alias.source_global_name: alias for alias in self.compatibility_aliases}
 
     def to_json_dict(self) -> dict[str, object]:
         return {
@@ -295,13 +276,6 @@ class V2OwnerManifest:
             "owner": _owner_dict(self.owner),
             "project": self.project.to_json_dict(),
             "hoods": {hood: entry.to_json_dict() for hood, entry in sorted(self.hoods)},
-            "compatibility_aliases": [
-                alias.to_json_dict()
-                for alias in sorted(
-                    self.compatibility_aliases,
-                    key=lambda item: (item.page_kind, item.source_global_name),
-                )
-            ],
         }
 
 
@@ -329,11 +303,9 @@ def _owner_dict(owner: AgentOwnerIdentity) -> dict[str, str]:
 
 __all__ = [
     "ContainerKind",
-    "CompatibilityAliasPageKind",
     "RelationshipKind",
     "RunState",
     "V2ContainerRecord",
-    "V2CompatibilityAlias",
     "V2FileReference",
     "V2HoodSnapshot",
     "V2OwnerHoodEntry",

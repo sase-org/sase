@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.rendering_agent_page import render_agent_page
 from sase.agents_sync.rendering_family_page import render_family_page
 from sase.agents_sync.rendering_index_pages import (
@@ -14,9 +13,8 @@ from sase.agents_sync.rendering_index_pages import (
     render_user_page,
 )
 from sase.agents_sync.rendering_kinship import build_hood_kinship
-from sase.agents_sync.rendering_markdown import page_bytes, relative_page_url
+from sase.agents_sync.rendering_markdown import page_bytes
 from sase.agents_sync.v2_models import (
-    V2CompatibilityAlias,
     V2ContainerRecord,
     V2HoodSnapshot,
     V2OwnerManifest,
@@ -69,7 +67,6 @@ def render_browsing_payload(
                         commit_repo_name=commit_repo_name,
                     )
                 )
-    payload.update(_render_alias_pages(ordered, payload))
     return payload
 
 
@@ -110,53 +107,6 @@ def _render_run_pages(
             )
         )
     return payload
-
-
-def _render_alias_pages(
-    manifests: tuple[V2OwnerManifest, ...],
-    canonical_payload: dict[str, bytes],
-) -> dict[str, bytes]:
-    payload: dict[str, bytes] = {}
-    for manifest in manifests:
-        for alias in manifest.compatibility_aliases:
-            source_path = _alias_page_path(alias)
-            if source_path in canonical_payload:
-                raise AgentsSyncFormatError(
-                    f"compatibility alias shadows canonical page: {source_path!r}"
-                )
-            payload[source_path] = page_bytes(_render_alias_page(alias, source_path))
-    return payload
-
-
-def _alias_page_path(alias: V2CompatibilityAlias) -> str:
-    if alias.page_kind == "agent":
-        return f"agents/{alias.source_global_name}/README.md"
-    return f"families/{alias.source_global_name}.md"
-
-
-def _target_page_path(alias: V2CompatibilityAlias) -> str:
-    if alias.page_kind == "agent":
-        return f"agents/{alias.target_global_name}/README.md"
-    return f"families/{alias.target_global_name}.md"
-
-
-def _render_alias_page(alias: V2CompatibilityAlias, source_path: str) -> str:
-    label = "Agent" if alias.page_kind == "agent" else "Family"
-    target_path = _target_page_path(alias)
-    relative = relative_page_url(source_path, target_path)
-    return "\n".join(
-        [
-            f"# Historical {label}: {alias.source_global_name}",
-            "",
-            (
-                f"This historical {alias.page_kind} identity now points to "
-                f"[{alias.target_global_name}]({relative})."
-            ),
-            "",
-            f"- Old global name: `{alias.source_global_name}`",
-            f"- Canonical global name: `{alias.target_global_name}`",
-        ]
-    )
 
 
 __all__ = ["render_browsing_payload"]

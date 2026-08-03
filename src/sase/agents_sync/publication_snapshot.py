@@ -47,8 +47,6 @@ def build_hood_snapshot(
     hood: str,
     inventory: ProjectHoodInventory,
     previous: V2HoodSnapshot | None,
-    *,
-    retired_global_names: frozenset[str] = frozenset(),
 ) -> tuple[V2HoodSnapshot, dict[str, bytes]]:
     current = inventory.hood_runs(hood)
     family_history = inventory.family_lane_commits(hood)
@@ -68,7 +66,6 @@ def build_hood_snapshot(
             for run in previous.runs
             if run.source_run_id not in current_ids
             and run.global_name not in current_globals
-            and run.global_name not in retired_global_names
         )
         if previous is not None
         else ()
@@ -83,7 +80,6 @@ def build_hood_snapshot(
         owner,
         family_history,
         previous.containers if previous is not None else (),
-        retired_global_names=retired_global_names,
     )
     relationships = _build_relationships(
         current,
@@ -180,8 +176,6 @@ def _build_containers(
     owner: AgentOwnerIdentity,
     lane_commits: tuple[InventoryLaneCommitHistory, ...] = (),
     previous: tuple[V2ContainerRecord, ...] = (),
-    *,
-    retired_global_names: frozenset[str] = frozenset(),
 ) -> tuple[V2ContainerRecord, ...]:
     families: dict[str, set[str]] = {}
     clans: dict[str, set[str]] = {}
@@ -228,8 +222,6 @@ def _build_containers(
     ]
     by_key = {(item.kind, item.global_name): item for item in containers}
     for item in previous:
-        if item.global_name in retired_global_names:
-            continue
         key = (item.kind, item.global_name)
         current = by_key.get(key)
         if current is None:
