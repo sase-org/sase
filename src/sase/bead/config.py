@@ -64,6 +64,7 @@ def get_default_config(root_dir: Path) -> dict[str, object]:
         "issue_prefix": _detect_prefix(root_dir),
         "next_counter": 1,
         "owner": _git_user_email(),
+        "id_aliases": {},
     }
 
 
@@ -72,7 +73,12 @@ def load_config(beads_dir: Path) -> dict[str, object]:
     config_path = beads_dir / "config.json"
     if config_path.exists():
         with open(config_path) as f:
-            return json.load(f)  # type: ignore[no-any-return]
+            config = json.load(f)
+        if isinstance(config, dict):
+            if not isinstance(config.get("id_aliases"), dict):
+                config["id_aliases"] = {}
+            return config  # type: ignore[no-any-return]
+        return get_default_config(beads_dir.parent)
     return get_default_config(beads_dir.parent)
 
 

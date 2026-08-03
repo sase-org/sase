@@ -31,6 +31,15 @@ from sase.core.changespec import (
     has_suffix,
     strip_reverted_suffix,
 )
+from sase.core.bead_prefix_migration import (
+    BeadIdTokenRewriteOutcome,
+    BeadPrefixMigrationOutcome,
+    BeadPrefixMigrationRequest,
+    apply_prefix_migration,
+    preview_prefix_migration,
+    rewrite_id_tokens,
+    validate_issue_prefix,
+)
 from sase.core.clipboard import copy_to_system_clipboard
 from sase.core.paths import (
     ensure_sase_directory,
@@ -48,6 +57,10 @@ from sase.core.shell import (
 from sase.core.time import generate_timestamp, get_timezone
 
 __all__ = [
+    "BeadIdTokenRewriteOutcome",
+    "BeadPrefixMigrationOutcome",
+    "BeadPrefixMigrationRequest",
+    "apply_prefix_migration",
     "changespec_name_to_branch",
     "changespec_name_to_branch_with_suffix",
     "copy_to_system_clipboard",
@@ -61,9 +74,12 @@ __all__ = [
     "get_workspace_directory_for_changespec",
     "has_suffix",
     "make_safe_filename",
+    "preview_prefix_migration",
+    "rewrite_id_tokens",
     "run_shell_command",
     "run_workspace_command",
     "shorten_path",
     "strip_hook_prefix",
     "strip_reverted_suffix",
+    "validate_issue_prefix",
 ]

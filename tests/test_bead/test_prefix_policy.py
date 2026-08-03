@@ -81,6 +81,7 @@ def test_repair_stale_key_prefix_rewrites_prefix_only(
         "issue_prefix": "bob-cli",
         "next_counter": 6,
         "owner": "owner@example.com",
+        "id_aliases": {},
     }
 
 

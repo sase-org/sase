@@ -22,7 +22,6 @@ class BeadProjectQueryMixin:
         """Get a single issue by ID. Raises KeyError if not found."""
         from sase.core import bead_read_facade as rust_beads
 
-        issue_id = self.resolve_id(issue_id)
         return rust_beads.show(self.beads_dir, issue_id)
 
     def resolve_id(self, issue_id: str) -> str:
@@ -35,7 +34,6 @@ class BeadProjectQueryMixin:
         """Return the ordered field-level event history for one issue."""
         from sase.core import bead_read_facade as rust_beads
 
-        issue_id = self.resolve_id(issue_id)
         return rust_beads.history(self.beads_dir, issue_id)
 
     def lost_notes(
@@ -45,8 +43,6 @@ class BeadProjectQueryMixin:
         """Return historical note revisions absent from current notes."""
         from sase.core import bead_read_facade as rust_beads
 
-        if issue_id is not None:
-            issue_id = self.resolve_id(issue_id)
         return rust_beads.lost_notes(self.beads_dir, issue_id)
 
     def list_issues(
@@ -162,7 +158,6 @@ class BeadProjectQueryMixin:
         """Get all child issues of an epic."""
         from sase.core import bead_read_facade as rust_beads
 
-        epic_id = self.resolve_id(epic_id)
         return rust_beads.get_epic_children(self.beads_dir, epic_id)
 
 

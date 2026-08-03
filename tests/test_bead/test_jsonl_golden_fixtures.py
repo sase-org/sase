@@ -107,4 +107,5 @@ def test_current_config_fixture_loads(tmp_path: Path) -> None:
         "issue_prefix": "gold",
         "next_counter": 42,
         "owner": "owner@example.com",
+        "id_aliases": {},
     }

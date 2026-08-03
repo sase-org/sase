@@ -83,6 +83,10 @@ REQUIRED_BINDINGS = (
     "telemetry_query_range",
     "telemetry_prune",
     "telemetry_store_stats",
+    "bead_validate_issue_prefix",
+    "bead_rewrite_id_tokens",
+    "bead_prefix_migration_preview",
+    "bead_prefix_migration_apply",
 )
 
 
