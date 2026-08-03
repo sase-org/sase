@@ -1260,17 +1260,18 @@ The parenthesized `%model` form accepts keyword arguments that temporarily repla
 The optional positional value selects the current agent's model. Each `alias=value` entry changes how that bare alias
 resolves. Without a positional value, the current agent still starts from the normal default, but that resolution uses
 the map: `default=...` changes it directly, while a size-specific phase-worker keyword affects only that phase or task
-route. The size-specific worker aliases and implicit defaults are:
+route. The size-specific worker aliases are:
 
-| Route           | Alias                 | Implicit default      |
-| --------------- | --------------------- | --------------------- |
-| `xsmall` worker | `xsmall_phase_worker` | `@cheaper`            |
-| `small` worker  | `small_phase_worker`  | `@cheap`              |
-| `medium` worker | `medium_phase_worker` | `codex/gpt-5.5@xhigh` |
-| `large` worker  | `large_phase_worker`  | `@smart`              |
-| `xlarge` worker | `xlarge_phase_worker` | `@smartest`           |
+| Route           | Alias                 |
+| --------------- | --------------------- |
+| `xsmall` worker | `xsmall_phase_worker` |
+| `small` worker  | `small_phase_worker`  |
+| `medium` worker | `medium_phase_worker` |
+| `large` worker  | `large_phase_worker`  |
+| `xlarge` worker | `xlarge_phase_worker` |
 
-Legacy tasks without stored size metadata normalize to the `small_phase_worker` route at launch.
+Legacy tasks without stored size metadata normalize to the `small_phase_worker` route at launch. See
+[Implicit role aliases](llms.md#implicit-role-aliases) for the current shipped defaults.
 
 Keys must be known builtin or custom alias names without `@`; values may be concrete models, `provider/model` targets,
 quoted targets, xprompt references, or another alias with `@`. A trailing reasoning-effort suffix is supported on a
@@ -1621,11 +1622,11 @@ prompt) wins. When no model is chosen, the follow-up routes through the planner 
 Claude-authored plan emits `%model:@claude_coder`, a Codex plan `%model:@codex_coder`, and so on for every registered
 provider. When the planner is missing provider metadata the follow-up falls back to the generic `%model:@coder`.
 `@claude_coder` and `@codex_coder` remain distinct planner-provider aliases, but like every registered
-`@<provider>_coder` alias they inherit `@coder`, whose shipped value is `codex/gpt-5.5`. Explicit launch-scoped coder
-values and provider-specific temporary/configured values take precedence before the generic temporary/configured or
-implicit `@coder` value. Configure `llm_provider.model_aliases.builtin.<provider>_coder` to route one provider's coder
-follow-ups elsewhere (see [Configured Model Aliases](llms.md#configured-model-aliases)). The recorded follow-up metadata
-resolves the alias to the concrete model the coder actually launches with.
+`@<provider>_coder` alias they inherit `@coder`. Explicit launch-scoped coder values and provider-specific
+temporary/configured values take precedence before the generic temporary/configured or implicit `@coder` value.
+Configure `llm_provider.model_aliases.builtin.<provider>_coder` to route one provider's coder follow-ups elsewhere (see
+[Configured Model Aliases](llms.md#configured-model-aliases)). The recorded follow-up metadata resolves the alias to the
+concrete model the coder actually launches with.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus recent approved and inferred
 rejected archived plans. Use the `id_prefix` from a Proposed row with `sase plan approve <id-prefix>` to use the

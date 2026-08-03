@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+"""Render the generated model-alias defaults block in docs/llms.md."""
+
+from __future__ import annotations
+
+import sys
+from html import escape
+from pathlib import Path
+
+from sase.llm_provider.model_alias_policy import (
+    DEFAULT_MODEL_ALIAS_NAME,
+    implicit_alias_targets,
+    role_alias_descriptions,
+    role_alias_fallbacks,
+)
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DOCS_PATH = REPO_ROOT / "docs" / "llms.md"
+BEGIN_MARKER = "<!-- BEGIN GENERATED: model-alias-defaults -->"
+END_MARKER = "<!-- END GENERATED: model-alias-defaults -->"
+
+
+def _error(message: str) -> None:
+    print(f"[render_model_alias_docs] {message}", file=sys.stderr)
+
+
+def _cell(text: str) -> str:
+    escaped = escape(" ".join(text.split()), quote=False).replace("|", r"\|")
+    return escaped.replace("&gt;_", r"&gt;\_")
+
+
+def _format_row(cells: tuple[str, str, str], widths: tuple[int, int, int]) -> str:
+    return "| " + " | ".join(
+        cell.ljust(width) for cell, width in zip(cells, widths, strict=True)
+    ) + " |"
+
+
+def _render_table() -> str:
+    targets = implicit_alias_targets()
+    fallbacks = role_alias_fallbacks()
+    descriptions = role_alias_descriptions()
+
+    rows: list[tuple[str, str, str]] = []
+    for alias, description in descriptions.items():
+        if alias in targets:
+            shipped_default = f"`{targets[alias]}`"
+        elif alias in fallbacks:
+            shipped_default = f"`{fallbacks[alias]}`"
+        elif alias == DEFAULT_MODEL_ALIAS_NAME:
+            shipped_default = (
+                "Configured `model_aliases.builtin.default`, else the "
+                "provider's requested-tier default."
+            )
+        else:
+            shipped_default = "None."
+
+        rows.append((f"`@{alias}`", _cell(description), _cell(shipped_default)))
+
+    headers = ("Alias", "Description", "Shipped default")
+    all_rows = (headers, *rows)
+    widths = (
+        max(len(row[0]) for row in all_rows),
+        max(len(row[1]) for row in all_rows),
+        max(len(row[2]) for row in all_rows),
+    )
+    separator = tuple("-" * width for width in widths)
+
+    lines = [
+        _format_row(headers, widths),
+        _format_row(separator, widths),
+    ]
+    lines.extend(_format_row(row, widths) for row in rows)
+    return "\n".join(lines)
+
+
+def _replace_generated_block(text: str, generated: str) -> str:
+    begin_count = text.count(BEGIN_MARKER)
+    end_count = text.count(END_MARKER)
+    if begin_count != 1 or end_count != 1:
+        raise ValueError(
+            "expected exactly one generated block marker pair in "
+            f"{DOCS_PATH}; found {begin_count} begin marker(s) and "
+            f"{end_count} end marker(s)"
+        )
+
+    begin_index = text.index(BEGIN_MARKER)
+    end_index = text.index(END_MARKER)
+    if end_index < begin_index:
+        raise ValueError(
+            f"end marker appears before begin marker in {DOCS_PATH}"
+        )
+
+    return (
+        text[: begin_index + len(BEGIN_MARKER)]
+        + "\n\n"
+        + generated
+        + "\n\n"
+        + text[end_index:]
+    )
+
+
+def render_docs(path: Path = DOCS_PATH) -> bool:
+    text = path.read_text(encoding="utf-8")
+    new_text = _replace_generated_block(text, _render_table())
+    if new_text == text:
+        return False
+    path.write_text(new_text, encoding="utf-8")
+    return True
+
+
+def main() -> int:
+    try:
+        render_docs()
+    except (OSError, ValueError, RuntimeError) as exc:
+        _error(str(exc))
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

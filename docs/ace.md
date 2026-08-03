@@ -2016,10 +2016,9 @@ value on the same line. An explicit effort suffix inherited from an alias target
 rows that simply inherit the header default omit the redundant suffix.
 
 With no explicit coder routing, every registered provider-coder row displays `implicit → @coder` and resolves through
-the shared `@coder` target, which ships as `CODEX(gpt-5.5)`. A configured or temporary generic `coder` value
-intentionally becomes a fleet-wide route for otherwise unconfigured provider-coder rows, so those rows show its
-effective target and `→ @coder` provenance. Provider-specific values remain more specific, and launch-scoped coder
-choices precede both.
+the shared `@coder` target. A configured or temporary generic `coder` value intentionally becomes a fleet-wide route for
+otherwise unconfigured provider-coder rows, so those rows show its effective target and `→ @coder` provenance.
+Provider-specific values remain more specific, and launch-scoped coder choices precede both.
 
 The top level is split into **Built-in** and **Custom** sections. Each header reports the aliases represented by its
 rows (including members of collapsed buckets) and its bucket count. This sectioning groups the existing deterministic
@@ -2164,8 +2163,8 @@ while the tier override only applies when no concrete override is active.
 
 Delegated launches (plan coder follow-ups and `sase bead work` phase, task, and land agents) resolve through
 [role aliases](llms.md#role-aliases-for-delegated-work) configured under `llm_provider.model_aliases.builtin`. The
-size-specific phase/task aliases route through `@cheaper`, `@cheap`, `codex/gpt-5.5@xhigh`, `@smart`, and `@smartest`; a
-task without size metadata uses the small phase/task route. Nested `@default` references follow a temporary `default`
+size-specific phase/task aliases route through `@cheaper`, `@cheap`, `@medium_phase_worker`, `@smart`, and `@smartest`;
+a task without size metadata uses the small phase/task route. Nested `@default` references follow a temporary `default`
 override. The concrete `@medium_phase_worker` and `@smartest` targets and selector-backed `@cheap`, `@cheaper`, and
 `@cheapest` pools do not follow it; override the target/pool-owning or size-specific alias itself to move one of those
 lanes.
@@ -2206,17 +2205,17 @@ preview.
   without an explicit model use that target; other-sized phase routing is unchanged.
 - Highlight `smartest`, `e`, pick `claude/opus`, and confirm — xlarge phases and threshold-selected epic landers reach
   that target through `@xlarge_phase_worker` → `@smartest` and `@big_epic_lander` → `@smartest`.
-- Leave `smartest` implicit — xlarge phases and threshold-selected epic landers use `claude/opus` at `max` effort.
-- Highlight `cheaper`, `e`, choose `Custom...`, enter `claude/sonnet@medium | codex/gpt-5.5@medium`, and confirm —
+- Leave `smartest` implicit — xlarge phases and threshold-selected epic landers follow the current `@smartest` target.
+- Highlight `cheaper`, `e`, choose `Custom...`, enter `claude/haiku@minimal | codex/gpt-4.1-mini@low`, and confirm —
   xsmall phases round-robin across installed providers while the panel continues to show the next selection without
   consuming it.
-- Highlight `cheap`, `e`, choose `Custom...`, enter `claude/sonnet@xhigh | codex/gpt-5.5@medium`, and confirm — small
-  phases round-robin across this independent pool without consuming the `cheaper` cursor.
-- Highlight `cheapest`, `e`, choose `Custom...`, enter `claude/haiku | codex/gpt-5.3-codex-spark`, and confirm —
+- Highlight `cheap`, `e`, choose `Custom...`, enter `claude/haiku | codex/gpt-4.1-mini`, and confirm — small phases
+  round-robin across this independent pool without consuming the `cheaper` cursor.
+- Highlight `cheapest`, `e`, choose `Custom...`, enter `claude/haiku@minimal | codex/gpt-4o-mini`, and confirm —
   explicit `@cheapest` launches round-robin across this independent pool without consuming the `cheap` or `cheaper`
   cursor.
 - Highlight `big_epic_lander`, `e`, pick a model, and confirm — only threshold-selected epic landers use that persistent
-  target; leaving it implicit inherits `claude/opus@max` through `@smartest`, independently of `@epic_lander`.
+  target; leaving it implicit inherits through `@smartest`, independently of `@epic_lander`.
 - Highlight `big_epic_lander`, `e`, filter for `@coder`, select it, and confirm — the persistent value is the dynamic
   `@coder` reference, not a copied concrete model.
 - Open `phase_worker`, highlight `medium_phase_worker`, press `o`, select `@coder`, then choose `1h` — the override
@@ -2935,9 +2934,9 @@ Epic:
   use `j`/`k` or arrows to navigate, `Enter` to select, `Esc` to clear the filter or cancel, and `'` for jump hints over
   the visible selectable rows. The displayed default resolves to the model the handoff will actually use: the planner
   provider's coder alias (`@<planner_provider>_coder`, e.g. `@claude_coder`, falling back to `@coder` when planner
-  provider metadata is missing). Out of the box, every provider-coder alias inherits `@coder`, whose shipped value is
-  `codex/gpt-5.5`. Selecting a specific model and then re-opening the picker and choosing "Follow-up default" resets the
-  follow-up back to that role default (distinct from pressing `Esc`, which keeps the current selection).
+  provider metadata is missing). Out of the box, every provider-coder alias inherits `@coder`. Selecting a specific
+  model and then re-opening the picker and choosing "Follow-up default" resets the follow-up back to that role default
+  (distinct from pressing `Esc`, which keeps the current selection).
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
 commit location and follow-up behavior. Additional family members are launched explicitly with

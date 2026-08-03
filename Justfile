@@ -278,10 +278,10 @@ _lint-toobig *args:
     {{ venv_bin }}/toobig tests {{ if args == "" { "1000 850 700" } else { args } }}
 
 # Auto-fix all code (format + keep-sorted)
-fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
+fix: (_header "fix") fmt-py fmt-docs fmt-md fix-keep-sorted
 
 # Auto-format all code
-fmt: (_header "fmt") fmt-py fmt-md
+fmt: (_header "fmt") fmt-py fmt-docs fmt-md
 
 # Auto-format Python code
 fmt-py: _setup
@@ -294,6 +294,11 @@ fmt-py: _setup
 fmt-md: _setup-prettier
     @printf "\n---------- Formatting Markdown with prettier... ----------\n"
     {{ prettier_bin }} --write --prose-wrap=always --print-width=120 "**/*.md"
+
+# Render generated Markdown blocks
+fmt-docs: _setup
+    @printf "\n---------- Rendering generated docs... ----------\n"
+    {{ venv_bin }}/python tools/render_model_alias_docs
 
 # Auto-fix keep-sorted blocks in YAML files
 fix-keep-sorted: _setup-keep-sorted
