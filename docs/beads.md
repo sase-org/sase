@@ -839,6 +839,13 @@ children are grouped as phases (with status and size) and child epics (with tier
 owned by a phase bead. Nested beads show their complete lineage back to the root plan. A `claimed` bead also prints
 `Claimed by: <assignee> (agent has not started working yet)`.
 
+Detail resolution — the target issue plus its ancestors, children, dependencies, and blockers — comes from a single
+Rust-side store read instead of the three independent reductions earlier versions performed. Combined with a narrowed
+CLI parser (only the `bead` subcommand tree is built, not every `sase` subcommand) and memoized repo-inventory lookups
+(the creator-URL and artifact-reference-context resolvers no longer each re-probe `git remote` and re-merge sidecar
+config from scratch), this keeps `sase bead show` fast regardless of store size or how many other beads reference the
+target — including beads with `refs`, which previously paid the repo-inventory cost twice.
+
 `full` is the default detail block. `compact` prints the same single row as `sase bead list`. `json` emits a single-bead
 envelope with `issue`, `ancestors`, `children`, `depends_on`, `blocks`, and `plan`, plus `page_url` when a hosted page
 URL resolves and `created_by_url` when the creator's hosted agent page resolves; every relationship reference includes a

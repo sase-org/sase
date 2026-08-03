@@ -76,11 +76,22 @@ def _render(
     style: str,
     color: str,
     wrap: str | None = None,
+    format_: str = "full",
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> str:
     _install_view(monkeypatch, issues)
-    argv = ["bead", "show", issue_id, "--style", style, "--color", color]
+    argv = [
+        "bead",
+        "show",
+        issue_id,
+        "--format",
+        format_,
+        "--style",
+        style,
+        "--color",
+        color,
+    ]
     if wrap is not None:
         argv.extend(["--wrap", wrap])
     args = create_parser().parse_args(argv)
@@ -289,6 +300,76 @@ def test_style_invariant_over_corpus_per_wrap_width(
     )
 
     assert strip_sgr(rich) == plain
+
+
+@pytest.mark.parametrize("name,build", _CORPUS, ids=[c[0] for c in _CORPUS])
+def test_compact_style_invariant_over_corpus(
+    name: str,
+    build: object,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--format compact`` responds to style like ``full`` does: rich output
+    with SGR stripped reproduces the plain bytes exactly, across every bead
+    shape in the corpus."""
+    issues, target_id = build()  # type: ignore[operator]
+
+    plain = _render(
+        target_id,
+        issues,
+        style="plain",
+        color="always",
+        format_="compact",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+    rich = _render(
+        target_id,
+        issues,
+        style="rich",
+        color="always",
+        format_="compact",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    assert strip_sgr(rich) == plain
+
+
+@pytest.mark.parametrize("name,build", _CORPUS, ids=[c[0] for c in _CORPUS])
+def test_json_format_ignores_style_over_corpus(
+    name: str,
+    build: object,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--format json`` is never styled: it renders identically regardless
+    of ``--style``, and it stays valid JSON for every bead shape in the
+    corpus — including markdown descriptions, CJK/emoji titles, and dangling
+    references."""
+    issues, target_id = build()  # type: ignore[operator]
+
+    plain = _render(
+        target_id,
+        issues,
+        style="plain",
+        color="always",
+        format_="json",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+    rich = _render(
+        target_id,
+        issues,
+        style="rich",
+        color="always",
+        format_="json",
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    assert rich == plain
+    assert json.loads(plain)["issue"]["id"] == target_id
 
 
 def test_style_invariant_epic_with_phases_and_child_epics(
