@@ -83,23 +83,6 @@ def _write_manifest(workspace: Path, rows: list[dict[str, object]]) -> None:
     )
 
 
-def _xprompt_record(workspace: Path) -> dict[str, object]:
-    return {
-        "schema_version": 1,
-        "raw_ref": "#plan",
-        "name": "plan",
-        "kind": "part",
-        "source_kind": "markdown",
-        "source_path": str(workspace / "sase/xprompts/plan.md"),
-        "definition_line": None,
-        "repo": "primary",
-        "repo_root": str(workspace),
-        "repo_relpath": "sase/xprompts/plan.md",
-        "chezmoi": False,
-        "skipped_reason": None,
-    }
-
-
 def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -121,10 +104,6 @@ def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
     )
     (artifacts_dir / "claude_prompt.md").write_text(
         "# Rendered\n\n```python\nprint('sent to model')\n```\n",
-        encoding="utf-8",
-    )
-    (artifacts_dir / "xprompt_sources.json").write_text(
-        json.dumps([_xprompt_record(workspace)]),
         encoding="utf-8",
     )
 
@@ -221,55 +200,30 @@ def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
         f"[@src/#plan.py](https://example.test/blob/{'a' * 40}/src/#plan.py)"
         in document
     )
-    assert (
-        f"[#plan](https://example.test/blob/{'a' * 40}/sase/xprompts/plan.md)"
-        in document
-    )
+    assert ", #plan, and " in document
+    assert "sase/xprompts/plan.md" not in document
     assert "[@bug:proj#7](https://example.test/issues/7)" in document
-    assert "<!-- sase:section:rendered -->" in document
-    assert "<details>" in document
-    assert "````markdown\n# Rendered\n\n```python" in document
-    assert "```\n````\n\n</details>" in document
-    assert len(first.rendered.linked_xprompt_records) == 1
+    assert "<!-- sase:section:" not in document
+    assert "<details>" not in document
+    assert "sent to model" not in document
     assert (repo / "artifacts/202608" / pool_name).read_bytes() == content
     index = (repo / "prompts/202608/README.md").read_text()
     assert "[example_plan.md](example_plan.md)" in index
     assert "| 4 |" in index
 
 
-def test_render_prompt_document_prettier_preserves_collapsed_rendered_prompt(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("SASE_DISABLE_PRETTIER", raising=False)
-    rendered_prompt = (
-        "# Heading\n\n```python\nprint('hello')\n```\n<!-- sase:section:rendered -->\n"
-    )
-
-    first = render_prompt_document(
-        "Archive body.\n",
+def test_render_prompt_document_keeps_body_xprompt_reference_verbatim() -> None:
+    document = render_prompt_document(
+        "Archive body references #plan.\n",
         (),
         artifact_target=lambda _record: None,
-        rendered_prompt=rendered_prompt,
-        agent_label="alice.athena.worker",
-        agent_target="https://example.test/agents/worker",
-    ).document
-    second = render_prompt_document(
-        "Archive body.\n",
-        (),
-        artifact_target=lambda _record: None,
-        rendered_prompt=rendered_prompt,
         agent_label="alice.athena.worker",
         agent_target="https://example.test/agents/worker",
     ).document
 
-    assert first == second
-    assert "<details>" in first and "</details>" in first
-    assert "<summary><b>Agent Prompt</b>" in first
-    assert "````markdown" in first
-    assert "```python\nprint('hello')\n```" in first
-    assert "&lt;!-- sase:section:rendered --&gt;" in first
-    assert first.count("<!-- sase:section:rendered -->") == 1
-    assert "<!-- /sase:section:rendered -->" in first
+    assert "Archive body references #plan." in document
+    assert "[#plan]" not in document
+    assert "<!-- sase:section:" not in document
 
 
 def test_prepare_prompt_archive_accepts_expanded_planner_prompt(

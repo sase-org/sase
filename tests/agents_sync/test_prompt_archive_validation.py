@@ -73,62 +73,21 @@ def test_clean_archive_validates_without_diagnostics(tmp_path: Path) -> None:
 
     assert validation.ok
     assert validation.issues == ()
-    assert validation.legacy_files == 1
 
 
-def test_current_archive_validates_rendered_section_and_https_xprompt_link(
+def test_xprompt_style_body_links_are_validated_as_ordinary_markdown(
     tmp_path: Path,
 ) -> None:
     repo = tmp_path / "agents"
     _write_prompt(
         repo,
-        _prompt_document()
-        + "Use [#plan](https://example.test/xprompts/plan.md).\n\n"
-        + "<!-- sase:section:rendered -->\n\n"
-        + "<details>\n<summary><b>Agent Prompt</b></summary>\n\n"
-        + "````markdown\n# Rendered\n\n```python\n"
-        + "[#example](../../not-an-xprompt-link.md)\n```\n````\n\n"
-        + "</details>\n\n<!-- /sase:section:rendered -->\n",
+        _prompt_document() + "Use [#plan](../../xprompts/plan.md).\n",
     )
 
     validation = validate_prompt_archive(repo)
 
     assert validation.ok
     assert validation.issues == ()
-    assert validation.legacy_files == 0
-
-
-@pytest.mark.parametrize(
-    ("suffix", "code"),
-    [
-        (
-            "<!-- sase:section:rendered -->\n```markdown\nunclosed\n"
-            "<!-- /sase:section:rendered -->\n",
-            "rendered-prompt-fence",
-        ),
-        (
-            "<!-- sase:section:rendered -->\n```markdown\nbody\n```\n",
-            "prompt-section-sentinel",
-        ),
-        (
-            "Use [#plan](../../xprompts/plan.md).\n",
-            "xprompt-link-target",
-        ),
-    ],
-)
-def test_prompt_rendering_diagnostics_are_errors(
-    tmp_path: Path,
-    suffix: str,
-    code: str,
-) -> None:
-    repo = tmp_path / "agents"
-    _write_prompt(repo, _prompt_document() + suffix)
-
-    validation = validate_prompt_archive(repo)
-
-    assert not validation.ok
-    assert code in _codes(validation)
-    assert validation.warnings == ()
 
 
 def test_each_archive_diagnostic_has_a_single_purpose_built_source(
@@ -233,9 +192,6 @@ _ERROR_CODES = (
     "artifact-missing",
     "artifact-digest",
     "prompt-parse",
-    "prompt-section-sentinel",
-    "rendered-prompt-fence",
-    "xprompt-link-target",
 )
 
 
