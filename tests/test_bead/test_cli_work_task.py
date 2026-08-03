@@ -56,7 +56,7 @@ def test_task_checkpoint_commits_and_pushes_before_return(
     )
     monkeypatch.setattr(
         "sase.bead.sync.push_bead_work_launch",
-        lambda _path: (
+        lambda _path, **_kwargs: (
             events.append("push")
             or _PushOutcome(pushed=True, skipped_no_remote=False, error=None)
         ),
@@ -70,6 +70,56 @@ def test_task_checkpoint_commits_and_pushes_before_return(
     )
 
     assert events == ["commit", "push"]
+
+
+def test_task_checkpoint_reports_contention_timeout_before_no_remote(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.sync import _PushOutcome
+
+    task_id = seed_task(project_dir)
+    log_path = project_dir / "sync.log"
+
+    class Timer:
+        def stage(self, *_args: object, **_kwargs: object) -> Any:
+            return nullcontext()
+
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_task_work_launch",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.bead_state_is_clean",
+        lambda _path: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_commit._requires_remote_publication",
+        lambda _beads_dir: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        lambda _path, **_kwargs: _PushOutcome(
+            pushed=False,
+            skipped_no_remote=False,
+            error=None,
+            skipped_locked=True,
+            log_path=log_path,
+        ),
+    )
+
+    with pytest.raises(TaskLaunchCheckpointError) as excinfo:
+        checkpoint_task_work_launch(
+            project_dir / "sdd/beads",
+            task_id,
+            no_push=False,
+            timer=Timer(),  # type: ignore[arg-type]
+        )
+
+    message = str(excinfo.value)
+    assert "held the store lock" in message
+    assert "detached bead store has no push remote" not in message
+    assert f"managed sync log: {log_path}" in message
 
 
 @pytest.mark.parametrize("status", [Status.OPEN, Status.READY])

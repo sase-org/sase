@@ -2,13 +2,130 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import subprocess
+import threading
+import time
 from contextlib import contextmanager
 
-from sase.bead.sync_worker import run_managed_sync_worker
+import pytest
+
+from sase.bead.sync_worker import _ManagedSyncOutcome, run_managed_sync_worker
 
 from .sync_test_helpers import configure_git_identity, init_git_repo
+
+
+def test_managed_sync_worker_default_lock_wait_skips_immediately(
+    tmp_path,
+    monkeypatch,
+):
+    init_git_repo(tmp_path)
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    lock_file = open(tmp_path / ".git/sase-bead-sync.lock", "a+", encoding="utf-8")
+    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    monkeypatch.setattr(
+        "sase.bead.sync_worker._run_locked_sync",
+        lambda *_args, **_kwargs: pytest.fail("locked worker must not run"),
+    )
+
+    try:
+        started = time.monotonic()
+        outcome = run_managed_sync_worker(
+            tmp_path,
+            beads_dir,
+            log_path=tmp_path / "sync.log",
+        )
+        elapsed = time.monotonic() - started
+    finally:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+        lock_file.close()
+
+    assert elapsed < 0.1
+    assert outcome.pushed is False
+    assert outcome.skipped_locked is True
+    records = _read_records(tmp_path / "sync.log")
+    assert records[-1]["event"] == "skipped"
+    assert records[-1]["reason"] == "worker_already_running"
+
+
+def test_managed_sync_worker_positive_lock_wait_acquires_after_release(
+    tmp_path,
+    monkeypatch,
+):
+    init_git_repo(tmp_path)
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    lock_file = open(tmp_path / ".git/sase-bead-sync.lock", "a+", encoding="utf-8")
+    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def release_lock() -> None:
+        time.sleep(0.03)
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+    release = threading.Thread(target=release_lock)
+    release.start()
+    monkeypatch.setattr(
+        "sase.bead.sync_worker._run_locked_sync",
+        lambda *_args, **_kwargs: _ManagedSyncOutcome(
+            pushed=True,
+            integrated=False,
+        ),
+    )
+
+    try:
+        outcome = run_managed_sync_worker(
+            tmp_path,
+            beads_dir,
+            log_path=tmp_path / "sync.log",
+            worker_lock_wait=0.2,
+        )
+    finally:
+        release.join(timeout=5)
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+        lock_file.close()
+
+    assert outcome.pushed is True
+    records = _read_records(tmp_path / "sync.log")
+    acquired = [
+        record for record in records if record["event"] == "worker_lock_acquired"
+    ]
+    assert acquired
+    assert acquired[-1]["waited_seconds"] > 0
+
+
+def test_managed_sync_worker_positive_lock_wait_times_out_with_waited_seconds(
+    tmp_path,
+    monkeypatch,
+):
+    init_git_repo(tmp_path)
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    lock_file = open(tmp_path / ".git/sase-bead-sync.lock", "a+", encoding="utf-8")
+    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    monkeypatch.setattr(
+        "sase.bead.sync_worker._run_locked_sync",
+        lambda *_args, **_kwargs: pytest.fail("timed-out worker must not run"),
+    )
+
+    try:
+        outcome = run_managed_sync_worker(
+            tmp_path,
+            beads_dir,
+            log_path=tmp_path / "sync.log",
+            worker_lock_wait=0.02,
+        )
+    finally:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+        lock_file.close()
+
+    assert outcome.pushed is False
+    assert outcome.skipped_locked is True
+    records = _read_records(tmp_path / "sync.log")
+    assert records[-1]["event"] == "skipped"
+    assert records[-1]["reason"] == "worker_already_running"
+    assert records[-1]["waited_seconds"] >= 0.0
 
 
 def test_managed_sync_worker_converges_sidecar_store_mutations(tmp_path, monkeypatch):
@@ -177,3 +294,7 @@ def test_managed_sync_worker_locks_local_integration_only(tmp_path, monkeypatch)
     assert by_op["sdd.health.status"] == (True, False)
     assert by_op["bead.sync.rebase"] == (True, False)
     assert by_op["bead.sync.push"] == (False, True)
+
+
+def _read_records(path):
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]

@@ -296,7 +296,7 @@ Deliver the plan-first epic summary.
     monkeypatch.setattr("sase.bead.sync.bead_state_is_clean", lambda _path: True)
     monkeypatch.setattr(
         "sase.bead.sync.push_bead_work_launch",
-        lambda _path: SimpleNamespace(
+        lambda _path, **_kwargs: SimpleNamespace(
             pushed=True,
             skipped_no_remote=False,
             error=None,

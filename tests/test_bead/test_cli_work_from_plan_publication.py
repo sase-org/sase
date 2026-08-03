@@ -41,7 +41,7 @@ def test_plan_file_publication_uses_split_beads_sidecar(
     )
     pushed: list[Path] = []
 
-    def fake_push(path: Path) -> SimpleNamespace:
+    def fake_push(path: Path, **_kwargs: object) -> SimpleNamespace:
         pushed.append(path)
         return SimpleNamespace(pushed=True, error=None)
 
@@ -49,6 +49,90 @@ def test_plan_file_publication_uses_split_beads_sidecar(
 
     assert publish_epic_graph_before_launch(store, no_push=False)
     assert pushed == [beads]
+
+
+def test_plan_file_publication_passes_worker_lock_wait(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_work_from_plan_store import publish_epic_graph_before_launch
+    from sase.bead.sync import PUBLICATION_WORKER_LOCK_WAIT_SECONDS, _PushOutcome
+
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=tmp_path / "plans",
+        repo_root=tmp_path / "plans",
+        remote_url="git@example.test:project--plans.git",
+        beads_dir=tmp_path / "beads",
+    )
+    calls: list[dict[str, object]] = []
+
+    def fake_push(_path: Path, **kwargs: object) -> _PushOutcome:
+        calls.append(kwargs)
+        return _PushOutcome(pushed=True, skipped_no_remote=False, error=None)
+
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", fake_push)
+
+    assert publish_epic_graph_before_launch(store, no_push=False) is True
+    assert calls == [{"worker_lock_wait": PUBLICATION_WORKER_LOCK_WAIT_SECONDS}]
+
+
+def test_plan_file_publication_returns_when_concurrent_worker_published_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_work_from_plan_store import publish_epic_graph_before_launch
+    from sase.bead.sync import _PushOutcome
+
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=tmp_path / "plans",
+        repo_root=tmp_path / "plans",
+        remote_url="git@example.test:project--plans.git",
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        lambda *_args, **_kwargs: _PushOutcome(
+            pushed=True,
+            skipped_no_remote=False,
+            error=None,
+        ),
+    )
+
+    assert publish_epic_graph_before_launch(store, no_push=False) is True
+
+
+def test_plan_file_publication_reports_true_contention_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_work_from_plan_store import publish_epic_graph_before_launch
+    from sase.bead.sync import _PushOutcome
+
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=tmp_path / "plans",
+        repo_root=tmp_path / "plans",
+        remote_url="git@example.test:project--plans.git",
+    )
+    log_path = tmp_path / "sync.log"
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        lambda *_args, **_kwargs: _PushOutcome(
+            pushed=False,
+            skipped_no_remote=False,
+            error=None,
+            skipped_locked=True,
+            log_path=log_path,
+        ),
+    )
+
+    with pytest.raises(RuntimeError) as excinfo:
+        publish_epic_graph_before_launch(store, no_push=False)
+
+    message = str(excinfo.value)
+    assert "held the store lock" in message
+    assert f"managed sync log: {log_path}" in message
 
 
 def test_plan_file_publishes_graph_before_launch_and_reconciles_afterward(
@@ -305,7 +389,7 @@ def test_synchronous_graph_push_failure_preserves_state_and_stops_launch(
     )
     monkeypatch.setattr(
         "sase.bead.sync.push_bead_work_launch",
-        lambda _beads_dir: SimpleNamespace(
+        lambda _beads_dir, **_kwargs: SimpleNamespace(
             pushed=False,
             skipped_no_remote=False,
             error="git push failed: rejected",

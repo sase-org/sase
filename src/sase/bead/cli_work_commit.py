@@ -41,6 +41,7 @@ def checkpoint_epic_work_launch(
     the safe retry point when publication fails after the commit.
     """
     from sase.bead.sync import (
+        PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
         bead_state_is_clean,
         commit_epic_graph_checkpoint,
         push_bead_work_launch,
@@ -71,7 +72,18 @@ def checkpoint_epic_work_launch(
         return False
 
     with timer.stage("push", mode="sync"):
-        outcome = push_bead_work_launch(beads_dir)
+        outcome = push_bead_work_launch(
+            beads_dir,
+            worker_lock_wait=PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
+        )
+    if getattr(outcome, "skipped_locked", False):
+        raise EpicLaunchCheckpointError(
+            f"epic launch checkpoint publication failed before agent launch "
+            f"for {epic_id}: "
+            f"{_publication_lock_timeout_message(getattr(outcome, 'log_path', None))}",
+            checkpoint_created=True,
+            retry_requires_push=True,
+        )
     if outcome.error is not None:
         raise EpicLaunchCheckpointError(
             f"epic launch checkpoint publication failed before agent launch "
@@ -101,6 +113,7 @@ def checkpoint_task_work_launch(
 ) -> bool:
     """Commit and, when required, publish one task assignment before spawn."""
     from sase.bead.sync import (
+        PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
         bead_state_is_clean,
         commit_task_work_launch,
         push_bead_work_launch,
@@ -128,7 +141,16 @@ def checkpoint_task_work_launch(
         return False
 
     with timer.stage("push", mode="sync"):
-        outcome = push_bead_work_launch(beads_dir)
+        outcome = push_bead_work_launch(
+            beads_dir,
+            worker_lock_wait=PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
+        )
+    if getattr(outcome, "skipped_locked", False):
+        raise TaskLaunchCheckpointError(
+            f"task launch checkpoint publication failed before agent launch "
+            f"for {task_id}: "
+            f"{_publication_lock_timeout_message(getattr(outcome, 'log_path', None))}"
+        )
     if outcome.error is not None:
         raise TaskLaunchCheckpointError(
             f"task launch checkpoint publication failed before agent launch "
@@ -160,6 +182,19 @@ def _requires_remote_publication(beads_dir: Path) -> bool:
     if store.beads_dir is not None and store.beads_remote_url:
         return True
     return bool(store.remote_url)
+
+
+def _publication_lock_timeout_message(log_path: Path | None) -> str:
+    from sase.bead.sync import PUBLICATION_WORKER_LOCK_WAIT_SECONDS
+
+    log_detail = str(log_path) if log_path is not None else "<unknown>"
+    return (
+        "another managed bead sync worker held the store lock for the full "
+        f"{PUBLICATION_WORKER_LOCK_WAIT_SECONDS}s publication window and the "
+        "local checkpoint is still unpublished "
+        f"(managed sync log: {log_detail}); retry once it finishes, or run "
+        "`sase doctor -v`"
+    )
 
 
 __all__ = [

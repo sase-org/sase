@@ -429,11 +429,21 @@ def publish_epic_graph_before_launch(store: SddStore, *, no_push: bool) -> bool:
             "Resume without --no-push to publish it"
         )
 
-    from sase.bead.sync import push_bead_work_launch
+    from sase.bead.sync import (
+        PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
+        push_bead_work_launch,
+    )
 
-    outcome = push_bead_work_launch(store.kind_root("beads"))
+    outcome = push_bead_work_launch(
+        store.kind_root("beads"),
+        worker_lock_wait=PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
+    )
     if outcome.pushed:
         return True
+    if getattr(outcome, "skipped_locked", False):
+        raise RuntimeError(
+            _publication_lock_timeout_message(getattr(outcome, "log_path", None))
+        )
     if outcome.error is not None:
         raise RuntimeError(outcome.error)
     raise RuntimeError(
@@ -447,11 +457,21 @@ def publish_epic_rollback(store: SddStore) -> bool:
     if not _store_requires_remote_publication(store):
         return False
 
-    from sase.bead.sync import push_bead_work_launch
+    from sase.bead.sync import (
+        PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
+        push_bead_work_launch,
+    )
 
-    outcome = push_bead_work_launch(store.kind_root("beads"))
+    outcome = push_bead_work_launch(
+        store.kind_root("beads"),
+        worker_lock_wait=PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
+    )
     if outcome.pushed:
         return True
+    if getattr(outcome, "skipped_locked", False):
+        raise RuntimeError(
+            _publication_lock_timeout_message(getattr(outcome, "log_path", None))
+        )
     if outcome.error is not None:
         raise RuntimeError(outcome.error)
     raise RuntimeError("the detached bead store has no push remote")
@@ -460,3 +480,16 @@ def publish_epic_rollback(store: SddStore) -> bool:
 def _store_requires_remote_publication(store: SddStore) -> bool:
     """Return whether fresh workers obtain this store from a remote clone."""
     return not store.is_in_tree and bool(store.remote_url)
+
+
+def _publication_lock_timeout_message(log_path: Path | None) -> str:
+    from sase.bead.sync import PUBLICATION_WORKER_LOCK_WAIT_SECONDS
+
+    log_detail = str(log_path) if log_path is not None else "<unknown>"
+    return (
+        "another managed bead sync worker held the store lock for the full "
+        f"{PUBLICATION_WORKER_LOCK_WAIT_SECONDS}s publication window and the "
+        "local checkpoint is still unpublished "
+        f"(managed sync log: {log_detail}); retry once it finishes, or run "
+        "`sase doctor -v`"
+    )

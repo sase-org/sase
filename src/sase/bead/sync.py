@@ -39,6 +39,9 @@ _SYNC_LOG_SCAN_LIMIT = 64
 _SYNC_LOG_HEAD_BYTES = 8 * 1024
 _SYNC_LOG_TAIL_BYTES = 64 * 1024
 _SYNC_LOG_RECURRING_FAILURE_THRESHOLD = 2
+# Launch-critical publication waits through observed multi-second integration,
+# retry, and push windows instead of treating an active worker as fatal.
+PUBLICATION_WORKER_LOCK_WAIT_SECONDS = 120.0
 
 
 class _BeadStoreRefreshError(RuntimeError):
@@ -63,6 +66,7 @@ class _PushOutcome:
     pushed: bool
     skipped_no_remote: bool
     error: str | None
+    skipped_locked: bool = False
     log_path: Path | None = None
 
 
@@ -78,6 +82,7 @@ def push_bead_work_launch(
     beads_dir: Path,
     *,
     lock_timeout: float | None = None,
+    worker_lock_wait: float = 0.0,
 ) -> _PushOutcome:
     """Synchronize and push the just-committed bead state.
 
@@ -102,6 +107,7 @@ def push_bead_work_launch(
             semantic_beads_dir,
             log_path=log_path,
             lock_timeout=lock_timeout,
+            worker_lock_wait=worker_lock_wait,
         )
         if result.pushed:
             return _PushOutcome(
@@ -110,10 +116,26 @@ def push_bead_work_launch(
                 error=None,
                 log_path=log_path,
             )
+        if result.skipped_locked:
+            if _head_is_published(repo_root):
+                return _PushOutcome(
+                    pushed=True,
+                    skipped_no_remote=False,
+                    error=None,
+                    log_path=log_path,
+                )
+            return _PushOutcome(
+                pushed=False,
+                skipped_no_remote=False,
+                error=None,
+                skipped_locked=True,
+                log_path=log_path,
+            )
         return _PushOutcome(
             pushed=False,
             skipped_no_remote=False,
-            error=result.error or "managed bead sync did not push",
+            error=result.error
+            or f"managed bead sync did not push and reported no error (see {log_path})",
             log_path=log_path,
         )
     except Exception as exc:  # noqa: BLE001 - this API must never raise.
@@ -147,7 +169,7 @@ def publish_bead_claim(
             error=str(exc),
         )
 
-    if outcome.error:
+    if outcome.error and not getattr(outcome, "skipped_locked", False):
         detail = outcome.error
         if outcome.log_path is not None:
             detail = f"{detail} (managed sync log: {outcome.log_path})"
@@ -168,6 +190,20 @@ def _has_push_remote(repo_root: Path) -> bool:
         check=False,
     )
     return remotes.returncode == 0 and bool(remotes.stdout.strip())
+
+
+def _head_is_published(repo_root: Path) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", "HEAD", "@{upstream}"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
 
 
 def push_bead_work_launch_async(beads_dir: Path) -> _AsyncPushHandle | None:
@@ -597,7 +633,11 @@ def _classify_sync_error(error: str) -> str:
         return "dirty-worktree refusal"
     if "uncommitted changes" in text:
         return "uncommitted-change refusal"
-    if "store_write_lock_unavailable" in text or "could not acquire" in text:
+    if (
+        "held the store lock for the full" in text
+        or "store_write_lock_unavailable" in text
+        or "could not acquire" in text
+    ):
         return "lock contention"
     if (
         "permission denied" in text

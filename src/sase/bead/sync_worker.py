@@ -17,6 +17,7 @@ from sase.sdd._repository_types import SddIntegrationOutcome
 _MAX_PUSH_ATTEMPTS = 3
 _MAX_LOCAL_CHANGES_ATTEMPTS = 3
 _LOCAL_CHANGES_RETRY_DELAY_SECONDS = 0.05
+_WORKER_LOCK_POLL_SECONDS = 0.05
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,7 @@ def run_managed_sync_worker(
     *,
     log_path: Path,
     lock_timeout: float | None = None,
+    worker_lock_wait: float = 0.0,
 ) -> _ManagedSyncOutcome:
     """Fetch, rebase with bead conflict repair, and push without prompting."""
     repo_root = repo_root.expanduser().resolve()
@@ -45,17 +47,36 @@ def run_managed_sync_worker(
     with open(lock_path, "a+", encoding="utf-8") as lock_file:
         # Lock ordering is fixed: the worker-only sync lock is outer, and the
         # store write lock used by all foreground writers is inner. Foreground
-        # writers never acquire this outer lock, so this order cannot deadlock.
-        try:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
+        # writers never acquire this outer lock, so this bounded wait cannot
+        # deadlock.
+        wait_started = time.monotonic()
+        acquired = _acquire_worker_lock(
+            lock_file.fileno(),
+            timeout=worker_lock_wait,
+        )
+        waited_seconds = time.monotonic() - wait_started
+        if not acquired:
             outcome = _ManagedSyncOutcome(
                 pushed=False,
                 integrated=False,
                 skipped_locked=True,
             )
-            _log(log_path, "skipped", reason="worker_already_running")
+            _log(
+                log_path,
+                "skipped",
+                reason="worker_already_running",
+                waited_seconds=waited_seconds,
+            )
             return outcome
+        if (
+            worker_lock_wait > 0.0
+            and waited_seconds >= min(_WORKER_LOCK_POLL_SECONDS, worker_lock_wait) / 2
+        ):
+            _log(
+                log_path,
+                "worker_lock_acquired",
+                waited_seconds=waited_seconds,
+            )
 
         try:
             return _run_locked_sync(
@@ -66,6 +87,27 @@ def run_managed_sync_worker(
             )
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _acquire_worker_lock(fd: int, *, timeout: float) -> bool:
+    if timeout <= 0:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+        return True
+
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            time.sleep(min(_WORKER_LOCK_POLL_SECONDS, remaining))
+        else:
+            return True
 
 
 def _run_locked_sync(

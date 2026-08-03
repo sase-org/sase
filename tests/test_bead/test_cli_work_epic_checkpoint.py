@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -40,7 +42,7 @@ def test_work_invokes_push_when_config_flag_enabled(
         lambda _beads_dir: True,
     )
 
-    def fake_push(beads_dir: Path) -> _PushOutcome:
+    def fake_push(beads_dir: Path, **_kwargs: object) -> _PushOutcome:
         assert beads_dir == project_dir / "sdd/beads"
         events.append("push")
         return _PushOutcome(pushed=True, skipped_no_remote=False, error=None)
@@ -73,7 +75,7 @@ def test_work_uses_sync_push_even_when_config_flag_disabled(
     pushes: list[Path] = []
     monkeypatch.setattr(
         "sase.bead.sync.push_bead_work_launch",
-        lambda beads_dir: (
+        lambda beads_dir, **_kwargs: (
             pushes.append(beads_dir)
             or type(
                 "Outcome",
@@ -184,7 +186,7 @@ def test_work_async_config_is_upgraded_to_sync_prelaunch_push(
     )
     monkeypatch.setattr(
         "sase.bead.sync.push_bead_work_launch",
-        lambda beads_dir: (
+        lambda beads_dir, **_kwargs: (
             events.append("sync-push")
             or type(
                 "Outcome",
@@ -230,7 +232,7 @@ def test_work_push_failure_stops_before_launch_and_preserves_checkpoint(
     monkeypatch.setattr("sase.bead.sync.bead_state_is_clean", lambda _path: True)
     monkeypatch.setattr(
         "sase.bead.sync.push_bead_work_launch",
-        lambda beads_dir: _PushOutcome(
+        lambda beads_dir, **_kwargs: _PushOutcome(
             pushed=False, skipped_no_remote=False, error="git push failed: nope"
         ),
     )
@@ -249,6 +251,59 @@ def test_work_push_failure_stops_before_launch_and_preserves_checkpoint(
     with BeadProject(project_dir) as project:
         assert project.show(epic_id).is_ready_to_work is True
         assert project.show(epic_id).status is Status.IN_PROGRESS
+
+
+def test_checkpoint_epic_work_launch_reports_contention_timeout_with_resume_flags(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_work_commit import (
+        EpicLaunchCheckpointError,
+        checkpoint_epic_work_launch,
+    )
+    from sase.bead.sync import _PushOutcome
+
+    epic_id, _ = seed_diamond(project_dir)
+    log_path = project_dir / "sync.log"
+
+    class Timer:
+        def stage(self, *_args: object, **_kwargs: object) -> Any:
+            return nullcontext()
+
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_epic_graph_checkpoint",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr("sase.bead.sync.bead_state_is_clean", lambda _path: True)
+    monkeypatch.setattr(
+        "sase.bead.cli_work_commit._requires_remote_publication",
+        lambda _beads_dir: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        lambda _beads_dir, **_kwargs: _PushOutcome(
+            pushed=False,
+            skipped_no_remote=False,
+            error=None,
+            skipped_locked=True,
+            log_path=log_path,
+        ),
+    )
+
+    with pytest.raises(EpicLaunchCheckpointError) as excinfo:
+        checkpoint_epic_work_launch(
+            project_dir / "sdd/beads",
+            epic_id,
+            no_push=False,
+            timer=Timer(),  # type: ignore[arg-type]
+        )
+
+    assert excinfo.value.checkpoint_created is True
+    assert excinfo.value.retry_requires_push is True
+    message = str(excinfo.value)
+    assert "held the store lock" in message
+    assert "detached bead store has no push remote" not in message
+    assert f"managed sync log: {log_path}" in message
 
 
 def test_work_retry_push_failure_preserves_existing_checkpoint(
@@ -280,7 +335,7 @@ def test_work_retry_push_failure_preserves_existing_checkpoint(
     monkeypatch.setattr("sase.bead.sync.bead_state_is_clean", lambda _path: True)
     monkeypatch.setattr(
         "sase.bead.sync.push_bead_work_launch",
-        lambda _beads_dir: _PushOutcome(
+        lambda _beads_dir, **_kwargs: _PushOutcome(
             pushed=False,
             skipped_no_remote=False,
             error="git push failed: retry",
