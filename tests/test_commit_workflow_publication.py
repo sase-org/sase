@@ -16,7 +16,7 @@ from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.commit_footer_facade import LinkedCommitTagValue
 from sase.workflows.commit.checkpoint import CommitCheckpoint
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
-from sase.workflows.commit.workflow_publication import run_agent_publication_step
+from sase.workflows.commit.workflow_publication import queue_sidecar_publication_step
 from tests._commit_workflow_fixtures import (
     commit_artifacts_dir,  # noqa: F401 (registers artifacts_dir fixture)
     make_provider,
@@ -69,7 +69,7 @@ def test_commit_marks_every_sidecar_request_without_running_publishers(
         lambda *_args, **_kwargs: pytest.fail("plan refresher must not run"),
     )
 
-    assert run_agent_publication_step(
+    assert queue_sidecar_publication_step(
         cp,
         "create_commit",
         checkpoint_save=lambda _cp: None,
@@ -129,7 +129,7 @@ def test_fully_tagged_commit_and_resume_enqueue_each_request_once(
     )
 
     for _ in range(2):
-        assert run_agent_publication_step(
+        assert queue_sidecar_publication_step(
             cp,
             "create_commit",
             checkpoint_save=lambda _cp: None,

@@ -494,8 +494,8 @@ def test_workflow_checkpoints_best_effort_publication_once(
     )
     workflow = CommitWorkflow(cp.payload, cp.method)
 
-    assert workflow._run_agent_publication_step(cp) == RunResult.OK
-    assert workflow._run_agent_publication_step(cp) == RunResult.OK
+    assert workflow._queue_sidecar_publication_step(cp) == RunResult.OK
+    assert workflow._queue_sidecar_publication_step(cp) == RunResult.OK
     assert calls == [cp.payload["message"]]
     assert cp.completed_steps == ["publish_bead_pages"]
 
@@ -519,7 +519,7 @@ def test_workflow_ignores_unexpected_publication_exception(
         lambda _cp: None,
     )
 
-    result = CommitWorkflow(cp.payload, cp.method)._run_agent_publication_step(cp)
+    result = CommitWorkflow(cp.payload, cp.method)._queue_sidecar_publication_step(cp)
 
     assert result == RunResult.OK
     assert cp.completed_steps == ["publish_bead_pages"]

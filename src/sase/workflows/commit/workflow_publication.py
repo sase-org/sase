@@ -8,7 +8,7 @@ from sase.output import print_status
 from sase.workflows.commit.checkpoint import CommitCheckpoint
 
 
-def run_agent_publication_step(
+def queue_sidecar_publication_step(
     cp: CommitCheckpoint,
     method: str,
     *,
