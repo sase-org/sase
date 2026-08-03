@@ -472,11 +472,10 @@ def _hosted_url_for_definition(
     from sase.sdd.hosted_links import HostedLinkResolver
     from sase.sdd.plan_refs import workspace_context_for_plan_resolution
     from sase.sdd.store import resolve_sdd_store
-    from sase.xprompt.xprompt_sources import write_xprompt_sources
+    from sase.xprompt.xprompt_sources import collect_xprompt_sources
     from sase.xprompt_links import XpromptSourceRecord, XpromptTargetResolver
 
-    records = write_xprompt_sources(
-        None,
+    records = collect_xprompt_sources(
         reference,
         extra_xprompts={name: descriptor},
     )

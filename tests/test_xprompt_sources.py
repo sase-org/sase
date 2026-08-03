@@ -1,8 +1,7 @@
-"""Tests for launch-time xprompt definition provenance."""
+"""Tests for xprompt definition provenance resolution."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -10,10 +9,9 @@ import pytest
 from sase._repo_inventory_models import RepoInventory, RepoRecord
 from sase.xprompt.models import XPrompt
 from sase.xprompt.xprompt_sources import (
-    _collect_xprompt_sources,
-    _resolve_definition_line,
+    collect_xprompt_sources,
+    definition_line_for,
     _resolve_definition_repo,
-    write_xprompt_sources,
 )
 
 
@@ -70,7 +68,7 @@ def test_collects_project_definition_and_preserves_exact_vcs_token(
     )
     monkeypatch.setattr(sources, "get_use_chezmoi", lambda: True)
 
-    records = _collect_xprompt_sources("Run #gh_project now")
+    records = collect_xprompt_sources("Run #gh_project now")
 
     assert records == [
         {
@@ -118,7 +116,7 @@ def test_home_markdown_definition_respects_chezmoi_setting(
         lambda: RepoInventory((_repo("chezmoi", chezmoi_root),)),
     )
 
-    record = _collect_xprompt_sources("#note")[0]
+    record = collect_xprompt_sources("#note")[0]
 
     assert record["chezmoi"] is use_chezmoi
     assert record["repo"] == ("chezmoi" if use_chezmoi else None)
@@ -153,7 +151,7 @@ def test_user_config_definition_gets_unique_line_anchor(
         lambda: RepoInventory((_repo("dotfiles", config_dir),)),
     )
 
-    record = _collect_xprompt_sources("Please #review")[0]
+    record = collect_xprompt_sources("Please #review")[0]
 
     assert record["source_path"] == str(config)
     assert record["source_kind"] == "yaml"
@@ -177,7 +175,7 @@ def test_package_default_definition_is_owned_by_primary_repo(
         lambda: RepoInventory((_repo("sase", root),)),
     )
 
-    record = _collect_xprompt_sources("#plan")[0]
+    record = collect_xprompt_sources("#plan")[0]
 
     assert record["repo"] == "sase"
     assert record["repo_relpath"] == "src/sase/default_config.yml"
@@ -190,7 +188,7 @@ def test_unknown_and_literal_zone_references_are_diagnostic(
 ) -> None:
     _patch_catalogs(monkeypatch, {"known": XPrompt(name="known", content="")})
 
-    records = _collect_xprompt_sources("```\n#known\n```\nRun #missing")
+    records = collect_xprompt_sources("```\n#known\n```\nRun #missing")
 
     assert [(record["raw_ref"], record["skipped_reason"]) for record in records] == [
         ("#missing", "unknown-reference")
@@ -223,7 +221,7 @@ def test_swarm_launch_records_definition_provenance(
         lambda: RepoInventory((_repo("research", tmp_path / "repo"),)),
     )
 
-    records = _collect_xprompt_sources(
+    records = collect_xprompt_sources(
         "Rendered swarm segment",
         swarm_xprompts=["research_swarm"],
     )
@@ -234,17 +232,6 @@ def test_swarm_launch_records_definition_provenance(
     assert records[0]["repo_relpath"] == "xprompts/research_swarm.md"
 
 
-def test_write_artifact_is_valid_json_array(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_catalogs(monkeypatch, {})
-
-    records = write_xprompt_sources(tmp_path, "#unknown")
-
-    assert json.loads((tmp_path / "xprompt_sources.json").read_text()) == records
-
-
 def test_definition_line_does_not_guess_ambiguous_key(tmp_path: Path) -> None:
     source = tmp_path / "sase.yml"
     source.write_text(
@@ -252,7 +239,7 @@ def test_definition_line_does_not_guess_ambiguous_key(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    assert _resolve_definition_line(source, "review") is None
+    assert definition_line_for(source, "review") is None
 
 
 def test_definition_repo_chooses_deepest_containing_root(

@@ -253,7 +253,6 @@ def preprocess_prompt_xprompts(
             SASE_LAUNCH_SWARM_XPROMPTS,
             write_used_xprompts,
         )
-        from sase.xprompt.xprompt_sources import write_xprompt_sources
 
         encoded_swarm_xprompts = os.environ.get(SASE_LAUNCH_SWARM_XPROMPTS)
         swarm_xprompts = (
@@ -267,11 +266,6 @@ def preprocess_prompt_xprompts(
                 f"{SASE_LAUNCH_SWARM_XPROMPTS} must be a JSON array of strings"
             )
         write_used_xprompts(
-            artifacts_dir,
-            prompt,
-            swarm_xprompts=swarm_xprompts,
-        )
-        write_xprompt_sources(
             artifacts_dir,
             prompt,
             swarm_xprompts=swarm_xprompts,

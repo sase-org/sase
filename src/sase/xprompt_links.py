@@ -1,4 +1,4 @@
-"""Resolve hosted URLs for launch-captured xprompt definition provenance."""
+"""Resolve a hosted URL for one xprompt definition record."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from sase.sdd.hosted_links import HostedLinkResolver
 
 
 class XpromptSourceRecord(TypedDict):
-    """Python projection of one row from ``xprompt_sources.json``."""
+    """Python projection of one record from ``collect_xprompt_sources()``."""
 
     schema_version: int
     raw_ref: str
@@ -27,7 +27,7 @@ class XpromptSourceRecord(TypedDict):
 
 
 class XpromptTargetResolver:
-    """Resolve one captured xprompt provenance record to a hosted blob URL.
+    """Resolve one xprompt definition record to a hosted blob URL.
 
     Shaped like ``_ArtifactTargetResolver``: a reference is linkified only
     when a hosted URL can be resolved for its definition, and any failure

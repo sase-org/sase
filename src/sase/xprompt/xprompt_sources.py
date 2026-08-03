@@ -1,12 +1,10 @@
-"""Capture launch-time provenance for xprompt definition references."""
+"""Resolve xprompt definition provenance for ``sase xprompt show``."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
 import importlib.resources
-import json
-import os
 from pathlib import Path
 from typing import Literal, TypedDict
 
@@ -27,7 +25,7 @@ _YAML_SUFFIXES = {".yaml", ".yml"}
 
 
 class _XPromptSourceRecord(TypedDict):
-    """JSON wire record consumed by the Rust xprompt-link rewriter."""
+    """One resolved xprompt definition's provenance."""
 
     schema_version: int
     raw_ref: str
@@ -53,13 +51,13 @@ class _DefinitionRepo:
     chezmoi: bool
 
 
-def _collect_xprompt_sources(
+def collect_xprompt_sources(
     raw_prompt: str,
     *,
     extra_xprompts: dict[str, XPrompt] | None = None,
     swarm_xprompts: Sequence[str] | None = None,
 ) -> list[_XPromptSourceRecord]:
-    """Return definition-provenance rows for launch xprompt references."""
+    """Return definition-provenance rows for the given xprompt references."""
     records: list[_XPromptSourceRecord] = []
     seen_raw_refs: set[str] = set()
     scanned_references = scan_xprompt_references(
@@ -160,32 +158,6 @@ def definition_line_for(path: Path | str, name: str) -> int | None:
     return None
 
 
-_resolve_definition_line = definition_line_for
-
-
-def write_xprompt_sources(
-    artifacts_dir: str | os.PathLike[str] | None,
-    raw_prompt: str,
-    *,
-    extra_xprompts: dict[str, XPrompt] | None = None,
-    swarm_xprompts: Sequence[str] | None = None,
-) -> list[_XPromptSourceRecord]:
-    """Write ``xprompt_sources.json`` and return its provenance records."""
-    records = _collect_xprompt_sources(
-        raw_prompt,
-        extra_xprompts=extra_xprompts,
-        swarm_xprompts=swarm_xprompts,
-    )
-    if artifacts_dir is None:
-        return records
-    artifacts_path = Path(artifacts_dir)
-    if not artifacts_path.is_dir():
-        return records
-    with open(artifacts_path / "xprompt_sources.json", "w", encoding="utf-8") as f:
-        json.dump(records, f, indent=2)
-    return records
-
-
 def definition_file_for_source(source_id: str | None) -> Path | None:
     if not source_id:
         return None
@@ -227,9 +199,6 @@ def definition_file_for_source(source_id: str | None) -> Path | None:
             resolved = Path.cwd() / resolved
 
     return resolved.expanduser().resolve(strict=False) if resolved is not None else None
-
-
-_definition_file_for_source = definition_file_for_source
 
 
 def _resource_path(package: str, relative: str) -> Path | None:
@@ -370,7 +339,7 @@ def _is_relative_to(path: Path, root: Path) -> bool:
 
 
 __all__ = [
+    "collect_xprompt_sources",
     "definition_file_for_source",
     "definition_line_for",
-    "write_xprompt_sources",
 ]
