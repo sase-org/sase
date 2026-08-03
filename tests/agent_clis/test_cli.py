@@ -340,7 +340,7 @@ def test_execute_failure_returns_one_and_renders_docs_and_output() -> None:
         _args(),
         console=console,
         plan_fn=lambda *_args, **_kwargs: plan,
-        execute_fn=lambda _plan: (result,),
+        execute_fn=lambda _plan, **_kwargs: (result,),
     )
 
     rendered = _output(console)
@@ -379,7 +379,7 @@ def test_execute_json_reports_updated_current_and_skipped_as_success(
     code = handle_agent_cli_update_command(
         _args(names=[], all=True, json=True),
         plan_fn=lambda *_args, **_kwargs: plan,
-        execute_fn=lambda _plan: (result,),
+        execute_fn=lambda _plan, **_kwargs: (result,),
     )
 
     payload = json.loads(capsys.readouterr().out)

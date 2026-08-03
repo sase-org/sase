@@ -17,6 +17,7 @@ from sase.agent_clis.models import (
     AgentCliUpdateResult,
     AgentCliUpdatesReady,
     UpdateResultStatus,
+    UpdateTrigger,
 )
 from sase.agent_clis.runner import CommandResult, run_command
 from sase.agents_sync import integrate_cached_agent_updates
@@ -83,6 +84,7 @@ class ComprehensiveUpdateExecutionMixin:
                 results = pane_module._execute_agent_cli_updates(
                     plan,
                     run_fn=task_runner,
+                    trigger=UpdateTrigger.COMPREHENSIVE,
                 )
             except Exception as exc:  # noqa: BLE001 - SASE must still run.
                 error = error_text(exc)

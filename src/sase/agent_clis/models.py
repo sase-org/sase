@@ -35,6 +35,15 @@ class UpdateResultStatus(StrEnum):
     SKIPPED = "skipped"
 
 
+class UpdateTrigger(StrEnum):
+    """The SASE entry point that initiated an agent-CLI update run."""
+
+    COMPREHENSIVE = "comprehensive"
+    ADMIN_CENTER = "admin_center"
+    CLI = "cli"
+    UNKNOWN = "unknown"
+
+
 @dataclass(frozen=True)
 class AgentCliStatus:
     """Detected state and update capability for one provider CLI."""
@@ -170,4 +179,5 @@ __all__ = [
     "UpdateResult",
     "UpdateResultStatus",
     "UpdateStrategy",
+    "UpdateTrigger",
 ]

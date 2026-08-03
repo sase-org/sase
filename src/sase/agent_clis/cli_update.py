@@ -21,6 +21,7 @@ from .models import (
     AgentCliUpdateResult,
     AgentCliUpdatesReady,
     UpdateResultStatus,
+    UpdateTrigger,
 )
 from .operations import execute_agent_cli_updates, plan_agent_cli_updates
 
@@ -76,7 +77,7 @@ def handle_agent_cli_update_command(
         return 0
 
     try:
-        results = execute_fn(plan)
+        results = execute_fn(plan, trigger=UpdateTrigger.CLI)
     except Exception as exc:  # noqa: BLE001 - preserve a stable CLI failure shape.
         return _operation_error(
             f"Could not execute agent CLI updates: {exc}",

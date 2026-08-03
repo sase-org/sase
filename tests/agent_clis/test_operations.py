@@ -13,6 +13,7 @@ from sase.agent_clis.models import (
     InstallMethod,
     UpdateResultStatus,
     UpdateStrategy,
+    UpdateTrigger,
 )
 from sase.agent_clis.operations import (
     detect_agent_cli_statuses_for_names,
@@ -324,5 +325,50 @@ def test_already_current_entry_is_not_executed() -> None:
             AssertionError("must not execute")
         ),
     )
+
+    assert results[0].status is UpdateResultStatus.ALREADY_CURRENT
+
+
+def test_execute_records_results_trigger_and_elapsed_once() -> None:
+    status = _status(
+        "agy",
+        method=InstallMethod.SELF_MANAGED,
+        self_update=("update",),
+        latest=None,
+    )
+    plan = plan_agent_cli_updates(["agy"], status_fn=_planner(status))
+    assert isinstance(plan, AgentCliUpdatesReady)
+    recorded: list[tuple[object, UpdateTrigger, float]] = []
+
+    def run(argv: tuple[str, ...], **_kwargs: object) -> CommandResult:
+        stdout = "agy 1.1.0" if argv[-1] == "--version" else "updated"
+        return CommandResult(argv, 0, stdout=stdout)
+
+    def record(results: object, *, trigger: UpdateTrigger, elapsed: float) -> None:
+        recorded.append((results, trigger, elapsed))
+
+    results = execute_agent_cli_updates(
+        plan,
+        run_fn=run,
+        trigger=UpdateTrigger.ADMIN_CENTER,
+        record_fn=record,
+    )
+
+    assert len(recorded) == 1
+    assert recorded[0][0] == results
+    assert recorded[0][1] is UpdateTrigger.ADMIN_CENTER
+    assert recorded[0][2] >= 0
+
+
+def test_execute_record_fn_none_suppresses_journaling() -> None:
+    status = replace(
+        _status("qwen", method=InstallMethod.NPM, package="qwen"),
+        latest_version="1.0.0",
+        update_available=False,
+    )
+    plan = plan_agent_cli_updates(["qwen"], status_fn=_planner(status))
+    assert isinstance(plan, AgentCliNothingToUpdate)
+
+    results = execute_agent_cli_updates(plan, record_fn=None)
 
     assert results[0].status is UpdateResultStatus.ALREADY_CURRENT

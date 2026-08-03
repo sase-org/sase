@@ -30,6 +30,7 @@ from sase.agent_clis.models import (
     AgentCliUpdateResult,
     AgentCliUpdatesReady,
     UpdateResultStatus,
+    UpdateTrigger,
 )
 from sase.agent_clis.runner import CommandResult, run_command
 
@@ -568,6 +569,7 @@ class AgentCliBrowserMixin:
             results = pane_module._execute_agent_cli_updates(
                 plan,
                 run_fn=task_runner,
+                trigger=UpdateTrigger.ADMIN_CENTER,
             )
             message = _agent_cli_update_summary(results)
             reporter.section("Results")

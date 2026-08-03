@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import difflib
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any
@@ -11,6 +12,7 @@ from sase.llm_provider import registry as llm_registry
 from sase.plugins.latest import is_newer
 
 from .detect import detect_agent_cli_statuses, probe_version
+from .history import RecordFn, record_agent_cli_update_run
 from .latest import LatestVersion, get_latest_versions
 from .models import (
     AgentCliNothingToUpdate,
@@ -23,6 +25,7 @@ from .models import (
     InstallMethod,
     UpdateResultStatus,
     UpdateStrategy,
+    UpdateTrigger,
 )
 from .runner import AgentCliRunnerError, CommandResult, run_command
 
@@ -145,8 +148,11 @@ def execute_agent_cli_updates(
     plan: AgentCliUpdatesReady | AgentCliNothingToUpdate,
     *,
     run_fn: RunnerFn = run_command,
+    trigger: UpdateTrigger = UpdateTrigger.UNKNOWN,
+    record_fn: RecordFn | None = record_agent_cli_update_run,
 ) -> tuple[AgentCliUpdateResult, ...]:
     """Execute a plan sequentially and re-probe versions after successes."""
+    started_at = time.monotonic()
     results: list[AgentCliUpdateResult] = []
     for entry in plan.entries:
         status = entry.status
@@ -251,7 +257,14 @@ def execute_agent_cli_updates(
                 output_tail=output_tail,
             )
         )
-    return tuple(results)
+    completed_results = tuple(results)
+    if record_fn is not None:
+        record_fn(
+            completed_results,
+            trigger=trigger,
+            elapsed=time.monotonic() - started_at,
+        )
+    return completed_results
 
 
 def plan_agent_cli_status(status: AgentCliStatus) -> AgentCliUpdateEntry:
