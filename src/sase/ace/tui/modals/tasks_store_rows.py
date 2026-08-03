@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from sase.core.state_write_guard import pytest_path_is_sandboxed
+from sase.core.time import local_now, to_local
 from sase.tasks import (
     DETACHED_TASK_KIND,
     BackgroundTask,
@@ -108,7 +109,7 @@ def _store_task_row(
     with_output: bool = False,
 ) -> TaskInfo:
     """Adapt one durable task row into a pane row."""
-    started_at = _local_datetime(task.started_at or task.created_at) or datetime.now()
+    started_at = _local_datetime(task.started_at or task.created_at) or local_now()
     output = ""
     if with_output:
         output = _read_log_tail(task.task_id)
@@ -190,7 +191,7 @@ def _local_datetime(value: str | None) -> datetime | None:
         return None
     if parsed.tzinfo is None:
         return parsed
-    return parsed.astimezone().replace(tzinfo=None)
+    return to_local(parsed)
 
 
 def current_tui_session_id() -> str | None:

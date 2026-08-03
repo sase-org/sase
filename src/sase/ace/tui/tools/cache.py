@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.core.time import local_now, to_local
+
 from ._entry import ToolCallEntry
 from .reader import (
     TOOL_CALLS_FILENAME,
@@ -95,7 +97,11 @@ def cached_tool_calls_end_reference(agent: Agent) -> datetime | None:
     entry = peek_tool_calls_cache_entry(agent)
     if entry is None or entry.artifact_mtime_ns <= 0:
         return None
-    return datetime.fromtimestamp(entry.artifact_mtime_ns / 1_000_000_000, tz=UTC)
+    timestamp = datetime.fromtimestamp(
+        entry.artifact_mtime_ns / 1_000_000_000,
+        tz=UTC,
+    )
+    return to_local(timestamp)
 
 
 def cached_tool_calls_have_pending(agent: Agent) -> bool:
@@ -160,7 +166,7 @@ def fetch_tool_calls_cached(agent: Agent) -> tuple[ToolCallEntry, ...] | None:
         entries = _normalize_entries(read_tool_calls_for_agent(agent))
         _tools_cache[cache_key] = _ToolsCacheEntry(
             entries=entries,
-            fetch_time=datetime.now(),
+            fetch_time=local_now(),
             last_worker_monotonic=now_mono,
         )
         return entries
@@ -185,7 +191,7 @@ def fetch_tool_calls_cached(agent: Agent) -> tuple[ToolCallEntry, ...] | None:
     entries = _normalize_entries(read_tool_calls_for_agent(agent, artifact_dirs=dirs))
     _tools_cache[cache_key] = _ToolsCacheEntry(
         entries=entries,
-        fetch_time=datetime.now(),
+        fetch_time=local_now(),
         artifact_mtime_ns=current_mtime,
         discovered_dirs=dirs,
         parent_mtime_ns=parent_mtime_ns,

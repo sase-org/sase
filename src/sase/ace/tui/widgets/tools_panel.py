@@ -26,7 +26,7 @@ from sase.ace.tui.tools.cache import (
     tools_cache,
 )
 from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
-from sase.core.time import get_timezone
+from sase.core.time import local_now
 
 from ..util.trace import tui_trace
 from ._tools_panel_fetching import (
@@ -297,7 +297,7 @@ class AgentToolsPanel(Static):
             if sources is None:
                 return None
             rows = rows_from_sources(sources)
-            fetch_time = latest_cached_fetch_time(agent) or datetime.now()
+            fetch_time = latest_cached_fetch_time(agent) or local_now()
             return ToolsPanelFetchResult(
                 entries=None if rows is None else tuple(row.entry for row in rows),
                 rows=rows,
@@ -320,7 +320,7 @@ class AgentToolsPanel(Static):
             return ToolsPanelFetchResult(
                 entries=None if rows is None else tuple(row.entry for row in rows),
                 rows=rows,
-                fetch_time=latest_cached_fetch_time(agent) or datetime.now(),
+                fetch_time=latest_cached_fetch_time(agent) or local_now(),
             )
 
         entries = self._fetch_tools_in_background(agent)
@@ -329,7 +329,7 @@ class AgentToolsPanel(Static):
             entries=entries,
             rows=rows_from_entries(entries),
             fetch_time=(
-                cache_entry.fetch_time if cache_entry is not None else datetime.now()
+                cache_entry.fetch_time if cache_entry is not None else local_now()
             ),
         )
 

@@ -12,6 +12,7 @@ from datetime import datetime
 from rich.text import Text
 
 from sase.sessions import session_chip
+from sase.core.time import local_now
 from sase.tasks import DETACHED_TASK_KIND
 
 from ..task_queue import TaskInfo, TaskLogLine
@@ -42,7 +43,7 @@ def is_active(task: TaskInfo) -> bool:
 
 def _relative_time(dt: datetime, *, now: datetime | None = None) -> str:
     """Format a datetime as a short relative time string."""
-    reference = now if now is not None else datetime.now()
+    reference = now if now is not None else local_now()
     delta = int((reference - dt).total_seconds())
     if delta < 0:
         return "just now"
@@ -60,7 +61,7 @@ def _relative_time(dt: datetime, *, now: datetime | None = None) -> str:
 
 def _elapsed(task: TaskInfo, *, now: datetime | None = None) -> str:
     """Format how long a task has been running, or ran for."""
-    end = task.finished_at or now or datetime.now()
+    end = task.finished_at or now or local_now()
     seconds = max(0, int((end - task.started_at).total_seconds()))
     minutes, sec = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)

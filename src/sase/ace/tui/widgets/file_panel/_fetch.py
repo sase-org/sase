@@ -5,6 +5,8 @@ from datetime import datetime
 from rich.text import Text
 from textual.worker import Worker, WorkerState
 
+from sase.core.time import local_now
+
 from ...models.agent import Agent
 from ._diff import get_agent_diff
 from ._display import StaticReadResult
@@ -123,7 +125,7 @@ class FilePanelFetchMixin:
         cache_key = get_cache_key(agent)
         file_cache[cache_key] = FileCacheEntry(
             diff_output=diff_output,
-            fetch_time=datetime.now(),
+            fetch_time=local_now(),
         )
 
         return diff_output

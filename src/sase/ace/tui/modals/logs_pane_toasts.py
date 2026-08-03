@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 
 from rich.text import Text
 
+from sase.core.time import format_local, parse_local
 from sase.logs import ToastRecord
 
 _CYAN = "#87D7FF"
@@ -111,15 +112,12 @@ def _session_header(record: ToastRecord, current_session_id: str) -> Text:
 
 
 def _format_session_started_at(value: str) -> str:
-    parsed = _parse_timestamp(value)
-    if parsed is None:
-        return value
-    return parsed.strftime("%Y-%m-%d %H:%M UTC")
+    return format_local(value, "%Y-%m-%d %H:%M %Z", default=value)
 
 
 def _toast_timestamp(record: ToastRecord) -> str:
-    timestamp = _parse_timestamp(record.timestamp)
-    session_start = _parse_timestamp(record.session_started_at)
+    timestamp = parse_local(record.timestamp)
+    session_start = parse_local(record.session_started_at)
     if timestamp is None:
         return record.timestamp
     if session_start is not None and timestamp.date() != session_start.date():

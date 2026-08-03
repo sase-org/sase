@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from rich import box
@@ -12,6 +11,7 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.ace.tui.changespec_status import changespec_status_glyph
+from sase.core.time import format_local
 from sase.telemetry.render import categorical_color, format_duration
 
 from .statistics_pane_data import ProjectsGroupBy, StatisticsView
@@ -269,7 +269,7 @@ class StatisticsProjectsRenderingMixin:
     def _format_timestamp(timestamp: float) -> str:
         if timestamp <= 0:
             return "—"
-        return datetime.fromtimestamp(timestamp).astimezone().strftime("%b %d %H:%M")
+        return format_local(timestamp, "%b %d %H:%M")
 
 
 __all__ = ["StatisticsProjectsRenderingMixin"]

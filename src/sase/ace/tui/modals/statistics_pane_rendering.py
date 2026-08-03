@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from rich.align import Align
@@ -13,6 +12,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 
 from sase.ace.tui.keymaps import StatisticsPaneKeymaps, key_display_name
+from sase.core.time import format_local
 from sase.stats.ranges import PresetKey, StatsRange
 from sase.telemetry.render import categorical_color, render_stat_tile
 
@@ -270,11 +270,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         elif self._last_error:
             status.append("load failed", style="red")
         elif self._last_result is not None:
-            updated = (
-                datetime.fromtimestamp(self._last_result.generated_at)
-                .astimezone()
-                .strftime("%H:%M:%S")
-            )
+            updated = format_local(self._last_result.generated_at, "%H:%M:%S")
             status.append(f"updated {updated}", style="dim")
         return status
 

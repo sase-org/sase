@@ -6,6 +6,7 @@ from typing import Any
 from textual.widgets import Static
 from textual.worker import Worker
 
+from sase.core.time import local_now
 from sase.linked_repos import OpenedRepoKind
 
 from ...models.agent import Agent
@@ -87,7 +88,7 @@ class AgentFilePanel(
         cache_entry = file_cache.get(cache_key)
 
         if same_agent and cache_entry is not None:
-            age_seconds = (datetime.now() - cache_entry.fetch_time).total_seconds()
+            age_seconds = (local_now() - cache_entry.fetch_time).total_seconds()
             if age_seconds < stale_threshold_seconds:
                 self._current_agent = agent
                 self._reconcile_file_list(agent, allow_initial_display=True)
@@ -154,7 +155,7 @@ class AgentFilePanel(
             return
 
         if cache_entry is not None:
-            age_seconds = (datetime.now() - cache_entry.fetch_time).total_seconds()
+            age_seconds = (local_now() - cache_entry.fetch_time).total_seconds()
             if age_seconds < stale_threshold_seconds:
                 # Cache is fresh - use it directly
                 self._display_file_with_timestamp(

@@ -7,10 +7,10 @@ import os
 import re
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 from sase.core.paths import ensure_sase_directory, sase_subdir
+from sase.core.time import format_local
 
 from ._entry import ToolCallEntry
 from ._report_recovery import (
@@ -125,19 +125,7 @@ def _entry_digest(entry: ToolCallEntry) -> str:
 
 
 def _timestamp_hhmmss(value: str | None) -> str:
-    parsed = _parse_raw_timestamp(value)
-    if parsed is None:
-        return "unknown"
-    return parsed.strftime("%H%M%S")
-
-
-def _parse_raw_timestamp(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
+    return format_local(value, "%H%M%S", default="unknown")
 
 
 def _safe_filename(value: str) -> str:

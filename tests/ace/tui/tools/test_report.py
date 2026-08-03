@@ -222,7 +222,7 @@ def test_report_path_is_stable_and_handles_missing_tool_use_id(
     assert first == second
     assert first.endswith(".md")
     assert Path(first).parent == tmp_path / ".sase" / "tool_call_reports"
-    assert Path(first).name.startswith("bash-143502-")
+    assert Path(first).name.startswith("bash-103502-")
 
 
 def test_write_overwrites_and_prunes_reports(

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
@@ -19,6 +17,7 @@ from sase.ace.tui.keymaps import (
     statistics_help_bindings,
 )
 from sase.ace.tui.keymaps.metadata import _STATISTICS_BINDING_META
+from sase.core.time import format_local
 from sase.stats.ranges import StatsRange
 
 from .statistics_pane_data import (
@@ -244,10 +243,9 @@ class StatisticsHelpModal(ModalScreen[None]):
         if self._generated_at is None:
             text.append(" — not yet loaded.", style="dim italic")
         else:
-            loaded = (
-                datetime.fromtimestamp(self._generated_at)
-                .astimezone()
-                .strftime("%Y-%m-%d %H:%M:%S %Z")
+            loaded = format_local(
+                self._generated_at,
+                "%Y-%m-%d %H:%M:%S %Z",
             )
             text.append(f" — {loaded}.", style="dim")
         return text

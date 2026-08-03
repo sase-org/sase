@@ -282,7 +282,7 @@ def test_render_toasts_groups_sessions_newest_first(log_dir: Path) -> None:
     assert plain.index("PR is not set") < plain.index("Refreshed")
     assert "Refreshed  ×2" in plain
     assert plain.count("Refreshed") == 1
-    assert "07-07 00:01:00" in plain
+    assert "20:01:00" in plain
     assert "boom\n            trace line" in plain
     assert "✖" in plain
     assert "⚠" in plain
@@ -292,7 +292,7 @@ def test_render_toasts_groups_sessions_newest_first(log_dir: Path) -> None:
     assert f"bold {_GOLD}" in _style_at(text, "This session")
     assert "red" in _style_at(text, "boom")
     assert _GOLD in _style_at(text, "PR is not set")
-    assert _CYAN in _style_at(text, "09:14:03")
+    assert _CYAN in _style_at(text, "05:14:03")
 
 
 def test_render_empty_toasts_source_shows_notification_history_copy(

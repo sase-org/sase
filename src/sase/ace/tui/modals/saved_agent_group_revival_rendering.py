@@ -13,6 +13,7 @@ from sase.core.agent_group_archive_wire import (
     SavedAgentGroupSummaryWire,
     SavedAgentGroupWire,
 )
+from sase.core.time import format_local
 from sase.project_display_names import (
     humanize_vcs_refs_in_text,
     project_display_name_for,
@@ -65,7 +66,8 @@ def _saved_group_time_label(created_at: str, *, now: datetime | None = None) -> 
         relative = f"{delta_seconds // 3600}h ago"
     else:
         relative = f"{delta_seconds // 86400}d ago"
-    return f"{relative} | {parsed.strftime('%Y-%m-%d %H:%M')}"
+    absolute = format_local(parsed, "%Y-%m-%d %H:%M")
+    return f"{relative} | {absolute}"
 
 
 def apply_jump_hint_prefix(label: Text, hint: str) -> Text:

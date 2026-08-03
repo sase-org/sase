@@ -13,6 +13,7 @@ from sase.agent.status_buckets import (
     AGENT_STATUS_BUCKET_GLYPHS,
     status_bucket_for_values,
 )
+from sase.core.time import format_local
 
 from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import AgentType
@@ -500,7 +501,7 @@ def _level_at_least(level: FoldLevel, threshold: FoldLevel) -> bool:
 
 
 def _format_timestamp(value: datetime) -> str:
-    return value.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+    return format_local(value, "%Y-%m-%d %H:%M:%S")
 
 
 __all__ = [

@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
 from pathlib import Path
 
 from rich.text import Text
 
 from sase.core.paths import sase_home
+from sase.core.time import format_local
 from sase.logs import TOAST_HISTORY_LIMIT, current_toast_session, read_recent_toasts
 
 from ..logs import LogSource
@@ -46,12 +46,12 @@ def format_size(num_bytes: int) -> str:
 
 
 def format_mtime(source: LogSource) -> str | None:
-    """Last-modified time of *source* as ``YYYY-MM-DD HH:MM UTC``."""
+    """Last-modified time of *source* in the configured timezone."""
     try:
         ts = source.path.stat().st_mtime
     except OSError:
         return None
-    return datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
+    return format_local(ts, "%Y-%m-%d %H:%M %Z")
 
 
 def _source_size(source: LogSource) -> int | None:

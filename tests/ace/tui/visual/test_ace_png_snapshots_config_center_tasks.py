@@ -88,7 +88,10 @@ async def test_config_center_tasks_tab_png_snapshot(
         option_list = pane.query_one("#tasks-list", OptionList)
         output = pane.query_one("#tasks-output-content", Static)
         assert "sync sase-42" in option_list.get_option_at_index(0).prompt.plain
-        assert "◆ detached" in option_list.get_option_at_index(1).prompt.plain
+        assert any(
+            "◆ detached" in option_list.get_option_at_index(index).prompt.plain
+            for index in range(option_list.option_count)
+        )
         assert "remote: Enumerating objects" in output.render().plain
         await wait_for_visual_idle(page)
 

@@ -232,7 +232,7 @@ def test_saved_group_time_label_is_deterministic_with_supplied_now() -> None:
         now=datetime(2026, 5, 27, 13, 30, tzinfo=UTC),
     )
 
-    assert label == "1h ago | 2026-05-27 12:00"
+    assert label == "1h ago | 2026-05-27 08:00"
 
 
 def test_stopped_status_uses_canonical_style() -> None:

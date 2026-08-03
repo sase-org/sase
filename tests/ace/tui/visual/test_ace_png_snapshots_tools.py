@@ -11,7 +11,6 @@ import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import pytest
 from textual.geometry import Size
@@ -309,38 +308,26 @@ def _populate_expanded_tool_calls(artifacts_dir: Path) -> None:
             f.write("\n")
 
 
-def _pin_tools_panel_timezone(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pin the Tools panel timestamp formatter to UTC for deterministic output."""
-    utc = ZoneInfo("UTC")
-    monkeypatch.setattr(tools_panel_module, "get_timezone", lambda: utc)
-
-
 _FIXED_FETCH_TIME = datetime(2026, 5, 9, 14, 1, 35)
 
 
-class _FixedDateTime(datetime):
-    """``datetime`` subclass whose ``now()`` returns a fixed wall-clock value.
-
-    The Tools panel embeds ``fetch_time`` (``datetime.now()`` at cache write)
-    into the rendered ``refreshed HH:MM:SS`` line. Without pinning, the
-    rendered time drifts every run and the PNG golden never matches.
-    """
-
-    @classmethod
-    def now(cls, tz: Any = None) -> datetime:  # type: ignore[override]
-        del tz
-        return _FIXED_FETCH_TIME
-
-
 def _pin_tools_panel_now(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pin ``datetime.now()`` calls in the Tools panel to a fixed wall-clock.
+    """Pin configured-local clocks in the Tools panel to a fixed wall-clock.
 
     The rendered ``refreshed HH:MM:SS`` line comes from ``fetch_time``, which
-    the cache loader stamps with ``datetime.now()`` at read time, so the cache
-    module's clock has to be pinned too — not just the panel widget's.
+    the cache loader stamps with ``local_now()`` at read time, so the cache
+    module's configured clock has to be pinned too — not just the panel widget's.
     """
-    monkeypatch.setattr(tools_panel_module, "datetime", _FixedDateTime)
-    monkeypatch.setattr(tools_cache_module, "datetime", _FixedDateTime)
+    monkeypatch.setattr(
+        tools_panel_module,
+        "local_now",
+        lambda: _FIXED_FETCH_TIME,
+    )
+    monkeypatch.setattr(
+        tools_cache_module,
+        "local_now",
+        lambda: _FIXED_FETCH_TIME,
+    )
 
 
 def _clear_tools_cache() -> None:
@@ -381,7 +368,6 @@ async def test_agents_tools_panel_populated_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    _pin_tools_panel_timezone(monkeypatch)
     _pin_tools_panel_now(monkeypatch)
     _clear_tools_cache()
 
@@ -426,7 +412,6 @@ async def test_agents_tools_panel_detail_level_png_snapshots(
     snapshot_name: str,
     title: str,
 ) -> None:
-    _pin_tools_panel_timezone(monkeypatch)
     _pin_tools_panel_now(monkeypatch)
     _clear_tools_cache()
 

@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 
+from sase.core.time import local_now
 from sase.project_display_names import humanize_cl_name
 
 TaskLogStream = Literal["stdout", "stderr", "progress", "header", "result"]
@@ -97,7 +98,7 @@ class _TaskLog:
         return "\n".join(lines) + "\n"
 
     def _append_locked(self, text: str, *, stream: TaskLogStream) -> None:
-        self._lines.append(TaskLogLine(text=text, stream=stream, ts=datetime.now()))
+        self._lines.append(TaskLogLine(text=text, stream=stream, ts=local_now()))
         self._chars += len(text)
 
     def _trim_locked(self) -> None:
@@ -260,7 +261,7 @@ class TaskQueue:
             project_file=project_file,
             status="running",
             message=f"{label} started",
-            started_at=datetime.now(),
+            started_at=local_now(),
             display_name=display_name,
             dedup_key=dedup_key if dedup_key is not None else cl_name,
             exclusive_scopes=frozenset(exclusive_scopes),
@@ -287,7 +288,7 @@ class TaskQueue:
             info.message = message
             info.output = output or info.get_live_output()
             info.error = error
-            info.finished_at = datetime.now()
+            info.finished_at = local_now()
             if success:
                 info.exit_code = 0 if info.exit_code is None else info.exit_code
 
@@ -365,7 +366,7 @@ class TaskQueue:
 
     def prune_old(self, max_age_seconds: int = 3600) -> None:
         """Remove completed tasks older than *max_age_seconds*."""
-        cutoff = datetime.now()
+        cutoff = local_now()
         with self._lock:
             self._tasks = {
                 tid: info

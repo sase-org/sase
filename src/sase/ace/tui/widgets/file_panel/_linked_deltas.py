@@ -11,6 +11,7 @@ from typing import NamedTuple
 
 from sase.agent.status_buckets import status_bucket_for_values
 from sase.ace.changespec.models import DeltaEntry
+from sase.core.time import local_now
 from sase.linked_repos import OpenedRepoKind
 from sase.vcs_provider import VCSProviderNotFoundError
 
@@ -283,7 +284,7 @@ def _compute_repo_group(
             workspace_dir=workspace_dir,
             entries=entries,
             diff_text=diff_text,
-            fetched_at=datetime.now(),
+            fetched_at=local_now(),
             kind=kind,
         )
         if entries

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime
 from pathlib import Path
 
 from rich.text import Text
 
+from sase.core.time import format_local
 from sase.repo_inventory import RepoRecord
 from sase.workspace_provider.inventory import WorkspaceInventoryRecord
 
@@ -212,10 +212,7 @@ def _relative_workspace_time(timestamp: float, *, now: float) -> str:
 
 
 def _absolute_workspace_time(timestamp: float) -> str:
-    try:
-        return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M")
-    except (OSError, OverflowError, ValueError):
-        return "-"
+    return format_local(timestamp, "%Y-%m-%d %H:%M", default="-")
 
 
 def _claim_label(record: WorkspaceInventoryRecord) -> tuple[str, str]:

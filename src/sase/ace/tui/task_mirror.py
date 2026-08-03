@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
+from sase.core.time import get_timezone, local_now
 from sase.tasks import (
     ACTIVE_TASK_STATUSES,
     COMMAND_TASK_KIND,
@@ -291,7 +292,7 @@ class TaskMirror:
             status=op.status,
             message=op.message or None,
             exit_code=op.exit_code,
-            finished_at=_utc_timestamp(datetime.now()),
+            finished_at=_utc_timestamp(local_now()),
         )
 
     def _tick(self) -> None:
@@ -408,6 +409,8 @@ def _load_context() -> _MirrorContext:
 
 def _utc_timestamp(value: datetime) -> str:
     """Format a naive local (or aware) datetime as an RFC3339 UTC string."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=get_timezone())
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 

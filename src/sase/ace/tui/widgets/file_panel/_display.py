@@ -15,6 +15,7 @@ from sase.ace.tui.graphics import (
     is_supported_image_path,
     is_supported_video_path,
 )
+from sase.core.time import local_now
 
 from ..prompt_panel._agent_context_common import (
     COLOR_EXTERNAL_REPO_GLYPH,
@@ -154,7 +155,7 @@ class FilePanelDisplayMixin:
         kind: OpenedRepoKind = "linked",
     ) -> None:
         """Display a cached opened-repository diff page."""
-        fetch_time = fetched_at or datetime.now()
+        fetch_time = fetched_at or local_now()
         self._last_file_content = diff_text
         self._linked_repo_name = repo_name
         self._linked_repo_kind = kind
