@@ -71,9 +71,6 @@ def build_bead_association_index(
     diagnostics: list[str] = []
     issues = _read_issues(store, bead_issues, diagnostics)
     known_bead_ids = frozenset(issue.id for issue in issues)
-    from sase.bead_pages.links import bead_id_aliases_for_store
-
-    id_aliases = bead_id_aliases_for_store(store)
     repositories = _history_repositories(
         primary,
         inventory_project,
@@ -90,7 +87,6 @@ def build_bead_association_index(
             known_bead_ids,
             snapshot,
             git_runner,
-            id_aliases,
         )
         diagnostics.extend(history.diagnostics)
         _merge_history(
@@ -112,7 +108,6 @@ def build_bead_association_index(
             records,
             known_bead_ids,
             snapshot,
-            id_aliases,
         ).items():
             target = direct_agents[bead_id]
             for label, association in names.items():

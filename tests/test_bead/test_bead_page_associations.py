@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 import subprocess
 
@@ -346,40 +345,6 @@ def test_tagged_unknown_bead_does_not_fall_back_to_legacy_subject(
     )
 
     assert index.for_bead(issue.id).commits == ()
-
-
-def test_historical_alias_footer_navigates_under_canonical_bead(
-    tmp_path: Path,
-) -> None:
-    beads = tmp_path / "beads"
-    beads.mkdir()
-    with BeadProject.init(beads, beads_dirname=BEADS_DIRNAME_ROOT) as project:
-        issue = project.create("Canonical", IssueType.PLAN)
-    old_id = f"gh_sase-org__sase-{issue.id.split('-', 1)[1]}"
-    config_path = beads / "config.json"
-    config = json.loads(config_path.read_text())
-    config["id_aliases"] = {old_id: issue.id}
-    config_path.write_text(json.dumps(config), encoding="utf-8")
-    sha = "e" * 40
-    git = _FakeGit(
-        _history_entry(
-            sha,
-            10,
-            "immutable old footer",
-            f"immutable old footer\n\nSASE_BEAD={old_id}",
-        )
-    )
-
-    index = build_bead_association_index(
-        _store(tmp_path / "plans", beads),
-        primary_root=tmp_path,
-        git_runner=git,
-        link_resolver=_FakeLinks(),
-        artifact_records=(),
-        identity=_identity(),
-    )
-
-    assert [row.sha for row in index.for_bead(issue.id).commits] == [sha]
 
 
 def test_parent_cycle_terminates_and_keeps_each_bead_direct_only(

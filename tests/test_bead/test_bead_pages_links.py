@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.bead_pages.links import (
-    known_bead_ids_for_store,
     resolve_bead_commit_tag,
     resolve_bead_page_url_from_cwd,
 )
@@ -111,32 +110,6 @@ def test_resolve_bead_page_url_from_cwd_never_raises(
     )
 
     assert resolve_bead_page_url_from_cwd("sase-ai.2", cwd=tmp_path) is None
-
-
-def test_known_bead_ids_include_valid_compatibility_aliases(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    store = SddStore("sidecar_repos", tmp_path, tmp_path, beads_dir=tmp_path)
-    project = MagicMock()
-    project.__enter__.return_value = project
-    project.__exit__.return_value = None
-    project.list_issues.return_value = [MagicMock(id="sase-ai.2")]
-    monkeypatch.setattr(
-        "sase.bead.store_locator.open_bead_project_for_beads_dir",
-        lambda _root: project,
-    )
-    monkeypatch.setattr(
-        "sase.bead_pages.links.bead_id_aliases_for_store",
-        lambda _store: {
-            "gh_sase-org__sase-ai.2": "sase-ai.2",
-            "broken-old": "missing-new",
-        },
-    )
-
-    assert known_bead_ids_for_store(store) == frozenset(
-        {"sase-ai.2", "gh_sase-org__sase-ai.2"}
-    )
 
 
 def test_apply_bead_commit_tag_leaves_subject_byte_identical(tmp_path: Path) -> None:

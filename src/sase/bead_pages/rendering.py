@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from sase.agents_sync.rendering_markdown import page_bytes
-from sase.agents_sync.rendering_markdown import md_code, relative_page_url
 from sase.bead.cli_detail import IssueDetail, resolve_issue_detail
 from sase.bead.model import Issue
 from sase.bead.project import BeadProject
@@ -105,25 +104,8 @@ def render_bead_page_detail_bytes(
     )
 
 
-def render_bead_alias_page_bytes(old_id: str, canonical_id: str) -> bytes:
-    """Render one deterministic compatibility page for a historical bead ID."""
-
-    from sase.bead_pages.paths import bead_page_path
-
-    source = bead_page_path(old_id).removeprefix("pages/")
-    target = bead_page_path(canonical_id).removeprefix("pages/")
-    relative_target = relative_page_url(source, target)
-    return page_bytes(
-        "<!-- sase:bead-id-alias -->\n\n"
-        "# Bead moved\n\n"
-        f"Historical ID `{md_code(old_id)}` now resolves to "
-        f"[`{md_code(canonical_id)}`]({relative_target}).\n"
-    )
-
-
 __all__ = [
     "render_bead_page",
-    "render_bead_alias_page_bytes",
     "render_bead_page_bytes",
     "render_bead_page_detail_bytes",
 ]
