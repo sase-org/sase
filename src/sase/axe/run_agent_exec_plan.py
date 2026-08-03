@@ -144,7 +144,6 @@ def handle_plan_marker(
     from sase.history.chat import save_chat_history
     from sase.history.chat_extras import format_extra_sections
     from sase.history.chat_links import format_plan_as_response
-    from sase.history.chat_storage import read_xprompt_prompt
 
     plan_response = format_plan_as_response(plan_result.plan_file)
     _planner_suffix = state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
@@ -162,8 +161,6 @@ def handle_plan_marker(
         metadata_model=ctx.agent_model,
         metadata_llm_provider=ctx.agent_llm_provider,
         metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
-        xprompt_prompt=read_xprompt_prompt(state.current_artifacts_dir),
-        rendered_prompt=state.current_prompt,
     )
     state.saved_chat_paths.append((_planner_suffix, _planner_chat))
     update_meta_field(state.current_artifacts_dir, "chat_path", _planner_chat)

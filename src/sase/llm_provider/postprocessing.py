@@ -12,7 +12,6 @@ from sase.artifacts import get_sase_log_file, run_bam_command
 from sase.core.time import get_timezone
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
-from sase.history.chat_storage import read_xprompt_prompt
 from sase.output import print_prompt_and_response
 
 from .types import _MODEL_TIER_TO_LABEL, LoggingContext, ModelTier
@@ -222,8 +221,6 @@ def _save_to_chat_history(
     if context.artifacts_dir:
         extra = format_extra_sections(context.artifacts_dir)
 
-    xprompt_prompt = read_xprompt_prompt(context.artifacts_dir)
-
     save_chat_history(
         prompt=prompt,
         response=response,
@@ -235,8 +232,6 @@ def _save_to_chat_history(
         metadata_model=context.metadata_model,
         metadata_llm_provider=context.metadata_llm_provider,
         metadata_agent=context.metadata_agent,
-        xprompt_prompt=xprompt_prompt,
-        rendered_prompt=prompt,
     )
 
 
@@ -261,8 +256,6 @@ def _save_error_to_chat_history(
     if context.artifacts_dir:
         extra = format_extra_sections(context.artifacts_dir)
 
-    xprompt_prompt = read_xprompt_prompt(context.artifacts_dir)
-
     save_chat_history(
         prompt=prompt,
         response=error_content,
@@ -274,6 +267,4 @@ def _save_error_to_chat_history(
         metadata_model=context.metadata_model,
         metadata_llm_provider=context.metadata_llm_provider,
         metadata_agent=context.metadata_agent,
-        xprompt_prompt=xprompt_prompt,
-        rendered_prompt=prompt,
     )

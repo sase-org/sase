@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from sase.history.chat import save_chat_history
+from sase.history.chat import _parse_chat_turns, save_chat_history
 
 from tests.conftest import redirect_sase_home
 
@@ -39,6 +39,27 @@ def test_save_chat_history_basic(
     assert "- **MODEL:**" not in content
     assert "- **AGENT:**" not in content
     assert "- **PROMPT:**" not in content
+
+
+def test_save_chat_history_writes_single_prompt_section_and_round_trips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path)
+
+    result = save_chat_history(
+        prompt="Use #plan.\n\n## Details\n\nKeep this heading in the prompt.",
+        response="Done",
+        workflow="ace-run",
+        branch_or_workspace="branch",
+        timestamp="260501_225009",
+    )
+
+    content = Path(os.path.expanduser(result)).read_text(encoding="utf-8")
+    assert "<!-- sase:section:" not in content
+    assert content.count("\n## Prompt\n\n") == 1
+    assert _parse_chat_turns(content) == [
+        ("Use #plan.\n\n## Details\n\nKeep this heading in the prompt.", "Done")
+    ]
 
 
 def test_save_chat_history_with_transcript_metadata(

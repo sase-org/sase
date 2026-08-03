@@ -113,21 +113,6 @@ def test_save_to_chat_history_passes_transcript_model_metadata() -> None:
     assert save_chat.call_args.kwargs["metadata_agent"] is None
 
 
-def test_save_to_chat_history_passes_both_prompt_renderings(tmp_path) -> None:
-    (tmp_path / "raw_xprompt.md").write_text("#plan do it", encoding="utf-8")
-    context = LoggingContext(
-        agent_type="wf",
-        workflow="wf",
-        artifacts_dir=str(tmp_path),
-    )
-
-    with patch("sase.llm_provider.postprocessing.save_chat_history") as save_chat:
-        _save_to_chat_history("rendered prompt", "response", context, "timestamp")
-
-    assert save_chat.call_args.kwargs["xprompt_prompt"] == "#plan do it"
-    assert save_chat.call_args.kwargs["rendered_prompt"] == "rendered prompt"
-
-
 @pytest.mark.parametrize(
     "marker_name",
     [".sase_plan_pending", ".sase_questions_pending"],

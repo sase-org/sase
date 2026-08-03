@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from collections.abc import Mapping, Sequence
-from typing import Any, TypedDict, cast
+from typing import TypedDict, cast
 
 from sase.agents_sync.git import GitRunner
 from sase.core.rust import require_rust_binding
@@ -41,21 +40,6 @@ def load_xprompt_source_records(
     parsed = parse(path.read_bytes())
     selected = select(parsed)
     return tuple(cast(list[XpromptSourceRecord], selected))
-
-
-def rewrite_xprompt_source_links(
-    prompt: str,
-    records: Sequence[XpromptSourceRecord],
-    resolver: XpromptTargetResolver,
-) -> str:
-    """Linkify resolvable captured references and preserve all others."""
-
-    rewrite = require_rust_binding("prompt_xprompt_rewrite_links")
-    payload = cast(
-        Mapping[str, Any],
-        rewrite(prompt, list(records), resolver),
-    )
-    return str(payload.get("prompt") or "")
 
 
 class XpromptTargetResolver:
@@ -132,5 +116,4 @@ __all__ = [
     "XpromptSourceRecord",
     "XpromptTargetResolver",
     "load_xprompt_source_records",
-    "rewrite_xprompt_source_links",
 ]

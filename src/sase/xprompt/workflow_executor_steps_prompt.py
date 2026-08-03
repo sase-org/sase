@@ -361,8 +361,6 @@ class PromptStepMixin:
                     metadata_model=step_model,
                     metadata_llm_provider=step_llm_provider,
                     branch_or_workspace=branch_or_workspace,
-                    xprompt_prompt=None,
-                    rendered_prompt=expanded_prompt,
                 )
             except Exception:
                 pass

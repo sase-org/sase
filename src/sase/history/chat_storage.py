@@ -14,7 +14,6 @@ from sase.core.paths import (
 )
 from sase.core.time import get_timezone
 from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_METADATA_LABEL
-from sase.history.chat_prompt_sections import render_prompt_sections
 
 
 def format_chat_filename(
@@ -158,17 +157,6 @@ def _safe_is_file(path: Path) -> bool:
         return False
 
 
-def read_xprompt_prompt(artifacts_dir: str | Path | None) -> str | None:
-    """Read one run's unrendered XPrompt prompt when it is available."""
-
-    if artifacts_dir is None:
-        return None
-    try:
-        return (Path(artifacts_dir) / "raw_xprompt.md").read_text(encoding="utf-8")
-    except OSError:
-        return None
-
-
 def _clean_metadata_field(value: str | None) -> str | None:
     """Normalize a transcript metadata field for compact markdown output."""
     if value is None:
@@ -227,8 +215,6 @@ def write_chat_history(
     metadata_llm_provider: str | None = None,
     metadata_agent: str | None = None,
     metadata_multi_agent_prompt: str | None = None,
-    xprompt_prompt: str | None = None,
-    rendered_prompt: str | None = None,
 ) -> str:
     """Serialize a chat history using a precomputed basename."""
     file_path = sharded_path(
@@ -255,10 +241,6 @@ def write_chat_history(
         content_parts.append("\n## Previous Conversation\n\n")
         content_parts.append(previous_history)
         content_parts.append("\n\n---\n")
-
-    prompt_sections = render_prompt_sections(xprompt_prompt, rendered_prompt)
-    if prompt_sections:
-        content_parts.append(f"\n{prompt_sections}")
 
     content_parts.append("\n## Prompt\n\n")
     content_parts.append(prompt)

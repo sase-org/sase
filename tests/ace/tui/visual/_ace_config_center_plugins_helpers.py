@@ -33,7 +33,7 @@ def _patch_plugins_catalog(
     agent_cli_statuses: Any | None = None,
     agent_cli_history: tuple[AgentCliUpdateRun, ...] = (),
     agent_cli_history_error: str | None = None,
-    agent_cli_history_enabled: bool = True,
+    agent_cli_history_enabled: bool = False,
 ) -> None:
     """Stub the Updates pane's plugin catalog load with a deterministic result."""
     resolved = _catalog() if catalog == "default" else catalog

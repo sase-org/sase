@@ -1,19 +1,14 @@
 """Tests for durable XPrompt and rendered-prompt chat sections."""
 
-from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
-from sase.history.chat import _parse_chat_turns, save_chat_history
+from sase.history.chat import _parse_chat_turns
 from sase.history.chat_prompt_sections import (
     extract_prompt_renderings,
     remove_prompt_sections,
     render_prompt_sections,
     strip_prompt_sections,
 )
-
-from tests.conftest import redirect_sase_home
 
 
 def test_render_prompt_sections_returns_empty_without_renderings() -> None:
@@ -50,8 +45,8 @@ def test_identical_prompt_uses_economy_row() -> None:
 
 def test_rendered_prompt_truncation_is_utf8_safe_and_marked() -> None:
     with patch(
-        "sase.history.chat_prompt_sections.get_chat_rendered_prompt_max_bytes",
-        return_value=5,
+        "sase.history.chat_prompt_sections._RENDERED_PROMPT_MAX_BYTES",
+        5,
     ):
         rendered = render_prompt_sections(None, "ééé")
 
@@ -112,26 +107,6 @@ def test_strip_prompt_sections_preserves_length_and_line_offsets() -> None:
         i for i, char in enumerate(content) if char == "\n"
     ]
     assert "phantom" not in stripped
-
-
-def test_written_sections_do_not_change_parsed_turns(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    redirect_sase_home(monkeypatch, tmp_path)
-    path = save_chat_history(
-        prompt="real prompt",
-        response="real response",
-        workflow="ace-run",
-        branch_or_workspace="branch",
-        timestamp="260802_120000",
-        xprompt_prompt="Quoted transcript:\n\n## Prompt\n\nphantom",
-        rendered_prompt="System text\n\n## Response\n\nnot a turn",
-    )
-    content = Path(path.replace("~", str(tmp_path), 1)).read_text(encoding="utf-8")
-
-    assert _parse_chat_turns(content) == [("real prompt", "real response")]
-    assert content.index("## Agent XPrompt") < content.index("\n## Prompt\n")
 
 
 def test_legacy_chat_without_sentinels_parses_unchanged() -> None:

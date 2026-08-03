@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import re
 from typing import Any, cast
 
-from sase.config import get_chat_rendered_prompt_max_bytes
 from sase.core.rust import require_rust_binding
 from sase.prompt.render import format_size
 
@@ -36,6 +35,7 @@ _SECTION_CAPTURE_RE = re.compile(
 _BACKTICK_RUN_RE = re.compile(r"`+")
 _RENDERED_FENCE_OPEN_RE = re.compile(r"^(`{3,})markdown\s*$")
 _IDENTICAL_RENDERED_ROW = "- **RENDERED:** identical to the XPrompt"
+_RENDERED_PROMPT_MAX_BYTES = 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,7 +79,7 @@ def render_prompt_sections(
         else:
             truncated, omitted = _truncate_utf8(
                 rendered_prompt,
-                get_chat_rendered_prompt_max_bytes(),
+                _RENDERED_PROMPT_MAX_BYTES,
             )
             if omitted:
                 truncated += f"\n\n… truncated ({omitted} bytes omitted)"

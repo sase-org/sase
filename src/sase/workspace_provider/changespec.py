@@ -197,8 +197,6 @@ def create_changespec_for_workflow(
             response,
             workflow_name,
             timestamp=ts,
-            xprompt_prompt=None,
-            rendered_prompt=prompt,
         )
     diff_path = _save_committed_diff(cl_name, checkout_target, branch_name, ts)
     hooks = get_initial_hooks_for_changespec(verbose=False)

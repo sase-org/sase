@@ -23,12 +23,10 @@ from sase.axe.run_agent_exec_finalize_chat import (
     final_execution_provider as _final_execution_provider,
     final_transcript_model_provider as _final_transcript_model_provider,
     link_saved_chats as _link_saved_chats,
-    load_prompt_renderings as _load_prompt_renderings,
     metadata_str as _metadata_str,
     read_plan_path as _read_plan_path,
     read_retry_handoff_meta as _read_retry_handoff_meta,
     read_transcript_agent_meta as _read_transcript_agent_meta,
-    rewrite_xprompt_links as _link_xprompt_prompt,
 )
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.axe.run_agent_exec_retry import RetryTracker
@@ -88,18 +86,6 @@ def _save_chat_history(**kwargs: Any) -> str:
         _ORIGINAL_SAVE_CHAT_HISTORY,
     )
     return func(**kwargs)
-
-
-def _prompt_renderings(
-    ctx: AgentExecContext,
-    state: LoopState,
-) -> tuple[str | None, str | None]:
-    """Load prompts while preserving the legacy link-helper patch point."""
-    return _load_prompt_renderings(
-        ctx,
-        state,
-        link_xprompt_prompt=_link_xprompt_prompt,
-    )
 
 
 def _build_retry_metadata(tracker: RetryTracker) -> dict[str, Any] | None:
@@ -162,7 +148,6 @@ def finalize_loop(
         response_content = ""
 
     extra = _format_extra_sections(state.current_artifacts_dir)
-    xprompt_prompt, rendered_prompt = _prompt_renderings(ctx, state)
     saved_path = _save_chat_history(
         prompt=state.current_prompt,
         response=response_content,
@@ -175,8 +160,6 @@ def finalize_loop(
         metadata_model=metadata_model,
         metadata_llm_provider=metadata_llm_provider,
         metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
-        xprompt_prompt=xprompt_prompt,
-        rendered_prompt=rendered_prompt,
     )
     print(f"\nChat history saved to: {saved_path}")
 

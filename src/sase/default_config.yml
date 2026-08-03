@@ -72,11 +72,6 @@ chat_install:
   timeout_seconds: 900
   restart_attempts: 3
 
-chat_history:
-  # Rendered prompts larger than this are explicitly truncated in stored chat
-  # Markdown. XPrompt prompts remain complete so their hosted links stay live.
-  rendered_prompt_max_bytes: 1048576
-
 telegram:
   commands: {}
 
