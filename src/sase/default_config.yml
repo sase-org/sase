@@ -779,14 +779,14 @@ llm_provider:
   # Allowed: none, minimal, low, medium, high, xhigh, max.
   default_effort: ""
   # Model aliases for no-%model launches, delegated work, and reusable prompts.
-  # Builtin role overrides live under builtin. @coder ships as codex/gpt-5.5,
-  # and every registered <provider>_coder alias inherits @coder unless
-  # explicitly overridden. Normal epic landers, task workers without size
-  # metadata, and @smart fall back to @default;
-  # threshold-selected epic landers and extra-large phases use @smartest,
-  # which owns a concrete maximum-effort target. `cheap`, `cheaper`, and
-  # `cheapest` own independent load-balanced pools. Use `A | B` for
-  # round-robin or `A || B` for ordered fallback; do not mix the operators.
+  # Builtin role overrides live under builtin; every registered
+  # <provider>_coder alias inherits @coder unless explicitly overridden.
+  # Normal epic landers, task workers without size metadata, and @smart fall
+  # back to @default; threshold-selected epic landers and extra-large phases
+  # use @smartest, which owns a concrete maximum-effort target. `cheap`,
+  # `cheaper`, and `cheapest` own independent load-balanced pools. Use
+  # `A | B` for round-robin or `A || B` for ordered fallback; do not mix the
+  # operators.
   # Values may be a bare known model (opus), an explicit
   # provider/model (codex/gpt-5.6-sol), a nested provider-local path
   # (opencode/anthropic/claude-sonnet-4-5), or an @<alias> reference. An alias
@@ -802,7 +802,7 @@ llm_provider:
   # model_aliases:
   #   builtin:
   #     default: opus               # model used when a prompt has no %model directive
-  #     coder: codex/gpt-5.5       # generic/fallback plan coder follow-ups
+  #     coder: codex/gpt-5.5       # example override for coder follow-ups
   #     claude_coder: "@coder"     # coder follow-ups from Claude-authored plans
   #     codex_coder: "@coder"      # coder follow-ups from Codex-authored plans
   #     epic_lander: "@default"     # epic land agents
@@ -813,7 +813,7 @@ llm_provider:
   #     large_phase_worker: "@smart"    # large bead phase agents
   #     xlarge_phase_worker: "@smartest" # extra-large bead phase agents
   #     smart: "@default"          # high-capability alias
-  #     smartest: "claude/opus@max"                  # concrete maximum-effort target
+  #     smartest: "claude/opus@max"                  # example maximum-effort override
   #     cheap: "claude/haiku | codex/gpt-4.1-mini"   # load-balanced pool example
   #     cheaper: "claude/haiku | codex/gpt-4.1-mini" # load-balanced pool example
   #     cheapest: "claude/haiku | codex/gpt-4.1-mini" # explicit-use pool example

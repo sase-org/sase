@@ -47,6 +47,10 @@ def check_config_model_aliases() -> DiagnosticCheck:
         strip_model_alias_prefix,
         validate_model_alias_selector_value,
     )
+    from sase.llm_provider.model_alias_policy import (
+        MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+        implicit_alias_targets,
+    )
 
     config = get_llm_provider_config()
     known_aliases = model_alias_names()
@@ -181,6 +185,9 @@ def check_config_model_aliases() -> DiagnosticCheck:
 
     for alias in sorted(builtin_aliases):
         if alias == "phase_worker":
+            medium_phase_worker_default = implicit_alias_targets()[
+                MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
+            ]
             problems.append(
                 {
                     "key": "model_aliases.builtin.phase_worker",
@@ -189,7 +196,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
                         "builtin alias override; move its target to "
                         "llm_provider.model_aliases.builtin.medium_phase_worker "
                         "to keep controlling medium phases, or remove it to "
-                        "accept the shipped codex/gpt-5.5@xhigh default"
+                        f"accept the shipped {medium_phase_worker_default} default"
                     ),
                 }
             )

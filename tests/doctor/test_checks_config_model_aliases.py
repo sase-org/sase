@@ -5,6 +5,10 @@ from __future__ import annotations
 import pytest
 
 from sase.doctor.checks_config_model_aliases import check_config_model_aliases
+from sase.llm_provider.model_alias_policy import (
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+    implicit_alias_targets,
+)
 
 
 def test_model_aliases_warns_on_worker_models_and_default_model(
@@ -56,6 +60,10 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
     assert "model_aliases.builtin.phase_worker" in by_key
     assert "medium_phase_worker" in by_key["model_aliases.builtin.phase_worker"]
     assert "remove it" in by_key["model_aliases.builtin.phase_worker"]
+    medium_phase_worker_default = implicit_alias_targets()[
+        MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
+    ]
+    assert medium_phase_worker_default in by_key["model_aliases.builtin.phase_worker"]
     assert "model_aliases.builtin.epic_creator" in by_key
     assert "retired" in by_key["model_aliases.builtin.epic_creator"]
     assert "remove this entry" in by_key["model_aliases.builtin.epic_creator"]
