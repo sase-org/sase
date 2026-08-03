@@ -279,8 +279,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-ej(enqueue_committed_agent_publication)' \
         --epic-symbol 'sase-ej(enqueue_plan_header_publication)' \
         --epic-symbol 'sase-ej(enqueue_sidecar_push_publication)' \
-        --epic-symbol 'sase-em(format_local)' \
-        --epic-symbol 'sase-em(parse_local)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

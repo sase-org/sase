@@ -109,7 +109,7 @@ def test_list_resolves_project_passes_filters_and_renders_display_name(
     assert "sase" in output
     assert "gh_sase-org__sase" not in output
     assert "1.5 KiB" in output
-    assert "2026-07-29 12:34" in output
+    assert "2026-07-29 08:34" in output
     assert calls == [
         {
             "kinds": ["markdown"],

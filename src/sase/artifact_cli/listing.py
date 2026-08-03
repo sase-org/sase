@@ -14,6 +14,7 @@ from rich.text import Text
 from sase.artifact_cli.references import artifact_file_json_dict
 from sase.core.artifact_file_query_facade import query_artifact_files
 from sase.core.artifact_file_types import ArtifactFile
+from sase.core.time import format_local
 from sase.project_display_names import (
     ProjectRefDisplaySnapshot,
     load_project_ref_display_snapshot,
@@ -130,9 +131,7 @@ def _human_size(size_bytes: int | None) -> str:
 
 
 def _minute_precision(created_at: str | None) -> str:
-    if not created_at:
-        return "-"
-    return created_at[:_CREATED_COLUMN_WIDTH].replace("T", " ")
+    return format_local(created_at, "%Y-%m-%d %H:%M", default="-")
 
 
 __all__ = ["handle_list"]

@@ -11,6 +11,7 @@ from rich.text import Text
 from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
 from sase.core.agent_identity_facade import present_agent_name
 from sase.core.artifact_file_types import ArtifactFile
+from sase.core.time import format_local
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
 from .files_rendering import humanize_file_size
@@ -216,9 +217,7 @@ def _read_preview(path: Path) -> tuple[str, bool]:
 
 
 def _minute_precision(created_at: str | None) -> str:
-    if not created_at:
-        return "-"
-    return created_at[:16].replace("T", " ")
+    return format_local(created_at, "%Y-%m-%d %H:%M", default="-")
 
 
 def _heading(text: Text, label: str) -> None:

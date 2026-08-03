@@ -10,6 +10,7 @@ from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
 from sase.ace.tui.keymaps import KeymapRegistry, key_display_name
 from sase.core.agent_identity_facade import present_agent_name
 from sase.core.artifact_file_types import ArtifactFile
+from sase.core.time import parse_local
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
 from .files_data import FilesSnapshot
@@ -178,7 +179,7 @@ def build_files_hints(
 def file_group_label(row: ArtifactFile, *, today: datetime) -> str:
     """Return Today, Yesterday, or an ISO date for one artifact row."""
 
-    timestamp = _artifact_file_datetime(row, local_timezone=today)
+    timestamp = _artifact_file_datetime(row)
     if timestamp is None:
         return "Unknown"
     day_delta = (today.date() - timestamp.date()).days
@@ -203,11 +204,10 @@ def file_row_text(
     *,
     view_mode: ArtifactViewMode,
     projects: ProjectRefDisplaySnapshot,
-    now: datetime | None = None,
 ) -> Text:
     """Render one aligned, single-line artifact-file row."""
 
-    timestamp = _artifact_file_datetime(row, local_timezone=now)
+    timestamp = _artifact_file_datetime(row)
     time_label = timestamp.strftime("%H:%M") if timestamp is not None else "--:--"
     project = projects.display_snapshot.label_for(row.project) if row.project else "-"
     agent = row.agent_name
@@ -231,24 +231,10 @@ def file_row_text(
 
 def _artifact_file_datetime(
     row: ArtifactFile,
-    *,
-    local_timezone: datetime | None,
 ) -> datetime | None:
-    """Parse an index timestamp and project aware values into local time."""
+    """Parse an index timestamp in the configured display timezone."""
 
-    if not row.created_at:
-        return None
-    try:
-        timestamp = datetime.fromisoformat(row.created_at)
-    except ValueError:
-        return None
-    if (
-        timestamp.tzinfo is not None
-        and local_timezone is not None
-        and local_timezone.tzinfo is not None
-    ):
-        timestamp = timestamp.astimezone(local_timezone.tzinfo)
-    return timestamp
+    return parse_local(row.created_at)
 
 
 def humanize_file_size(size_bytes: int | None) -> str:

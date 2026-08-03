@@ -31,6 +31,7 @@ from sase.ace.tui.widgets._artifact_ref_completion_models import (
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_path_inventory import PromptPathRow
+from sase.core.time import parse_local
 
 
 class _AtReferenceMenuBuilder(Protocol):
@@ -518,4 +519,7 @@ def age_label(value: str | int | float) -> str:
         return f"{int(seconds // 3600)}h"
     if seconds < 7 * 86400:
         return f"{int(seconds // 86400)}d"
-    return datetime.fromtimestamp(timestamp, UTC).date().isoformat()
+    parsed = parse_local(timestamp)
+    if parsed is None:
+        return value.strip()[:10] if isinstance(value, str) else ""
+    return parsed.date().isoformat()

@@ -11,9 +11,32 @@ classes are visible.
 
 from __future__ import annotations
 
+import argparse
 from datetime import UTC, datetime
 
+import pytest
+from rich.console import Console
+
+from sase.ace.tui.widgets._artifact_ref_completion_menu import age_label
+from sase.ace.tui.widgets.artifacts.beads_detail import (
+    bead_preview_markdown,
+    bead_properties_header,
+)
+from sase.ace.tui.widgets.artifacts.files_detail import build_file_detail
+from sase.ace.tui.widgets.artifacts.files_rendering import (
+    file_group_label,
+    file_row_text,
+)
+from sase.ace.tui.widgets.artifacts.plans_rendering import archive_text
+from sase.artifact_cli.listing import handle_list
+from sase.bead.model import Issue, IssueType, Resolution, Status
+from sase.core.artifact_file_types import ArtifactFile
 from sase.core.time import format_local, parse_local
+from sase.plan_search.model import Plan, PlanSearchMatch
+from sase.project_display_names import (
+    ProjectDisplaySnapshot,
+    ProjectRefDisplaySnapshot,
+)
 
 
 # --- parse_local / format_local: aware-UTC input --------------------------
@@ -119,3 +142,143 @@ def test_format_local_honors_custom_default(tz_divergence: None) -> None:
 
 def test_format_local_default_placeholder_for_unparseable(tz_divergence: None) -> None:
     assert format_local(None) == "—"
+
+
+# --- Artifacts tab and artifact CLI ---------------------------------------
+
+
+def _artifact_file(created_at: str = "2026-07-25T01:30:00Z") -> ArtifactFile:
+    return ArtifactFile(
+        id="explicit:0123456789abcdef01234567",
+        label="Timezone report",
+        kind="markdown",
+        path="/tmp/timezone-report.md",
+        created_at=created_at,
+        project="alpha",
+        agent_name="alpha.agent",
+        size_bytes=1024,
+    )
+
+
+def _projects() -> ProjectRefDisplaySnapshot:
+    return ProjectRefDisplaySnapshot(ProjectDisplaySnapshot({"alpha": "Alpha"}))
+
+
+def test_files_rows_and_groups_use_configured_timezone(
+    tz_divergence: None,
+) -> None:
+    row = _artifact_file()
+    today = datetime(2026, 7, 24, 23, 0)
+
+    assert file_group_label(row, today=today) == "Today"
+    rendered = file_row_text(row, view_mode="markdown", projects=_projects())
+    assert "21:30" in rendered.plain
+    assert "01:30" not in rendered.plain
+
+
+def test_files_detail_uses_configured_timezone(tz_divergence: None) -> None:
+    rendered = build_file_detail(
+        _artifact_file(),
+        None,
+        view_mode="markdown",
+        projects=_projects(),
+    )
+
+    assert "Created: 2026-07-24 21:30" in rendered.plain
+
+
+def test_bead_detail_and_markdown_use_configured_timezone(
+    tz_divergence: None,
+) -> None:
+    issue = Issue(
+        id="alpha-1",
+        title="Timezone display",
+        status=Status.CLOSED,
+        issue_type=IssueType.TASK,
+        resolution=Resolution.DONE,
+        created_at="2026-07-25T01:30:00Z",
+        updated_at="2026-07-25T02:45:00Z",
+        closed_at="2026-07-25T03:15:00Z",
+    )
+    console = Console(width=100, color_system=None)
+    with console.capture() as capture:
+        console.print(
+            bead_properties_header(
+                issue,
+                None,
+                project="alpha",
+                project_name="Alpha",
+            )
+        )
+    properties = capture.get()
+    markdown = bead_preview_markdown(issue, None, project="alpha")
+
+    assert "2026-07-24 21:30:00" in properties
+    assert "2026-07-24 22:45:00" in properties
+    assert "2026-07-24 23:15:00" in properties
+    assert "- Created: 2026-07-24 21:30:00" in markdown
+    assert "- Updated: 2026-07-24 22:45:00" in markdown
+    assert "- Closed: 2026-07-24 23:15:00" in markdown
+
+
+def test_plan_archive_date_uses_configured_timezone_and_preserves_fallback(
+    tz_divergence: None,
+) -> None:
+    def match(created_at: str) -> PlanSearchMatch:
+        return PlanSearchMatch(
+            plan=Plan(
+                source="repo",
+                kind="epic",
+                path="/tmp/timezone.md",
+                relpath="202607/timezone.md",
+                name="timezone",
+                title="Timezone",
+                status="done",
+                created_at=created_at,
+                prompt_link="",
+                summary="",
+                body="",
+            ),
+            matched_fields=[],
+            score=0,
+        )
+
+    assert "07-24" in archive_text(match("2026-07-25T01:30:00Z")).plain
+    assert "not-a-dat" in archive_text(match("not-a-date-value")).plain
+
+
+def test_artifact_ref_age_date_uses_configured_timezone(
+    tz_divergence: None,
+) -> None:
+    assert age_label("2026-07-03T01:30:00Z") == "2026-07-02"
+
+
+def test_artifact_list_uses_configured_timezone(
+    tz_divergence: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        "sase.artifact_cli.listing.load_project_ref_display_snapshot",
+        _projects,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.listing.query_artifact_files",
+        lambda **_kwargs: [_artifact_file()],
+    )
+    args = argparse.Namespace(
+        agent=None,
+        explicit=False,
+        json=False,
+        kind=None,
+        limit=50,
+        project=None,
+        query=None,
+        since=None,
+        unused=False,
+    )
+
+    assert handle_list(args) == 0
+    output = capsys.readouterr().out
+    assert "2026-07-24 21:30" in output
+    assert "2026-07-25 01:30" not in output

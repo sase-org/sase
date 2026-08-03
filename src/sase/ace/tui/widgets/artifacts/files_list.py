@@ -83,7 +83,6 @@ def build_file_options(
                             entry,
                             view_mode=snapshot.view_mode_for(entry),
                             projects=project_ref_display,
-                            now=now,
                         ),
                         target in active_marks,
                     ),

@@ -9,6 +9,7 @@ from pathlib import Path
 from rich.text import Text
 
 from sase.bead_status_presentation import bead_status_presentation
+from sase.core.time import parse_local
 from sase.plan_search.model import PlanSearchMatch
 
 from ...keymaps import KeymapRegistry, key_display_name
@@ -277,9 +278,10 @@ def _compact_relative_age(timestamp: str) -> str:
 
 def _compact_plan_date(timestamp: str) -> str:
     date = timestamp.strip()[:10]
-    if len(date) == 10 and date[4] == "-" and date[7] == "-":
-        return date[5:]
-    return date
+    parsed = parse_local(timestamp)
+    if parsed is None:
+        return date
+    return parsed.strftime("%m-%d")
 
 
 __all__ = [

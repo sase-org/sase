@@ -16,6 +16,7 @@ from sase.bead.plus_one_presentation import (
 )
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_type_presentation import bead_type_chip
+from sase.core.time import format_local
 from sase.phase_size_presentation import (
     PHASE_SIZE_STYLES,
     PHASE_SIZE_VALUES,
@@ -75,9 +76,9 @@ def bead_properties_header(
             ("Assignee", issue.assignee),
             ("Owner", issue.owner),
             ("Model", issue.model),
-            ("Created", issue.created_at),
-            ("Updated", issue.updated_at),
-            ("Closed", issue.closed_at or ""),
+            ("Created", format_local(issue.created_at, default="")),
+            ("Updated", format_local(issue.updated_at, default="")),
+            ("Closed", format_local(issue.closed_at, default="")),
             ("Project", project_name),
             (
                 "Dependencies",
@@ -181,12 +182,12 @@ def bead_preview_markdown(
             "",
             "## History",
             "",
-            f"- Created: {issue.created_at or '—'}",
-            f"- Updated: {issue.updated_at or '—'}",
+            f"- Created: {format_local(issue.created_at)}",
+            f"- Updated: {format_local(issue.updated_at)}",
         ]
     )
     if issue.closed_at:
-        lines.append(f"- Closed: {issue.closed_at}")
+        lines.append(f"- Closed: {format_local(issue.closed_at)}")
     if issue.status is Status.CLOSED:
         resolution = issue.resolution.value if issue.resolution else "(unrecorded)"
         lines.append(f"- Resolution: {resolution}")
