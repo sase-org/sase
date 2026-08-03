@@ -138,7 +138,7 @@ def _payload_bytes(repo_root: Path, payload: dict[str, bytes], path: str) -> byt
 def hood_file_set(snapshot: V2HoodSnapshot) -> tuple[str, ...]:
     files = {
         snapshot_path(snapshot.owner, snapshot.local_hood),
-        hood_readme_path(snapshot.owner, snapshot.local_hood),
+        _hood_readme_path(snapshot.owner, snapshot.local_hood),
     }
     for run in snapshot.runs:
         files.update(reference.path for _kind, reference in run.files)
@@ -158,7 +158,7 @@ def snapshot_path(owner: AgentOwnerIdentity, hood: str) -> str:
     )
 
 
-def hood_readme_path(owner: AgentOwnerIdentity, hood: str) -> str:
+def _hood_readme_path(owner: AgentOwnerIdentity, hood: str) -> str:
     return (
         f"users/{owner.username}/machines/{owner.machine_name}/hoods/{hood}/README.md"
     )
