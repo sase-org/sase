@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable, Collection, Mapping
 from datetime import datetime
 
-from rich.errors import MarkupError
 from rich.text import Text
 
 from sase.agent.status_buckets import status_bucket_for_values
@@ -34,6 +33,7 @@ from ._agent_display_clan_roster import (
     family_rows,
     ordered_clan_members,
 )
+from ._agent_clan_summary_text import clan_summary_text
 from ._agent_display_clan_sections import (
     append_context_section,
     append_errors_section,
@@ -138,8 +138,10 @@ def build_clan_detail_text(
     overrides = section_fold_overrides or {}
     hint_budget = HintContentBudget() if hint_state is not None else None
     hint_path_resolver = (
-        container_hint_path_resolver(snapshot.disk.hint_paths)
-        if hint_state is not None and snapshot.disk is not None
+        container_hint_path_resolver(
+            snapshot.disk.hint_paths if snapshot.disk is not None else {}
+        )
+        if hint_state is not None
         else None
     )
     member_hint_workspace = (
@@ -235,10 +237,7 @@ def build_clan_detail_text(
 
     if agent.clan_summary:
         text.append("\n")
-        try:
-            summary = Text.from_markup(agent.clan_summary)
-        except MarkupError:
-            summary = Text(agent.clan_summary)
+        summary = clan_summary_text(agent)
         if hint_state is not None:
             hint_state.workspace_dir = _clan_hint_workspace(agent)
             summary = container_text_with_file_hints(

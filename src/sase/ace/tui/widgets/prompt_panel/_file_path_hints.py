@@ -2,7 +2,7 @@
 
 import os
 import re
-from collections.abc import Generator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from functools import lru_cache
 from typing import Protocol
@@ -11,10 +11,10 @@ from rich.style import StyleType
 from rich.text import Text
 
 
-_FILE_PATH_PATTERN = (
-    r"(?<![/\w@.])"  # Not preceded by word char, /, @, or .
-    r"(@?)"  # Group 1: optional @ prefix
-    r"("  # Group 2: the file path
+LOGICAL_PLAN_REFERENCE_PREFIX = "plans:"
+"""Canonical logical plan-reference kind accepted by ``sase_core_rs``."""
+
+_FILE_PATH_ALTERNATIVES = (
     # Absolute paths: /foo/bar or ~/foo/bar
     r"(?:~?/[\w.+\-][\w.+\-/]*)"
     r"|"
@@ -26,6 +26,20 @@ _FILE_PATH_PATTERN = (
     r"|"
     # Bare relative paths with extension: dir/file.ext
     r"(?:[\w\-]+/[\w.+\-/]*\.[\w]+)"
+)
+_FILE_PATH_PATTERN = (
+    r"(?<![/\w@.])"  # Not preceded by word char, /, @, or .
+    r"(@?)"  # Group 1: optional @ prefix
+    r"("  # Group 2: the file path
+    f"{_FILE_PATH_ALTERNATIVES}"
+    r")"
+)
+_CONTAINER_FILE_PATH_PATTERN = (
+    r"(?<![/\w@.])"  # Not preceded by word char, /, @, or .
+    r"(@?)"  # Group 1: optional @ prefix
+    r"("  # Group 2: the file path, including an optional logical kind.
+    rf"(?:{LOGICAL_PLAN_REFERENCE_PREFIX})?"
+    f"(?:{_FILE_PATH_ALTERNATIVES})"
     r")"
 )
 # Regex to match file paths in text.
@@ -36,6 +50,9 @@ _FILE_PATH_RE = FILE_PATH_RE
 _HTTP_URL_PATTERN = r"(?<!\w)(?i:https?)://[^\s<>()\[\]{}'\"`]+"
 _FILE_PATH_OR_HTTP_URL_RE = re.compile(
     f"(?:{_HTTP_URL_PATTERN})|(?:{_FILE_PATH_PATTERN})"
+)
+_CONTAINER_FILE_PATH_OR_HTTP_URL_RE = re.compile(
+    f"(?:{_HTTP_URL_PATTERN})|(?:{_CONTAINER_FILE_PATH_PATTERN})"
 )
 
 
@@ -73,6 +90,9 @@ class FileHintPathResolver(Protocol):
     """Resolve one matched file token before the workspace fallback."""
 
     def __call__(self, path: str, workspace_dir: str | None) -> str: ...
+
+
+FileHintMatcher = Callable[[str], Iterator[re.Match[str]]]
 
 
 @lru_cache(maxsize=256)
@@ -156,6 +176,20 @@ def iter_file_path_matches(content: str) -> Generator[re.Match[str], None, None]
             yield match
 
 
+def iter_container_file_path_matches(
+    content: str,
+) -> Generator[re.Match[str], None, None]:
+    """Yield container-hint file matches, including logical ``plans:`` refs."""
+    for match in _CONTAINER_FILE_PATH_OR_HTTP_URL_RE.finditer(content):
+        if match.group(2) is not None:
+            yield match
+
+
+def file_hint_match_span(match: re.Match[str]) -> tuple[int, int]:
+    """Return the visible token span for a file-hint regex match."""
+    return (match.start(1) if match.group(1) else match.start(2), match.end(2))
+
+
 def has_file_path(content: str) -> bool:
     """Return whether *content* has a file path outside HTTP(S) URLs."""
     return next(iter_file_path_matches(content), None) is not None
@@ -170,6 +204,7 @@ def append_text_with_file_hints(
     style: str = "",
     *,
     path_resolver: FileHintPathResolver | None = None,
+    matcher: FileHintMatcher = iter_file_path_matches,
 ) -> int:
     """Append text content with ``[N]`` hint markers before file paths.
 
@@ -191,12 +226,9 @@ def append_text_with_file_hints(
         counter[0] += len(content)
 
     last_end = 0
-    for match in iter_file_path_matches(content):
-        at_prefix = match.group(1)
+    for match in matcher(content):
         path = match.group(2)
-        # Include @ prefix in display range
-        full_match_start = match.start(1) if at_prefix else match.start(2)
-        full_match_end = match.end(2)
+        full_match_start, full_match_end = file_hint_match_span(match)
 
         # Append text before this match
         if full_match_start > last_end:

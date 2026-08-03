@@ -149,8 +149,99 @@ def test_clan_summary_prefers_worker_resolved_plan_path(
         hint_state=state,
     )
 
-    assert "Plan: plans:[1] 202608/clan.md" in rendered.plain
+    assert "Plan: [1] plans:202608/clan.md" in rendered.plain
     assert state.hint_mappings == {1: resolved}
+    start = rendered.plain.index("plans:202608/clan.md")
+    end = start + len("plans:202608/clan.md")
+    assert any(
+        str(span.style).casefold() == "#87afff"
+        and span.start <= start
+        and span.end >= end
+        for span in rendered.spans
+    )
+
+
+def test_clan_summary_unindexed_prompt_is_not_hijacked_by_plan_suffix(
+    tmp_path: Path,
+) -> None:
+    container, snapshot = rich_clan_snapshot()
+    member = clan_section_member_rows(container)[0]
+    member.workspace_dir = str(tmp_path)
+    container.clan_summary = "Path: plans:202608/x.md\nPrompt: prompts/202608/x.md"
+    plan_target = str(tmp_path / "sase" / "repos" / "plans" / "202608" / "x.md")
+    disk = snapshot.disk
+    assert disk is not None
+    snapshot = replace(
+        snapshot,
+        disk=replace(
+            disk,
+            hint_paths={
+                "plans:202608/x.md": plan_target,
+                "202608/x.md": plan_target,
+                plan_target: plan_target,
+            },
+        ),
+    )
+    state = HeaderHintState(1, {}, None, {})
+
+    rendered = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        hint_state=state,
+    )
+
+    assert "Path: [1] plans:202608/x.md" in rendered.plain
+    assert "Prompt: [2] prompts/202608/x.md" in rendered.plain
+    assert state.hint_mappings == {
+        1: plan_target,
+        2: str(tmp_path / "prompts" / "202608" / "x.md"),
+    }
+
+
+def test_clan_summary_prompt_row_resolves_to_archived_prompt_index(
+    tmp_path: Path,
+) -> None:
+    container, snapshot = rich_clan_snapshot()
+    member = clan_section_member_rows(container)[0]
+    member.workspace_dir = str(tmp_path)
+    container.clan_summary = "Path: plans:202608/x.md\nPrompt: prompts/202608/x.md"
+    plan_target = str(tmp_path / "sase" / "repos" / "plans" / "202608" / "x.md")
+    prompt_target = str(
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "demo"
+        / "repos"
+        / "agents"
+        / "prompts"
+        / "202608"
+        / "x.md"
+    )
+    disk = snapshot.disk
+    assert disk is not None
+    snapshot = replace(
+        snapshot,
+        disk=replace(
+            disk,
+            hint_paths={
+                "plans:202608/x.md": plan_target,
+                "202608/x.md": plan_target,
+                plan_target: plan_target,
+                "prompts/202608/x.md": prompt_target,
+            },
+        ),
+    )
+    state = HeaderHintState(1, {}, None, {})
+
+    rendered = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        hint_state=state,
+    )
+
+    assert "Path: [1] plans:202608/x.md" in rendered.plain
+    assert "Prompt: [2] prompts/202608/x.md" in rendered.plain
+    assert state.hint_mappings == {1: plan_target, 2: prompt_target}
 
 
 def test_clan_summary_matches_known_artifact_suffix(tmp_path: Path) -> None:

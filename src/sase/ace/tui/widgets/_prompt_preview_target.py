@@ -8,6 +8,7 @@ from typing import Literal
 
 from sase.ace.tui.widgets.file_panel._messages import _EXTENSION_TO_LEXER
 from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
+    file_hint_match_span,
     iter_file_path_matches,
     resolve_file_path,
 )
@@ -101,8 +102,7 @@ def detect_preview_target_at_cursor(
     for match in iter_file_path_matches(text):
         at_prefix = match.group(1)
         target = match.group(2)
-        start = match.start(1) if at_prefix else match.start(2)
-        end = match.end(2)
+        start, end = file_hint_match_span(match)
         if start <= offset < end:
             if (
                 not at_prefix

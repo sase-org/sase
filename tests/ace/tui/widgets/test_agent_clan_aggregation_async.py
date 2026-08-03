@@ -40,6 +40,8 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_clan import (
 )
 from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
 from sase.ace.tui.widgets.prompt_panel._messages import ClanSectionSnapshotLoaded
+from sase.scripts.sase_clan_summary_epic import _render_plan_summary
+from sase.sdd.plan_display import PlanDisplay
 
 _GENERATION = "20260718100000"
 
@@ -248,6 +250,186 @@ def test_clan_worker_indexes_logical_plan_reference(
     )
 
 
+def test_clan_worker_indexes_markup_logical_plan_reference(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    member = _agent("research.one", workspace_dir=str(tmp_path), workspace_num=7)
+    container = project_clan_tree([member])[0]
+    container.clan_summary = _render_plan_summary(
+        "sase-ej",
+        PlanDisplay(
+            title="Markup reference",
+            goal="Render the plan reference as stored Rich markup.",
+            authored_tier="tale",
+            effective_tier="tale",
+            actual_path=str(tmp_path / "plans" / "202608" / "markup.md"),
+            display_path="plans:202608/markup.md",
+            committed=True,
+            exists=True,
+            readable=True,
+            frontmatter_readable=True,
+            phase_availability="not-applicable",
+            phases=(),
+            validation_ok=True,
+        ),
+    )
+    in_memory = aggregate_clan_in_memory(container)
+    disk = _disk_for(ClanSectionSnapshot(in_memory=in_memory))
+    resolved = tmp_path / "plans" / "202608" / "markup.md"
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation."
+        "build_agent_group_disk_snapshot",
+        lambda *_args, **_kwargs: disk,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.parse_plan_reference",
+        lambda value: SimpleNamespace(path=value.split(":", 1)[1]),
+    )
+    resolve = Mock(return_value=SimpleNamespace(resolved_path=resolved))
+    monkeypatch.setattr("sase.sdd.plan_refs.resolve_plan_reference", resolve)
+
+    enriched = build_clan_disk_snapshot(
+        object(),
+        container,
+        in_memory,
+        sections={"replies"},
+    )
+
+    assert enriched.hint_paths["plans:202608/markup.md"] == str(resolved)
+    assert enriched.hint_paths["202608/markup.md"] == str(resolved)
+    resolve.assert_called_once_with(
+        "plans:202608/markup.md",
+        workspace_dir=str(tmp_path),
+        workspace_num=7,
+    )
+
+
+def test_clan_worker_ignores_http_urls(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    member = _agent("research.one", workspace_dir=str(tmp_path), workspace_num=7)
+    container = project_clan_tree([member])[0]
+    container.clan_summary = (
+        "Page: https://github.com/sase-org/sase--beads/blob/main/pages/sase-ej/"
+        "README.md"
+    )
+    in_memory = aggregate_clan_in_memory(container)
+    disk = _disk_for(ClanSectionSnapshot(in_memory=in_memory))
+    parse = Mock()
+    resolve = Mock()
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation."
+        "build_agent_group_disk_snapshot",
+        lambda *_args, **_kwargs: disk,
+    )
+    monkeypatch.setattr("sase.sdd.plan_refs.parse_plan_reference", parse)
+    monkeypatch.setattr("sase.sdd.plan_refs.resolve_plan_reference", resolve)
+
+    enriched = build_clan_disk_snapshot(
+        object(),
+        container,
+        in_memory,
+        sections={"replies"},
+    )
+
+    assert enriched.hint_paths == {}
+    parse.assert_not_called()
+    resolve.assert_not_called()
+
+
+def test_clan_worker_indexes_archived_prompt_reference_exactly(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    project_key = "gh_acme__demo"
+    project_dir = sase_home / "projects" / project_key
+    project_dir.mkdir(parents=True)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    member = _agent(
+        "research.one",
+        project_file=str(project_dir / f"{project_key}.sase"),
+        workspace_dir=str(workspace),
+        workspace_num=7,
+    )
+    container = project_clan_tree([member])[0]
+    container.clan_summary = "Path: plans:202608/x.md\nPrompt: prompts/202608/x.md"
+    prompt_target = project_dir / "repos" / "agents" / "prompts" / "202608" / "x.md"
+    prompt_target.parent.mkdir(parents=True)
+    prompt_target.write_text("archived prompt\n", encoding="utf-8")
+    in_memory = aggregate_clan_in_memory(container)
+    disk = _disk_for(ClanSectionSnapshot(in_memory=in_memory))
+    plan_target = tmp_path / "plans" / "202608" / "x.md"
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation."
+        "build_agent_group_disk_snapshot",
+        lambda *_args, **_kwargs: disk,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.parse_plan_reference",
+        lambda value: SimpleNamespace(path=value.split(":", 1)[1]),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.resolve_plan_reference",
+        Mock(return_value=SimpleNamespace(resolved_path=plan_target)),
+    )
+
+    enriched = build_clan_disk_snapshot(
+        object(),
+        container,
+        in_memory,
+        sections={"replies"},
+    )
+
+    assert enriched.hint_paths["prompts/202608/x.md"] == str(prompt_target)
+    assert enriched.hint_paths["202608/x.md"] == str(plan_target)
+    assert "x.md" not in enriched.hint_paths
+
+
+def test_clan_worker_leaves_missing_archived_prompt_unindexed(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    project_key = "gh_acme__demo"
+    project_dir = tmp_path / ".sase" / "projects" / project_key
+    project_dir.mkdir(parents=True)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    member = _agent(
+        "research.one",
+        project_file=str(project_dir / f"{project_key}.sase"),
+        workspace_dir=str(workspace),
+        workspace_num=7,
+    )
+    container = project_clan_tree([member])[0]
+    container.clan_summary = "Prompt: prompts/202608/missing.md"
+    in_memory = aggregate_clan_in_memory(container)
+    disk = _disk_for(ClanSectionSnapshot(in_memory=in_memory))
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation."
+        "build_agent_group_disk_snapshot",
+        lambda *_args, **_kwargs: disk,
+    )
+
+    enriched = build_clan_disk_snapshot(
+        object(),
+        container,
+        in_memory,
+        sections={"replies"},
+    )
+
+    assert "prompts/202608/missing.md" not in enriched.hint_paths
+
+
 def test_clan_worker_indexes_known_context_path_suffixes(
     tmp_path: Path,
     monkeypatch: Any,
@@ -294,7 +476,7 @@ def test_clan_worker_indexes_known_context_path_suffixes(
     )
 
     assert enriched.hint_paths["reports/findings.md"] == str(target)
-    assert enriched.hint_paths["findings.md"] == str(target)
+    assert "findings.md" not in enriched.hint_paths
 
 
 def test_clan_worker_coalesces_and_discards_stale_selection(

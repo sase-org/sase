@@ -9,12 +9,16 @@ from sase.ace.tui.util.lazy_syntax import PLAIN_RENDER_MAX_LINES
 from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
     _FILE_PATH_RE,
     append_text_with_file_hints,
+    iter_container_file_path_matches,
+    iter_file_path_matches,
     resolve_agent_workspace_dir,
     resolve_file_path,
 )
 from sase.ace.tui.widgets.prompt_panel._hint_caps import (
     HINT_TRUNCATION_MESSAGE,
+    HintContentBudget,
     append_bounded_text_with_file_hints,
+    bound_hint_content,
 )
 
 
@@ -110,6 +114,17 @@ def test_regex_matches_multiple_paths() -> None:
     assert len(matches) == 2
     assert matches[0].group(2) == "/path/a.py"
     assert matches[1].group(2) == "src/b.txt"
+
+
+def test_container_matcher_keeps_plans_prefix_isolated() -> None:
+    """Only container hint matching treats ``plans:`` as part of the token."""
+    content = "Plan: plans:202608/clan.md"
+
+    generic = list(iter_file_path_matches(content))
+    container = list(iter_container_file_path_matches(content))
+
+    assert [match.group(2) for match in generic] == ["202608/clan.md"]
+    assert [match.group(2) for match in container] == ["plans:202608/clan.md"]
 
 
 # --- Tests for append_text_with_file_hints ---
@@ -287,6 +302,24 @@ def test_bounded_append_drops_path_cut_by_byte_cap() -> None:
     assert counter == 1
     assert mappings == {}
     assert HINT_TRUNCATION_MESSAGE in text.plain
+
+
+def test_container_bound_content_drops_partial_logical_plan_reference() -> None:
+    """A byte cap cannot leave ``plans:`` detached from its path."""
+    content = "Open plans:202608/clan.md after approval"
+
+    bounded = bound_hint_content(
+        content,
+        budget=HintContentBudget(
+            remaining_bytes=len("Open plans:"),
+            remaining_lines=10,
+        ),
+        matcher=iter_container_file_path_matches,
+    )
+
+    assert bounded.content == "Open "
+    assert "plans:" not in bounded.content
+    assert bounded.notice is not None
 
 
 def test_workspace_resolution_is_memoized_by_inputs(

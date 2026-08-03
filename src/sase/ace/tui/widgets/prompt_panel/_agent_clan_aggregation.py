@@ -8,10 +8,13 @@ from collections import OrderedDict
 from collections.abc import Callable, Collection
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from pathlib import Path
 from threading import Lock
 from typing import Any, cast
 
+from sase._linked_repo_paths import hidden_sidecar_clone_dir
 from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
+from sase.sdd.store import AGENTS_SIDECAR_ROLE
 
 from ...models._agent_clan_sections import (
     ClanAgentIdentity,
@@ -24,12 +27,16 @@ from ...models._agent_clan_sections import (
     clan_section_member_rows,
 )
 from ...models.agent import Agent
+from ._agent_clan_summary_text import clan_summary_text
 from ._agent_clan_disk_aggregation import (
     aggregate_clan_context_lanes as _aggregate_clan_context_lanes,
     aggregate_clan_slow_tool_calls as _aggregate_clan_slow_tool_calls,
 )
 from ._agent_display_clan_context import clan_context_entry_hint_target
-from ._file_path_hints import resolve_agent_workspace_dir
+from ._file_path_hints import (
+    LOGICAL_PLAN_REFERENCE_PREFIX,
+    resolve_agent_workspace_dir,
+)
 from ._agent_clan_member_content import (
     clan_member_source_token as _clan_member_source_token,
     load_clan_disk_member_snapshot as _load_clan_disk_member_snapshot,
@@ -38,7 +45,12 @@ from ._agent_clan_member_content import (
 _CLAN_MEMBER_CACHE_MAX_ENTRIES = 512
 _CLAN_SNAPSHOT_CACHE_MAX_ENTRIES = 128
 _CLAN_SNAPSHOT_REFRESH_SECONDS = 10.0
-_LOGICAL_PLAN_REFERENCE_RE = re.compile(r"(?<![\w])@?([A-Za-z][\w-]*:[\w.+\-/]+)")
+_LOGICAL_PLAN_REFERENCE_RE = re.compile(
+    rf"(?<![\w])@?({re.escape(LOGICAL_PLAN_REFERENCE_PREFIX)}[\w.+\-/]+)"
+)
+_ARCHIVED_PROMPT_REFERENCE_RE = re.compile(
+    r"(?<![\w/])(prompts/\d{6}/[^/\s<>()\[\]{}'\"`]+\.md)"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -283,7 +295,7 @@ def _build_clan_hint_paths(
 ) -> dict[str, str]:
     """Build worker-only aliases from displayed path tokens to real targets."""
     hint_paths: dict[str, str] = {}
-    fallback_workspace, workspace_num = _clan_hint_workspace_context(rows)
+    fallback_workspace, workspace_num, project_key = _clan_hint_workspace_context(rows)
     member_workspaces = {
         labels[row.identity]: resolve_agent_workspace_dir(
             row.effective_workspace_num,
@@ -313,7 +325,8 @@ def _build_clan_hint_paths(
 
     from sase.sdd.plan_refs import parse_plan_reference, resolve_plan_reference
 
-    for match in _LOGICAL_PLAN_REFERENCE_RE.finditer(agent.clan_summary or ""):
+    summary_plain = clan_summary_text(agent).plain
+    for match in _LOGICAL_PLAN_REFERENCE_RE.finditer(summary_plain):
         reference = match.group(1)
         try:
             parsed = parse_plan_reference(reference)
@@ -330,11 +343,14 @@ def _build_clan_hint_paths(
         _index_hint_path(hint_paths, reference, target)
         _index_hint_path(hint_paths, parsed.path, target)
         _index_hint_path(hint_paths, target, target)
+    _index_archived_prompt_references(hint_paths, summary_plain, project_key)
     return hint_paths
 
 
-def _clan_hint_workspace_context(rows: tuple[Agent, ...]) -> tuple[str | None, int]:
-    """Return the first addressable clan member workspace and its number."""
+def _clan_hint_workspace_context(
+    rows: tuple[Agent, ...],
+) -> tuple[str | None, int, str | None]:
+    """Return the first addressable member workspace, number, and project key."""
     for row in rows:
         workspace_num = row.effective_workspace_num
         if not row.workspace_dir and not (
@@ -350,16 +366,49 @@ def _clan_hint_workspace_context(rows: tuple[Agent, ...]) -> tuple[str | None, i
             return (
                 workspace_dir,
                 workspace_num if workspace_num and workspace_num > 0 else 1,
+                Path(row.project_file).parent.name,
             )
-    return None, 1
+    return None, 1, None
 
 
-def _index_hint_path(index: dict[str, str], displayed: str, target: str) -> None:
+def _index_archived_prompt_references(
+    index: dict[str, str],
+    summary_plain: str,
+    project_key: str | None,
+) -> None:
+    """Index archived prompt references to the hidden agents sidecar."""
+    if project_key is None:
+        return
+    try:
+        agents_root = Path(hidden_sidecar_clone_dir(project_key, AGENTS_SIDECAR_ROLE))
+        for match in _ARCHIVED_PROMPT_REFERENCE_RE.finditer(summary_plain):
+            reference = match.group(1)
+            target = agents_root / reference
+            if target.is_file():
+                _index_hint_path(
+                    index,
+                    reference,
+                    str(target),
+                    expand_suffixes=False,
+                )
+    except Exception:
+        pass
+
+
+def _index_hint_path(
+    index: dict[str, str],
+    displayed: str,
+    target: str,
+    *,
+    expand_suffixes: bool = True,
+) -> None:
     """Index a displayed path plus each path-component suffix, first wins."""
     value = displayed.strip().lstrip("@")
     if not value:
         return
     index.setdefault(value, target)
+    if not expand_suffixes:
+        return
     path_value = value
     if not value.startswith("/") and ":" in value:
         _kind, remainder = value.split(":", 1)
@@ -368,7 +417,10 @@ def _index_hint_path(index: dict[str, str], displayed: str, target: str) -> None
             index.setdefault(remainder, target)
     parts = tuple(part for part in path_value.split("/") if part and part != ".")
     for offset in range(len(parts)):
-        index.setdefault("/".join(parts[offset:]), target)
+        suffix = parts[offset:]
+        if len(suffix) < 2:
+            continue
+        index.setdefault("/".join(suffix), target)
 
 
 def build_agent_group_disk_snapshot(

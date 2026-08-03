@@ -102,6 +102,31 @@ _EPIC_CLAN_SUMMARY = _render_plan_summary(
     page_url=_EPIC_BEAD_PAGE_URL,
 )
 
+_EPIC_CLAN_SUMMARY_WITH_PROMPT_HINTS = _render_plan_summary(
+    "sase-6n",
+    PlanDisplay(
+        title="Clan hint targets",
+        goal="Keep logical plan and archived prompt references actionable.",
+        authored_tier="tale",
+        effective_tier="tale",
+        actual_path="/workspace/sase/sase/repos/plans/202608/hints.md",
+        display_path="plans:202608/hints.md",
+        committed=True,
+        exists=True,
+        readable=True,
+        frontmatter_readable=True,
+        phase_availability="not-applicable",
+        phases=(),
+        validation_ok=True,
+        provenance=(
+            PlanProvenanceSection(
+                kind=PlanHeaderSectionKind.PROMPT,
+                entries=("prompts/202608/hints.md",),
+            ),
+        ),
+    ),
+)
+
 
 @pytest.fixture(autouse=True)
 def _isolate_clan_plan_enrichment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -216,6 +241,42 @@ async def test_epic_clan_panel_hint_mode_png_snapshot(
             page,
             "agents_clan_panel_epic_hints_120x40",
             title="ACE epic clan panel in hint mode",
+        )
+
+
+async def test_epic_clan_panel_logical_prompt_hint_mode_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``v`` marks logical plan and archived prompt rows as whole tokens."""
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 12, 15, 0))
+    patch_startup_loaders(
+        monkeypatch,
+        agents=decorate_clan_panel_sections(
+            epic_clan_agents(clan_summary=_EPIC_CLAN_SUMMARY_WITH_PROMPT_HINTS)
+        ),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        await page.press("v")
+        await page.wait_for(lambda _state: len(page.app._hint_mappings) >= 2)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "[1]")
+        assert_page_svg_contains(page, "plans:202608/")
+        assert_page_svg_contains(page, "hints.md")
+        assert_page_svg_contains(page, "[2]")
+        assert_page_svg_contains(page, "prompts/202608/")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_panel_epic_logical_prompt_hints_120x40",
+            title="ACE epic clan panel logical and prompt hint mode",
         )
 
 

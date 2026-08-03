@@ -14,6 +14,7 @@ from sase.ace.tui.widgets._prompt_preview_target import (
     detect_preview_target_at_cursor,
 )
 from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
+    file_hint_match_span,
     iter_file_path_matches,
     resolve_file_path,
 )
@@ -146,10 +147,8 @@ def _detect_file_token_suffix_at_cursor(
 ) -> JumpToken | None:
     offset = max(0, min(cursor_offset, len(text)))
     for match in iter_file_path_matches(text):
-        at_prefix = match.group(1)
         target = match.group(2)
-        start = match.start(1) if at_prefix else match.start(2)
-        end = match.end(2)
+        start, end = file_hint_match_span(match)
         suffix = _LINE_COL_SUFFIX_RE.match(text[end:])
         if suffix is None:
             continue
