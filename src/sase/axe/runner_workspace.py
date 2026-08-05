@@ -6,6 +6,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from sase._linked_repo_paths import SIDECAR_REPO_CLONES_SUBDIR
 from sase.git_lock_retry import (
     STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS,
     git_index_lock_path,
@@ -14,6 +15,11 @@ from sase.sdd._bead_state import has_bead_state
 from sase.vcs_provider import get_vcs_provider
 
 logger = logging.getLogger(__name__)
+
+
+class WorkspaceBeadEvictionRefused(RuntimeError):
+    """Raised when eviction would destroy unpublished canonical bead commits."""
+
 
 # Minimum age before a leftover ``.git/index.lock`` is treated as abandoned.
 # Comfortably longer than any normal index operation, so we never race a lock
@@ -129,21 +135,47 @@ def prepare_workspace(
     return True
 
 
-def _protect_unpushed_sidecar_bead_commits(workspace_dir: str) -> bool:
-    """Publish or rescue local bead commits before workspace preparation resets."""
-    repo_root = Path(workspace_dir).expanduser().resolve()
-    beads_dir = _top_level_beads_dir(repo_root)
-    if beads_dir is None:
-        return True
+def _protect_unpushed_sidecar_bead_commits(
+    workspace_dir: str,
+    *,
+    refuse_on_unpublished: bool = False,
+) -> bool:
+    """Publish or rescue local bead commits before workspace preparation resets.
 
-    from sase.bead.sync import (
-        bead_store_git_root,
-        push_bead_work_launch,
-        unpushed_bead_commit_count,
-    )
+    Every bead store reachable from *workspace_dir* is checked, including the
+    sidecar-repos clones under ``sase/repos/`` that live in their own Git
+    repositories. When *refuse_on_unpublished* is set, an unpublishable store
+    fails the preparation outright instead of warning and proceeding — the
+    caller is about to destroy the clone that holds the only copy.
+    """
+    workspace_root = Path(workspace_dir).expanduser().resolve()
 
-    if not _beads_dir_belongs_to_repo(beads_dir, repo_root, bead_store_git_root):
-        return True
+    from sase.bead.sync import bead_store_git_root
+
+    protected = True
+    for beads_dir in _workspace_bead_store_dirs(workspace_root):
+        store_root = _bead_store_repo_root(
+            beads_dir, workspace_root, bead_store_git_root
+        )
+        if store_root is None:
+            continue
+        if not _protect_bead_store(
+            beads_dir,
+            store_root,
+            refuse_on_unpublished=refuse_on_unpublished,
+        ):
+            protected = False
+    return protected
+
+
+def _protect_bead_store(
+    beads_dir: Path,
+    repo_root: Path,
+    *,
+    refuse_on_unpublished: bool,
+) -> bool:
+    """Publish or rescue one bead store's local-only canonical commits."""
+    from sase.bead.sync import push_bead_work_launch, unpushed_bead_commit_count
 
     local_bead_commits = unpushed_bead_commit_count(repo_root, beads_dir)
     if local_bead_commits <= 0:
@@ -151,8 +183,8 @@ def _protect_unpushed_sidecar_bead_commits(workspace_dir: str) -> bool:
 
     print(
         "Found "
-        f"{local_bead_commits} unpushed local bead commit(s); publishing before "
-        "workspace cleanup..."
+        f"{local_bead_commits} unpushed local bead commit(s) in {repo_root}; "
+        "publishing before workspace cleanup..."
     )
     outcome = push_bead_work_launch(beads_dir)
     remaining = unpushed_bead_commit_count(repo_root, beads_dir)
@@ -166,18 +198,27 @@ def _protect_unpushed_sidecar_bead_commits(workspace_dir: str) -> bool:
             if outcome.pushed
             else "managed bead sync did not publish"
         )
+    if outcome.log_path is not None:
+        detail = f"{detail} (managed sync log: {outcome.log_path})"
     recovery_ref, recovery_error = _retain_current_head_recovery_ref(repo_root)
     if recovery_error is not None or recovery_ref is None:
         print(
-            "workspace preparation refused to discard unpushed local bead "
-            f"commits: {detail}; recovery ref failed: "
-            f"{recovery_error or 'unknown error'}",
+            "workspace preparation refused to discard "
+            f"{remaining} unpushed local bead commit(s) in {repo_root}: "
+            f"{detail}; recovery ref failed: {recovery_error or 'unknown error'}",
             file=sys.stderr,
         )
         return False
 
-    if outcome.log_path is not None:
-        detail = f"{detail} (managed sync log: {outcome.log_path})"
+    if refuse_on_unpublished:
+        print(
+            f"workspace preparation refused to evict the bead store at {repo_root}: "
+            f"{remaining} unpublished local bead commit(s) retained at "
+            f"{recovery_ref}; {detail}",
+            file=sys.stderr,
+        )
+        return False
+
     print(
         "Warning: retained "
         f"{remaining} unpushed local bead commit(s) at {recovery_ref} before "
@@ -185,6 +226,21 @@ def _protect_unpushed_sidecar_bead_commits(workspace_dir: str) -> bool:
         file=sys.stderr,
     )
     return True
+
+
+def _workspace_bead_store_dirs(workspace_root: Path) -> list[Path]:
+    """Return every bead store a workspace reset or eviction could destroy."""
+    stores: list[Path] = []
+    repos_root = workspace_root.joinpath(*SIDECAR_REPO_CLONES_SUBDIR)
+    # Split-beads sidecar: the clone root itself is the bead store. Combined
+    # sidecar: the bead store is the ``beads/`` subdirectory of the plans clone.
+    for sidecar_store in (repos_root / "beads", repos_root / "plans" / "beads"):
+        if has_bead_state(sidecar_store):
+            stores.append(sidecar_store)
+    in_repo_store = _top_level_beads_dir(workspace_root)
+    if in_repo_store is not None:
+        stores.append(in_repo_store)
+    return stores
 
 
 def _top_level_beads_dir(repo_root: Path) -> Path | None:
@@ -196,16 +252,27 @@ def _top_level_beads_dir(repo_root: Path) -> Path | None:
     return None
 
 
-def _beads_dir_belongs_to_repo(
+def _bead_store_repo_root(
     beads_dir: Path,
-    repo_root: Path,
+    workspace_root: Path,
     git_root_for_path: Callable[[Path], Path | None],
-) -> bool:
+) -> Path | None:
+    """Return the Git root owning *beads_dir* when it is workspace-scoped.
+
+    A sidecar bead store is its own Git repository nested inside the workspace,
+    so accepting only the workspace repo itself would skip exactly the clones
+    launch-time eviction destroys.
+    """
     try:
         discovered_root = git_root_for_path(beads_dir)
     except Exception:  # noqa: BLE001 - safety preflight must not break non-git repos.
-        return False
-    return discovered_root is not None and discovered_root.resolve() == repo_root
+        return None
+    if discovered_root is None:
+        return None
+    resolved_root = discovered_root.resolve()
+    if resolved_root == workspace_root or workspace_root in resolved_root.parents:
+        return resolved_root
+    return None
 
 
 def _retain_current_head_recovery_ref(repo_root: Path) -> tuple[str | None, str | None]:
@@ -262,8 +329,23 @@ def prepare_launch_workspace_repos(
     The returned paths identify sidecars proven to have been freshly cloned by
     this launch, so later linked-repo setup can reuse them without another
     materialization or synchronization pass.
+
+    Raises:
+        WorkspaceBeadEvictionRefused: when a sidecar bead clone holds canonical
+            bead commits that could not be published. Eviction would delete the
+            only copy of those commits, so the launch fails instead.
     """
     from sase.linked_repos import clear_workspace_repos
+
+    # Only numbered workspaces evict sidecars; the primary checkout's clones
+    # survive ``clear_workspace_repos`` untouched.
+    if workspace_num > 1 and not _protect_unpushed_sidecar_bead_commits(
+        workspace_dir, refuse_on_unpublished=True
+    ):
+        raise WorkspaceBeadEvictionRefused(
+            "refusing to evict workspace sidecar repos: a bead store holds "
+            "unpublished canonical bead commits (see diagnostics above)"
+        )
 
     clear_workspace_repos(workspace_dir, workspace_num)
 

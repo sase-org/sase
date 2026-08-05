@@ -14,6 +14,7 @@ from typing import Any
 from sase.axe.runner_artifacts import all_steps_hidden
 from sase.axe.runner_signals import install_sigterm_handler, was_killed
 from sase.axe.runner_workspace import (
+    WorkspaceBeadEvictionRefused,
     prepare_launch_workspace_repos,
     prepare_workspace,
 )
@@ -44,7 +45,11 @@ def _prepare_workflow_workspace(
     ):
         return False
 
-    prepare_launch_workspace_repos(workspace_dir, workspace_num)
+    try:
+        prepare_launch_workspace_repos(workspace_dir, workspace_num)
+    except WorkspaceBeadEvictionRefused as exc:
+        print(str(exc), file=sys.stderr)
+        return False
     return True
 
 
