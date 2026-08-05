@@ -153,6 +153,7 @@ def test_task_worker_resolves_to_plan_free_task_bead_lane(
         issue_type=IssueType.TASK,
         description="Render task metadata without reading a plan file.",
         size=PhaseSize.MEDIUM,
+        created_at="2026-08-01T14:30:00Z",
         notes=(
             "  [2026-08-01T14:03:00Z · alice] first note\r\n"
             "continued line\r\n\r\n"
@@ -194,6 +195,7 @@ def test_task_worker_resolves_to_plan_free_task_bead_lane(
     assert enrichment.bead_summary.title == task.title
     assert enrichment.bead_summary.description == task.description
     assert enrichment.bead_summary.size == "medium"
+    assert enrichment.bead_summary.created_at == task.created_at
     assert enrichment.bead_summary.notes == (
         "[2026-08-01T14:03:00Z · alice] first note\n"
         "continued line\n\n"

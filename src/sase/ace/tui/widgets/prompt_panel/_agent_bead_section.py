@@ -9,6 +9,7 @@ from rich.console import Console, ConsoleOptions, RenderResult
 from rich.table import Table
 from rich.text import Text
 
+from sase.bead_time_presentation import BEAD_TIME_RICH_STYLE, bead_created_label
 from sase.bead_type_presentation import bead_type_presentation
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_RICH_STYLE,
@@ -40,6 +41,7 @@ _BEAD_FIELD_LABELS = (
     "Size",
     "+1 Reports",
     "+1 Evidence",
+    "Created",
 )
 BEAD_FIELD_LABEL_WIDTH = cell_len(f"  {max(_BEAD_FIELD_LABELS, key=len)}: ")
 BEAD_PLAN_STATE_STYLE = "dim italic #FF8787"
@@ -111,6 +113,7 @@ class ResponsiveBeadSection:
                 rows.append(
                     (self._label("+1 Evidence"), self._plus_one_evidence_value())
                 )
+            rows.append((self._label("Created"), self._created_value()))
             return tuple(rows)
         rows = [
             (self._label("Phase Title"), self._bead_title_value()),
@@ -125,6 +128,7 @@ class ResponsiveBeadSection:
                 (self._label("Epic Title"), self._title_value()),
             ]
         )
+        rows.append((self._label("Created"), self._created_value()))
         return tuple(rows)
 
     @staticmethod
@@ -172,6 +176,12 @@ class ResponsiveBeadSection:
         return phase_size_chip(
             self.summary.size,
             unavailable_style=COLOR_EMPTY,
+        )
+
+    def _created_value(self) -> Text:
+        return Text(
+            bead_created_label(self.summary.created_at),
+            style=BEAD_TIME_RICH_STYLE,
         )
 
     def _plus_one_count_value(self) -> Text:

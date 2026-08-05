@@ -149,6 +149,7 @@ def _bead_section() -> ResponsiveBeadSection:
             plan_readable=True,
             epic_title="Phase-local context lane",
             size="medium",
+            created_at="2026-08-01T14:30:00Z",
         )
     )
 
@@ -215,6 +216,7 @@ def test_bead_only_context_creates_context_and_has_no_plan_range() -> None:
     assert "        Size:  medium \n" in text.plain
     assert "   Epic Plan: sase/repos/plans/epic.md\n" in text.plain
     assert "  Epic Title: Phase-local context lane\n" in text.plain
+    assert "Created: 2026-08-01 10:30:00 EDT" in text.plain
     assert "▸ PLAN" not in text.plain
     assert_logical_section_is_compact(text, "SASE CONTEXT", "▸ BEAD")
     assert_rendered_section_is_compact(text, "SASE CONTEXT", "▸ BEAD")

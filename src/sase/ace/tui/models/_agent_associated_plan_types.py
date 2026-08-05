@@ -43,6 +43,7 @@ class BeadSummary:
     plan_readable: bool
     epic_title: str | None
     size: PhaseSizeValue | None
+    created_at: str = ""
     bead_type: BeadTypeValue = "phase"
     notes: str | None = None
     plus_one_evidence: tuple[TaskPlusOneEvidence, ...] = ()
@@ -104,6 +105,7 @@ class ResolvedPlanAssociation:
     plan_reference: str | None = None
     epic_bead_id: str | None = None
     phase_bead_id: str | None = None
+    created_at: str = ""
     bead_summary: BeadSummary | None = None
     notes: str | None = None
 

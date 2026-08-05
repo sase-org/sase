@@ -16,6 +16,7 @@ from sase.ace.tui.models.agent_associated_plan import (
     _AgentPlanEnrichment,
 )
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
+from sase.bead.model import Issue, IssueType
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
@@ -223,6 +224,19 @@ async def test_agents_phase_bead_context_png_snapshot(
         llm_provider="codex",
         model="gpt-5",
     )
+    phase_issue = Issue(
+        id="sase-visual.2",
+        title="Responsive BEAD lane",
+        issue_type=IssueType.PHASE,
+        parent_id="sase-visual",
+        created_at="2026-07-03T13:00:00Z",
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_associated_plan._lookup_issue",
+        lambda _agent, bead_id, **_kwargs: (
+            phase_issue if bead_id == phase_issue.id else None
+        ),
+    )
     patch_startup_loaders(monkeypatch, agents=[agent])
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -247,6 +261,8 @@ async def test_agents_phase_bead_context_png_snapshot(
         assert_page_svg_contains(page, "medium")
         assert_page_svg_contains(page, "Epic Plan:")
         assert_page_svg_contains(page, "Epic Title:")
+        assert_page_svg_contains(page, "Created:")
+        assert_page_svg_contains(page, "2026-07-03")
         assert_page_svg_contains(page, "Phase bead SASE context lane")
         assert "Bead:" not in svg
         assert "ID:" not in svg
@@ -284,6 +300,7 @@ async def test_agents_task_bead_notes_png_snapshot(
         plan_readable=False,
         epic_title=None,
         size="medium",
+        created_at="2026-07-03T13:00:00Z",
         bead_type="task",
         notes=notes,
     )
@@ -323,6 +340,8 @@ async def test_agents_task_bead_notes_png_snapshot(
         assert "Description:" in svg_plain
         assert "Notes:" in svg_plain
         assert "Size:" in svg_plain
+        assert "Created:" in svg_plain
+        assert "2026-07-03" in svg_plain
         assert "alice" in svg_plain
         assert "bob" in svg_plain
         assert "attribution readable" in svg_plain
@@ -421,6 +440,19 @@ async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
         llm_provider="codex",
         model="gpt-5",
     )
+    phase_issue = Issue(
+        id="sase-83.1",
+        title="Provider update snapshot",
+        issue_type=IssueType.PHASE,
+        parent_id="sase-83",
+        created_at="2026-07-03T13:00:00Z",
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_associated_plan._lookup_issue",
+        lambda _agent, bead_id, **_kwargs: (
+            phase_issue if bead_id == phase_issue.id else None
+        ),
+    )
     patch_startup_loaders(monkeypatch, agents=[root, coder])
 
     async with AcePage(
@@ -454,6 +486,8 @@ async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
         assert "sase-83.1" in svg_plain
         assert "Parent epic" in svg_plain
         assert "Provider update snapshot" in svg_plain
+        assert "Created:" in svg_plain
+        assert "2026-07-03" in svg_plain
         assert "Render update awareness" not in svg_plain
         assert "small" in svg_plain
         assert "medium" not in svg_plain

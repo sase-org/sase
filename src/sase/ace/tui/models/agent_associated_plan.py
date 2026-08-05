@@ -403,6 +403,7 @@ def _resolve_bead_plan_association(
             role=role,
             epic_bead_id=epic_bead_id,
             phase_bead_id=phase_bead_id,
+            created_at=issue.created_at if is_phase else "",
             bead_summary=bead_summary,
             notes=notes,
         )
@@ -413,6 +414,7 @@ def _resolve_bead_plan_association(
         plan_reference=design,
         epic_bead_id=epic_bead_id,
         phase_bead_id=phase_bead_id,
+        created_at=issue.created_at if is_phase else "",
         bead_summary=bead_summary,
         notes=notes,
     )
@@ -439,6 +441,7 @@ def _resolve_bead_issue_association(
         role=role,
         epic_bead_id=issue.parent_id if is_phase else (issue.id if is_epic else None),
         phase_bead_id=issue.id if is_phase else None,
+        created_at=issue.created_at if is_phase else "",
         bead_summary=_task_bead_summary(issue) if is_task else None,
         notes=_normalize_bead_notes(issue.notes),
     )
@@ -456,6 +459,7 @@ def _task_bead_summary(issue: Issue) -> BeadSummary:
         plan_readable=False,
         epic_title=None,
         size=normalize_phase_size(issue.size),
+        created_at=issue.created_at,
         bead_type="task",
         notes=_normalize_bead_notes(issue.notes),
         plus_one_evidence=tuple(issue.plus_one_evidence),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from io import StringIO
 
 import pytest
@@ -9,6 +10,7 @@ from rich.cells import cell_len
 from rich.console import Console
 
 from sase.ace.tui.models.agent_associated_plan import BeadSummary, PhaseBeadSummary
+from sase.bead_time_presentation import BEAD_TIME_RICH_STYLE
 from sase.bead.model import TaskPlusOneEvidence
 from sase.ace.tui.widgets.prompt_panel._agent_bead_section import (
     BEAD_FIELD_LABEL_WIDTH,
@@ -37,6 +39,17 @@ from sase.phase_size_presentation import (
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import assert_span_covers
 
+_CREATED_AT = "2026-08-01T14:30:00Z"
+_CREATED_LABEL = "2026-08-01 10:30:00 EDT · 4d ago"
+
+
+@pytest.fixture(autouse=True)
+def _pin_bead_created_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.core.time.local_now",
+        lambda: datetime(2026, 8, 5, 12, 0, 0),
+    )
+
 
 def _bead_summary(
     *,
@@ -50,6 +63,7 @@ def _bead_summary(
     epic_title: str | None = "Phase bead context lane",
     size: PhaseSizeValue | None = "medium",
     notes: str | None = None,
+    created_at: str = _CREATED_AT,
 ) -> PhaseBeadSummary:
     return PhaseBeadSummary(
         id=bead_id,
@@ -61,6 +75,7 @@ def _bead_summary(
         plan_readable=readable,
         epic_title=epic_title,
         size=size,
+        created_at=created_at,
         notes=notes,
     )
 
@@ -122,6 +137,8 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
     assert plain.index("Description:") < plain.index("Size:")
     assert plain.index("Size:") < plain.index("Epic Plan:")
     assert plain.index("Epic Plan:") < plain.index("Epic Title:")
+    assert plain.index("Epic Title:") < plain.index("Created:")
+    assert f"Created: {_CREATED_LABEL}\n" in plain
     field_lines = [
         line
         for line in plain.splitlines()
@@ -133,6 +150,7 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
                 "Size:",
                 "Epic Plan:",
                 "Epic Title:",
+                "Created:",
             )
         )
     ]
@@ -145,6 +163,7 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
     assert_span_covers(header, "medium", PHASE_SIZE_STYLES["medium"])
     assert_span_covers(header, "epic plan.md", COLOR_ARTIFACT_FILE_BASENAME)
     assert_span_covers(header, "Phase bead context lane", COLOR_BEAD_PRIMARY)
+    assert_span_covers(header, _CREATED_LABEL, BEAD_TIME_RICH_STYLE)
 
     for width in (120, 28):
         rendered = "".join(_render(header, width=width))
@@ -161,6 +180,7 @@ def test_task_and_phase_notes_follow_description() -> None:
         phase_plain.index("Description:")
         < phase_plain.index("Notes:")
         < phase_plain.index("Size:")
+        < phase_plain.index("Created:")
     )
 
     task_summary = BeadSummary(
@@ -173,6 +193,7 @@ def test_task_and_phase_notes_follow_description() -> None:
         plan_readable=False,
         epic_title=None,
         size="medium",
+        created_at=_CREATED_AT,
         bead_type="task",
         notes=notes,
     )
@@ -186,6 +207,7 @@ def test_task_and_phase_notes_follow_description() -> None:
         task_plain.index("Description:")
         < task_plain.index("Notes:")
         < task_plain.index("Size:")
+        < task_plain.index("Created:")
     )
     assert "Task Title:" in task_plain
     assert "Epic Plan:" not in task_plain
@@ -208,6 +230,7 @@ def test_task_bead_lane_renders_plus_one_count_and_evidence() -> None:
         plan_readable=False,
         epic_title=None,
         size="medium",
+        created_at=_CREATED_AT,
         bead_type="task",
         plus_one_evidence=(evidence,),
     )
@@ -223,6 +246,7 @@ def test_task_bead_lane_renders_plus_one_count_and_evidence() -> None:
     assert "+1 Evidence:" in header.plain
     assert "+1 agent.beta · 2026-08-01T15:00:00Z" in header.plain
     assert "research:202608/cache.md" in header.plain
+    assert header.plain.index("+1 Evidence:") < header.plain.index("Created:")
 
 
 def test_bead_notes_render_literal_multiline_and_wrap_losslessly() -> None:
@@ -406,6 +430,7 @@ def test_task_bead_lane_uses_type_identity_without_epic_fields() -> None:
         plan_readable=False,
         epic_title=None,
         size="medium",
+        created_at=_CREATED_AT,
         bead_type="task",
     )
     header, _ = build_header_text(
@@ -417,6 +442,7 @@ def test_task_bead_lane_uses_type_identity_without_epic_fields() -> None:
     assert "Task Title: Task lane\n" in header.plain
     assert "Description: Show only task-owned metadata.\n" in header.plain
     assert "Size:  medium " in header.plain
+    assert f"Created: {_CREATED_LABEL}\n" in header.plain
     assert "Phase Title:" not in header.plain
     assert "Epic Plan:" not in header.plain
     assert "Epic Title:" not in header.plain

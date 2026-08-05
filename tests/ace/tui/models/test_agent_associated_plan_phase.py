@@ -50,6 +50,7 @@ def test_modern_phase_without_authored_plan_allows_exact_note_lookup(
         title="Ignored bead title",
         issue_type=IssueType.PHASE,
         parent_id="stale-parent",
+        created_at="2026-08-01T14:30:00Z",
         notes="[2026-08-01T14:00:00Z · bryan] implementation note",
     )
     lookups: list[str] = []
@@ -72,6 +73,7 @@ def test_modern_phase_without_authored_plan_allows_exact_note_lookup(
     assert enrichment.phase_bead.phase_title == "Independent documentation"
     assert enrichment.phase_bead.epic_title == "Epic phase metadata"
     assert enrichment.phase_bead.size == "small"
+    assert enrichment.phase_bead.created_at == phase.created_at
     assert enrichment.phase_bead.notes == phase.notes
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_paths == (str(plan.resolve()),)

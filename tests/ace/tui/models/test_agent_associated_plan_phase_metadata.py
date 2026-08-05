@@ -84,6 +84,7 @@ def test_modern_phase_uses_validated_frontmatter_order_for_structure(
         issue_type=IssueType.PHASE,
         parent_id="stale-parent",
         description="Stale bead description must not win.",
+        created_at="2026-08-01T14:30:00Z",
         notes="phase-owned note survives structure projection",
         size=PhaseSize.XLARGE,
     )
@@ -108,6 +109,7 @@ def test_modern_phase_uses_validated_frontmatter_order_for_structure(
         plan_readable=True,
         epic_title="Epic phase metadata",
         size=expected_size,  # type: ignore[arg-type]
+        created_at=phase_issue.created_at,
         notes=phase_issue.notes,
     )
     assert enrichment.associated_plan is None
