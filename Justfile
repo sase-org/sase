@@ -324,8 +324,9 @@ fmt-md-check: _setup-prettier
     {{ prettier_bin }} --check --prose-wrap=always --print-width=120 "**/*.md"
 
 # Fast parallel test run, no coverage (use test-cov to enforce coverage gate).
-# Includes the PNG visual snapshot suite via `_setup-visual`, so the default
-# `just test` run now exercises both the unit tests and the visual goldens.
+# Excludes the slow and PNG visual snapshot suites; use test-visual for those.
+# Still depends on `_setup-visual` because the visual conftest imports Pillow
+# at module scope, and marker deselection happens after collection.
 [positional-arguments]
 test *args: _setup-visual (_header "test")
     @printf "\n---------- Running pytest (parallel, no coverage)... ----------\n"
@@ -376,8 +377,8 @@ test-terminal-smoke *args: _setup-terminal-smoke (_header "test-terminal-smoke")
     @printf "\n---------- Running terminal smoke pytest subset... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest terminal-smoke tests/ace/tui/terminal_smoke "$@"
 
-# Parallel test run with coverage reports + 50% gate (used by CI). Includes
-# the visual snapshot suite via `_setup-visual`.
+# Parallel test run with coverage reports + 50% gate (used by CI). Excludes
+# the visual snapshot suite; still depends on `_setup-visual` for collection.
 [positional-arguments]
 test-cov *args: _setup-visual (_header "test-cov")
     @printf "\n---------- Running pytest with coverage... ----------\n"

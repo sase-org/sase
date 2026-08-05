@@ -72,11 +72,14 @@ def _lease(
     ("cpu_count", "mem_available_gib", "expected"),
     [
         (64, 64, 32),
-        (8, 64, 4),
-        (64, 10, 1),
+        (8, 64, 7),
+        (64, 10, 2),
         (2, 64, 1),
         (None, 64, 1),
         (64, None, 4),
+        # A 4-vCPU CI runner must get real parallelism; a flat CPU reserve used to
+        # collapse this shape to a single worker and serialize the whole CI matrix.
+        (4, 14, 3),
     ],
 )
 def test_default_budget_arithmetic(

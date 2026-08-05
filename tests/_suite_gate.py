@@ -21,12 +21,19 @@ _STATUS_INTERVAL_SECONDS = 30.0
 _DEFAULT_AUTOMATIC_FLOOR = 4
 _DEFAULT_AUTOMATIC_CEILING = 28
 _DEFAULT_HARD_TOKEN_LIMIT = 32
-_RESERVED_CPUS = 4
+# Reserve a proportion of the host rather than a flat count. A flat 4 is noise
+# on the 64-core development host but is the entire machine on a 4-vCPU CI
+# runner, where it collapsed the budget to one token and made the whole CI test
+# matrix run serially.
+_RESERVED_CPU_DIVISOR = 8
+_MINIMUM_RESERVED_CPUS = 1
 _RESERVED_MEMORY_KIB = 8 * 1024 * 1024
-# A representative eight-worker run on the 64-GiB development host peaked at
-# about 0.65 GiB RSS per worker plus 0.13 GiB for the controller. Reserving
-# 1.2 GiB per token leaves nearly 2x worker headroom for heavier test files.
-_MEMORY_KIB_PER_WORKER = 1229 * 1024
+# Live worker RSS sampled across concurrent sibling workspaces ranges from
+# 0.74 to 0.85 GiB. Reserving 950 MiB per token keeps headroom over the top of
+# that range while leaving memory as a real rather than an inflated constraint;
+# the previous 1.2 GiB over-reserved by ~45% and shrank the host pool by ~30%
+# exactly when contention made memory scarce.
+_MEMORY_KIB_PER_WORKER = 950 * 1024
 _MISSING_MEMORY_TOKEN_LIMIT = 4
 _MEMINFO_PATH = Path("/proc/meminfo")
 _CONFIG_ATTRIBUTE = "_sase_worker_token_lease"
@@ -306,7 +313,8 @@ def _calculate_default_token_budget(
     if cpu_count is None or cpu_count < 1:
         cpu_limit = 1
     else:
-        cpu_limit = max(cpu_count - _RESERVED_CPUS, 1)
+        reserved_cpus = max(_MINIMUM_RESERVED_CPUS, cpu_count // _RESERVED_CPU_DIVISOR)
+        cpu_limit = max(cpu_count - reserved_cpus, 1)
 
     if mem_available_kib is None:
         memory_limit = _MISSING_MEMORY_TOKEN_LIMIT

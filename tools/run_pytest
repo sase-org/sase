@@ -34,13 +34,11 @@ PYTEST_ENV_UNSET_KEYS = (
     "SASE_PR_NAME",
     "SASE_PR_STATUS",
 )
-FAST_MARKER_EXPRESSION = "not slow"
-FAST_NON_VISUAL_MARKER_EXPRESSION = "not slow and not visual"
+FAST_MARKER_EXPRESSION = "not slow and not visual"
 SLOW_MARKER_EXPRESSION = "slow"
 VISUAL_MARKER_EXPRESSION = "visual"
 TERMINAL_SMOKE_MARKER_EXPRESSION = "terminal_smoke"
 SERIAL_MODES = frozenset({"terminal-smoke"})
-EXCLUDE_VISUAL_ENV = "SASE_PYTEST_EXCLUDE_VISUAL"
 PYTEST_DIST_ENV = "SASE_PYTEST_DIST"
 DEFAULT_PYTEST_DIST = "worksteal"
 SUPPORTED_PYTEST_DIST_MODES = ("loadfile", "worksteal")
@@ -143,14 +141,6 @@ def _resolve_mode_and_args(mode: str, args: list[str]) -> tuple[str, list[str]]:
     return mode, resolved_args
 
 
-def _fast_marker_expression() -> str:
-    """Return the broad-suite marker expression selected by the caller."""
-    exclude_visual = os.environ.get(EXCLUDE_VISUAL_ENV, "").strip().lower()
-    if exclude_visual in {"1", "true", "yes", "on"}:
-        return FAST_NON_VISUAL_MARKER_EXPRESSION
-    return FAST_MARKER_EXPRESSION
-
-
 def _inline_snapshot_value_requires_serial(value: str) -> bool:
     modes = [mode.strip() for mode in value.split(",") if mode.strip()]
     if not modes:
@@ -223,12 +213,12 @@ def _pytest_command(
     elif mode == "terminal-smoke":
         command.extend(["-m", TERMINAL_SMOKE_MARKER_EXPRESSION])
     elif mode == "fast":
-        command.extend(["-m", _fast_marker_expression()])
+        command.extend(["-m", FAST_MARKER_EXPRESSION])
     elif mode == "cov":
         command.extend(
             [
                 "-m",
-                _fast_marker_expression(),
+                FAST_MARKER_EXPRESSION,
                 "--cov=src/sase",
                 "--cov-branch",
                 "--cov-report=term-missing:skip-covered",

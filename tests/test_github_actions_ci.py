@@ -166,10 +166,11 @@ def test_visual_suite_runs_only_in_dedicated_job() -> None:
     workflow = _load_ci_workflow()
     jobs = workflow["jobs"]
 
-    run_tests = next(
-        step for step in jobs["test"]["steps"] if step.get("name") == "Run tests"
+    assert not any(
+        "VISUAL" in name
+        for step in jobs["test"]["steps"]
+        for name in step.get("env", {})
     )
-    assert run_tests["env"]["SASE_PYTEST_EXCLUDE_VISUAL"] == "true"
     assert not any(
         "sase-visual" in step.get("with", {}).get("path", "")
         for step in jobs["test"]["steps"]
@@ -177,6 +178,14 @@ def test_visual_suite_runs_only_in_dedicated_job() -> None:
     assert any(
         step.get("run") == "just test-visual" for step in jobs["visual-test"]["steps"]
     )
+
+
+def test_perf_floors_job_runs_slow_lane() -> None:
+    workflow = _load_ci_workflow()
+    steps = workflow["jobs"]["perf-floors"]["steps"]
+
+    slow_step = next(step for step in steps if step.get("run") == "just test-slow")
+    assert slow_step["if"] == "always()"
 
 
 def test_docs_build_once_per_event_and_deploys_are_serialized() -> None:

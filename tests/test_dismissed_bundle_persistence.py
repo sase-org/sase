@@ -316,6 +316,7 @@ def test_re_dismiss_overwrites_legacy_bundle_path(
         assert loaded[0].status == "DONE"
 
 
+@pytest.mark.slow
 def test_save_dismissed_bundle_is_fast_with_many_existing_bundles(
     tmp_path: Path,
 ) -> None:
@@ -420,6 +421,7 @@ def test_bundle_load_by_suffixes_ignores_unrelated_files(tmp_path: Path) -> None
         assert loaded[0].raw_suffix == "20250615100000"
 
 
+@pytest.mark.slow
 def test_bundle_no_limit(tmp_path: Path) -> None:
     """Test that all bundles are preserved (no trimming)."""
     bundles_dir = tmp_path / "bundles"
@@ -435,6 +437,7 @@ def test_bundle_no_limit(tmp_path: Path) -> None:
         assert len(loaded) == total
 
 
+@pytest.mark.slow
 def test_bundle_save_does_not_leak_index_file_descriptors(tmp_path: Path) -> None:
     """Repeated bundle saves should close SQLite index file descriptors."""
     fd_dir = Path("/proc/self/fd")

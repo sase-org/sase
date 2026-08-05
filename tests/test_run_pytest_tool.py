@@ -84,11 +84,10 @@ def test_visual_mode_selects_visual_marker() -> None:
     ]
 
 
-def test_fast_mode_selects_non_slow_marker_to_include_visual_tests(
+def test_fast_mode_selects_not_slow_and_not_visual_marker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runner = _load_run_pytest()
-    monkeypatch.delenv(runner.EXCLUDE_VISUAL_ENV, raising=False)
     monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
 
     result = runner._pytest_command("fast", [])
@@ -96,7 +95,7 @@ def test_fast_mode_selects_non_slow_marker_to_include_visual_tests(
     assert "-n" in result
     assert "--dist=worksteal" in result
     assert result[-2:] == ["-m", runner.FAST_MARKER_EXPRESSION]
-    assert result[-1] == "not slow"
+    assert result[-1] == "not slow and not visual"
 
 
 def test_parallel_grant_uses_actual_lease_grant(
@@ -312,32 +311,14 @@ def test_terminal_smoke_mode_selects_marker_and_stays_serial(
     ]
 
 
-def test_cov_mode_selects_non_slow_marker_to_include_visual_tests(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_cov_mode_excludes_visual_tests_matching_dedicated_visual_test_job() -> None:
     runner = _load_run_pytest()
-    monkeypatch.setenv(runner.EXCLUDE_VISUAL_ENV, "false")
 
     result = runner._pytest_command("cov", [])
 
     assert [
         "-m",
         runner.FAST_MARKER_EXPRESSION,
-    ] in [result[index : index + 2] for index in range(len(result) - 1)]
-    assert "--cov=src/sase" in result
-
-
-def test_cov_mode_can_exclude_visual_tests_for_noncanonical_ci_legs(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    runner = _load_run_pytest()
-    monkeypatch.setenv(runner.EXCLUDE_VISUAL_ENV, "true")
-
-    result = runner._pytest_command("cov", [])
-
-    assert [
-        "-m",
-        runner.FAST_NON_VISUAL_MARKER_EXPRESSION,
     ] in [result[index : index + 2] for index in range(len(result) - 1)]
     assert "--cov=src/sase" in result
 

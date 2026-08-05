@@ -33,11 +33,11 @@ installed environment metadata, so dependency or environment changes revalidate 
 just install       # Install with dev deps
 just fmt           # Auto-format code and Markdown
 just lint          # Run ruff, mypy, pyscripts, symvision, toobig, and keep-sorted
-just test          # Fast parallel test run, including PNG visual snapshots
+just test          # Fast parallel test run, excluding slow and PNG visual snapshot tests
 just test-slow     # Slow pytest subset only
-just test-visual   # ACE PNG visual regression snapshots only
+just test-visual   # ACE PNG visual regression snapshots only; the sole visual execution
 just test-terminal-smoke  # Optional real-terminal ACE smoke test
-just test-cov      # Parallel test run with coverage + 50% gate, including visual snapshots
+just test-cov      # Parallel test run with coverage + 50% gate, excluding visual snapshots
 just check         # CI-style checks: formatting, lint, SDD validation, tests
 just test-tox      # Test across Python 3.12, 3.13, 3.14
 just clean         # Remove build artifacts
@@ -68,11 +68,13 @@ solo run can receive 28 workers from the 32-token pool while leaving four tokens
 down to their actual grants instead of each independently oversubscribing the host. The granted count is the value
 passed to `pytest -n`.
 
-The default host budget reserves four CPUs and 8 GiB of available memory, allows 1.2 GiB per worker, and never exceeds
-32 tokens (the prior safe aggregate ceiling). The memory allowance was calibrated from a representative eight-worker
-suite run that peaked at approximately 0.65 GiB RSS per worker and 0.13 GiB for the controller, leaving nearly 2x
-per-worker headroom. Missing memory information falls back to a conservative four-token limit, and small hosts clamp to
-at least one token. These capacity safeguards are independent of xdist scheduling and individual test cost.
+The default host budget reserves `max(1, cpu_count // 8)` CPUs and 8 GiB of available memory, allows 950 MiB per worker,
+and never exceeds 32 tokens (the prior safe aggregate ceiling). The CPU reserve is proportional rather than a flat
+count, so a small host (e.g. a 4-vCPU CI runner) still gets real parallelism instead of collapsing to a single worker.
+The memory allowance was calibrated from live worker RSS sampled across concurrent sibling workspaces, which ranges from
+0.74 to 0.85 GiB; 950 MiB keeps headroom over the top of that range. Missing memory information falls back to a
+conservative four-token limit, and small hosts clamp to at least one token. These capacity safeguards are independent of
+xdist scheduling and individual test cost.
 
 The runner defaults to pytest-xdist's `worksteal` scheduler. Workers begin with evenly divided queues and can reclaim
 pending tests from a worker with a long queue, avoiding the idle-worker tail caused by keeping an entire heavy test file
@@ -266,12 +268,10 @@ replacement corpus.
 
 ### CI Visual Lanes
 
-The Python 3.12 matrix leg keeps visual tests in `just test-cov`, preserving their contribution to the coverage gate.
-The 3.13 and 3.14 legs set `SASE_PYTEST_EXCLUDE_VISUAL=true`, so they exercise the shipped Python surface without
-duplicating the canonical renderer signal. The dedicated Linux Python 3.12 `visual-test` job remains focused on the
-complete visual suite and uploads failure reports and raw artifacts. This keeps one broad coverage lane plus one
-diagnostic lane authoritative for snapshots while preventing a future Python-specific rendering change from reddening
-two unrelated matrix legs.
+The default lane (`just test`, `just test-cov`, and every leg of the Python matrix) excludes visual tests. The dedicated
+Linux Python 3.12 `visual-test` job is the sole visual execution: it runs the complete visual suite and uploads failure
+reports and raw artifacts. This keeps one broad lane plus one diagnostic lane authoritative for snapshots while
+preventing a future Python-specific rendering change from reddening the whole matrix.
 
 ### Visual Failure Report
 
