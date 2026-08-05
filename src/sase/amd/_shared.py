@@ -10,6 +10,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+from sase._yaml_safe import yaml_safe_load
 from sase.config import core as config_core
 from sase.main.init_plan import InitAction
 
@@ -105,7 +106,7 @@ def load_yaml_mapping(path: Path) -> tuple[dict[str, Any] | None, str | None]:
     if read_error is not None or text is None:
         return None, read_error
     try:
-        data = yaml.safe_load(text or "")
+        data = yaml_safe_load(text or "")
     except yaml.YAMLError as exc:
         return None, f"{path}: failed to parse YAML: {exc}"
     if data is None:

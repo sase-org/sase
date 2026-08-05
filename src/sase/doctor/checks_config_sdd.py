@@ -7,8 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import yaml  # type: ignore[import-untyped]
-
+from sase._yaml_safe import yaml_safe_load
 from sase.diagnostics import CheckStatus, DiagnosticCheck
 from sase.doctor.checks_config_common import MAX_DETAIL_ROWS
 from sase.sdd.links import resolve_sdd_root, validate_sdd_tree
@@ -358,7 +357,7 @@ def _provider_sdd_policy(project_root: Path) -> str | None:
 
 def _read_sdd_config(config_path: Path) -> dict[str, object]:
     try:
-        raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        raw = yaml_safe_load(config_path.read_text(encoding="utf-8"))
     except Exception:
         return {}
     if not isinstance(raw, dict):

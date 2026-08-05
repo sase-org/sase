@@ -9,6 +9,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+from sase._yaml_safe import yaml_safe_load
 from sase.config import ConfigEditError, set_key
 
 SASE_MANAGED_CONFIG_KEY = "is_sase_managed"
@@ -53,7 +54,7 @@ def load_local_config(config_path: Path) -> _LocalConfigResult:
     if not config_path.exists():
         return _LocalConfigResult({})
     try:
-        data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        data = yaml_safe_load(config_path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
         return _LocalConfigResult({}, f"{config_path}: failed to parse YAML: {exc}")
     except OSError as exc:

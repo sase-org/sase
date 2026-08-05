@@ -8,6 +8,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+from sase._yaml_safe import yaml_safe_load
 from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 from sase.vcs_list.models import (
     DescriptionSource,
@@ -156,7 +157,7 @@ def _read_primary_local_config(primary_dir: str) -> dict[str, Any]:
     if path is None:
         return {}
     try:
-        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+        loaded = yaml_safe_load(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, yaml.YAMLError):
         return {}
     return loaded if isinstance(loaded, dict) else {}

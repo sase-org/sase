@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import yaml  # type: ignore[import-untyped]
+from sase._yaml_safe import yaml_safe_load
 
 
 log = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ def load_xprompts_by_source(
         for module in discover_plugin_resources("sase_config"):
             try:
                 ref = resource_files(module).joinpath("default_config.yml")
-                data = yaml.safe_load(ref.read_text(encoding="utf-8"))
+                data = yaml_safe_load(ref.read_text(encoding="utf-8"))
                 if isinstance(data, dict) and isinstance(data.get("xprompts"), dict):
                     module_name = getattr(module, "__name__", str(module))
                     results.append((f"plugin_config:{module_name}", data["xprompts"]))

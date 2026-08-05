@@ -17,6 +17,7 @@ from types import MappingProxyType
 
 import yaml  # type: ignore[import-untyped]
 
+from sase._yaml_safe import yaml_safe_load
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED, split_model_effort
 
 from .load_balancing import ModelAliasSelectorError, parse_model_alias_selector
@@ -216,7 +217,7 @@ def _validate_fallback_graph(
 def _parse_model_alias_defaults(text: str, *, source: object) -> _ModelAliasDefaults:
     """Parse and validate model-alias defaults YAML from *text*."""
     try:
-        data = yaml.safe_load(text)
+        data = yaml_safe_load(text)
     except yaml.YAMLError as exc:
         raise _defaults_error(source, f"is not valid YAML: {exc}") from exc
 

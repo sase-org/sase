@@ -6,8 +6,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Any
 
-import yaml  # type: ignore[import-untyped]
-
+from sase._yaml_safe import yaml_safe_load
 from sase.ace.tui.keymaps.key_validation import canonicalize_key_binding
 
 
@@ -17,7 +16,7 @@ def _builtin_keymaps_config() -> Mapping[str, Any]:
 
     ref = importlib.resources.files("sase").joinpath("default_config.yml")
     text = ref.read_text(encoding="utf-8")
-    data = yaml.safe_load(text)
+    data = yaml_safe_load(text)
     if not isinstance(data, dict):
         msg = "default_config.yml is not a valid YAML mapping"
         raise RuntimeError(msg)

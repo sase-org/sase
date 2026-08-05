@@ -100,10 +100,10 @@ def _get_local_profile_names() -> set[str]:
     ):
         return _local_profile_names_cache_value
 
-    import yaml  # type: ignore[import-untyped]
+    from sase._yaml_safe import yaml_safe_load
 
     text = local_path.read_text(encoding="utf-8")
-    local_data = yaml.safe_load(text)
+    local_data = yaml_safe_load(text)
     if not isinstance(local_data, dict):
         _local_profile_names_cache_token = token
         _local_profile_names_cache_value = set()

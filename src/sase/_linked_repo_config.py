@@ -16,6 +16,7 @@ from sase._linked_repo_identity import (
     full_github_repo_name,
     resolve_sidecar_repo_identity,
 )
+from sase._yaml_safe import yaml_safe_load
 from sase.content_layout import resolve_project_config_read_path
 from sase.sdd._store_types import AGENTS_SIDECAR_ROLE
 
@@ -426,7 +427,7 @@ def read_project_local_config(primary_workspace_dir: str) -> dict[str, Any]:
     if path is None:
         return {}
     try:
-        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+        loaded = yaml_safe_load(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, yaml.YAMLError):
         return {}
     if isinstance(loaded, dict):
