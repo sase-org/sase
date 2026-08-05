@@ -46,6 +46,15 @@ def test_commit_instruction_includes_method_override_warning(method: str) -> Non
     assert f"--type {method}" in message
 
 
+def test_commit_instruction_requires_completing_commit_within_response() -> None:
+    """Instruction text must state the commit must finish within this response."""
+    message = build_commit_instruction_message("/sase_git_commit", "create_commit")
+    assert (
+        "Complete the commit within this response: ending the response without "
+        "committing ends the run." in message
+    )
+
+
 def test_commit_instruction_guides_finalizer_to_use_targeted_file_flags() -> None:
     """Finalizer-triggered commits should prefer one -f per listed file."""
     message = build_commit_instruction_message("/sase_git_commit", "create_commit")

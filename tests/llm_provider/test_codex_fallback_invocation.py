@@ -65,7 +65,7 @@ def test_codex_finalizer_runs_from_invoke_agent_when_dirty(
     second_call_stdin = mock_popen.return_value.stdin.write.call_args_list[-1].args[0]
     assert "src/foo.py" in second_call_stdin
     assert "/sase_git_commit" in second_call_stdin
-    assert "--- Work So Far ---" in second_call_stdin
+    assert "--- Prior, Already-Terminated Output" in second_call_stdin
     assert "--- Commit Finalizer Pass 1 of 2 ---" in second_call_stdin
     assert result.content == "primary-response\n\nfinal-response"
     assert (artifacts_dir / "commit_finalizer_pass_1_prompt.md").exists()

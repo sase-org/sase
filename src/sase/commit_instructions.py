@@ -126,6 +126,10 @@ def build_commit_instruction_message(
         parts.append(
             f"If you DID make these changes, commit them using your {skill} skill before continuing."
         )
+    parts.append(
+        "Complete the commit within this response: ending the response without "
+        "committing ends the run."
+    )
     parts.append(f"The commit method type is `{method}`.")
     parts.append(
         "When invoking the commit skill, include a separate `-f` flag for each listed file you intend to commit, "

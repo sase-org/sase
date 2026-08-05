@@ -228,19 +228,26 @@ def run_commit_finalizer(
     accumulated_content = invoke_result.content
     accumulated_usage = invoke_result.usage
 
+    no_progress_passes = 0
+    previous_pass_stalled = False
     for pass_number in range(1, config.max_passes + 1):
+        is_final_pass = pass_number == config.max_passes
         follow_up_prompt = _build_follow_up_prompt(
             original_prompt=original_prompt,
             accumulated_response=accumulated_content,
             details=dirty_state.details,
             pass_number=pass_number,
             max_passes=config.max_passes,
+            previous_pass_stalled=previous_pass_stalled,
+            is_final_pass=is_final_pass,
         )
         _write_text(
             artifact_root,
             commit_finalizer_pass_prompt_filename(pass_number),
             follow_up_prompt,
         )
+
+        fingerprint_before = finalizer_git.progress_fingerprint(dirty_state)
 
         follow_up = provider.invoke(
             follow_up_prompt,
@@ -280,6 +287,12 @@ def run_commit_finalizer(
             artifact_root,
         )
         done_plan_auto_committed = done_auto_committed or done_plan_auto_committed
+
+        fingerprint_after = finalizer_git.progress_fingerprint(dirty_state)
+        previous_pass_stalled = fingerprint_after == fingerprint_before
+        if previous_pass_stalled:
+            no_progress_passes += 1
+
         if not dirty_state.repos:
             reason = (
                 _clean_result_reason(
@@ -300,11 +313,12 @@ def run_commit_finalizer(
                     project_dir=project_dir,
                     passes=pass_number,
                     changed_files=[],
+                    no_progress_passes=no_progress_passes,
                 ),
             )
             return InvokeResult(content=accumulated_content, usage=accumulated_usage)
 
-    error = _failure_message(dirty_state, config.max_passes)
+    error = _failure_message(dirty_state, config.max_passes, no_progress_passes)
     _write_result(
         artifact_root,
         _CommitFinalizerResult(
@@ -314,6 +328,7 @@ def run_commit_finalizer(
             passes=config.max_passes,
             changed_files=_result_changed_files(dirty_state),
             error=error,
+            no_progress_passes=no_progress_passes,
         ),
     )
     raise _CommitFinalizerError(error)

@@ -30,6 +30,7 @@ class CommitFinalizerResult:
     passes: int
     changed_files: list[str]
     error: str | None = None
+    no_progress_passes: int = 0
 
 
 @dataclass(frozen=True)

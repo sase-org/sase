@@ -85,6 +85,42 @@ def git_changed_files(repo_dir: str) -> list[str]:
     return _changed_files_from_git_status(result.stdout)
 
 
+_UNKNOWN_HEAD_SENTINEL = "<unknown-head>"
+
+
+def progress_fingerprint(
+    dirty_state: DirtyState,
+) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+    """Capture whether *dirty_state*'s repos were committed to or edited.
+
+    Each entry is ``(repo_path, head_commit_id, sorted_changed_files)``. A
+    changed ``head_commit_id`` means the repo received a commit; a changed
+    file tuple means the working tree changed even without a commit. A repo
+    whose HEAD cannot be read contributes a sentinel instead of raising, so a
+    single unreadable repo does not break progress detection for the rest.
+    """
+    return tuple(
+        (repo.path, _git_head_commit_id(repo.path), tuple(sorted(repo.changed_files)))
+        for repo in dirty_state.repos
+    )
+
+
+def _git_head_commit_id(repo_dir: str) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_dir, "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_AUTO_COMMIT_GIT_TIMEOUT_SECONDS,
+        )
+    except Exception:
+        return _UNKNOWN_HEAD_SENTINEL
+    if result.returncode != 0:
+        return _UNKNOWN_HEAD_SENTINEL
+    return result.stdout.strip() or _UNKNOWN_HEAD_SENTINEL
+
+
 def auto_commit_done_sdd_plan_status(dirty_state: DirtyState) -> bool:
     """Commit a generated SDD plan status closeout change, when proven narrow."""
     candidate = _done_sdd_plan_status_auto_commit_candidate(dirty_state)
