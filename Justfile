@@ -270,11 +270,7 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-fc(bead_age_label)' \
         --epic-symbol 'sase-fc(bead_created_cli)' \
-        --epic-symbol 'sase-fc(bead_created_label)' \
-        --epic-symbol 'sase-fc(bead_updated_chip)' \
-        --epic-symbol 'sase-fc(suppress_duplicate_updated)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

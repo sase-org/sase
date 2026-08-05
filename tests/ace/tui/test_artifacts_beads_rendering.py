@@ -3,18 +3,32 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 
+import pytest
 from rich.console import Console
 
 from sase.ace.tui.widgets.artifacts.beads_detail import (
     bead_body_markdown,
+    bead_preview_markdown,
     bead_properties_header,
 )
 from sase.ace.tui.widgets.artifacts.beads_list import build_bead_options
-from sase.ace.tui.widgets.artifacts.beads_rendering import build_empty_bead_detail
-from sase.bead.model import TaskPlusOneEvidence
+from sase.ace.tui.widgets.artifacts.beads_rendering import (
+    build_empty_bead_detail,
+    task_text,
+)
+from sase.bead.model import Issue, IssueType, TaskPlusOneEvidence
 from tests.ace.tui._artifacts_beads_helpers import snapshot
+
+_PINNED_NOW = datetime(2026, 7, 8, 12, 0, 0)
+
+
+@pytest.fixture
+def pinned_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Freeze "now" so the shared bead age labels are deterministic."""
+    monkeypatch.setattr("sase.core.time.local_now", lambda: _PINNED_NOW)
 
 
 def test_tasks_precede_epics_and_every_bead_has_one_row(tmp_path: Path) -> None:
@@ -70,6 +84,44 @@ def test_rows_show_triage_plan_status_and_project_chips(tmp_path: Path) -> None:
     assert prompts["phase:alpha:alpha-1.1"].startswith("  ↳")
 
 
+def test_rows_label_created_and_updated_ages_separately(
+    tmp_path: Path,
+    pinned_clock: None,
+) -> None:
+    value = snapshot(tmp_path)
+    options, _rows = build_bead_options(
+        value,
+        project_scope="alpha",
+        loading=False,
+        expanded_epics={("alpha", "alpha-1")},
+    )
+    prompts = {option.id: option.prompt.plain for option in options if option.id}
+
+    # created 2026-07-03, last updated 2026-07-06, "now" 2026-07-08.
+    assert "⧖ 5d" in prompts["task:alpha-ready"]
+    assert "✎ 2d" in prompts["task:alpha-ready"]
+    assert "⧖ 7d" in prompts["epic:alpha-1"]
+    assert "✎ 2d" in prompts["epic:alpha-1"]
+
+
+def test_rows_suppress_the_updated_cell_for_a_never_updated_bead(
+    pinned_clock: None,
+) -> None:
+    for updated_at in ("2026-07-08T16:00:00Z", ""):
+        issue = Issue(
+            id="alpha-fresh",
+            title="Filed moments ago",
+            issue_type=IssueType.TASK,
+            created_at="2026-07-08T16:00:00Z",
+            updated_at=updated_at,
+        )
+
+        row = task_text(issue, triage=False, plan_link=False).plain
+
+        assert "⧖ now" in row
+        assert "✎" not in row
+
+
 def test_detail_uses_shared_metadata_and_triage_callout(tmp_path: Path) -> None:
     value = snapshot(tmp_path)
     issue = value.tasks[0].issue
@@ -93,6 +145,29 @@ def test_detail_uses_shared_metadata_and_triage_callout(tmp_path: Path) -> None:
     assert "Status" in properties
     assert body.startswith(f"> [!IMPORTANT] {issue.id} is awaiting task triage.")
     assert body.index("## Description") < len(body)
+
+
+def test_detail_and_preview_share_the_full_creation_label(
+    tmp_path: Path,
+    pinned_clock: None,
+) -> None:
+    value = snapshot(tmp_path)
+    issue = value.tasks[0].issue
+    console = Console(width=100, color_system=None)
+    with console.capture() as capture:
+        console.print(
+            bead_properties_header(
+                issue,
+                value,
+                project="alpha",
+                project_name="Alpha",
+            )
+        )
+    properties = capture.get()
+    markdown = bead_preview_markdown(issue, value, project="alpha")
+
+    assert "2026-07-03 05:00:00 EDT · 5d ago" in properties
+    assert "- Created: 2026-07-03 05:00:00 EDT · 5d ago" in markdown
 
 
 def test_first_run_empty_detail_points_to_create_and_triage(tmp_path: Path) -> None:

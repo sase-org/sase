@@ -8,6 +8,7 @@ from pathlib import Path
 
 from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead.model import BeadTier, Issue, IssueType
+from sase.bead_time_presentation import BEAD_CREATED_GLYPH, bead_age_label
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
@@ -24,6 +25,7 @@ class ArtifactRefBeadCandidate:
     label: str
     detail: str
     updated_at: str
+    created_at: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,11 +113,16 @@ def _bead_candidate(issue: Issue) -> ArtifactRefBeadCandidate:
     elif issue.issue_type is IssueType.TASK:
         kind = "task"
     detail = issue.status.value if not kind else f"{issue.status.value} · {kind}"
+    # The menu's own age column renders ``updated_at`` for bead *and* agent rows,
+    # so the bead's creation age rides here, glyph-labeled and unambiguous.
+    if age := bead_age_label(issue.created_at):
+        detail = f"{detail} · {BEAD_CREATED_GLYPH} {age}"
     return ArtifactRefBeadCandidate(
         payload=issue.id,
         label=issue.title,
         detail=detail,
         updated_at=issue.updated_at,
+        created_at=issue.created_at,
     )
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import os
 from unittest.mock import patch
 
@@ -180,7 +181,14 @@ def test_bead_catalog_caches_sorts_and_caps_rows(tmp_path) -> None:
     list_rows.assert_called_once_with(root.resolve())
 
 
-def test_bead_catalog_classifies_tasks_for_completion_detail(tmp_path) -> None:
+def test_bead_catalog_classifies_tasks_for_completion_detail(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.time.local_now",
+        lambda: datetime(2026, 7, 31, 12, 0, 0),
+    )
     root = tmp_path / "task-beads"
     root.mkdir()
     (root / "issues.jsonl").write_text("{}\n", encoding="utf-8")
@@ -190,6 +198,7 @@ def test_bead_catalog_classifies_tasks_for_completion_detail(tmp_path) -> None:
         title="Complete task identity",
         status=Status.READY,
         issue_type=IssueType.TASK,
+        created_at="2026-07-28T12:00:00Z",
         updated_at="2026-07-30T12:00:00Z",
     )
     context = ArtifactRefContext(
@@ -209,7 +218,8 @@ def test_bead_catalog_classifies_tasks_for_completion_detail(tmp_path) -> None:
 
     assert len(rows) == 1
     assert rows[0].payload == task.id
-    assert rows[0].detail == "ready · task"
+    assert rows[0].detail == "ready · task · ⧖ 3d"
+    assert rows[0].created_at == task.created_at
 
 
 def test_agent_catalog_inserts_global_name_and_labels_current_owner(

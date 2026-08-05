@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime
 
 from rich.text import Text
 
@@ -13,6 +12,11 @@ from sase.bead.plus_one_presentation import (
     plus_one_badge,
 )
 from sase.bead_status_presentation import bead_status_presentation
+from sase.bead_time_presentation import (
+    bead_created_chip,
+    bead_updated_chip,
+    suppress_duplicate_updated,
+)
 from sase.bead_type_presentation import bead_type_presentation
 from sase.phase_size_presentation import phase_size_chip
 
@@ -308,9 +312,13 @@ def _append_status(text: Text, status: Status) -> None:
 def _append_metadata(text: Text, issue: Issue, project_label: str | None) -> None:
     if issue.assignee:
         text.append(f"  {issue.assignee}", style="dim")
-    age = _compact_relative_age(issue.updated_at or issue.created_at)
-    if age:
-        text.append(f"  {age}", style="dim")
+    if created := bead_created_chip(issue.created_at):
+        text.append("  ")
+        text.append_text(created)
+    if not suppress_duplicate_updated(issue.created_at, issue.updated_at):
+        if updated := bead_updated_chip(issue.updated_at):
+            text.append("  ")
+            text.append_text(updated)
     if project_label:
         text.append(f"  [{project_label}]", style="dim")
 
@@ -329,34 +337,6 @@ def _state_glyph(
     if launched:
         return LAUNCHED_STATE_GLYPH, "bold #00D7AF"
     return EMPTY_STATE_GLYPH, "dim"
-
-
-def _compact_relative_age(timestamp: str) -> str:
-    if not timestamp.strip():
-        return ""
-    try:
-        created = datetime.fromisoformat(timestamp.strip().replace("Z", "+00:00"))
-    except ValueError:
-        return ""
-    from sase.core.time import get_timezone, local_now, to_local
-
-    if created.tzinfo is None:
-        created = created.replace(tzinfo=get_timezone())
-    elapsed = max(0, int((local_now() - to_local(created)).total_seconds()))
-    if elapsed < 60:
-        return "now"
-    minutes = elapsed // 60
-    if minutes < 60:
-        return f"{minutes}m"
-    hours = minutes // 60
-    if hours < 24:
-        return f"{hours}h"
-    days = hours // 24
-    if days < 30:
-        return f"{days}d"
-    if days < 365:
-        return f"{days // 30}mo"
-    return f"{days // 365}y"
 
 
 __all__ = [

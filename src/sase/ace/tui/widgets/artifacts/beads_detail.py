@@ -15,6 +15,11 @@ from sase.bead.plus_one_presentation import (
     plus_one_reports_label,
 )
 from sase.bead_status_presentation import bead_status_presentation
+from sase.bead_time_presentation import (
+    BEAD_TIME_RICH_STYLE,
+    BEAD_TIME_UNKNOWN_LABEL,
+    bead_created_label,
+)
 from sase.bead_type_presentation import bead_type_chip
 from sase.core.time import format_local
 from sase.phase_size_presentation import (
@@ -76,7 +81,7 @@ def bead_properties_header(
             ("Assignee", issue.assignee),
             ("Owner", issue.owner),
             ("Model", issue.model),
-            ("Created", format_local(issue.created_at, default="")),
+            ("Created", _created_text(issue)),
             ("Updated", format_local(issue.updated_at, default="")),
             ("Closed", format_local(issue.closed_at, default="")),
             ("Project", project_name),
@@ -182,7 +187,7 @@ def bead_preview_markdown(
             "",
             "## History",
             "",
-            f"- Created: {format_local(issue.created_at)}",
+            f"- Created: {bead_created_label(issue.created_at)}",
             f"- Updated: {format_local(issue.updated_at)}",
         ]
     )
@@ -339,6 +344,14 @@ def _properties_header(
         table.add_row(label, _property_text(value))
     divider = Text("─" * 72, style="dim #5F5F87", no_wrap=True, overflow="crop")
     return Group(title, table, divider)
+
+
+def _created_text(issue: Issue) -> Text:
+    """Render the shared creation label in the provenance accent."""
+    label = bead_created_label(issue.created_at)
+    if label == BEAD_TIME_UNKNOWN_LABEL:
+        return Text("—", style="dim")
+    return Text(label, style=BEAD_TIME_RICH_STYLE, overflow="fold")
 
 
 def _property_text(value: str | Text) -> Text:
