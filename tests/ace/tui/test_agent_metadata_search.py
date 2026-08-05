@@ -22,6 +22,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 
 
 async def _set_prompt_text(page: AcePage, content: str) -> AgentPromptPanel:
+    await page.wait_for(lambda _state: not page.app._agent_detail_debouncer.is_pending)
     panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
     panel.update(Text(content))
     await page.pause()
