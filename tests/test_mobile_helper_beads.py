@@ -47,6 +47,7 @@ def test_beads_list_bridge_lists_known_project_beads(
     assert alpha_summary["block_count"] == 1
     assert alpha_summary["plan_path_display"] == "plans/alpha.md"
     assert alpha_summary["changespec_name"] == "alpha_changespec"
+    assert alpha_summary["created_at"] == alpha_epic.created_at
 
 
 def test_beads_list_bridge_filters_explicit_project_status_type_and_tier(
@@ -202,6 +203,8 @@ def test_beads_show_bridge_returns_detail(
     assert data["bead"]["children"] == [alpha_phase.id]  # type: ignore[index]
     assert data["bead"]["blocks"] == [alpha_phase.id]  # type: ignore[index]
     assert data["bead"]["workspace_display"] == str(tmp_path / "alpha")  # type: ignore[index]
+    summary = data["bead"]["summary"]  # type: ignore[index]
+    assert summary["created_at"] == alpha_epic.created_at
 
 
 def test_beads_show_bridge_returns_stored_references_it_cannot_resolve(

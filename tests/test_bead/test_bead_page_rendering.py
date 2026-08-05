@@ -121,12 +121,14 @@ def _fixtures() -> tuple[_View, Issue, Issue, BeadAssociationIndex]:
         status=Status.IN_PROGRESS,
         issue_type=IssueType.PHASE,
         parent_id=root.id,
+        created_at="2026-07-28T14:45:00Z",
         size=PhaseSize.MEDIUM,
     )
     blocked = Issue(
         "sase-next",
         "Publication",
         issue_type=IssueType.PLAN,
+        created_at="2026-07-27T17:00:00Z",
         dependencies=[
             Dependency(
                 issue_id="sase-next",
@@ -192,6 +194,32 @@ def test_root_and_descendant_pages_match_goldens_and_are_byte_stable() -> None:
         == root_page.encode()
     )
     assert _render(view, root, index) == root_page
+
+
+def test_relationship_rows_carry_the_absolute_creation_date() -> None:
+    view, root, phase, index = _fixtures()
+
+    root_page = _render(view, root, index)
+    phase_page = _render(view, phase, index)
+
+    assert "| Bead | Title | Status | Size | Created | Agents | Commits |" in root_page
+    assert "| ✓ closed | small | 2026-07-28 |" in root_page
+    assert "- **Depends on:** [sase-ai.2](sase-ai.2.md) ◐ · ⧖ 2026-07-28" in phase_page
+    # Persisted pages never carry a relative age; their bytes must not drift.
+    assert " ago" not in root_page
+    assert " ago" not in phase_page
+
+
+def test_relationship_rows_stay_honest_when_a_bead_has_no_creation_time() -> None:
+    view, root, phase, index = _fixtures()
+    for issue in view.list_issues():
+        issue.created_at = ""
+
+    root_page = _render(view, root, index)
+    phase_page = _render(view, phase, index)
+
+    assert "| ✓ closed | small | unknown |" in root_page
+    assert "- **Depends on:** [sase-ai.2](sase-ai.2.md) ◐\n" in phase_page
 
 
 def test_pages_omit_the_reference_section_when_a_bead_stores_none() -> None:

@@ -18,6 +18,7 @@ from sase.bead_pages.associations import (
     BeadCommitAssociation,
 )
 from sase.bead_pages.paths import bead_page_path
+from sase.bead_time_presentation import BEAD_CREATED_GLYPH, bead_date_label
 from sase.core.time import format_local
 
 
@@ -38,8 +39,8 @@ def render_phases(
         "",
         "## Phases",
         "",
-        "| Bead | Title | Status | Size | Agents | Commits |",
-        "|---|---|---|---|---:|---:|",
+        "| Bead | Title | Status | Size | Created | Agents | Commits |",
+        "|---|---|---|---|---|---:|---:|",
     ]
     for phase in phases[:MAX_RENDERED_COMMITS]:
         phase_associations = associations.for_bead(phase.id)
@@ -51,6 +52,7 @@ def render_phases(
                     md_cell(phase.title),
                     f"{status_icon(phase.status)} {phase.status.value}",
                     phase.size.value if phase.size else "small",
+                    bead_date_label(phase.created_at),
                     str(len(phase_associations.agents)),
                     str(len(phase_associations.commits)),
                 )
@@ -141,7 +143,11 @@ def render_commits(
 def _reference_label(source_id: str, ref: IssueRef) -> str:
     if ref.issue is None:
         return f"{md_escape(ref.issue_id)} (not found)"
-    return f"{_bead_cell(source_id, ref.issue_id)} {status_icon(ref.issue.status)}"
+    created = bead_date_label(ref.issue.created_at, default="")
+    label = f"{_bead_cell(source_id, ref.issue_id)} {status_icon(ref.issue.status)}"
+    if not created:
+        return label
+    return f"{label} · {BEAD_CREATED_GLYPH} {created}"
 
 
 def _bead_cell(source_id: str, target_id: str) -> str:

@@ -14,8 +14,8 @@ from sase.bead.plus_one_presentation import (
     plus_one_badge,
 )
 from sase.bead_pages.paths import bead_lineage_root
+from sase.bead_time_presentation import BEAD_TIME_UNKNOWN_LABEL, bead_instant_label
 from sase.bead_type_presentation import bead_type_presentation
-from sase.core.time import parse_local
 
 MAX_RENDERED_PROSE_CHARS = 10_000
 
@@ -249,10 +249,10 @@ def _reference_url(reference: str, resolver: PlanLinkResolver | None) -> str | N
 
 
 def _render_instant(value: str) -> str:
-    parsed = parse_local(value)
-    if parsed is None:
+    label = bead_instant_label(value)
+    if label == BEAD_TIME_UNKNOWN_LABEL:
         return md_escape(value)
-    return parsed.strftime("%Y-%m-%d %H:%M:%S %Z")
+    return label
 
 
 def _bounded_prose(value: str) -> str:

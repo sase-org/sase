@@ -12,6 +12,7 @@ from rich.text import Text
 from sase.bead.config import load_config
 from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
 from sase.bead.project import BeadProject
+from sase.core.time import parse_local, to_local
 from sase.scripts._rich_summary import render_markdown_lines
 from sase.scripts.sase_clan_summary_epic import (
     _SUMMARY_MAX_UTF8_BYTES,
@@ -145,7 +146,8 @@ def test_epic_summary_renders_markdown_progress_sizes_children_and_plan(
     markup = captured.out.rstrip("\n")
     rendered = Text.from_markup(markup)
     lines = rendered.plain.splitlines()
-    assert lines[0] == f"◆ EPIC {epic.id} · Beautiful [clan] summaries"
+    assert lines[0].startswith(f"◆ EPIC {epic.id} · Beautiful [clan] summar")
+    assert lines[0].endswith(" · ⧖ now")
     assert "Show the full goal with launch[state] context." in lines
     assert " • Keep output stable" in lines
     assert "PHASES · 1/6 done at launch" in lines
@@ -193,6 +195,60 @@ def test_epic_summary_omits_absent_optional_sections() -> None:
     assert "CHILD EPICS" not in plain
     assert "Plan:" not in plain
     assert "Page:" not in plain
+
+
+def test_epic_summary_shows_creation_age_on_the_header_and_every_phase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parsed = parse_local("2026-08-05T05:34:17Z")
+    assert parsed is not None
+    pinned = to_local(parsed)
+    monkeypatch.setattr("sase.core.time.local_now", lambda: pinned)
+    epic = Issue(
+        id="sase-aged",
+        title="Aged epic",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+        created_at="2026-04-28T05:34:17Z",
+    )
+    phase = Issue(
+        id="sase-aged.1",
+        title="Aged phase",
+        issue_type=IssueType.PHASE,
+        parent_id=epic.id,
+        size=PhaseSize.MEDIUM,
+        created_at="2026-04-29T05:34:17Z",
+    )
+
+    lines = Text.from_markup(_render_epic_summary(epic, (phase,))).plain.splitlines()
+
+    header, phase_line = lines[0], lines[-1]
+    assert header == "◆ EPIC sase-aged · Aged epic · ⧖ 3mo"
+    assert phase_line.startswith("○ 1. Aged phase")
+    assert "⧖ 3mo " in phase_line
+    assert phase_line.endswith(" medium ")
+    assert all(cell_len(line) <= 76 for line in lines)
+
+
+def test_epic_summary_omits_the_creation_chip_when_the_bead_has_no_timestamp() -> None:
+    epic = Issue(
+        id="sase-undated",
+        title="Undated epic",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+    )
+    phase = Issue(
+        id="sase-undated.1",
+        title="Undated phase",
+        issue_type=IssueType.PHASE,
+        parent_id=epic.id,
+        size=PhaseSize.SMALL,
+    )
+
+    plain = Text.from_markup(_render_epic_summary(epic, (phase,))).plain
+
+    assert "⧖" not in plain
+    assert plain.splitlines()[0] == "◆ EPIC sase-undated · Undated epic"
 
 
 def test_epic_summary_places_bead_page_after_plan_reference() -> None:
@@ -360,7 +416,9 @@ def test_epic_summary_refreshes_once_and_retries_missing_epic(
 
     captured = capsys.readouterr()
     rendered = Text.from_markup(captured.out)
-    assert rendered.plain.splitlines()[0] == f"◆ EPIC {epic_id} · Fresh remote epic"
+    assert rendered.plain.splitlines()[0] == (
+        f"◆ EPIC {epic_id} · Fresh remote epic · ⧖ now"
+    )
     assert "Available after integration." in rendered.plain.splitlines()
     assert "PHASES · 0/1 done at launch" in rendered.plain.splitlines()
     assert any(

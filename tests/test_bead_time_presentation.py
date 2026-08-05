@@ -17,6 +17,7 @@ from sase.bead_time_presentation import (
     bead_created_chip,
     bead_created_cli,
     bead_created_label,
+    bead_date_label,
     bead_instant_label,
     bead_updated_chip,
     suppress_duplicate_updated,
@@ -155,6 +156,16 @@ def test_created_cli_cell_wraps_the_compact_age_in_color_when_asked() -> None:
     colored = bead_created_cli(STORE_CREATED_AT, use_color=True)
     assert plain == f"{BEAD_CREATED_GLYPH} 3mo"
     assert colored == f"{BEAD_TIME_CLI_STYLE}{plain}\x1b[0m"
+
+
+def test_date_label_renders_the_calendar_date_in_the_configured_timezone() -> None:
+    assert bead_date_label(STORE_CREATED_AT) == "2026-04-27"
+
+
+@pytest.mark.parametrize("value", ["", None, "not-a-time"])
+def test_date_label_is_honest_about_unusable_values(value: str | None) -> None:
+    assert bead_date_label(value) == BEAD_TIME_UNKNOWN_LABEL
+    assert bead_date_label(value, default="") == ""
 
 
 def test_created_cli_cell_uses_a_stable_date_when_not_relative() -> None:

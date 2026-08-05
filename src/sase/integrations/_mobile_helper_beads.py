@@ -265,6 +265,7 @@ def _bead_summary_wire(
         "assignee": issue.assignee or None,
         "size": issue.size.value if issue.size is not None else None,
         "plus_one_count": issue.plus_one_count,
+        "created_at": issue.created_at or None,
         "updated_at": issue.updated_at or None,
         "dependency_count": len(issue.dependencies),
         "block_count": _block_count(issue.id, all_issues),

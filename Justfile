@@ -271,10 +271,8 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-fc(bead_age_label)' \
-        --epic-symbol 'sase-fc(bead_created_chip)' \
         --epic-symbol 'sase-fc(bead_created_cli)' \
         --epic-symbol 'sase-fc(bead_created_label)' \
-        --epic-symbol 'sase-fc(bead_instant_label)' \
         --epic-symbol 'sase-fc(bead_updated_chip)' \
         --epic-symbol 'sase-fc(suppress_duplicate_updated)' \
         {{ args }}

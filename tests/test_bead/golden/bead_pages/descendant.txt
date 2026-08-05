@@ -13,8 +13,8 @@ Define deterministic paths.
 
 ## Dependencies
 
-- **Depends on:** [sase-ai.2](sase-ai.2.md) ◐
-- **Blocks:** [sase-next](../sase-next/README.md) ○
+- **Depends on:** [sase-ai.2](sase-ai.2.md) ◐ · ⧖ 2026-07-28
+- **Blocks:** [sase-next](../sase-next/README.md) ○ · ⧖ 2026-07-27
 
 ## Agents
 

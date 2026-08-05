@@ -433,7 +433,7 @@ def test_unusable_plan_reference_falls_back_to_legacy_bead_summary(
     captured = capsys.readouterr()
     rendered = Text.from_markup(captured.out)
     assert rendered.plain.splitlines()[0] == (
-        f"◆ EPIC {epic.id} · Stable bead fallback"
+        f"◆ EPIC {epic.id} · Stable bead fallback · ⧖ now"
     )
     assert "PHASES · 0/1 done at launch" in rendered.plain
     assert "○ 1. Legacy fallback phase" in rendered.plain

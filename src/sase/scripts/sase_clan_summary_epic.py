@@ -17,6 +17,7 @@ from rich.text import Text
 from sase.bead.cli_common import get_read_view, status_icon
 from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
 from sase.bead_status_presentation import bead_status_presentation
+from sase.bead_time_presentation import bead_created_chip
 from sase.bead.sync import bead_refresh_mode, refresh_current_bead_store
 from sase.phase_size_presentation import phase_size_chip
 from sase.scripts._rich_summary import (
@@ -428,16 +429,27 @@ def _describe_epic_plan_reference(reference: str) -> PlanReferenceDisplay:
 
 
 def _header_line(epic: Issue) -> Text:
-    return shorten_text(
-        Text(f"◆ EPIC {epic.id} · {epic.title}", style=_HEADER_STYLE),
-        width=_SUMMARY_WIDTH,
-    )
+    title = Text(f"◆ EPIC {epic.id} · {epic.title}", style=_HEADER_STYLE)
+    created = bead_created_chip(epic.created_at)
+    if not created.plain:
+        return shorten_text(title, width=_SUMMARY_WIDTH)
+
+    suffix = Text(" · ", style=_MUTED_STYLE)
+    suffix.append_text(created)
+    line = shorten_text(title, width=max(_SUMMARY_WIDTH - visible_width(suffix), 1))
+    line.append_text(suffix)
+    return line
 
 
 def _phase_lines(index: int, phase: Issue) -> tuple[Text, ...]:
     size = phase.size or PhaseSize.SMALL
-    chip = phase_size_chip(size)
-    left_width = max(_SUMMARY_WIDTH - visible_width(chip) - 1, 1)
+    right = Text()
+    created = bead_created_chip(phase.created_at)
+    if created.plain:
+        right.append_text(created)
+        right.append(" ")
+    right.append_text(phase_size_chip(size))
+    left_width = max(_SUMMARY_WIDTH - visible_width(right) - 1, 1)
 
     left = Text()
     left.append(status_icon(phase.status), style=_status_style(phase.status))
@@ -446,8 +458,10 @@ def _phase_lines(index: int, phase: Issue) -> tuple[Text, ...]:
     left = shorten_text(left, width=left_width)
 
     row = left.copy()
-    row.append(" " * max(_SUMMARY_WIDTH - visible_width(left) - visible_width(chip), 1))
-    row.append_text(chip)
+    row.append(
+        " " * max(_SUMMARY_WIDTH - visible_width(left) - visible_width(right), 1)
+    )
+    row.append_text(right)
     lines = [row]
 
     if phase.description.strip():

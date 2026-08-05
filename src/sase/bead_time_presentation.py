@@ -42,6 +42,7 @@ BEAD_TIME_UNKNOWN_LABEL = "unknown"
 BEAD_TIME_UNKNOWN_STYLE = "dim italic"
 
 _INSTANT_FORMAT = "%Y-%m-%d %H:%M:%S %Z"
+_DATE_FORMAT = "%Y-%m-%d"
 _NOW_LABEL = "now"
 
 
@@ -55,6 +56,20 @@ def bead_instant_label(value: str | int | float | datetime | None) -> str:
     if parsed is None:
         return BEAD_TIME_UNKNOWN_LABEL
     return parsed.strftime(_INSTANT_FORMAT)
+
+
+def bead_date_label(
+    value: str | int | float | datetime | None,
+    *,
+    default: str = BEAD_TIME_UNKNOWN_LABEL,
+) -> str:
+    """Return the date-only ``YYYY-MM-DD`` label for dense persisted surfaces.
+
+    Table cells and note suffixes carry only the calendar date; the full
+    instant lives in the surface's identity block. Like every persisted form
+    this is a pure function of *value*, so the bytes never drift.
+    """
+    return core_time.format_local(value, _DATE_FORMAT, default=default)
 
 
 def bead_age_label(
@@ -159,7 +174,7 @@ def bead_created_cli(
     if relative:
         body = bead_age_label(value, now=now)
     else:
-        body = core_time.format_local(value, "%Y-%m-%d", default="")
+        body = bead_date_label(value, default="")
     if not body:
         return ""
 
@@ -199,6 +214,7 @@ __all__ = [
     "bead_created_chip",
     "bead_created_cli",
     "bead_created_label",
+    "bead_date_label",
     "bead_instant_label",
     "bead_updated_chip",
     "suppress_duplicate_updated",

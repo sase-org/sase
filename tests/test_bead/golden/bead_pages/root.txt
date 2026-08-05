@@ -17,10 +17,10 @@ Verified with focused tests.
 
 ## Phases
 
-| Bead | Title | Status | Size | Agents | Commits |
-|---|---|---|---|---:|---:|
-| [sase-ai.1](sase-ai.1.md) | Pathing \| links | ✓ closed | small | 1 | 1 |
-| [sase-ai.2](sase-ai.2.md) | Association index | ◐ in_progress | medium | 0 | 0 |
+| Bead | Title | Status | Size | Created | Agents | Commits |
+|---|---|---|---|---|---:|---:|
+| [sase-ai.1](sase-ai.1.md) | Pathing \| links | ✓ closed | small | 2026-07-28 | 1 | 1 |
+| [sase-ai.2](sase-ai.2.md) | Association index | ◐ in_progress | medium | 2026-07-28 | 0 | 0 |
 
 ## Lineage
 
