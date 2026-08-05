@@ -8,6 +8,7 @@ from sase.agents_sync.rendering_markdown import md_cell, page_bytes
 from sase.bead.model import Issue, IssueType
 from sase.bead_pages.associations import BeadAssociationIndex
 from sase.bead_pages.paths import bead_lineage_root
+from sase.bead_time_presentation import bead_date_label
 from sase.bead_type_presentation import bead_type_presentation
 
 
@@ -15,7 +16,7 @@ def _render_bead_pages_roster(
     issues: tuple[Issue, ...],
     association_index: BeadAssociationIndex,
 ) -> str:
-    """Render the full root-bead roster without timestamps."""
+    """Render the full root-bead roster."""
 
     phase_counts = Counter(
         bead_lineage_root(issue.id)
@@ -31,8 +32,8 @@ def _render_bead_pages_roster(
         "",
         "Generated pages for every bead lineage in this project.",
         "",
-        "| Bead | Title | Type | Tier | Status | +1 | Phases | Agents | Commits |",
-        "| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
+        "| Bead | Title | Type | Tier | Status | Created | +1 | Phases | Agents | Commits |",
+        "| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
     ]
     for issue in roots:
         associations = association_index.for_bead(issue.id)
@@ -45,6 +46,7 @@ def _render_bead_pages_roster(
             f"{type_glyph} {issue.issue_type.value} | "
             f"{tier} | "
             f"{issue.status.value} | "
+            f"{bead_date_label(issue.created_at)} | "
             f"{issue.plus_one_count} | "
             f"{phase_counts[issue.id]} | "
             f"{len(associations.agents)} | "

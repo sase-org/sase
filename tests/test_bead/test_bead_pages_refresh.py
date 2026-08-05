@@ -190,7 +190,7 @@ def test_refresh_dry_run_write_orphan_removal_roster_and_noop(
     roster = (_beads_root(store) / "pages" / "README.md").read_text(encoding="utf-8")
     assert "[sase-ai](sase-ai/README.md)" in roster
     assert "Published \\| pages" in roster
-    assert "| epic | in_progress | 0 | 1 | 1 | 1 |" in roster
+    assert "| epic | in_progress | unknown | 0 | 1 | 1 | 1 |" in roster
     assert len(committed) == 1
 
     second = refresh_bead_pages(

@@ -604,6 +604,7 @@ def test_roster_renders_every_bead_type_with_its_shared_glyph() -> None:
         "Published bead pages",
         issue_type=IssueType.PLAN,
         tier=BeadTier.EPIC,
+        created_at="2026-01-01T00:00:00Z",
     )
     phase = Issue(
         "sase-ai.1",
@@ -625,9 +626,11 @@ def test_roster_renders_every_bead_type_with_its_shared_glyph() -> None:
 
     # Phases are rolled into their lineage root, so only roots get a row.
     assert (
-        "| [sase-ai](sase-ai/README.md) | Published bead pages | ▸ plan |" in rendered
+        "| [sase-ai](sase-ai/README.md) | Published bead pages | ▸ plan | epic |"
+        " open | 2025-12-31 |" in rendered
     )
-    assert "| [sase-task](sase-task/README.md) | Fix the flaky linter | ◆ task |" in (
-        rendered
+    assert (
+        "| [sase-task](sase-task/README.md) | Fix the flaky linter | ◆ task |"
+        " — | ready | unknown |" in rendered
     )
     assert "sase-ai.1" not in rendered

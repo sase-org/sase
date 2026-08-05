@@ -20,6 +20,7 @@ an epic DAG.
   - [Dependencies](#dependencies)
   - [Discovered Follow-Up Capture and Triage](#discovered-follow-up-capture-and-triage)
   - [Artifact References](#artifact-references)
+  - [Creation Time Presentation](#creation-time-presentation)
 - [Storage](#storage)
   - [Directory Structure](#directory-structure)
   - [Event Log + Compatibility Projections](#event-log-compatibility-projections)
@@ -363,6 +364,51 @@ first-write order, and do not require the reference to resolve on the current ma
 cross-machine purpose of the field: a reference may be valid even when this checkout does not have the sidecar, artifact
 row, or agent history needed to resolve it locally. `sase bead doctor` performs the resolution audit and reports
 references with unknown namespaces, missing targets, or ambiguous targets.
+
+### Creation Time Presentation
+
+Every bead's `created_at` is `TEXT NOT NULL` in the store schema and is populated on every bead, always in aware-UTC ISO
+form (`2026-04-28T01:34:17Z`). Every surface that renders a bead also renders when it was created, through the single
+shared module `src/sase/bead_time_presentation.py`, so the glyph, accent color, wording, and timezone agree everywhere.
+
+Two glyphs carry the vocabulary, both rendered in the muted teal accent `#5FAFAF`, deliberately distinct from the bead
+identity colors (gold ids, blue phase, purple task) so creation time reads as provenance metadata rather than competing
+with the title:
+
+| Glyph | Meaning      |
+| ----- | ------------ |
+| `⧖`   | created      |
+| `✎`   | last updated |
+
+Three density tiers, selected per surface:
+
+- **Full** — a labeled row on detail surfaces: `⧖ Created   2026-04-28 01:34:17 EDT · 3mo ago`
+- **Compact** — a glyph-prefixed cell on single-line rows: `⧖ 3mo`
+- **Data** — the raw stored ISO string, unformatted, on JSON/wire surfaces.
+
+**The live-vs-persisted rule** governs which form a surface may use: a relative age may appear only on surfaces that are
+re-rendered on every read (ACE panes, the BEAD lane, CLI terminal output). Any surface whose bytes are persisted,
+hashed, or reconstructed for validation — the TaskTriage gate preview, bead pages, JSON, the mobile wire — renders the
+absolute timestamp only (`relative=False`), because a relative age would make those bytes drift as the bead ages and
+break byte-stability or gate validation.
+
+Unparseable or empty values render an honest `unknown` placeholder rather than a fabricated time; elapsed time is
+clamped at zero so clock skew renders `now` instead of a negative age.
+
+Any new bead-rendering surface must format creation and update time through `sase.bead_time_presentation` rather than
+formatting a timestamp itself. Known, deliberate exceptions where a bead-rendering surface does not show its own
+creation time:
+
+- The dependency-edge `added <ts> by <who>` line in `sase bead dep list`/`sase bead dep tree` — the dependency edge's
+  own timestamp, not the bead's; the bead's creation time appears in the same row as a separate `⧖` cell.
+- The artifact-reference completion menu's shared age column, which renders `updated_at` for both bead and agent rows;
+  repointing it would change agent-row semantics for no gain, so the bead's creation age instead rides in the
+  glyph-labeled detail string.
+- The bead pages Mermaid lineage graph node labels, which stay minimal (`id: title [status]`) for diagram readability;
+  the full instant is one click away in the same page's identity block.
+
+`tests/test_bead_time_surface_coverage.py` enumerates every covered surface and asserts each renders a creation time for
+a fixture bead, so a future surface cannot silently regress this contract.
 
 ## Storage
 
