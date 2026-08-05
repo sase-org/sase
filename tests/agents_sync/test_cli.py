@@ -58,6 +58,14 @@ def test_parser_accepts_retry_quarantined_only_for_full_sync() -> None:
     assert exc_info.value.code == 2
 
 
+def test_parser_accepts_repair_digests_flag() -> None:
+    args = create_parser().parse_args(
+        ["agent", "sync", "--repair-digests", "--project", "one"]
+    )
+    assert args.repair_digests
+    assert args.project == ["one"]
+
+
 def test_parser_accepts_drop_retired_only_for_full_sync() -> None:
     args = create_parser().parse_args(["agent", "sync", "-d", "--project", "one"])
     assert args.drop_retired
@@ -201,6 +209,39 @@ def test_mutating_sync_pretty_table_reports_counts_and_result(
     assert "Project" in output
     assert "synchronized" in output
     assert exit_code == 0
+
+
+def test_repair_digests_dispatches_before_check_and_reports_diagnostics(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    outcomes = (
+        SyncOutcome(
+            "proj",
+            "Project",
+            committed=True,
+            pushed=True,
+            diagnostics=("foo: agents/alice.athena.foo/chat.md",),
+        ),
+    )
+    args = argparse.Namespace(
+        project=["proj"],
+        check=False,
+        refresh=False,
+        json=True,
+        repair_digests=True,
+    )
+    with patch(
+        "sase.agents.cli_sync.repair_agent_hood_digests", return_value=outcomes
+    ) as repair:
+        exit_code = handle_agents_sync(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["mode"] == "repair-digests"
+    assert payload["projects"][0]["diagnostics"] == [
+        "foo: agents/alice.athena.foo/chat.md"
+    ]
+    assert exit_code == 0
+    repair.assert_called_once_with(("proj",))
 
 
 def test_retire_v1_cli_reports_refusal_and_exits_nonzero(

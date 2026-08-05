@@ -193,6 +193,14 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
             "this full sync"
         ),
     )
+    sync_parser.add_argument(
+        "--repair-digests",
+        action="store_true",
+        help=(
+            "Re-sign locally owned hood-snapshot file references that have "
+            "drifted from their on-disk payload, instead of running a normal sync"
+        ),
+    )
 
     # sase agent tribe {list,set,unset}
     tribe_parser = agents_sub.add_parser(

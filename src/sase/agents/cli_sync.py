@@ -14,6 +14,7 @@ from rich.text import Text
 
 from sase.agents_sync.git_sync import sync_agents
 from sase.agents_sync.models import ProjectSyncStatus, SyncOutcome
+from sase.agents_sync.publication_repair import repair_agent_hood_digests
 from sase.agents_sync.status import get_agents_sync_status
 
 
@@ -22,6 +23,10 @@ def handle_agents_sync(args: argparse.Namespace) -> int:
 
     projects = tuple(getattr(args, "project", ()) or ())
     as_json = bool(getattr(args, "json", False))
+    if bool(getattr(args, "repair_digests", False)):
+        outcomes = repair_agent_hood_digests(projects)
+        _emit_sync_outcomes(outcomes, mode="repair-digests", as_json=as_json)
+        return int(any(outcome.error is not None for outcome in outcomes))
     if bool(getattr(args, "check", False)):
         snapshot = get_agents_sync_status(
             projects,
@@ -54,11 +59,21 @@ def handle_agents_sync(args: argparse.Namespace) -> int:
         retry_quarantined=bool(getattr(args, "retry_quarantined", False)),
         drop_retired=bool(getattr(args, "drop_retired", False)),
     )
+    _emit_sync_outcomes(outcomes, mode="sync", as_json=as_json)
+    return int(any(outcome.error is not None for outcome in outcomes))
+
+
+def _emit_sync_outcomes(
+    outcomes: tuple[SyncOutcome, ...],
+    *,
+    mode: str,
+    as_json: bool,
+) -> None:
     if as_json:
         json.dump(
             {
                 "schema_version": 2,
-                "mode": "sync",
+                "mode": mode,
                 "projects": [outcome.to_json_dict() for outcome in outcomes],
             },
             sys.stdout,
@@ -68,7 +83,6 @@ def handle_agents_sync(args: argparse.Namespace) -> int:
         sys.stdout.write("\n")
     else:
         _render_outcomes(outcomes)
-    return int(any(outcome.error is not None for outcome in outcomes))
 
 
 def _render_outcomes(outcomes: tuple[SyncOutcome, ...]) -> None:
