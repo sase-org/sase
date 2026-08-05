@@ -72,6 +72,10 @@ def test_preprocess_prompt_xprompts_captures_launch_boundary_usage(
     import sase.xprompt.used_xprompts as used_xprompts
     from sase.xprompt.models import XPrompt
 
+    # Isolate from an ambient launch-boundary swarm (e.g. this test process
+    # itself running as a swarm-launched agent); the catalog patched below
+    # only knows about "plan".
+    monkeypatch.delenv(used_xprompts.SASE_LAUNCH_SWARM_XPROMPTS, raising=False)
     monkeypatch.setattr(
         used_xprompts,
         "get_all_xprompts",
@@ -293,6 +297,10 @@ def test_deferred_launch_xprompts_preserve_original_usage_metadata(
             steps=[WorkflowStep(name="main", prompt_part="fork history")],
         ),
     }
+    # Isolate from an ambient launch-boundary swarm (e.g. this test process
+    # itself running as a swarm-launched agent); the catalogs patched here
+    # only know about "gh", "fork", "beau", and "plan".
+    monkeypatch.delenv(used_xprompts.SASE_LAUNCH_SWARM_XPROMPTS, raising=False)
     monkeypatch.setattr(used_xprompts, "get_all_xprompts", lambda: parts)
     monkeypatch.setattr(used_xprompts, "get_all_workflows", lambda: workflows)
     monkeypatch.setattr(used_xprompts, "resolve_xprompt_aliases", lambda prompt: prompt)
