@@ -68,11 +68,10 @@ cannot leave a half-rendered hood.
 ## Prompt and artifact archive
 
 The agents sidecar is also the canonical home for prompts published by agent-backed commits and approved planner runs.
-After the primary commit succeeds, `sase commit` queues publication of the committing run's prompt to
-`prompts/<YYYYMM>/<name>.md` through the `publications` axe lane. Approving a planner's tale or epic queues a separate,
-plan-named publication before SASE continues with the plan write or epic handoff. Plan-backed entries use the plan slug
-as the filename; entries without a plan use the publishing agent's global lane name. Each prompt document has the same
-header-block grammar as plans:
+After the primary commit succeeds, `sase commit` publishes the committing run's prompt to `prompts/<YYYYMM>/<name>.md`
+inline, before returning. Approving a planner's tale or epic publishes a separate, plan-named entry before SASE
+continues with the plan write or epic handoff. Plan-backed entries use the plan slug as the filename; entries without a
+plan use the publishing agent's global lane name. Each prompt document has the same header-block grammar as plans:
 
 - `PLAN` links back to the plans sidecar when the run has a plan.
 - `AGENTS` links to the published agent page for the run.
@@ -113,9 +112,11 @@ belong to that hood.
 
 After an agent-backed commit or pull-request operation records its first durable result marker, the commit workflow
 resolves the project's agents target. When that target is available, SASE records an outbox request for the exact hood
-and returns without running sidecar Git or network work. The `publications` lumberjack later drains older queued
-requests for the project in dependency order. A queueing failure does not roll back the primary VCS result; a later full
-sync still publishes every locally eligible hood. See
+and immediately drains it under the bounded agents lock, so the commit does not return until the hood is published and
+pushed (or the request is confirmed queued for retry). A publication that cannot even be queued fails the commit with a
+`sase commit --resume` hint; a request that survives the immediate drain — because of a transient, hood-specific, or
+repository-wide failure — prints a warning naming the recovery command and is retried by a later commit's drain or by an
+explicit `sase agent sync`. See
 [runtime provenance and publication](commit_workflows.md#cli-inputs-and-internal-payload).
 
 Published runs that are temporarily missing from local inventory are retained. New terminal state, commits, prompt data,
@@ -235,16 +236,17 @@ sase agent sync -p project-alias -p another-project
 ```
 
 The repository transaction acquires a bounded lock, fetches and pulls with rebase, imports validated shared v2 history
-and optional legacy v1 bundles, drains queued agent-hood requests when run manually, performs v2 publication for locally
-owned hoods, rebuilds deterministic indexes, commits with the full owner identity, and pushes. Automatic draining
-belongs to the `publications` axe lane; `sase agent sync` remains the explicit recovery and full-reconciliation command.
-A non-fast-forward rejection triggers one pull/recompute/commit/push retry. Conflicted rebases are aborted and reported;
-a failure in one project does not prevent the others from running. Import preflight indexes local artifacts once per
-project sync and reuses that view across every incoming hood and run. Exact-owner preflight also indexes matching
-`SASE_AGENT` commit evidence across local project checkouts, so cleaned runs are observed instead of re-imported.
-Interrupted transaction recovery runs once per project pass, v1 compatibility lookup scans artifacts once, and imported
-dismissed bundles update their summary index incrementally. The Updates pane's `a` action is the ACE equivalent for all
-enabled projects.
+and optional legacy v1 bundles, drains any outstanding agent-hood outbox requests, performs v2 publication for locally
+owned hoods, rebuilds deterministic indexes, commits with the full owner identity, and pushes. The commit path already
+enqueues and drains its own hood request inline; `sase agent sync` is the explicit recovery command for requests a
+commit could not immediately resolve (transient, quarantined, or retired) and the full-reconciliation command for hoods
+with no recent commit. A non-fast-forward rejection triggers one pull/recompute/commit/push retry. Conflicted rebases
+are aborted and reported; a failure in one project does not prevent the others from running. Import preflight indexes
+local artifacts once per project sync and reuses that view across every incoming hood and run. Exact-owner preflight
+also indexes matching `SASE_AGENT` commit evidence across local project checkouts, so cleaned runs are observed instead
+of re-imported. Interrupted transaction recovery runs once per project pass, v1 compatibility lookup scans artifacts
+once, and imported dismissed bundles update their summary index incrementally. The Updates pane's `a` action is the ACE
+equivalent for all enabled projects.
 
 Use `--json` to audit the complete schema-version-2 result. In addition to the legacy `integrated`, `refreshed`,
 `exported`, and `export_refreshed` fields, each project reports `hoods_imported`, `hoods_import_refreshed`,
@@ -254,16 +256,17 @@ import count, `V1` is the changed legacy-v1 publication count, and `HOODS` / `RU
 totals. ACE's tracked-task lines likewise do not currently include the v2 import fields, so a project that only imports
 or refreshes v2 history can be summarized there as `current`; use the CLI's `--json` result to audit those imports.
 
-Commit-triggered publications use a durable typed queue at
-`~/.sase/projects/<project-key>/agents-publication-outbox.json`. Requests can publish an agent hood plus prompt archive,
-render a bead-page lineage, refresh a committed plan header, or push a sidecar that already has local commits. Each
-request records its kind, logical key, attempt count, most recent attributable error, and quarantine or retirement
-state. The drainer processes requests in the required order: `agent_hood`, `bead_pages`, `plan_header`, then
-`sidecar_push`. A hood-specific preparation failure increments only requests for that hood; repository-wide failures
-such as lock contention, pull failure, or push failure remain retryable without consuming unrelated per-item quarantine
-budgets. A repeatable failure that proves the requested hood can never be published retires that request after one
-confirming retry instead of quarantining it. Successful requests are acknowledged only after their sidecar work is
-committed and safely pushed, or after the prepared payload is already current.
+Commit-triggered agent-hood publication uses a durable outbox at
+`~/.sase/projects/<project-key>/agents-publication-outbox.json`, keyed by `(global_agent, primary_revision)`. Each
+request records its attempt count, most recent attributable error, and quarantine or retirement state.
+`publish_committed_agent_hood` enqueues the committing hood's request and immediately drains every active request for
+the project under the bounded agents lock, so a healthy commit publishes and pushes before it returns. Bead-page
+rendering, prompt-archive publication, and plan-header refresh are separate synchronous steps on the commit path — they
+are not outbox request kinds. A hood-specific preparation failure increments only requests for that hood;
+repository-wide failures such as lock contention, pull failure, or push failure remain retryable without consuming
+unrelated per-item quarantine budgets. A repeatable failure that proves the requested hood can never be published
+retires that request after one confirming retry instead of quarantining it. Successful requests are acknowledged only
+after their sidecar work is committed and safely pushed, or after the prepared payload is already current.
 
 ### Chats provenance versus publication
 
@@ -326,11 +329,11 @@ badge unless they are represented by publication queue diagnostics.
 
 Hover the badge for the project, source owner, hood, run, and family counts represented by that immutable snapshot, plus
 any queued, quarantined, retired, or retryable publication diagnostics. Clicking it imports exactly the displayed cache
-items as a tracked task; publication diagnostics stay informational and are cleared by the `publications` lane or an
-explicit sync. That path does not fetch, pull, push, export, or mutate the sidecar checkout; successful receipts clear
-the corresponding cache entries. The `,U` comprehensive update preview likewise captures only the cache items visible
-when the preview is built, lists their exact project and hood counts under **Agents repos**, and imports them after its
-other legs without network access. A later periodic fetch cannot widen an already confirmed preview.
+items as a tracked task; publication diagnostics stay informational and are cleared by a later commit's inline drain or
+an explicit sync. That path does not fetch, pull, push, export, or mutate the sidecar checkout; successful receipts
+clear the corresponding cache entries. The `,U` comprehensive update preview likewise captures only the cache items
+visible when the preview is built, lists their exact project and hood counts under **Agents repos**, and imports them
+after its other legs without network access. A later periodic fetch cannot widen an already confirmed preview.
 
 For an explicit full network reconciliation, open SASE Admin Center's Updates pane and press `a` (**Sync agents**). That
 tracked action covers every enabled project, drains retryable agent-hood publication work, continues after project-local
@@ -355,10 +358,11 @@ All Git, validation, cache import, and full-sync work runs outside the Textual e
 - An interrupted v2 local import stays invisible until complete. A subsequent v2 import pass performs journal recovery;
   in the normal case, rerunning a mutating sync supplies that pass. Use `--json` to inspect recovery or quarantine
   diagnostics.
-- A queued sidecar publication failure leaves the primary commit successful and a durable retry request under the
-  project's SASE state. Fix credentials/connectivity and let the `publications` lane retry, or run
-  `sase axe chop run sidecar_publication -L publications` / `sase agent sync -p <project>` for an explicit drain.
-  Repeating the original commit workflow does not create another primary commit.
+- A queued agent-hood publication failure leaves the primary commit successful, with a warning naming the recovery
+  command, and a durable retry request under the project's SASE state. Fix credentials/connectivity, then run
+  `sase agent sync -p <project>` for an explicit drain, or make another commit — its inline drain retries every
+  outstanding request for the project, not just its own. Repeating the original commit workflow does not create another
+  primary commit.
 - If an ordinary retry reports a quarantined publication request, fix the item-specific cause and run
   `sase agent sync --retry-quarantined -p <project>`. Rerun `sase agent sync --check --json` afterward and confirm that
   no publication quarantine diagnostic remains.
