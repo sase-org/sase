@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.models.agent import AgentType
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.widgets.prompt_panel._agent_display_header_renderable import (
+    AgentHeaderRenderable,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     DetailHeaderSummary,
     build_header_text,
@@ -12,6 +15,39 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
     assert_metadata_prefix,
     assert_span_covers,
 )
+
+_FAMILY_NAME = "family"
+_ROOT_SUFFIX = "20260805130000"
+
+
+def _family_root(
+    *, role_suffix: str = "--plan", agent_family_role: str = "plan", **overrides: object
+) -> Agent:
+    return make_agent(
+        agent_family=_FAMILY_NAME,
+        agent_family_role=agent_family_role,
+        plan_chain_root=True,
+        raw_suffix=_ROOT_SUFFIX,
+        role_suffix=role_suffix,
+        **overrides,
+    )
+
+
+def _family_member(
+    role_suffix: str, agent_family_role: str, **overrides: object
+) -> Agent:
+    return make_agent(
+        agent_family=_FAMILY_NAME,
+        agent_family_role=agent_family_role,
+        parent_timestamp=_ROOT_SUFFIX,
+        role_suffix=role_suffix,
+        **overrides,
+    )
+
+
+def _family(root: Agent, *members: Agent) -> Agent:
+    root.followup_agents = list(members)
+    return root
 
 
 class TestAgentNameMetadata:
@@ -96,6 +132,74 @@ class TestAgentModelMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert "Model: CLAUDE(opus)\n" in header.plain
+
+
+class TestFamilyModelMetadata:
+    def test_family_container_header_shows_one_lane_per_member_in_order(self) -> None:
+        agent = _family(
+            _family_root(model="opus", llm_provider="claude", reasoning_effort="xhigh"),
+            _family_member("--code", "code", model="sonnet", llm_provider="claude"),
+            _family_member(
+                "--reviewer", "reviewer", model="gpt-5.2", llm_provider="codex"
+            ),
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert header.plain.count("Model: ") == 1
+        assert "Model: --plan     · CLAUDE(opus) @ xhigh\n" in header.plain
+        assert "       --code     · CLAUDE(sonnet)\n" in header.plain
+        assert "       --reviewer · CODEX(gpt-5.2)\n" in header.plain
+        model_index = header.plain.index("Model:")
+        code_index = header.plain.index("--code")
+        reviewer_index = header.plain.index("--reviewer")
+        assert model_index < code_index < reviewer_index
+
+    def test_model_still_sits_between_auto_and_xprompts_for_family_row(self) -> None:
+        agent = _family(
+            _family_root(approve=True, model="opus", llm_provider="claude"),
+            _family_member("--code", "code", model="sonnet", llm_provider="claude"),
+        )
+        summary = DetailHeaderSummary(
+            xprompts_used=[{"kind": "part", "name": "plan"}],
+        )
+
+        header, _ = build_header_text(agent, cheap=False, summary=summary)
+
+        auto_index = header.plain.index("Auto:")
+        model_index = header.plain.index("Model:")
+        xprompts_index = header.plain.index("Xprompts:")
+        assert auto_index < model_index < xprompts_index
+
+    def test_non_family_agent_keeps_unchanged_single_line_model(self) -> None:
+        agent = make_agent(model="opus", llm_provider="claude", followup_agents=[])
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert header.plain.count("Model: ") == 1
+        assert "Model: CLAUDE(opus)\n" in header.plain
+
+    def test_family_projection_below_two_members_falls_back_to_single_line(
+        self,
+    ) -> None:
+        agent = _family_root(model="opus", llm_provider="claude")
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert header.plain.count("Model: ") == 1
+        assert "Model: CLAUDE(opus)\n" in header.plain
+
+    def test_family_header_is_renderable_with_full_lane_block_in_plain(self) -> None:
+        agent = _family(
+            _family_root(model="opus", llm_provider="claude"),
+            _family_member("--code", "code", model="sonnet", llm_provider="claude"),
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert isinstance(header, AgentHeaderRenderable)
+        assert "Model: --plan · CLAUDE(opus)\n" in header.plain
+        assert "       --code · CLAUDE(sonnet)\n" in header.plain
 
 
 class TestAgentAutoApproveMetadata:

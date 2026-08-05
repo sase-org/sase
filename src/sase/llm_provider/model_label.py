@@ -12,28 +12,29 @@ from __future__ import annotations
 from rich.text import Text
 
 
-def append_model_field(
-    header_text: Text,
+def model_value_text(
     model: str | None,
     llm_provider: str | None,
     reasoning_effort: str | None = None,
-) -> None:
-    """Append the Model field with provider-themed styling.
+) -> Text | None:
+    """Return the styled ``PROVIDER(model) @ <effort>`` value, or None.
 
-    Format: ``Model: PROVIDER(model)`` with provider-specific colors, plus a
-    uniform ``@ <effort>`` suffix (identical across every provider) when an
-    effective reasoning effort is set. Falls back to plain model display when
-    the provider is unknown.
+    Format: ``PROVIDER(model)`` with provider-specific colors, plus a uniform
+    ``@ <effort>`` suffix (identical across every provider) when an effective
+    reasoning effort is set. Falls back to plain model display when the
+    provider is unknown.
 
     Args:
-        header_text: Rich Text object to append to.
         model: Model name string (e.g., "opus", "gemini-3.6-flash-high").
         llm_provider: Provider name (e.g., "claude", "agy"), or None.
         reasoning_effort: Effective reasoning-effort level (e.g. "xhigh"), or
             None to omit the suffix.
+
+    Returns:
+        The styled value, or None when ``model`` is falsy.
     """
     if not model:
-        return
+        return None
 
     # Infer provider from model name if not explicitly stored
     provider = llm_provider
@@ -54,39 +55,60 @@ def append_model_field(
         elif not sep:
             model = resolved_model
 
-    header_text.append("Model: ", style="bold #87D7FF")
+    value = Text()
 
     if provider == "claude":
         # Hotrod theme: flame orange for name, amber/gold for model
-        header_text.append("CLAUDE", style="bold #FF5F00")
-        header_text.append("(", style="#D75F00")
-        header_text.append(model, style="#FFAF00")
-        header_text.append(")", style="#D75F00")
+        value.append("CLAUDE", style="bold #FF5F00")
+        value.append("(", style="#D75F00")
+        value.append(model, style="#FFAF00")
+        value.append(")", style="#D75F00")
     elif provider == "codex":
         # OpenAI theme: chartreuse/lime for name, lighter lime for model
-        header_text.append("CODEX", style="bold #87FF00")
-        header_text.append("(", style="#5FAF00")
-        header_text.append(model, style="#AFFF5F")
-        header_text.append(")", style="#5FAF00")
+        value.append("CODEX", style="bold #87FF00")
+        value.append("(", style="#5FAF00")
+        value.append(model, style="#AFFF5F")
+        value.append(")", style="#5FAF00")
     elif provider:
         from sase.llm_provider.registry import provider_cli_status_color_map
 
         color = provider_cli_status_color_map().get(provider, "#AF87D7")
-        header_text.append(provider.upper(), style=f"bold {color}")
-        header_text.append("(", style=color)
-        header_text.append(model, style=color)
-        header_text.append(")", style=color)
+        value.append(provider.upper(), style=f"bold {color}")
+        value.append("(", style=color)
+        value.append(model, style=color)
+        value.append(")", style=color)
     else:
         from sase.llm_provider.registry import format_provider_model_label
 
-        header_text.append(
-            format_provider_model_label(provider, model), style="#AF87D7"
-        )
+        value.append(format_provider_model_label(provider, model), style="#AF87D7")
 
     # Uniform reasoning-effort suffix, rendered the same way for every provider
     # so the effective effort reads identically regardless of which CLI ran.
     if reasoning_effort:
-        header_text.append(" @ ", style="#878787")
-        header_text.append(reasoning_effort, style="bold #AF87FF")
+        value.append(" @ ", style="#878787")
+        value.append(reasoning_effort, style="bold #AF87FF")
 
+    return value
+
+
+def append_model_field(
+    header_text: Text,
+    model: str | None,
+    llm_provider: str | None,
+    reasoning_effort: str | None = None,
+) -> None:
+    """Append the Model field with provider-themed styling.
+
+    Args:
+        header_text: Rich Text object to append to.
+        model: Model name string (e.g., "opus", "gemini-3.6-flash-high").
+        llm_provider: Provider name (e.g., "claude", "agy"), or None.
+        reasoning_effort: Effective reasoning-effort level (e.g. "xhigh"), or
+            None to omit the suffix.
+    """
+    value = model_value_text(model, llm_provider, reasoning_effort)
+    if value is None:
+        return
+    header_text.append("Model: ", style="bold #87D7FF")
+    header_text.append_text(value)
     header_text.append("\n")

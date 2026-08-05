@@ -85,7 +85,7 @@ def family_roster_entries(
                     or member.role_suffix
                     or member.display_name
                 ),
-                label=_family_member_label(member, family_name),
+                label=family_member_label(member, family_name),
                 kind=kind,
                 status=member.display_status,
                 effective_bucket=bucket,
@@ -123,7 +123,7 @@ def append_family_member_roster(
     )
 
 
-def _family_member_label(member: Agent, family_name: str) -> str:
+def family_member_label(member: Agent, family_name: str) -> str:
     name = member.presented_agent_name or member.step_name or member.display_name
     if family_name and name.startswith(family_name) and len(name) > len(family_name):
         return name[len(family_name) :]
@@ -137,6 +137,7 @@ __all__ = [
     "append_family_fold_heading",
     "append_family_member_roster",
     "effective_family_fold_level",
+    "family_member_label",
     "family_member_rows",
     "family_roster_entries",
 ]

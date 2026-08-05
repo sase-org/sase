@@ -9,7 +9,10 @@ from rich.console import Group
 from rich.text import Text
 
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
+from sase.ace.tui.widgets.prompt_panel._agent_display_header import (
+    AgentHeaderRenderable,
+    build_header_text,
+)
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     SECTION_MARKER_META_KEY,
 )
@@ -62,7 +65,7 @@ def _section_ids(renderable: object) -> list[str]:
             for child in candidate.renderables:
                 _visit(child)
             return
-        if not isinstance(candidate, Text):
+        if not isinstance(candidate, (Text, AgentHeaderRenderable)):
             return
         for span in candidate.spans:
             meta = getattr(span.style, "meta", None)

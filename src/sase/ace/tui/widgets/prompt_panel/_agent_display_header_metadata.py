@@ -36,6 +36,12 @@ from ._helpers import (
     project_display_label,
     should_render_agent_detail_model,
 )
+from ._agent_model_section import (
+    MODEL_LANE_LIMIT,
+    MODEL_SECTION_ID,
+    ResponsiveModelSection,
+    build_family_model_lanes,
+)
 from ._agent_wait_section import (
     WAIT_SECTION_ID,
     ResponsiveWaitSection,
@@ -67,6 +73,7 @@ class _AgentMetadataFields:
     meta_fields: list[tuple[str, str]]
     page_section: ResponsiveAgentPageSection | None
     wait_section: ResponsiveWaitSection | None
+    model_section: ResponsiveModelSection | None
 
 
 def _queued_for_label(requested_at: str | None) -> str | None:
@@ -268,6 +275,31 @@ def _append_wait_field(
     return section
 
 
+def _append_model_fields(
+    text: Text,
+    agent: Agent,
+    responsive_ranges: MutableMapping[str, tuple[int, int]] | None,
+) -> ResponsiveModelSection | None:
+    """Append the ``Model:`` field, expanding to per-member lanes for families."""
+    if not should_render_agent_detail_model(agent):
+        return None
+    lanes = build_family_model_lanes(agent)
+    if not lanes:
+        append_model_field(
+            text, agent.model, agent.llm_provider, agent.reasoning_effort
+        )
+        return None
+    section = ResponsiveModelSection(
+        lanes=lanes[:MODEL_LANE_LIMIT],
+        hidden_count=max(0, len(lanes) - MODEL_LANE_LIMIT),
+    )
+    start = len(text)
+    text.append_text(section.logical_text)
+    if responsive_ranges is not None:
+        responsive_ranges[MODEL_SECTION_ID] = (start, len(text))
+    return section
+
+
 def _append_retry_fields(text: Text, agent: Agent) -> None:
     """Append retry history and fallback model fields."""
     if not (agent.retry_count > 0 or agent.using_fallback or agent.attempt_history):
@@ -353,10 +385,7 @@ def append_agent_metadata_fields(
     )
 
     _append_auto_approve_field(text, agent)
-    if should_render_agent_detail_model(agent):
-        append_model_field(
-            text, agent.model, agent.llm_provider, agent.reasoning_effort
-        )
+    model_section = _append_model_fields(text, agent, responsive_ranges)
 
     if not cheap and summary is not None:
         from ._agent_xprompts import append_agent_xprompts_section
@@ -393,7 +422,7 @@ def append_agent_metadata_fields(
     )
     _append_retry_fields(text, agent)
     _append_timestamp_fields(text, agent, hint_state)
-    return _AgentMetadataFields(meta_fields, page_section, wait_section)
+    return _AgentMetadataFields(meta_fields, page_section, wait_section, model_section)
 
 
 def append_legacy_parallel_members_section(text: Text, agent: Agent) -> None:
