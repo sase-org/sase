@@ -314,10 +314,8 @@ def _agent_tag_matches(
 
 
 def _names_match(tagged_agent: str, agent_name: str) -> bool:
-    return (
-        tagged_agent == agent_name
-        or tagged_agent.startswith(f"{agent_name}.")
-        or tagged_agent.startswith(f"{agent_name}--")
+    return tagged_agent == agent_name or tagged_agent.startswith(
+        (f"{agent_name}.", f"{agent_name}--")
     )
 
 
