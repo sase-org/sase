@@ -335,7 +335,7 @@ def test_split_sdd_store_auto_commit_targets_only_bead_state(
     monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", commit)
     monkeypatch.setattr("sase.bead.sync.bead_state_is_clean", lambda _root: False)
 
-    assert _auto_commit_separate_sdd_store_if_possible(str(tmp_path))
+    assert _auto_commit_separate_sdd_store_if_possible(str(tmp_path)).committed
     commit.assert_called_once_with(
         store,
         "chore(beads): sync bead state",
@@ -390,8 +390,8 @@ def test_clean_bead_state_skips_finalizer_retry_commits(
     monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", commit)
     monkeypatch.setattr("sase.bead.sync.bead_state_is_clean", clean)
 
-    assert _auto_commit_separate_sdd_store_if_possible(str(tmp_path))
-    assert not _auto_commit_separate_sdd_store_if_possible(str(tmp_path))
+    assert _auto_commit_separate_sdd_store_if_possible(str(tmp_path)).committed
+    assert not _auto_commit_separate_sdd_store_if_possible(str(tmp_path)).committed
 
     assert clean.call_count == 2
     commit.assert_called_once_with(

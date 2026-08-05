@@ -110,7 +110,7 @@ def _install_clean_finalizer(
     monkeypatch.setattr(
         commit_finalizer,
         "_auto_commit_separate_sdd_store_if_possible",
-        lambda _project_dir, _artifact_root: False,
+        lambda _project_dir, _artifact_root: commit_finalizer.BeadStateSyncOutcome(),
     )
 
     def collect_dirty_state(

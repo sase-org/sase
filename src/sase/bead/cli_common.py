@@ -35,8 +35,14 @@ class BeadPublicationError(RuntimeError):
     """Raised when a committed bead mutation could not be published.
 
     The mutation exists in the local store only, so its command must fail
-    loudly rather than report a success nobody else can observe.
+    loudly rather than report a success nobody else can observe. ``diagnostic``
+    carries the full operator-facing report that was written to stderr, for
+    callers that record the failure somewhere other than a terminal.
     """
+
+    def __init__(self, message: str, *, diagnostic: str | None = None) -> None:
+        super().__init__(message)
+        self.diagnostic = diagnostic or message
 
 
 @dataclass
@@ -269,7 +275,7 @@ def ensure_bead_mutation_published(
 
     for line in lines:
         print(line, file=sys.stderr)
-    raise BeadPublicationError(lines[0])
+    raise BeadPublicationError(lines[0], diagnostic="\n".join(lines))
 
 
 def _push_committed_bead_store(*, cwd: Path | None = None) -> None:

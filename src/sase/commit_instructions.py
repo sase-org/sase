@@ -116,8 +116,23 @@ def build_commit_instruction_message(
     if resolved_bead_id:
         parts.append(
             f"If you DID make these changes, run `sase bead close {resolved_bead_id} "
-            f'--note "<what you verified>"` and verify bead `{resolved_bead_id}` is '
-            "closed before invoking the commit skill."
+            f'--note "<what you verified>"` before invoking the commit skill.'
+        )
+        parts.append(
+            "That command is itself the verification: it publishes the close and "
+            "exits non-zero with an `ERROR: ... was committed locally but NOT "
+            "published` diagnostic when the close reached only this checkout."
+        )
+        parts.append(
+            f"Do NOT confirm the close by re-reading bead `{resolved_bead_id}`; "
+            "`sase bead show` reads the same local store the close just wrote, so "
+            "it cannot tell a published close from one that dies with this "
+            "workspace."
+        )
+        parts.append(
+            "If the close does report an unpublished state, run the remediation "
+            "command in that diagnostic and get it published instead of reporting "
+            "the bead closed."
         )
         parts.append(
             f"Then commit the changes using your {skill} skill before continuing."

@@ -37,6 +37,7 @@ from .commit_finalizer_prompting import (
 )
 from .commit_finalizer_state import collect_dirty_state
 from .commit_finalizer_types import (
+    BeadStateSyncOutcome,
     CommitFinalizerConfig,
     CommitFinalizerError,
     CommitFinalizerResult,
@@ -89,6 +90,7 @@ _workspace_num_from_env = finalizer_state._workspace_num_from_env
 _logger = logging.getLogger(__name__)
 
 __all__ = [
+    "BeadStateSyncOutcome",
     "CommitFinalizerConfig",
     "CommitFinalizerError",
     "CommitFinalizerResult",
@@ -186,9 +188,9 @@ def run_commit_finalizer(
         return invoke_result
 
     project_dir = _resolve_finalizer_project_dir()
-    sdd_store_auto_committed = _auto_commit_separate_sdd_store_if_possible(
-        project_dir, artifact_root
-    )
+    bead_sync = _auto_commit_separate_sdd_store_if_possible(project_dir, artifact_root)
+    sdd_store_auto_committed = bead_sync.committed
+    bead_publication_error = bead_sync.publication_error
     dirty_state = _collect_dirty_state(project_dir, artifact_root=artifact_root)
     dirty_state, sdd_prompt_qa_auto_committed = (
         _auto_commit_external_sdd_prompt_qa_if_possible(
@@ -203,6 +205,12 @@ def run_commit_finalizer(
         artifact_root,
     )
     if dirty_state.is_clean:
+        _fail_on_unpublished_bead_state(
+            bead_publication_error,
+            artifact_root=artifact_root,
+            project_dir=project_dir,
+            passes=0,
+        )
         _write_result(
             artifact_root,
             _CommitFinalizerResult(
@@ -268,10 +276,11 @@ def run_commit_finalizer(
         )
         accumulated_usage = _merge_usage(accumulated_usage, follow_up.usage)
 
-        sdd_store_auto_committed = (
-            _auto_commit_separate_sdd_store_if_possible(project_dir, artifact_root)
-            or sdd_store_auto_committed
+        bead_sync = _auto_commit_separate_sdd_store_if_possible(
+            project_dir, artifact_root
         )
+        sdd_store_auto_committed = bead_sync.committed or sdd_store_auto_committed
+        bead_publication_error = bead_publication_error or bead_sync.publication_error
         dirty_state = _collect_dirty_state(project_dir, artifact_root=artifact_root)
         dirty_state, qa_auto_committed = (
             _auto_commit_external_sdd_prompt_qa_if_possible(
@@ -294,6 +303,12 @@ def run_commit_finalizer(
             no_progress_passes += 1
 
         if not dirty_state.repos:
+            _fail_on_unpublished_bead_state(
+                bead_publication_error,
+                artifact_root=artifact_root,
+                project_dir=project_dir,
+                passes=pass_number,
+            )
             reason = (
                 _clean_result_reason(
                     done_plan_auto_committed=done_plan_auto_committed,
@@ -319,6 +334,8 @@ def run_commit_finalizer(
             return InvokeResult(content=accumulated_content, usage=accumulated_usage)
 
     error = _failure_message(dirty_state, config.max_passes, no_progress_passes)
+    if bead_publication_error is not None:
+        error = f"{error}\n\n{bead_publication_error}"
     _write_result(
         artifact_root,
         _CommitFinalizerResult(
@@ -378,11 +395,30 @@ def _auto_commit_external_sdd_prompt_qa_if_possible(
 
 def _auto_commit_separate_sdd_store_if_possible(
     project_dir: str, artifacts_dir: Path | None = None
-) -> bool:
-    """Best-effort safety net for machine-managed external bead state."""
+) -> BeadStateSyncOutcome:
+    """Commit and publish machine-managed external bead state.
+
+    Committing is not enough on its own: the configured push policy may be
+    queued, detached, or aimed at a different checkout than the one holding the
+    commit, so a finalizer-created bead commit is verified as published and the
+    failure is reported rather than left to die with the workspace.
+    """
+    beads_root = _auto_commit_bead_state(project_dir, artifacts_dir)
+    if beads_root is None:
+        return BeadStateSyncOutcome()
+    return BeadStateSyncOutcome(
+        committed=True,
+        publication_error=_unpublished_bead_state_error(beads_root),
+    )
+
+
+def _auto_commit_bead_state(
+    project_dir: str, artifacts_dir: Path | None
+) -> Path | None:
+    """Best-effort commit of leftover bead state; returns the store committed."""
     try:
         if not _separate_sdd_store_repo_may_exist(project_dir):
-            return False
+            return None
 
         from sase.sdd.files import commit_sdd_store_files
         from sase.sdd.store import (
@@ -397,32 +433,79 @@ def _auto_commit_separate_sdd_store_if_possible(
             SDD_STORAGE_SEPARATE_REPO,
             SDD_STORAGE_SIDECAR_REPOS,
         }:
-            return False
+            return None
         repo_roots = (
             [store.repo_root_for_kind(role) for role in store.split_sidecar_roles()]
             if store.is_sidecar_storage
             else [store.repo_root]
         )
         if not any((root / ".git").exists() for root in repo_roots):
-            return False
+            return None
         beads_root = store.kind_root("beads")
         from sase.bead.sync import bead_state_is_clean
 
         if bead_state_is_clean(beads_root):
-            return False
-        return commit_sdd_store_files(
+            return None
+        committed = commit_sdd_store_files(
             store,
             "chore(beads): sync bead state",
             auto_commit_type="beads",
             paths=[beads_root],
             artifacts_dir=artifacts_dir,
         )
+        return beads_root if committed else None
     except Exception:
         _logger.warning(
             "Failed to auto-commit separate SDD store during finalization",
             exc_info=True,
         )
-        return False
+        return None
+
+
+def _unpublished_bead_state_error(beads_root: Path) -> str | None:
+    """Publish the finalizer's bead commit; report it when it stayed local."""
+    from sase.bead.cli_common import (
+        BeadPublicationError,
+        ensure_bead_mutation_published,
+    )
+
+    try:
+        ensure_bead_mutation_published(
+            beads_root,
+            description="finalizer bead-state sync commit",
+        )
+    except BeadPublicationError as exc:
+        return exc.diagnostic
+    except Exception:
+        _logger.warning(
+            "Failed to verify publication of the finalizer bead-state commit",
+            exc_info=True,
+        )
+    return None
+
+
+def _fail_on_unpublished_bead_state(
+    publication_error: str | None,
+    *,
+    artifact_root: Path | None,
+    project_dir: str,
+    passes: int,
+) -> None:
+    """Refuse to report a finalized run whose bead commit never published."""
+    if publication_error is None:
+        return
+    _write_result(
+        artifact_root,
+        _CommitFinalizerResult(
+            status="failed",
+            reason="bead_state_unpublished",
+            project_dir=project_dir,
+            passes=passes,
+            changed_files=[],
+            error=publication_error,
+        ),
+    )
+    raise _CommitFinalizerError(publication_error)
 
 
 def _separate_sdd_store_repo_may_exist(project_dir: str) -> bool:

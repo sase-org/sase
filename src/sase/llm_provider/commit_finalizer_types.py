@@ -23,6 +23,19 @@ class CommitFinalizerConfig:
 
 
 @dataclass(frozen=True)
+class BeadStateSyncOutcome:
+    """What the finalizer's bead-state safety net committed and published.
+
+    ``publication_error`` holds the operator-facing diagnostic when the commit
+    reached only the local checkout, so a finalizer-created bead commit cannot
+    be reported as finalized while it is still invisible to everyone else.
+    """
+
+    committed: bool = False
+    publication_error: str | None = None
+
+
+@dataclass(frozen=True)
 class CommitFinalizerResult:
     status: _FinalizerStatus
     reason: str

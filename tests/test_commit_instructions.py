@@ -76,8 +76,19 @@ def test_commit_instruction_includes_bead_close_when_bead_id_is_set() -> None:
     assert "using your /sase_git_commit skill" in message
     assert "sase bead close sase-2d.4" in message
     assert '--note "<what you verified>"' in message
-    assert "verify bead `sase-2d.4` is closed" in message
     assert "before invoking the commit skill" in message
+
+
+def test_commit_instruction_points_bead_verification_at_published_state() -> None:
+    """The close command, not a local re-read, is the close verification."""
+    message = build_commit_instruction_message(
+        "/sase_git_commit", "create_commit", "sase-2d.4"
+    )
+    assert "That command is itself the verification" in message
+    assert "was committed locally but NOT published" in message
+    assert "Do NOT confirm the close by re-reading bead `sase-2d.4`" in message
+    assert "reads the same local store the close just wrote" in message
+    assert "remediation command in that diagnostic" in message
 
 
 def test_commit_instruction_gates_bead_close_on_agent_ownership() -> None:
