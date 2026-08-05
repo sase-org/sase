@@ -150,11 +150,7 @@ def _enqueue_committed_agent_publication(
             item,
         )
     if not active_requests:
-        requests = tuple(
-            request
-            for request in list_agent_publications(target.project_key)
-            if request.kind == "agent_hood"
-        )
+        requests = list_agent_publications(target.project_key)
         stopped = next(
             (
                 request
@@ -231,11 +227,7 @@ def _drain_agent_publications(
     except Exception:
         # Status projection is auxiliary and must not fail a completed publish.
         pass
-    remaining = tuple(
-        item
-        for item in list_agent_publications(target.project_key)
-        if item.kind == "agent_hood"
-    )
+    remaining = list_agent_publications(target.project_key)
     return _CommitPublicationOutcome(
         published=result.drained > 0,
         queued=bool(remaining),
@@ -249,14 +241,7 @@ def _drain_agent_publications(
 def _active_agent_publications(
     project_key: str,
 ) -> tuple[AgentPublicationOutboxItem, ...]:
-    return tuple(
-        item
-        for item in list_agent_publications(
-            project_key,
-            include_quarantined=False,
-        )
-        if item.kind == "agent_hood"
-    )
+    return list_agent_publications(project_key, include_quarantined=False)
 
 
 def _quarantined_count(items: tuple[AgentPublicationOutboxItem, ...]) -> int:

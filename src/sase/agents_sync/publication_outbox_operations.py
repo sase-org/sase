@@ -1,4 +1,4 @@
-"""Queue operations for durable sidecar publication requests."""
+"""Queue operations for durable agent-hood publication requests."""
 
 from __future__ import annotations
 
@@ -8,16 +8,11 @@ import os
 import time
 
 from sase.agents_sync.publication_outbox_diagnostics import (
-    publication_status_diagnostic,
     publication_stopped_diagnostic,
 )
 from sase.agents_sync.publication_outbox_models import (
     AgentPublicationOutboxItem,
-    SidecarPublicationRequest,
-    bead_pages_publication_request,
-    plan_header_publication_request,
     publication_sort_key,
-    sidecar_push_publication_request,
     validate_publication_item,
 )
 from sase.agents_sync.publication_outbox_store import (
@@ -29,17 +24,17 @@ DEFAULT_PUBLICATION_MAX_ATTEMPTS = 3
 _PUBLICATION_MAX_ATTEMPTS_ENV = "SASE_AGENTS_PUBLICATION_MAX_ATTEMPTS"
 
 
-def _enqueue_sidecar_publication(
-    item: SidecarPublicationRequest,
-) -> SidecarPublicationRequest:
+def enqueue_agent_publication(
+    item: AgentPublicationOutboxItem,
+) -> AgentPublicationOutboxItem:
     """Insert or refresh *item* without duplicating its logical operation."""
 
     validate_publication_item(item, item.project_key)
     now = time.time()
 
     def update(
-        items: tuple[SidecarPublicationRequest, ...],
-    ) -> tuple[SidecarPublicationRequest, ...]:
+        items: tuple[AgentPublicationOutboxItem, ...],
+    ) -> tuple[AgentPublicationOutboxItem, ...]:
         existing = next(
             (
                 candidate
@@ -68,9 +63,7 @@ def _enqueue_sidecar_publication(
             ),
             hood_digest=(
                 existing.hood_digest
-                if item.kind == "agent_hood"
-                and existing is not None
-                and item.hood_digest == "pending"
+                if existing is not None and item.hood_digest == "pending"
                 else item.hood_digest
             ),
         )
@@ -92,83 +85,6 @@ def _enqueue_sidecar_publication(
         candidate
         for candidate in mutate_publication_outbox(item.project_key, update)
         if candidate.logical_key == item.logical_key
-    )
-
-
-def enqueue_agent_publication(
-    item: AgentPublicationOutboxItem,
-) -> AgentPublicationOutboxItem:
-    """Backward-compatible agent-hood enqueue entry point."""
-
-    if item.kind != "agent_hood":
-        raise ValueError("enqueue_agent_publication requires an agent_hood request")
-    return _enqueue_sidecar_publication(item)
-
-
-def enqueue_bead_pages_publication(
-    *,
-    project_key: str,
-    project: str,
-    bead_id: str,
-    lineage_root: str | None = None,
-    primary_revision: str = "",
-) -> SidecarPublicationRequest:
-    """Enqueue or coalesce one bead lineage."""
-
-    from sase.bead_pages.paths import bead_lineage_root
-
-    derived_root = bead_lineage_root(bead_id)
-    if lineage_root is not None and lineage_root != derived_root:
-        raise ValueError(
-            f"bead lineage root {lineage_root!r} does not match {bead_id!r}"
-        )
-
-    return _enqueue_sidecar_publication(
-        bead_pages_publication_request(
-            project_key=project_key,
-            project=project,
-            bead_id=bead_id,
-            lineage_root=derived_root,
-            primary_revision=primary_revision,
-        )
-    )
-
-
-def enqueue_plan_header_publication(
-    *,
-    project_key: str,
-    project: str,
-    plan_ref: str,
-    primary_revision: str,
-    commit_message: str,
-) -> SidecarPublicationRequest:
-    """Enqueue or coalesce one committed-plan header refresh."""
-
-    return _enqueue_sidecar_publication(
-        plan_header_publication_request(
-            project_key=project_key,
-            project=project,
-            plan_ref=plan_ref,
-            primary_revision=primary_revision,
-            commit_message=commit_message,
-        )
-    )
-
-
-def enqueue_sidecar_push_publication(
-    *,
-    project_key: str,
-    project: str,
-    sidecar_kind: str,
-) -> SidecarPublicationRequest:
-    """Enqueue or coalesce one sidecar push."""
-
-    return _enqueue_sidecar_publication(
-        sidecar_push_publication_request(
-            project_key=project_key,
-            project=project,
-            sidecar_kind=sidecar_kind,
-        )
     )
 
 
@@ -305,21 +221,16 @@ def configured_publication_max_attempts() -> int:
 
 
 def publication_quarantine_diagnostics(project_key: str) -> tuple[str, ...]:
-    """Render stable diagnostics for stopped requests in *project_key*."""
+    """Render stable diagnostics for stopped requests in *project_key*.
+
+    A quarantined request is retryable and names the retry command; a retired
+    request can never be published and names the drop command instead.
+    """
 
     return tuple(
         publication_stopped_diagnostic(item)
         for item in list_agent_publications(project_key)
         if item.terminal or item.quarantined
-    )
-
-
-def publication_status_diagnostics(project_key: str) -> tuple[str, ...]:
-    """Render operator-facing diagnostics for every queued request."""
-
-    return tuple(
-        publication_status_diagnostic(item)
-        for item in list_agent_publications(project_key)
     )
 
 
@@ -343,10 +254,6 @@ __all__ = [
     "configured_publication_max_attempts",
     "drop_terminal_agent_publications",
     "enqueue_agent_publication",
-    "enqueue_bead_pages_publication",
-    "enqueue_plan_header_publication",
-    "enqueue_sidecar_push_publication",
     "publication_quarantine_diagnostics",
-    "publication_status_diagnostics",
     "update_agent_publications",
 ]

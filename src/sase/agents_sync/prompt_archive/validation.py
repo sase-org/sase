@@ -10,11 +10,6 @@ import re
 from typing import Any, Literal, cast
 from urllib.parse import unquote, urlsplit
 
-from sase.agents_sync.publication_outbox import (
-    AGENT_PUBLICATION_OUTBOX_FILENAME,
-    snapshot_agent_publications_from_path,
-)
-from sase.core.paths import sase_projects_dir
 from sase.core.prompt_artifact_staging import (
     PROMPT_ARTIFACT_MANIFEST_NAME,
     PromptArtifactRecord,
@@ -110,7 +105,6 @@ def validate_prompt_archive(
     month: str | None = None,
     plans_repo: Path | str | None = None,
     workspace_roots: tuple[Path, ...] = (),
-    project_key: str | None = None,
 ) -> PromptArchiveValidation:
     """Validate prompt documents, published artifacts, and local manifests."""
 
@@ -206,7 +200,6 @@ def validate_prompt_archive(
             workspace_roots,
             agents_by_month,
             month=month,
-            project_key=project_key,
         )
     )
     return PromptArchiveValidation(
@@ -383,11 +376,9 @@ def _unpublished_manifest_issues(
     agents_by_month: dict[str, set[str]],
     *,
     month: str | None,
-    project_key: str | None,
 ) -> list[_PromptArchiveIssue]:
     issues: list[_PromptArchiveIssue] = []
     seen_manifests: set[Path] = set()
-    queued_agents = _queued_agent_hood_publications(project_key)
     for workspace in workspace_roots:
         manifest = (
             workspace.expanduser().resolve(strict=False)
@@ -423,32 +414,15 @@ def _unpublished_manifest_issues(
                 display = manifest.relative_to(workspace).as_posix()
             except ValueError:
                 display = str(manifest)
-            message = (
-                f"manifest run publication is queued: {run_dir}"
-                if agent_name is not None and agent_name in queued_agents
-                else f"manifest run has no matching published prompt: {run_dir}"
-            )
             issues.append(
-                _PromptArchiveIssue("warning", "prompt-unpublished", display, message)
+                _PromptArchiveIssue(
+                    "warning",
+                    "prompt-unpublished",
+                    display,
+                    f"manifest run has no matching published prompt: {run_dir}",
+                )
             )
     return issues
-
-
-def _queued_agent_hood_publications(project_key: str | None) -> frozenset[str]:
-    """Return global agent names with a still-pending ``agent_hood`` request."""
-
-    if not project_key:
-        return frozenset()
-    path = sase_projects_dir() / project_key / AGENT_PUBLICATION_OUTBOX_FILENAME
-    try:
-        items = snapshot_agent_publications_from_path(path, project_key)
-    except Exception:
-        return frozenset()
-    return frozenset(
-        item.global_agent
-        for item in items
-        if item.kind == "agent_hood" and not item.terminal
-    )
 
 
 def _published_agent_name(run_dir: Path) -> str | None:

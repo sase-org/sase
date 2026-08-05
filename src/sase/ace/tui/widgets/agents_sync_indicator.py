@@ -14,7 +14,6 @@ from sase.agents_sync.models import (
 )
 
 from ..agents_sync_format import (
-    agents_sync_status_attention_count,
     agents_sync_status_needs_attention,
     captured_agent_hood_label,
 )
@@ -33,9 +32,7 @@ class AgentsSyncIndicator(Static):
 
     @property
     def pending_count(self) -> int:
-        return sum(
-            agents_sync_status_attention_count(status) for status in self._pending
-        )
+        return sum(status.pending_foreign_count for status in self._pending)
 
     @property
     def pending_projects(self) -> tuple[ProjectSyncStatus, ...]:
@@ -85,9 +82,7 @@ class AgentsSyncIndicator(Static):
     def _build_content(statuses: tuple[ProjectSyncStatus, ...]) -> Text:
         text = Text()
         if statuses:
-            count = sum(
-                agents_sync_status_attention_count(status) for status in statuses
-            )
+            count = sum(status.pending_foreign_count for status in statuses)
             text.append(
                 f" {_AGENTS_SYNC_GLYPH} {count} ",
                 style=f"bold #1a1a1a on {_AGENTS_SYNC_ACCENT}",
@@ -97,17 +92,9 @@ class AgentsSyncIndicator(Static):
     @staticmethod
     def _build_tooltip(statuses: tuple[ProjectSyncStatus, ...]) -> str:
         if not statuses:
-            return "No cached incoming agent hoods or publication requests are waiting"
-        lines: list[str] = []
-        incoming_statuses = tuple(
-            status for status in statuses if status.pending_foreign_count > 0
-        )
-        diagnostic_statuses = tuple(
-            status for status in statuses if status.quarantine_diagnostics
-        )
-        if incoming_statuses:
-            lines.append("Cached incoming agent hoods from other owners:")
-        for status in incoming_statuses:
+            return "No cached incoming agent hoods from other owners are waiting"
+        lines = ["Cached incoming agent hoods from other owners:"]
+        for status in statuses:
             lines.append(f"{status.project}:")
             for item in sorted(
                 status.pending_updates,
@@ -125,24 +112,10 @@ class AgentsSyncIndicator(Static):
                     f"{item.run_count} {run_noun}, "
                     f"{item.family_count} {family_noun}"
                 )
-        if diagnostic_statuses:
-            if lines:
-                lines.append("")
-            lines.append("Publication queue diagnostics:")
-        for status in statuses:
-            if not status.quarantine_diagnostics:
-                continue
-            lines.append(f"{status.project}:")
-            for diagnostic in status.quarantine_diagnostics[:5]:
-                lines.append(f"  {diagnostic}")
-            if len(status.quarantine_diagnostics) > 5:
-                extra = len(status.quarantine_diagnostics) - 5
-                lines.append(f"  ... {extra} more publication diagnostic(s)")
-        if incoming_statuses:
-            lines.append(
-                "Click to import the cached hoods above without fetching. Press ,U "
-                "to include them in the comprehensive update."
-            )
+        lines.append(
+            "Click to import these cached hoods without fetching. Press ,U "
+            "to include them in the comprehensive update."
+        )
         return "\n".join(lines)
 
 

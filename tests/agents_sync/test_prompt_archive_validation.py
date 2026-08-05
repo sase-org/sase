@@ -250,7 +250,7 @@ def test_pending_manifest_run_without_queue_entry_is_a_nonfailing_warning(
     assert not any(code in _codes(validation) for code in _ERROR_CODES)
 
 
-def test_pending_manifest_run_with_queued_agent_hood_reports_queued(
+def test_pending_manifest_run_reports_unpublished_even_when_queued(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -270,7 +270,6 @@ def test_pending_manifest_run_with_queued_agent_hood_reports_queued(
     outbox = AgentPublicationOutboxItem(
         project_key="demo",
         project="Demo",
-        kind="agent_hood",
         local_agent="worker",
         global_agent="queued-agent",
         primary_revision="a" * 40,
@@ -280,21 +279,17 @@ def test_pending_manifest_run_with_queued_agent_hood_reports_queued(
     )
     (project_dir / AGENT_PUBLICATION_OUTBOX_FILENAME).write_text(
         json.dumps(
-            {"schema_version": 4, "items": [outbox.to_json_dict()]},
+            {"schema_version": 5, "items": [outbox.to_json_dict()]},
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(prompt_validation, "sase_projects_dir", lambda: projects_root)
 
-    validation = validate_prompt_archive(
-        repo, workspace_roots=(workspace,), project_key="demo"
-    )
+    validation = validate_prompt_archive(repo, workspace_roots=(workspace,))
 
     assert validation.ok
     assert _codes(validation) == ["prompt-unpublished"]
     issue = validation.issues[0]
-    assert "queued" in issue.message
-    assert "no matching published prompt" not in issue.message
+    assert "no matching published prompt" in issue.message
     assert not any(code in _codes(validation) for code in _ERROR_CODES)
 
 
@@ -334,7 +329,6 @@ def test_full_validate_check_set_passes_with_pending_queue_and_unpublished_promp
     outbox = AgentPublicationOutboxItem(
         project_key="demo",
         project="Demo",
-        kind="agent_hood",
         local_agent="worker",
         global_agent="queued-agent",
         primary_revision="a" * 40,
@@ -343,14 +337,13 @@ def test_full_validate_check_set_passes_with_pending_queue_and_unpublished_promp
         updated_at=1.0,
     )
     (project_dir / AGENT_PUBLICATION_OUTBOX_FILENAME).write_text(
-        json.dumps({"schema_version": 4, "items": [outbox.to_json_dict()]}),
+        json.dumps({"schema_version": 5, "items": [outbox.to_json_dict()]}),
         encoding="utf-8",
     )
-    monkeypatch.setattr(prompt_validation, "sase_projects_dir", lambda: projects_root)
 
     plan_validation = validate_sdd_tree(str(plans_root))
     prompt_validation_result = validate_prompt_archive(
-        repo, workspace_roots=(workspace,), project_key="demo"
+        repo, workspace_roots=(workspace,)
     )
 
     assert plan_validation.ok

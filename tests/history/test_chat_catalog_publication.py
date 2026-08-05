@@ -164,19 +164,29 @@ def test_non_agent_publication_requests_do_not_attach_to_chats(
     )
     chat = _chat(home, "typed-publication-260724_160401")
     _artifact(home, "20260724160401", chat)
+    # A leftover schema-4 record for work that is published inline again. The
+    # reader drops it, so no chat may claim it as its publication state.
     _write_outbox(
         home,
         [
-            AgentPublicationOutboxItem(
-                project_key="proj",
-                project="Project",
-                kind="bead_pages",
-                bead_id="proj-1",
-                lineage_root="proj-1",
-                primary_revision="b" * 40,
-                created_at=1.0,
-                updated_at=1.0,
-            ).to_json_dict()
+            {
+                "id": "bead",
+                "kind": "bead_pages",
+                "rank": 1,
+                "project_key": "proj",
+                "project": "Project",
+                "bead_id": "proj-1",
+                "lineage_root": "proj-1",
+                "primary_revision": "b" * 40,
+                "attempts": 0,
+                "last_error": None,
+                "quarantined": False,
+                "quarantined_at": None,
+                "terminal": False,
+                "terminal_reason": None,
+                "created_at": 1.0,
+                "updated_at": 1.0,
+            }
         ],
         schema_version=4,
     )

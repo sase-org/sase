@@ -79,7 +79,7 @@ def test_committed_publication_records_a_retryable_request_when_git_fails(
     assert outcome.queued
     assert not outcome.published
     [request] = list_agent_publications("proj")
-    assert request.kind == "agent_hood"
+    assert request.global_agent == "alice.athena.worker"
     assert request.primary_revision == "a" * 40
     assert request.attempts == 1
 

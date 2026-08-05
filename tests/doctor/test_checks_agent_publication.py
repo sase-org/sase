@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -92,19 +91,6 @@ def _write_outbox(
     return path
 
 
-def _axe_snapshot(*, state: str = "running") -> SimpleNamespace:
-    return SimpleNamespace(
-        lumberjacks=(
-            SimpleNamespace(
-                name="publications",
-                configured=True,
-                configured_chops=("sidecar_publication",),
-                state=state,
-            ),
-        )
-    )
-
-
 def test_agent_publication_outbox_doctor_reports_clean_outbox(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -133,10 +119,6 @@ def test_agent_publication_outbox_doctor_reports_quarantined_and_stalled_request
     monkeypatch.setattr(
         "sase.doctor.checks_agent_publication.list_project_records",
         lambda *_args, **_kwargs: [record],
-    )
-    monkeypatch.setattr(
-        "sase.axe.status_collector.collect_axe_status_snapshot",
-        lambda: _axe_snapshot(),
     )
     now = 10_000.0
     _write_outbox(
@@ -185,7 +167,7 @@ def test_agent_publication_outbox_doctor_reports_quarantined_and_stalled_request
     assert check.data["stalled_request_count"] == 1
 
 
-def test_agent_publication_outbox_doctor_reports_typed_queue_not_draining(
+def test_agent_publication_outbox_doctor_reports_dropped_obsolete_requests(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -194,34 +176,29 @@ def test_agent_publication_outbox_doctor_reports_typed_queue_not_draining(
         "sase.doctor.checks_agent_publication.list_project_records",
         lambda *_args, **_kwargs: [record],
     )
-    monkeypatch.setattr(
-        "sase.axe.status_collector.collect_axe_status_snapshot",
-        lambda: _axe_snapshot(state="not_reporting"),
-    )
     _write_outbox(
         tmp_path / ".sase",
         "alpha",
         [
-            AgentPublicationOutboxItem(
-                project_key="alpha",
-                project="Alpha",
-                kind="bead_pages",
-                bead_id="alpha-1.2",
-                lineage_root="alpha-1",
-                primary_revision="e" * 40,
-                created_at=100.0,
-                updated_at=100.0,
-            ).to_json_dict(),
-            AgentPublicationOutboxItem(
-                project_key="alpha",
-                project="Alpha",
-                kind="plan_header",
-                plan_ref="plans:202608/example.md",
-                primary_revision="f" * 40,
-                commit_message="feat: example",
-                created_at=101.0,
-                updated_at=101.0,
-            ).to_json_dict(),
+            {**_item(), "kind": "agent_hood", "rank": 0},
+            {
+                "id": "bead",
+                "kind": "bead_pages",
+                "rank": 1,
+                "project_key": "alpha",
+                "project": "Alpha",
+                "bead_id": "alpha-1.2",
+                "lineage_root": "alpha-1",
+                "primary_revision": "e" * 40,
+                "attempts": 0,
+                "last_error": None,
+                "quarantined": False,
+                "quarantined_at": None,
+                "terminal": False,
+                "terminal_reason": None,
+                "created_at": 100.0,
+                "updated_at": 100.0,
+            },
         ],
         schema_version=4,
     )
@@ -234,24 +211,19 @@ def test_agent_publication_outbox_doctor_reports_typed_queue_not_draining(
     )
 
     assert check.status == "WARN"
-    assert "2 not draining" in check.summary
-    assert "sase axe ensure" in check.summary
-    assert "bead lineage alpha-1@eeeeeeeeeeee" in check.details[0]
-    assert "not draining: publications lumberjack is not_reporting" in check.details[0]
-    assert check.next_steps == (
-        "Run `sase axe ensure` to start or heal the publications lumberjack.",
+    assert "1 obsolete request kind(s) dropped" in check.summary
+    assert (
+        "dropped 1 obsolete publication request(s) (1 bead_pages)" in (check.details[0])
     )
-    assert check.data["request_kind_counts"] == {
-        "bead_pages": 1,
-        "plan_header": 1,
-    }
-    assert check.data["active_kind_counts"] == {
-        "bead_pages": 1,
-        "plan_header": 1,
-    }
-    assert check.data["not_draining_request_count"] == 2
-    assert check.data["problems"][0]["kind"] == "bead_pages"
-    assert check.data["problems"][1]["kind"] == "plan_header"
+    assert check.details[0].startswith("alpha: ")
+    assert check.next_steps == (
+        "Obsolete publication requests were dropped while reading the outbox; run "
+        "`sase agent sync --retry-quarantined` to rewrite it at schema 5 and clear "
+        "this notice.",
+    )
+    assert check.data["migration_notice_count"] == 1
+    assert check.data["request_count"] == 1
+    assert check.data["problems"] == ()
 
 
 def test_agent_publication_outbox_doctor_points_retired_requests_at_the_drop_command(

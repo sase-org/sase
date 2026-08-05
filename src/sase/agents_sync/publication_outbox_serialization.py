@@ -2,29 +2,45 @@
 
 from __future__ import annotations
 
+from collections import Counter
+from dataclasses import dataclass
 import json
 import math
 from pathlib import Path
 
 from sase.agents_sync.publication_outbox_models import (
-    PUBLICATION_KIND_RANK,
-    PUBLICATION_OUTBOX_SCHEMA_VERSION,
     AgentPublicationOutboxItem,
-    PublicationKind,
     validate_publication_item,
 )
 
+SUPPORTED_PUBLICATION_OUTBOX_SCHEMA_VERSIONS = (1, 2, 3, 4, 5)
+_MULTI_KIND_SCHEMA_VERSION = 4
 
-def read_publication_outbox(
+
+@dataclass(frozen=True, slots=True)
+class PublicationOutboxDocument:
+    """One decoded outbox file plus any migration notices it produced."""
+
+    items: tuple[AgentPublicationOutboxItem, ...]
+    notices: tuple[str, ...] = ()
+
+
+def read_publication_outbox_document(
     path: Path,
     project_key: str,
-) -> tuple[AgentPublicationOutboxItem, ...]:
-    """Decode and validate a complete publication outbox document."""
+) -> PublicationOutboxDocument:
+    """Decode and validate a complete publication outbox document.
+
+    Schema 4 briefly stored non-agent-hood request kinds for sidecar work that
+    is published inline on the commit path again. Those records are dropped on
+    read rather than resurrected, and the drop is reported as a notice so it is
+    visible instead of silent.
+    """
 
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return ()
+        return PublicationOutboxDocument(())
     except (OSError, json.JSONDecodeError) as exc:
         raise RuntimeError(f"could not read agents publication outbox: {exc}") from exc
     if not isinstance(payload, dict):
@@ -33,20 +49,61 @@ def read_publication_outbox(
     if (
         not isinstance(schema_version, int)
         or isinstance(schema_version, bool)
-        or schema_version not in {1, 2, 3, PUBLICATION_OUTBOX_SCHEMA_VERSION}
+        or schema_version not in SUPPORTED_PUBLICATION_OUTBOX_SCHEMA_VERSIONS
     ):
         raise RuntimeError("unsupported agents publication outbox schema")
     rows = payload.get("items")
     if not isinstance(rows, list):
         raise RuntimeError("agents publication outbox items must be a list")
+
+    retained: list[object] = []
+    dropped: Counter[str] = Counter()
+    for row in rows:
+        kind = _obsolete_row_kind(row, schema_version=schema_version)
+        if kind is None:
+            retained.append(row)
+        else:
+            dropped[kind] += 1
+
     items = tuple(
-        _item_from_json(row, project_key, schema_version=schema_version) for row in rows
+        _item_from_json(row, project_key, schema_version=schema_version)
+        for row in retained
     )
     if len({item.logical_key for item in items}) != len(items):
         raise RuntimeError("agents publication outbox contains duplicate requests")
-    # Rank is the only cross-kind ordering constraint. Python's stable sort
-    # preserves the durable order within one kind, including legacy files.
-    return tuple(sorted(items, key=lambda item: item.ordering_rank))
+    return PublicationOutboxDocument(items, _dropped_notices(path, dropped))
+
+
+def read_publication_outbox(
+    path: Path,
+    project_key: str,
+) -> tuple[AgentPublicationOutboxItem, ...]:
+    """Decode one outbox file and return only its agent-hood requests."""
+
+    return read_publication_outbox_document(path, project_key).items
+
+
+def _obsolete_row_kind(value: object, *, schema_version: int) -> str | None:
+    """Return the obsolete request kind of *value*, or ``None`` to keep it."""
+
+    if schema_version != _MULTI_KIND_SCHEMA_VERSION or not isinstance(value, dict):
+        return None
+    kind = value.get("kind", "agent_hood")
+    if not isinstance(kind, str) or kind == "agent_hood":
+        return None
+    return kind
+
+
+def _dropped_notices(path: Path, dropped: Counter[str]) -> tuple[str, ...]:
+    if not dropped:
+        return ()
+    breakdown = ", ".join(f"{count} {kind}" for kind, count in sorted(dropped.items()))
+    return (
+        f"dropped {sum(dropped.values())} obsolete publication request(s) "
+        f"({breakdown}) from the schema-{_MULTI_KIND_SCHEMA_VERSION} outbox at "
+        f"{path}: bead pages, plan headers, and sidecar pushes are published "
+        "inline on the commit path, so only agent-hood retries are queued",
+    )
 
 
 def _item_from_json(
@@ -58,29 +115,14 @@ def _item_from_json(
     if not isinstance(value, dict):
         raise RuntimeError("agents publication outbox item must be an object")
     row = value
-    kind = (
-        "agent_hood"
-        if schema_version < PUBLICATION_OUTBOX_SCHEMA_VERSION
-        else _json_publication_kind(row, "kind")
-    )
-    if schema_version == PUBLICATION_OUTBOX_SCHEMA_VERSION:
-        rank = _json_nonnegative_int(row, "rank", default=-1)
-        if rank != PUBLICATION_KIND_RANK[kind]:
-            raise RuntimeError("agents publication outbox rank does not match kind")
     item = AgentPublicationOutboxItem(
         project_key=_json_text(row, "project_key"),
         project=_json_text(row, "project"),
-        local_agent=_json_text(row, "local_agent", default=""),
-        global_agent=_json_text(row, "global_agent", default=""),
+        local_agent=_json_text(row, "local_agent"),
+        global_agent=_json_text(row, "global_agent"),
         primary_revision=_json_text(row, "primary_revision"),
-        local_hood=_json_text(row, "local_hood", default=""),
+        local_hood=_json_text(row, "local_hood"),
         hood_digest=_json_text(row, "hood_digest", default="pending"),
-        kind=kind,
-        bead_id=_json_text(row, "bead_id", default=""),
-        lineage_root=_json_text(row, "lineage_root", default=""),
-        plan_ref=_json_text(row, "plan_ref", default=""),
-        commit_message=_json_text(row, "commit_message", default=""),
-        sidecar_kind=_json_text(row, "sidecar_kind", default=""),
         attempts=_json_nonnegative_int(row, "attempts", default=0),
         last_error=_json_optional_text(row, "last_error"),
         quarantined=_json_boolean(
@@ -112,19 +154,6 @@ def _json_text(
     if not isinstance(value, str):
         raise RuntimeError(f"agents publication outbox {field} must be a string")
     return value
-
-
-def _json_publication_kind(
-    row: dict[object, object],
-    field: str,
-) -> PublicationKind:
-    value = row.get(field)
-    if value not in PUBLICATION_KIND_RANK:
-        raise RuntimeError(
-            "agents publication outbox kind must be one of: "
-            + ", ".join(PUBLICATION_KIND_RANK)
-        )
-    return value  # type: ignore[return-value]
 
 
 def _json_optional_text(
@@ -199,4 +228,9 @@ def _json_optional_number(
     return float(value)
 
 
-__all__ = ["read_publication_outbox"]
+__all__ = [
+    "SUPPORTED_PUBLICATION_OUTBOX_SCHEMA_VERSIONS",
+    "PublicationOutboxDocument",
+    "read_publication_outbox",
+    "read_publication_outbox_document",
+]

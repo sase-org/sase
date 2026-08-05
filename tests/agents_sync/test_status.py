@@ -24,7 +24,6 @@ from sase.agents_sync.models import (
 from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
     enqueue_agent_publication,
-    enqueue_bead_pages_publication,
     update_agent_publications,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
@@ -141,18 +140,22 @@ def test_plain_status_reports_publication_quarantine(
     assert "--retry-quarantined" in diagnostics[0]
 
 
-def test_plain_status_reports_pending_typed_publication(
+def test_plain_status_stays_quiet_for_an_active_agent_publication(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
     target = _target(tmp_path)
     _patch_selection(monkeypatch, target)
-    enqueue_bead_pages_publication(
-        project_key="proj",
-        project="Project",
-        bead_id="proj-1.2",
-        primary_revision="b" * 40,
+    enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key="proj",
+            project="Project",
+            local_agent="ok--code",
+            global_agent="alice.athena.ok--code",
+            primary_revision="b" * 40,
+            local_hood="ok",
+        )
     )
 
     snapshot = status.get_agents_sync_status(
@@ -160,11 +163,7 @@ def test_plain_status_reports_pending_typed_publication(
         path=tmp_path / "status.json",
     )
 
-    diagnostics = snapshot.projects[0].quarantine_diagnostics
-    assert len(diagnostics) == 1
-    assert "bead lineage proj-1@bbbbbbbbbbbb" in diagnostics[0]
-    assert "queued for the publications lane" in diagnostics[0]
-    assert "sidecar_publication" in diagnostics[0]
+    assert snapshot.projects[0].quarantine_diagnostics == ()
 
 
 @pytest.mark.parametrize("cache_contents", [None, "{broken"])

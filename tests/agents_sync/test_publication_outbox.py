@@ -12,12 +12,10 @@ from sase.agents_sync.publication_outbox import (
     clear_quarantined_agent_publications,
     drop_terminal_agent_publications,
     enqueue_agent_publication,
-    enqueue_bead_pages_publication,
-    enqueue_plan_header_publication,
-    enqueue_sidecar_push_publication,
     list_agent_publications,
     publication_quarantine_diagnostics,
     snapshot_agent_publications_from_path,
+    snapshot_publication_document_from_path,
     update_agent_publications,
 )
 
@@ -379,167 +377,117 @@ def test_schema_v2_snapshot_requires_quarantine_state(
         snapshot_agent_publications_from_path(path, "proj")
 
 
-def _typed_requests() -> tuple[AgentPublicationOutboxItem, ...]:
-    return (
-        _item(),
-        AgentPublicationOutboxItem(
-            project_key="proj",
-            project="Project",
-            kind="bead_pages",
-            bead_id="proj-ab.2",
-            lineage_root="proj-ab",
-            primary_revision="b" * 40,
-        ),
-        AgentPublicationOutboxItem(
-            project_key="proj",
-            project="Project",
-            kind="plan_header",
-            plan_ref="plans:202608/example.md",
-            primary_revision="c" * 40,
-            commit_message=("feat: example\n\nSASE_PLAN: plans:202608/example.md"),
-        ),
-        AgentPublicationOutboxItem(
-            project_key="proj",
-            project="Project",
-            kind="sidecar_push",
-            sidecar_kind="beads",
-        ),
-    )
-
-
-def _enqueue_typed_request(
-    request: AgentPublicationOutboxItem,
-) -> AgentPublicationOutboxItem:
-    if request.kind == "agent_hood":
-        return enqueue_agent_publication(request)
-    if request.kind == "bead_pages":
-        return enqueue_bead_pages_publication(
-            project_key=request.project_key,
-            project=request.project,
-            bead_id=request.bead_id,
-            primary_revision=request.primary_revision,
-        )
-    if request.kind == "plan_header":
-        return enqueue_plan_header_publication(
-            project_key=request.project_key,
-            project=request.project,
-            plan_ref=request.plan_ref,
-            primary_revision=request.primary_revision,
-            commit_message=request.commit_message,
-        )
-    return enqueue_sidecar_push_publication(
-        project_key=request.project_key,
-        project=request.project,
-        sidecar_kind=request.sidecar_kind,
-    )
-
-
-@pytest.mark.parametrize(
-    "publication_request",
-    _typed_requests(),
-    ids=lambda item: item.kind,
-)
-def test_every_publication_kind_round_trips_and_preserves_retry_lifecycle(
-    tmp_path,
-    monkeypatch,
-    publication_request,
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path))
-    first = _enqueue_typed_request(publication_request)
-    repeated = _enqueue_typed_request(publication_request)
-
-    assert repeated.logical_key == first.logical_key
-    assert list_agent_publications("proj") == (repeated,)
-
-    failed = update_agent_publications(
-        "proj",
-        (publication_request.logical_key,),
-        error="temporary failure",
-        increment_attempts=True,
-        quarantine_threshold=2,
-    )[0]
-    assert failed.attempts == 1
-    assert not failed.quarantined
-
-    quarantined = update_agent_publications(
-        "proj",
-        (publication_request.logical_key,),
-        error="temporary failure",
-        increment_attempts=True,
-        quarantine_threshold=2,
-    )[0]
-    assert quarantined.quarantined
-    assert list_agent_publications("proj", include_quarantined=False) == ()
-
-    clear_quarantined_agent_publications("proj")
-    terminal_error = "permanently invalid"
-    update_agent_publications(
-        "proj",
-        (publication_request.logical_key,),
-        error=terminal_error,
-        increment_attempts=True,
-        terminal_reason=terminal_error,
-    )
-    retired = update_agent_publications(
-        "proj",
-        (publication_request.logical_key,),
-        error=terminal_error,
-        increment_attempts=True,
-        terminal_reason=terminal_error,
-    )[0]
-    assert retired.terminal
-
-    assert drop_terminal_agent_publications("proj") == (retired,)
-    assert list_agent_publications("proj") == ()
-
-    _enqueue_typed_request(publication_request)
-    assert (
-        acknowledge_agent_publications(
-            "proj",
-            (publication_request.logical_key,),
-        )
-        == ()
-    )
-
-
-def test_schema_v3_agent_request_loads_as_agent_hood_with_same_logical_key(
+def test_schema_v3_agent_request_loads_with_same_logical_key(
     tmp_path,
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     path = tmp_path / "projects" / "proj" / "agents-publication-outbox.json"
     path.parent.mkdir(parents=True)
-    row = _item().to_json_dict()
-    row.pop("kind")
-    row.pop("rank")
     path.write_text(
-        json.dumps({"schema_version": 3, "items": [row]}),
+        json.dumps({"schema_version": 3, "items": [_item().to_json_dict()]}),
         encoding="utf-8",
     )
 
     [loaded] = list_agent_publications("proj")
 
-    assert loaded.kind == "agent_hood"
     assert loaded.logical_key == _item().logical_key
 
 
-def test_queue_orders_requests_by_explicit_dependency_rank(
+def _v4_document() -> dict[str, object]:
+    """Return a schema-4 outbox holding one request of every retired kind."""
+
+    agent_row = {**_item().to_json_dict(), "kind": "agent_hood", "rank": 0}
+    return {
+        "schema_version": 4,
+        "items": [
+            agent_row,
+            {
+                "id": "bead",
+                "kind": "bead_pages",
+                "rank": 1,
+                "project_key": "proj",
+                "project": "Project",
+                "bead_id": "proj-ab.2",
+                "lineage_root": "proj-ab",
+                "primary_revision": "b" * 40,
+                "attempts": 0,
+                "last_error": None,
+                "quarantined": False,
+                "quarantined_at": None,
+                "terminal": False,
+                "terminal_reason": None,
+                "created_at": 0.0,
+                "updated_at": 0.0,
+            },
+            {
+                "id": "plan",
+                "kind": "plan_header",
+                "rank": 2,
+                "project_key": "proj",
+                "project": "Project",
+                "plan_ref": "plans:202608/example.md",
+                "primary_revision": "c" * 40,
+                "commit_message": "feat: example",
+                "attempts": 0,
+                "last_error": None,
+                "quarantined": False,
+                "quarantined_at": None,
+                "terminal": False,
+                "terminal_reason": None,
+                "created_at": 0.0,
+                "updated_at": 0.0,
+            },
+            {
+                "id": "push",
+                "kind": "sidecar_push",
+                "rank": 3,
+                "project_key": "proj",
+                "project": "Project",
+                "sidecar_kind": "beads",
+                "attempts": 0,
+                "last_error": None,
+                "quarantined": False,
+                "quarantined_at": None,
+                "terminal": False,
+                "terminal_reason": None,
+                "created_at": 0.0,
+                "updated_at": 0.0,
+            },
+        ],
+    }
+
+
+def test_schema_v4_drops_non_agent_requests_with_a_visible_diagnostic(
     tmp_path,
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
-    for request in reversed(_typed_requests()):
-        _enqueue_typed_request(request)
+    path = tmp_path / "projects" / "proj" / "agents-publication-outbox.json"
+    path.parent.mkdir(parents=True)
+    payload = json.dumps(_v4_document())
+    path.write_text(payload, encoding="utf-8")
 
-    queued = list_agent_publications("proj")
+    document = snapshot_publication_document_from_path(path, "proj")
 
-    assert [item.kind for item in queued] == [
-        "agent_hood",
-        "bead_pages",
-        "plan_header",
-        "sidecar_push",
-    ]
-    assert [item.ordering_rank for item in queued] == [0, 1, 2, 3]
+    [survivor] = document.items
+    assert survivor.logical_key == _item().logical_key
+    assert survivor.local_hood == "foo"
+    [notice] = document.notices
+    assert "dropped 3 obsolete publication request(s)" in notice
+    assert "1 bead_pages, 1 plan_header, 1 sidecar_push" in notice
+    assert "published inline on the commit path" in notice
+    assert path.read_text(encoding="utf-8") == payload
+
+    assert list_agent_publications("proj") == document.items
+
+    update_agent_publications("proj", (survivor.logical_key,), error=None)
+    rewritten = json.loads(path.read_text(encoding="utf-8"))
+    assert rewritten["schema_version"] == PUBLICATION_OUTBOX_SCHEMA_VERSION
+    assert PUBLICATION_OUTBOX_SCHEMA_VERSION == 5
+    assert [row["global_agent"] for row in rewritten["items"]] == [_item().global_agent]
+    assert "kind" not in rewritten["items"][0]
+    assert snapshot_publication_document_from_path(path, "proj").notices == ()
 
 
 def test_two_processes_enqueue_without_lost_or_duplicate_requests(

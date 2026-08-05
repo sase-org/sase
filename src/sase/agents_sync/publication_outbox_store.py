@@ -13,7 +13,9 @@ from sase.agents_sync.publication_outbox_models import (
     AgentPublicationOutboxItem,
 )
 from sase.agents_sync.publication_outbox_serialization import (
+    PublicationOutboxDocument,
     read_publication_outbox,
+    read_publication_outbox_document,
 )
 from sase.core.paths import sase_projects_dir
 from sase.core.paths import validate_sase_project_name
@@ -53,6 +55,16 @@ def snapshot_agent_publications_from_path(
 
     validate_sase_project_name(project_key)
     return read_publication_outbox(Path(path), project_key)
+
+
+def snapshot_publication_document_from_path(
+    path: Path | str,
+    project_key: str,
+) -> PublicationOutboxDocument:
+    """Read one lock-free outbox snapshot together with its migration notices."""
+
+    validate_sase_project_name(project_key)
+    return read_publication_outbox_document(Path(path), project_key)
 
 
 def mutate_publication_outbox(
@@ -101,4 +113,5 @@ __all__ = [
     "list_agent_publications",
     "mutate_publication_outbox",
     "snapshot_agent_publications_from_path",
+    "snapshot_publication_document_from_path",
 ]
