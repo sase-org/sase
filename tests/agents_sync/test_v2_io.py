@@ -18,6 +18,7 @@ from sase.agents_sync.v2_io import (
 from sase.agents_sync.v2_models import (
     V2ContainerRecord,
     V2HoodSnapshot,
+    V2OwnerHoodEntry,
     V2OwnerManifest,
     V2ProjectIdentity,
     V2RunRecord,
@@ -211,6 +212,42 @@ def test_owner_manifest_and_path_validation_are_strict() -> None:
         with pytest.raises(AgentsSyncFormatError):
             validate_relative_path(unsafe)
     assert validate_relative_path("agents/.gitkeep") == "agents/.gitkeep"
+
+
+def test_owner_manifest_decode_is_forward_compatible_and_self_healing() -> None:
+    manifest = V2OwnerManifest(
+        OWNER,
+        PROJECT,
+        (
+            (
+                "foo",
+                V2OwnerHoodEntry(
+                    "a" * 64,
+                    (
+                        "agents/alice.athena.foo/README.md",
+                        "users/alice/machines/athena/hoods/foo/snapshot.json",
+                    ),
+                    1,
+                    0,
+                ),
+            ),
+        ),
+    )
+    encoded = manifest.to_json_dict()
+    encoded["compatibility_aliases"] = []
+    encoded["hoods"]["foo"]["future_field"] = "ignored"  # type: ignore[index]
+
+    decoded = _owner_manifest_from_json(encoded)
+
+    assert decoded == manifest
+    healed = decoded.to_json_dict()
+    assert "compatibility_aliases" not in healed
+    assert "future_field" not in healed["hoods"]["foo"]  # type: ignore[index]
+
+    missing = manifest.to_json_dict()
+    missing.pop("project")
+    with pytest.raises(AgentsSyncFormatError, match="missing required keys: project"):
+        _owner_manifest_from_json(missing)
 
 
 def test_snapshot_count_limit_is_enforced_before_relationship_validation() -> None:

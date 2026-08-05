@@ -7,12 +7,14 @@ import fcntl
 import os
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
+from sase.agent.names._common import ImportedNamespaceOwnedLocallyError
 from sase.agents_sync import incoming_cache, incoming_integration, status
 from sase.agents_sync.git import run_git
-from sase.agents_sync.models import IntegrationCounts
+from sase.agents_sync.models import CapturedIncomingHood, IntegrationCounts
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 from tests.agents_sync.incoming_cache_fixtures import (
@@ -178,6 +180,92 @@ def test_cached_integration_reports_stale_missing_quarantine_and_lock_busy(
         os.close(descriptor)
     assert busy[0].disposition == "failed"
     assert "lock is busy" in busy[0].diagnostics[0]
+
+
+def test_cached_legacy_local_namespace_conflict_is_receipted_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, _seed = setup_v2_remote(tmp_path)
+    digest = "a" * 64
+    item = CapturedIncomingHood(
+        project_key=PROJECT.key,
+        project=PROJECT.name,
+        fetched_ref="refs/remotes/origin/main",
+        fetched_sha="b" * 40,
+        cache_id=incoming_cache._cache_id_for(
+            project_key=PROJECT.key,
+            project=PROJECT.name,
+            format_version=1,
+            source_owner_kind="username_unknown_v1",
+            source_username=None,
+            source_machine="athena",
+            top_hood="legacy",
+            hood_digest=digest,
+        ),
+        format_version=1,
+        source_owner_kind="username_unknown_v1",
+        source_username=None,
+        source_machine="athena",
+        top_hood="legacy",
+        hood_digest=digest,
+        run_count=1,
+        family_count=0,
+        cache_created_at=100.0,
+    )
+    monkeypatch.setattr(
+        incoming_integration, "cached_item_is_available", lambda _item: True
+    )
+    monkeypatch.setattr(
+        incoming_integration,
+        "load_validated_cache_item",
+        lambda _item: SimpleNamespace(
+            v2_package=None,
+            legacy_manifest=object(),
+            payload_root=tmp_path,
+        ),
+    )
+
+    def collide(*_args: object, **_kwargs: object) -> IntegrationCounts:
+        raise ImportedNamespaceOwnedLocallyError(
+            "athena.legacy",
+            reason="owner namespace 'athena' is already occupied",
+            existing={"origin": "local"},
+        )
+
+    monkeypatch.setattr(incoming_integration, "integrate_foreign_bundles", collide)
+
+    result, receipt = incoming_integration._integrate_one_cached(
+        target,
+        item,
+        LOCAL_OWNER,
+        None,
+        SimpleNamespace(),
+        (),
+    )
+    pending, diagnostics = incoming_cache.reconcile_pending_items(
+        (item,),
+        project_key=PROJECT.key,
+        owner=LOCAL_OWNER,
+        owner_v2_hoods=(),
+    )
+    repeated, repeated_diagnostics = incoming_cache.reconcile_pending_items(
+        (item,),
+        project_key=PROJECT.key,
+        owner=LOCAL_OWNER,
+        owner_v2_hoods=(),
+    )
+
+    assert result.disposition == "owner_namespace_conflict"
+    assert result.ok
+    assert "owner namespace conflict" in result.diagnostics[0]
+    assert receipt is not None
+    assert incoming_cache.read_project_receipts(PROJECT.key)[0].hood_digest == digest
+    assert pending == ()
+    assert repeated == ()
+    assert diagnostics == ()
+    assert repeated_diagnostics == ()
 
 
 def test_captured_sha_a_remains_integrable_after_newer_b_refresh(

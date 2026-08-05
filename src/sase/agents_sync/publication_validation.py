@@ -7,7 +7,7 @@ from pathlib import Path
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.v2_io import (
     content_digest,
-    read_all_owner_manifests,
+    read_all_owner_manifests_lenient,
     read_hood_snapshot,
     v2_json_bytes,
 )
@@ -51,10 +51,11 @@ def load_validated_publication(
 ) -> tuple[
     tuple[V2OwnerManifest, ...],
     dict[tuple[str, str, str], V2HoodSnapshot],
+    tuple[str, ...],
 ]:
+    all_manifests, diagnostics = read_all_owner_manifests_lenient(repo_root)
     manifests = {
-        (item.owner.username, item.owner.machine_name): item
-        for item in read_all_owner_manifests(repo_root)
+        (item.owner.username, item.owner.machine_name): item for item in all_manifests
     }
     if override_manifest is not None:
         manifests[
@@ -109,6 +110,7 @@ def load_validated_publication(
             )
         ),
         snapshots,
+        diagnostics,
     )
 
 

@@ -8,7 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
+from sase.agents_sync.models import ProjectTarget, TargetSelection
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
+from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ProjectRecordWire,
@@ -301,3 +303,82 @@ def test_agent_publication_outbox_doctor_points_retired_requests_at_the_drop_com
     assert check.data["problems"][0]["remediation_command"] == (
         "sase agent sync --drop-retired"
     )
+
+
+def test_agent_publication_doctor_warns_on_unreadable_local_owner_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _record(tmp_path)
+    sidecar = tmp_path / "agents"
+    sidecar.mkdir()
+    manifest = sidecar / "users" / "alice" / "machines" / "athena" / "manifest.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("{}\n", encoding="utf-8")
+    target = ProjectTarget(
+        "alpha",
+        "Alpha",
+        tmp_path / "primary",
+        (tmp_path / "primary",),
+        sidecar,
+        "git@example.test:alpha--agents.git",
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication.resolve_sync_targets",
+        lambda *_args, **_kwargs: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication.require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
+    _write_outbox(tmp_path / ".sase", "alpha", [])
+
+    check = _check_agent_publication_outbox(_context(tmp_path), now=200.0)
+
+    assert check.status == "WARN"
+    assert "unreadable owner manifest" in check.summary
+    assert "sase agent sync --retry-quarantined" in check.summary
+    assert str(manifest) in check.details[0]
+    assert "missing required keys" in check.details[0]
+    assert check.data["owner_manifest_problem_count"] == 1
+    assert check.data["owner_manifest_problems"][0]["manifest_path"] == str(manifest)
+
+
+def test_agent_publication_doctor_accepts_healthy_local_owner_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _record(tmp_path)
+    sidecar = tmp_path / "agents"
+    sidecar.mkdir()
+    target = ProjectTarget(
+        "alpha",
+        "Alpha",
+        tmp_path / "primary",
+        (tmp_path / "primary",),
+        sidecar,
+        "git@example.test:alpha--agents.git",
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication.resolve_sync_targets",
+        lambda *_args, **_kwargs: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication.require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
+    _write_outbox(tmp_path / ".sase", "alpha", [])
+
+    check = _check_agent_publication_outbox(_context(tmp_path), now=200.0)
+
+    assert check.status == "OK"
+    assert check.data["owner_manifest_problem_count"] == 0
+    assert check.data["owner_manifest_problems"] == ()

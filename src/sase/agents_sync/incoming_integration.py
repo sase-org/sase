@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import time
 
+from sase.agent.names._common import ImportedNamespaceOwnedLocallyError
 from sase.agents_sync.bundles import integrate_foreign_bundles
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.git_objects import FetchedAgentsCommit
@@ -333,6 +334,23 @@ def _integrate_one_cached(
                 owner,
                 owner_v2_hoods=owner_v2_hoods,
             )
+    except ImportedNamespaceOwnedLocallyError as exc:
+        receipt = receipt_for_item(item)
+        try:
+            write_import_receipt(receipt)
+        except Exception as receipt_exc:  # noqa: BLE001 - typed receipt failure contract
+            return _cached_result(item, "failed", str(receipt_exc)), None
+        return (
+            CachedIntegrationResult(
+                item,
+                "owner_namespace_conflict",
+                diagnostics=(
+                    f"{item.source_machine}.{item.top_hood}: "
+                    f"owner namespace conflict: {exc}",
+                ),
+            ),
+            receipt,
+        )
     except Exception as exc:  # noqa: BLE001 - import quarantine contract
         return _cached_result(item, "quarantined", str(exc)), None
     if counts.owner_observed_groups:

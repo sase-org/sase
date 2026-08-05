@@ -6,7 +6,11 @@ from pathlib import Path
 import pytest
 
 from sase.agent.names import _registry
-from sase.agent.names._common import ImportedNameCollisionError, NameCollisionError
+from sase.agent.names._common import (
+    ImportedNameCollisionError,
+    ImportedNamespaceOwnedLocallyError,
+    NameCollisionError,
+)
 from sase.agent.names._registry_mutations import ImportedV2RegistryClaim
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.core.agent_identity_facade import (
@@ -136,6 +140,32 @@ def test_v2_claim_batch_preflights_without_write_and_saves_once(
             identity=identity,
         )
     assert len(saves) == 1
+
+
+def test_legacy_import_collision_with_local_machine_namespace_is_typed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored: dict[str, object] = {
+        "entries": {
+            "athena.worker": {
+                "origin": "local",
+                "reservation_kind": "agent",
+                "artifacts_dir": str(tmp_path / "local"),
+            }
+        }
+    }
+    monkeypatch.setattr(_registry, "_registry_mutation_lock", nullcontext)
+    monkeypatch.setattr(_registry, "load_name_registry", lambda: stored)
+
+    with pytest.raises(ImportedNamespaceOwnedLocallyError):
+        _registry.claim_imported_registered_name(
+            "athena.worker",
+            "athena",
+            tmp_path / "imported",
+            digest="c" * 64,
+            target_owner=AgentOwnerIdentity("alice", "athena"),
+        )
 
 
 def test_foreign_username_namespace_accepts_multiple_source_machines(

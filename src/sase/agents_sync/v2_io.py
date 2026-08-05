@@ -18,6 +18,7 @@ from sase.agents_sync.v2_manifest_io import (
     owner_manifest_from_bytes as owner_manifest_from_bytes,
     owner_manifest_path as owner_manifest_path,
     read_all_owner_manifests as read_all_owner_manifests,
+    read_all_owner_manifests_lenient as read_all_owner_manifests_lenient,
     read_owner_manifest as read_owner_manifest,
 )
 from sase.agents_sync.v2_models import V2FileReference, V2_SCHEMA_VERSION
@@ -135,6 +136,7 @@ __all__ = [
     "owner_manifest_path",
     "owner_manifest_from_bytes",
     "read_all_owner_manifests",
+    "read_all_owner_manifests_lenient",
     "read_hood_snapshot",
     "read_owner_manifest",
     "is_valid_output_variable_key",

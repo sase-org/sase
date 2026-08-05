@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
+from pathlib import Path
 import time
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
+from sase.agents_sync.io import AgentsSyncFormatError
+from sase.agents_sync.targets import resolve_sync_targets
 from sase.agents_sync.publication_outbox import (
     AGENT_PUBLICATION_OUTBOX_FILENAME,
     PUBLICATION_DROP_COMMAND,
@@ -16,13 +19,18 @@ from sase.agents_sync.publication_outbox import (
     publication_request_subject,
     snapshot_agent_publications_from_path,
 )
+from sase.agents_sync.v2_io import owner_manifest_path, read_owner_manifest
+from sase.agents_sync.v2_models import V2ProjectIdentity
+from sase.config import require_agent_owner_identity
 from sase.core.project_lifecycle_facade import list_project_records
-from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
+from sase.core.project_lifecycle_wire import (
+    ProjectRecordWire,
+    effective_project_name,
+    is_disabled_project_lifecycle_state,
+)
 from sase.diagnostics import CheckSpec, DiagnosticCheck
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from sase.doctor.runner import DoctorContext
 
 DEFAULT_PUBLICATION_STALLED_AGE_SECONDS = 24 * 60 * 60
@@ -116,6 +124,30 @@ class _OutboxProblem:
             "last_error": self.item.last_error,
             "age_seconds": self.age_seconds,
             "reasons": self.reasons,
+            "remediation_command": self.remediation_command,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class _OwnerManifestProblem:
+    project_key: str
+    project: str
+    path: Path
+    error: str
+    remediation_command: str = _REMEDIATION_COMMAND
+
+    def detail(self) -> str:
+        return (
+            f"{self.project}: local owner manifest {self.path} does not decode: "
+            f"{self.error}"
+        )
+
+    def to_data(self) -> dict[str, object]:
+        return {
+            "project_key": self.project_key,
+            "project": self.project,
+            "manifest_path": str(self.path),
+            "error": self.error,
             "remediation_command": self.remediation_command,
         }
 
@@ -217,6 +249,8 @@ def _check_agent_publication_outbox(
                 outboxes=(),
                 problems=(),
                 errors=(),
+                owner_manifest_problems=(),
+                owner_manifest_errors=(),
                 stalled_attempts=attempts_threshold,
                 stalled_age_seconds=stalled_age_seconds,
             ),
@@ -225,6 +259,10 @@ def _check_agent_publication_outbox(
     outboxes: list[_OutboxProjectData] = []
     problems: list[_OutboxProblem] = []
     errors: list[str] = []
+    owner_manifest_problems, owner_manifest_errors = _owner_manifest_problems(
+        context,
+        records,
+    )
     drain_issue: _DrainIssue | None = None
     drain_issue_checked = False
     for record in records:
@@ -271,6 +309,8 @@ def _check_agent_publication_outbox(
         outboxes=tuple(outboxes),
         problems=tuple(problems),
         errors=tuple(errors),
+        owner_manifest_problems=owner_manifest_problems,
+        owner_manifest_errors=owner_manifest_errors,
         stalled_attempts=attempts_threshold,
         stalled_age_seconds=stalled_age_seconds,
     )
@@ -292,40 +332,62 @@ def _check_agent_publication_outbox(
             },
         )
 
-    if problems:
+    if problems or owner_manifest_problems:
         visible_problems = problems[:_MAX_DETAIL_ROWS]
+        remaining_detail_rows = _MAX_DETAIL_ROWS - len(visible_problems)
+        visible_manifest_problems = owner_manifest_problems[:remaining_detail_rows]
         quarantined_count = sum(problem.quarantined for problem in problems)
         retired_count = sum(problem.retired for problem in problems)
         stalled_count = sum(problem.stalled for problem in problems)
         not_draining_count = sum(problem.not_draining for problem in problems)
         breakdown_parts = [
-            f"{quarantined_count} quarantined",
+            *((f"{quarantined_count} quarantined",) if quarantined_count else ()),
             *((f"{retired_count} retired",) if retired_count else ()),
             *((f"{stalled_count} stalled",) if stalled_count else ()),
             *((f"{not_draining_count} not draining",) if not_draining_count else ()),
+            *(
+                (f"{len(owner_manifest_problems)} unreadable owner manifest",)
+                if owner_manifest_problems
+                else ()
+            ),
         ]
-        breakdown = ", ".join(breakdown_parts)
+        breakdown = ", ".join(breakdown_parts) or "needs attention"
         commands = tuple(
-            dict.fromkeys(problem.remediation_command for problem in problems)
+            dict.fromkeys(
+                (
+                    *(problem.remediation_command for problem in problems),
+                    *(
+                        problem.remediation_command
+                        for problem in owner_manifest_problems
+                    ),
+                )
+            )
         )
         next_steps = tuple(
             _next_step_for_command(command) for command in sorted(commands)
         )
+        attention_count = len(problems) + len(owner_manifest_problems)
         return DiagnosticCheck(
             id="state.agent_publication_outbox",
             group="state",
             status="WARN",
             title="Agent publication outbox",
             summary=(
-                f"{len(problems)} publication outbox request(s) need attention "
+                f"{attention_count} agent publication issue(s) need attention "
                 f"({breakdown}); "
                 f"run {' and '.join(f'`{command}`' for command in sorted(commands))}"
             ),
-            details=tuple(problem.detail() for problem in visible_problems),
+            details=(
+                *(problem.detail() for problem in visible_problems),
+                *(problem.detail() for problem in visible_manifest_problems),
+            ),
             next_steps=next_steps,
             data={
                 **data,
-                "details_truncated": len(problems) > len(visible_problems),
+                "details_truncated": (
+                    len(problems) > len(visible_problems)
+                    or len(owner_manifest_problems) > len(visible_manifest_problems)
+                ),
             },
         )
 
@@ -443,6 +505,8 @@ def _outbox_data(
     outboxes: tuple[_OutboxProjectData, ...],
     problems: tuple[_OutboxProblem, ...],
     errors: tuple[str, ...],
+    owner_manifest_problems: tuple[_OwnerManifestProblem, ...],
+    owner_manifest_errors: tuple[str, ...],
     stalled_attempts: int,
     stalled_age_seconds: float,
 ) -> dict[str, Any]:
@@ -464,6 +528,12 @@ def _outbox_data(
         "problems": tuple(problem.to_data() for problem in problems),
         "error_count": len(errors),
         "errors": errors,
+        "owner_manifest_problem_count": len(owner_manifest_problems),
+        "owner_manifest_problems": tuple(
+            problem.to_data() for problem in owner_manifest_problems
+        ),
+        "owner_manifest_error_count": len(owner_manifest_errors),
+        "owner_manifest_errors": owner_manifest_errors,
         "thresholds": {
             "stalled_attempts": stalled_attempts,
             "stalled_age_seconds": stalled_age_seconds,
@@ -471,6 +541,57 @@ def _outbox_data(
         "remediation_command": _REMEDIATION_COMMAND,
         "retired_remediation_command": _RETIRED_REMEDIATION_COMMAND,
     }
+
+
+def _owner_manifest_problems(
+    context: DoctorContext,
+    records: tuple[ProjectRecordWire, ...],
+) -> tuple[tuple[_OwnerManifestProblem, ...], tuple[str, ...]]:
+    enabled_projects = tuple(
+        record.project_name
+        for record in records
+        if record.is_project and not is_disabled_project_lifecycle_state(record.state)
+    )
+    if not enabled_projects:
+        return (), ()
+    try:
+        owner = require_agent_owner_identity()
+    except (RuntimeError, ValueError) as exc:
+        return (), (f"owner manifest check skipped: owner identity unavailable: {exc}",)
+    try:
+        selection = resolve_sync_targets(
+            enabled_projects,
+            projects_root=context.sase_home / "projects",
+        )
+    except Exception as exc:  # noqa: BLE001 - doctor isolates target resolution.
+        return (), (
+            "owner manifest check skipped: could not resolve agents sidecar "
+            f"targets: {type(exc).__name__}: {exc}",
+        )
+
+    problems: list[_OwnerManifestProblem] = []
+    for target in selection.targets:
+        try:
+            read_owner_manifest(
+                target.sidecar_path,
+                owner,
+                V2ProjectIdentity(target.project_key, target.project),
+            )
+        except (AgentsSyncFormatError, OSError, RuntimeError, ValueError) as exc:
+            problems.append(
+                _OwnerManifestProblem(
+                    target.project_key,
+                    target.project,
+                    target.sidecar_path / owner_manifest_path(owner),
+                    str(exc),
+                )
+            )
+    target_errors = tuple(
+        f"{outcome.project}: {outcome.error or outcome.skip_reason}"
+        for outcome in selection.outcomes
+        if outcome.error or outcome.skip_reason
+    )
+    return tuple(problems), target_errors
 
 
 def _publication_drain_issue() -> _DrainIssue | None:

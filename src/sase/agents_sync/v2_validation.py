@@ -179,6 +179,18 @@ def exact_object(value: object, label: str, keys: set[str]) -> dict[str, Any]:
     return row
 
 
+def compatible_object(value: object, label: str, keys: set[str]) -> dict[str, Any]:
+    """Require known keys while ignoring unknown forward-compatible keys."""
+
+    row = json_object(value, label)
+    missing = keys - set(row)
+    if missing:
+        raise AgentsSyncFormatError(
+            f"{label} is missing required keys: {', '.join(sorted(missing))}"
+        )
+    return {key: row[key] for key in keys}
+
+
 def json_object(value: object, label: str) -> dict[str, Any]:
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
         raise AgentsSyncFormatError(f"{label} must be a JSON object")

@@ -516,3 +516,47 @@ def test_two_owner_manifests_coexist_and_indexes_converge(tmp_path: Path) -> Non
     assert (repo / "users" / "bob" / "machines" / "zeus" / "manifest.json").is_file()
     root = (repo / "README.md").read_text(encoding="utf-8")
     assert "alice" in root and "bob" in root
+
+
+def test_publication_skips_undecodable_foreign_manifest_but_keeps_local_strict(
+    tmp_path: Path,
+) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    inventory = _inventory(AgentOwnerIdentity("alice", "athena"))
+    publish_agent_hood(
+        target,
+        repo,
+        "foo.bar.baz--code",
+        identity=_identity(),
+        inventory=inventory,
+    )
+    foreign_manifest = repo / "users" / "bob" / "machines" / "zeus" / "manifest.json"
+    foreign_manifest.parent.mkdir(parents=True)
+    foreign_manifest.write_text("{}\n", encoding="utf-8")
+
+    counts = publish_agent_hood(
+        target,
+        repo,
+        "foo.bar.baz--code",
+        identity=_identity(),
+        inventory=inventory,
+    )
+
+    assert counts.hoods_unchanged == 1
+    assert any(
+        "users/bob/machines/zeus/manifest.json: skipped v2 owner manifest" in row
+        for row in counts.diagnostics
+    )
+
+    local_manifest = repo / "users" / "alice" / "machines" / "athena" / "manifest.json"
+    local_manifest.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(AgentsSyncFormatError, match="missing required keys"):
+        publish_agent_hood(
+            target,
+            repo,
+            "foo.bar.baz--code",
+            identity=_identity(),
+            inventory=inventory,
+        )

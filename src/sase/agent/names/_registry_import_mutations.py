@@ -88,9 +88,21 @@ def claim_imported_registered_name(
                 and operations.entry_belongs_to_artifact(existing, artifact_dir)
             )
             if not same_import:
-                from sase.agent.names._common import ImportedNameCollisionError
+                from sase.agent.names._common import (
+                    ImportedNameCollisionError,
+                    ImportedNamespaceOwnedLocallyError,
+                )
 
-                raise ImportedNameCollisionError(
+                error_type = (
+                    ImportedNamespaceOwnedLocallyError
+                    if (
+                        existing.get("origin") == "local"
+                        and target_owner is not None
+                        and source_machine == target_owner.machine_name
+                    )
+                    else ImportedNameCollisionError
+                )
+                raise error_type(
                     name,
                     reason="the destination is already reserved by another owner",
                     existing=existing,
@@ -100,6 +112,7 @@ def claim_imported_registered_name(
             source_root=source_machine,
             source_owner=None,
             destination_name=name,
+            local_owner=target_owner,
         )
         entry = operations.owner_from_artifact_name(
             artifact_dir,

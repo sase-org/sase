@@ -87,7 +87,7 @@ def plan_hoods(
 
     manifest = V2OwnerManifest(owner, project, tuple(sorted(entries.items())))
     payload[owner_manifest_path(owner)] = v2_json_bytes(manifest.to_json_dict())
-    manifests, snapshots = load_validated_publication(
+    manifests, snapshots, diagnostics = load_validated_publication(
         repo_root,
         override_manifest=manifest,
         override_snapshots=current_snapshots,
@@ -107,7 +107,7 @@ def plan_hoods(
         hoods_unchanged=unchanged,
         families_published=families,
         runs_published=runs,
-        diagnostics=inventory.diagnostics,
+        diagnostics=tuple(dict.fromkeys((*inventory.diagnostics, *diagnostics))),
     )
     return payload, counts
 

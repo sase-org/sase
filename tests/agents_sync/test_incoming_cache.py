@@ -171,6 +171,30 @@ def test_cached_reconcile_drops_owner_covered_v1_without_git_and_prunes_object(
     assert not object_path.exists()
 
 
+def test_owner_v2_manifest_extra_key_prevents_same_machine_v1_pending_import(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, seed = setup_v2_remote(tmp_path)
+    local_manifest = seed / "users" / "alice" / "machines" / "athena" / "manifest.json"
+    owner_manifest = json.loads(local_manifest.read_text(encoding="utf-8"))
+    owner_manifest["compatibility_aliases"] = []
+    local_manifest.write_text(json.dumps(owner_manifest), encoding="utf-8")
+    write_legacy_group(seed, machine="athena", hood="crew")
+    commit_and_push(seed, "add owner legacy residue with forward v2 manifest key")
+    patch_target(monkeypatch, target)
+
+    current = refresh(target, network_calls=[], now=100.0).projects[0]
+
+    assert "crew" in current.owner_v2_hoods
+    assert current.exact_owner_count == 2
+    assert all(item.format_version == 2 for item in current.pending_updates)
+    assert not any(
+        "quarantined v2 owner manifest" in row for row in current.quarantine_diagnostics
+    )
+
+
 def test_refresh_prunes_owner_v1_objects_after_old_status_schema_is_discarded(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

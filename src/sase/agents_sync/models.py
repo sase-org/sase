@@ -31,6 +31,7 @@ CachedIntegrationDisposition = Literal[
     "already_applied",
     "stale",
     "missing",
+    "owner_namespace_conflict",
     "quarantined",
     "failed",
 ]

@@ -13,9 +13,9 @@ from sase.agents_sync.v2_models import (
 from sase.agents_sync.v2_validation import (
     MAX_CONTAINERS,
     MAX_FILES,
+    compatible_object,
     decode_owner_identity,
     decode_project_identity,
-    exact_object,
     json_from_bytes,
     json_object,
     nonnegative_int,
@@ -60,26 +60,48 @@ def owner_manifest_from_bytes(payload: bytes) -> V2OwnerManifest:
 
 
 def read_all_owner_manifests(repo_root: Path) -> tuple[V2OwnerManifest, ...]:
+    manifests, _diagnostics = _read_all_owner_manifests(repo_root, strict=True)
+    return manifests
+
+
+def read_all_owner_manifests_lenient(
+    repo_root: Path,
+) -> tuple[tuple[V2OwnerManifest, ...], tuple[str, ...]]:
+    return _read_all_owner_manifests(repo_root, strict=False)
+
+
+def _read_all_owner_manifests(
+    repo_root: Path,
+    *,
+    strict: bool,
+) -> tuple[tuple[V2OwnerManifest, ...], tuple[str, ...]]:
     manifests: list[V2OwnerManifest] = []
+    diagnostics: list[str] = []
     pattern = "users/*/machines/*/manifest.json"
     for path in sorted(repo_root.glob(pattern), key=lambda item: item.as_posix()):
         relative = path.relative_to(repo_root).as_posix()
-        validate_relative_path(relative)
-        manifest = decode_owner_manifest(read_json(path, relative))
-        parts = PurePosixPath(relative).parts
-        if (
-            manifest.owner.username != parts[1]
-            or manifest.owner.machine_name != parts[3]
-        ):
-            raise AgentsSyncFormatError(
-                f"owner manifest identity does not match path {relative!r}"
-            )
+        try:
+            validate_relative_path(relative)
+            manifest = decode_owner_manifest(read_json(path, relative))
+            parts = PurePosixPath(relative).parts
+            if (
+                manifest.owner.username != parts[1]
+                or manifest.owner.machine_name != parts[3]
+            ):
+                raise AgentsSyncFormatError(
+                    f"owner manifest identity does not match path {relative!r}"
+                )
+        except AgentsSyncFormatError as exc:
+            if strict:
+                raise
+            diagnostics.append(f"{relative}: skipped v2 owner manifest: {exc}")
+            continue
         manifests.append(manifest)
-    return tuple(manifests)
+    return tuple(manifests), tuple(diagnostics)
 
 
 def decode_owner_manifest(value: object) -> V2OwnerManifest:
-    data = exact_object(
+    data = compatible_object(
         value,
         "owner manifest",
         {"schema_version", "owner", "project", "hoods"},
@@ -93,7 +115,7 @@ def decode_owner_manifest(value: object) -> V2OwnerManifest:
     hoods: list[tuple[str, V2OwnerHoodEntry]] = []
     for hood, raw_entry in sorted(raw_hoods.items()):
         validate_component(hood, label="hood")
-        row = exact_object(
+        row = compatible_object(
             raw_entry,
             f"hood {hood!r}",
             {"digest", "files", "run_count", "family_count"},
@@ -124,5 +146,6 @@ __all__ = [
     "owner_manifest_from_bytes",
     "owner_manifest_path",
     "read_all_owner_manifests",
+    "read_all_owner_manifests_lenient",
     "read_owner_manifest",
 ]

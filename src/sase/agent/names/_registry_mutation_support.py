@@ -85,9 +85,13 @@ def ensure_import_namespace_available(
     source_root: str,
     source_owner: AgentOwnerIdentity | None,
     destination_name: str,
+    local_owner: AgentOwnerIdentity | None = None,
 ) -> None:
     """Reject a foreign hood if any existing spelling belongs elsewhere."""
-    from sase.agent.names._common import ImportedNameCollisionError
+    from sase.agent.names._common import (
+        ImportedNameCollisionError,
+        ImportedNamespaceOwnedLocallyError,
+    )
 
     foreign_username = (
         source_owner.username
@@ -137,7 +141,17 @@ def ensure_import_namespace_available(
             and raw_entry.get("legacy_source_machine") == source_root
         ):
             continue
-        raise ImportedNameCollisionError(
+        error_type = (
+            ImportedNamespaceOwnedLocallyError
+            if (
+                raw_entry.get("origin") == "local"
+                and local_owner is not None
+                and source_owner is None
+                and source_root == local_owner.machine_name
+            )
+            else ImportedNameCollisionError
+        )
+        raise error_type(
             destination_name,
             reason=f"owner namespace '{source_root}' is already occupied",
             existing=raw_entry,
