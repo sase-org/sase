@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,6 +11,7 @@ import pytest
 from sase.linked_repos import opened_linked_repo_records
 from sase.main.parser import create_parser
 from sase.main.repo_handler import (
+    RepoOpenResolutionError,
     _match_repo_record,
     _repo_target_context,
     _resolve_open_workspace_num,
@@ -82,6 +84,46 @@ def test_repo_name_resolution_accepts_sidecar_slug(tmp_path: Path) -> None:
     )
 
     assert resolved is sidecar
+
+
+def test_repo_name_resolution_raises_ambiguous_error_with_selectable_paths(
+    tmp_path: Path,
+) -> None:
+    host_ctx = project_context(tmp_path)
+    first = repo_record(tmp_path, name="agents", slug="sase--agents", kind="sidecar")
+    second = replace(
+        repo_record(tmp_path, name="agents", slug="sase--agents", kind="sidecar"),
+        path=str(tmp_path / "other-agents-path"),
+    )
+
+    with pytest.raises(RepoOpenResolutionError) as exc_info:
+        _match_repo_record(
+            "agents",
+            host_ctx=host_ctx,
+            inventory=RepoInventory((first, second)),
+        )
+
+    message = str(exc_info.value)
+    assert first.path in message
+    assert second.path in message
+    assert "Pass one of the listed paths" in message
+
+
+def test_repo_name_resolution_disambiguates_by_path(tmp_path: Path) -> None:
+    host_ctx = project_context(tmp_path)
+    first = repo_record(tmp_path, name="agents", slug="sase--agents", kind="sidecar")
+    second = replace(
+        repo_record(tmp_path, name="agents", slug="sase--agents", kind="sidecar"),
+        path=str(tmp_path / "other-agents-path"),
+    )
+
+    resolved = _match_repo_record(
+        second.path,
+        host_ctx=host_ctx,
+        inventory=RepoInventory((first, second)),
+    )
+
+    assert resolved is second
 
 
 def test_repo_open_accepts_sidecar_slug(

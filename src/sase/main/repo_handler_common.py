@@ -92,6 +92,17 @@ def match_repo_record(
     """
 
     requested = name.strip()
+
+    # An exact path (as printed by ambiguous_repo_error) always selects one
+    # record, even when its name/slug collides with another record's.
+    path_matches = [
+        record
+        for record in inventory.records
+        if record.kind in {"primary", "sidecar", "linked"} and record.path == requested
+    ]
+    if len(path_matches) == 1:
+        return path_matches[0]
+
     secondary_matches = [
         record
         for record in inventory.records
@@ -125,7 +136,8 @@ def ambiguous_repo_error(
         f"{record.kind} '{record.name}' ({record.path})" for record in matches
     )
     return RepoOpenResolutionError(
-        f"Repo name '{requested}' is ambiguous: {candidates}"
+        f"Repo name '{requested}' is ambiguous: {candidates}. "
+        "Pass one of the listed paths as the repo argument to select it."
     )
 
 

@@ -503,6 +503,56 @@ def test_inventory_exposes_hidden_agents_at_one_machine_level_path(
     assert not (workspace_10 / "sase" / "repos" / "agents").exists()
 
 
+def test_inventory_dedupes_agents_row_when_store_record_lists_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression test for sase-f3: an "agents" entry in the SDD store record
+    (as written once the sidecar is materialized) must not produce a second,
+    never-cloned "agents" row alongside the hidden machine-level one."""
+
+    project = _project_record(tmp_path)
+    primary = Path(project.workspace_dir or "")
+    _set_github_origin(primary)
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "git@example.test:acme/widget--plans.git",
+                },
+                "agents": {
+                    "repo": "acme/widget--agents",
+                    "remote_url": "git@github.com:acme/widget--agents.git",
+                },
+            },
+        },
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.list_project_records",
+        lambda *_args, **_kwargs: [project],
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.resolution_config",
+        lambda *_args, **_kwargs: {"is_sase_managed": True},
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.read_project_local_config",
+        lambda *_args, **_kwargs: {"is_sase_managed": True},
+    )
+
+    inventory = collect_repo_inventory(tmp_path / "projects")
+
+    agents_records = [record for record in inventory.records if record.name == "agents"]
+    assert len(agents_records) == 1
+    assert agents_records[0].path == hidden_sidecar_clone_dir(
+        project.project_name, "agents"
+    )
+
+
 @pytest.mark.parametrize(
     "local_config",
     [

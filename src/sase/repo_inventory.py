@@ -216,6 +216,13 @@ def _collect_project_repos(
                 role = _optional_text(metadata.get("role")) or store_slug
                 slug = _optional_text(metadata.get("slug")) or store_slug
                 materialized_sidecars.update({role, slug})
+                if kind in HIDDEN_SIDECAR_ROLES or role in HIDDEN_SIDECAR_ROLES:
+                    # Hidden sidecars (e.g. "agents") always get their
+                    # authoritative, machine-scoped row from the hidden-sidecar
+                    # branch below. Building a second row here from the store
+                    # record would duplicate it under a stale, never-cloned
+                    # per-workspace path (sase-f3).
+                    continue
                 path = (
                     _optional_text(metadata.get("path"))
                     if metadata.get("is_configured_sidecar") is True
