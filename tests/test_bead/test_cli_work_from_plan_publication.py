@@ -51,6 +51,41 @@ def test_plan_file_publication_uses_split_beads_sidecar(
     assert pushed == [beads]
 
 
+def test_push_store_after_launch_pushes_the_beads_sidecar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The launch push must reach the beads sidecar remote, not a queue."""
+
+    from sase.bead.cli_work_from_plan_store import push_store_after_launch
+
+    plans = tmp_path / "sase" / "repos" / "plans"
+    beads = tmp_path / "sase" / "repos" / "beads"
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        remote_url="git@example.test:project--plans.git",
+        beads_dir=beads,
+        beads_remote_url="git@example.test:project--beads.git",
+    )
+    pushed: list[Path] = []
+
+    def fake_push(path: Path, **_kwargs: object) -> SimpleNamespace:
+        pushed.append(path)
+        return SimpleNamespace(pushed=True, error=None)
+
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", fake_push)
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch_async",
+        lambda *_args, **_kwargs: pytest.fail("launch push must be synchronous"),
+    )
+
+    push_store_after_launch(store, no_push=False)
+
+    assert pushed == [beads]
+
+
 def test_plan_file_publication_passes_worker_lock_wait(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -18,50 +18,6 @@ from sase.main.parser import create_parser
 from sase.sdd.store import SddStore
 
 
-def test_sidecar_post_commit_push_is_enqueued_without_git(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from sase.agents_sync.models import ProjectTarget
-    from sase.agents_sync.publication_outbox import list_agent_publications
-    from sase.sdd._commit_store import push_sdd_store_after_commit
-
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
-    repo = tmp_path / "project--beads"
-    target = ProjectTarget(
-        project_key="proj",
-        project="Project",
-        primary_checkout=tmp_path / "primary",
-        primary_roots=(tmp_path / "primary",),
-        sidecar_path=tmp_path / "agents",
-        remote_url="git@example.test:acme/project--agents.git",
-    )
-    monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.resolve_sidecar_publication_target",
-        lambda **_kwargs: (target, None),
-    )
-    monkeypatch.setattr(
-        "sase.bead.sync.push_bead_work_launch",
-        lambda *_args, **_kwargs: pytest.fail("synchronous push must not run"),
-    )
-    monkeypatch.setattr(
-        "sase.bead.sync.push_bead_work_launch_async",
-        lambda *_args, **_kwargs: pytest.fail("async subprocess must not run"),
-    )
-    store = SddStore(
-        storage="sidecar_repos",
-        sdd_dir=repo,
-        repo_root=repo,
-        sidecar_role="beads",
-    )
-
-    push_sdd_store_after_commit(store, push_after_commit=True)
-
-    [request] = list_agent_publications("proj")
-    assert request.kind == "sidecar_push"
-    assert request.sidecar_kind == "beads"
-
-
 def test_deferred_push_routes_split_beads_to_beads_sidecar(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

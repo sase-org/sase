@@ -7,6 +7,7 @@ import pytest
 
 from sase.agents_sync import commit_publication, targets
 from sase.agents_sync.commit_publication import (
+    publish_committed_agent_hood,
     resolve_publication_project_key,
 )
 from sase.agents_sync.models import SyncOutcome, TargetSelection
@@ -15,9 +16,6 @@ from sase.repo_inventory import (
     RepoInventory,
     RepoKind,
     RepoRecord,
-)
-from tests.agents_sync.commit_publication_fixtures import (
-    publish_committed_agent_hood,
 )
 
 

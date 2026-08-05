@@ -43,7 +43,7 @@ from sase.workflows.commit.pr_operations import (
 )
 from sase.workflows.commit.runtime_tags import apply_runtime_commit_tags
 from sase.workflows.commit.runtime_tags import resolve_local_agent_name
-from sase.workflows.commit.workflow_publication import queue_sidecar_publication_step
+from sase.workflows.commit.workflow_publication import run_agent_publication_step
 from sase.workflows.commit.workflow_resume import resume_commit_workflow
 from sase.workflows.commit.workflow_support import (
     classify_dispatch_failure as _classify_dispatch_failure,
@@ -371,7 +371,7 @@ class CommitWorkflow(BaseWorkflow):
             cp.completed_steps.append("write_result_marker")
             checkpoint_save(cp)
 
-        publication_result = self._queue_sidecar_publication_step(cp)
+        publication_result = self._run_agent_publication_step(cp)
         if publication_result != RunResult.OK:
             return publication_result
 
@@ -411,9 +411,9 @@ class CommitWorkflow(BaseWorkflow):
 
         return RunResult.OK
 
-    def _queue_sidecar_publication_step(self, cp: CommitCheckpoint) -> RunResult:
-        """Queue sidecar publication after the first durable result marker."""
-        published = queue_sidecar_publication_step(
+    def _run_agent_publication_step(self, cp: CommitCheckpoint) -> RunResult:
+        """Publish sidecars after the first durable result marker exists."""
+        published = run_agent_publication_step(
             cp,
             self._method,
             checkpoint_save=checkpoint_save,

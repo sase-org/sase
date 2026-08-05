@@ -59,12 +59,10 @@ def _publish_planner_prompt_archive(
     plan_name: str,
     yyyymm: str,
 ) -> Path | None:
-    """Queue the approved planner prompt for canonical sidecar publication."""
+    """Publish the approved planner prompt to the canonical agents sidecar."""
 
-    from sase.agents_sync.commit_publication import (
-        enqueue_committed_agent_publication,
-    )
     from sase.agents_sync.git import run_git
+    from sase.agents_sync.prompt_archive import publish_prompt_archive
 
     revision_result = run_git(
         Path(ctx.workspace_dir),
@@ -77,23 +75,23 @@ def _publish_planner_prompt_archive(
             "Planner prompt archive publication skipped: primary revision unavailable"
         )
         return None
-    outcome = enqueue_committed_agent_publication(
+    outcome = publish_prompt_archive(
         agent_name,
         primary_revision,
         project=ctx.project_name,
         commit_cwd=ctx.workspace_dir,
+        agent_artifacts_dir=state.current_artifacts_dir,
+        prompt_content=prompt_content,
+        plan_ref=f"plans:{yyyymm}/{plan_name}.md",
+        prompt_name=plan_name,
+        yyyymm=yyyymm,
     )
     if outcome.error or outcome.skip_reason:
         logger.warning(
             "Planner prompt archive publication deferred: %s",
             outcome.error or outcome.skip_reason,
         )
-    # The durable request is workspace-independent. Its drain rebuilds the
-    # prompt archive from this run's artifact inventory after the plan metadata
-    # below records the canonical plan path, and plan-header refresh then adds
-    # the published PROMPT link.
-    _ = state, prompt_content, plan_name, yyyymm
-    return None
+    return outcome.prompt_path
 
 
 def _accepted_plan_action_for_meta(plan_result: Any) -> str:

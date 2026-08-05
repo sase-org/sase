@@ -5,54 +5,6 @@ from pathlib import Path
 import pytest
 
 from sase.agents_sync.commit_publication import refresh_committed_plan_header
-from sase.agents_sync.models import ProjectTarget
-from sase.sdd.plan_header_refresh import mark_committed_plan_header
-
-
-def test_plan_header_mark_resolves_from_stable_primary_checkout(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    ephemeral = tmp_path / "workspace-7"
-    primary = tmp_path / "workspace-1"
-    target = ProjectTarget(
-        project_key="proj",
-        project="Project",
-        primary_checkout=primary,
-        primary_roots=(primary,),
-        sidecar_path=tmp_path / "agents",
-        remote_url="git@example.test:acme/project--agents.git",
-    )
-    monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.resolve_sidecar_publication_target",
-        lambda **_kwargs: (target, None),
-    )
-    roots: list[Path] = []
-
-    def canonical(plan_ref: str, *, primary_root: Path) -> str:
-        assert plan_ref == "plans:202608/stable.md"
-        roots.append(primary_root)
-        return plan_ref
-
-    monkeypatch.setattr(
-        "sase.sdd.plan_header_refresh._canonical_plan_ref",
-        canonical,
-    )
-    queued: list[dict[str, object]] = []
-    monkeypatch.setattr(
-        "sase.agents_sync.publication_outbox.enqueue_plan_header_publication",
-        lambda **kwargs: queued.append(kwargs),
-    )
-
-    outcome = mark_committed_plan_header(
-        "feat: stable\n\nSASE_PLAN=plans:202608/stable.md",
-        primary_root=ephemeral,
-        primary_revision="a" * 40,
-    )
-
-    assert outcome.queued
-    assert roots == [primary]
-    assert queued[0]["plan_ref"] == "plans:202608/stable.md"
 
 
 def test_committed_plan_header_refresh_is_idempotent(

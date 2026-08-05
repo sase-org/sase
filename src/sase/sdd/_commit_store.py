@@ -442,42 +442,6 @@ def push_sdd_store_after_commit(
     if mode is False:
         return
 
-    if store.storage == SDD_STORAGE_SIDECAR_REPOS and store.sidecar_role:
-        try:
-            from sase.agents_sync.commit_publication import (
-                resolve_sidecar_publication_target,
-            )
-            from sase.agents_sync.publication_outbox import (
-                enqueue_sidecar_push_publication,
-            )
-
-            target, error = resolve_sidecar_publication_target(
-                commit_cwd=store.repo_root,
-            )
-            if target is None:
-                _logger.warning(
-                    "Could not queue %s sidecar push: %s",
-                    store.sidecar_role,
-                    error or "repository does not map to a SASE project",
-                )
-                return
-            enqueue_sidecar_push_publication(
-                project_key=target.project_key,
-                project=target.project,
-                sidecar_kind=store.sidecar_role,
-            )
-            _logger.info(
-                "Queued %s sidecar push for the publications lane",
-                store.sidecar_role,
-            )
-        except Exception as exc:  # noqa: BLE001 - auxiliary queue boundary.
-            _logger.warning(
-                "Could not queue %s sidecar push: %s",
-                store.sidecar_role,
-                exc,
-            )
-        return
-
     from sase.bead.sync import push_bead_work_launch, push_bead_work_launch_async
 
     if mode == "async":

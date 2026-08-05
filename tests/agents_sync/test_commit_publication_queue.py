@@ -10,7 +10,7 @@ import pytest
 from sase.agents_sync import commit_publication
 from sase.agents_sync.commit_publication import (
     _publish_queued_locked,
-    enqueue_committed_agent_publication,
+    publish_committed_agent_hood,
 )
 from sase.agents_sync.git import run_git
 from sase.agents_sync.inventory import ProjectHoodInventory
@@ -37,14 +37,10 @@ from sase.agents_sync.v2_models import (
     V2PublicationCounts,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from tests.agents_sync.commit_publication_fixtures import (
-    git,
-    publish_committed_agent_hood,
-    setup_target,
-)
+from tests.agents_sync.commit_publication_fixtures import git, setup_target
 
 
-def test_enqueue_committed_publication_performs_no_git_work(
+def test_committed_publication_records_a_retryable_request_when_git_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -62,20 +58,30 @@ def test_enqueue_committed_publication_performs_no_git_work(
         lambda: owner,
     )
 
-    def fail_git(*_args, **_kwargs):
-        raise AssertionError("enqueue must not invoke git")
+    def fail_git(
+        cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args, 1, "", "git is unavailable")
 
-    outcome = enqueue_committed_agent_publication(
+    outcome = publish_committed_agent_hood(
         "worker--code",
         "a" * 40,
         project="Project",
         git_runner=fail_git,
     )
 
+    # The synchronous publisher enqueues before it touches git, so a failed
+    # sidecar attempt still leaves a durable request for `sase agent sync`.
     assert outcome.queued
+    assert not outcome.published
     [request] = list_agent_publications("proj")
     assert request.kind == "agent_hood"
     assert request.primary_revision == "a" * 40
+    assert request.attempts == 1
 
 
 def test_failed_targeted_publish_cleans_uncommitted_payload(

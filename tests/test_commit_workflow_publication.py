@@ -10,13 +10,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.agents_sync.commit_publication import _CommitPublicationOutcome
-from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication_outbox import list_agent_publications
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.commit_footer_facade import LinkedCommitTagValue
 from sase.workflows.commit.checkpoint import CommitCheckpoint
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
-from sase.workflows.commit.workflow_publication import queue_sidecar_publication_step
+from sase.workflows.commit.workflow_publication import run_agent_publication_step
 from tests._commit_workflow_fixtures import (
     commit_artifacts_dir,  # noqa: F401 (registers artifacts_dir fixture)
     make_provider,
@@ -26,7 +25,7 @@ from tests._commit_workflow_fixtures import (
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
 
 
-def test_commit_marks_every_sidecar_request_without_running_publishers(
+def test_commit_publishes_every_sidecar_inline_in_order(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -43,40 +42,43 @@ def test_commit_marks_every_sidecar_request_without_running_publishers(
         publication_agent="worker",
     )
     monkeypatch.setattr(
-        "sase.bead_pages.publication.mark_committed_bead_pages",
-        lambda *_args, **_kwargs: (
-            order.append("beads") or SimpleNamespace(queued=True, error=None)
-        ),
+        "sase.sdd.checkout_anchor.resolve_checkout_anchor",
+        lambda _cwd: SimpleNamespace(primary_root=tmp_path, project_name="Project"),
     )
     monkeypatch.setattr(
-        "sase.sdd.plan_header_refresh.mark_committed_plan_header",
+        "sase.bead_pages.publication.publish_committed_bead_pages",
         lambda *_args, **_kwargs: (
-            order.append("plan") or SimpleNamespace(queued=True, error=None)
-        ),
-    )
-    monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.enqueue_committed_agent_publication",
-        lambda *_args, **_kwargs: (
-            order.append("agent") or _CommitPublicationOutcome(queued=True)
+            order.append("beads") or SimpleNamespace(changed=True, error=None)
         ),
     )
     monkeypatch.setattr(
         "sase.agents_sync.prompt_archive.publish_prompt_archive",
-        lambda *_args, **_kwargs: pytest.fail("prompt publisher must not run"),
+        lambda *_args, **_kwargs: (
+            order.append("prompt")
+            or SimpleNamespace(error=None, skip_reason=None, prompt_path=None)
+        ),
     )
     monkeypatch.setattr(
         "sase.sdd.plan_header_refresh.refresh_committed_plan_header",
-        lambda *_args, **_kwargs: pytest.fail("plan refresher must not run"),
+        lambda *_args, **_kwargs: (
+            order.append("plan") or SimpleNamespace(changed=True, error=None)
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+        lambda *_args, **_kwargs: (
+            order.append("agent") or _CommitPublicationOutcome(published=True)
+        ),
     )
 
-    assert queue_sidecar_publication_step(
+    assert run_agent_publication_step(
         cp,
         "create_commit",
         checkpoint_save=lambda _cp: None,
         get_vcs_provider=lambda _cwd: pytest.fail("revision is already resolved"),
     )
 
-    assert order == ["beads", "plan", "agent"]
+    assert order == ["beads", "prompt", "plan", "agent"]
     assert cp.completed_steps == [
         "publish_bead_pages",
         "publish_prompt_archive",
@@ -84,41 +86,47 @@ def test_commit_marks_every_sidecar_request_without_running_publishers(
     ]
 
 
-def test_fully_tagged_commit_and_resume_enqueue_each_request_once(
+def test_fully_tagged_commit_and_resume_publish_each_sidecar_once(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
     primary = tmp_path / "primary"
     primary.mkdir()
-    target = ProjectTarget(
-        project_key="proj",
-        project="Project",
-        primary_checkout=primary,
-        primary_roots=(primary,),
-        sidecar_path=tmp_path / "agents",
-        remote_url="git@example.test:acme/project--agents.git",
-    )
-    monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.resolve_sidecar_publication_target",
-        lambda **_kwargs: (target, None),
-    )
-    monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.require_agent_owner_identity",
-        lambda: AgentOwnerIdentity("owner", "host"),
-    )
-    monkeypatch.setattr(
-        "sase.sdd.plan_header_refresh._canonical_plan_ref",
-        lambda plan_ref, **_kwargs: plan_ref,
-    )
+    calls: list[str] = []
     monkeypatch.setattr(
         "sase.sdd.checkout_anchor.resolve_checkout_anchor",
         lambda _cwd: SimpleNamespace(primary_root=primary, project_name="Project"),
     )
+    monkeypatch.setattr(
+        "sase.bead_pages.publication.publish_committed_bead_pages",
+        lambda *_args, **_kwargs: (
+            calls.append("beads") or SimpleNamespace(changed=True, error=None)
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.publish_prompt_archive",
+        lambda *_args, **_kwargs: (
+            calls.append("prompt")
+            or SimpleNamespace(error=None, skip_reason=None, prompt_path=None)
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_header_refresh.refresh_committed_plan_header",
+        lambda *_args, **_kwargs: (
+            calls.append("plan") or SimpleNamespace(changed=True, error=None)
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+        lambda *_args, **_kwargs: (
+            calls.append("agent") or _CommitPublicationOutcome(published=True)
+        ),
+    )
     message = (
-        "feat: publish later\n\n"
+        "feat: publish now\n\n"
         "SASE_BEAD=sase-ai.5\n"
-        "SASE_PLAN=plans:202608/publish_later.md"
+        "SASE_PLAN=plans:202608/publish_now.md"
     )
     cp = CommitCheckpoint(
         method="create_commit",
@@ -129,22 +137,19 @@ def test_fully_tagged_commit_and_resume_enqueue_each_request_once(
     )
 
     for _ in range(2):
-        assert queue_sidecar_publication_step(
+        assert run_agent_publication_step(
             cp,
             "create_commit",
             checkpoint_save=lambda _cp: None,
             get_vcs_provider=lambda _cwd: pytest.fail("revision already resolved"),
         )
 
-    requests = list_agent_publications("proj")
-    assert [request.kind for request in requests] == [
-        "agent_hood",
-        "bead_pages",
-        "plan_header",
-    ]
-    assert requests[0].primary_revision == "b" * 40
-    assert requests[1].bead_id == "sase-ai.5"
-    assert requests[2].plan_ref == "plans:202608/publish_later.md"
+    # A resumed commit must not publish bead pages, the prompt archive, or the
+    # agent hood a second time; only the idempotent plan refresh reruns.
+    assert calls.count("beads") == 1
+    assert calls.count("prompt") == 1
+    assert calls.count("agent") == 1
+    assert list_agent_publications("proj") == ()
 
 
 @pytest.fixture(autouse=True)
@@ -173,17 +178,18 @@ def test_publication_failure_with_durable_outbox_keeps_primary_successful(
     mock_get: MagicMock,
     artifacts_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     _configure_publication(mock_get, monkeypatch)
 
     with (
         patch(
-            "sase.agents_sync.commit_publication.enqueue_committed_agent_publication",
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
             return_value=_CommitPublicationOutcome(
                 queued=True,
                 error="sidecar push failed",
             ),
-        ) as enqueue,
+        ) as publish,
         patch(
             "sase.workflows.commit.workflow.append_commits_entry",
             return_value=None,
@@ -193,12 +199,77 @@ def test_publication_failure_with_durable_outbox_keeps_primary_successful(
             RunResult.OK
         )
 
-    enqueue.assert_called_once_with(
+    publish.assert_called_once_with(
         "foo--code",
         "a" * 40,
         commit_cwd=os.getcwd(),
     )
+    output = " ".join(capsys.readouterr().out.split())
+    assert "agent-hood publication is queued and will retry automatically" in output
+    assert "Last error: sidecar push failed" in output
     assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_unqueueable_publication_fails_the_commit_with_a_resume_hint(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_publication(mock_get, monkeypatch)
+
+    with (
+        patch(
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+            return_value=_CommitPublicationOutcome(
+                error="could not persist agents publication retry: disk is full",
+            ),
+        ),
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value=None,
+        ),
+    ):
+        assert CommitWorkflow({"message": "fix: bug"}, "create_commit").run() == (
+            RunResult.FAILED
+        )
+
+    output = " ".join(capsys.readouterr().out.split())
+    assert "agent publication could not be queued" in output
+    assert "disk is full" in output
+    assert "sase commit --resume" in output
+    assert (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_publication_raising_fails_the_commit_with_a_resume_hint(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_publication(mock_get, monkeypatch)
+
+    with (
+        patch(
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+            side_effect=RuntimeError("agents lock is wedged"),
+        ),
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value=None,
+        ),
+    ):
+        assert CommitWorkflow({"message": "fix: bug"}, "create_commit").run() == (
+            RunResult.FAILED
+        )
+
+    output = " ".join(capsys.readouterr().out.split())
+    assert "agent publication failed before a retry could be confirmed" in output
+    assert "agents lock is wedged" in output
+    assert "sase commit --resume" in output
+    assert (artifacts_dir / "commit_state.json").exists()
 
 
 @patch(_PROVIDER_TARGET)
@@ -212,11 +283,11 @@ def test_publication_without_target_warns_but_keeps_primary_successful(
 
     with (
         patch(
-            "sase.agents_sync.commit_publication.enqueue_committed_agent_publication",
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
             return_value=_CommitPublicationOutcome(
                 skip_reason="repository does not map to a publishable project",
             ),
-        ) as enqueue,
+        ) as publish,
         patch(
             "sase.workflows.commit.workflow.append_commits_entry",
             return_value=None,
@@ -226,7 +297,7 @@ def test_publication_without_target_warns_but_keeps_primary_successful(
             RunResult.OK
         )
 
-    enqueue.assert_called_once_with(
+    publish.assert_called_once_with(
         "foo--code",
         "a" * 40,
         commit_cwd=os.getcwd(),
@@ -248,7 +319,7 @@ def test_publication_warning_names_quarantined_backlog(
 
     with (
         patch(
-            "sase.agents_sync.commit_publication.enqueue_committed_agent_publication",
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
             return_value=_CommitPublicationOutcome(
                 queued=True,
                 quarantined=2,
@@ -283,7 +354,7 @@ def test_publication_warning_names_drop_command_for_retired_backlog(
 
     with (
         patch(
-            "sase.agents_sync.commit_publication.enqueue_committed_agent_publication",
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
             return_value=_CommitPublicationOutcome(
                 queued=True,
                 retired=3,
@@ -334,9 +405,9 @@ def test_family_member_commit_uses_metadata_for_footer_and_publication(
             return_value=linked_tag,
         ) as resolve_tag,
         patch(
-            "sase.agents_sync.commit_publication.enqueue_committed_agent_publication",
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
             return_value=_CommitPublicationOutcome(queued=True),
-        ) as enqueue,
+        ) as publish,
         patch(
             "sase.workflows.commit.workflow.append_commits_entry",
             return_value=None,
@@ -354,7 +425,7 @@ def test_family_member_commit_uses_metadata_for_footer_and_publication(
     )
     resolve_tag.assert_called_once()
     assert resolve_tag.call_args.args[0] == "ms--code"
-    enqueue.assert_called_once_with(
+    publish.assert_called_once_with(
         "ms--code",
         "a" * 40,
         commit_cwd=os.getcwd(),

@@ -147,7 +147,7 @@ def test_commit_sdd_store_files_routes_custom_role_paths_to_owning_repos(
     ).stdout.splitlines() == ["issues.jsonl"]
 
 
-def test_commit_sdd_store_files_enqueues_each_changed_sidecar(
+def test_commit_sdd_store_files_pushes_each_changed_sidecar(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -164,28 +164,18 @@ def test_commit_sdd_store_files_enqueues_each_changed_sidecar(
         beads_dir=beads,
     )
     commit_roots: list[Path] = []
-    queued_roles: list[str] = []
+    pushed_roots: list[Path] = []
 
     def fake_commit(root: Path, *_args: object, **_kwargs: object) -> bool:
         commit_roots.append(root)
         return True
 
+    def fake_push(root: Path) -> SimpleNamespace:
+        pushed_roots.append(root)
+        return SimpleNamespace(pushed=True, error=None)
+
     monkeypatch.setattr("sase.sdd._commit.commit_sdd_files", fake_commit)
-    monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.resolve_sidecar_publication_target",
-        lambda **_kwargs: (
-            SimpleNamespace(project_key="proj", project="Project"),
-            None,
-        ),
-    )
-    monkeypatch.setattr(
-        "sase.agents_sync.publication_outbox.enqueue_sidecar_push_publication",
-        lambda **kwargs: queued_roles.append(str(kwargs["sidecar_kind"])),
-    )
-    monkeypatch.setattr(
-        "sase.bead.sync.push_bead_work_launch",
-        lambda *_args, **_kwargs: pytest.fail("sidecar push must not run inline"),
-    )
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", fake_push)
 
     assert commit_sdd_store_files(
         store,
@@ -193,7 +183,7 @@ def test_commit_sdd_store_files_enqueues_each_changed_sidecar(
         push_after_commit=True,
     )
     assert commit_roots == [plans, research, beads]
-    assert queued_roles == ["plans", "research", "beads"]
+    assert pushed_roots == [plans, research, beads]
 
 
 def test_beads_lock_and_health_state_do_not_block_plans_commit(

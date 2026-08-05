@@ -15,53 +15,12 @@ from sase.bead.model import Issue, IssueType
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.bead_pages.associations import BeadAssociationIndex
 from sase.bead_pages.audit import audit_commit_link_attribution
-from sase.bead_pages.paths import bead_lineage_root
-from sase.bead_pages.publication import (
-    drain_bead_pages_publication,
-    mark_committed_bead_pages,
-)
-from sase.agents_sync.publication_outbox import SidecarPublicationRequest
+from sase.bead_pages.publication import publish_committed_bead_pages
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.core.paths import sase_projects_dir
 from sase.sdd.store import SddStore
 from sase.workflows.commit.checkpoint import CommitCheckpoint
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
-
-
-def _drain_committed_bead_pages(
-    commit_message: str,
-    *,
-    primary_root: Path,
-    project: str | None = None,
-):
-    """Build the durable request shape, then exercise the chop's drain body."""
-
-    from sase.core.commit_footer_facade import parse_commit_footer
-
-    bead_id = next(
-        (
-            tag.label.strip()
-            for tag in parse_commit_footer(commit_message).tags
-            if tag.key == "BEAD"
-        ),
-        None,
-    )
-    if bead_id is None:
-        return mark_committed_bead_pages(
-            commit_message,
-            primary_root=primary_root,
-        )
-    return drain_bead_pages_publication(
-        SidecarPublicationRequest(
-            project_key="test",
-            project=project or "Test",
-            kind="bead_pages",
-            bead_id=bead_id,
-            lineage_root=bead_lineage_root(bead_id),
-        ),
-        primary_root=primary_root,
-        project=project,
-    )
 
 
 class _View:
@@ -229,8 +188,8 @@ def test_tagged_commit_publishes_whole_lineage_once(
     )
     message = "feat: publish\n\nSASE_BEAD=sase-ai.5"
 
-    first = _drain_committed_bead_pages(message, primary_root=tmp_path)
-    second = _drain_committed_bead_pages(message, primary_root=tmp_path)
+    first = publish_committed_bead_pages(message, primary_root=tmp_path)
+    second = publish_committed_bead_pages(message, primary_root=tmp_path)
 
     assert first.changed and first.committed
     assert not second.changed and not second.committed
@@ -331,7 +290,7 @@ def _multi_repo_publication(
     )
 
 
-def test_chop_publication_anchors_associations_and_commit_links_to_primary(
+def test_sidecar_publication_anchors_associations_and_commit_links_to_primary(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -340,32 +299,30 @@ def test_chop_publication_anchors_associations_and_commit_links_to_primary(
     primary_sha = fixture.primary_sha
     sidecar_sha = fixture.sidecar_sha
 
-    first = _drain_committed_bead_pages(
+    from_primary = publish_committed_bead_pages(
         fixture.message,
         primary_root=fixture.checkout,
-        project="sase",
     )
     primary_payload = page.read_text(encoding="utf-8")
-    second = _drain_committed_bead_pages(
+    from_sidecar = publish_committed_bead_pages(
         fixture.message,
-        primary_root=fixture.checkout,
-        project="sase",
+        primary_root=fixture.plans,
     )
-    repeated_payload = page.read_text(encoding="utf-8")
+    sidecar_payload = page.read_text(encoding="utf-8")
 
-    assert first.error is None
-    assert second.error is None
-    assert repeated_payload == primary_payload
-    assert f"https://github.com/sase-org/sase/commit/{primary_sha}" in repeated_payload
-    assert "feat: primary association" in repeated_payload
+    assert from_primary.error is None
+    assert from_sidecar.error is None
+    assert sidecar_payload == primary_payload
+    assert f"https://github.com/sase-org/sase/commit/{primary_sha}" in sidecar_payload
+    assert "feat: primary association" in sidecar_payload
     assert (
         f"https://github.com/sase-org/sase--plans/commit/{sidecar_sha}"
-        in repeated_payload
+        in sidecar_payload
     )
-    assert "docs: sidecar association" in repeated_payload
+    assert "docs: sidecar association" in sidecar_payload
     assert (
         f"https://github.com/sase-org/sase--plans/commit/{primary_sha}"
-        not in repeated_payload
+        not in sidecar_payload
     )
 
 
@@ -377,11 +334,7 @@ def test_published_pages_never_attribute_a_commit_to_a_sidecar_remote(
 
     fixture = _multi_repo_publication(tmp_path, monkeypatch)
 
-    _drain_committed_bead_pages(
-        fixture.message,
-        primary_root=fixture.checkout,
-        project="sase",
-    )
+    publish_committed_bead_pages(fixture.message, primary_root=fixture.plans)
 
     assert (
         audit_commit_link_attribution(
@@ -403,8 +356,8 @@ def test_missing_sidecar_and_missing_tag_skip_without_error(
     )
     monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_args: store)
 
-    no_tag = _drain_committed_bead_pages("feat: no tag", primary_root=tmp_path)
-    no_sidecar = _drain_committed_bead_pages(
+    no_tag = publish_committed_bead_pages("feat: no tag", primary_root=tmp_path)
+    no_sidecar = publish_committed_bead_pages(
         "feat: tagged\n\nSASE_BEAD=sase-ai.5",
         primary_root=tmp_path,
     )
@@ -428,7 +381,7 @@ def test_rendering_failure_is_captured(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("render failed")),
     )
 
-    outcome = _drain_committed_bead_pages(
+    outcome = publish_committed_bead_pages(
         "feat: tagged\n\nSASE_BEAD=sase-ai",
         primary_root=tmp_path,
     )
@@ -460,7 +413,7 @@ def test_store_health_failure_preserves_changed_outcome(
         ),
     )
 
-    outcome = _drain_committed_bead_pages(
+    outcome = publish_committed_bead_pages(
         "feat: tagged\n\nSASE_BEAD=sase-ai",
         primary_root=tmp_path,
     )
@@ -478,15 +431,18 @@ def test_workflow_checkpoints_best_effort_publication_once(
         method="create_commit",
         payload={"message": "feat: tagged\n\nSASE_BEAD=sase-ai.5"},
         cwd=str(tmp_path),
-        primary_revision="a" * 40,
     )
     calls: list[str] = []
     monkeypatch.setattr(
-        "sase.bead_pages.publication.mark_committed_bead_pages",
+        "sase.bead_pages.publication.publish_committed_bead_pages",
         lambda message, **_kwargs: (
             calls.append(message)
-            or type("_Outcome", (), {"queued": False, "error": "sidecar unhealthy"})()
+            or type("_Outcome", (), {"error": "sidecar unhealthy"})()
         ),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_header_refresh.refresh_committed_plan_header",
+        lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
         "sase.workflows.commit.workflow.checkpoint_save",
@@ -494,8 +450,8 @@ def test_workflow_checkpoints_best_effort_publication_once(
     )
     workflow = CommitWorkflow(cp.payload, cp.method)
 
-    assert workflow._queue_sidecar_publication_step(cp) == RunResult.OK
-    assert workflow._queue_sidecar_publication_step(cp) == RunResult.OK
+    assert workflow._run_agent_publication_step(cp) == RunResult.OK
+    assert workflow._run_agent_publication_step(cp) == RunResult.OK
     assert calls == [cp.payload["message"]]
     assert cp.completed_steps == ["publish_bead_pages"]
 
@@ -508,18 +464,21 @@ def test_workflow_ignores_unexpected_publication_exception(
         method="create_commit",
         payload={"message": "feat: tagged\n\nSASE_BEAD=sase-ai.5"},
         cwd=str(tmp_path),
-        primary_revision="a" * 40,
     )
     monkeypatch.setattr(
-        "sase.bead_pages.publication.mark_committed_bead_pages",
+        "sase.bead_pages.publication.publish_committed_bead_pages",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_header_refresh.refresh_committed_plan_header",
+        lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
         "sase.workflows.commit.workflow.checkpoint_save",
         lambda _cp: None,
     )
 
-    result = CommitWorkflow(cp.payload, cp.method)._queue_sidecar_publication_step(cp)
+    result = CommitWorkflow(cp.payload, cp.method)._run_agent_publication_step(cp)
 
     assert result == RunResult.OK
     assert cp.completed_steps == ["publish_bead_pages"]

@@ -24,42 +24,29 @@ class _BeadPagePublicationOutcome:
     error: str | None = None
 
 
-def mark_committed_bead_pages(
+def publish_committed_bead_pages(
     commit_message: str,
     *,
     primary_root: Path | str,
-    primary_revision: str = "",
     project: str | None = None,
 ) -> _BeadPagePublicationOutcome:
-    """Durably queue the committed bead lineage without sidecar git work."""
+    """Publish the lineage named by ``SASE_BEAD`` without ever raising."""
 
-    bead_id = _committed_bead_id(commit_message)
-    if not bead_id:
-        return _BeadPagePublicationOutcome(skip_reason="commit has no SASE_BEAD tag")
     try:
-        from sase.agents_sync.commit_publication import (
-            resolve_sidecar_publication_target,
-        )
-        from sase.agents_sync.publication_outbox import (
-            enqueue_bead_pages_publication,
-        )
+        from sase.sdd.checkout_anchor import resolve_checkout_anchor
 
-        target, error = resolve_sidecar_publication_target(
-            project=project,
-            commit_cwd=primary_root,
-        )
-        if target is None:
+        anchor = resolve_checkout_anchor(primary_root)
+        bead_id = _committed_bead_id(commit_message)
+        if not bead_id:
             return _BeadPagePublicationOutcome(
-                skip_reason=error or "repository does not map to a SASE project"
+                skip_reason="commit has no SASE_BEAD tag"
             )
-        enqueue_bead_pages_publication(
-            project_key=target.project_key,
-            project=target.project,
-            bead_id=bead_id,
-            primary_revision=primary_revision,
+        return _publish_bead_lineage(
+            bead_id,
+            primary_root=anchor.primary_root,
+            project=project or anchor.project_name,
         )
-        return _BeadPagePublicationOutcome(queued=True)
-    except Exception as exc:  # noqa: BLE001 - auxiliary queue boundary.
+    except Exception as exc:  # noqa: BLE001 - auxiliary post-commit boundary.
         return _error_outcome(exc)
 
 
@@ -229,5 +216,5 @@ def _error_outcome(
 
 __all__ = [
     "drain_bead_pages_publication",
-    "mark_committed_bead_pages",
+    "publish_committed_bead_pages",
 ]

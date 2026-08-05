@@ -63,26 +63,36 @@ class _CommitPublicationOutcome:
     error: str | None = None
 
 
-def enqueue_committed_agent_publication(
+def publish_committed_agent_hood(
     local_agent: str,
     primary_revision: str,
     *,
     project: str | None = None,
     commit_cwd: Path | str | None = None,
     git_runner: GitRunner = run_git,
+    lock_timeout_seconds: float | None = None,
 ) -> _CommitPublicationOutcome:
-    """Persist one agent-hood request without sidecar git or network work."""
+    """Enqueue one agent-hood request and drain it before returning.
 
-    # Retained for call-site compatibility and for tests that install a runner
-    # which must never be reached by this enqueue-only path.
-    _ = git_runner
-    outcome, _target, _item = _enqueue_committed_agent_publication(
+    The durable outbox stays on the synchronous path so a publication that
+    cannot complete right now is still retried later by ``sase agent sync``.
+    """
+
+    outcome, target, _item = _enqueue_committed_agent_publication(
         local_agent,
         primary_revision,
         project=project,
         commit_cwd=commit_cwd,
     )
-    return outcome
+    if outcome.error is not None or outcome.skip_reason is not None:
+        return outcome
+    if target is None:
+        return outcome
+    return drain_agent_publications(
+        target.project_key,
+        git_runner=git_runner,
+        lock_timeout_seconds=lock_timeout_seconds,
+    )
 
 
 def _enqueue_committed_agent_publication(
@@ -98,7 +108,7 @@ def _enqueue_committed_agent_publication(
 ]:
     """Resolve and enqueue, returning private context for the compatibility path."""
 
-    target, target_error = resolve_sidecar_publication_target(
+    target, target_error = _resolve_sidecar_publication_target(
         project=project,
         commit_cwd=commit_cwd,
     )
@@ -308,7 +318,7 @@ def resolve_publication_project_key(
     return selected.project_key
 
 
-def resolve_sidecar_publication_target(
+def _resolve_sidecar_publication_target(
     *,
     project: str | None = None,
     commit_cwd: Path | str | None = None,
@@ -455,8 +465,7 @@ def _current_project() -> str | None:
 __all__ = [
     "PlanHeaderRefreshOutcome",
     "drain_agent_publications",
-    "enqueue_committed_agent_publication",
+    "publish_committed_agent_hood",
     "refresh_committed_plan_header",
     "resolve_publication_project_key",
-    "resolve_sidecar_publication_target",
 ]

@@ -229,7 +229,7 @@ def test_resume_publishes_agent_hood_without_redispatching_primary_commit(
 
     with (
         patch(
-            "sase.agents_sync.commit_publication.enqueue_committed_agent_publication",
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
             return_value=_CommitPublicationOutcome(published=True),
         ) as publish,
         patch(

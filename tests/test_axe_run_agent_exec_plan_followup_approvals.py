@@ -1,6 +1,5 @@
 """Tests for approved plan follow-up actions."""
 
-from types import SimpleNamespace
 from unittest.mock import call, patch
 
 import pytest
@@ -23,46 +22,6 @@ from tests.plan_validation_helpers import VALID_EPIC_PLAN
 def patch_plan_deps():
     with patched_plan_deps() as mocks:
         yield mocks
-
-
-def test_planner_prompt_archive_is_queued_without_sidecar_publication(
-    tmp_path,
-) -> None:
-    ctx = make_ctx(tmp_path)
-    state = make_state(tmp_path)
-    outcome = SimpleNamespace(error=None, skip_reason=None)
-
-    with (
-        patch(
-            "sase.agents_sync.git.run_git",
-            return_value=SimpleNamespace(returncode=0, stdout="a" * 40),
-        ),
-        patch(
-            "sase.agents_sync.commit_publication.enqueue_committed_agent_publication",
-            return_value=outcome,
-        ) as enqueue,
-        patch(
-            "sase.agents_sync.prompt_archive.publish_prompt_archive",
-            side_effect=AssertionError("prompt sidecar publication must not run"),
-        ) as publish,
-    ):
-        prompt_path = accept_mod._publish_planner_prompt_archive(
-            ctx,
-            state,
-            agent_name="planner--plan",
-            prompt_content="expanded prompt",
-            plan_name="async_plan",
-            yyyymm="202608",
-        )
-
-    assert prompt_path is None
-    enqueue.assert_called_once_with(
-        "planner--plan",
-        "a" * 40,
-        project=ctx.project_name,
-        commit_cwd=ctx.workspace_dir,
-    )
-    publish.assert_not_called()
 
 
 @pytest.mark.usefixtures("patch_plan_deps")
