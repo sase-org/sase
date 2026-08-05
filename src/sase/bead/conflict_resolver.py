@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.bead.ids import issue_id_for_counter, max_counter_in_ids
 from sase.bead.project import (
     BEADS_DIRNAME,
     BEADS_DIRNAME_NON_VC,
@@ -17,7 +18,7 @@ from sase.bead.project import (
 from sase.bead_pages.paths import BEAD_PAGES_DIRNAME
 from sase.core.bead_conflict_facade import (
     event_store_manifest,
-    merge_event_streams,
+    merge_event_streams_with_relocation,
     reduce_event_streams,
 )
 from sase.git_lock_retry import run_with_git_lock_retry
@@ -120,10 +121,16 @@ def _resolve_bead_conflicts(
         repo_root,
         set(store_conflicts),
     )
+    conflicted_streams = sorted(
+        path for path in store_conflicts if _is_event_stream_path(path, bead_prefix)
+    )
+    relocation_ids = _RelocationIds(
+        resolved_beads_dir,
+        set(streams) | {Path(path).stem for path in conflicted_streams},
+    )
     merged_stream_ids: set[str] = set()
-    for path in store_conflicts:
-        if not _is_event_stream_path(path, bead_prefix):
-            continue
+    relocated_beads: list[tuple[str, str]] = []
+    for path in conflicted_streams:
         stream_id = Path(path).stem
         stages = _unmerged_stages(repo_root, path)
         base = _read_stage_stream(repo_root, path, 1, stream_id, stages)
@@ -132,9 +139,23 @@ def _resolve_bead_conflicts(
             repo_root, path, upstream_stage, stream_id, stages
         )
         local = _read_stage_stream(repo_root, path, local_stage, stream_id, stages)
-        merged = merge_event_streams(base, local, upstream)
-        streams[stream_id] = merged
+        # Reserve the relocation id up front, and for every conflicted stream,
+        # so the id a collision lands on depends only on the store's contents
+        # and not on which side of the rebase this clone happens to be.
+        outcome = merge_event_streams_with_relocation(
+            base, local, upstream, relocation_ids.allocate()
+        )
+        streams[stream_id] = outcome["merged"]
         merged_stream_ids.add(stream_id)
+        relocated = outcome.get("relocated")
+        if relocated:
+            relocated_id = str(relocated["stream_id"])
+            streams[relocated_id] = relocated
+            merged_stream_ids.add(relocated_id)
+        relocated_beads.extend(
+            (str(old_id), str(new_id))
+            for old_id, new_id in outcome.get("relocations") or ()
+        )
 
     ordered_streams = [streams[key] for key in sorted(streams)]
     issues = reduce_event_streams(ordered_streams)
@@ -156,11 +177,44 @@ def _resolve_bead_conflicts(
     resolved_paths = sorted(dict.fromkeys(resolved_paths))
     _git_add(repo_root, [path for path in resolved_paths if path not in staged_paths])
 
+    message = "resolved bead conflicts: " + ", ".join(resolved_paths)
+    if relocated_beads:
+        message += "; relocated duplicate beads: " + ", ".join(
+            f"{old_id} -> {new_id}" for old_id, new_id in relocated_beads
+        )
     return _BeadConflictResolution(
         True,
-        "resolved bead conflicts: " + ", ".join(resolved_paths),
+        message,
         tuple(resolved_paths),
     )
+
+
+class _RelocationIds:
+    """Hand out top-level bead ids no stream in this store already owns.
+
+    Two clones minting from their own ``next_counter`` can allocate the same
+    id, and the loser of that collision has to move somewhere. Only the
+    resolver can see the whole store, so it — not the per-stream merge — owns
+    picking the free id.
+    """
+
+    def __init__(self, beads_dir: Path, taken_ids: set[str]) -> None:
+        from sase.bead.config import load_config
+
+        config = load_config(beads_dir)
+        self._prefix = str(config.get("issue_prefix", "beads"))
+        raw_counter = config.get("next_counter", 1)
+        minimum = raw_counter if isinstance(raw_counter, int) else 1
+        self._counter = max(minimum, max_counter_in_ids(self._prefix, taken_ids) + 1)
+        self._taken = set(taken_ids)
+
+    def allocate(self) -> str:
+        while True:
+            candidate = issue_id_for_counter(self._prefix, self._counter)
+            self._counter += 1
+            if candidate not in self._taken:
+                self._taken.add(candidate)
+                return candidate
 
 
 def _run_git(cwd: Path, args: list[str]) -> subprocess.CompletedProcess[str]:

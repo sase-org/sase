@@ -285,3 +285,68 @@ def test_clean_rebase_with_invalid_stream_resets_completed_integration(
     assert not (left / ".git/rebase-merge").exists()
     assert not (left / ".git/rebase-apply").exists()
     assert _git(left, "diff", "--name-only", "--diff-filter=U").stdout == ""
+
+
+def test_concurrently_minted_bead_id_relocates_instead_of_wedging_sync(
+    tmp_path: Path,
+) -> None:
+    """Two clones minting the same id must not deadlock the shared store.
+
+    Both clones allocate from their own ``next_counter``, so each new bead
+    lands on the same id and the same stream file. Before relocation the
+    merged stream held two ``issue_created`` events for that id, every sync
+    worker failed reducing it, and the store stayed wedged behind the retry.
+    """
+    _remote, left, right, _epic_id, _first_id, _second_id = _seed_same_stream_remote(
+        tmp_path
+    )
+    with BeadProject(left, beads_dirname="beads") as project:
+        left_bead = project.create("Left task", IssueType.TASK, size="small")
+    _commit(left, "left mints a bead", "beads")
+    with BeadProject(right, beads_dirname="beads") as project:
+        right_bead = project.create("Right task", IssueType.TASK, size="small")
+    _commit(right, "right mints a bead", "beads")
+    _git(right, "push")
+    assert left_bead.id == right_bead.id
+
+    outcome = run_managed_sync_worker(
+        left,
+        left / "beads",
+        log_path=tmp_path / "duplicate-id-sync.log",
+    )
+
+    assert outcome.error is None
+    assert outcome.pushed is True
+    assert outcome.integrated is True
+    assert _git(left, "status", "--porcelain").stdout == ""
+    assert not (left / ".git/rebase-merge").exists()
+
+    titles = {
+        json.loads(line)["title"]
+        for line in (left / "beads/issues.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    }
+    assert {"Left task", "Right task"} <= titles
+
+    resolution = next(
+        record
+        for record in _log_records(tmp_path / "duplicate-id-sync.log")
+        if record["event"] == "conflict_resolution"
+    )
+    assert f"relocated duplicate beads: {left_bead.id} -> " in str(
+        resolution["message"]
+    )
+
+    # The relocated bead must be a real, mintable id: the next create in
+    # either clone has to land past it rather than colliding all over again.
+    with BeadProject(left, beads_dirname="beads") as project:
+        follow_up = project.create("Follow up", IssueType.TASK, size="small")
+    assert follow_up.id not in {
+        json.loads(line)["id"]
+        for line in (left / "beads/issues.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip() and json.loads(line)["title"] != "Follow up"
+    }

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import threading
+from collections.abc import Iterable
 from pathlib import Path
 
 _ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -52,9 +53,14 @@ class IdGenerator:
 
 def max_top_level_counter(issue_prefix: str, beads_dir: Path) -> int:
     """Return the highest allocated top-level counter in one JSONL store."""
+    return max_counter_in_ids(issue_prefix, _iter_jsonl_issue_ids(beads_dir))
+
+
+def max_counter_in_ids(issue_prefix: str, issue_ids: Iterable[str]) -> int:
+    """Return the highest top-level counter among *issue_ids*."""
     pattern = re.compile(rf"^{re.escape(issue_prefix)}-([0-9a-z]+)$")
     max_counter = 0
-    for issue_id in _iter_jsonl_issue_ids(beads_dir):
+    for issue_id in issue_ids:
         match = pattern.fullmatch(issue_id)
         if match is None:
             continue
@@ -63,6 +69,11 @@ def max_top_level_counter(issue_prefix: str, beads_dir: Path) -> int:
         except ValueError:
             continue
     return max_counter
+
+
+def issue_id_for_counter(issue_prefix: str, counter: int) -> str:
+    """Return the ``<prefix>-<base36>`` id one counter value maps to."""
+    return f"{issue_prefix}-{_to_base36(counter)}"
 
 
 def _iter_jsonl_issue_ids(beads_dir: Path) -> list[str]:
