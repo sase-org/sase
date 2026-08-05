@@ -70,7 +70,6 @@ def publish_committed_agent_hood(
     project: str | None = None,
     commit_cwd: Path | str | None = None,
     git_runner: GitRunner = run_git,
-    lock_timeout_seconds: float | None = None,
 ) -> _CommitPublicationOutcome:
     """Enqueue one agent-hood request and drain it before returning.
 
@@ -88,11 +87,7 @@ def publish_committed_agent_hood(
         return outcome
     if target is None:
         return outcome
-    return drain_agent_publications(
-        target.project_key,
-        git_runner=git_runner,
-        lock_timeout_seconds=lock_timeout_seconds,
-    )
+    return _drain_agent_publications(target.project_key, git_runner=git_runner)
 
 
 def _enqueue_committed_agent_publication(
@@ -185,11 +180,10 @@ def _enqueue_committed_agent_publication(
     return _CommitPublicationOutcome(queued=True), target, item
 
 
-def drain_agent_publications(
+def _drain_agent_publications(
     project_key: str,
     *,
     git_runner: GitRunner = run_git,
-    lock_timeout_seconds: float | None = None,
 ) -> _CommitPublicationOutcome:
     """Drain active agent-hood requests for one project under its sidecar lock."""
 
@@ -210,11 +204,7 @@ def drain_agent_publications(
 
     from sase.agents_sync import git_sync
 
-    timeout = (
-        git_sync.configured_agents_lock_timeout()
-        if lock_timeout_seconds is None
-        else max(lock_timeout_seconds, 0.0)
-    )
+    timeout = git_sync.configured_agents_lock_timeout()
     clone_error = git_sync.ensure_agents_clone(
         target,
         git_runner=git_runner,
@@ -464,7 +454,6 @@ def _current_project() -> str | None:
 
 __all__ = [
     "PlanHeaderRefreshOutcome",
-    "drain_agent_publications",
     "publish_committed_agent_hood",
     "refresh_committed_plan_header",
     "resolve_publication_project_key",

@@ -1260,9 +1260,9 @@ Research is config-declared per project and defaults to `<owner>/<project>--rese
 and research entries. A project-local `agents` entry replaces the implicit entry: use `disabled: true` to opt out or
 `visibility: private` to retain it with a private remote policy. Project-local `default_linked_repos: false` suppresses
 both implicit managed-project entries. `sase repo init` can create and seed the agents remote only after its separate
-default-no consent prompt. Successful agent commit/PR workflows queue the committing hood for the `publications` lane,
-while `sase agent sync` imports shared history and reconciles every locally commit-eligible hood through the stable
-machine-level clone. See [Agent Hood Synchronization](agents_sidecar.md) before enabling a public remote.
+default-no consent prompt. Successful agent commit/PR workflows publish the committing hood, while `sase agent sync`
+imports shared history and reconciles every locally commit-eligible hood through the stable machine-level clone. See
+[Agent Hood Synchronization](agents_sidecar.md) before enabling a public remote.
 
 The deprecated `linked_repos` and `sibling_repos` keys are still accepted as aliases during the compatibility window.
 Canonical `repos.linked` entries take precedence over both aliases when the same name is defined.
@@ -1593,24 +1593,6 @@ axe:
             Applies the axe query and starts non-blocking critique_comments checks for mailed ChangeSpecs that have an
             available workspace, then records a comment-cycle summary. The lumberjack's one-minute interval is the
             polling throttle; pending_checks_poll later consumes each background result.
-    publications:
-      description: |-
-        Publish queued agents and beads sidecar work off the interactive commit path
-
-        Runs every thirty seconds so sidecar pages, prompt archives, and their pushes land promptly without any
-        interactive command waiting on sidecar git or network work. Put durable sidecar publication here; bead-store
-        reconciliation, ChangeSpec lifecycle, and remote PR polling belong in the other lanes.
-      interval: 30
-      chop_timeout: "5m"
-      chops:
-        - name: sidecar_publication
-          script: sase_chop_sidecar_publication
-          description: |-
-            Drain each project's queued agents, beads, and plan-header publication requests
-
-            Publishes queued agent hoods and prompt archives, renders and commits queued bead pages, refreshes the
-            plan headers those publications feed, and pushes each sidecar, under bounded per-project locks. Contended
-            or failing projects back off exponentially and are retried on a later tick instead of blocking the pass.
     housekeeping:
       description: |-
         Run hourly error digests and managed-temp cleanup

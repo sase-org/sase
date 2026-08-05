@@ -35,7 +35,6 @@ def run_managed_sync_worker(
     beads_dir: Path,
     *,
     log_path: Path,
-    lock_timeout: float | None = None,
     worker_lock_wait: float = 0.0,
 ) -> _ManagedSyncOutcome:
     """Fetch, rebase with bead conflict repair, and push without prompting."""
@@ -79,12 +78,7 @@ def run_managed_sync_worker(
             )
 
         try:
-            return _run_locked_sync(
-                repo_root,
-                beads_dir,
-                log_path,
-                lock_timeout=lock_timeout,
-            )
+            return _run_locked_sync(repo_root, beads_dir, log_path)
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
@@ -111,11 +105,7 @@ def _acquire_worker_lock(fd: int, *, timeout: float) -> bool:
 
 
 def _run_locked_sync(
-    repo_root: Path,
-    beads_dir: Path,
-    log_path: Path,
-    *,
-    lock_timeout: float | None = None,
+    repo_root: Path, beads_dir: Path, log_path: Path
 ) -> _ManagedSyncOutcome:
     _log(log_path, "started", repo_root=str(repo_root), beads_dir=str(beads_dir))
 
@@ -128,7 +118,6 @@ def _run_locked_sync(
             repo_root,
             beads_dir,
             log_path,
-            lock_timeout=lock_timeout,
         )
         integrated = integrated or integration.integrated
         if not integration.succeeded:
@@ -147,7 +136,6 @@ def _run_locked_sync(
             lock_factory=store_git_write_lock_factory(
                 op="bead.sync.integration_success",
                 mutates_worktree=False,
-                timeout=lock_timeout,
             ),
         )
 
@@ -194,8 +182,6 @@ def _integrate_with_transient_dirty_retry(
     repo_root: Path,
     beads_dir: Path,
     log_path: Path,
-    *,
-    lock_timeout: float | None = None,
 ) -> SddIntegrationOutcome:
     """Retry a short-lived dirty state without accepting persistent edits."""
     from sase.sdd._git_contention import store_git_write_lock_factory
@@ -213,7 +199,6 @@ def _integrate_with_transient_dirty_retry(
             lock_factory=store_git_write_lock_factory(
                 op="bead.sync.transaction",
                 mutates_worktree=True,
-                timeout=lock_timeout,
             ),
             event_logger=lambda event, **fields: _log(log_path, event, **fields),
         )

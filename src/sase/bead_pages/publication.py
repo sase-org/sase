@@ -5,10 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from sase.agents_sync.publication_outbox import SidecarPublicationRequest
 
 _logger = logging.getLogger(__name__)
 
@@ -50,34 +46,11 @@ def publish_committed_bead_pages(
         return _error_outcome(exc)
 
 
-def drain_bead_pages_publication(
-    request: SidecarPublicationRequest,
-    *,
-    primary_root: Path | str,
-    project: str | None = None,
-    lock_timeout_seconds: float | None = None,
-) -> _BeadPagePublicationOutcome:
-    """Drain one queued bead-lineage request from a stable primary checkout."""
-
-    if request.kind != "bead_pages":
-        raise ValueError("bead-page drain requires a bead_pages request")
-    try:
-        return _publish_bead_lineage(
-            request.bead_id,
-            primary_root=Path(primary_root).resolve(strict=False),
-            project=project or request.project,
-            lock_timeout_seconds=lock_timeout_seconds,
-        )
-    except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary.
-        return _error_outcome(exc)
-
-
 def _publish_bead_lineage(
     bead_id: str,
     *,
     primary_root: Path,
     project: str | None,
-    lock_timeout_seconds: float | None = None,
 ) -> _BeadPagePublicationOutcome:
 
     from sase.sdd.plan_refs import workspace_context_for_plan_resolution
@@ -95,7 +68,6 @@ def _publish_bead_lineage(
     beads_repo = store.repo_root_for_kind("beads")
     with store_git_write_lock(
         beads_repo,
-        timeout=lock_timeout_seconds,
         op="sdd.bead_pages.post_commit",
         mutates_worktree=True,
     ) as acquired:
@@ -215,6 +187,5 @@ def _error_outcome(
 
 
 __all__ = [
-    "drain_bead_pages_publication",
     "publish_committed_bead_pages",
 ]

@@ -51,13 +51,11 @@ PUBLICATION_WORKER_LOCK_WAIT_SECONDS = 120.0
 def push_bead_work_launch(
     beads_dir: Path,
     *,
-    lock_timeout: float | None = None,
     worker_lock_wait: float = 0.0,
 ) -> _PushOutcome:
     """Synchronize and push just-committed bead state without raising."""
     return _sync_publication.push_bead_work_launch(
         beads_dir,
-        lock_timeout=lock_timeout,
         worker_lock_wait=worker_lock_wait,
         find_git_root=_find_git_root,
         new_sync_log_path=_new_sync_log_path,

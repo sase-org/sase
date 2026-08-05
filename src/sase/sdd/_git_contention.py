@@ -235,26 +235,16 @@ def store_git_write_lock_factory(
     *,
     op: str,
     mutates_worktree: bool = False,
-    timeout: float | None = None,
 ) -> Callable[[Path], AbstractContextManager[bool]]:
     """Bind an operation label to the store write lock for ``LockFactory`` use.
 
     Callers that thread a lock factory through an API (integration, recovery)
     cannot pass keywords at the acquisition site, so they bind them here.
     """
-    if timeout is None:
-        # Preserve the historical call shape for injected lock factories and
-        # let store_git_write_lock select its normal context-sensitive default.
-        return functools.partial(
-            store_git_write_lock,
-            op=op,
-            mutates_worktree=mutates_worktree,
-        )
     return functools.partial(
         store_git_write_lock,
         op=op,
         mutates_worktree=mutates_worktree,
-        timeout=timeout,
     )
 
 

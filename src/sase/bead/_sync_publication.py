@@ -31,7 +31,6 @@ class AsyncPushHandle:
 def push_bead_work_launch(
     beads_dir: Path,
     *,
-    lock_timeout: float | None,
     worker_lock_wait: float,
     find_git_root: Callable[[Path], Path | None],
     new_sync_log_path: Callable[[], Path],
@@ -53,7 +52,6 @@ def push_bead_work_launch(
             repo_root,
             semantic_beads_dir,
             log_path=log_path,
-            lock_timeout=lock_timeout,
             worker_lock_wait=worker_lock_wait,
         )
         if result.pushed:
