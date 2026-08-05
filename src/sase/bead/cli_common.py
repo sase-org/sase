@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 import logging
+import sys
 from pathlib import Path
 from typing import Any, Literal
 
@@ -28,6 +29,14 @@ _logger = logging.getLogger(__name__)
 
 # Backward-compatible alias for tests and downstream imports of the old module.
 _BeadsLocation = BeadsLocation
+
+
+class BeadPublicationError(RuntimeError):
+    """Raised when a committed bead mutation could not be published.
+
+    The mutation exists in the local store only, so its command must fail
+    loudly rather than report a success nobody else can observe.
+    """
 
 
 @dataclass
@@ -197,6 +206,70 @@ def bead_store_mutation(
             _push_committed_bead_store()
         else:
             _push_committed_bead_store(cwd=cwd)
+        _require_published_bead_mutation(
+            description=mutation.commit_message,
+            cwd=cwd,
+        )
+
+
+def _require_published_bead_mutation(
+    *,
+    description: str | None,
+    cwd: Path | None = None,
+) -> None:
+    """Fail the mutation when its commit never reached the canonical remote."""
+    location = resolve_beads_location(cwd=cwd, require_existing=True)
+    if location is None or location.is_in_tree or location.read_only:
+        return
+    ensure_bead_mutation_published(location.beads_dir, description=description)
+
+
+def ensure_bead_mutation_published(
+    beads_dir: Path,
+    *,
+    description: str | None = None,
+) -> None:
+    """Verify a committed bead mutation was published; publish it if not.
+
+    The configured push policy may be queued, detached, or aimed at a
+    different checkout than the one holding the commit, so this runs above it:
+    it asks whether the commit actually reached the remote and, when it did
+    not, forces one synchronous push against the store that holds it. A store
+    with no upstream is not applicable and stays silent.
+
+    Raises ``BeadPublicationError`` when bead commits remain unpublished.
+    """
+    from sase.bead.sync import (
+        MUTATION_PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
+        bead_publication_failure_lines,
+        push_bead_work_launch,
+        verify_bead_store_published,
+    )
+
+    try:
+        status = verify_bead_store_published(beads_dir)
+        if status.published:
+            return
+        push_bead_work_launch(
+            beads_dir,
+            worker_lock_wait=MUTATION_PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
+        )
+        status = verify_bead_store_published(beads_dir)
+        if status.published:
+            return
+        lines = bead_publication_failure_lines(status, description=description)
+    except Exception:
+        # Verification must never turn an otherwise healthy mutation into a
+        # failure because the check itself broke.
+        _logger.warning(
+            "Failed to verify publication of committed bead state",
+            exc_info=True,
+        )
+        return
+
+    for line in lines:
+        print(line, file=sys.stderr)
+    raise BeadPublicationError(lines[0])
 
 
 def _push_committed_bead_store(*, cwd: Path | None = None) -> None:

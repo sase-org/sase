@@ -73,6 +73,7 @@ def main() -> NoReturn:
 
     # --- bead ---
     if args.command == "bead":
+        from sase.bead.cli_common import BeadPublicationError
         from sase.bead.cli import (
             handle_bead_plus_one,
             handle_bead_blocked,
@@ -134,6 +135,10 @@ def main() -> NoReturn:
             sys.exit(1)
         try:
             handler(args)
+        except BeadPublicationError:
+            # The mutation lane already printed its diagnostic; the command
+            # must not report success for a mutation nobody else can see.
+            sys.exit(1)
         finally:
             from sase.bead.sync import schedule_current_bead_refresh
 

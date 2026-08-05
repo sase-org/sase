@@ -80,13 +80,18 @@ def execute_bead_cli(argv: list[str], *, materialize: bool = False) -> int | Non
     if not bool(outcome.get("handled")):
         return None
 
+    published = True
     mutation_summary = outcome.get("mutation_summary")
     if isinstance(mutation_summary, dict):
-        _apply_mutation_side_effects(context.write_beads_dir, mutation_summary)
+        published = _apply_mutation_side_effects(
+            context.write_beads_dir, mutation_summary
+        )
 
     stdout = str(outcome.get("stdout") or "")
     stderr = str(outcome.get("stderr") or "")
-    if stdout:
+    # A mutation that never reached the canonical remote must not print its
+    # success output; the publication diagnostic is the whole answer.
+    if stdout and published:
         sys.stdout.write(stdout)
     if stderr:
         sys.stderr.write(stderr)
@@ -98,7 +103,10 @@ def execute_bead_cli(argv: list[str], *, materialize: bool = False) -> int | Non
     except Exception:
         pass
 
-    return int(outcome.get("exit_code") or 0)
+    exit_code = int(outcome.get("exit_code") or 0)
+    if not published:
+        return exit_code or 1
+    return exit_code
 
 
 def _is_mutating_verb(argv: list[str]) -> bool:
@@ -208,12 +216,18 @@ def _resolve_lightweight_beads_context(
 
 def _apply_mutation_side_effects(
     write_beads_dir: Path, mutation_summary: dict[str, Any]
-) -> None:
-    del write_beads_dir
+) -> bool:
+    """Commit and publish a Rust fast-path mutation.
+
+    Returns whether the mutation is published, using the same verification as
+    the Python mutation lane so a mutation is never verified on one path and
+    unverified on the other.
+    """
     operation = str(mutation_summary.get("operation") or "")
     issue_ids = [str(value) for value in mutation_summary.get("issue_ids") or []]
     if mutation_summary.get("changed") is False:
-        return
+        return True
+    committed_message: str | None = None
     try:
         from sase.bead.cli_common import auto_commit_bead_store
 
@@ -232,10 +246,24 @@ def _apply_mutation_side_effects(
             )
         else:
             message = mutation_commit_message(operation, issue_ids)
-        if message:
-            auto_commit_bead_store(message)
+        if message and auto_commit_bead_store(message):
+            committed_message = message
     except Exception:
-        pass
+        return True
+
+    if committed_message is None:
+        return True
+
+    from sase.bead.cli_common import (
+        BeadPublicationError,
+        ensure_bead_mutation_published,
+    )
+
+    try:
+        ensure_bead_mutation_published(write_beads_dir, description=committed_message)
+    except BeadPublicationError:
+        return False
+    return True
 
 
 _mutation_commit_message = mutation_commit_message

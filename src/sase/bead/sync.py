@@ -31,6 +31,7 @@ from sase.bead._sync_logs import new_sync_log_path as _new_sync_log_path_impl
 from sase.bead._sync_refresh import integration_is_fresh as _integration_is_fresh
 
 
+BeadPublicationStatus = _sync_diagnostics.BeadPublicationStatus
 BeadRefreshMode = _sync_refresh.BeadRefreshMode
 _BeadStoreRefreshError = _sync_refresh.BeadStoreRefreshError
 _SyncLogOutcome = _sync_logs.SyncLogOutcome
@@ -46,6 +47,11 @@ _SYNC_LOG_RECURRING_FAILURE_THRESHOLD = _sync_logs._SYNC_LOG_RECURRING_FAILURE_T
 # Launch-critical publication waits through observed multi-second integration,
 # retry, and push windows instead of treating an active worker as fatal.
 PUBLICATION_WORKER_LOCK_WAIT_SECONDS = 120.0
+
+# A CLI bead mutation carries a completion contract, so it waits out a busy
+# sync worker before declaring the mutation unpublished — but not as long as a
+# launch checkpoint, which has no interactive caller blocked on it.
+MUTATION_PUBLICATION_WORKER_LOCK_WAIT_SECONDS = 30.0
 
 
 def push_bead_work_launch(
@@ -154,11 +160,26 @@ def refresh_bead_store(beads_dir: Path, *, lock_timeout: float | None = None) ->
 
 def _is_in_tree_beads_dir(beads_dir: Path) -> bool:
     """Return whether *beads_dir* is the primary repo's ``sdd/beads`` store."""
-    parts = beads_dir.parts
-    return (
-        len(parts) >= 2
-        and parts[-2:] == ("sdd", "beads")
-        and not (len(parts) >= 3 and parts[-3:] == (".sase", "sdd", "beads"))
+    return _sync_diagnostics.is_in_tree_beads_dir(beads_dir)
+
+
+def verify_bead_store_published(beads_dir: Path) -> BeadPublicationStatus:
+    """Report whether committed bead state reached the canonical remote."""
+    return _sync_diagnostics.verify_bead_store_published(
+        beads_dir,
+        find_git_root=_find_git_root,
+    )
+
+
+def bead_publication_failure_lines(
+    status: BeadPublicationStatus,
+    *,
+    description: str | None = None,
+) -> list[str]:
+    """Build the operator-facing diagnostic for an unpublished mutation."""
+    return _sync_diagnostics.bead_publication_failure_lines(
+        status,
+        description=description,
     )
 
 

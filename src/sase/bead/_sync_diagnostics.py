@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from sase.bead._sync_git import (
@@ -17,6 +18,106 @@ from sase.bead._sync_logs import (
 
 
 _DEEP_DIVERGENCE_SIDE_THRESHOLD = 3
+
+
+@dataclass(frozen=True)
+class BeadPublicationStatus:
+    """Whether a bead store's canonical commits reached its remote."""
+
+    beads_dir: Path
+    repo_root: Path | None
+    applicable: bool
+    has_upstream: bool
+    unpushed_commits: int
+
+    @property
+    def published(self) -> bool:
+        """Whether no canonical bead commit is left to publish."""
+        return not self.applicable or self.unpushed_commits == 0
+
+
+def is_in_tree_beads_dir(beads_dir: Path) -> bool:
+    """Return whether *beads_dir* is the primary repo's ``sdd/beads`` store."""
+    parts = beads_dir.parts
+    return (
+        len(parts) >= 2
+        and parts[-2:] == ("sdd", "beads")
+        and not (len(parts) >= 3 and parts[-3:] == (".sase", "sdd", "beads"))
+    )
+
+
+def verify_bead_store_published(
+    beads_dir: Path,
+    *,
+    find_git_root: Callable[[Path], Path | None] = _find_git_root,
+) -> BeadPublicationStatus:
+    """Report whether committed bead state reached the canonical remote.
+
+    A store with no Git root, no upstream, or an in-tree layout has no
+    canonical remote of its own to publish to; those are reported as
+    ``applicable=False`` and must never be treated as a publication failure.
+    """
+    repo_root = find_git_root(beads_dir)
+    if repo_root is None or is_in_tree_beads_dir(beads_dir):
+        return BeadPublicationStatus(
+            beads_dir=beads_dir,
+            repo_root=repo_root,
+            applicable=False,
+            has_upstream=False,
+            unpushed_commits=0,
+        )
+    if not _has_tracking_upstream(repo_root):
+        return BeadPublicationStatus(
+            beads_dir=beads_dir,
+            repo_root=repo_root,
+            applicable=False,
+            has_upstream=False,
+            unpushed_commits=0,
+        )
+    return BeadPublicationStatus(
+        beads_dir=beads_dir,
+        repo_root=repo_root,
+        applicable=True,
+        has_upstream=True,
+        unpushed_commits=unpushed_bead_commit_count(repo_root, beads_dir),
+    )
+
+
+def bead_publication_failure_lines(
+    status: BeadPublicationStatus,
+    *,
+    description: str | None = None,
+) -> list[str]:
+    """Build the operator-facing diagnostic for an unpublished mutation."""
+    subject = description or "bead mutation"
+    lines = [
+        f"ERROR: {subject} was committed locally but NOT published.",
+        f"  unpublished bead commit(s): {status.unpushed_commits}",
+        f"  bead store: {status.beads_dir}",
+    ]
+    if status.repo_root is not None:
+        lines.append(f"  store repository: {status.repo_root}")
+    latest = latest_bead_sync_log()
+    if latest is not None:
+        lines.append(f"  latest managed sync log: {latest}")
+    lines.append(
+        "  This mutation exists only in this checkout. It is invisible to "
+        "everyone else and is destroyed if this workspace is evicted."
+    )
+    if status.repo_root is not None:
+        lines.append(f"  Remediation: git -C {status.repo_root} push")
+    return lines
+
+
+def _has_tracking_upstream(repo_root: Path) -> bool:
+    result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0 and bool(result.stdout.strip())
 
 
 def bead_sync_diagnostics(

@@ -43,6 +43,11 @@ def test_fast_path_rm_uses_rust_on_sidecar_layout(
         relativize_design_paths=False,
     )
     summaries: list[dict[str, Any]] = []
+
+    def record_published(_beads_dir: Path, summary: dict[str, Any]) -> bool:
+        summaries.append(summary)
+        return True
+
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         bead_fast_path,
@@ -52,7 +57,7 @@ def test_fast_path_rm_uses_rust_on_sidecar_layout(
     monkeypatch.setattr(
         bead_fast_path,
         "_apply_mutation_side_effects",
-        lambda _beads_dir, summary: summaries.append(summary),
+        record_published,
     )
     monkeypatch.setattr(
         "sase.bead.sync.schedule_current_bead_refresh",
