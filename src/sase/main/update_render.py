@@ -17,6 +17,7 @@ from sase.dev_update import (
     DevUpdateResult,
     DevUpdateRootPlan,
 )
+from sase.dev_update.code_swap_lock import code_swap_advisory_warning
 from sase.main.update_state import dev_counts, humanize_duration, plural
 from sase.uv_tool.render import PlannedPackage
 
@@ -51,6 +52,10 @@ def render_dev_update_dry_run(
         if managed_packages:
             body.append(_planned_table_for_dev_panel(managed_packages))
 
+    if (advisory := _advisory_warning_line()) is not None:
+        body.append(Text(""))
+        body.append(advisory)
+
     body.append(Text(""))
     note = Text()
     note.append("Dry run — nothing was changed. Re-run as ", style="dim")
@@ -81,6 +86,9 @@ def render_dev_update_result(
     if reconcile:
         body.append(Text(""))
         body.append(_dev_executed_commands_table(reconcile))
+    if (advisory := _advisory_warning_line()) is not None:
+        body.append(Text(""))
+        body.append(advisory)
     body.append(Text(""))
     body.append(_dev_summary_line(result, elapsed, failed=failed))
     console.print(
@@ -208,6 +216,13 @@ def _transition_cell(old: str | None, new: str | None) -> Text:
         cell.append(" → ", style="dim")
         cell.append(new, style="green")
     return cell
+
+
+def _advisory_warning_line() -> Text | None:
+    warning = code_swap_advisory_warning()
+    if warning is None:
+        return None
+    return Text(f"⚠ {warning}", style="yellow")
 
 
 def _dev_summary_line(result: DevUpdateResult, elapsed: float, *, failed: bool) -> Text:

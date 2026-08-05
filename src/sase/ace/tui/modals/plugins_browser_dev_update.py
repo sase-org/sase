@@ -6,7 +6,10 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.dev_update.code_swap_lock import code_swap_readers_active
+from sase.dev_update.code_swap_lock import (
+    code_swap_advisory_warning,
+    code_swap_readers_active,
+)
 from sase.dev_update.execute import execute_dev_update, run_dev_update_command
 from sase.dev_update.models import DevCommandRunner, DevUpdatePlan, DevUpdateResult
 from sase.dev_update.plan import plan_dev_update
@@ -229,6 +232,8 @@ def dev_update_preview_details(plan: DevUpdatePlan) -> tuple[str, ...]:
         lines.append(f"skip {package.record.name}: {package.reason}")
     if len(plan.skipped) > 4:
         lines.append(f"skip {len(plan.skipped) - 4} more editable checkouts")
+    if advisory := code_swap_advisory_warning():
+        lines.append(advisory)
     return tuple(lines)
 
 

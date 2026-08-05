@@ -39,6 +39,7 @@ from sase.axe.run_agent_runner_setup import (
 from sase.axe.run_agent_runner_state import RunnerRunState
 from sase.axe.source_skew import preload_post_gate_modules
 from sase.bead.claims import clear_bead_claim_marker
+from sase.dev_update.code_swap_lock import code_swap_advisory_reader_lock
 from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
 
 
@@ -223,16 +224,21 @@ def launch_agent_run(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None:
     # tear a deferred import against modules cached from the old revision.
     preload_post_gate_modules()
 
-    exec_result = run_execution_loop(
-        _build_exec_context(
-            state,
-            bootstrap,
-            vcs_tag=vcs_tag,
-            wait_chats=wait_chats,
-            output_variable_namespaces=output_variable_namespaces,
-        ),
-        state.prompt,
-    )
+    # Advisory only: this never blocks `sase dev update` or the ACE update
+    # preview, it just lets both name this runner as live while a swap could
+    # still tear a deferred import underneath it.
+    advisory_command = (state.agent_name,) if state.agent_name else ()
+    with code_swap_advisory_reader_lock(op="agent.runner", command=advisory_command):
+        exec_result = run_execution_loop(
+            _build_exec_context(
+                state,
+                bootstrap,
+                vcs_tag=vcs_tag,
+                wait_chats=wait_chats,
+                output_variable_namespaces=output_variable_namespaces,
+            ),
+            state.prompt,
+        )
     state.exec_outcome = exec_result.outcome
     state.success = classify_exec_success(
         success=exec_result.success,

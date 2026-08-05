@@ -65,7 +65,9 @@ def code_swap_reader_lock(
             return
 
         holder = _holder(op=op, command=command)
-        holder_path = _write_reader_holder(holder)
+        holder_path = _write_reader_holder(
+            holder, path=_reader_holder_path(pid=os.getpid(), blocking=True)
+        )
         try:
             yield _CodeSwapLockResult(acquired=True)
         finally:
@@ -74,6 +76,35 @@ def code_swap_reader_lock(
             _unlock(fd)
     finally:
         os.close(fd)
+
+
+@contextmanager
+def code_swap_advisory_reader_lock(
+    *,
+    op: str,
+    command: Sequence[str] | None = None,
+) -> Iterator[None]:
+    """Register a non-blocking advisory reader for the caller's lifetime.
+
+    Unlike :func:`code_swap_reader_lock`, this never takes the shared ``flock``,
+    so it can never refuse a writer and can never itself be refused. It exists
+    so a long-lived process (an agent runner) that cannot afford to block
+    ``sase dev update`` can still be named by :func:`code_swap_advisory_warning`
+    while it is live.
+    """
+    if _lock_disabled():
+        yield
+        return
+
+    holder = _holder(op=op, command=command, blocking=False)
+    holder_path = _write_reader_holder(
+        holder, path=_reader_holder_path(pid=os.getpid(), blocking=False)
+    )
+    try:
+        yield
+    finally:
+        if holder_path is not None:
+            _remove_holder_file(holder_path)
 
 
 @contextmanager
@@ -105,13 +136,35 @@ def code_swap_writer_lock() -> Iterator[_CodeSwapLockResult]:
 
 
 def code_swap_readers_active() -> str | None:
-    """Return a best-effort description of active readers, if any."""
+    """Return a best-effort description of active blocking readers, if any.
+
+    Advisory readers (long-lived agent runners) are excluded: they never take
+    the shared lock, so they must never be reported as something that could
+    defer ``sase dev update`` or the ACE update preview.
+    """
     if _lock_disabled():
         return None
     holders = _live_reader_holders()
     if not holders:
         return None
     return _format_reader_holders(holders)
+
+
+def code_swap_advisory_warning() -> str | None:
+    """Return a warning naming live advisory readers, if any.
+
+    Purely informational: advisory readers never block a swap, so this is safe
+    to surface alongside a swap that is about to proceed anyway.
+    """
+    if _lock_disabled():
+        return None
+    holders = _live_advisory_holders()
+    if not holders:
+        return None
+    return (
+        f"{len(holders)} agent runner(s) are running from this checkout and a "
+        "swap now can break their deferred imports."
+    )
 
 
 def _lock_path() -> Path:
@@ -154,25 +207,31 @@ def _unlock(fd: int) -> None:
             continue
 
 
-def _holder(*, op: str, command: Sequence[str] | None) -> dict[str, Any]:
+def _holder(
+    *, op: str, command: Sequence[str] | None, blocking: bool = True
+) -> dict[str, Any]:
     return {
         "pid": os.getpid(),
         "op": op,
         "command": list(command or ()),
         "started_at": datetime.now(UTC).isoformat(),
+        "blocking": blocking,
     }
 
 
-def _write_reader_holder(holder: dict[str, Any]) -> Path | None:
+def _reader_holder_path(*, pid: int, blocking: bool) -> Path:
+    suffix = "" if blocking else ".advisory"
+    return _holders_dir() / f"{pid}{suffix}.json"
+
+
+def _write_reader_holder(holder: dict[str, Any], *, path: Path) -> Path | None:
     try:
-        holders_dir = _holders_dir()
-        holders_dir.mkdir(parents=True, exist_ok=True)
-        holder_path = holders_dir / f"{os.getpid()}.json"
-        holder_path.write_text(
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
             json.dumps(holder, sort_keys=True),
             encoding="utf-8",
         )
-        return holder_path
+        return path
     except OSError:
         _logger.debug("Failed to write code-swap reader holder", exc_info=True)
         return None
@@ -217,6 +276,16 @@ def _read_writer_holder() -> dict[str, Any] | None:
 
 
 def _live_reader_holders() -> tuple[dict[str, Any], ...]:
+    """Return live *blocking* reader holders (e.g. a running ``sase bead work``)."""
+    return _live_holders(blocking=True)
+
+
+def _live_advisory_holders() -> tuple[dict[str, Any], ...]:
+    """Return live *advisory* reader holders (e.g. a running agent runner)."""
+    return _live_holders(blocking=False)
+
+
+def _live_holders(*, blocking: bool) -> tuple[dict[str, Any], ...]:
     holders_dir = _holders_dir()
     try:
         paths = tuple(holders_dir.glob("*.json"))
@@ -230,6 +299,8 @@ def _live_reader_holders() -> tuple[dict[str, Any], ...]:
         pid = _holder_pid(holder)
         if pid is None or not is_process_running(pid):
             _remove_holder_file(path)
+            continue
+        if bool(holder.get("blocking", True)) != blocking:
             continue
         holders.append(holder)
     return tuple(
@@ -291,6 +362,7 @@ def _display_op(op: str) -> str:
     return {
         "bead.work": "sase bead work",
         "dev.update": "sase dev update",
+        "agent.runner": "agent runner",
     }.get(op, op)
 
 

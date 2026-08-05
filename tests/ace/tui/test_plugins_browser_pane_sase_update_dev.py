@@ -14,7 +14,10 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_dev_update as pbdu
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
-from sase.dev_update.code_swap_lock import code_swap_reader_lock
+from sase.dev_update.code_swap_lock import (
+    code_swap_advisory_reader_lock,
+    code_swap_reader_lock,
+)
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
 from sase.updates.incoming_commits import (
     CommitSummary,
@@ -164,6 +167,24 @@ def test_dev_update_blocking_reason_reports_active_bead_work() -> None:
     assert reason is not None
     assert "sase bead work is running" in reason
     assert "plan.md" in reason
+
+
+def test_dev_update_preview_details_names_live_advisory_runners() -> None:
+    assert pbdu.code_swap_advisory_warning() not in pbdu.dev_update_preview_details(
+        _dev_plan()
+    )
+
+    with code_swap_advisory_reader_lock(op="agent.runner", command=("tg",)):
+        details = pbdu.dev_update_preview_details(_dev_plan())
+
+    assert any("1 agent runner(s)" in line for line in details)
+
+
+def test_dev_update_advisory_runner_never_blocks_the_writer_lock() -> None:
+    with code_swap_advisory_reader_lock(op="agent.runner", command=("tg",)):
+        reason = pbdu.dev_update_blocking_reason(_dev_plan())
+
+    assert reason is None
 
 
 async def test_updates_pane_manual_update_reuses_load_fetches(
