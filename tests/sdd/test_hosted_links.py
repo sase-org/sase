@@ -202,7 +202,9 @@ def test_prompt_url_resolves_agents_sidecar_reference(
     assert resolver.prompt_url("202608/prompts/approved.md") is None
 
 
-def test_agent_url_links_family_member_anchor(tmp_path: Path, monkeypatch) -> None:
+def test_agent_url_links_family_member_without_anchor(
+    tmp_path: Path, monkeypatch
+) -> None:
     primary = tmp_path / "primary"
     primary.mkdir()
     sidecar = tmp_path / "agents"
@@ -229,7 +231,7 @@ def test_agent_url_links_family_member_anchor(tmp_path: Path, monkeypatch) -> No
 
     assert resolver.agent_url("foo.bar--code") == (
         "https://github.com/sase-org/sase--agents/blob/main/"
-        "families/alice.athena.foo.bar.md#member-code"
+        "families/alice.athena.foo.bar.md"
     )
 
 

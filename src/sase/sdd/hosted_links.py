@@ -14,7 +14,6 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.parse import quote
 
 from sase._git_remote import github_blob_url, github_commit_url
 from sase.sdd.checkout_anchor import resolve_checkout_anchor
@@ -171,7 +170,6 @@ class HostedLinkResolver:
             if parsed.kind is AgentFamilyNameKind.MEMBER:
                 link_target = agent_link_target(local_name, owner)
                 path = link_target.path
-                anchor = link_target.anchor
             else:
                 lane_ref = lane_ref_for_lane_name(
                     local_name,
@@ -186,18 +184,14 @@ class HostedLinkResolver:
                     and (self._agents_sidecar_path / family_path).is_file()
                 ):
                     path = family_path
-                anchor = None
         except Exception:
             return None
-        destination = github_blob_url(
+        return github_blob_url(
             coordinates.remote_url,
             provider=coordinates.provider,
             branch=coordinates.branch,
             path=path,
         )
-        if destination is None or not anchor:
-            return destination
-        return f"{destination}#{quote(anchor, safe='-._~')}"
 
     def bead_url(self, bead_id: str) -> str | None:
         """Return the beads sidecar page URL for *bead_id*."""
