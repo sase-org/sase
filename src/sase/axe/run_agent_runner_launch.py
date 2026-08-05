@@ -37,6 +37,7 @@ from sase.axe.run_agent_runner_setup import (
     write_home_running_marker,
 )
 from sase.axe.run_agent_runner_state import RunnerRunState
+from sase.axe.source_skew import preload_post_gate_modules
 from sase.bead.claims import clear_bead_claim_marker
 from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
 
@@ -215,6 +216,12 @@ def launch_agent_run(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None:
     if sdd_base_sha:
         bootstrap.agent_meta["sdd_base_sha"] = sdd_base_sha
         write_agent_meta(state.artifacts_dir, bootstrap.agent_meta)
+
+    # Everything the post-gate path (accepted plans, commits, notifications)
+    # would otherwise import lazily is imported here, before the agent CLI
+    # blocks on its first turn. A `sase dev update` landing mid-run then cannot
+    # tear a deferred import against modules cached from the old revision.
+    preload_post_gate_modules()
 
     exec_result = run_execution_loop(
         _build_exec_context(

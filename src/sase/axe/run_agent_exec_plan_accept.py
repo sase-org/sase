@@ -327,6 +327,23 @@ def _record_epic_store_failure(
     return "epic_launch_failed"
 
 
+def _store_failure_detail(exc: Exception) -> str:
+    """Describe an epic SDD store failure, naming a mid-run code swap if any.
+
+    A ``sase dev update`` that swaps editable source under this runner surfaces
+    as an ``ImportError`` wrapped verbatim in a store error. Blaming the store
+    for that is what made the original incident unreadable, so when the source
+    revision moved the recorded detail names the swap and both revisions.
+    """
+    from sase.axe.source_skew import code_swap_explanation
+
+    detail = str(exc) or type(exc).__name__
+    swap = code_swap_explanation(exc)
+    if swap is None:
+        return detail
+    return f"mid-run sase code swap, not an unusable store: {detail} -- {swap}"
+
+
 def _require_usable_sdd_store(repo_root: Path) -> None:
     """Validate a materialized SDD repository before any accepted-plan write."""
     if not (repo_root / ".git").exists():
@@ -474,8 +491,10 @@ def handle_accepted_plan(
         if is_epic and isinstance(
             exc, (SddMaterializationError, SddRepositoryHealthError)
         ):
-            store_unusable_error = str(exc) or type(exc).__name__
-            logger.error("Approved epic SDD store is unusable: %s", exc)
+            store_unusable_error = _store_failure_detail(exc)
+            logger.error(
+                "Approved epic SDD publication failed: %s", store_unusable_error
+            )
         else:
             logger.warning("SDD file generation failed", exc_info=True)
 
@@ -523,7 +542,7 @@ def handle_accepted_plan(
         if is_epic and isinstance(
             exc, (SddMaterializationError, SddRepositoryHealthError)
         ):
-            store_unusable_error = str(exc) or type(exc).__name__
+            store_unusable_error = _store_failure_detail(exc)
             required_sdd_commit_succeeded = False
         else:
             raise

@@ -55,6 +55,7 @@ from sase.axe.run_agent_runner_state import RunnerRunState
 from sase.axe.runner_artifacts import all_steps_hidden
 from sase.axe.runner_reporting import write_error_report
 from sase.axe.runner_signals import install_sigterm_handler, was_killed
+from sase.axe.source_skew import snapshot_source_revision
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -66,6 +67,11 @@ install_sigterm_handler("agent", soft=True)
 # Editable sase installs can fast-forward while a detached runner spends hours
 # waiting. Capture the imported code's checkout identity before that wait starts.
 _STARTUP_CODE_IDENTITY = runner_code_identity()
+
+# A `sase dev update` can also swap the source out from under a runner that is
+# already past its wait, where re-exec is no longer an option. Record the boot
+# revision so a later deferred-import failure can name the swap that caused it.
+snapshot_source_revision()
 
 
 def _build_run_state(argv: list[str]) -> RunnerRunState:
