@@ -345,6 +345,7 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
         "bead_id",
         "project",
         "title",
+        "created_at",
         "size",
         "refs",
         "plus_one_count",
@@ -370,6 +371,13 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
             "invalid_task_triage_payload",
             "payload.project",
             "task triage payload requires a canonical SASE project key",
+        )
+    created_at = payload.get("created_at")
+    if not isinstance(created_at, str):
+        raise GateError(
+            "invalid_task_triage_payload",
+            "payload.created_at",
+            "task triage payload created_at must be a string",
         )
     size = payload.get("size")
     if size is not None and (
@@ -547,6 +555,7 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
         cast(str, payload["bead_id"]),
         cast(str, payload["title"]),
         count,
+        created_at=created_at,
     )
     presentation = spec.presentation
     origin_agent = presentation.get("origin_agent")
@@ -574,6 +583,7 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
         description=description_marker,
         notes=notes_marker,
         created_by=cast(str, origin_agent or ""),
+        created_at=created_at,
         size=cast(str | None, size),
         refs=cast(list[str], refs),
         plus_one_evidence=evidence,
@@ -600,6 +610,7 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
             description=description,
             notes=notes,
             created_by=cast(str, origin_agent or ""),
+            created_at=created_at,
             size=cast(str | None, size),
             refs=cast(list[str], refs),
             plus_one_evidence=evidence,

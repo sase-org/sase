@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from copy import deepcopy
+from datetime import datetime
 import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -19,6 +21,8 @@ from sase.bead.task_gate import (
     _build_task_triage_gate_spec,
     _resolve_task_triage_project_cwd,
     create_task_triage_gate,
+    render_task_triage_preview,
+    task_triage_presentation_note,
     translate_task_triage_response,
 )
 from sase.notification_gates.executor import execute_gate_selection
@@ -38,6 +42,7 @@ def _spec(*, request_id: str = "task-triage-1") -> dict[str, Any]:
         description="Make invalidation deterministic.",
         notes="Discovered while landing sase-bg.",
         created_by="claude_coder",
+        created_at="2026-01-01T00:00:00Z",
         producer={"agent_name": "triage-test"},
     )
 
@@ -54,6 +59,7 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
         description="Make invalidation deterministic.",
         notes="Discovered while landing sase-bg.",
         created_by="claude_coder",
+        created_at="2026-01-01T00:00:00Z",
     )
 
     request = json.loads(gate.request_path.read_text(encoding="utf-8"))
@@ -65,6 +71,7 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
         "bead_id": "sase-task.1",
         "project": "sase",
         "title": "Follow up on the cache",
+        "created_at": "2026-01-01T00:00:00Z",
         "size": None,
         "refs": [],
         "plus_one_count": 0,
@@ -75,13 +82,17 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
         ("close", "required"),
     ]
     assert request["presentation"]["sender"] == "bead"
-    assert request["presentation"]["notes"] == ["sase-task.1 — Follow up on the cache"]
+    assert request["presentation"]["notes"] == [
+        "sase-task.1 — Follow up on the cache · ⧖ 2025-12-31"
+    ]
     assert request["presentation"]["tags"] == ["bead", "task"]
     assert request["presentation"]["panel"] == "beads"
     assert request["presentation"]["origin_agent"] == "claude_coder"
     preview = (gate.bundle_path / TASK_TRIAGE_PREVIEW_PATH).read_text(encoding="utf-8")
     assert "# sase-task.1 — Follow up on the cache" in preview
     assert "**Filed by:** `@claude_coder`" in preview
+    assert "**Created:** 2025-12-31 19:00:00 EST" in preview
+    assert " ago" not in preview
     assert "Make invalidation deterministic." in preview
     assert "Discovered while landing sase-bg." in preview
 
@@ -90,7 +101,7 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
     assert notification.sender == "bead"
     assert notification.icon == "✦"
     assert notification.tags == ["bead", "task"]
-    assert notification.notes == ["sase-task.1 — Follow up on the cache"]
+    assert notification.notes == ["sase-task.1 — Follow up on the cache · ⧖ 2025-12-31"]
     assert notification.action_data["panel"] == "beads"
     assert notification.action_data["origin_agent"] == "claude_coder"
     [entry] = pending_actions.read_pending_action_store()["actions"].values()
@@ -155,6 +166,53 @@ def test_task_triage_gate_omits_blank_origin_agent(gate_home: Path) -> None:
     assert "origin_agent" not in notification.action_data
 
 
+def test_task_triage_created_rendering_is_absolute_and_clock_independent() -> None:
+    """The persisted preview and note must not drift as the gate ages."""
+
+    def render(now: datetime) -> tuple[str, str]:
+        with patch("sase.core.time.local_now", return_value=now):
+            return (
+                render_task_triage_preview(
+                    bead_id="sase-task.1",
+                    title="Follow up on the cache",
+                    description="Make invalidation deterministic.",
+                    notes="",
+                    created_by="claude_coder",
+                    created_at="2026-01-01T00:00:00Z",
+                ),
+                task_triage_presentation_note(
+                    "sase-task.1",
+                    "Follow up on the cache",
+                    0,
+                    created_at="2026-01-01T00:00:00Z",
+                ),
+            )
+
+    tz = ZoneInfo("America/New_York")
+    early = render(datetime(2026, 1, 1, 12, 0, tzinfo=tz))
+    late = render(datetime(2027, 9, 9, 12, 0, tzinfo=tz))
+
+    assert early == late
+    preview, note = early
+    assert "**Created:** 2025-12-31 19:00:00 EST\n" in preview
+    assert note == "sase-task.1 — Follow up on the cache · ⧖ 2025-12-31"
+
+
+def test_task_triage_created_rendering_is_omitted_without_a_timestamp() -> None:
+    preview = render_task_triage_preview(
+        bead_id="sase-task.1",
+        title="Follow up on the cache",
+        description="",
+        notes="",
+    )
+
+    assert "Created" not in preview
+    assert (
+        task_triage_presentation_note("sase-task.1", "Follow up on the cache", 0)
+        == "sase-task.1 — Follow up on the cache"
+    )
+
+
 def test_task_triage_rejects_automatic_resolution(gate_home: Path) -> None:
     del gate_home
     spec = _spec(request_id="task-triage-auto")
@@ -176,6 +234,14 @@ def test_task_triage_rejects_automatic_resolution(gate_home: Path) -> None:
         (
             lambda spec: spec["payload"].update(extra="forged"),
             "invalid_task_triage_payload",
+        ),
+        (
+            lambda spec: spec["payload"].update(created_at=17),
+            "invalid_task_triage_payload",
+        ),
+        (
+            lambda spec: spec["payload"].update(created_at="2020-06-01T00:00:00Z"),
+            "invalid_task_triage_presentation",
         ),
         (
             lambda spec: spec["options"][0].update(feedback="disabled"),

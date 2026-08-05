@@ -183,6 +183,7 @@ def _presentation_fingerprint(issue: Issue) -> str:
         "title": issue.title,
         "description": issue.description,
         "notes": issue.notes,
+        "created_at": issue.created_at,
         "size": issue.size.value if issue.size else None,
         "refs": list(issue.refs),
         "plus_one_evidence": [
@@ -334,6 +335,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                     description=issue.description,
                     notes=issue.notes,
                     created_by=issue.created_by,
+                    created_at=issue.created_at,
                     size=issue.size.value if issue.size else None,
                     refs=issue.refs,
                     plus_one_evidence=issue.plus_one_evidence,

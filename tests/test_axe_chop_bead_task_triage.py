@@ -46,6 +46,7 @@ def _task(
         issue_type=IssueType.TASK,
         description="Make cache invalidation deterministic.",
         notes="Discovered while landing sase-bg.",
+        created_at="2026-01-01T00:00:00Z",
         created_by=created_by,
         size=PhaseSize.SMALL,
     )
@@ -89,6 +90,7 @@ def test_ready_task_is_gated_once_while_gate_remains_pending(
     assert created[0]["project"] == "sase"
     assert created[0]["title"] == "Follow up on cache invalidation"
     assert created[0]["created_by"] == "claude_coder"
+    assert created[0]["created_at"] == "2026-01-01T00:00:00Z"
     assert created[0]["request_id"].endswith("-g1")
 
     state = json.loads(
@@ -198,6 +200,17 @@ def test_current_presentation_fingerprint_remains_pending(
 
     assert result.reason == "no_triage_changes"
     assert result.counters == {"gated": 0, "canceled": 0, "skipped": 1}
+
+
+def test_presentation_fingerprint_covers_the_bead_creation_time() -> None:
+    """A gate created before created_at was shown must regenerate exactly once."""
+
+    without_created_at = _task()
+    without_created_at.created_at = ""
+
+    assert task_triage._presentation_fingerprint(
+        without_created_at
+    ) != task_triage._presentation_fingerprint(_task())
 
 
 @pytest.mark.parametrize("stored_fingerprint", [None, "", True, 0])

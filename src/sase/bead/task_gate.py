@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 from sase.notification_gates.entrypoints import gate_command_entrypoint
 from sase.notification_gates.models import GateError
 from sase.bead.model import TaskPlusOneEvidence
+from sase.bead_time_presentation import bead_created_cli, bead_created_label
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_SECTION_LABEL,
     plus_one_badge,
@@ -61,6 +62,7 @@ def create_task_triage_gate(
     description: str = "",
     notes: str = "",
     created_by: str = "",
+    created_at: str = "",
     size: str | None = None,
     refs: Sequence[str] = (),
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
@@ -78,6 +80,7 @@ def create_task_triage_gate(
             description=description,
             notes=notes,
             created_by=created_by,
+            created_at=created_at,
             size=size,
             refs=refs,
             plus_one_evidence=plus_one_evidence,
@@ -95,6 +98,7 @@ def _build_task_triage_gate_spec(
     description: str = "",
     notes: str = "",
     created_by: str = "",
+    created_at: str = "",
     size: str | None = None,
     refs: Sequence[str] = (),
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
@@ -111,7 +115,9 @@ def _build_task_triage_gate_spec(
     presentation: dict[str, Any] = {
         "sender": "bead",
         "icon": "✦",
-        "notes": [task_triage_presentation_note(bead_id, title, count)],
+        "notes": [
+            task_triage_presentation_note(bead_id, title, count, created_at=created_at)
+        ],
         "tags": ["bead", "task"],
         "panel": "beads",
         "files": [TASK_TRIAGE_PREVIEW_PATH],
@@ -129,6 +135,7 @@ def _build_task_triage_gate_spec(
             "bead_id": bead_id,
             "project": project,
             "title": title,
+            "created_at": created_at,
             "size": size,
             "refs": list(refs),
             "plus_one_count": count,
@@ -189,6 +196,7 @@ def _build_task_triage_gate_spec(
                     description=description,
                     notes=notes,
                     created_by=origin_agent,
+                    created_at=created_at,
                     size=size,
                     refs=refs,
                     plus_one_evidence=evidence,
@@ -206,14 +214,25 @@ def render_task_triage_preview(
     description: str,
     notes: str,
     created_by: str = "",
+    created_at: str = "",
     size: str | None = None,
     refs: Sequence[str] = (),
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
 ) -> str:
-    """Render the reviewed Markdown detail shown by ACE and mobile clients."""
+    """Render the reviewed Markdown detail shown by ACE and mobile clients.
+
+    The creation time is rendered absolute-only: this preview is persisted and
+    later reconstructed byte for byte by gate validation, so a relative age
+    would make the gate fail validation as it aged.
+    """
     description_text = description.strip() or "_No description._"
     notes_text = notes.strip() or "_No notes._"
     filer = f"**Filed by:** `@{created_by}`\n\n" if created_by else ""
+    created = (
+        f"**Created:** {bead_created_label(created_at, relative=False)}\n\n"
+        if created_at
+        else ""
+    )
     metadata = ""
     if size:
         metadata += f"**Size:** `{_markdown_code(size)}`\n\n"
@@ -224,6 +243,7 @@ def render_task_triage_preview(
     return (
         f"# {bead_id} — {title}\n\n"
         f"{filer}"
+        f"{created}"
         f"{metadata}"
         f"## Description\n\n{description_text}\n\n"
         f"## Notes\n\n{notes_text}\n"
@@ -231,12 +251,29 @@ def render_task_triage_preview(
     )
 
 
-def task_triage_presentation_note(bead_id: str, title: str, count: int) -> str:
-    """Return the stable notification summary for one task triage gate."""
+def task_triage_presentation_note(
+    bead_id: str,
+    title: str,
+    count: int,
+    *,
+    created_at: str = "",
+) -> str:
+    """Return the stable notification summary for one task triage gate.
+
+    The creation time rides along as an immutable calendar date rather than an
+    age, because gate validation recomputes this note and compares it with the
+    persisted one; a relative age would drift and fail that comparison.
+    """
 
     badge = plus_one_badge(count)
     suffix = f" [{badge}]" if badge else ""
-    return f"{bead_id}{suffix} — {title}"
+    created = (
+        bead_created_cli(created_at, use_color=False, relative=False)
+        if created_at
+        else ""
+    )
+    created_suffix = f" · {created}" if created else ""
+    return f"{bead_id}{suffix} — {title}{created_suffix}"
 
 
 def _task_triage_evidence_preview(
