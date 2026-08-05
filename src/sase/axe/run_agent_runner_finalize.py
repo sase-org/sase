@@ -206,6 +206,24 @@ def _completion_output_variables(
     }
 
 
+def _sdd_publication_error(current_artifacts_dir: str | None) -> str | None:
+    """Read the planner's recorded SDD publication failure, if any.
+
+    Set by the accepted-plan path when a host-owned epic launch survived a
+    failure to publish the planner's own SDD artifacts.
+    """
+    if not current_artifacts_dir:
+        return None
+    meta_path = os.path.join(current_artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    value = meta.get("sdd_publication_error") if isinstance(meta, dict) else None
+    return value if isinstance(value, str) and value else None
+
+
 def _commit_message_for_notification(
     step_output: dict[str, Any] | None, current_artifacts_dir: str | None
 ) -> str | None:
@@ -282,6 +300,13 @@ def send_completion_notification(
     ]
     if not success and error_summary:
         notes.append(error_summary)
+    sdd_publication_error = _sdd_publication_error(current_artifacts_dir)
+    if sdd_publication_error:
+        notes.append(
+            "The planner's SDD publication failed, so its prompt archive entry "
+            f"is missing ({sdd_publication_error}); the host-owned epic launch "
+            "is unaffected."
+        )
     if held_workspace_num is not None:
         location = held_workspace_dir or f"workspace #{held_workspace_num}"
         notes.append(

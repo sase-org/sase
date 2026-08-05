@@ -275,6 +275,58 @@ def _notify_epic_launch_failure(
         logger.warning("Failed to send epic-launch error notification", exc_info=True)
 
 
+def _epic_launch_is_host_owned(plan_result: Any) -> bool:
+    """Whether the approval response handed the epic launch to the host.
+
+    Every modern approval surface submits the detached ``sase bead work``
+    task itself and marks the response ``epic_launch_owner="host"``, so the
+    planner no longer owns (and must not report) that launch's outcome.
+    """
+    return (
+        plan_result.action == "epic"
+        and getattr(plan_result, "epic_launch_owner", None) == "host"
+    )
+
+
+def _record_epic_store_failure(
+    plan_result: Any,
+    ctx: AgentExecContext,
+    state: LoopState,
+    store_unusable_error: str,
+) -> str | None:
+    """Record an epic SDD store failure and return the loop outcome, if any.
+
+    When the host owns the launch the failure is the planner's own SDD
+    publication failing, not the launch: it is recorded under
+    ``sdd_publication_error`` and ``None`` is returned so the caller falls
+    through to ``epic_approved``.  Otherwise the launch really was the
+    planner's to make, and the failure stays a launch failure.
+    """
+    if _epic_launch_is_host_owned(plan_result):
+        update_meta_field(
+            state.current_artifacts_dir,
+            "sdd_publication_error",
+            store_unusable_error,
+        )
+        logger.warning(
+            "Approved epic SDD publication failed (%s); the host-owned epic "
+            "launch continues independently",
+            store_unusable_error,
+        )
+        return None
+    update_meta_field(
+        state.current_artifacts_dir,
+        "epic_launch_error",
+        store_unusable_error,
+    )
+    _notify_epic_launch_failure(
+        ctx,
+        plan_result.plan_file,
+        (store_unusable_error,),
+    )
+    return "epic_launch_failed"
+
+
 def _require_usable_sdd_store(repo_root: Path) -> None:
     """Validate a materialized SDD repository before any accepted-plan write."""
     if not (repo_root / ".git").exists():
@@ -428,17 +480,15 @@ def handle_accepted_plan(
             logger.warning("SDD file generation failed", exc_info=True)
 
     if is_epic and store_unusable_error is not None:
-        update_meta_field(
-            state.current_artifacts_dir,
-            "epic_launch_error",
-            store_unusable_error,
+        outcome = _record_epic_store_failure(
+            plan_result, ctx, state, store_unusable_error
         )
-        _notify_epic_launch_failure(
-            ctx,
-            plan_result.plan_file,
-            (store_unusable_error,),
-        )
-        return "epic_launch_failed"
+        if outcome is not None:
+            return outcome
+        # Host-owned: degraded, not failed. Every block between here and the
+        # epic return is ``not is_epic``-gated, so the unset ``sdd_store`` /
+        # ``sdd_plan_path`` are never dereferenced on the way out.
+        store_unusable_error = None
 
     # Planner prompts are committed by the agents-sidecar archive publisher.
     should_commit = plan_result.commit_plan if not is_epic else True
@@ -479,17 +529,12 @@ def handle_accepted_plan(
             raise
 
     if is_epic and store_unusable_error is not None:
-        update_meta_field(
-            state.current_artifacts_dir,
-            "epic_launch_error",
-            store_unusable_error,
+        outcome = _record_epic_store_failure(
+            plan_result, ctx, state, store_unusable_error
         )
-        _notify_epic_launch_failure(
-            ctx,
-            plan_result.plan_file,
-            (store_unusable_error,),
-        )
-        return "epic_launch_failed"
+        if outcome is not None:
+            return outcome
+        store_unusable_error = None
     plan_committed = bool(
         not is_epic
         and should_commit

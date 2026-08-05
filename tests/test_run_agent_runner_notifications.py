@@ -191,6 +191,53 @@ def test_epic_approved_classifies_as_runner_success():
     assert classify_exec_success(success=False, outcome="epic_approved") is True
 
 
+def _write_sdd_publication_error(base_kwargs, error: str) -> None:
+    artifacts_dir = Path(base_kwargs["current_artifacts_dir"])
+    artifacts_dir.mkdir(exist_ok=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"sdd_publication_error": error})
+    )
+
+
+def test_sdd_publication_error_rides_deferred_epic_completion(base_kwargs):
+    """A degraded planner publication is reported by the epic's notification."""
+    base_kwargs["outcome"] = "epic_approved"
+    _write_sdd_publication_error(base_kwargs, "plans store is mid-rebase")
+
+    with (
+        patch(
+            "sase.bead.epic_launch_handoff.defer_epic_completion", return_value=True
+        ) as mock_defer,
+        patch("sase.notifications.senders.notify_workflow_complete") as mock_notify,
+    ):
+        send_completion_notification(**base_kwargs)
+
+    mock_notify.assert_not_called()
+    mock_defer.assert_called_once()
+    payload = mock_defer.call_args.args[1]
+    assert any(
+        "plans store is mid-rebase" in note and "prompt archive entry" in note
+        for note in payload.notes
+    )
+    assert any("epic launch is unaffected" in note for note in payload.notes)
+
+
+def test_epic_approved_without_publication_error_has_no_degraded_note(base_kwargs):
+    base_kwargs["outcome"] = "epic_approved"
+
+    with (
+        patch(
+            "sase.bead.epic_launch_handoff.defer_epic_completion", return_value=True
+        ) as mock_defer,
+        patch("sase.notifications.senders.notify_workflow_complete"),
+    ):
+        send_completion_notification(**base_kwargs)
+
+    mock_defer.assert_called_once()
+    payload = mock_defer.call_args.args[1]
+    assert not any("prompt archive entry" in note for note in payload.notes)
+
+
 def test_real_failure_stays_runner_failure():
     assert classify_exec_success(success=False, outcome="killed") is False
 

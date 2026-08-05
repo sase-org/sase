@@ -203,11 +203,60 @@ class TestPlanFollowupApprovals:
 
         assert outcome == "epic_approved"
 
-    def test_unusable_epic_store_stops_before_launcher_with_home_resume(
+    def test_host_owned_unusable_store_degrades_to_epic_approved(
+        self, tmp_path
+    ) -> None:
+        """The host already owns the launch, so the planner only records its own failure."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_artifacts_dir = state.current_artifacts_dir
+        home_plan = tmp_path / "home" / "approved.md"
+        home_plan.parent.mkdir()
+        home_plan.write_text(VALID_EPIC_PLAN)
+        approval = PlanApprovalResult(
+            action="epic",
+            plan_file=str(home_plan),
+            epic_launch_owner="host",
+        )
+
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.store.materialize_sdd_store",
+                side_effect=SddMaterializationError("plans store is mid-rebase"),
+            ),
+            patch("sase.sdd.files.write_sdd_spec") as write_sdd,
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._notify_epic_launch_failure"
+            ) as notify_failure,
+        ):
+            outcome = handle_plan_marker(
+                {"plan_file": str(home_plan)},
+                ctx,
+                state,
+            )
+
+        assert outcome == "epic_approved"
+        write_sdd.assert_not_called()
+        notify_failure.assert_not_called()
+        meta_calls = accept_mod.update_meta_field.call_args_list
+        assert (
+            call(
+                plan_artifacts_dir, "sdd_publication_error", "plans store is mid-rebase"
+            )
+            in meta_calls
+        )
+        assert not any(c.args[1] == "epic_launch_error" for c in meta_calls)
+
+    def test_unowned_unusable_epic_store_stops_before_launcher_with_home_resume(
         self, tmp_path
     ) -> None:
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
+        plan_artifacts_dir = state.current_artifacts_dir
         home_plan = tmp_path / "home" / "approved.md"
         home_plan.parent.mkdir()
         home_plan.write_text(VALID_EPIC_PLAN)
@@ -239,6 +288,10 @@ class TestPlanFollowupApprovals:
             ctx,
             str(home_plan),
             ("plans store is mid-rebase",),
+        )
+        assert (
+            call(plan_artifacts_dir, "epic_launch_error", "plans store is mid-rebase")
+            in accept_mod.update_meta_field.call_args_list
         )
 
     def test_approve_no_coder_commit_true_returns_plan_committed(
