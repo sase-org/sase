@@ -116,6 +116,7 @@ def build_closed_with_resolution() -> tuple[dict[str, Issue], str]:
         resolution=Resolution.DONE,
         close_reason="Landed in main",
         closed_at="2026-01-01T00:00:00",
+        created_at="2025-12-01T00:00:00",
         size=PhaseSize.MEDIUM,
         owner="owner@example.com",
     )
@@ -246,6 +247,7 @@ def build_epic_with_children() -> tuple[dict[str, Issue], str]:
         title="Root Epic",
         issue_type=IssueType.PLAN,
         tier=BeadTier.EPIC,
+        created_at="2025-12-01T00:00:00",
     )
     phase = Issue(
         id="epic-1.1",

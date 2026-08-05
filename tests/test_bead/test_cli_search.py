@@ -211,3 +211,17 @@ def test_handle_bead_search_whitespace_query_exits_usage_error(
 
     assert excinfo.value.code == 2
     assert capsys.readouterr().err == "Error: search query cannot be empty\n"
+
+
+def test_handle_bead_search_compact_appends_the_bead_created_cell(
+    project_dir,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        proj.create("Needle Epic", IssueType.PLAN)
+
+    args = create_parser().parse_args(["bead", "search", "needle", "--color", "never"])
+    bead_cli.handle_bead_search(args)
+
+    row = capsys.readouterr().out.splitlines()[0]
+    assert row.endswith("· Needle Epic  ⧖ now")

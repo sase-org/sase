@@ -263,3 +263,24 @@ def test_dep_tree_output_is_byte_identical_across_runs(
     second = capsys.readouterr().out
 
     assert first == second
+
+
+def test_dep_tree_rows_end_with_the_bead_created_cell_after_graph_markers(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        root = _create(project, "Root")
+        middle = _create(project, "Middle")
+        leaf = _create(project, "Leaf")
+        project.add_dependency(root.id, middle.id)
+        project.add_dependency(middle.id, leaf.id)
+
+    _run(["tree", root.id, "--levels", "1", "--color", "never"])
+
+    lines = capsys.readouterr().out.splitlines()
+    root_line = next(line for line in lines if root.id in line)
+    truncated_line = next(line for line in lines if middle.id in line)
+
+    assert root_line.endswith("· Root  ⧖ now")
+    assert truncated_line.endswith("(+1 more, use --levels 0)  ⧖ now")

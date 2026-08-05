@@ -1,6 +1,9 @@
 ○ beads-1 · Alpha Epic   [OPEN]
 Type: plan · Tier: epic · Owner: owner@example.com
 
+CREATED
+  2025-12-31 19:00:00 EST · 7mo ago
+
 CREATED BY
   owner@example.com
 
@@ -24,6 +27,9 @@ Type: phase · Owner: owner@example.com
 Assignee: alice
 Size: small
 
+CREATED
+  2025-12-31 19:01:00 EST · 7mo ago
+
 CREATED BY
   owner@example.com
 
@@ -42,6 +48,9 @@ EPIC PLAN
 Type: phase · Owner: owner@example.com
 Size: small
 
+CREATED
+  2025-12-31 19:02:00 EST · 7mo ago
+
 CREATED BY
   owner@example.com
 
@@ -59,6 +68,9 @@ EPIC PLAN
 Type: plan · Tier: epic · Owner: owner@example.com
 Assignee: bob
 
+CREATED
+  2025-12-31 19:04:00 EST · 7mo ago
+
 CREATED BY
   owner@example.com
 
@@ -70,6 +82,9 @@ PLAN
 ------------------------------------------------------------
 ○ beads-4 · Cross Epic   [OPEN]
 Type: plan · Tier: epic · Owner: owner@example.com
+
+CREATED
+  2025-12-31 19:07:00 EST · 7mo ago
 
 CREATED BY
   owner@example.com
@@ -84,6 +99,9 @@ PLAN
 ○ beads-4.1 · Cross Phase   [OPEN]
 Type: phase · Owner: owner@example.com
 Size: small
+
+CREATED
+  2025-12-31 19:08:00 EST · 7mo ago
 
 CREATED BY
   owner@example.com

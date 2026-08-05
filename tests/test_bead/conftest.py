@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,20 @@ from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.project import BeadProject
 from sase.xprompt.workflow_models import Workflow
 from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
+
+
+FIXED_BEAD_NOW = datetime(2026, 8, 1, 12, 0, 0)
+
+
+@pytest.fixture(autouse=True)
+def pinned_bead_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Freeze "now" so relative bead ages stay byte-stable in CLI goldens.
+
+    The golden fixture stores carry fixed ``created_at`` values, which pins the
+    absolute half of every rendered timestamp; without this the relative half
+    would drift with wall-clock time and rot the goldens overnight.
+    """
+    monkeypatch.setattr("sase.core.time.local_now", lambda: FIXED_BEAD_NOW)
 
 
 @pytest.fixture

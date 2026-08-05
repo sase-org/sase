@@ -36,6 +36,11 @@ from sase.bead.plus_one_presentation import (
     plus_one_evidence_label,
 )
 from sase.bead_status_presentation import bead_status_presentation
+from sase.bead_time_presentation import (
+    BEAD_TIME_CLI_STYLE,
+    BEAD_TIME_UNKNOWN_LABEL,
+    bead_created_label,
+)
 from sase.bead_type_presentation import bead_type_presentation
 from sase.core.agent_identity_facade import present_agent_name
 from sase.markdown_wrap import MIN_PROSE_WRAP_WIDTH, wrap_markdown
@@ -101,6 +106,14 @@ def render_issue_detail(
             f"{palette.label('Size:')} "
             f"{palette.accent(size_value, phase_size_cli_style(size_value))}"
         )
+
+    created_label = bead_created_label(issue.created_at)
+    created_value = (
+        palette.placeholder(created_label)
+        if created_label == BEAD_TIME_UNKNOWN_LABEL
+        else palette.accent(created_label, BEAD_TIME_CLI_STYLE)
+    )
+    lines.extend(["", palette.section("CREATED"), f"  {created_value}"])
 
     if issue.created_by:
         try:

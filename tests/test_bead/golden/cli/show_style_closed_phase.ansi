@@ -2,6 +2,9 @@
 [2mType:[0m [38;5;117mphase[0m [2m·[0m [2mOwner:[0m owner@example.com
 [2mSize:[0m [38;5;221mmedium[0m
 
+[1;38;5;69mCREATED[0m
+  [38;5;73m2025-12-01 00:00:00 EST · 8mo ago[0m
+
 [1;38;5;69mRESOLUTION[0m
   [2mResolution:[0m done
   [2mClose reason:[0m Landed in main

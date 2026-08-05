@@ -13,6 +13,7 @@ from sase.bead.cli_dep_render import (
     resolve_color,
     styled,
 )
+from sase.bead.cli_common import created_cell
 from sase.bead.cli_detail import ref_to_wire_dict
 from sase.bead.dep_graph import DepDirection, DepEdge, DepGraph
 from sase.bead.model import Status
@@ -157,7 +158,10 @@ def _render_scoped(
     assert issue is not None
     outgoing = tuple(item for item in displayed if item.direction == "out")
     incoming = tuple(item for item in displayed if item.direction == "in")
-    lines = [render_issue(issue, label=True, use_color=use_color)]
+    lines = [
+        render_issue(issue, label=True, use_color=use_color)
+        + created_cell(issue, use_color=use_color)
+    ]
 
     if direction in {"both", "out"} and outgoing:
         lines.extend(["", f"DEPENDS ON ({len(outgoing)})"])
@@ -212,7 +216,10 @@ def _render_store_wide(
             lines.append("")
         root = graph.resolve(root_id)
         assert root is not None
-        lines.append(render_issue(root, label=full, use_color=use_color))
+        lines.append(
+            render_issue(root, label=full, use_color=use_color)
+            + created_cell(root, use_color=use_color)
+        )
         for item in displayed:
             if item.root_id == root_id:
                 lines.extend(
@@ -270,7 +277,10 @@ def _render_edge(
         verdict = ""
         if displayed.direction == "out" and label:
             verdict = "   satisfied" if edge.satisfied else "   blocking"
-        line = f"  {arrow} {glyph} {issue_id} · {endpoint.title}{status}{verdict}"
+        created = created_cell(endpoint, use_color=use_color)
+        line = (
+            f"  {arrow} {glyph} {issue_id} · {endpoint.title}{status}{verdict}{created}"
+        )
 
     lines = [line]
     if full:

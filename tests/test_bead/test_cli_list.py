@@ -11,6 +11,7 @@ from rich.cells import cell_len
 from sase.bead import cli as bead_cli
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
+from sase.bead_time_presentation import BEAD_CREATED_GLYPH, BEAD_TIME_CLI_STYLE
 from sase.bead_type_presentation import BEAD_TYPE_VALUES, bead_type_presentation
 from sase.main.parser import create_parser
 
@@ -306,4 +307,22 @@ def test_list_compact_preserves_parent_suffix_and_separator(
     assert f"· Phase Bead ← {ids['plan']}" in phase_line
 
     plan_line = next(line for line in lines if ids["plan"] in line and "·" in line)
-    assert plan_line.endswith("· Plan Bead")
+    # A parentless bead ends at its title, followed only by the trailing
+    # created cell.
+    assert plan_line.endswith("· Plan Bead  ⧖ now")
+
+
+def test_list_compact_created_cell_carries_the_shared_glyph_and_accent(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed_one_of_each_type(project_dir)
+
+    bead_cli.handle_bead_list(
+        create_parser().parse_args(["bead", "list", "--color", "always"])
+    )
+    lines = capsys.readouterr().out.splitlines()
+
+    assert lines
+    for line in lines:
+        assert line.endswith(f"  {BEAD_TIME_CLI_STYLE}{BEAD_CREATED_GLYPH} now\x1b[0m")

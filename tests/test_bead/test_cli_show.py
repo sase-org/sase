@@ -371,3 +371,39 @@ def test_full_show_bounds_git_origin_probes_during_repo_inventory(
 
     probe_count = origin_probes.count(("git", "remote", "get-url", "origin"))
     assert 1 <= probe_count <= 2
+
+
+def test_show_renders_created_section_above_created_by(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue = Issue(
+        id="beads-created",
+        title="Created Section",
+        issue_type=IssueType.TASK,
+        created_at="2026-01-01T00:00:00Z",
+        created_by="owner@example.com",
+    )
+    use_single_issue_view(monkeypatch, issue)
+
+    out = show(issue, capsys)
+
+    assert "\nCREATED\n  2025-12-31 19:00:00 EST · 7mo ago\n" in out
+    assert out.index("\nCREATED\n") < out.index("\nCREATED BY\n")
+
+
+def test_show_created_section_reports_unknown_for_an_unparseable_timestamp(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue = Issue(
+        id="beads-created-bad",
+        title="Bad Timestamp",
+        issue_type=IssueType.TASK,
+        created_at="not-a-timestamp",
+    )
+    use_single_issue_view(monkeypatch, issue)
+
+    out = show(issue, capsys)
+
+    assert "\nCREATED\n  unknown\n" in out

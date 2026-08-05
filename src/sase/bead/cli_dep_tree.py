@@ -13,6 +13,7 @@ from sase.bead.cli_dep_render import (
     resolve_color,
     styled,
 )
+from sase.bead.cli_common import created_cell
 from sase.bead.cli_detail import ref_to_wire_dict
 from sase.bead.dep_graph import DepDirection, DepGraph, DepTraversalNode
 from sase.bead.model import IssueType, Status
@@ -275,6 +276,11 @@ def _render_tree_node(
             else graph.incoming(node.issue_id)
         )
         row += f" (+{len(adjacent)} more, use --levels 0)"
+
+    # Trailing, like every other bead row: the bead's own creation time is the
+    # last cell, after the graph-state markers.
+    if issue is not None:
+        row += created_cell(issue, use_color=use_color)
 
     lines = [f"{prefix}{connector}{row}"]
     child_prefix = prefix if is_root else prefix + ("   " if is_last else "│  ")

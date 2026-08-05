@@ -270,3 +270,34 @@ def test_dep_list_empty_messages_are_successful(
 
     _run(["list", issue.id])
     assert capsys.readouterr().out == f"{issue.id} has no dependencies.\n"
+
+
+def test_dep_list_rows_carry_the_bead_created_cell_separate_from_edge_provenance(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issues = _seed_graph(project_dir)
+
+    _run(
+        [
+            "list",
+            issues["root"].id,
+            "--format",
+            "full",
+            "--direction",
+            "out",
+            "--color",
+            "never",
+        ]
+    )
+
+    lines = capsys.readouterr().out.splitlines()
+    root_line = next(line for line in lines if issues["root"].title in line)
+    endpoint_line = next(line for line in lines if issues["blocker"].title in line)
+    edge_line = next(line for line in lines if line.startswith("      added "))
+
+    assert root_line.endswith("  ⧖ now")
+    assert endpoint_line.endswith("  ⧖ now")
+    # The edge's own provenance line is untouched: it reports when the
+    # dependency was added, not when the bead was created.
+    assert "⧖" not in edge_line

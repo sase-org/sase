@@ -10,7 +10,7 @@ from pathlib import Path
 from rich.cells import cell_len
 
 from sase.artifact_ref_models import ArtifactRefContext
-from sase.bead.cli_common import get_read_view, status_icon
+from sase.bead.cli_common import created_cell, get_read_view, status_icon
 from sase.bead.cli_dep_render import ANSI_BOLD_BLUE, resolve_color, styled
 from sase.bead.cli_detail import (
     artifact_reference_context,
@@ -303,7 +303,8 @@ def _render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
             f" {styled(f'[{badge}]', PLUS_ONE_CLI_STYLE, use_color)}" if badge else ""
         )
         lines.append(
-            f"{type_cell} {status_glyph} {issue_id} · {issue.title}{badge_text}{parent}"
+            f"{type_cell} {status_glyph} {issue_id} · {issue.title}"
+            f"{badge_text}{parent}{created_cell(issue, use_color=use_color)}"
         )
     return "\n".join(lines) + "\n"
 
@@ -371,7 +372,7 @@ def _render_search_compact(
         )
         lines.append(
             f"{type_cell} {status_icon(issue.status)} {issue.id} · "
-            f"{issue.title}{badge_text}"
+            f"{issue.title}{badge_text}{created_cell(issue, use_color=use_color)}"
         )
         snippet = _compact_snippet(match, query)
         if snippet:
