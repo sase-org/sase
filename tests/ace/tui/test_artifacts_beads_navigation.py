@@ -45,3 +45,34 @@ async def test_selection_marks_jumps_and_reload_preserve_stable_target(
         assert pane.select_entry_target(targets[2])
         pane.set_selected_epic_expanded(True)
         assert pane.entry_targets()[-1:] == (("bead", "alpha", "phase", "alpha-1.2"),)
+
+
+@pytest.mark.asyncio
+async def test_detail_scroll_reserves_its_gutter_so_the_width_never_oscillates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The detail pane's content width must not depend on the scrollbar.
+
+    The Created property value fills the content width exactly, so an auto
+    gutter gives one bead two stable layouts: without a scrollbar the value
+    fits on one line, and with one it wraps, which adds the very line that
+    keeps the scrollbar. The reserved gutter collapses that to one layout.
+    """
+    value = snapshot(tmp_path, project=None)
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.beads_pane.load_beads_snapshot",
+        lambda _project, **_kwargs: value,
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("2")
+        pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
+        await page.wait_for(lambda _state: pane.snapshot is value)
+        scroll = pane.query_one("#beads-detail-scroll")
+
+        assert scroll.styles.scrollbar_gutter == "stable"
+
+        width_without_scrollbar = scroll.content_region.width
+        scroll.show_vertical_scrollbar = True
+        assert scroll.content_region.width == width_without_scrollbar

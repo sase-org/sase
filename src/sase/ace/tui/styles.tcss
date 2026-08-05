@@ -468,9 +468,14 @@ FileFilterBar .filter-bar-completion > .option-list--option-highlighted {
     height: 1fr;
 }
 
+/* The gutter must stay reserved: the Created property value fills the content
+   width exactly, so an auto scrollbar would narrow it, wrap it onto a second
+   line, grow the content by that line, and keep the scrollbar -- two stable
+   layouts for the same bead. */
 #beads-detail-scroll {
     width: 100%;
     height: 1fr;
+    scrollbar-gutter: stable;
 }
 
 #plans-detail-properties,
