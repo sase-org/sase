@@ -12,10 +12,33 @@ from sase.ace.tui.models._agent_associated_plan_paths import (
 )
 from sase.bead.cli_work_plan_snapshot import epic_plan_source_path
 from sase.bead.project import BeadProject
+from sase.core.artifact_file_facade import synthesize_default_artifact_files
 from sase.scripts.sase_clan_summary_plan import (
     _resolve_plan_reference as resolve_clan_plan_reference,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
+from tests.artifact_file_facade.helpers import agent_dir, write_json
+
+
+def _synthesized_plan_path(
+    tmp_path: Path,
+    *,
+    reference: str,
+    workspace: Path,
+) -> str | None:
+    artifacts_dir = agent_dir(tmp_path)
+    write_json(
+        artifacts_dir / "agent_meta.json",
+        {
+            "sdd_plan_path": reference,
+            "plan_committed": True,
+            "workspace_dir": str(workspace),
+        },
+    )
+    synthesized = synthesize_default_artifact_files(artifacts_dir)
+    plan_rows = [artifact.path for artifact in synthesized if artifact.kind == "plan"]
+    assert len(plan_rows) == 1
+    return plan_rows[0]
 
 
 @pytest.mark.parametrize(
@@ -62,6 +85,9 @@ def test_store_plan_resolves_identically_across_surfaces(
     assert agent_resolution.status == "exact"
     assert agent_resolution.resolved_path == plan.resolve()
     assert resolve_clan_plan_reference(reference) == plan.resolve()
+    assert _synthesized_plan_path(
+        tmp_path, reference=reference, workspace=workspace
+    ) == str(plan.resolve())
 
 
 def test_local_archive_plan_resolves_identically_across_surfaces(
@@ -93,3 +119,6 @@ def test_local_archive_plan_resolves_identically_across_surfaces(
         == plan.resolve()
     )
     assert resolve_clan_plan_reference("plans:202607/local-only.md") == plan.resolve()
+    assert _synthesized_plan_path(
+        tmp_path, reference="plans:202607/local-only.md", workspace=workspace
+    ) == str(plan.resolve())

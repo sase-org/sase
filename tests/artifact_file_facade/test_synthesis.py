@@ -274,6 +274,109 @@ def test_prompt_workspace_relative_video_path_is_default_file_artifact(
     assert artifacts[0].workspace_dir == str(workspace)
 
 
+def test_committed_sdd_plan_reference_resolves_to_filesystem_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    store_root = tmp_path / "store"
+    local_root = tmp_path / "local"
+    plan = local_root / "202607" / "example.md"
+    workspace.mkdir()
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Plan\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.resolve_plan_roots",
+        lambda *_args: (store_root, local_root),
+    )
+    write_json(artifacts_dir / "done.json", {"workspace_dir": str(workspace)})
+    write_json(
+        artifacts_dir / "agent_meta.json",
+        {
+            "sdd_plan_path": "plans:202607/example.md",
+            "plan_committed": True,
+        },
+    )
+
+    artifacts = synthesize_default_artifact_files(artifacts_dir)
+
+    assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
+        ("plan", str(plan.resolve()))
+    ]
+    assert artifacts[0].created_at is not None
+
+
+def test_absolute_sdd_plan_path_passes_through_unchanged(tmp_path: Path) -> None:
+    artifacts_dir = agent_dir(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    write_json(
+        artifacts_dir / "agent_meta.json",
+        {
+            "sdd_plan_path": str(plan),
+            "plan_committed": True,
+        },
+    )
+
+    artifacts = synthesize_default_artifact_files(artifacts_dir)
+
+    assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
+        ("plan", str(plan))
+    ]
+
+
+def test_sdd_plan_reference_miss_yields_a_real_candidate_location(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    store_root = tmp_path / "store"
+    local_root = tmp_path / "local"
+    workspace.mkdir()
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.resolve_plan_roots",
+        lambda *_args: (store_root, local_root),
+    )
+    write_json(artifacts_dir / "done.json", {"workspace_dir": str(workspace)})
+    write_json(
+        artifacts_dir / "agent_meta.json",
+        {
+            "sdd_plan_path": "plans:202607/missing.md",
+            "plan_committed": True,
+        },
+    )
+
+    artifacts = synthesize_default_artifact_files(artifacts_dir)
+
+    assert [artifact.kind for artifact in artifacts] == ["plan"]
+    plan_path = artifacts[0].path
+    assert plan_path is not None
+    assert plan_path != "plans:202607/missing.md"
+    assert not plan_path.startswith(str(artifacts_dir))
+    assert not plan_path.startswith(str(workspace))
+
+
+def test_sdd_plan_reference_without_workspace_dir_passes_through_unchanged(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = agent_dir(tmp_path)
+    write_json(
+        artifacts_dir / "agent_meta.json",
+        {
+            "sdd_plan_path": "plans:202607/example.md",
+            "plan_committed": True,
+        },
+    )
+
+    artifacts = synthesize_default_artifact_files(artifacts_dir)
+
+    assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
+        ("plan", "plans:202607/example.md")
+    ]
+
+
 def test_home_plan_is_skipped_when_matching_workspace_plan_exists(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

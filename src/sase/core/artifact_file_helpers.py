@@ -201,6 +201,51 @@ def read_markdown_pdf_source_paths(artifacts_dir: Path) -> dict[str, str]:
     return sources_by_pdf
 
 
+def _resolve_plan_path_reference(
+    value: str,
+    *,
+    done: dict[str, Any],
+    agent_meta: dict[str, Any],
+) -> str:
+    """Resolve a possibly-logical ``plans:`` reference to a filesystem path.
+
+    Absolute paths are returned unchanged — the overwhelmingly common case,
+    and free. A logical reference is resolved through the shared Rust-backed
+    resolver; any failure to resolve (no workspace context, a resolver miss,
+    or a resolver error) falls back to the original value so this can never
+    degrade an already-working case.
+    """
+
+    if Path(value).expanduser().is_absolute():
+        return value
+
+    workspace_dir = first_str(
+        done.get("workspace_dir"), agent_meta.get("workspace_dir")
+    )
+    if not workspace_dir:
+        return value
+
+    from sase.sdd.plan_refs import (
+        resolve_plan_reference,
+        workspace_context_for_plan_resolution,
+    )
+
+    try:
+        resolved_workspace_dir, workspace_num = workspace_context_for_plan_resolution(
+            workspace_dir
+        )
+        resolution = resolve_plan_reference(
+            value,
+            workspace_dir=resolved_workspace_dir,
+            workspace_num=workspace_num,
+        )
+    except Exception:
+        return value
+
+    best_path = resolution.best_path
+    return str(best_path) if best_path is not None else value
+
+
 def selected_plan_path(
     *,
     done: dict[str, Any],
@@ -218,6 +263,10 @@ def selected_plan_path(
         agent_meta.get("sdd_plan_path"),
         done.get("sdd_plan_path"),
     )
+    if sdd_plan_path is not None:
+        sdd_plan_path = _resolve_plan_path_reference(
+            sdd_plan_path, done=done, agent_meta=agent_meta
+        )
     plan_committed = _first_strict_bool(
         agent_meta.get("plan_committed"),
         done.get("plan_committed"),

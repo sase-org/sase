@@ -193,6 +193,53 @@ class TestArtifactFileMetadata:
         assert "Path: ~/.sase/plans/202605/plan.md" in header.plain
         assert "sdd/plans/202605/plan.md" not in header.plain
 
+    def test_committed_plan_reference_resolves_and_dedupes_against_artifacts(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        artifacts_dir = tmp_path / "artifacts"
+        workspace = tmp_path / "workspace"
+        store_root = tmp_path / "store"
+        local_root = tmp_path / "local"
+        plan = store_root / "202605" / "plan.md"
+        artifacts_dir.mkdir()
+        workspace.mkdir()
+        plan.parent.mkdir(parents=True)
+        plan.write_text("# Plan", encoding="utf-8")
+        monkeypatch.setattr(
+            "sase.sdd.plan_refs.resolve_plan_roots",
+            lambda *_args: (store_root, local_root),
+        )
+        (artifacts_dir / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "sdd_plan_path": "plans:202605/plan.md",
+                    "plan_committed": True,
+                    "workspace_dir": str(workspace),
+                }
+            ),
+            encoding="utf-8",
+        )
+        agent = make_agent(
+            status="DONE",
+            artifacts_dir=str(artifacts_dir),
+            workspace_dir=str(workspace),
+        )
+        enrich_agent_from_meta(agent, str(artifacts_dir))
+
+        header, _ = build_header_text(
+            agent,
+            cheap=False,
+            summary=build_detail_header_summary(agent),
+        )
+
+        assert "SASE CONTEXT" in header.plain
+        assert "▸ PLAN" in header.plain
+        assert "(missing)" not in header.plain
+        assert "Files:" not in header.plain
+        assert "ARTIFACTS:" not in header.plain
+
     def test_committed_plan_uses_workspace_relative_path_and_hint_mapping(
         self,
         tmp_path: Path,
