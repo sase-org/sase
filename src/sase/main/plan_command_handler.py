@@ -12,6 +12,7 @@ from sase.main.plan_links_handler import handle_plan_links_command
 from sase.main.plan_propose_handler import handle_plan_propose_command
 from sase.main.plan_reject_handler import handle_plan_reject_command
 from sase.main.plan_search_handler import handle_plan_search_command
+from sase.main.plan_show_handler import handle_plan_show_command
 from sase.main.plan_validate_handler import handle_plan_validate_command
 
 
@@ -32,6 +33,8 @@ def handle_plan_command(args: argparse.Namespace) -> NoReturn:
     if subcommand == "search":
         handle_plan_search_command(args)
         sys.exit(0)
+    if subcommand == "show":
+        sys.exit(handle_plan_show_command(args))
     if subcommand == "validate":
         handle_plan_validate_command(args)
 

@@ -3,20 +3,24 @@
 import argparse
 
 from sase.main.parser_bead import nonnegative_int
+from sase.main.parser_bead_common import wrap_width
 from sase.main.plan_search_handler import plan_date_arg
+from sase.markdown_wrap import DEFAULT_PROSE_WRAP_WIDTH
 from sase.plan_approval_choices import PLAN_APPROVAL_CLI_KINDS
+
+_TARGET_KINDS = ("auto", "bead", "name", "path", "proposal", "ref")
 
 
 def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'plan' subcommand parser."""
     plan_parser = subparsers.add_parser(
         "plan",
-        help="Review, approve, reject, propose, search, and validate implementation plans",
+        help="Review, approve, reject, propose, search, show, and validate implementation plans",
         description=(
             "Review the plan pipeline, approve or reject pending proposals from "
             "the ChangeSpec, inspect SDD prompt/plan links, submit a new plan "
-            "for review, search SDD and machine-local plans, or strictly "
-            "validate one plan file.\n\n"
+            "for review, search SDD and machine-local plans, show one plan's "
+            "details, or strictly validate one plan file.\n\n"
             "With no subcommand, `sase plan` defaults to `sase plan list`."
         ),
         epilog=(
@@ -28,6 +32,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plan reject abcdef12\n"
             "  sase plan propose sase_plan_feature.md\n"
             "  sase plan search auth --format json\n"
+            "  sase plan show abcdef12\n"
             "  sase plan validate sase_plan_feature.md --explain"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -386,6 +391,75 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="DATE",
         help="Only plans created on/before DATE "
         "(YYYY-MM-DD, YYYY-MM, YYYYMM, or relative 14d/2w/3m)",
+    )
+
+    show_parser = plan_subparsers.add_parser(
+        "show",
+        help="Show one plan's details",
+        description=(
+            "Resolve TARGET — an explicit path, a `plans:` reference or "
+            "legacy marker path, a pending-approval id or unique prefix, a "
+            "bare slug or `<shard>/<slug>`, or a bead id whose design points "
+            "at a plan — to exactly one plan and render it as a colored, "
+            "section-structured detail view matching the ACE TUI's PLAN "
+            "lane. With no TARGET, show the sole visible pending plan "
+            "proposal, exactly as `sase plan approve`/`reject` treat an "
+            "omitted SELECTOR. In auto mode the ladder is tried in this "
+            "order: path, ref, proposal, name, then bead; `-t/--target` "
+            "forces one rung with no fallthrough."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase plan show\n"
+            "  sase plan show abcdef12\n"
+            "  sase plan show plans:202608/plan_show_command.md\n"
+            "  sase plan show 202608/plan_show_command\n"
+            "  sase plan show sase_plan_feature.md\n"
+            "  sase plan show sase-64\n"
+            "  sase plan show plans:202608/plan_show_command.md --format json\n"
+            "  sase plan show plan_show_command --format raw > plan.md"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    show_parser.add_argument(
+        "target",
+        nargs="?",
+        metavar="TARGET",
+        help="The plan to show (default: the sole visible pending proposal)",
+    )
+    show_parser.add_argument(
+        "-c",
+        "--color",
+        choices=["auto", "always", "never"],
+        default="auto",
+        help="Color output: auto, always, or never (default: auto)",
+    )
+    show_parser.add_argument(
+        "-f",
+        "--format",
+        choices=["compact", "full", "json", "raw"],
+        default="full",
+        help="Output format: compact, full, json, or raw (default: full)",
+    )
+    show_parser.add_argument(
+        "-t",
+        "--target",
+        dest="target_kind",
+        choices=_TARGET_KINDS,
+        default="auto",
+        help="Force one interpretation of TARGET instead of walking the "
+        "ladder (default: auto)",
+    )
+    show_parser.add_argument(
+        "-w",
+        "--wrap",
+        metavar="WIDTH",
+        type=wrap_width,
+        default=DEFAULT_PROSE_WRAP_WIDTH,
+        help=(
+            "Wrap goal, phase, and diagnostics prose at WIDTH columns: "
+            f"integer >= 20, 'auto', 'none', or 0 (default: {DEFAULT_PROSE_WRAP_WIDTH})"
+        ),
     )
 
     validate_parser = plan_subparsers.add_parser(

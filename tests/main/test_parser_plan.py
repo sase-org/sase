@@ -114,10 +114,52 @@ def test_plan_command_rejects_old_root_plan_file(
     assert "propose" in stderr
 
 
+def test_plan_show_parses_target_and_options() -> None:
+    """``sase plan show`` accepts an optional TARGET and its documented options."""
+    parser = create_parser()
+
+    bare_args = parser.parse_args(["plan", "show"])
+    full_args = parser.parse_args(
+        [
+            "plan",
+            "show",
+            "abcdef12",
+            "-c",
+            "never",
+            "-f",
+            "json",
+            "-t",
+            "proposal",
+            "-w",
+            "40",
+        ]
+    )
+
+    assert bare_args.plan_subcommand == "show"
+    assert bare_args.target is None
+    assert bare_args.color == "auto"
+    assert bare_args.format == "full"
+    assert bare_args.target_kind == "auto"
+    assert bare_args.wrap == 120
+    assert full_args.target == "abcdef12"
+    assert full_args.color == "never"
+    assert full_args.format == "json"
+    assert full_args.target_kind == "proposal"
+    assert full_args.wrap == 40
+
+
+def test_plan_show_rejects_invalid_target_kind() -> None:
+    """``-t/--target`` only accepts the five documented rung names plus auto."""
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(["plan", "show", "x", "-t", "bogus"])
+
+    assert exc_info.value.code == 2
+
+
 def test_plan_help_renders_sorted_subcommands() -> None:
     """``sase plan --help`` lists child commands alphabetically."""
     plan_parser = parser_for(("sase", "plan"))
-    expected_commands = {"approve", "list", "propose", "reject", "search"}
+    expected_commands = {"approve", "list", "propose", "reject", "search", "show"}
 
     help_commands = help_subcommand_rows(plan_parser.format_help(), expected_commands)
     help_text = plan_parser.format_help()
@@ -134,6 +176,7 @@ def test_plan_subcommand_help_is_complete() -> None:
     list_help = parser_for(("sase", "plan", "list")).format_help()
     propose_help = parser_for(("sase", "plan", "propose")).format_help()
     reject_help = parser_for(("sase", "plan", "reject")).format_help()
+    show_help = parser_for(("sase", "plan", "show")).format_help()
 
     assert "SELECTOR" in reject_help
     assert "Notification id or unique prefix" in reject_help
@@ -163,6 +206,22 @@ def test_plan_subcommand_help_is_complete() -> None:
     assert "PLAN_FILE" in propose_help
     assert "sase plan propose sase_plan_feature.md" in propose_help
 
+    assert "TARGET" in show_help
+    assert "{compact,full,json,raw}" in show_help
+    assert "{auto,bead,name,path,proposal,ref}" in show_help
+    assert "-c {auto,always,never}" in show_help
+    assert "-f {compact,full,json,raw}" in show_help
+    assert "-t {auto,bead,name,path,proposal,ref}" in show_help
+    assert "-w WIDTH" in show_help
+    assert "sase plan show" in show_help
+    assert "sase plan show abcdef12" in show_help
+    assert "sase plan show plans:202608/plan_show_command.md" in show_help
+    assert "sase plan show 202608/plan_show_command" in show_help
+    assert "sase plan show sase_plan_feature.md" in show_help
+    assert "sase plan show sase-64" in show_help
+    assert "sase plan show plans:202608/plan_show_command.md --format json" in show_help
+    assert "sase plan show plan_show_command --format raw > plan.md" in show_help
+
 
 def test_plan_public_long_options_have_short_aliases() -> None:
     """Every public long option under ``sase plan`` has a short alias."""
@@ -171,6 +230,7 @@ def test_plan_public_long_options_have_short_aliases() -> None:
         ("sase", "plan", "list"),
         ("sase", "plan", "propose"),
         ("sase", "plan", "reject"),
+        ("sase", "plan", "show"),
     ):
         parser = parser_for(path)
         for action in parser._actions:

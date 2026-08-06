@@ -100,6 +100,7 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase plan links repair`                     | Infer and optionally write missing bidirectional SDD links.                                                  | [SDD](sdd.md)                                                     |
 | `sase plan links validate`                   | Validate SDD artifact links.                                                                                 | [SDD](sdd.md)                                                     |
 | `sase plan search`                           | Search or browse tale, epic, prompt, and research artifacts.                                                 | [SDD](sdd.md)                                                     |
+| `sase plan show [TARGET]`                    | Resolve any plan reference form and render its details, or JSON/raw output.                                  | [SDD](sdd.md#plan-frontmatter-schema-and-validation)              |
 | `sase plan validate PLAN_FILE`               | Validate one plan against the schema selected by its authored `tier`; `--explain` prints authoring guidance. | [SDD](sdd.md#plan-frontmatter-schema-and-validation)              |
 | `sase bead onboard`                          | Print the bead quick-start guide.                                                                            | [Beads](beads.md)                                                 |
 | `sase bead init`                             | Initialize bead storage for the current project.                                                             | [Beads](beads.md#storage)                                         |
@@ -126,6 +127,7 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase plan propose`                          | Submit a plan file for approval from the plan skill path.                                                    | [XPrompt directives](xprompt.md#plan-directive)                   |
 | `sase plan reject`                           | Reject one pending plan by ID or prefix, then attempt planner cleanup when found.                            | [XPrompt directives](xprompt.md#plan-directive)                   |
 | `sase plan search`                           | Search resolved-store SDD plans and the machine-local plan archive by literal text and metadata.             | [SDD](sdd.md#how-sdd-works)                                       |
+| `sase plan show`                             | Resolve a path, `plans:` reference, pending-approval selector, slug, or bead id to one plan and show it.     | [SDD](sdd.md#how-sdd-works)                                       |
 | `sase plan validate`                         | Validate one explicit plan path using its authored `tale` or `epic` tier, with human or JSON diagnostics.    | [SDD](sdd.md#plan-frontmatter-schema-and-validation)              |
 | `sase launch request`                        | Register a launch gate; agent callers wait for a deterministic terminal JSON outcome.                        | [Agent groups](agent_families.md#agent-initiated-family-launches) |
 | `sase launch approve` / `reject`             | Resolve a pending launch request by request id, notification id, or unique prefix.                           | [Agent groups](agent_families.md#agent-initiated-family-launches) |
@@ -183,6 +185,19 @@ reports that separately after the plan has already been rejected.
 matches above local matches; JSON and full output keep ranked result order with SDD-store matches prioritized over
 otherwise-similar local matches. Useful filters include `--kind`, `--status`, `--source`, `--since`, `--until`,
 `--sort`, and `--format json|markdown` for agent-friendly output.
+
+`sase plan show [TARGET]` resolves any way a user can name a plan to exactly one plan and renders it. In `-t auto` (the
+default), TARGET is tried against five rungs in order and the first definitive match wins: `path` (an existing file,
+absolute or cwd-relative), `ref` (a `plans:` reference, a legacy marker path, or a month-drifted reference, Rust
+resolved), `proposal` (a pending-approval notification id or unique prefix), `name` (a corpus slug or `<shard>/<slug>`
+lookup, with or without `.md`), and `bead` (a bead id whose `design` field points at a plan). Pass `-t/--target` to
+force one rung with no fallthrough. Omit TARGET to show the sole visible pending plan proposal, exactly as
+`sase plan approve`/`reject` treat an omitted selector. Every ambiguity prints its candidates as re-runnable `plans:`
+references and every miss prints close-match suggestions; neither guesses. `-f/--format` selects `full` (the default
+section-structured detail view, matching the ACE TUI's PLAN lane), `compact` (the same row `sase plan search` prints),
+`json` (a schema-versioned envelope), or `raw` (the plan file's exact text, for piping). A plan that fails validation
+still renders in full with its diagnostics shown and exits `0`; only a missed, ambiguous, or unreadable target exits
+`1`. `-w/--wrap` controls goal/phase/diagnostics prose wrapping, and `-c/--color` matches `sase bead show`.
 
 `sase plan validate PLAN_FILE` reads the required `tier: tale|epic` property and validates exactly one path without a
 project or agent context. It reports every schema problem in one run and prints the expected tier schema plus a minimal

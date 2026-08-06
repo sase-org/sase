@@ -130,6 +130,12 @@ optional — omit it to browse and filter with `--kind tale|epic|prompt|research
 `--since`/`--until` date bounds. Results are ranked (relevance with a query, recency without) and render as colored
 `compact`/`full` output or as agent-friendly `json`/`markdown` via `--format`.
 
+Once you know which plan you want, `sase plan show [TARGET]` resolves it — a path, a `plans:` reference, a
+pending-approval selector, a bare slug or `<shard>/<slug>`, or a bead id — to exactly one plan and renders it as a
+colored, section-structured detail view matching the ACE TUI's PLAN lane, with `compact`, `json`, and byte-faithful
+`raw` output alongside the default `full` view. See [CLI](cli.md#work-tracking-and-planning) for the resolution ladder
+and format details.
+
 ### Q&A Sections
 
 If the agent asks clarifying questions during planning (via the `/sase_questions` skill), the Q&A exchange is appended
@@ -388,6 +394,7 @@ command group:
 | `sase plan links repair`   | Preview canonical link migration; add `-w/--write` to update unambiguous pairs             |
 | `sase plan links validate` | Validate links; `-j/--json`, `-q/--quiet`, and `-W/--show-warnings` tune output            |
 | `sase plan search`         | Search or browse tale, epic, prompt, and research artifacts                                |
+| `sase plan show [TARGET]`  | Resolve any plan reference form and render it; `-f/--format` picks full/compact/json/raw   |
 | `sase plan validate`       | Validate by authored tier; `-e/--explain`, `-j/--json`, and `-q/--quiet` tune output       |
 | `sase bead work PLAN_FILE` | Validate, archive, link, and launch an epic plan; `-n/--dry-run` previews without mutation |
 

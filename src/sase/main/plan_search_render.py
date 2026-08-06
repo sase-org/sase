@@ -19,7 +19,6 @@ honoring ``NO_COLOR`` and TTY detection (``rich`` handles both natively in
 
 from __future__ import annotations
 
-import hashlib
 import sys
 from pathlib import Path
 from typing import TextIO
@@ -29,6 +28,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from sase import plan_style
 from sase.plan_search.model import Plan, PlanSearchMatch
 
 # --- source presentation -------------------------------------------------
@@ -42,27 +42,12 @@ _SOURCE_ROOTS = {SOURCE_REPO: "sdd/", SOURCE_LOCAL: "~/.sase/plans/"}
 
 # --- status / kind styling -----------------------------------------------
 
-# Status icons reuse the bead vocabulary: ◐ in-progress, ✓ done, ○ none/unknown.
-_STATUS_ICONS = {"wip": "◐", "done": "✓"}
-_DEFAULT_ICON = "○"
-_STATUS_STYLES = {"wip": "yellow", "done": "green"}
-_DEFAULT_STATUS_STYLE = "dim"
-
-_KIND_STYLES = {
-    "tale": "cyan",
-    "epic": "magenta",
-    "local": "bright_black",
-}
-_DOCUMENT_KIND_STYLES = (
-    "green",
-    "yellow",
-    "blue",
-    "red",
-    "bright_cyan",
-    "bright_magenta",
-    "bright_green",
-    "bright_blue",
-)
+# Shared with sase.main.plan_show_render so the two subcommands stay
+# pixel-consistent; see sase.plan_style for the canonical tables.
+_DOCUMENT_KIND_STYLES = plan_style.DOCUMENT_KIND_STYLES
+_status_icon = plan_style.status_icon
+_status_style = plan_style.status_style
+_kind_style = plan_style.kind_style
 
 _TITLE_STYLE = "bold"
 _SNIPPET_STYLE = "dim"
@@ -93,24 +78,6 @@ def _make_console(
 
 
 # --- small helpers -------------------------------------------------------
-
-
-def _status_icon(status: str) -> str:
-    return _STATUS_ICONS.get(status, _DEFAULT_ICON)
-
-
-def _status_style(status: str) -> str:
-    return _STATUS_STYLES.get(status, _DEFAULT_STATUS_STYLE)
-
-
-def _kind_style(kind: str) -> str:
-    fixed = _KIND_STYLES.get(kind)
-    if fixed is not None:
-        return fixed
-    digest = hashlib.sha256(kind.encode("utf-8")).digest()
-    return _DOCUMENT_KIND_STYLES[
-        int.from_bytes(digest[:2], "big") % len(_DOCUMENT_KIND_STYLES)
-    ]
 
 
 def _display_path(plan: Plan) -> str:
@@ -477,4 +444,4 @@ def render(
         raise AssertionError(f"unknown plan-search format: {fmt}")
 
 
-__all__ = ["render"]
+__all__ = ["_DOCUMENT_KIND_STYLES", "render"]
