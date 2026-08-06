@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
 
 from sase.agent.names._registry import name_registry_load_session
-from sase.agent_lanes import lane_ref_for_agent
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.inventory import ProjectHoodInventory
-from sase.agents_sync.inventory_models import InventoryRun
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import ProjectTarget
+from sase.agents_sync.prompt_archive.deferred import (
+    prepare_deferred_prompt_archive,
+    prompt_runs_by_request,
+)
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
 from sase.agents_sync.v2_io import read_owner_manifest
 from sase.agents_sync.v2_models import V2ProjectIdentity
@@ -223,7 +224,7 @@ def _prepare_publications(
     requests_by_hood: dict[str, list[AgentPublicationOutboxItem]] = {}
     prepared: list[AgentPublicationOutboxItem] = []
     errors: list[str] = []
-    prompt_runs = _prompt_runs_by_request(inventory, identity)
+    prompt_runs = prompt_runs_by_request(inventory, identity)
     for request in requests:
         requests_by_hood.setdefault(request.local_hood, []).append(request)
 
@@ -240,7 +241,7 @@ def _prepare_publications(
                 git_runner=git_runner,
             )
             for hood_request in hood_requests:
-                _prepare_prompt_archive_retry(
+                prepare_deferred_prompt_archive(
                     target,
                     hood_request,
                     git_runner,
@@ -315,49 +316,3 @@ def _prepare_publications(
         tuple(item for item in requests if item.logical_key in prepared_keys),
         tuple(errors),
     )
-
-
-def _prepare_prompt_archive_retry(
-    target: ProjectTarget,
-    request: AgentPublicationOutboxItem,
-    git_runner: GitRunner,
-    *,
-    prompt_runs: dict[tuple[str, str], InventoryRun],
-) -> None:
-    """Regenerate one queued prompt archive in the active sidecar transaction."""
-
-    matching = prompt_runs.get((request.local_agent, request.primary_revision))
-    if matching is None or matching.source_label is None:
-        return
-    artifacts_dir = Path(matching.source_label)
-    if not (artifacts_dir / "raw_xprompt.md").is_file():
-        return
-    from sase.agents_sync.prompt_archive.publish import prepare_prompt_archive
-
-    prepare_prompt_archive(
-        target=target,
-        repo=target.sidecar_path,
-        agent_name=matching.local_name,
-        global_agent=matching.global_name,
-        primary_revision=request.primary_revision,
-        commit_cwd=target.primary_checkout,
-        agent_artifacts_dir=artifacts_dir,
-        git_runner=git_runner,
-    )
-
-
-def _prompt_runs_by_request(
-    inventory: ProjectHoodInventory,
-    identity: AgentIdentitySnapshot,
-) -> dict[tuple[str, str], InventoryRun]:
-    indexed: dict[tuple[str, str], InventoryRun] = {}
-    for run in inventory.runs:
-        local_name = getattr(run, "local_name", None)
-        if not isinstance(local_name, str):
-            continue
-        lane = lane_ref_for_agent(local_name, identity).local_name
-        for commit in getattr(run, "commits", ()):
-            sha = getattr(commit, "sha", None)
-            if isinstance(sha, str):
-                indexed.setdefault((lane, sha), run)
-    return indexed

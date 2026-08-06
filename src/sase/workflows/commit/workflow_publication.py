@@ -79,22 +79,39 @@ def run_agent_publication_step(
                 cp.primary_revision,
                 commit_cwd=cp.cwd,
             )
-            if prompt_outcome.error:
-                print_status(
-                    "The primary commit succeeded, but prompt archive "
-                    f"publication was deferred: {prompt_outcome.error}",
-                    "warning",
-                )
-            elif prompt_outcome.skip_reason:
-                print_status(
-                    "The primary commit succeeded, but prompt archive "
-                    f"publication was skipped: {prompt_outcome.skip_reason}.",
-                    "warning",
-                )
-        except Exception as exc:  # noqa: BLE001 - best-effort projection.
+        except Exception as exc:  # noqa: BLE001 - auxiliary publication boundary
+            # The archive never reached the durable queue, so no later pass
+            # knows it is owed. Stop here and let `sase commit --resume` retry.
             print_status(
                 "The primary commit succeeded, but prompt archive publication "
-                f"was deferred: {exc}",
+                f"failed before a retry could be confirmed: {exc}. Run "
+                "`sase commit --resume` to retry without creating another "
+                "primary commit.",
+                "error",
+            )
+            return False
+        if prompt_outcome.error and not prompt_outcome.queued:
+            print_status(
+                "The primary commit succeeded, but prompt archive publication "
+                f"could not be queued: {prompt_outcome.error}. Run "
+                "`sase commit --resume` to retry without creating another "
+                "primary commit.",
+                "error",
+            )
+            return False
+        if prompt_outcome.error:
+            # The request is durable: the same agent-hood publication carries
+            # this prompt, so the archive is rebuilt on the next drain.
+            print_status(
+                "The primary commit succeeded, but prompt archive publication "
+                f"was deferred and will retry with agent publication: "
+                f"{prompt_outcome.error}",
+                "warning",
+            )
+        elif prompt_outcome.skip_reason:
+            print_status(
+                "The primary commit succeeded, but prompt archive "
+                f"publication was skipped: {prompt_outcome.skip_reason}.",
                 "warning",
             )
         cp.completed_steps.append("publish_prompt_archive")

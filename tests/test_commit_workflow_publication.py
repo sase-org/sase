@@ -273,6 +273,83 @@ def test_publication_raising_fails_the_commit_with_a_resume_hint(
 
 
 @patch(_PROVIDER_TARGET)
+def test_deferred_prompt_archive_rides_the_durable_agent_publication(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_publication(mock_get, monkeypatch)
+
+    with (
+        patch(
+            "sase.agents_sync.prompt_archive.publish_prompt_archive",
+            return_value=SimpleNamespace(
+                error="agents sync lock is busy",
+                queued=True,
+                skip_reason=None,
+                prompt_path=None,
+            ),
+        ),
+        patch(
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+            return_value=_CommitPublicationOutcome(published=True),
+        ),
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value=None,
+        ),
+    ):
+        assert CommitWorkflow({"message": "fix: bug"}, "create_commit").run() == (
+            RunResult.OK
+        )
+
+    output = " ".join(capsys.readouterr().out.split())
+    assert "prompt archive publication was deferred and will retry with " in output
+    assert "agent publication: agents sync lock is busy" in output
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_unqueueable_prompt_archive_fails_the_commit_with_a_resume_hint(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_publication(mock_get, monkeypatch)
+
+    with (
+        patch(
+            "sase.agents_sync.prompt_archive.publish_prompt_archive",
+            return_value=SimpleNamespace(
+                error="could not persist agents publication retry: disk is full",
+                queued=False,
+                skip_reason=None,
+                prompt_path=None,
+            ),
+        ),
+        patch(
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+            side_effect=AssertionError("agent publication must not run"),
+        ),
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value=None,
+        ),
+    ):
+        assert CommitWorkflow({"message": "fix: bug"}, "create_commit").run() == (
+            RunResult.FAILED
+        )
+
+    output = " ".join(capsys.readouterr().out.split())
+    assert "prompt archive publication could not be queued" in output
+    assert "disk is full" in output
+    assert "sase commit --resume" in output
+    assert (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
 def test_publication_without_target_warns_but_keeps_primary_successful(
     mock_get: MagicMock,
     artifacts_dir: Path,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -28,11 +28,15 @@ from sase.agents_sync.git_sync_transaction import sync_project_locked
 from sase.agents_sync.incoming_integration import (
     integrate_agent_imports_with_receipts,
 )
+from sase.agents_sync.inventory import build_project_hood_inventory
 from sase.agents_sync.models import (
     ExportCounts,
     IntegrationCounts,
     ProjectTarget,
     SyncOutcome,
+)
+from sase.agents_sync.prompt_archive.deferred import (
+    restore_deferred_prompt_archives,
 )
 from sase.agents_sync.publication import reconcile_agent_hoods
 from sase.agents_sync.targets import resolve_sync_targets
@@ -97,17 +101,21 @@ def sync_agents(
                 target.project_key,
                 include_quarantined=False,
             )
+            deferred_prompts = _DeferredPromptWork(requests=pending_publications)
             outcome = _sync_project(
                 target,
                 owner,
                 git_runner=git_runner,
                 lock_timeout_seconds=timeout,
+                deferred_prompts=deferred_prompts,
             )
             if outcome.ok and outcome.skip_reason is None and pending_publications:
+                prompt_failures = deferred_prompts.failures
                 materialized = tuple(
                     item
                     for item in pending_publications
-                    if _publication_request_materialized(target, item.global_agent)
+                    if item.logical_key not in prompt_failures
+                    and _publication_request_materialized(target, item.global_agent)
                 )
                 if materialized:
                     acknowledge_agent_publications(
@@ -117,7 +125,11 @@ def sync_agents(
                 for item in pending_publications:
                     if item in materialized:
                         continue
-                    error = (
+                    # A prompt archive that could not be rebuilt is a transient
+                    # failure of a recoverable request, so it stays retryable
+                    # instead of being retired as unpublishable.
+                    prompt_error = prompt_failures.get(item.logical_key)
+                    error = prompt_error or (
                         f"published agent page for {item.global_agent!r} "
                         "did not materialize during full sync"
                     )
@@ -127,7 +139,7 @@ def sync_agents(
                         error=error,
                         increment_attempts=True,
                         quarantine_threshold=configured_publication_max_attempts(),
-                        terminal_reason=error,
+                        terminal_reason=None if prompt_error else error,
                     )
             publication_diagnostics = (
                 *drop_diagnostics,
@@ -190,12 +202,26 @@ def _publication_request_materialized(
     return page.is_relative_to(agents_root) and page.is_file()
 
 
+@dataclass(slots=True)
+class _DeferredPromptWork:
+    """Queued requests whose prompt archives this sync still owes.
+
+    ``failures`` is filled in by the export pass so the caller can keep a
+    request queued instead of acknowledging a publication whose prompt never
+    reached the sidecar.
+    """
+
+    requests: tuple[Any, ...] = ()
+    failures: dict[tuple[str, str], str] = field(default_factory=dict)
+
+
 def _sync_project(
     target: ProjectTarget,
     owner: AgentOwnerIdentity | str,
     *,
     git_runner: GitRunner = run_git,
     lock_timeout_seconds: float = DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS,
+    deferred_prompts: _DeferredPromptWork | None = None,
 ) -> SyncOutcome:
     """Run one project's bounded mutation transaction."""
 
@@ -219,19 +245,39 @@ def _sync_project(
     with bounded_agents_lock(lock_path, lock_timeout_seconds) as acquired:
         if not acquired:
             return _skip(target, "agents sync lock is busy")
-        return _sync_project_locked(target, resolved_owner, git_runner)
+        return _sync_project_locked(
+            target,
+            resolved_owner,
+            git_runner,
+            deferred_prompts,
+        )
 
 
 def _sync_project_locked(
     target: ProjectTarget,
     owner: AgentOwnerIdentity,
     git_runner: GitRunner,
+    deferred_prompts: _DeferredPromptWork | None = None,
 ) -> SyncOutcome:
+    def integrate_export_pass(
+        pass_target: ProjectTarget,
+        repo: Path,
+        pass_owner: AgentOwnerIdentity,
+        pass_git_runner: GitRunner,
+    ) -> tuple[IntegrationCounts, ExportCounts]:
+        return _integrate_export_pass(
+            pass_target,
+            repo,
+            pass_owner,
+            pass_git_runner,
+            deferred_prompts=deferred_prompts,
+        )
+
     return sync_project_locked(
         target,
         owner,
         git_runner,
-        _integrate_export_pass,
+        integrate_export_pass,
     )
 
 
@@ -240,6 +286,8 @@ def _integrate_export_pass(
     repo: Path,
     owner: AgentOwnerIdentity,
     git_runner: GitRunner,
+    *,
+    deferred_prompts: _DeferredPromptWork | None = None,
 ) -> tuple[IntegrationCounts, ExportCounts]:
     identity = AgentIdentitySnapshot(owner)
     # Import recovery can claim many historical names. Keep one registry
@@ -252,15 +300,43 @@ def _integrate_export_pass(
             owner,
             git_runner=git_runner,
         )
+        inventory = build_project_hood_inventory(
+            target,
+            identity,
+            git_runner=git_runner,
+        )
         published = reconcile_agent_hoods(
             target,
             repo,
             identity=identity,
+            inventory=inventory,
             git_runner=git_runner,
         )
+    # A queued publication request also owns any prompt archive that was
+    # deferred when the primary commit landed. This sync acknowledges the
+    # request once the hood materializes, so the prompt has to be regenerated
+    # here or it would be dropped with the request.
+    prompt_failures = restore_deferred_prompt_archives(
+        target,
+        deferred_prompts.requests if deferred_prompts is not None else (),
+        git_runner,
+        identity=identity,
+        inventory=inventory,
+    )
+    if deferred_prompts is not None:
+        # A retry pass rebuilds the same archives, so the caller sees only the
+        # failures the final pass left behind.
+        deferred_prompts.failures.clear()
+        deferred_prompts.failures.update(prompt_failures)
     return integrated, ExportCounts(
         diagnostics=tuple(
-            dict.fromkeys((*integrated.diagnostics, *published.diagnostics))
+            dict.fromkeys(
+                (
+                    *integrated.diagnostics,
+                    *published.diagnostics,
+                    *prompt_failures.values(),
+                )
+            )
         ),
         hoods_published=published.hoods_published,
         hoods_refreshed=published.hoods_refreshed,

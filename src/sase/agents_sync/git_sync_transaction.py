@@ -22,7 +22,10 @@ from sase.agents_sync.models import (
     ProjectTarget,
     SyncOutcome,
 )
+from sase.agents_sync.prompt_archive.git_ops import clean_prompt_archive_worktree
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+
+_PROMPT_ARCHIVE_PATHS = ("prompts", "artifacts")
 
 IntegrateExportPass = Callable[
     [ProjectTarget, Path, AgentOwnerIdentity, GitRunner],
@@ -37,7 +40,7 @@ def sync_project_locked(
     integrate_export_pass: IntegrateExportPass,
 ) -> SyncOutcome:
     repo = target.sidecar_path
-    cleanup_error = clean_agents_payload_worktree(repo, git_runner)
+    cleanup_error = _clean_sync_worktree(repo, git_runner)
     if cleanup_error is not None:
         return _error(target, cleanup_error)
     outcome: SyncOutcome
@@ -49,8 +52,22 @@ def sync_project_locked(
             integrate_export_pass,
         )
     finally:
-        cleanup_error = clean_agents_payload_worktree(repo, git_runner)
+        cleanup_error = _clean_sync_worktree(repo, git_runner)
     return _error(target, cleanup_error) if cleanup_error is not None else outcome
+
+
+def _clean_sync_worktree(repo: Path, git_runner: GitRunner) -> str | None:
+    """Restore both the payload and the regenerable prompt archive to ``HEAD``.
+
+    The export pass rebuilds prompt archives owed by queued publication
+    requests, so this transaction owns those paths for the same reasons it owns
+    the agents payload: everything under them is regenerated from the local
+    artifact pool on every pass.
+    """
+
+    return clean_agents_payload_worktree(repo, git_runner) or (
+        clean_prompt_archive_worktree(repo, git_runner)
+    )
 
 
 def _sync_project_transaction(
@@ -73,7 +90,12 @@ def _sync_project_transaction(
     except Exception as exc:  # noqa: BLE001 - project-scoped format/import error
         return _error(target, str(exc), pulled=True)
 
-    committed_result = commit_agents_payload_if_dirty(repo, owner, git_runner)
+    committed_result = commit_agents_payload_if_dirty(
+        repo,
+        owner,
+        git_runner,
+        extra_paths=_PROMPT_ARCHIVE_PATHS,
+    )
     if isinstance(committed_result, str):
         return _error(
             target,
@@ -175,7 +197,7 @@ def _sync_project_transaction(
                 **_v2_import_outcome_counts(integrated),
             )
 
-    cleanup_error = clean_agents_payload_worktree(repo, git_runner)
+    cleanup_error = _clean_sync_worktree(repo, git_runner)
     if cleanup_error is not None:
         return _error(
             target,
@@ -206,7 +228,12 @@ def _sync_project_transaction(
             push_attempts=1,
             **_v2_import_outcome_counts(integrated),
         )
-    retry_commit_result = commit_agents_payload_if_dirty(repo, owner, git_runner)
+    retry_commit_result = commit_agents_payload_if_dirty(
+        repo,
+        owner,
+        git_runner,
+        extra_paths=_PROMPT_ARCHIVE_PATHS,
+    )
     if isinstance(retry_commit_result, str):
         return _error(
             target,

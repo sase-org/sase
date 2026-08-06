@@ -93,6 +93,12 @@ SHA-256 digest, so identical bytes publish once and differing bytes do not overw
 inside known repositories are not duplicated; their prompt links point to hosted source blobs at the recorded revision.
 Non-file references such as `@agent:`, `@bug:`, and `@commit:` remain links without copied bytes.
 
+Prompt-archive publication is not a separate durable queue. The commit path publishes the archive directly, and the
+outbox request enqueued for that commit's hood also owns its prompt: when the archive cannot be written right away — the
+agents lock is busy, for instance — the next drain or full `sase agent sync` regenerates it from the local artifact pool
+inside the same bounded transaction that publishes the hood. A request is acknowledged only once both halves reached the
+sidecar, so a prompt that could not be rebuilt keeps its request queued and retryable rather than retiring it.
+
 Use `sase agent prompts list` to browse the archive. `sase agent prompts show <prompt>` prints the archived Markdown
 document. `sase agent prompts validate` verifies headers, artifact links, digest-bearing filenames, local manifests, and
 plan cross-links. `sase agent prompts migrate` reports historical plans-sidecar prompts by default and moves them to
@@ -271,11 +277,14 @@ request records its attempt count, most recent attributable error, and quarantin
 `publish_committed_agent_hood` enqueues the committing hood's request and immediately drains every active request for
 the project under the bounded agents lock, so a healthy commit publishes and pushes before it returns. Bead-page
 rendering, prompt-archive publication, and plan-header refresh are separate synchronous steps on the commit path — they
-are not outbox request kinds. A hood-specific preparation failure increments only requests for that hood;
-repository-wide failures such as lock contention, pull failure, or push failure remain retryable without consuming
-unrelated per-item quarantine budgets. A repeatable failure that proves the requested hood can never be published
-retires that request after one confirming retry instead of quarantining it. Successful requests are acknowledged only
-after their sidecar work is committed and safely pushed, or after the prepared payload is already current.
+are not outbox request kinds. Prompt-archive publication is still covered by the request, because every drain and full
+sync rebuilds the archives owed by the requests it is about to acknowledge. A prompt archive that cannot even be queued
+fails the commit with a `sase commit --resume` hint, the same way an unqueueable hood does. A hood-specific preparation
+failure increments only requests for that hood; repository-wide failures such as lock contention, pull failure, or push
+failure remain retryable without consuming unrelated per-item quarantine budgets. A repeatable failure that proves the
+requested hood can never be published retires that request after one confirming retry instead of quarantining it.
+Successful requests are acknowledged only after their sidecar work is committed and safely pushed, or after the prepared
+payload is already current.
 
 ### Chats provenance versus publication
 
