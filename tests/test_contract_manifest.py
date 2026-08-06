@@ -10,22 +10,47 @@ recurse into itself). These guards run under the exhaustive lane instead
 from __future__ import annotations
 
 import importlib.util
-import subprocess
 import sys
-import time
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
+
+import pytest
+
+from tests._test_contract_budget import (
+    HAVE_RESOURCE,
+    Measurement,
+    describe_measurement,
+    run_calibration_probe,
+    run_measured,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 
-# Measured 2026-08-05 on the dev host: the committed set ran 24-26s serially
-# (this test's own subprocess wrapper included) across repeated runs, some
-# under real contention from other concurrent workspaces. If this creeps
-# toward the ceiling, trim the set per the curation procedure in
+# The ceiling is unchanged from the wall-clock version that preceded it: the
+# contract set is added to every scoped selection, so it is a tax every agent
+# pays on every `just check`, and 30s is the most that tax may be. What changed
+# is *what* is measured against it -- normalized child CPU rather than wall
+# clock, so the guard bounds the set's size instead of the host's load. See
+# tests/_test_contract_budget.py for the normalization and its calibration.
+#
+# Measured 2026-08-06 on the 64-core dev host at d66101e8f (34 files, 289
+# tests): 22.6-23.2s normalized, i.e. ~7s of headroom, holding to within 7%
+# across a load range where the raw wall clock moved from 24s to 42s. If this
+# creeps toward the ceiling, trim the set per the curation procedure in
 # plans/202608/test_suite_tier1.md rather than raising the budget.
+#
+# Membership, re-decided 2026-08-06 (the question `sase-fp.2` deferred until
+# the scoped-run integration test landed, which it has). Both candidates stay
+# out, and not merely for margin: `tests/test_suite_gate_integration.py` costs
+# +4.8s normalized (17% of the whole budget) and `tests/
+# test_markdown_template_packaging.py` +2.0s, but every change that could
+# break either already forces the full suite on its own -- `tests/
+# _suite_gate.py` and `tools/run_pytest` are root-conftest/selection-tooling
+# paths, and `pyproject.toml` is a packaging-config path. Adding them would
+# spend a quarter of the budget on coverage the broadening rules already give.
 _BUDGET_SECONDS = 30.0
 
 
@@ -66,24 +91,29 @@ def test_contract_manifest_matches_marker_selection() -> None:
     )
 
 
+@pytest.mark.skipif(
+    not HAVE_RESOURCE,
+    reason="child-CPU normalization needs the Unix-only `resource` module",
+)
 def test_contract_set_serial_runtime_stays_within_budget() -> None:
     files = _read_manifest()
 
     tool = _load_refresh_tool()
+    env = tool._nested_pytest_env()
 
-    start = time.monotonic()
-    proc = subprocess.run(
+    # Bracket the measured run: one probe before and one after, so a load
+    # change arriving partway through a ~25s run is still seen.
+    before = run_calibration_probe(sys.executable, cwd=ROOT, env=env)
+    proc, wall, cpu = run_measured(
         [sys.executable, "-m", "pytest", "-q", *files],
         cwd=ROOT,
-        capture_output=True,
-        text=True,
-        env=tool._nested_pytest_env(),
-        check=False,
+        env=env,
     )
-    elapsed = time.monotonic() - start
+    after = run_calibration_probe(sys.executable, cwd=ROOT, env=env)
 
     assert proc.returncode == 0, proc.stdout[-4000:] + proc.stderr[-2000:]
-    assert elapsed <= _BUDGET_SECONDS, (
-        f"contract set took {elapsed:.1f}s serially, over the "
-        f"{_BUDGET_SECONDS:.0f}s budget:\n{proc.stdout[-4000:]}"
+
+    measurement = Measurement(wall=wall, cpu=cpu, probe_cpu=(before, after))
+    assert measurement.normalized <= _BUDGET_SECONDS, (
+        f"{describe_measurement(measurement, _BUDGET_SECONDS)}\n{proc.stdout[-4000:]}"
     )
