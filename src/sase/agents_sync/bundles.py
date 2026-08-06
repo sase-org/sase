@@ -15,6 +15,7 @@ from typing import Any
 from sase.agent.names import claim_imported_registered_name
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.incoming_cache_legacy import legacy_group_machine_hood
+from sase.agents_sync.inventory_io import is_imported
 from sase.agents_sync.io import (
     AgentsSyncFormatError,
     atomic_write_bytes,
@@ -122,7 +123,22 @@ def integrate_foreign_bundles(
     integrated = 0
     refreshed = 0
     unchanged = 0
+    diagnostics: list[str] = []
+    self_owned = group_machine == owner.machine_name
     for entry, bundle in validated:
+        if self_owned:
+            local_artifact = _local_self_artifact(
+                entry,
+                owner.machine_name,
+                rows_by_timestamp.get(entry.artifact_timestamp, ()),
+            )
+            if local_artifact is not None:
+                unchanged += 1
+                diagnostics.append(
+                    f"{group_hood}: {entry.name} already present locally at "
+                    f"{local_artifact}; skipped self-import"
+                )
+                continue
         imported = imported_by_identity.get((entry.name, entry.machine))
         if imported is not None:
             existing, existing_meta = imported
@@ -150,7 +166,9 @@ def integrate_foreign_bundles(
             group_ownership=group_ownership,
         )
         integrated += 1
-    return IntegrationCounts(integrated, refreshed, unchanged)
+    return IntegrationCounts(
+        integrated, refreshed, unchanged, diagnostics=tuple(diagnostics)
+    )
 
 
 def _find_proven_current_v1_artifact(
@@ -170,7 +188,7 @@ def _find_proven_current_v1_artifact(
     for artifact_dir, meta, done in rows:
         if artifact_dir.name != entry.artifact_timestamp:
             continue
-        if meta.get("imported_from_machine") is not None:
+        if is_imported(meta, done):
             continue
         raw_name = _text(meta.get("name")) or _text(done.get("name"))
         if raw_name is None:
@@ -196,10 +214,43 @@ def _find_proven_current_v1_artifact(
     return None
 
 
+def _local_self_artifact(
+    entry: ManifestEntry,
+    machine_name: str,
+    candidates: Collection[tuple[Path, dict[str, Any], dict[str, Any]]],
+) -> Path | None:
+    """Return a local, non-imported artifact this machine already has for entry.
+
+    Matches on artifact timestamp and machine-qualified name only, with no
+    commit-SHA requirement, so it also catches cases where the v1 evidence
+    proof path could not establish a match.
+    """
+
+    for artifact_dir, meta, done in candidates:
+        if is_imported(meta, done):
+            continue
+        raw_name = _text(meta.get("name")) or _text(done.get("name"))
+        if raw_name is None:
+            continue
+        if (
+            machine_qualify_v1_transport_agent_name(raw_name, machine_name)
+            != entry.name
+        ):
+            continue
+        return artifact_dir
+    return None
+
+
 def v1_artifact_rows(
     target: ProjectTarget,
 ) -> tuple[tuple[Path, dict[str, Any], dict[str, Any]], ...]:
-    """Return the local artifact evidence rows used by legacy-v1 ownership."""
+    """Return the local artifact evidence rows used by legacy-v1 ownership.
+
+    ``done.json`` is optional: dismissing an agent unlinks it along with the
+    other loader markers, so ``agent_meta.json`` is the authoritative marker
+    of a real artifact. A missing or unparseable ``done.json`` yields an
+    empty dict for that row rather than dropping the row.
+    """
 
     return _v1_artifact_rows(target)
 
@@ -214,9 +265,10 @@ def _v1_artifact_rows(
         newest_first=False,
     ):
         meta = _read_json_object(artifact / "agent_meta.json")
-        done = _read_json_object(artifact / "done.json")
-        if meta is not None and done is not None:
-            rows.append((artifact, meta, done))
+        if meta is None:
+            continue
+        done = _read_json_object(artifact / "done.json") or {}
+        rows.append((artifact, meta, done))
     return tuple(rows)
 
 

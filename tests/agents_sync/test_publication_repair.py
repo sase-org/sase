@@ -8,7 +8,10 @@ from sase.agents_sync.inventory import InventoryRun, ProjectHoodInventory
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication import publish_agent_hood
-from sase.agents_sync.publication_repair import repair_owner_hood_digests
+from sase.agents_sync.publication_repair import (
+    repair_owner_hood_digests,
+    _repair_owner_manifest,
+)
 from sase.agents_sync.publication_validation import load_validated_publication
 from sase.agents_sync.v2_io import apply_payload_atomic
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
@@ -163,3 +166,71 @@ def test_repair_never_touches_a_foreign_owners_snapshot(tmp_path: Path) -> None:
     assert bob_snapshot_path.read_bytes() == bob_snapshot_before
     with pytest.raises(AgentsSyncFormatError, match="file digest mismatch"):
         load_validated_publication(repo)
+
+
+def test_repair_manifest_restores_entries_for_intact_on_disk_hoods(
+    tmp_path: Path,
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target, repo = _publish(tmp_path, "manifest1", owner, "foo")
+    _manifest_path(repo, owner).unlink()
+
+    payload, report = _repair_owner_manifest(target, repo, owner)
+
+    assert payload
+    assert any("foo" in entry and "recovered" in entry for entry in report)
+
+    apply_payload_atomic(repo, payload)
+
+    load_validated_publication(repo)
+
+
+def test_repair_manifest_skips_and_reports_a_hood_with_a_pruned_run_file(
+    tmp_path: Path,
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target, repo = _publish(tmp_path, "manifest2", owner, "foo")
+    _manifest_path(repo, owner).unlink()
+    _chat_path(repo, owner, "foo").unlink()
+
+    payload, report = _repair_owner_manifest(target, repo, owner)
+
+    assert payload == {}
+    assert any("foo" in entry and "skipped" in entry for entry in report)
+
+
+def test_repair_manifest_is_a_noop_when_already_complete(tmp_path: Path) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target, repo = _publish(tmp_path, "manifest3", owner, "foo")
+
+    payload, report = _repair_owner_manifest(target, repo, owner)
+
+    assert payload == {}
+    assert report == ()
+
+
+def test_repair_manifest_never_reads_a_foreign_owners_path_family(
+    tmp_path: Path,
+) -> None:
+    alice = AgentOwnerIdentity("alice", "athena")
+    bob = AgentOwnerIdentity("bob", "zeus")
+    target, repo = _publish(tmp_path, "manifest4", alice, "foo")
+    publish_agent_hood(
+        target,
+        repo,
+        "bar",
+        identity=AgentIdentitySnapshot(bob),
+        inventory=ProjectHoodInventory(bob, "proj", (_run(bob, "bar", "02"),)),
+    )
+    _manifest_path(repo, alice).unlink()
+    bob_manifest_before = _manifest_path(repo, bob).read_bytes()
+
+    payload, report = _repair_owner_manifest(target, repo, alice)
+
+    assert any("foo" in entry and "recovered" in entry for entry in report)
+    assert all("bar" not in entry for entry in report)
+    assert str(_manifest_path(repo, bob).relative_to(repo)) not in payload
+
+    apply_payload_atomic(repo, payload)
+
+    assert _manifest_path(repo, bob).read_bytes() == bob_manifest_before

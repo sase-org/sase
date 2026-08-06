@@ -7,6 +7,7 @@ from pathlib import Path
 from sase._git_remote import github_commit_url
 from sase.agents_sync.bead_links import build_bead_page_links
 from sase.agents_sync.inventory import ProjectHoodInventory
+from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.links import hosted_provider
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication_snapshot import build_hood_snapshot
@@ -19,6 +20,7 @@ from sase.agents_sync.publication_validation import (
 from sase.agents_sync.rendering import render_browsing_payload
 from sase.agents_sync.v2_io import (
     content_digest,
+    owner_hood_directory_names,
     owner_manifest_path,
     read_owner_manifest,
     v2_json_bytes,
@@ -42,8 +44,26 @@ def plan_hoods(
     owner: AgentOwnerIdentity,
 ) -> tuple[dict[str, bytes], V2PublicationCounts]:
     project = V2ProjectIdentity(target.project_key, target.project)
+    on_disk_hoods = owner_hood_directory_names(repo_root, owner)
+    manifest_relative_path = owner_manifest_path(owner)
+    if not (repo_root / manifest_relative_path).is_file() and on_disk_hoods:
+        raise AgentsSyncFormatError(
+            f"owner manifest {manifest_relative_path!r} is missing but "
+            f"{len(on_disk_hoods)} on-disk hood director"
+            f"{'y' if len(on_disk_hoods) == 1 else 'ies'} exist; refusing to "
+            "republish from an empty manifest"
+        )
     previous_manifest = read_owner_manifest(repo_root, owner, project)
     entries = previous_manifest.by_hood()
+    manifest_diagnostics: tuple[str, ...] = ()
+    unreferenced_hoods = sorted(set(on_disk_hoods) - set(entries))
+    if unreferenced_hoods:
+        manifest_diagnostics = (
+            f"owner manifest {manifest_relative_path!r} omits "
+            f"{len(unreferenced_hoods)} on-disk hood(s) "
+            f"({', '.join(unreferenced_hoods)}); run "
+            "`sase agent sync --repair-manifest` to restore them",
+        )
     payload: dict[str, bytes] = {
         "schema.json": v2_json_bytes(v2_schema_document()),
         "agents/.gitkeep": b"",
@@ -115,7 +135,14 @@ def plan_hoods(
         families_published=families,
         runs_published=runs,
         diagnostics=tuple(
-            dict.fromkeys((*inventory.diagnostics, *diagnostics, *bead_diagnostics))
+            dict.fromkeys(
+                (
+                    *manifest_diagnostics,
+                    *inventory.diagnostics,
+                    *diagnostics,
+                    *bead_diagnostics,
+                )
+            )
         ),
     )
     return payload, counts

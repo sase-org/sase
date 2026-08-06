@@ -37,6 +37,26 @@ def owner_manifest_path(owner: AgentOwnerIdentity) -> str:
     )
 
 
+def owner_hood_directory_names(
+    repo_root: Path,
+    owner: AgentOwnerIdentity,
+) -> tuple[str, ...]:
+    """Names of the owner's on-disk hood directories that contain a snapshot."""
+
+    hoods_dir = (
+        repo_root / f"users/{owner.username}/machines/{owner.machine_name}/hoods"
+    )
+    if not hoods_dir.is_dir():
+        return ()
+    return tuple(
+        sorted(
+            child.name
+            for child in hoods_dir.iterdir()
+            if (child / "snapshot.json").is_file()
+        )
+    )
+
+
 def read_owner_manifest(
     repo_root: Path,
     owner: AgentOwnerIdentity,
@@ -143,6 +163,7 @@ def decode_owner_manifest(value: object) -> V2OwnerManifest:
 
 
 __all__ = [
+    "owner_hood_directory_names",
     "owner_manifest_from_bytes",
     "owner_manifest_path",
     "read_all_owner_manifests",

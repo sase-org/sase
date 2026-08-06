@@ -15,6 +15,7 @@ from sase.agents_sync.io import (
 )
 from sase.agents_sync.v2_manifest_io import (
     decode_owner_manifest as _owner_manifest_from_json,
+    owner_hood_directory_names as owner_hood_directory_names,
     owner_manifest_from_bytes as owner_manifest_from_bytes,
     owner_manifest_path as owner_manifest_path,
     read_all_owner_manifests as read_all_owner_manifests,
@@ -133,6 +134,7 @@ __all__ = [
     "apply_payload_atomic",
     "content_digest",
     "file_reference",
+    "owner_hood_directory_names",
     "owner_manifest_path",
     "owner_manifest_from_bytes",
     "read_all_owner_manifests",
