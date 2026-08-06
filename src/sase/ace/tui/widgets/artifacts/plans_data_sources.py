@@ -26,6 +26,7 @@ def resolve_projects(project: str | None) -> tuple[PlansProject, ...]:
     from sase.core.paths import sase_projects_dir
     from sase.core.project_lifecycle_facade import list_project_records
     from sase.core.project_lifecycle_wire import effective_project_name
+    from sase.project_display_names import ProjectRefDisplaySnapshot
 
     records = list_project_records(
         sase_projects_dir(),
@@ -39,8 +40,11 @@ def resolve_projects(project: str | None) -> tuple[PlansProject, ...]:
     if project is None:
         selected = tuple(record for record in candidates if record.state == "enabled")
     else:
+        project_key = ProjectRefDisplaySnapshot.from_records(
+            candidates
+        ).project_key_for_ref(project)
         selected = tuple(
-            record for record in candidates if record.project_name == project
+            record for record in candidates if record.project_name == project_key
         )
         if not selected:
             return (PlansProject(project, project, None),)

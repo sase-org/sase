@@ -264,8 +264,10 @@ class ArtifactsMixin(
                     picked=False,
                 )
             else:
+                scope = self.artifacts_project_scope
+                normalized = result.project_ref_display.project_key_for_ref(scope)
                 self._set_artifacts_project_scope(
-                    self.artifacts_project_scope,
+                    normalized or scope,
                     picked=False,
                 )
             if self._artifacts_project_picker_pending:

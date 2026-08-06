@@ -10,8 +10,30 @@ import pytest
 from sase.ace.tui.widgets.artifacts import plans_data
 from sase.ace.tui.widgets.artifacts.bead_plan_links import BeadPlanLink
 from sase.ace.tui.widgets.artifacts.plans_data import LinkedPlanDocument
+from sase.ace.tui.widgets.artifacts.plans_data_models import PlansProject
+from sase.ace.tui.widgets.artifacts.plans_data_sources import resolve_projects
 from sase.bead.model import BeadTier, IssueType, Status
+from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.plan_search.model import Plan, PlanSearchMatch
+
+
+def _gh_record() -> ProjectRecordWire:
+    """A #gh-style project whose ProjectSpec key differs from its name."""
+    return ProjectRecordWire(
+        schema_version=3,
+        project_name="gh_acme__widget",
+        project_dir="/state/projects/gh_acme__widget",
+        project_file="/state/projects/gh_acme__widget/gh_acme__widget.sase",
+        archive_file="/state/projects/gh_acme__widget/gh_acme__widget-archive.sase",
+        workspace_dir="/repos/widget",
+        state="enabled",
+        state_explicit=False,
+        system_managed=False,
+        active_claim_count=0,
+        launchable=True,
+        aliases=["widget-alias"],
+        display_name="widget",
+    )
 
 
 def _match(path: Path, title: str, *, status: str = "wip") -> PlanSearchMatch:
@@ -138,3 +160,23 @@ def test_snapshot_reuses_unchanged_previous_snapshot(
     first = plans_data.load_plans_snapshot("alpha", force=True)
 
     assert plans_data.load_plans_snapshot("alpha", previous=first) is first
+
+
+def test_resolve_projects_matches_display_name_alias_and_case(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _gh_record()
+    monkeypatch.setattr(
+        "sase.core.project_lifecycle_facade.list_project_records",
+        lambda *_a, **_kw: [record],
+    )
+
+    for ref in ("widget", "widget-alias", "WIDGET"):
+        resolved = resolve_projects(ref)
+        assert len(resolved) == 1
+        assert resolved[0].project == "gh_acme__widget"
+        assert resolved[0].display_name == "widget"
+        assert resolved[0].workspace_dir == "/repos/widget"
+
+    fallback = resolve_projects("nope")
+    assert fallback == (PlansProject("nope", "nope", None),)
