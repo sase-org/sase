@@ -274,6 +274,11 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
             issues.extend(_sidecar_git_issues(sidecar_clone, remote_url))
             issues.extend(_duplicate_remote_issues(context, primary, remote_url))
 
+        for role, reason in store.unresolved_sidecars.items():
+            issues.append(
+                _StorageIssue("error", f"unresolved-{role}-sidecar-root", reason)
+            )
+
         if clone.exists():
             issues.append(
                 _StorageIssue(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
 
@@ -55,7 +56,8 @@ def _read_view(view: _ReadView) -> Iterator[_ReadView]:
 
 
 @pytest.fixture
-def claimed_view(monkeypatch: pytest.MonkeyPatch) -> _ReadView:
+def claimed_view(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _ReadView:
+    monkeypatch.chdir(tmp_path)
     view = _ReadView(
         Issue(
             id="sase-claimed",

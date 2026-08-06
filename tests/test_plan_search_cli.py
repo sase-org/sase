@@ -217,8 +217,11 @@ def _search_namespace(**overrides: object) -> argparse.Namespace:
 
 
 def test_handler_rejects_negative_limit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     with pytest.raises(SystemExit) as excinfo:
         handle_plan_search_command(_search_namespace(limit=-3))
 
@@ -227,8 +230,11 @@ def test_handler_rejects_negative_limit(
 
 
 def test_handler_rejects_invalid_date(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     with pytest.raises(SystemExit) as excinfo:
         handle_plan_search_command(_search_namespace(until="someday"))
 

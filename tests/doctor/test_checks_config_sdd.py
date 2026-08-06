@@ -176,6 +176,52 @@ def test_config_sdd_checks_custom_role_without_requiring_research(
     )
 
 
+def test_config_sdd_reports_unresolved_agents_sidecar_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.sdd.store import write_sdd_store_record
+
+    write_sdd_store_record(
+        tmp_path,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "git@github.com:acme/widget--plans.git",
+                },
+                "agents": {
+                    "repo": "acme/widget--agents",
+                    "remote_url": "git@github.com:acme/widget--agents.git",
+                },
+            },
+        },
+    )
+    plans = tmp_path / "sase" / "repos" / "plans"
+    (plans / ".git").mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.doctor.checks_config_sdd._git_stdout", lambda *_args: None
+    )
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda *_args, **_kwargs: None,
+    )
+
+    check = check_config_sdd(_doctor_context(tmp_path))
+
+    assert check.status == "ERROR"
+    assert any(
+        issue["code"] == "unresolved-agents-sidecar-root"
+        and "could not resolve the owning SASE project key" in issue["message"]
+        for issue in check.data["storage_issues"]
+    )
+    assert not any(
+        "missing-agents" in issue["code"] for issue in check.data["storage_issues"]
+    )
+
+
 def test_config_sdd_warns_when_legacy_clone_lingers_after_split(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

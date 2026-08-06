@@ -117,6 +117,7 @@ class SddStore:
     beads_dir: Path | None = None
     beads_remote_url: str | None = None
     sidecar_role: str | None = None
+    unresolved_sidecars: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def is_in_tree(self) -> bool:
@@ -136,6 +137,8 @@ class SddStore:
                 return self.sdd_dir
             root = self.sidecar_dirs.get(kind)
             if root is None:
+                if kind in self.unresolved_sidecars:
+                    raise SddMaterializationError(self.unresolved_sidecars[kind])
                 raise ValueError(f"sidecar SDD store has no {kind} root")
             return root
         return self.sdd_dir / kind
@@ -151,6 +154,8 @@ class SddStore:
             return self.repo_root
         root = self.sidecar_dirs.get(kind)
         if root is None:
+            if kind in self.unresolved_sidecars:
+                raise SddMaterializationError(self.unresolved_sidecars[kind])
             raise ValueError(f"sidecar SDD store has no {kind} repository")
         return root
 

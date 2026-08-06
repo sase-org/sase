@@ -290,6 +290,7 @@ def test_reference_expansion_updates_unused_and_show_consumption(
     monkeypatch.setenv("SASE_AGENT_NAME", "e2e.consumer")
     monkeypatch.delenv("SASE_AGENT", raising=False)
     monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)
 
     stored = _write_text(artifact_root / "stored" / "report.md", "# Report\n")
     row = ArtifactFile(
