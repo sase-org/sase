@@ -11,6 +11,7 @@ from sase.bead.plus_one_presentation import (
     PLUS_ONE_RICH_STYLE,
     plus_one_badge,
 )
+from sase.bead.reopen_presentation import REOPEN_RICH_STYLE, reopen_badge
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_time_presentation import (
     bead_created_chip,
@@ -291,6 +292,8 @@ def _bead_text(
     text.append(issue.title, style="white")
     if badge := plus_one_badge(issue.plus_one_count):
         text.append(f"  [{badge}]", style=PLUS_ONE_RICH_STYLE)
+    if reopen := reopen_badge(len(issue.close_history)):
+        text.append(f"  [{reopen}]", style=REOPEN_RICH_STYLE)
     text.append("  ")
     _append_status(text, issue.status)
     if issue.size is not None:

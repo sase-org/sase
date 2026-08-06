@@ -6,13 +6,20 @@ from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
-from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
+from sase.bead.model import BeadTier, CloseRecord, Issue, IssueType, PhaseSize, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_RICH_STYLE,
     PLUS_ONE_SECTION_LABEL,
     plus_one_badge,
     plus_one_evidence_label,
     plus_one_reports_label,
+)
+from sase.bead.reopen_presentation import (
+    REOPEN_RICH_STYLE,
+    close_history_display_order,
+    close_record_label,
+    close_record_reopened_label,
+    reopen_badge,
 )
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_time_presentation import (
@@ -76,6 +83,10 @@ def bead_properties_header(
             )
         )
         properties.append(("Close reason", issue.close_reason or ""))
+    if issue.close_history:
+        properties.append(
+            ("Previously closed", _previously_closed_text(issue.close_history))
+        )
     properties.extend(
         [
             ("Assignee", issue.assignee),
@@ -125,6 +136,7 @@ def bead_body_markdown(
                 "",
             ]
         )
+    lines.extend(_close_history_markdown(issue))
     lines.extend(["## Description", "", issue.description or "_No description._"])
     lines.extend(_plus_one_evidence_markdown(issue))
     if issue.notes:
@@ -199,6 +211,29 @@ def bead_preview_markdown(
     if issue.close_reason:
         lines.append(f"- Close reason: {issue.close_reason}")
     return "\n".join(lines)
+
+
+def _previously_closed_text(history: list[CloseRecord]) -> Text:
+    latest = close_history_display_order(history)[0]
+    text = Text(reopen_badge(len(history)), style=REOPEN_RICH_STYLE)
+    text.append(f"  {close_record_label(latest)}", style="white")
+    return text
+
+
+def _close_history_markdown(issue: Issue) -> list[str]:
+    if not issue.close_history:
+        return []
+    lines = ["## Previously Closed", ""]
+    for index, record in enumerate(close_history_display_order(issue.close_history)):
+        if index:
+            lines.append("")
+        reason = (record.close_reason or "(none)").replace("`", "\\`")
+        lines.append(f"> [!WARNING] **{close_record_label(record)}**")
+        lines.extend(f"> {line}" if line else ">" for line in reason.splitlines())
+        lines.append(">")
+        lines.append(f"> {close_record_reopened_label(record)}")
+    lines.append("")
+    return lines
 
 
 def _plus_one_evidence_markdown(issue: Issue) -> list[str]:

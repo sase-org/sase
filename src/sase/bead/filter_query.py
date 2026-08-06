@@ -54,6 +54,7 @@ BEAD_HAS_VALUES: tuple[str, ...] = (
     "deps",
     "notes",
     "triage",
+    "reopened",
 )
 DEFAULT_BEAD_FILTER_QUERY = "-status:closed"
 

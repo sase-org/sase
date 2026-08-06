@@ -19,7 +19,14 @@ from sase.ace.tui.widgets.artifacts.beads_rendering import (
     build_empty_bead_detail,
     task_text,
 )
-from sase.bead.model import Issue, IssueType, TaskPlusOneEvidence
+from sase.bead.model import (
+    CloseRecord,
+    Issue,
+    IssueType,
+    ReopenCause,
+    Resolution,
+    TaskPlusOneEvidence,
+)
 from tests.ace.tui._artifacts_beads_helpers import snapshot
 
 _PINNED_NOW = datetime(2026, 7, 8, 12, 0, 0)
@@ -227,3 +234,50 @@ def test_task_rows_and_detail_render_plus_one_badges_and_evidence(
     assert "## +1 Evidence" in body
     assert "+1 agent.beta · 2026-08-01T15:00:00Z" in body
     assert "research:202608/cache.md" in body
+
+
+def test_task_rows_and_detail_render_reopen_badges_and_close_history(
+    tmp_path: Path,
+) -> None:
+    value = snapshot(tmp_path)
+    issue = value.tasks[0].issue
+    issue.close_history.append(
+        CloseRecord(
+            closed_at="2026-07-30T09:12:04Z",
+            reopened_at="2026-08-05T17:04:11Z",
+            reopened_via=ReopenCause.PLUS_ONE,
+            close_reason="Not reproducible on main; the retry shim already covers this.",
+            resolution=Resolution.CANCELED,
+            reopened_by="claude.probe",
+        )
+    )
+
+    options, _rows = build_bead_options(
+        value,
+        project_scope="alpha",
+        loading=False,
+        expanded_epics=set(),
+    )
+    task_row = next(
+        option.prompt.plain for option in options if option.id == "task:alpha-ready"
+    )
+    console = Console(width=100, color_system=None)
+    with console.capture() as capture:
+        console.print(
+            bead_properties_header(
+                issue,
+                value,
+                project="alpha",
+                project_name="Alpha",
+            )
+        )
+    properties = capture.get()
+    body = bead_body_markdown(issue)
+
+    assert "[↺1]" in task_row
+    assert "Previously closed" in properties
+    assert "↺1" in properties
+    assert "## Previously Closed" in body
+    assert body.index("## Previously Closed") < body.index("## Description")
+    assert "↺ Closed 2026-07-30T09:12:04Z · canceled" in body
+    assert "Reopened 2026-08-05T17:04:11Z by a +1 from @claude.probe" in body

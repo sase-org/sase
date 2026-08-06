@@ -25,7 +25,7 @@ from sase.bead.filter_query import (
     default_bead_filter_values,
     parse_bead_filter_query,
 )
-from sase.bead.model import TaskPlusOneEvidence
+from sase.bead.model import CloseRecord, ReopenCause, Resolution, TaskPlusOneEvidence
 from tests.ace.tui._artifacts_beads_helpers import snapshot
 
 
@@ -140,6 +140,31 @@ def test_has_plus_one_and_evidence_text_use_cached_filter_index(tmp_path: Path) 
 
     has_matcher = compile_bead_matcher(parse_bead_filter_query("has:+1"))
     text_matcher = compile_bead_matcher(parse_bead_filter_query('"cold restart"'))
+
+    assert [record.bead_id for record in index if has_matcher(record)] == ["alpha-open"]
+    assert [record.bead_id for record in index if text_matcher(record)] == [
+        "alpha-open"
+    ]
+
+
+def test_has_reopened_and_close_history_text_use_cached_filter_index(
+    tmp_path: Path,
+) -> None:
+    value = snapshot(tmp_path)
+    value.tasks[1].issue.close_history.append(
+        CloseRecord(
+            closed_at="2026-07-30T09:12:04Z",
+            reopened_at="2026-08-05T17:04:11Z",
+            reopened_via=ReopenCause.PLUS_ONE,
+            close_reason="Not reproducible on main; the retry shim covers it.",
+            resolution=Resolution.CANCELED,
+            reopened_by="claude.probe",
+        )
+    )
+    index = build_bead_filter_index(value)
+
+    has_matcher = compile_bead_matcher(parse_bead_filter_query("has:reopened"))
+    text_matcher = compile_bead_matcher(parse_bead_filter_query('"retry shim covers"'))
 
     assert [record.bead_id for record in index if has_matcher(record)] == ["alpha-open"]
     assert [record.bead_id for record in index if text_matcher(record)] == [
